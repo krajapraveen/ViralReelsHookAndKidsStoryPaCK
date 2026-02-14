@@ -8,11 +8,8 @@ import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle } from 'lucide-react';
 import StoryProgressBar from '../components/StoryProgressBar';
-
-// Check if user is on free tier (never purchased)
-const isFreeTierUser = () => {
-  return localStorage.getItem('has_purchased') !== 'true';
-};
+import UpgradeBanner from '../components/UpgradeBanner';
+import UpgradeModal from '../components/UpgradeModal';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
@@ -21,6 +18,8 @@ export default function StoryGenerator() {
   const [generationId, setGenerationId] = useState(null);
   const [result, setResult] = useState(null);
   const [isFreeTier, setIsFreeTier] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [pendingDownloadType, setPendingDownloadType] = useState(null);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -38,7 +37,6 @@ export default function StoryGenerator() {
 
   useEffect(() => {
     fetchCredits();
-    setIsFreeTier(isFreeTierUser());
   }, []);
 
   useEffect(() => {
@@ -52,6 +50,7 @@ export default function StoryGenerator() {
     try {
       const response = await creditAPI.getBalance();
       setCredits(response.data.balance);
+      setIsFreeTier(response.data.isFreeTier);
     } catch (error) {
       toast.error('Failed to load credits');
     }
