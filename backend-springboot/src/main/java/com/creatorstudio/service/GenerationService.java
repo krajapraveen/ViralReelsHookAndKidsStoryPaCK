@@ -189,4 +189,15 @@ public class GenerationService {
         generation.setCompletedAt(LocalDateTime.now());
         generationRepository.save(generation);
     }
+
+    public boolean hasUserPurchased(UUID userId) {
+        // Check if user has any completed payments
+        Page<Payment> payments = paymentRepository.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, 1));
+        if (payments.isEmpty()) {
+            return false;
+        }
+        // Check if any payment was successful
+        return payments.getContent().stream()
+                .anyMatch(p -> p.getStatus() == Payment.Status.COMPLETED);
+    }
 }
