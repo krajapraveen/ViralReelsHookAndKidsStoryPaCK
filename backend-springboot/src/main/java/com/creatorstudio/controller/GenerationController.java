@@ -27,6 +27,9 @@ public class GenerationController {
     @Autowired
     private AuthService authService;
 
+    @Autowired
+    private PDFExportService pdfExportService;
+
     @PostMapping("/reel")
     public ResponseEntity<GenerationResponse> generateReel(
             @AuthenticationPrincipal UserDetails userDetails,
