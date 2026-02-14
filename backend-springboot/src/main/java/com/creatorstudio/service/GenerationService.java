@@ -44,6 +44,9 @@ public class GenerationService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Value(\"${worker.api.url}\")
+    private String workerApiUrl;
+
     @Transactional
     public GenerationResponse generateReel(UUID userId, ReelGenerationRequest request) {
         // Deduct 1 credit
