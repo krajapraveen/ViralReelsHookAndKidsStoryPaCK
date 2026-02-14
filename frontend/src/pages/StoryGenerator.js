@@ -225,7 +225,20 @@ export default function StoryGenerator() {
               <StoryProgressBar isGenerating={loading} />
             )}
             {!loading && !result && <div className="text-center py-12 text-slate-500"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-300" /><p>Your story pack will appear here</p></div>}
-            {result && <div className="space-y-4 max-h-[600px] overflow-y-auto" data-testid="story-result"><div className="bg-gradient-to-r from-purple-50 to-slate-50 border border-purple-200 rounded-lg p-6"><h3 className="text-2xl font-bold text-purple-900 mb-2">{result.title}</h3><p className="text-slate-700">{result.synopsis}</p></div>
+            {result && <div className="space-y-4 max-h-[600px] overflow-y-auto" data-testid="story-result">
+              {/* Free Tier Watermark Banner */}
+              {isFreeTier && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-purple-700 font-medium text-sm">⚡ Made with CreatorStudio AI</p>
+                    <p className="text-purple-600 text-xs mt-1">
+                      Free tier content includes watermark. <Link to="/pricing" className="underline font-medium">Upgrade</Link> to remove watermarks.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="bg-gradient-to-r from-purple-50 to-slate-50 border border-purple-200 rounded-lg p-6"><h3 className="text-2xl font-bold text-purple-900 mb-2">{result.title}</h3><p className="text-slate-700">{result.synopsis}</p></div>
               {result.scenes && <div><h3 className="font-bold text-lg mb-3">Scenes: {result.scenes.length}</h3><p className="text-sm text-slate-600">Complete scene breakdown available in downloaded JSON</p></div>}
             </div>}
           </div>
