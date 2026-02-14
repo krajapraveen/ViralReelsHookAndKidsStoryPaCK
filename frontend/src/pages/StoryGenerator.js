@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock } from 'lucide-react';
+import StoryProgressBar from '../components/StoryProgressBar';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
