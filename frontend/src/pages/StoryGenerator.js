@@ -142,18 +142,30 @@ export default function StoryGenerator() {
                   <Select value={formData.ageGroup} onValueChange={(value) => setFormData({...formData, ageGroup: value})}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="4-6">4-6 years</SelectItem>
-                      <SelectItem value="7-10">7-10 years</SelectItem>
+                      <SelectItem value="3-5">3-5 years (Preschool)</SelectItem>
+                      <SelectItem value="6-8">6-8 years (Early Elementary)</SelectItem>
+                      <SelectItem value="9-12">9-12 years (Middle Childhood)</SelectItem>
+                      <SelectItem value="13-15">13-15 years (Early Teens)</SelectItem>
+                      <SelectItem value="16-17">16-17 years (Late Teens)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Scenes</Label>
-                  <Select value={formData.scenes.toString()} onValueChange={(value) => setFormData({...formData, scenes: parseInt(value)})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                <div><Label>Genre</Label>
+                  <Select value={formData.genre} onValueChange={(value) => setFormData({...formData, genre: value})}>
+                    <SelectTrigger data-testid="story-genre-select"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="8">8 scenes (6 credits)</SelectItem>
-                      <SelectItem value="10">10 scenes (7 credits)</SelectItem>
-                      <SelectItem value="12">12 scenes (8 credits)</SelectItem>
+                      <SelectItem value="Fantasy">Fantasy</SelectItem>
+                      <SelectItem value="Adventure">Adventure</SelectItem>
+                      <SelectItem value="Mystery">Mystery/Detective</SelectItem>
+                      <SelectItem value="SciFi">Science Fiction</SelectItem>
+                      <SelectItem value="Fairy Tale">Fairy Tale</SelectItem>
+                      <SelectItem value="Mythology">Mythology</SelectItem>
+                      <SelectItem value="Historical">Historical Fiction</SelectItem>
+                      <SelectItem value="Comedy">Comedy/Humor</SelectItem>
+                      <SelectItem value="Animal">Animal Stories</SelectItem>
+                      <SelectItem value="Superhero">Superhero</SelectItem>
+                      <SelectItem value="Friendship">Friendship</SelectItem>
+                      <SelectItem value="Educational">Educational</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
