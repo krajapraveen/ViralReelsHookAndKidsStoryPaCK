@@ -17,7 +17,8 @@ export default function Pricing() {
       const response = await paymentAPI.getProducts();
       setProducts(response.data);
     } catch (error) {
-      toast.error('Failed to load pricing');
+      console.log('Not authenticated, showing empty products');
+      setProducts([]);
     }
   };
 
