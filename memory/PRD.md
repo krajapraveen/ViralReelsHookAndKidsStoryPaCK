@@ -93,6 +93,21 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
 2. **Java JDK** - Installed OpenJDK 17 for Spring Boot
 3. **Maven** - Installed for Spring Boot builds
 
+### New Features (Feb 14, 2026 - Session 2)
+1. **Landing Page Demo** - "Try Free Demo" button that opens full reel generator form without login
+   - Full form with all options (topic, niche, tone, duration, language, goal, audience)
+   - Limited to 1 use per browser (tracked via localStorage)
+   - Shows watermark banner "Made with CreatorStudio AI - Demo Version"
+   - CTA to sign up after generation
+
+2. **Free-Tier Watermarks** - Watermark system for users who haven't purchased
+   - Purple banner "⚡ Made with CreatorStudio AI" shown on generated content
+   - Watermark added to JSON downloads for free-tier users
+   - Removable after purchase/subscription (tracked via localStorage 'has_purchased')
+
+3. **Google Sign-On Verification** - Redirect URL fixed to /auth/callback
+   - Correctly redirects to https://auth.emergentagent.com with callback URL
+
 ## Known Limitations
 1. **Razorpay Integration** - Payment flow not complete (endpoints exist but checkout/webhook not functional)
 2. **Google Sign-On** - Requires manual verification (redirect URL fixed to /auth/callback)
