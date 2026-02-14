@@ -121,7 +121,7 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
 
               <form onSubmit={handleSubmit} className="space-y-4" data-testid="demo-reel-form">
                 <div>
-                  <Label htmlFor="demo-topic">Topic *</Label>
+                  <Label htmlFor="demo-topic" className="text-slate-700">Topic *</Label>
                   <Textarea
                     id="demo-topic"
                     value={formData.topic}
@@ -129,7 +129,7 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
                     placeholder="E.g., Morning routines of successful entrepreneurs"
                     required
                     rows={2}
-                    className="bg-white"
+                    className="bg-white border-slate-300 text-slate-900"
                     disabled={loading || demoUsed}
                     data-testid="demo-topic-input"
                   />
