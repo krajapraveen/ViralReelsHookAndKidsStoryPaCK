@@ -7,14 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins } from 'lucide-react';
+import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle } from 'lucide-react';
 
 import ShareButton from '../components/ShareButton';
+
+// Check if user is on free tier (never purchased)
+const isFreeTierUser = () => {
+  return localStorage.getItem('has_purchased') !== 'true';
+};
 
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [isFreeTier, setIsFreeTier] = useState(true);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
