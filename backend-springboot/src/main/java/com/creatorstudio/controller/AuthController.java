@@ -3,14 +3,25 @@ package com.creatorstudio.controller;
 import com.creatorstudio.dto.AuthResponse;
 import com.creatorstudio.dto.LoginRequest;
 import com.creatorstudio.dto.RegisterRequest;
+import com.creatorstudio.entity.CreditWallet;
 import com.creatorstudio.entity.User;
+import com.creatorstudio.repository.CreditWalletRepository;
+import com.creatorstudio.repository.UserRepository;
+import com.creatorstudio.security.JwtUtil;
 import com.creatorstudio.service.AuthService;
+import com.creatorstudio.service.CreditService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
