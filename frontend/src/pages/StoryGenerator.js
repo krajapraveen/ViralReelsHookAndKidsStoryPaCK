@@ -127,9 +127,9 @@ export default function StoryGenerator() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
-            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-orange-500" /><span className="text-xl font-bold">Story Generator</span></div>
+            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-purple-500" /><span className="text-xl font-bold">Story Generator</span></div>
           </div>
-          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-orange-500" /><span className="font-semibold">{credits} Credits</span></div>
+          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-purple-500" /><span className="font-semibold">{credits} Credits</span></div>
         </div>
       </header>
 
@@ -181,10 +181,10 @@ export default function StoryGenerator() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-orange-700"><Coins className="w-4 h-4" /><span className="font-medium">Cost: {getCreditCost()} credits</span></div>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-purple-700"><Coins className="w-4 h-4" /><span className="font-medium">Cost: {getCreditCost()} credits</span></div>
               </div>
-              <Button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white" data-testid="story-generate-btn">
+              <Button type="submit" disabled={loading} className="w-full bg-purple-500 hover:bg-purple-600 text-white" data-testid="story-generate-btn">
                 {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{polling ? 'Generating... (30-90s)' : 'Starting...'}</> : <><Sparkles className="w-4 h-4 mr-2" />Generate Story Pack</>}
               </Button>
             </form>
@@ -209,7 +209,7 @@ export default function StoryGenerator() {
               <StoryProgressBar isGenerating={loading} />
             )}
             {!loading && !result && <div className="text-center py-12 text-slate-500"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-300" /><p>Your story pack will appear here</p></div>}
-            {result && <div className="space-y-4 max-h-[600px] overflow-y-auto" data-testid="story-result"><div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-6"><h3 className="text-2xl font-bold text-orange-900 mb-2">{result.title}</h3><p className="text-slate-700">{result.synopsis}</p></div>
+            {result && <div className="space-y-4 max-h-[600px] overflow-y-auto" data-testid="story-result"><div className="bg-gradient-to-r from-purple-50 to-slate-50 border border-purple-200 rounded-lg p-6"><h3 className="text-2xl font-bold text-purple-900 mb-2">{result.title}</h3><p className="text-slate-700">{result.synopsis}</p></div>
               {result.scenes && <div><h3 className="font-bold text-lg mb-3">Scenes: {result.scenes.length}</h3><p className="text-sm text-slate-600">Complete scene breakdown available in downloaded JSON</p></div>}
             </div>}
           </div>
