@@ -49,6 +49,11 @@ export const generationAPI = {
     const typeParam = type ? `type=${type}&` : '';
     return api.get(`/api/generate/generations?${typeParam}page=${page}&size=${size}`);
   },
+  downloadPDF: (id) => {
+    return api.get(`/api/generate/generations/${id}/pdf`, {
+      responseType: 'blob'
+    });
+  }
 };
 
 export const paymentAPI = {
