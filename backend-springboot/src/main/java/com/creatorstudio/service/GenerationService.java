@@ -196,8 +196,8 @@ public class GenerationService {
         if (payments.isEmpty()) {
             return false;
         }
-        // Check if any payment was successful
+        // Check if any payment was successful (PAID status)
         return payments.getContent().stream()
-                .anyMatch(p -> p.getStatus() == Payment.Status.COMPLETED);
+                .anyMatch(p -> p.getStatus() == Payment.Status.PAID);
     }
 }
