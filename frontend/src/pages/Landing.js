@@ -36,15 +36,15 @@ export default function Landing() {
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-4">
         <div className="max-w-7xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-6 py-2 mb-8">
-            <Sparkles className="w-4 h-4 text-orange-500" />
-            <span className="text-orange-500 text-sm font-medium">AI-Powered Content Creation</span>
+          <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-full px-6 py-2 mb-8">
+            <Sparkles className="w-4 h-4 text-purple-500" />
+            <span className="text-purple-500 text-sm font-medium">AI-Powered Content Creation</span>
           </div>
           
           <h1 className="text-6xl lg:text-7xl font-black text-white mb-6 tracking-tight leading-tight">
             Generate viral reels +<br />
             kids story videos<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-orange-400">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
               in minutes
             </span>
           </h1>
@@ -76,7 +76,7 @@ export default function Landing() {
               <div className="text-slate-400">Reel Generation</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-orange-400 mb-2">30-90s</div>
+              <div className="text-4xl font-bold text-purple-400 mb-2">30-90s</div>
               <div className="text-slate-400">Story Pack</div>
             </div>
             <div className="text-center">
@@ -102,24 +102,24 @@ export default function Landing() {
               </p>
               <ul className="space-y-3 text-slate-400">
                 <li className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-orange-500" />
+                  <Zap className="w-4 h-4 text-purple-500" />
                   <span>Instant generation (5-10 seconds)</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-orange-500" />
+                  <Clock className="w-4 h-4 text-purple-500" />
                   <span>Multiple niches & tones</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-orange-500" />
+                  <TrendingUp className="w-4 h-4 text-purple-500" />
                   <span>Optimized for retention</span>
                 </li>
               </ul>
             </div>
 
             {/* Story Feature */}
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-8 hover:border-orange-500/50 transition-colors">
-              <div className="w-14 h-14 bg-orange-500/10 rounded-xl flex items-center justify-center mb-6">
-                <BookOpen className="w-7 h-7 text-orange-400" />
+            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-8 hover:border-purple-500/50 transition-colors">
+              <div className="w-14 h-14 bg-purple-500/10 rounded-xl flex items-center justify-center mb-6">
+                <BookOpen className="w-7 h-7 text-purple-400" />
               </div>
               <h3 className="text-2xl font-bold text-white mb-4">Kids Story Video Packs</h3>
               <p className="text-slate-300 mb-6">
@@ -146,13 +146,13 @@ export default function Landing() {
 
       {/* CTA Section */}
       <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-indigo-500/10 to-orange-500/10 border border-white/10 rounded-3xl p-12">
+        <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-12">
           <h2 className="text-4xl font-bold text-white mb-4">Start Creating Today</h2>
           <p className="text-xl text-slate-300 mb-8">
             Get 5 free credits on signup. No credit card required.
           </p>
           <Link to="/signup">
-            <Button size="lg" className="bg-gradient-to-r from-indigo-500 to-orange-500 hover:from-indigo-600 hover:to-orange-600 text-white rounded-full px-12 py-6 text-lg shadow-lg hover:scale-105 transition-all" data-testid="cta-signup-btn">
+            <Button size="lg" className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-full px-12 py-6 text-lg shadow-lg hover:scale-105 transition-all" data-testid="cta-signup-btn">
               Get Started Free
             </Button>
           </Link>
