@@ -102,6 +102,13 @@ export default function ReelGenerator() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Upgrade Modal */}
+      <UpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)}
+        onDownloadWithWatermark={() => downloadJSON(true)}
+      />
+
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -124,6 +131,11 @@ export default function ReelGenerator() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Upgrade Banners */}
+        {credits === 0 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="exhausted" />}
+        {credits > 0 && credits <= 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="low" />}
+        {isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
+
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Input Form */}
           <div className="bg-white rounded-xl border border-slate-200 p-6">
