@@ -59,6 +59,18 @@ export default function Landing() {
             Everything you need to create viral content.
           </p>
 
+          <div className="flex items-center justify-center gap-4 mb-8">
+            <Button 
+              size="lg" 
+              onClick={() => setShowDemo(true)}
+              className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-full px-8 py-6 text-lg shadow-lg shadow-purple-500/20 hover:scale-105 transition-all" 
+              data-testid="hero-demo-btn"
+            >
+              <Play className="w-5 h-5 mr-2" />
+              Try Free Demo
+            </Button>
+          </div>
+
           <div className="flex items-center justify-center gap-4 mb-16">
             <Link to="/app/reels">
               <Button size="lg" className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-full px-8 py-6 text-lg shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all" data-testid="hero-reel-btn">
