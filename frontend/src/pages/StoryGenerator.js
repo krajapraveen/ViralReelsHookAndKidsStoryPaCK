@@ -170,6 +170,16 @@ export default function StoryGenerator() {
                   </Select>
                 </div>
               </div>
+              <div><Label>Number of Scenes</Label>
+                <Select value={formData.scenes.toString()} onValueChange={(value) => setFormData({...formData, scenes: parseInt(value)})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="8">8 scenes (6 credits)</SelectItem>
+                    <SelectItem value="10">10 scenes (7 credits)</SelectItem>
+                    <SelectItem value="12">12 scenes (8 credits)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-orange-700"><Coins className="w-4 h-4" /><span className="font-medium">Cost: {getCreditCost()} credits</span></div>
               </div>
