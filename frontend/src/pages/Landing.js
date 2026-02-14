@@ -97,7 +97,7 @@ export default function Landing() {
               <div className="text-slate-400">Story Pack</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-green-400 mb-2">5 Free</div>
+              <div className="text-4xl font-bold text-green-400 mb-2">54 Free</div>
               <div className="text-slate-400">Credits on Signup</div>
             </div>
           </div>
@@ -166,7 +166,7 @@ export default function Landing() {
         <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-12">
           <h2 className="text-4xl font-bold text-white mb-4">Start Creating Today</h2>
           <p className="text-xl text-slate-300 mb-8">
-            Get 5 free credits on signup. No credit card required.
+            Get 54 free credits on signup. No credit card required.
           </p>
           <Link to="/signup">
             <Button size="lg" className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-full px-12 py-6 text-lg shadow-lg hover:scale-105 transition-all" data-testid="cta-signup-btn">

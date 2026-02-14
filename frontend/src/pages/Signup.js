@@ -22,7 +22,7 @@ export default function Signup({ setAuth }) {
       const response = await authAPI.register({ name, email, password });
       localStorage.setItem('token', response.data.token);
       setAuth(true);
-      toast.success('Account created! You have 5 free credits.');
+      toast.success('Account created! You have 54 free credits.');
       navigate('/app');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Signup failed');
@@ -41,7 +41,7 @@ export default function Signup({ setAuth }) {
               <span className="text-2xl font-bold text-white">CreatorStudio AI</span>
             </div>
             <h2 className="text-3xl font-bold text-white mb-2">Get Started Free</h2>
-            <p className="text-slate-300">5 free credits on signup</p>
+            <p className="text-slate-300">54 free credits on signup</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6" data-testid="signup-form">

@@ -42,7 +42,7 @@ export default function Pricing() {
           </div>
           <h1 className="text-5xl font-bold text-white mb-4">Choose Your Plan</h1>
           <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-            Start with 5 free credits. Buy more as you need or subscribe for better value.
+            Start with 54 free credits. Buy more as you need or subscribe for better value.
           </p>
         </div>
 
