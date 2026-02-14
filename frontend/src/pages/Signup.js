@@ -46,7 +46,7 @@ export default function Signup({ setAuth }) {
 
           <form onSubmit={handleSubmit} className="space-y-6" data-testid="signup-form">
             <div>
-              <Label htmlFor="name" className="text-white">Full Name</Label>
+              <Label htmlFor="name" className="text-white text-sm font-medium">Full Name</Label>
               <Input
                 id="name"
                 type="text"
