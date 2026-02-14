@@ -85,6 +85,33 @@ class TestGeneration:
         assert "content" in data or isinstance(data, list)
 
 
+class TestDemoGeneration:
+    """Demo generation endpoint tests (public, no auth required)"""
+    
+    def test_demo_reel_generation(self):
+        """Test demo reel generation - public endpoint"""
+        response = requests.post(f"{BASE_URL}/api/generate/demo-reel", json={
+            "topic": "Morning routines",
+            "niche": "Luxury",
+            "tone": "Bold",
+            "duration": "30s",
+            "language": "English",
+            "goal": "Followers",
+            "audience": "General"
+        }, timeout=60)
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert data["status"] == "SUCCEEDED"
+        assert "output" in data
+        # Verify watermark in demo output
+        output = data["output"]
+        assert "watermark" in output or "demo_version" in output
+        # Verify hooks are generated
+        assert "hooks" in output
+        assert len(output["hooks"]) >= 1
+
+
 class TestWorkerHealth:
     """Python worker health tests"""
     
