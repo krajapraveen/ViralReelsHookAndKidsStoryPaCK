@@ -5,6 +5,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/LoginRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/RateLimitService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/RateLimitRepository.java
+/app/backend-springboot/src/main/java/com/creatorstudio/config/ValidationConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/User.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/RegisterRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/SecurityConfig.java
@@ -16,6 +17,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/GenerationResponse.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/CreateOrderRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/AuthController.java
+/app/backend-springboot/src/main/java/com/creatorstudio/config/GlobalExceptionHandler.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/CreditLedger.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/RateLimit.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/CreditController.java

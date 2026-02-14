@@ -8,8 +8,10 @@ com/creatorstudio/entity/User.class
 com/creatorstudio/config/SecurityConfig.class
 com/creatorstudio/service/StoryResultListener.class
 com/creatorstudio/repository/ProductRepository.class
+com/creatorstudio/config/GlobalExceptionHandler.class
 com/creatorstudio/entity/Generation$Status.class
 com/creatorstudio/entity/RateLimit.class
+com/creatorstudio/config/ValidationConfig.class
 com/creatorstudio/service/CreditService.class
 com/creatorstudio/entity/Product.class
 com/creatorstudio/repository/GenerationRepository.class
