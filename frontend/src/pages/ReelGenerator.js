@@ -10,17 +10,15 @@ import { toast } from 'sonner';
 import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle } from 'lucide-react';
 
 import ShareButton from '../components/ShareButton';
-
-// Check if user is on free tier (never purchased)
-const isFreeTierUser = () => {
-  return localStorage.getItem('has_purchased') !== 'true';
-};
+import UpgradeBanner from '../components/UpgradeBanner';
+import UpgradeModal from '../components/UpgradeModal';
 
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [isFreeTier, setIsFreeTier] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -35,13 +33,13 @@ export default function ReelGenerator() {
 
   useEffect(() => {
     fetchCredits();
-    setIsFreeTier(isFreeTierUser());
   }, []);
 
   const fetchCredits = async () => {
     try {
       const response = await creditAPI.getBalance();
       setCredits(response.data.balance);
+      setIsFreeTier(response.data.isFreeTier);
     } catch (error) {
       toast.error('Failed to load credits');
     }
@@ -52,7 +50,7 @@ export default function ReelGenerator() {
     
     if (credits < 1) {
       toast.error('Insufficient credits! Please buy more.');
-      navigate('/app/billing');
+      navigate('/pricing');
       return;
     }
 
@@ -74,9 +72,18 @@ export default function ReelGenerator() {
     toast.success('Copied to clipboard!');
   };
 
-  const downloadJSON = () => {
+  const handleDownloadClick = () => {
+    if (isFreeTier) {
+      setShowUpgradeModal(true);
+    } else {
+      downloadJSON(false);
+    }
+  };
+
+  const downloadJSON = (withWatermark = true) => {
+    setShowUpgradeModal(false);
     // Add watermark for free-tier users
-    const downloadContent = isFreeTier 
+    const downloadContent = (isFreeTier && withWatermark) 
       ? { 
           ...result, 
           watermark: '⚡ Made with CreatorStudio AI - Upgrade to remove watermark',
