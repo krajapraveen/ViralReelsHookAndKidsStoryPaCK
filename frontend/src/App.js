@@ -41,6 +41,7 @@ function App() {
       <Route path="/app/stories" element={isAuthenticated ? <StoryGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/history" element={isAuthenticated ? <History /> : <Navigate to="/login" />} />
       <Route path="/app/billing" element={isAuthenticated ? <Billing /> : <Navigate to="/login" />} />
+      <Route path="/app/admin" element={isAuthenticated ? <AdminDashboard /> : <Navigate to="/login" />} />
     </Routes>
   );
 }
