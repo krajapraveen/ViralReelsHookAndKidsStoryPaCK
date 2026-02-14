@@ -116,8 +116,9 @@ async def generate_story_content(data):
     try:
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
-            session_id=f"story_{int(time.time())}"
-        ).with_model("openai", "gpt-5.2").with_system_message(STORY_SYSTEM_PROMPT)
+            session_id=f"story_{int(time.time())}",
+            system_message=STORY_SYSTEM_PROMPT
+        ).with_model("openai", "gpt-5.2")
         
         prompt = STORY_USER_PROMPT_TEMPLATE.format(
             ageGroup=data.get('ageGroup', '4-6'),
