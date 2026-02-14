@@ -60,4 +60,24 @@ public class GenerationController {
         User user = authService.getUserByEmail(userDetails.getUsername());
         return ResponseEntity.ok(generationService.getUserGenerations(user.getId(), type, PageRequest.of(page, size)));
     }
+
+    @GetMapping("/generations/{id}/pdf")
+    public ResponseEntity<byte[]> downloadPDF(@PathVariable UUID id) {
+        Generation generation = generationService.getGeneration(id);
+        
+        if (generation.getType() != Generation.Type.STORY) {
+            throw new RuntimeException("PDF export only available for story packs");
+        }
+        
+        if (generation.getOutputJson() == null) {
+            throw new RuntimeException("Generation not completed yet");
+        }
+
+        byte[] pdfBytes = pdfExportService.generateStoryPDF(generation.getOutputJson());
+        
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "attachment; filename=story-pack-" + id + ".pdf")
+                .body(pdfBytes);
+    }
 }
