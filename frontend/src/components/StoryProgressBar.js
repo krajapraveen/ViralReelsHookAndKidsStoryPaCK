@@ -51,26 +51,26 @@ export default function StoryProgressBar({ isGenerating }) {
   if (!isGenerating) return null;
 
   return (
-    <div className="space-y-4 p-6 bg-orange-50 rounded-lg border border-orange-200" data-testid="story-progress">
+    <div className="space-y-4 p-6 bg-purple-50 rounded-lg border border-purple-200" data-testid="story-progress">
       <div className="flex items-center gap-3">
-        <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
-        <span className="font-medium text-orange-900">{statusText}</span>
+        <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
+        <span className="font-medium text-purple-900">{statusText}</span>
       </div>
       
       <div className="space-y-2">
-        <div className="w-full bg-orange-100 rounded-full h-3 overflow-hidden">
+        <div className="w-full bg-purple-100 rounded-full h-3 overflow-hidden">
           <div 
-            className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full transition-all duration-500 ease-out"
+            className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="flex justify-between text-sm text-orange-700">
+        <div className="flex justify-between text-sm text-purple-700">
           <span>{progress}% complete</span>
           <span>Estimated time: {Math.max(0, Math.ceil((45 - progress * 0.45)))}s</span>
         </div>
       </div>
 
-      <p className="text-sm text-orange-700">
+      <p className="text-sm text-purple-700">
         ✨ Generating your personalized story pack... This may take 30-45 seconds.
       </p>
     </div>
