@@ -52,54 +52,35 @@ Return ONLY valid JSON, no markdown or explanation."""
 
 STORY_SYSTEM_PROMPT = """You create safe kids content. Output must be structured JSON only. No violence, no fear, no adult themes."""
 
-STORY_USER_PROMPT_TEMPLATE = """Create a kids story video production pack.
+STORY_USER_PROMPT_TEMPLATE = """Create a kids story video pack.
 
-Inputs:
-Age: {ageGroup}
-Theme: {theme}
-Moral: {moral}
-Characters: {characters}
-Setting: {setting}
-Scenes: {scenes}
-Language: {language}
-Style: {style}
-Length: {length}
+Age: {ageGroup} | Theme: {theme} | Moral: {moral}
+Characters: {characters} | Setting: {setting} | Scenes: {scenes}
+Language: {language} | Style: {style} | Length: {length}
 
-Output JSON schema:
+Generate JSON with this EXACT structure (no markdown):
 {{
-  "title": "story title",
-  "synopsis": "brief synopsis",
-  "characters": [
-    {{"name": "...", "description": "...", "consistent_visual_seed": "..."}}
-  ],
+  "title": "short catchy title",
+  "synopsis": "2-3 sentence summary",
+  "characters": [{{"name": "...", "description": "brief visual description"}}],
   "scenes": [
     {{
       "scene_number": 1,
-      "shot_type": "Medium shot / Close-up",
-      "visual_description": "...",
-      "narration": "...",
-      "dialogue": [{{"speaker": "...", "line": "..."}}],
-      "on_screen_text": "...",
-      "image_prompt": "...",
-      "voice_direction": "..."
+      "shot_type": "Medium/Close-up",
+      "visual_description": "what we see (1 sentence)",
+      "narration": "narrator text",
+      "dialogue": [{{"speaker": "name", "line": "..."}}],
+      "image_prompt": "detailed prompt for consistent character style"
     }}
   ],
-  "thumbnail_text": ["5 options"],
   "youtube": {{
-    "title": "...",
-    "description": "...",
-    "tags": ["20 tags"]
+    "title": "optimized title",
+    "description": "brief description",
+    "tags": ["tag1", "tag2", "tag3"]
   }}
 }}
 
-Rules:
-• Characters must remain consistent across prompts
-• Focus on positivity, curiosity, motivation
-• Avoid scary content
-• Use simple language suitable for the age
-• Ensure story has beginning → conflict → solution → moral
-
-Return ONLY valid JSON, no markdown or explanation."""
+Keep it concise, safe for kids, maintain character consistency. Return ONLY valid JSON."""
 
 async def generate_reel_content(data):
     """Generate reel script using LLM"""
