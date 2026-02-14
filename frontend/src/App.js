@@ -10,6 +10,7 @@ import History from './pages/History';
 import Billing from './pages/Billing';
 import Pricing from './pages/Pricing';
 import AdminDashboard from './pages/AdminDashboard';
+import AuthCallback from './pages/AuthCallback';
 import './App.css';
 
 function App() {
