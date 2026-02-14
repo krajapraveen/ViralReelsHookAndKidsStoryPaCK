@@ -6,13 +6,16 @@ import com.creatorstudio.dto.ReelGenerationRequest;
 import com.creatorstudio.dto.StoryGenerationRequest;
 import com.creatorstudio.entity.CreditLedger;
 import com.creatorstudio.entity.Generation;
+import com.creatorstudio.entity.Payment;
 import com.creatorstudio.entity.User;
 import com.creatorstudio.repository.GenerationRepository;
+import com.creatorstudio.repository.PaymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -32,6 +35,9 @@ public class GenerationService {
 
     @Autowired
     private GenerationRepository generationRepository;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
 
     @Autowired
     private CreditService creditService;
