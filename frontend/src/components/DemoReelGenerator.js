@@ -106,7 +106,7 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
             </p>
             <Link to="/signup">
               <Button className="bg-indigo-500 hover:bg-indigo-600 text-white" data-testid="demo-signup-btn">
-                Sign Up for Free (5 Credits)
+                Sign Up for Free (54 Credits)
               </Button>
             </Link>
           </div>
