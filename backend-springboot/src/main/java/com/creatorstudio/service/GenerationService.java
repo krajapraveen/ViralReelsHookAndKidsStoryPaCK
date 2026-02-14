@@ -85,6 +85,9 @@ public class GenerationService {
 
     @Transactional
     public GenerationResponse generateStory(UUID userId, StoryGenerationRequest request) {
+        // Check rate limit
+        rateLimitService.checkAndIncrementRateLimit(userId);
+        
         // Calculate credits based on scenes
         BigDecimal credits;
         switch (request.getScenes()) {
