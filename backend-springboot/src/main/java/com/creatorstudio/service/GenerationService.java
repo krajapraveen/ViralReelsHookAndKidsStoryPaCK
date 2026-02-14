@@ -83,6 +83,20 @@ public class GenerationService {
         return new GenerationResponse(generation.getId(), generation.getStatus().toString(), generation.getOutputJson());
     }
 
+    public GenerationResponse generateDemoReel(ReelGenerationRequest request) {
+        // Demo generation - no user, no credits, no rate limit
+        // Just call the worker and return result with watermark
+        try {
+            Map<String, Object> output = callReelWorker(request);
+            // Add watermark to demo output
+            output.put("watermark", "Generated with CreatorStudio AI - Demo Version");
+            output.put("demo_version", true);
+            return new GenerationResponse(null, "SUCCEEDED", output);
+        } catch (Exception e) {
+            throw new RuntimeException("Demo generation failed: " + e.getMessage());
+        }
+    }
+
     @Transactional
     public GenerationResponse generateStory(UUID userId, StoryGenerationRequest request) {
         // Check rate limit
