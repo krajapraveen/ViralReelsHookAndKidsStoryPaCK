@@ -45,7 +45,7 @@ public class GenerationService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Value(\"${worker.api.url}\")
+    @Value("${worker.api.url}")
     private String workerApiUrl;
 
     @Transactional
