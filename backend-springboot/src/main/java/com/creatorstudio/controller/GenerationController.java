@@ -32,6 +32,13 @@ public class GenerationController {
     @Autowired
     private PDFExportService pdfExportService;
 
+    @PostMapping("/demo-reel")
+    public ResponseEntity<GenerationResponse> generateDemoReel(
+            @Valid @RequestBody ReelGenerationRequest request) {
+        // Generate reel without user authentication - demo mode
+        return ResponseEntity.ok(generationService.generateDemoReel(request));
+    }
+
     @PostMapping("/reel")
     public ResponseEntity<GenerationResponse> generateReel(
             @AuthenticationPrincipal UserDetails userDetails,
