@@ -26,7 +26,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/payments/webhook").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/payments/webhook", "/api/payments/products").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
