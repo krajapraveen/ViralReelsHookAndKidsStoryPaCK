@@ -51,7 +51,7 @@ export default function Login({ setAuth }) {
 
           <form onSubmit={handleSubmit} className="space-y-6" data-testid="login-form">
             <div>
-              <Label htmlFor="email" className="text-white">Email</Label>
+              <Label htmlFor="email" className="text-white text-sm font-medium">Email</Label>
               <Input
                 id="email"
                 type="email"
