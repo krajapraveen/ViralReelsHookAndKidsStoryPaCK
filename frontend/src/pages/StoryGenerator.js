@@ -168,7 +168,18 @@ export default function StoryGenerator() {
 
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-6"><h2 className="text-2xl font-bold">Story Pack</h2>
-              {result && <Button variant="outline" size="sm" onClick={downloadJSON} data-testid="download-story-btn"><Download className="w-4 h-4 mr-2" />Download</Button>}
+              {result && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={downloadPDF} data-testid="download-story-pdf">
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PDF
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={downloadJSON} data-testid="download-story-btn">
+                    <Download className="w-4 h-4 mr-2" />
+                    Download JSON
+                  </Button>
+                </div>
+              )}
             </div>
             {loading && !result && <div className="text-center py-12"><Loader2 className="w-12 h-12 mx-auto mb-4 text-orange-500 animate-spin" /><p className="text-slate-600 font-medium">Generating story pack...</p><p className="text-sm text-slate-500 mt-2">Takes 30-90 seconds</p></div>}
             {!loading && !result && <div className="text-center py-12 text-slate-500"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-300" /><p>Your story pack will appear here</p></div>}
