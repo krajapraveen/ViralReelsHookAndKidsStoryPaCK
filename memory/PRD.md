@@ -108,6 +108,30 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
 3. **Google Sign-On Verification** - Redirect URL fixed to /auth/callback
    - Correctly redirects to https://auth.emergentagent.com with callback URL
 
+### New Features (Feb 14, 2026 - Session 3)
+1. **54 Free Credits** - Increased default credits from 5 to 54 for new users
+   - Allows extensive use of both reel generator (1 credit) and story generator (6-8 credits)
+   - Updated all landing, pricing, and signup pages
+
+2. **PDF Watermarks** - Watermark on PDF exports for free-tier users
+   - Purple banner at top: "⚡ MADE WITH CREATORSTUDIO AI - FREE TIER | Upgrade to remove watermark"
+   - Footer watermark with upgrade link
+   - Server-side implementation checks user payment history
+
+3. **Upgrade Banners** - Dynamic banners based on credit status
+   - "Exhausted" banner when credits = 0 with prominent upgrade CTA
+   - "Low" banner when credits <= 10 with warning
+   - "Watermark" banner for free-tier users explaining watermarks
+
+4. **Upgrade Modal on Download** - Prompts free users before downloading
+   - Modal shows "Remove Watermark?" with premium benefits
+   - Options: "Upgrade Now - Remove Watermark" or "Download with Watermark"
+   - Works for both JSON and PDF downloads
+
+5. **isFreeTier API Field** - Backend returns user tier in credits balance
+   - `/api/credits/balance` now returns `isFreeTier` boolean
+   - Determined by checking if user has any PAID payments
+
 ## Known Limitations
 1. **Razorpay Integration** - Payment flow not complete (endpoints exist but checkout/webhook not functional)
 2. **Google Sign-On** - Redirect URL verified, requires actual Google account to test full flow
