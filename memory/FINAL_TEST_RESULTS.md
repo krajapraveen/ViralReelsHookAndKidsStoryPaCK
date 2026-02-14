@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://storymaker-33.preview.emergentagent.com
+**Website:** https://reel-creator-42.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai
