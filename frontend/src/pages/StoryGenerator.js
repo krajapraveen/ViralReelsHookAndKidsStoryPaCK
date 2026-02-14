@@ -104,7 +104,16 @@ export default function StoryGenerator() {
   };
 
   const downloadJSON = () => {
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+    // Add watermark for free-tier users
+    const downloadContent = isFreeTier 
+      ? { 
+          ...result, 
+          watermark: '⚡ Made with CreatorStudio AI - Upgrade to remove watermark',
+          free_tier: true 
+        }
+      : result;
+    
+    const blob = new Blob([JSON.stringify(downloadContent, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
