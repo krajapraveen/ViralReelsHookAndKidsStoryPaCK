@@ -1,11 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp } from 'lucide-react';
+import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play } from 'lucide-react';
+import DemoReelGenerator from '../components/DemoReelGenerator';
 
 export default function Landing() {
+  const [showDemo, setShowDemo] = useState(false);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+      {/* Demo Modal */}
+      <DemoReelGenerator isOpen={showDemo} onClose={() => setShowDemo(false)} />
       {/* Floating Navbar */}
       <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl px-4">
         <div className="bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-8 py-4 flex items-center justify-between">
