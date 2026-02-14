@@ -4,6 +4,8 @@ import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.colors.DeviceRgb;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
+import com.itextpdf.kernel.pdf.extgstate.PdfExtGState;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Text;
@@ -17,7 +19,7 @@ import java.util.Map;
 @Service
 public class PDFExportService {
 
-    public byte[] generateStoryPDF(Map<String, Object> storyData) {
+    public byte[] generateStoryPDF(Map<String, Object> storyData, boolean isFreeTier) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             PdfWriter writer = new PdfWriter(baos);
@@ -26,7 +28,20 @@ public class PDFExportService {
 
             // Colors
             DeviceRgb primaryColor = new DeviceRgb(99, 102, 241); // Indigo
-            DeviceRgb secondaryColor = new DeviceRgb(249, 115, 22); // Orange
+            DeviceRgb purpleColor = new DeviceRgb(139, 92, 246); // Purple
+
+            // Free tier watermark banner at top
+            if (isFreeTier) {
+                Paragraph watermarkBanner = new Paragraph("⚡ MADE WITH CREATORSTUDIO AI - FREE TIER | Upgrade to remove watermark")
+                        .setFontSize(10)
+                        .setBold()
+                        .setFontColor(ColorConstants.WHITE)
+                        .setBackgroundColor(purpleColor)
+                        .setTextAlignment(TextAlignment.CENTER)
+                        .setPadding(8)
+                        .setMarginBottom(15);
+                document.add(watermarkBanner);
+            }
 
             // Title
             String title = (String) storyData.get("title");
@@ -51,7 +66,7 @@ public class PDFExportService {
             String synopsis = (String) storyData.get("synopsis");
             if (synopsis != null) {
                 Paragraph synopsisPara = new Paragraph()
-                        .add(new Text("Synopsis: ").setBold().setFontColor(secondaryColor))
+                        .add(new Text("Synopsis: ").setBold().setFontColor(purpleColor))
                         .add(synopsis)
                         .setMarginBottom(15);
                 document.add(synopsisPara);
@@ -93,7 +108,7 @@ public class PDFExportService {
                     Paragraph sceneTitle = new Paragraph("Scene " + sceneNum)
                             .setFontSize(14)
                             .setBold()
-                            .setFontColor(secondaryColor)
+                            .setFontColor(purpleColor)
                             .setMarginTop(10)
                             .setMarginBottom(5);
                     document.add(sceneTitle);
@@ -163,10 +178,26 @@ public class PDFExportService {
                 }
             }
 
+            // Free tier footer watermark
+            if (isFreeTier) {
+                Paragraph footerWatermark = new Paragraph("\n\n⚡ This content was generated with CreatorStudio AI (Free Tier)\nUpgrade your subscription to remove watermarks: creatorstudio.ai/pricing")
+                        .setFontSize(9)
+                        .setItalic()
+                        .setFontColor(purpleColor)
+                        .setTextAlignment(TextAlignment.CENTER)
+                        .setMarginTop(30);
+                document.add(footerWatermark);
+            }
+
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate PDF: " + e.getMessage());
         }
+    }
+    
+    // Backward compatible method
+    public byte[] generateStoryPDF(Map<String, Object> storyData) {
+        return generateStoryPDF(storyData, true); // Default to free tier for safety
     }
 }
