@@ -8,6 +8,7 @@ import com.creatorstudio.entity.User;
 import com.creatorstudio.service.AuthService;
 import com.creatorstudio.service.GenerationService;
 import com.creatorstudio.service.PDFExportService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
