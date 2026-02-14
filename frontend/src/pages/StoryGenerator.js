@@ -205,7 +205,9 @@ export default function StoryGenerator() {
                 </div>
               )}
             </div>
-            {loading && !result && <div className="text-center py-12"><Loader2 className="w-12 h-12 mx-auto mb-4 text-orange-500 animate-spin" /><p className="text-slate-600 font-medium">Generating story pack...</p><p className="text-sm text-slate-500 mt-2">Takes 30-90 seconds</p></div>}
+            {loading && !result && (
+              <StoryProgressBar isGenerating={loading} />
+            )}
             {!loading && !result && <div className="text-center py-12 text-slate-500"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-300" /><p>Your story pack will appear here</p></div>}
             {result && <div className="space-y-4 max-h-[600px] overflow-y-auto" data-testid="story-result"><div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-6"><h3 className="text-2xl font-bold text-orange-900 mb-2">{result.title}</h3><p className="text-slate-700">{result.synopsis}</p></div>
               {result.scenes && <div><h3 className="font-bold text-lg mb-3">Scenes: {result.scenes.length}</h3><p className="text-sm text-slate-600">Complete scene breakdown available in downloaded JSON</p></div>}
