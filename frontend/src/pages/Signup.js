@@ -60,7 +60,7 @@ export default function Signup({ setAuth }) {
             </div>
 
             <div>
-              <Label htmlFor="email" className="text-white">Email</Label>
+              <Label htmlFor="email" className="text-white text-sm font-medium">Email</Label>
               <Input
                 id="email"
                 type="email"
