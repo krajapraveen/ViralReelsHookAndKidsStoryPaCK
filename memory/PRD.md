@@ -137,21 +137,20 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
 2. **Google Sign-On** - Redirect URL verified, requires actual Google account to test full flow
 
 ## Test Credentials
-- **Admin:** admin@creatorstudio.ai / admin123 (500 credits)
+- **Admin:** admin@creatorstudio.ai / admin123 (498 credits, free tier)
 
 ## Upcoming Tasks (Prioritized)
 ### P0 - Critical
-- Complete Razorpay integration for payments
-- Track purchases to toggle watermark removal (update 'has_purchased' in localStorage after payment)
+- Complete Razorpay integration for payments (this will enable tier upgrade and watermark removal)
 
 ### P1 - Important  
 - Full Google Sign-On flow testing with real account
 - Admin panel enhancements
 
 ### P2 - Nice to Have
-- PDF watermark for story packs (currently only JSON has watermark)
 - Observability (logging, health checks)
 - Rate limiting enhancements
+- Email notifications for credit exhaustion
 
 ## File Structure
 ```
