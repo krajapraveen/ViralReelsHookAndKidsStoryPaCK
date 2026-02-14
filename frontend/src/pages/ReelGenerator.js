@@ -9,6 +9,8 @@ import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins } from 'lucide-react';
 
+import ShareButton from '../components/ShareButton';
+
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(false);
