@@ -31,6 +31,18 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private CreditWalletRepository walletRepository;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private CreditService creditService;
+
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
         return ResponseEntity.ok(authService.register(request));
