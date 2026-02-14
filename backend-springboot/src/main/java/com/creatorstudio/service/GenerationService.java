@@ -131,7 +131,7 @@ public class GenerationService {
     }
 
     private Map<String, Object> callReelWorker(ReelGenerationRequest request) {
-        String workerUrl = "http://localhost:5000/generate/reel";
+        String workerUrl = workerApiUrl + "/generate/reel";
         
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
