@@ -74,7 +74,7 @@ export default function Signup({ setAuth }) {
             </div>
 
             <div>
-              <Label htmlFor="password" className="text-white">Password</Label>
+              <Label htmlFor="password" className="text-white text-sm font-medium">Password</Label>
               <Input
                 id="password"
                 type="password"
