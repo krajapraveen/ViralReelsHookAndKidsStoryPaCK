@@ -118,7 +118,9 @@ async def generate_story_content(data):
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=f"story_{int(time.time())}",
-        system_message=STORY_SYSTEM_PROMPT
+        system_message=STORY_SYSTEM_PROMPT,
+        temperature=0.7,  # Add some creativity but keep it controlled
+        max_tokens=2500   # Limit token output for faster generation
     ).with_model("openai", "gpt-5.2")
     
     prompt = STORY_USER_PROMPT_TEMPLATE.format(
