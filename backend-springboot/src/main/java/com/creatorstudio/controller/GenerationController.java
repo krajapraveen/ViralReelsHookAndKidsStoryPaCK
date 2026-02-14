@@ -71,7 +71,9 @@ public class GenerationController {
     }
 
     @GetMapping("/generations/{id}/pdf")
-    public ResponseEntity<byte[]> downloadPDF(@PathVariable UUID id) {
+    public ResponseEntity<byte[]> downloadPDF(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable UUID id) {
         Generation generation = generationService.getGeneration(id);
         
         if (generation.getType() != Generation.Type.STORY) {
@@ -82,7 +84,11 @@ public class GenerationController {
             throw new RuntimeException("Generation not completed yet");
         }
 
-        byte[] pdfBytes = pdfExportService.generateStoryPDF(generation.getOutputJson());
+        // Check if user is free tier (hasn't purchased)
+        User user = authService.getUserByEmail(userDetails.getUsername());
+        boolean isFreeTier = !generationService.hasUserPurchased(user.getId());
+
+        byte[] pdfBytes = pdfExportService.generateStoryPDF(generation.getOutputJson(), isFreeTier);
         
         return ResponseEntity.ok()
                 .header("Content-Type", "application/pdf")
