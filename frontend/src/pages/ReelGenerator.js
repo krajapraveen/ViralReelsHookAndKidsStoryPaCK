@@ -35,6 +35,7 @@ export default function ReelGenerator() {
 
   useEffect(() => {
     fetchCredits();
+    setIsFreeTier(isFreeTierUser());
   }, []);
 
   const fetchCredits = async () => {
