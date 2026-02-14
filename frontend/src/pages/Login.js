@@ -58,7 +58,7 @@ export default function Login({ setAuth }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="mt-2 bg-white/5 border-white/20 text-white"
+                className="mt-2 bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                 placeholder="you@example.com"
                 data-testid="login-email-input"
               />
