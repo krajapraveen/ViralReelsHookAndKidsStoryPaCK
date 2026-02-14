@@ -82,8 +82,9 @@ async def generate_reel_content(data):
     try:
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
-            session_id=f"reel_{int(time.time())}"
-        ).with_model("openai", "gpt-5.2").with_system_message(REEL_SYSTEM_PROMPT)
+            session_id=f"reel_{int(time.time())}",
+            system_message=REEL_SYSTEM_PROMPT
+        ).with_model("openai", "gpt-5.2")
         
         prompt = REEL_USER_PROMPT_TEMPLATE.format(
             language=data.get('language', 'English'),
