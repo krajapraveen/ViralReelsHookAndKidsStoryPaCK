@@ -3,13 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-export default function AuthCallback() {
+export default function AuthCallback({ setAuth }) {
   const navigate = useNavigate();
   const location = useLocation();
   const hasProcessed = useRef(false);
 
   useEffect(() => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     if (hasProcessed.current) return;
     hasProcessed.current = true;
 
@@ -33,20 +32,25 @@ export default function AuthCallback() {
         // Store token
         localStorage.setItem('token', token);
         
+        // Set authentication state
+        if (setAuth) {
+          setAuth(true);
+        }
+        
         toast.success(`Welcome, ${user.name}!`);
         
-        // Navigate with user data
-        navigate('/app', { state: { user }, replace: true });
+        // Navigate to dashboard
+        navigate('/app', { replace: true });
         
       } catch (error) {
         console.error('Auth error:', error);
-        toast.error('Authentication failed');
+        toast.error('Authentication failed: ' + (error.response?.data?.message || error.message));
         navigate('/login');
       }
     };
 
     processAuth();
-  }, [location, navigate]);
+  }, [location, navigate, setAuth]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
