@@ -54,7 +54,7 @@ export default function History() {
         {loading ? (
           <div className="text-center py-12"><p className="text-slate-500">Loading...</p></div>
         ) : generations.length === 0 ? (
-          <div className="text-center py-12"><p className="text-slate-500">No generations yet. Start creating!</p><Link to="/app"><Button className="mt-4">Go to Dashboard</Button></Link></div>
+          <div className="text-center py-12"><p className="text-slate-500">No generations yet. Start creating!</p><Link to="/app"><Button className="mt-4 bg-indigo-500 hover:bg-indigo-600 text-white">Go to Dashboard</Button></Link></div>
         ) : (
           <div className="space-y-4" data-testid="history-list">
             {generations.map((gen) => (
