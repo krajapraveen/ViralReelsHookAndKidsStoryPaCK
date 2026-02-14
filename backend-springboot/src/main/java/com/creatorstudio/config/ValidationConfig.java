@@ -13,6 +13,8 @@ public class ValidationConfig implements WebMvcConfigurer {
     public MappingJackson2HttpMessageConverter jsonConverter() {
         MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
         ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         converter.setObjectMapper(mapper);
         return converter;
     }
