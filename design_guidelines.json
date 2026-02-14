@@ -1,0 +1,152 @@
+{
+  "brand_identity": {
+    "name": "CreatorStudio AI",
+    "tagline": "Generate viral reels + kids story videos in minutes.",
+    "archetype": "The Performance Pro (Efficiency) x Vibrant Play (Creativity)",
+    "emotional_tone": "Magic, Speed, Professionalism, Creativity",
+    "visual_style": "Smart Hybrid - Dark Mode for Marketing (High Impact), Clean Light Mode for Dashboard (Focus) with Dark Mode Toggle"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Outfit, sans-serif",
+      "weights": ["500", "700", "900"],
+      "usage": "Landing page headlines, feature titles, dashboard section headers. Use tight tracking (-0.02em) for large text."
+    },
+    "body": {
+      "font_family": "Inter, sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "General text, inputs, data tables, long-form content. Use relaxed line-height (1.6) for readability."
+    },
+    "mono": {
+      "font_family": "JetBrains Mono, monospace",
+      "usage": "Code snippets, API keys, technical data displays."
+    }
+  },
+  "colors": {
+    "primary": {
+      "name": "Electric Indigo",
+      "hex": "#6366f1",
+      "tailwind": "indigo-500",
+      "usage": "Primary buttons, active states, key brand elements."
+    },
+    "secondary": {
+      "name": "Viral Orange",
+      "hex": "#f97316",
+      "tailwind": "orange-500",
+      "usage": "Call-to-actions (CTAs), 'New' badges, high-energy accents."
+    },
+    "background": {
+      "light": "#f8fafc",
+      "dark": "#020617",
+      "paper_light": "#ffffff",
+      "paper_dark": "#0f172a"
+    },
+    "text": {
+      "primary_light": "#0f172a",
+      "secondary_light": "#475569",
+      "primary_dark": "#f8fafc",
+      "secondary_dark": "#94a3b8"
+    },
+    "status": {
+      "success": "#22c55e",
+      "error": "#ef4444",
+      "warning": "#eab308",
+      "info": "#3b82f6"
+    }
+  },
+  "layout_strategies": {
+    "marketing": {
+      "grid": "Mode A: The Tetris Grid",
+      "spacing": "Generous (p-12 to p-32)",
+      "container": "max-w-7xl mx-auto",
+      "visuals": "Dark immersive backgrounds, glowing gradients, large typography."
+    },
+    "dashboard": {
+      "grid": "Mode B: High Density Grid (Bento)",
+      "spacing": "Compact (p-4 to p-8)",
+      "sidebar": "Fixed left sidebar (w-64), collapsible on mobile.",
+      "visuals": "Clean cards, subtle borders, glassmorphism for sticky headers."
+    },
+    "generators": {
+      "layout": "Split View",
+      "left_panel": "Input controls (Forms, Sliders, Toggles) - Scrollable",
+      "right_panel": "Live Preview / Result Output - Sticky/Fixed",
+      "mobile": "Stacked (Input first, Preview second)"
+    }
+  },
+  "component_rules": {
+    "buttons": {
+      "primary": "bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-full px-8 py-3 font-medium transition-all hover:scale-105",
+      "secondary": "bg-secondary text-white hover:bg-secondary/90 shadow-lg shadow-secondary/20 rounded-full px-8 py-3 font-medium",
+      "outline": "border-2 border-primary text-primary hover:bg-primary/10 rounded-full px-8 py-3 font-medium",
+      "ghost": "text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg px-4 py-2"
+    },
+    "cards": {
+      "marketing": "bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-8 hover:border-primary/50 transition-colors",
+      "dashboard": "bg-card text-card-foreground border border-border rounded-xl shadow-sm hover:shadow-md transition-shadow p-6"
+    },
+    "inputs": {
+      "style": "bg-background border-input ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md h-10 px-3 py-2"
+    },
+    "navigation": {
+      "marketing": "Floating glass navbar (top-4, mx-auto, max-w-5xl, rounded-full, border border-white/10, bg-black/50 backdrop-blur-md)",
+      "dashboard": "Sidebar navigation with active state highlighting (bg-primary/10 text-primary border-r-2 border-primary)"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-white/70 (light) or bg-black/60 (dark) border border-white/20",
+    "gradients": "Use subtle mesh gradients for backgrounds. Avoid harsh linear gradients.",
+    "shadows": "Layered shadows: shadow-sm for cards, shadow-xl for modals/dropdowns.",
+    "borders": "1px solid borders. Use 'Tracing Beam' effect for pricing cards or featured items."
+  },
+  "image_assets": {
+    "hero_image": {
+      "url": "https://images.unsplash.com/photo-1600660622236-f446d098e192?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwxfHxjb250ZW50JTIwY3JlYXRvciUyMGZpbG1pbmclMjB3aXRoJTIwcGhvbmV8ZW58MHx8fHwxNzcxMDc4MzY2fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Content creator filming with phone",
+      "usage": "Hero section background or split layout image"
+    },
+    "kids_feature": {
+      "url": "https://images.unsplash.com/photo-1704241370920-e67ce744d8cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxoYXBweSUyMGtpZCUyMHJlYWRpbmclMjBzdG9yeWJvb2t8ZW58MHx8fHwxNzcxMDc4MzY3fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Happy kid reading storybook",
+      "usage": "Kids Story Generator feature section"
+    },
+    "viral_feature": {
+      "url": "https://images.unsplash.com/photo-1683721003111-070bcc053d8b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwyfHx2aXJhbCUyMHZpZGVvJTIwc29jaWFsJTIwbWVkaWElMjBjb25jZXB0fGVufDB8fHx8MTc3MTA3ODM3MXww&ixlib=rb-4.1.0&q=85",
+      "alt": "3D Social Media Icons",
+      "usage": "Viral Reels Generator feature section"
+    },
+    "about_team": {
+      "url": "https://images.unsplash.com/photo-1748346918817-0b1b6b2f9bab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHx0ZWFtJTIwd29ya2luZyUyMGluJTIwbW9kZXJuJTIwb2ZmaWNlfGVufDB8fHx8MTc3MTA3ODM3NXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Team working in modern office",
+      "usage": "About Us page"
+    }
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Stroke width 1.5px or 2px. Consistent sizing (w-5 h-5 for UI, w-8 h-8 for features)."
+  },
+  "motion": {
+    "transitions": "transition-all duration-300 ease-in-out",
+    "hover_effects": "hover:-translate-y-1 hover:shadow-lg",
+    "loading": "Use skeleton loaders (animate-pulse) for data fetching. Use spinners for actions."
+  },
+  "accessibility": {
+    "contrast": "Ensure text meets WCAG AA standards (4.5:1).",
+    "focus": "Visible focus rings (ring-2 ring-offset-2 ring-primary) for keyboard navigation.",
+    "labels": "All inputs must have associated labels. Icons must have aria-labels."
+  },
+  "universal_guidelines": {
+    "do_not": [
+      "Use generic 'AI' emojis (🤖, 🧠) as icons.",
+      "Use full-screen gradients without texture.",
+      "Center everything - use asymmetry for interest.",
+      "Use 'Inter' for headings - use 'Outfit' instead."
+    ],
+    "must_do": [
+      "Add 'data-testid' to all interactive elements.",
+      "Use 'sonner' for toast notifications.",
+      "Use 'lucide-react' for icons.",
+      "Implement responsive design (mobile-first)."
+    ]
+  }
+}
