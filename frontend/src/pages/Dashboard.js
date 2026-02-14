@@ -46,7 +46,7 @@ export default function Dashboard() {
           
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2" data-testid="credit-balance">
-              <Coins className="w-4 h-4 text-orange-500" />
+              <Coins className="w-4 h-4 text-purple-500" />
               <span className="font-semibold">{credits} Credits</span>
             </div>
             
@@ -78,10 +78,10 @@ export default function Dashboard() {
           </Link>
 
           <Link to="/app/stories">
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-8 text-white hover:scale-105 transition-transform cursor-pointer" data-testid="quick-action-story">
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-8 text-white hover:scale-105 transition-transform cursor-pointer" data-testid="quick-action-story">
               <BookOpen className="w-12 h-12 mb-4" />
               <h2 className="text-2xl font-bold mb-2">Create Kids Story Pack</h2>
-              <p className="text-orange-100 mb-4">Complete video production packages</p>
+              <p className="text-purple-100 mb-4">Complete video production packages</p>
               <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-2 text-sm">
                 <Coins className="w-4 h-4" />
                 <span>6-8 credits per pack</span>
@@ -94,7 +94,7 @@ export default function Dashboard() {
           <div className="bg-white border border-slate-200 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-slate-600">Available Credits</span>
-              <Coins className="w-5 h-5 text-orange-500" />
+              <Coins className="w-5 h-5 text-purple-500" />
             </div>
             <div className="text-3xl font-bold text-slate-900">{credits}</div>
           </div>
@@ -141,8 +141,8 @@ export default function Dashboard() {
                         <Video className="w-5 h-5 text-indigo-600" />
                       </div>
                     ) : (
-                      <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <BookOpen className="w-5 h-5 text-orange-600" />
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-purple-600" />
                       </div>
                     )}
                     <div>
@@ -153,7 +153,7 @@ export default function Dashboard() {
                   <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                     gen.status === 'SUCCEEDED' ? 'bg-green-100 text-green-700' :
                     gen.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                    'bg-yellow-100 text-yellow-700'
+                    'bg-slate-100 text-slate-700'
                   }`}>
                     {gen.status}
                   </div>

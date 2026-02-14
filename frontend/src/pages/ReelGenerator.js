@@ -94,7 +94,7 @@ export default function ReelGenerator() {
             </div>
           </div>
           <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
-            <Coins className="w-4 h-4 text-orange-500" />
+            <Coins className="w-4 h-4 text-purple-500" />
             <span className="font-semibold">{credits} Credits</span>
           </div>
         </div>
@@ -294,7 +294,7 @@ export default function ReelGenerator() {
                     <div className="space-y-3">
                       {result.script.scenes.map((scene, idx) => (
                         <div key={idx} className="border border-slate-200 rounded-lg p-4">
-                          <div className="font-semibold text-orange-600 mb-2">{scene.time}</div>
+                          <div className="font-semibold text-purple-600 mb-2">{scene.time}</div>
                           <div className="space-y-2">
                             {scene.on_screen_text && (
                               <div>

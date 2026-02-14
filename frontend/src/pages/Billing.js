@@ -75,7 +75,7 @@ export default function Billing() {
             <Link to="/app"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
             <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-indigo-500" /><span className="text-xl font-bold">Billing</span></div>
           </div>
-          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-orange-500" /><span className="font-semibold">{credits} Credits</span></div>
+          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-purple-500" /><span className="font-semibold">{credits} Credits</span></div>
         </div>
       </header>
 
@@ -98,11 +98,11 @@ export default function Billing() {
         <div><h2 className="text-3xl font-bold mb-8">Credit Packs</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {packs.map((product) => (
-              <div key={product.id} className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-orange-500 transition-all">
+              <div key={product.id} className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-purple-500 transition-all">
                 <h3 className="text-xl font-bold mb-2">{product.name}</h3>
                 <div className="flex items-baseline gap-2 mb-4"><span className="text-3xl font-bold">₹{product.priceInr}</span></div>
-                <div className="bg-orange-50 rounded-lg px-4 py-2 mb-4"><p className="text-orange-700 font-semibold">{product.credits} Credits</p></div>
-                <Button onClick={() => handlePurchase(product.id)} disabled={loading[product.id]} className="w-full bg-orange-500 hover:bg-orange-600" data-testid={`buy-pack-${product.id}-btn`}>
+                <div className="bg-purple-50 rounded-lg px-4 py-2 mb-4"><p className="text-purple-700 font-semibold">{product.credits} Credits</p></div>
+                <Button onClick={() => handlePurchase(product.id)} disabled={loading[product.id]} className="w-full bg-purple-500 hover:bg-purple-600" data-testid={`buy-pack-${product.id}-btn`}>
                   {loading[product.id] ? 'Processing...' : 'Buy Now'}
                 </Button>
               </div>

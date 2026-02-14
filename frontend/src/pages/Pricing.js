@@ -73,15 +73,15 @@ export default function Pricing() {
           <h2 className="text-3xl font-bold text-white text-center mb-8">One-Time Credit Packs</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {packs.map((product) => (
-              <div key={product.id} className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 hover:border-orange-500/50 transition-all">
+              <div key={product.id} className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 hover:border-purple-500/50 transition-all">
                 <h3 className="text-2xl font-bold text-white mb-2">{product.name}</h3>
                 <div className="flex items-baseline gap-2 mb-6">
                   <span className="text-4xl font-bold text-white">₹{product.priceInr}</span>
                 </div>
-                <div className="bg-orange-500/20 rounded-lg px-4 py-2 mb-6">
+                <div className="bg-purple-500/20 rounded-lg px-4 py-2 mb-6">
                   <p className="text-orange-300 font-semibold">{product.credits} Credits</p>
                 </div>
-                <Button className="w-full bg-orange-500 hover:bg-orange-600 rounded-full" data-testid={`buy-pack-${product.id}-btn`}>
+                <Button className="w-full bg-purple-500 hover:bg-purple-600 rounded-full" data-testid={`buy-pack-${product.id}-btn`}>
                   Buy Now
                 </Button>
               </div>
@@ -103,8 +103,8 @@ export default function Pricing() {
               </div>
             </div>
             <div className="flex gap-4">
-              <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Check className="w-6 h-6 text-orange-400" />
+              <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Check className="w-6 h-6 text-purple-400" />
               </div>
               <div>
                 <h4 className="text-white font-semibold mb-2">Story Pack</h4>

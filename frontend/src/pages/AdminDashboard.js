@@ -88,7 +88,7 @@ export default function AdminDashboard() {
           <div className="bg-white border border-slate-200 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-slate-600">Payments</span>
-              <CreditCard className="w-5 h-5 text-orange-500" />
+              <CreditCard className="w-5 h-5 text-purple-500" />
             </div>
             <div className="text-3xl font-bold text-slate-900">{stats.totalPayments}</div>
           </div>
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         payment.status === 'PAID' ? 'bg-green-100 text-green-700' :
                         payment.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
+                        'bg-slate-100 text-slate-700'
                       }`}>
                         {payment.status}
                       </span>
@@ -210,7 +210,7 @@ export default function AdminDashboard() {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         gen.status === 'SUCCEEDED' ? 'bg-green-100 text-green-700' :
                         gen.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
+                        'bg-slate-100 text-slate-700'
                       }`}>
                         {gen.status}
                       </span>

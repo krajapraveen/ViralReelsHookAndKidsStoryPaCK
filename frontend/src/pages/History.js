@@ -64,7 +64,7 @@ export default function History() {
                     {gen.type === 'REEL' ? (
                       <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0"><Video className="w-6 h-6 text-indigo-600" /></div>
                     ) : (
-                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0"><BookOpen className="w-6 h-6 text-orange-600" /></div>
+                      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0"><BookOpen className="w-6 h-6 text-purple-600" /></div>
                     )}
                     <div className="flex-1">
                       <h3 className="font-bold text-lg">{gen.type} Generation</h3>
@@ -75,7 +75,7 @@ export default function History() {
                   <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                     gen.status === 'SUCCEEDED' ? 'bg-green-100 text-green-700' :
                     gen.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                    'bg-yellow-100 text-yellow-700'
+                    'bg-slate-100 text-slate-700'
                   }`}>{gen.status}</div>
                 </div>
               </div>
