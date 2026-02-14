@@ -35,7 +35,7 @@ public class GenerationController {
     @PostMapping("/reel")
     public ResponseEntity<GenerationResponse> generateReel(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody ReelGenerationRequest request) {
+            @Valid @RequestBody ReelGenerationRequest request) {
         User user = authService.getUserByEmail(userDetails.getUsername());
         return ResponseEntity.ok(generationService.generateReel(user.getId(), request));
     }
@@ -43,7 +43,7 @@ public class GenerationController {
     @PostMapping("/story")
     public ResponseEntity<GenerationResponse> generateStory(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody StoryGenerationRequest request) {
+            @Valid @RequestBody StoryGenerationRequest request) {
         User user = authService.getUserByEmail(userDetails.getUsername());
         return ResponseEntity.ok(generationService.generateStory(user.getId(), request));
     }
