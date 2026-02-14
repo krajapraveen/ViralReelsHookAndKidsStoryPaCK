@@ -102,9 +102,32 @@ export default function StoryGenerator() {
     }
   };
 
-  const downloadJSON = () => {
+  const handleDownloadClick = (type) => {
+    if (isFreeTier) {
+      setPendingDownloadType(type);
+      setShowUpgradeModal(true);
+    } else {
+      if (type === 'json') {
+        downloadJSON(false);
+      } else {
+        downloadPDF();
+      }
+    }
+  };
+
+  const handleDownloadWithWatermark = () => {
+    setShowUpgradeModal(false);
+    if (pendingDownloadType === 'json') {
+      downloadJSON(true);
+    } else {
+      downloadPDF(); // PDF will have watermark added server-side for free tier
+    }
+    setPendingDownloadType(null);
+  };
+
+  const downloadJSON = (withWatermark = true) => {
     // Add watermark for free-tier users
-    const downloadContent = isFreeTier 
+    const downloadContent = (isFreeTier && withWatermark) 
       ? { 
           ...result, 
           watermark: '⚡ Made with CreatorStudio AI - Upgrade to remove watermark',
@@ -130,7 +153,7 @@ export default function StoryGenerator() {
       a.href = url;
       a.download = `story-pack-${generationId}.pdf`;
       a.click();
-      toast.success('PDF Downloaded!');
+      toast.success(isFreeTier ? 'PDF Downloaded with watermark!' : 'PDF Downloaded!');
     } catch (error) {
       toast.error('Failed to download PDF');
     }
@@ -138,6 +161,13 @@ export default function StoryGenerator() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Upgrade Modal */}
+      <UpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => { setShowUpgradeModal(false); setPendingDownloadType(null); }}
+        onDownloadWithWatermark={handleDownloadWithWatermark}
+      />
+
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
