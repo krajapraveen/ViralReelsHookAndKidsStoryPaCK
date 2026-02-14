@@ -115,6 +115,7 @@ export default function ReelGenerator() {
                   placeholder="E.g., Morning routines of successful entrepreneurs"
                   required
                   rows={3}
+                  className="bg-white"
                   data-testid="reel-topic-input"
                 />
               </div>
