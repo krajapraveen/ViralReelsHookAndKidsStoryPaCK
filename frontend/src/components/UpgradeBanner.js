@@ -34,18 +34,18 @@ export default function UpgradeBanner({ credits, isFreeTier, type = 'low' }) {
 
   if (type === 'low' && credits > 0 && credits <= 10) {
     return (
-      <div className="bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-300 rounded-xl p-4 mb-6">
+      <div className="bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-300 rounded-xl p-4 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
+          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-purple-500" />
           </div>
           <div className="flex-1">
-            <p className="text-amber-700 font-medium">
+            <p className="text-purple-700 font-medium">
               Running low on credits! Only <span className="font-bold">{credits}</span> credits remaining.
             </p>
           </div>
           <Link to="/pricing">
-            <Button variant="outline" className="border-amber-500 text-amber-700 hover:bg-amber-50" data-testid="upgrade-btn-low">
+            <Button variant="outline" className="border-purple-500 text-purple-700 hover:bg-purple-50" data-testid="upgrade-btn-low">
               Get More Credits
             </Button>
           </Link>
