@@ -282,6 +282,19 @@ export default function ReelGenerator() {
               </div>
             ) : (
               <div className="space-y-6" data-testid="reel-result">
+                {/* Free Tier Watermark Banner */}
+                {isFreeTier && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-purple-700 font-medium text-sm">⚡ Made with CreatorStudio AI</p>
+                      <p className="text-purple-600 text-xs mt-1">
+                        Free tier content includes watermark. <Link to="/pricing" className="underline font-medium">Upgrade</Link> to remove watermarks.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Hooks */}
                 <div>
                   <h3 className="font-bold text-lg mb-3">🎯 5 Hooks</h3>
