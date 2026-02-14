@@ -89,9 +89,9 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
+          <DialogTitle className="flex items-center gap-2 text-2xl text-slate-900">
             <Sparkles className="w-6 h-6 text-indigo-500" />
             Try Demo - Generate 1 Free Reel Script
           </DialogTitle>
