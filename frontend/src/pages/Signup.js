@@ -82,7 +82,7 @@ export default function Signup({ setAuth }) {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="mt-2 bg-white/5 border-white/20 text-white"
+                className="mt-2 bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
                 placeholder="••••••••"
                 data-testid="signup-password-input"
               />
