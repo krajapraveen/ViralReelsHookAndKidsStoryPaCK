@@ -286,7 +286,7 @@ export default function ReelGenerator() {
                     <Copy className="w-4 h-4 mr-2" />
                     Copy All
                   </Button>
-                  <Button variant="outline" size="sm" onClick={downloadJSON} data-testid="download-result-btn">
+                  <Button variant="outline" size="sm" onClick={handleDownloadClick} data-testid="download-result-btn">
                     <Download className="w-4 h-4 mr-2" />
                     Download
                   </Button>
