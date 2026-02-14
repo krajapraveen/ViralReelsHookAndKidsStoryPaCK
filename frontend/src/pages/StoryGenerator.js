@@ -104,6 +104,21 @@ export default function StoryGenerator() {
     toast.success('Downloaded!');
   };
 
+  const downloadPDF = async () => {
+    try {
+      const response = await generationAPI.downloadPDF(generationId);
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `story-pack-${generationId}.pdf`;
+      a.click();
+      toast.success('PDF Downloaded!');
+    } catch (error) {
+      toast.error('Failed to download PDF');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
