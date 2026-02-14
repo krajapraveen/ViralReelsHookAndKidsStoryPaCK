@@ -238,9 +238,9 @@ def process_story_queue():
     channel.start_consuming()
 
 if __name__ == '__main__':
-    # Start queue consumer in background thread
-    consumer_thread = threading.Thread(target=process_story_queue, daemon=True)
-    consumer_thread.start()
+    # Start queue consumer in background thread (disabled for initial testing)
+    # consumer_thread = threading.Thread(target=process_story_queue, daemon=True)
+    # consumer_thread.start()
     
     # Start Flask app
     app.run(host='0.0.0.0', port=5000, debug=False)
