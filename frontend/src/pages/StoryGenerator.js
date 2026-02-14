@@ -6,8 +6,13 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock } from 'lucide-react';
+import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle } from 'lucide-react';
 import StoryProgressBar from '../components/StoryProgressBar';
+
+// Check if user is on free tier (never purchased)
+const isFreeTierUser = () => {
+  return localStorage.getItem('has_purchased') !== 'true';
+};
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
@@ -15,6 +20,7 @@ export default function StoryGenerator() {
   const [polling, setPolling] = useState(false);
   const [generationId, setGenerationId] = useState(null);
   const [result, setResult] = useState(null);
+  const [isFreeTier, setIsFreeTier] = useState(true);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
