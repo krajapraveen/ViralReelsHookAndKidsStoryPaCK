@@ -179,6 +179,11 @@ export default function StoryGenerator() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Upgrade Banners */}
+        {credits === 0 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="exhausted" />}
+        {credits > 0 && credits <= 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="low" />}
+        {isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
+
         <div className="grid lg:grid-cols-2 gap-8">
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <h2 className="text-2xl font-bold mb-6">Create Kids Story Pack</h2>
