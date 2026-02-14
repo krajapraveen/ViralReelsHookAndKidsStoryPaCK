@@ -110,8 +110,7 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
 
 ## Known Limitations
 1. **Razorpay Integration** - Payment flow not complete (endpoints exist but checkout/webhook not functional)
-2. **Google Sign-On** - Requires manual verification (redirect URL fixed to /auth/callback)
-3. **Landing Page Demo** - Free demo without login not implemented
+2. **Google Sign-On** - Redirect URL verified, requires actual Google account to test full flow
 
 ## Test Credentials
 - **Admin:** admin@creatorstudio.ai / admin123 (500 credits)
@@ -119,13 +118,14 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
 ## Upcoming Tasks (Prioritized)
 ### P0 - Critical
 - Complete Razorpay integration for payments
+- Track purchases to toggle watermark removal (update 'has_purchased' in localStorage after payment)
 
 ### P1 - Important  
-- Landing page demo (1 free reel without login)
-- Google Sign-On flow verification
+- Full Google Sign-On flow testing with real account
+- Admin panel enhancements
 
 ### P2 - Nice to Have
-- Watermark for free/demo content
+- PDF watermark for story packs (currently only JSON has watermark)
 - Observability (logging, health checks)
 - Rate limiting enhancements
 
