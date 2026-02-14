@@ -35,7 +35,7 @@ function App() {
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/login" element={<Login setAuth={setIsAuthenticated} />} />
       <Route path="/signup" element={<Signup setAuth={setIsAuthenticated} />} />
-      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
       
       {/* Protected routes */}
       <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
