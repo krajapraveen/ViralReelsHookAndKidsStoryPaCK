@@ -53,6 +53,70 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
+    @PostMapping("/google-callback")
+    public ResponseEntity<Map<String, Object>> googleCallback(@RequestBody Map<String, String> request) {
+        String sessionId = request.get("sessionId");
+        
+        try {
+            // Call Emergent Auth API to get user data
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Session-ID", sessionId);
+            
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                    HttpMethod.GET,
+                    entity,
+                    Map.class
+            );
+            
+            Map<String, Object> userData = response.getBody();
+            String email = (String) userData.get("email");
+            String name = (String) userData.get("name");
+            
+            // Find or create user
+            User user = userRepository.findByEmail(email)
+                    .orElseGet(() -> {
+                        User newUser = new User();
+                        newUser.setEmail(email);
+                        newUser.setName(name);
+                        newUser.setPasswordHash(""); // No password for OAuth users
+                        newUser.setRole(User.Role.USER);
+                        newUser = userRepository.save(newUser);
+                        
+                        // Create wallet with 5 free credits
+                        CreditWallet wallet = new CreditWallet();
+                        wallet.setUser(newUser);
+                        wallet.setBalanceCredits(new BigDecimal("5.00"));
+                        walletRepository.save(wallet);
+                        
+                        // Log credit bonus
+                        creditService.addCreditLedgerEntry(newUser.getId(), BigDecimal.valueOf(5), 
+                                com.creatorstudio.entity.CreditLedger.Type.CREDIT,
+                                com.creatorstudio.entity.CreditLedger.Reason.BONUS, "Welcome bonus");
+                        
+                        return newUser;
+                    });
+            
+            // Generate JWT token
+            String token = jwtUtil.generateToken(user.getEmail());
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("token", token);
+            
+            Map<String, Object> userInfo = new HashMap<>();
+            userInfo.put("id", user.getId());
+            userInfo.put("email", user.getEmail());
+            userInfo.put("name", user.getName());
+            result.put("user", userInfo);
+            
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            throw new RuntimeException("Google authentication failed: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         User user = authService.getUserByEmail(userDetails.getUsername());
