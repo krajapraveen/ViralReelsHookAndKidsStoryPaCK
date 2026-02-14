@@ -196,11 +196,11 @@ export default function StoryGenerator() {
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={downloadPDF} data-testid="download-story-pdf">
                     <Download className="w-4 h-4 mr-2" />
-                    Download PDF
+                    PDF
                   </Button>
                   <Button variant="outline" size="sm" onClick={downloadJSON} data-testid="download-story-btn">
                     <Download className="w-4 h-4 mr-2" />
-                    Download JSON
+                    JSON
                   </Button>
                 </div>
               )}
