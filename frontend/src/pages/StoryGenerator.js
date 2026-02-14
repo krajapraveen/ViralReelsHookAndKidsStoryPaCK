@@ -19,6 +19,7 @@ export default function StoryGenerator() {
   const [formData, setFormData] = useState({
     ageGroup: '4-6',
     theme: 'Adventure',
+    genre: 'Fantasy',
     moral: 'Friendship',
     characters: ['Kid', 'Dog'],
     setting: 'forest',
