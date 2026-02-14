@@ -45,11 +45,16 @@ public class GenerationService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private RateLimitService rateLimitService;
+
     @Value("${worker.api.url}")
     private String workerApiUrl;
 
     @Transactional
     public GenerationResponse generateReel(UUID userId, ReelGenerationRequest request) {
+        // Check rate limit
+        rateLimitService.checkAndIncrementRateLimit(userId);
         // Deduct 1 credit
         creditService.deductCredits(userId, BigDecimal.ONE, CreditLedger.Reason.REEL_GEN, null);
 
