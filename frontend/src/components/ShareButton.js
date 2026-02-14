@@ -16,7 +16,7 @@ export default function ShareButton({ type, title, preview }) {
     // Background gradient
     const gradient = ctx.createLinearGradient(0, 0, 1200, 630);
     gradient.addColorStop(0, '#6366f1');
-    gradient.addColorStop(1, '#f97316');
+    gradient.addColorStop(1, '#8b5cf6');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1200, 630);
 
@@ -79,7 +79,7 @@ export default function ShareButton({ type, title, preview }) {
         </DialogHeader>
         <div className="space-y-4">
           <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <div className="aspect-video bg-gradient-to-r from-indigo-500 to-orange-500 rounded-lg flex items-center justify-center text-white">
+            <div className="aspect-video bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center text-white">
               <div className="text-center p-6">
                 <div className="text-3xl font-bold mb-2">
                   {type === 'REEL' ? '🎬' : '📖'}

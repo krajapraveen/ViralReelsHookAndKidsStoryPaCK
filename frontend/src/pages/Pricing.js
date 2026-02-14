@@ -79,7 +79,7 @@ export default function Pricing() {
                   <span className="text-4xl font-bold text-white">₹{product.priceInr}</span>
                 </div>
                 <div className="bg-purple-500/20 rounded-lg px-4 py-2 mb-6">
-                  <p className="text-orange-300 font-semibold">{product.credits} Credits</p>
+                  <p className="text-purple-300 font-semibold">{product.credits} Credits</p>
                 </div>
                 <Button className="w-full bg-purple-500 hover:bg-purple-600 rounded-full" data-testid={`buy-pack-${product.id}-btn`}>
                   Buy Now
