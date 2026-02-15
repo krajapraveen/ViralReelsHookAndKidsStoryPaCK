@@ -149,25 +149,40 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
    - `/api/credits/balance` now returns `isFreeTier` boolean
    - Determined by checking if user has any PAID payments
 
+### Bug Fix (Feb 15, 2026)
+1. **Reel Generator UI Bug** - Fixed critical issue where clicking "Generate Reel Script" caused UI error
+   - Error was: `null is not an object (evaluating 'result.hooks')`
+   - Root cause: Conditional rendering accessed `result.hooks` without proper null checks
+   - Fix: Added `result && result.hooks &&` checks before rendering result sections
+   - File: `/app/frontend/src/pages/ReelGenerator.js` (lines 283-295 and 315)
+   - Verified: Generation completes successfully, shows 5 hooks, best hook, script scenes, captions, hashtags
+
+2. **CORS Configuration Update** - Updated CORS_ORIGINS to include new preview URL
+   - Changed from `reel-creator-42.preview.emergentagent.com` to `viralmakers-1.preview.emergentagent.com`
+   - File: `/etc/supervisor/conf.d/springboot.conf`
+
+3. **Environment Setup for Fork** - Installed missing dependencies
+   - Java 17 (OpenJDK)
+   - PostgreSQL 15 with database `creatorstudio`
+   - RabbitMQ server
+   - Redis server
+
 ## Known Limitations
-1. **Razorpay Integration** - Payment flow not complete (endpoints exist but checkout/webhook not functional)
+1. **Razorpay Integration** - Working in TEST MODE with test keys (not production)
 2. **Google Sign-On** - Redirect URL verified, requires actual Google account to test full flow
 
 ## Test Credentials
-- **Admin:** admin@creatorstudio.ai / admin123 (498 credits, free tier)
+- **Demo User:** demo@example.com / password123 (53 credits, free tier)
 
 ## Upcoming Tasks (Prioritized)
-### P0 - Critical
-- Complete Razorpay integration for payments (this will enable tier upgrade and watermark removal)
-
 ### P1 - Important  
-- Full Google Sign-On flow testing with real account
-- Admin panel enhancements
+- Verify "Share Your Creation" feature end-to-end
+- Copyright review of app content
 
 ### P2 - Nice to Have
-- Observability (logging, health checks)
-- Rate limiting enhancements
-- Email notifications for credit exhaustion
+- Razorpay production setup (configure live keys + webhook secret)
+- Implement subscription webhooks for recurring billing
+- Full Google Sign-On flow testing with real account
 
 ## File Structure
 ```
