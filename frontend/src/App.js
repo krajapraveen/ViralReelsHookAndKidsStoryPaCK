@@ -17,6 +17,7 @@ import Reviews from './pages/Reviews';
 import PrivacySettings from './pages/PrivacySettings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import AutomationDashboard from './pages/AutomationDashboard';
+import Profile from './pages/Profile';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import './App.css';
