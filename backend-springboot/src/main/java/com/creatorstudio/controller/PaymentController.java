@@ -68,17 +68,33 @@ public class PaymentController {
     }
 
     /**
-     * Create a new Razorpay order
+     * Get supported currencies for international payments
+     */
+    @GetMapping("/currencies")
+    public ResponseEntity<Map<String, Object>> getSupportedCurrencies() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("currencies", paymentService.getSupportedCurrencies());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Create a new Razorpay order with international currency support
      */
     @PostMapping("/create-order")
     public ResponseEntity<Map<String, Object>> createOrder(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody CreateOrderRequest request) {
         
-        logger.info("Creating order for product: {}", request.getProductId());
+        String currency = request.getCurrency() != null ? request.getCurrency() : "INR";
+        logger.info("Creating order for product: {} in currency: {}", request.getProductId(), currency);
         
         User user = authService.getUserByEmail(userDetails.getUsername());
-        Map<String, Object> result = paymentService.createOrder(user.getId(), request.getProductId());
+        Map<String, Object> result = paymentService.createInternationalOrder(
+            user.getId(), 
+            request.getProductId(),
+            currency
+        );
         
         Map<String, Object> response = new HashMap<>(result);
         response.put("success", true);
