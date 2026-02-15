@@ -134,4 +134,56 @@ public class FeedbackController {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Failed to send message"));
         }
     }
+
+    /**
+     * Submit improvement suggestion from feedback widget
+     */
+    @PostMapping("/feedback/suggestion")
+    public ResponseEntity<Map<String, Object>> submitSuggestion(@RequestBody Map<String, Object> request) {
+        try {
+            String suggestion = (String) request.get("suggestion");
+            String category = (String) request.get("category");
+            Object ratingObj = request.get("rating");
+            String email = (String) request.get("email");
+            
+            if (suggestion == null || suggestion.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false, 
+                    "error", "Suggestion is required"
+                ));
+            }
+            
+            // XSS check
+            if (InputSanitizer.containsXSS(suggestion)) {
+                logger.warn("XSS attempt detected in suggestion");
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false, 
+                    "error", "Invalid input detected"
+                ));
+            }
+            
+            // Save as feedback
+            Feedback feedback = new Feedback();
+            feedback.setName("Anonymous User");
+            feedback.setEmail(email != null && !email.isEmpty() ? email : "anonymous@feedback.local");
+            feedback.setType(Feedback.FeedbackType.SUGGESTION);
+            feedback.setRating(ratingObj != null ? ((Number) ratingObj).intValue() : 5);
+            feedback.setMessage("[" + (category != null ? category.toUpperCase() : "GENERAL") + "] " + InputSanitizer.sanitize(suggestion));
+            feedback.setAllowPublic(false);
+            
+            feedbackRepository.save(feedback);
+            logger.info("Improvement suggestion received: category={}", category);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true, 
+                "message", "Thank you for your feedback!"
+            ));
+        } catch (Exception e) {
+            logger.error("Error saving suggestion: {}", e.getMessage());
+            return ResponseEntity.ok(Map.of(
+                "success", false, 
+                "error", "Failed to save feedback"
+            ));
+        }
+    }
 }
