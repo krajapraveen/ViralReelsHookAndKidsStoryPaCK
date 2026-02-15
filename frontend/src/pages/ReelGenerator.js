@@ -295,7 +295,10 @@ export default function ReelGenerator() {
               )}
             </div>
 
-            {!result ? (
+            {/* Progress Bar */}
+            <ReelProgressBar isGenerating={loading} />
+
+            {!result && !loading ? (
               <div className="text-center py-12 text-slate-500">
                 <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-300" />
                 <p>Your generated reel script will appear here</p>
