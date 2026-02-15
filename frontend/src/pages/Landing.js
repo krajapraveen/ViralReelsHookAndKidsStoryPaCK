@@ -24,6 +24,16 @@ export default function Landing() {
                 Pricing
               </Button>
             </Link>
+            <Link to="/reviews">
+              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-reviews-btn">
+                Reviews
+              </Button>
+            </Link>
+            <Link to="/contact">
+              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-contact-btn">
+                Contact
+              </Button>
+            </Link>
             <Link to="/login">
               <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-login-btn">
                 Login
