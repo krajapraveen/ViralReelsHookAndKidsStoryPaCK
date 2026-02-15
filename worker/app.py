@@ -127,11 +127,16 @@ Output ONLY this JSON format (no markdown, no explanation):
 Remember: Create something FRESH and ORIGINAL. Do not repeat patterns from other stories."""
 
 async def generate_reel_content(data):
-    """Generate reel script using LLM - optimized"""
+    """Generate reel script using LLM - with unique content each time"""
+    import uuid
+    
     try:
+        # Generate unique session ID for fresh context
+        unique_session = f"reel_{uuid.uuid4().hex[:12]}_{int(time.time())}"
+        
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
-            session_id=f"reel_{int(time.time())}",
+            session_id=unique_session,
             system_message=REEL_SYSTEM_PROMPT
         ).with_model("openai", "gpt-5.2")
         
@@ -141,7 +146,8 @@ async def generate_reel_content(data):
             tone=data.get('tone', 'Bold'),
             duration=data.get('duration', '30s'),
             goal=data.get('goal', 'Followers'),
-            topic=data.get('topic', '')
+            topic=data.get('topic', ''),
+            uniqueId=unique_session
         )
         
         user_message = UserMessage(text=prompt)
