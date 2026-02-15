@@ -298,12 +298,21 @@ export default function ReelGenerator() {
             {/* Progress Bar */}
             <ReelProgressBar isGenerating={loading} />
 
-            {!result && !loading ? (
+            {!result && !loading && (
               <div className="text-center py-12 text-slate-500">
                 <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-300" />
                 <p>Your generated reel script will appear here</p>
               </div>
-            ) : (
+            )}
+            
+            {loading && !result && (
+              <div className="text-center py-12 text-slate-500">
+                <Loader2 className="w-12 h-12 mx-auto mb-4 text-indigo-500 animate-spin" />
+                <p>Generating your reel script...</p>
+              </div>
+            )}
+            
+            {result && (
               <div className="space-y-6" data-testid="reel-result">
                 {/* Free Tier Watermark Banner */}
                 {isFreeTier && (
