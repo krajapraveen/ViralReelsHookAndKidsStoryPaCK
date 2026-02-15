@@ -116,9 +116,30 @@ export default function Pricing() {
             <span className="text-indigo-400 text-sm font-medium">Simple, Transparent Pricing</span>
           </div>
           <h1 className="text-5xl font-bold text-white mb-4">Choose Your Plan</h1>
-          <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+          <p className="text-xl text-slate-300 max-w-2xl mx-auto mb-6">
             Start with 54 free credits. Buy more as you need or subscribe for better value.
           </p>
+          
+          {/* Currency Selector */}
+          <div className="flex items-center justify-center gap-4">
+            <span className="text-slate-400 text-sm">Select Currency:</span>
+            <div className="flex gap-2 bg-white/10 rounded-full p-1">
+              {['INR', 'USD', 'EUR', 'GBP'].map((currency) => (
+                <button
+                  key={currency}
+                  onClick={() => setSelectedCurrency(currency)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    selectedCurrency === currency 
+                      ? 'bg-indigo-500 text-white' 
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                  data-testid={`currency-${currency}-btn`}
+                >
+                  {currencySymbols[currency]} {currency}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Subscriptions */}
