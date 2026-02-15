@@ -7,11 +7,12 @@ import {
   Sparkles, Users, CreditCard, FileText, ArrowLeft, TrendingUp, 
   CheckCircle, XCircle, Eye, MousePointerClick, Star, ThumbsUp,
   BarChart3, PieChart, Activity, DollarSign, Calendar, AlertCircle,
-  Monitor, Smartphone, Globe, RefreshCw
+  Monitor, Smartphone, Globe, RefreshCw, Lightbulb, ThumbsDown, MessageSquare
 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState(null);
+  const [featureRequests, setFeatureRequests] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState(30);
@@ -24,9 +25,16 @@ export default function AdminDashboard() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/admin/analytics/dashboard?days=${dateRange}`);
-      if (response.data.success) {
-        setAnalytics(response.data.data);
+      const [analyticsRes, featuresRes] = await Promise.all([
+        api.get(`/api/admin/analytics/dashboard?days=${dateRange}`),
+        api.get('/api/feature-requests/analytics').catch(() => ({ data: { success: false } }))
+      ]);
+      
+      if (analyticsRes.data.success) {
+        setAnalytics(analyticsRes.data.data);
+      }
+      if (featuresRes.data.success) {
+        setFeatureRequests(featuresRes.data.data);
       }
     } catch (error) {
       if (error.response?.status === 403) {
@@ -37,6 +45,16 @@ export default function AdminDashboard() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateFeatureStatus = async (featureId, status, adminResponse) => {
+    try {
+      await api.put(`/api/feature-requests/${featureId}/status`, { status, adminResponse });
+      toast.success('Status updated');
+      fetchAnalytics();
+    } catch (error) {
+      toast.error('Failed to update status');
     }
   };
 
