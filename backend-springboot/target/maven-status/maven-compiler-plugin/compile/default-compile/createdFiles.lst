@@ -4,11 +4,13 @@ com/creatorstudio/security/JwtAuthenticationFilter.class
 com/creatorstudio/service/AuthService.class
 com/creatorstudio/service/PaymentService.class
 com/creatorstudio/dto/LoginRequest.class
+com/creatorstudio/entity/ContactMessage.class
 com/creatorstudio/entity/User.class
 com/creatorstudio/config/SecurityConfig.class
 com/creatorstudio/service/StoryResultListener.class
 com/creatorstudio/repository/ProductRepository.class
 com/creatorstudio/config/GlobalExceptionHandler.class
+com/creatorstudio/repository/ContactMessageRepository.class
 com/creatorstudio/entity/Generation$Status.class
 com/creatorstudio/entity/RateLimit.class
 com/creatorstudio/service/EmailService.class
@@ -19,6 +21,7 @@ com/creatorstudio/repository/GenerationRepository.class
 com/creatorstudio/entity/CreditLedger.class
 com/creatorstudio/controller/PaymentController.class
 com/creatorstudio/dto/ReelGenerationRequest.class
+com/creatorstudio/entity/Feedback.class
 com/creatorstudio/config/AppConfig.class
 com/creatorstudio/controller/CreditController.class
 com/creatorstudio/config/RabbitMQConfig.class
@@ -28,6 +31,7 @@ com/creatorstudio/entity/User$Role.class
 com/creatorstudio/repository/CreditLedgerRepository.class
 com/creatorstudio/repository/CreditWalletRepository.class
 com/creatorstudio/dto/VerifyPaymentRequest.class
+com/creatorstudio/repository/FeedbackRepository.class
 com/creatorstudio/dto/GenerationResponse.class
 com/creatorstudio/security/JwtUtil.class
 com/creatorstudio/security/CustomUserDetailsService.class
@@ -38,7 +42,10 @@ com/creatorstudio/dto/RegisterRequest.class
 com/creatorstudio/entity/CreditWallet.class
 com/creatorstudio/repository/UserRepository.class
 com/creatorstudio/controller/AdminController.class
+com/creatorstudio/controller/FeedbackController.class
+com/creatorstudio/config/RateLimitFilter.class
 com/creatorstudio/entity/CreditLedger$Reason.class
+com/creatorstudio/entity/Feedback$FeedbackType.class
 com/creatorstudio/entity/Payment$Status.class
 com/creatorstudio/entity/Product$Type.class
 com/creatorstudio/entity/Generation$Type.class
