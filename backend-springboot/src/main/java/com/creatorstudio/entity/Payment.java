@@ -41,6 +41,16 @@ public class Payment {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amountInr;
 
+    // International payment support
+    @Column(length = 3)
+    private String currency = "INR";
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal amountInCurrency;
+
+    @Column(length = 3)
+    private String country;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
