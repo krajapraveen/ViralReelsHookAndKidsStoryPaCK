@@ -71,6 +71,41 @@ public class DataPrivacyController {
     }
 
     /**
+     * Request account deletion (simplified - no password required from frontend)
+     */
+    @PostMapping("/delete-request")
+    public ResponseEntity<Map<String, Object>> requestAccountDeletionSimple(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> request) {
+        try {
+            String reason = request.get("reason");
+            
+            if (reason == null || reason.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", "Please provide a reason for account deletion"
+                ));
+            }
+            
+            User user = authService.getUserByEmail(userDetails.getUsername());
+            
+            // Schedule deletion (30-day grace period)
+            privacyService.scheduleAccountDeletion(user.getId(), reason);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Account scheduled for deletion. You have 30 days to cancel this request."
+            ));
+        } catch (Exception e) {
+            logger.error("Error scheduling account deletion: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "error", "Failed to process deletion request"
+            ));
+        }
+    }
+
+    /**
      * Request account deletion (GDPR Article 17 - Right to Erasure)
      */
     @PostMapping("/delete-account")
