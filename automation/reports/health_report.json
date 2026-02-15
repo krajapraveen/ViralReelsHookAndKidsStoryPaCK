@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-02-15T17:59:46.140441",
-  "status": "degraded",
+  "timestamp": "2026-02-15T18:00:56.227538",
+  "status": "healthy",
   "services": {
     "springboot": {
       "name": "Spring Boot Backend",
@@ -16,8 +16,8 @@
     },
     "worker": {
       "name": "Python AI Worker",
-      "supervisor_status": "UNKNOWN",
-      "http_status": 0,
+      "supervisor_status": "RUNNING",
+      "http_status": 200,
       "healthy": true
     }
   },
@@ -35,12 +35,8 @@
     },
     "queue_messages": 0
   },
-  "actions_taken": [
-    "Restarted Python AI Worker successfully"
-  ],
-  "issues": [
-    "Python AI Worker is unhealthy"
-  ],
+  "actions_taken": [],
+  "issues": [],
   "api_validation": {
     "/api/auth/login": true,
     "/api/payments/products": true
