@@ -135,6 +135,14 @@ export default function Dashboard() {
           </Link>
         </div>
 
+        {/* Privacy & Settings Quick Link */}
+        <div className="mb-12">
+          <Link to="/app/privacy" className="inline-flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors">
+            <Lock className="w-4 h-4" />
+            <span className="text-sm">Privacy & Data Settings</span>
+          </Link>
+        </div>
+
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold">Recent Generations</h3>
