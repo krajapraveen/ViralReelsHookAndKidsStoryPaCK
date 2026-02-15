@@ -85,14 +85,14 @@ public class AuthController {
                         newUser.setRole(User.Role.USER);
                         newUser = userRepository.save(newUser);
                         
-                        // Create wallet with 5 free credits
+                        // Create wallet with 54 free credits
                         CreditWallet wallet = new CreditWallet();
                         wallet.setUser(newUser);
-                        wallet.setBalanceCredits(new BigDecimal("5.00"));
+                        wallet.setBalanceCredits(new BigDecimal("54.00"));
                         walletRepository.save(wallet);
                         
                         // Log credit bonus
-                        creditService.addCreditLedgerEntry(newUser.getId(), BigDecimal.valueOf(5), 
+                        creditService.addCreditLedgerEntry(newUser.getId(), BigDecimal.valueOf(54), 
                                 com.creatorstudio.entity.CreditLedger.Type.CREDIT,
                                 com.creatorstudio.entity.CreditLedger.Reason.BONUS, "Welcome bonus");
                         
