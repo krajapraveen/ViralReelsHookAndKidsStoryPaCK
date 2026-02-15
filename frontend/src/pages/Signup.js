@@ -23,7 +23,7 @@ export default function Signup({ setAuth }) {
       localStorage.setItem('token', response.data.token);
       setAuth(true);
       toast.success('Account created! You have 54 free credits.');
-      navigate('/app');
+      navigate('/app', { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Signup failed');
     } finally {
