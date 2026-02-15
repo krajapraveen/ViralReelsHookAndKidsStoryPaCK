@@ -14,6 +14,8 @@ import FeatureRequests from './pages/FeatureRequests';
 import AuthCallback from './pages/AuthCallback';
 import Contact from './pages/Contact';
 import Reviews from './pages/Reviews';
+import PrivacySettings from './pages/PrivacySettings';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import './App.css';
 
 function App() {
