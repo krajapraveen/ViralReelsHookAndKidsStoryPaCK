@@ -7,6 +7,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/service/RateLimitService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/User.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/Feedback.java
+/app/backend-springboot/src/main/java/com/creatorstudio/config/DatabasePoolConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/SecurityConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/StoryResultListener.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/AppConfig.java
@@ -17,6 +18,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/UserSessionRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/security/JwtUtil.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/Product.java
+/app/backend-springboot/src/main/java/com/creatorstudio/service/CurrencyService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/CorsConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/UserRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/security/CustomUserDetailsService.java
@@ -46,6 +48,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/RegisterRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/ContactMessage.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/FeatureUsage.java
+/app/backend-springboot/src/main/java/com/creatorstudio/config/ResilienceConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/CreditService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/GenerationService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/GenerationResponse.java
@@ -69,7 +72,9 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/exception/RazorpayVerificationException.java
 /app/backend-springboot/src/main/java/com/creatorstudio/exception/RazorpayOrderException.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/CreditWalletRepository.java
+/app/backend-springboot/src/main/java/com/creatorstudio/controller/HealthController.java
 /app/backend-springboot/src/main/java/com/creatorstudio/exception/ProductNotFoundException.java
+/app/backend-springboot/src/main/java/com/creatorstudio/config/RedisCacheConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/security/JwtAuthenticationFilter.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/FeatureRequestRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/AnalyticsService.java
