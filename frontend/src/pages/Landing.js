@@ -56,7 +56,7 @@ export default function Landing() {
             <span className="text-purple-500 text-sm font-medium">AI-Powered Content Creation</span>
           </div>
           
-          <h1 className="text-6xl lg:text-7xl font-black text-white mb-6 tracking-tight leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white mb-6 tracking-tight leading-tight">
             Generate viral reels +<br />
             kids story videos<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
@@ -64,16 +64,16 @@ export default function Landing() {
             </span>
           </h1>
           
-          <p className="text-xl text-slate-300 max-w-3xl mx-auto mb-12">
+          <p className="text-base sm:text-lg md:text-xl text-slate-300 max-w-3xl mx-auto mb-8 sm:mb-12 px-4">
             Hooks, scripts, captions, hashtags — and complete kids story video packs with scene prompts and voiceovers. 
             Everything you need to create viral content.
           </p>
 
-          <div className="flex items-center justify-center gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8 px-4">
             <Button 
               size="lg" 
               onClick={() => setShowDemo(true)}
-              className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-full px-8 py-6 text-lg shadow-lg shadow-purple-500/20 hover:scale-105 transition-all" 
+              className="w-full sm:w-auto bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-full px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-lg shadow-lg shadow-purple-500/20 hover:scale-105 transition-all" 
               data-testid="hero-demo-btn"
             >
               <Play className="w-5 h-5 mr-2" />
@@ -81,15 +81,15 @@ export default function Landing() {
             </Button>
           </div>
 
-          <div className="flex items-center justify-center gap-4 mb-16">
-            <Link to="/app/reels">
-              <Button size="lg" className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-full px-8 py-6 text-lg shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all" data-testid="hero-reel-btn">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-12 sm:mb-16 px-4">
+            <Link to="/app/reels" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-600 text-white rounded-full px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-lg shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all" data-testid="hero-reel-btn">
                 <Video className="w-5 h-5 mr-2" />
                 Generate a Reel Now
               </Button>
             </Link>
-            <Link to="/app/stories">
-              <Button size="lg" variant="outline" className="border-2 border-white/20 text-white hover:bg-white/10 rounded-full px-8 py-6 text-lg" data-testid="hero-story-btn">
+            <Link to="/app/stories" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto border-2 border-white/20 text-white hover:bg-white/10 rounded-full px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-lg" data-testid="hero-story-btn">
                 <BookOpen className="w-5 h-5 mr-2" />
                 Create Kids Story Pack
               </Button>
