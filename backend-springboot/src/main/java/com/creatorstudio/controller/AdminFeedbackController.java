@@ -57,7 +57,7 @@ public class AdminFeedbackController {
                     item.put("rating", f.getRating());
                     item.put("message", f.getMessage());
                     item.put("createdAt", f.getCreatedAt() != null ? f.getCreatedAt().toString() : null);
-                    item.put("allowPublic", f.getAllowPublic());
+                    item.put("allowPublic", f.isAllowPublic());
                     return item;
                 })
                 .collect(Collectors.toList());
