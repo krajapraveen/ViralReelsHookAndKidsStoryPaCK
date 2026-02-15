@@ -35,6 +35,9 @@ public class PaymentService {
     @Autowired
     private CreditService creditService;
 
+    @Autowired
+    private EmailService emailService;
+
     @Value("${razorpay.key.id}")
     private String razorpayKeyId;
 
