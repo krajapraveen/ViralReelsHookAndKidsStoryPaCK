@@ -10,20 +10,25 @@ import com.creatorstudio.repository.UserRepository;
 import com.creatorstudio.security.JwtUtil;
 import com.creatorstudio.service.AuthService;
 import com.creatorstudio.service.CreditService;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -43,15 +48,71 @@ public class AuthController {
 
     @Autowired
     private CreditService creditService;
+    
+    // Simple in-memory rate limiter for login attempts per IP
+    private final ConcurrentHashMap<String, AtomicInteger> loginAttempts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> lastAttemptTime = new ConcurrentHashMap<>();
+    private static final int MAX_ATTEMPTS = 5;
+    private static final long LOCKOUT_DURATION_MS = 60000; // 1 minute
 
     @PostMapping("/register")
+    @RateLimiter(name = "apiRateLimit")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(authService.register(request));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        String clientIp = getClientIp(httpRequest);
+        
+        // Check rate limit
+        if (isRateLimited(clientIp)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of(
+                            "success", false,
+                            "error", "Too many login attempts. Please try again in 1 minute.",
+                            "errorCode", "RATE_LIMIT_EXCEEDED",
+                            "retryAfterSeconds", 60
+                    ));
+        }
+        
+        try {
+            AuthResponse response = authService.login(request);
+            // Reset attempts on successful login
+            loginAttempts.remove(clientIp);
+            lastAttemptTime.remove(clientIp);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            // Increment failed attempts
+            incrementFailedAttempts(clientIp);
+            throw e;
+        }
+    }
+    
+    private String getClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader != null && !xfHeader.isEmpty()) {
+            return xfHeader.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+    
+    private boolean isRateLimited(String clientIp) {
+        Long lastTime = lastAttemptTime.get(clientIp);
+        if (lastTime != null && System.currentTimeMillis() - lastTime > LOCKOUT_DURATION_MS) {
+            // Reset after lockout period
+            loginAttempts.remove(clientIp);
+            lastAttemptTime.remove(clientIp);
+            return false;
+        }
+        
+        AtomicInteger attempts = loginAttempts.get(clientIp);
+        return attempts != null && attempts.get() >= MAX_ATTEMPTS;
+    }
+    
+    private void incrementFailedAttempts(String clientIp) {
+        loginAttempts.computeIfAbsent(clientIp, k -> new AtomicInteger(0)).incrementAndGet();
+        lastAttemptTime.put(clientIp, System.currentTimeMillis());
     }
 
     @PostMapping("/google-callback")
