@@ -156,7 +156,7 @@ export default function AdminDashboard() {
         {/* Tabs */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <div className="border-b border-slate-700 flex overflow-x-auto">
-            {['overview', 'visitors', 'features', 'payments', 'satisfaction', 'feature-requests'].map((tab) => (
+            {['overview', 'visitors', 'features', 'payments', 'satisfaction', 'feature-requests', 'feedback'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -166,7 +166,9 @@ export default function AdminDashboard() {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {tab === 'feature-requests' ? '💡 Feature Requests' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'feature-requests' ? '💡 Feature Requests' : 
+                 tab === 'feedback' ? '📝 User Feedback' :
+                 tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             ))}
           </div>
@@ -184,6 +186,7 @@ export default function AdminDashboard() {
             {activeTab === 'payments' && <PaymentsTab payments={payments} />}
             {activeTab === 'satisfaction' && <SatisfactionTab satisfaction={satisfaction} />}
             {activeTab === 'feature-requests' && <FeatureRequestsTab data={featureRequests} onUpdateStatus={updateFeatureStatus} />}
+            {activeTab === 'feedback' && <UserFeedbackTab />}
           </div>
         </div>
       </div>
