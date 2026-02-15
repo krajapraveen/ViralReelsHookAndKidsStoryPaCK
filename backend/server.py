@@ -291,7 +291,7 @@ async def google_callback(data: GoogleCallback):
         raise
     except Exception as e:
         logger.error(f"Google callback error: {e}")
-        raise HTTPException(status_code=500, detail="Authentication failed")
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
 @auth_router.get("/me")
 async def get_me(user: dict = Depends(get_current_user)):
