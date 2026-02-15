@@ -104,7 +104,7 @@ public class InputSanitizer {
     }
 
     /**
-     * Sanitize name field
+     * Validate name field
      */
     public static String sanitizeName(String name) {
         if (name == null) {
@@ -112,5 +112,52 @@ public class InputSanitizer {
         }
         // Remove any non-alphanumeric characters except spaces, hyphens, and apostrophes
         return name.trim().replaceAll("[^a-zA-Z\\s'-]", "");
+    }
+
+    /**
+     * Blocked words for kids content
+     */
+    private static final String[] KIDS_BLOCKED_WORDS = {
+        "adult", "sex", "porn", "xxx", "nude", "naked", "erotic", "violent", "gore", "blood",
+        "kill", "murder", "death", "drug", "alcohol", "beer", "wine", "cigarette", "smoke",
+        "gun", "weapon", "abuse", "hate", "racist", "discrimination", "vulgar", "profanity",
+        "explicit", "mature", "inappropriate", "offensive", "disturbing", "graphic", "brutal",
+        "torture", "horror", "scary", "nightmare", "demon", "devil", "evil", "cult", "occult",
+        "gambling", "casino", "betting", "suicide", "self-harm", "bully", "harassment"
+    };
+
+    /**
+     * Validate content is appropriate for kids
+     */
+    public static boolean isKidsFriendly(String content) {
+        if (content == null || content.isEmpty()) {
+            return true;
+        }
+        String lowerContent = content.toLowerCase();
+        for (String word : KIDS_BLOCKED_WORDS) {
+            if (lowerContent.contains(word)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Validate and sanitize kids genre
+     */
+    public static String validateKidsGenre(String genre) {
+        if (genre == null || genre.trim().isEmpty()) {
+            throw new IllegalArgumentException("Genre is required");
+        }
+        if (genre.trim().length() < 3) {
+            throw new IllegalArgumentException("Genre must be at least 3 characters");
+        }
+        if (genre.trim().length() > 50) {
+            throw new IllegalArgumentException("Genre must be less than 50 characters");
+        }
+        if (!isKidsFriendly(genre)) {
+            throw new IllegalArgumentException("Genre contains inappropriate content for kids");
+        }
+        return sanitize(genre.trim());
     }
 }
