@@ -20,6 +20,7 @@ com/creatorstudio/config/SecurityHeadersFilter.class
 com/creatorstudio/entity/Product.class
 com/creatorstudio/repository/GenerationRepository.class
 com/creatorstudio/entity/CreditLedger.class
+com/creatorstudio/config/RedisConfig.class
 com/creatorstudio/controller/PaymentController.class
 com/creatorstudio/dto/ReelGenerationRequest.class
 com/creatorstudio/entity/Feedback.class
