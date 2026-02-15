@@ -335,6 +335,7 @@ export default function StoryGenerator() {
             <div className="flex items-center justify-between mb-6"><h2 className="text-2xl font-bold">Story Pack</h2>
               {result && (
                 <div className="flex gap-2">
+                  <ShareButton type="STORY" title={result.title || 'Kids Story Pack'} preview={result.synopsis || ''} />
                   <Button variant="outline" size="sm" onClick={() => handleDownloadClick('pdf')} data-testid="download-story-pdf">
                     <Download className="w-4 h-4 mr-2" />
                     PDF
