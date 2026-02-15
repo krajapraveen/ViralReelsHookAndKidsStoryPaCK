@@ -11,6 +11,8 @@ import Billing from './pages/Billing';
 import Pricing from './pages/Pricing';
 import AdminDashboard from './pages/AdminDashboard';
 import AuthCallback from './pages/AuthCallback';
+import Contact from './pages/Contact';
+import Reviews from './pages/Reviews';
 import './App.css';
 
 function App() {
@@ -33,6 +35,8 @@ function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/pricing" element={<Pricing />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/reviews" element={<Reviews />} />
       <Route path="/login" element={<Login setAuth={setIsAuthenticated} />} />
       <Route path="/signup" element={<Signup setAuth={setIsAuthenticated} />} />
       <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
