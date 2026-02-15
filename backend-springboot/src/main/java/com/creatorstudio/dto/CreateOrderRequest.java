@@ -9,4 +9,7 @@ public class CreateOrderRequest {
     @NotNull(message = "Product ID is required")
     @Positive(message = "Product ID must be a positive number")
     private Long productId;
+    
+    // Optional: Currency code for international payments (default: INR)
+    private String currency;
 }
