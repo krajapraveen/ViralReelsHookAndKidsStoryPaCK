@@ -144,7 +144,7 @@ export default function StoryGenerator() {
       setPolling(true);
       toast.success('Story generation started! This may take 30-90 seconds.');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Generation failed');
+      toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
       setLoading(false);
     }
   };
