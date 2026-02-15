@@ -5,9 +5,9 @@ package com.creatorstudio.exception;
  */
 public class PaymentVerificationException extends PaymentException {
     public PaymentVerificationException(String message) {
-        super(message, "PAYMENT_VERIFICATION_FAILED");
+        super("PAYMENT_VERIFICATION_FAILED", message, "Payment verification failed. Please contact support.");
     }
     public PaymentVerificationException(String message, Throwable cause) {
-        super(message, "PAYMENT_VERIFICATION_FAILED", cause);
+        super("PAYMENT_VERIFICATION_FAILED", message, "Payment verification failed. Please contact support.", cause);
     }
 }
