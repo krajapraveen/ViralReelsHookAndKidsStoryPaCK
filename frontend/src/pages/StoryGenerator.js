@@ -123,7 +123,12 @@ export default function StoryGenerator() {
       return;
     }
 
+    // Reset state for new generation
+    setResult(null);
+    setGenerationId(null);
+    setPolling(false);
     setLoading(true);
+    
     try {
       // Use custom genre if selected, otherwise use the selected genre
       const genreToUse = formData.genre === 'Custom' ? formData.customGenre.trim() : formData.genre;
