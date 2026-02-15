@@ -478,7 +478,15 @@ CreatorStudio AI Team
 
 @credits_router.get("/balance")
 async def get_balance(user: dict = Depends(get_current_user)):
-    return {"credits": user["credits"]}
+    # Determine if user is on free tier (less than 54 credits and no purchases)
+    purchase_count = await db.orders.count_documents({"userId": user["id"], "status": "PAID"})
+    is_free_tier = purchase_count == 0
+    
+    return {
+        "credits": user["credits"],
+        "balance": user["credits"],  # Alias for compatibility
+        "isFreeTier": is_free_tier
+    }
 
 @credits_router.get("/ledger")
 async def get_ledger(page: int = 0, size: int = 20, user: dict = Depends(get_current_user)):
