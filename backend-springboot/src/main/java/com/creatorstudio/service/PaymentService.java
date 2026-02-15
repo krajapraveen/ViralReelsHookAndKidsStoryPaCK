@@ -115,6 +115,17 @@ public class PaymentService {
                 CreditLedger.Reason.PURCHASE,
                 payment.getId().toString()
         );
+
+        // Send success email
+        User user = payment.getUser();
+        emailService.sendPaymentSuccessEmail(
+                user.getEmail(),
+                user.getName(),
+                payment.getProduct().getName(),
+                payment.getAmountInr(),
+                payment.getProduct().getCredits(),
+                paymentId
+        );
     }
 
     public Page<Payment> getUserPayments(UUID userId, Pageable pageable) {
