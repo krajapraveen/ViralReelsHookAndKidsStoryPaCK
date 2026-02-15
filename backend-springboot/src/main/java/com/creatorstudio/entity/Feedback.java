@@ -32,6 +32,6 @@ public class Feedback {
     private LocalDateTime createdAt;
 
     public enum FeedbackType {
-        FEEDBACK, REVIEW, BUG, FEATURE
+        FEEDBACK, REVIEW, BUG, FEATURE, SUGGESTION, IMPROVEMENT, PRAISE
     }
 }
