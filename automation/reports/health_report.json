@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-02-15T18:05:04.885186",
+  "timestamp": "2026-02-15T18:06:08.878579",
   "status": "healthy",
   "services": {
     "springboot": {
       "name": "Spring Boot Backend",
       "supervisor_status": "RUNNING",
-      "http_status": 200,
+      "http_status": 403,
       "healthy": true
     },
     "frontend": {
