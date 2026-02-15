@@ -152,7 +152,7 @@ export default function StoryGenerator() {
   const checkGenerationStatus = async () => {
     try {
       const response = await generationAPI.getGeneration(generationId);
-      if (response.data.status === 'SUCCEEDED') {
+      if (response.data.status === 'COMPLETED' || response.data.status === 'SUCCEEDED') {
         setResult(response.data.outputJson);
         setPolling(false);
         setLoading(false);
