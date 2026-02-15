@@ -55,7 +55,7 @@ export default function Pricing() {
 
     setLoading({...loading, [productId]: true});
     try {
-      const response = await paymentAPI.createOrder(productId);
+      const response = await paymentAPI.createOrder(productId, selectedCurrency);
       
       const options = {
         key: response.data.keyId,
