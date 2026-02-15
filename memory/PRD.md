@@ -5,99 +5,145 @@
 
 ## Tech Stack
 - **Frontend:** React + TailwindCSS + Shadcn/UI
-- **Backend:** Spring Boot (Java 17) on port 8001
-- **Database:** PostgreSQL
-- **Message Queue:** RabbitMQ
-- **AI Worker:** Python/Flask on port 5000 (GPT-5.2)
-- **Cache:** Redis
+- **Backend:** Python/FastAPI on port 8001 (migrated from Spring Boot)
+- **Database:** MongoDB
+- **AI Worker:** Python/Flask on port 5000 (GPT-5.2 via emergentintegrations)
+- **Automation:** Python scripts managed by Supervisor
 
-## Security Features Implemented ✅
+## Core Features
 
-### Web Application Firewall (WAF) 🛡️
-- **SQL Injection Protection** - Blocks UNION, SELECT, DROP, etc.
-- **XSS Protection** - Blocks <script>, javascript:, onerror, etc.
-- **Path Traversal Protection** - Blocks ../, %2e%2e, etc.
-- **Command Injection Protection** - Blocks system(), exec(), etc.
-- **LDAP Injection Protection** - Blocks special LDAP characters
-
-### Request Validation
-- **HTTP Method Validation** - Only allows GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD
-- **Content-Length Validation** - Max 10MB requests
-- **Content-Type Validation** - Only JSON, form data allowed
-- **Host Header Validation** - Prevents host header injection
-- **Null Byte Protection** - Blocks null byte injection
-
-### Rate Limiting & Anti-Bot
-- **Global Rate Limit** - 50 requests/second per IP
-- **Login Rate Limit** - 5 attempts per minute per IP
-- **Auto IP Blocking** - Blocks after 100 suspicious requests
-- **Block Duration** - 5 minutes temporary, permanent for repeat offenders
-
-### Blocked Hacking Tools (User Agents)
-- sqlmap, nikto, nmap, masscan, dirbuster, gobuster
-- wfuzz, ffuf, burp, owasp zap, acunetix, nessus
-- w3af, skipfish, arachni, vega, wpscan, joomscan
-- havij, pangolin, sqlninja, xerxes, hulk, slowloris
-
-### Blocked File Extensions
-- .php, .asp, .aspx, .jsp, .cgi, .pl, .py, .rb
-- .sh, .bash, .exe, .dll, .bat, .cmd, .ps1
-- .htaccess, .htpasswd, .git, .svn, .env, .config
-
-### Blocked Suspicious Paths
-- /wp-admin, /wp-content (WordPress)
-- /phpmyadmin, /pma (Database tools)
-- /admin/config, /administrator
-- /.git/, /.svn/, /.env
-- /actuator (except /health), /metrics, /dump
-
-### Security Headers
-- X-Content-Type-Options: nosniff
-- X-Frame-Options: SAMEORIGIN
-- X-XSS-Protection: 1; mode=block
-- Strict-Transport-Security: max-age=31536000
-- Content-Security-Policy (CSP)
-- Referrer-Policy: strict-origin-when-cross-origin
-- Permissions-Policy: camera=(), microphone=(), geolocation=()
-
-### Input Sanitization
-- HTML encoding for special characters
-- SQL escaping for database queries
-- Email and name format validation
-- UUID format validation
-- JSON sanitization
-
-### Security Monitoring
-- Real-time attack logging
-- Hourly security reports
-- Attack statistics dashboard
-- Automatic IP blocking after multiple attacks
-- Admin security dashboard endpoint
-
-## Admin Security Dashboard
-- GET /api/admin/security/stats - Security statistics
-- GET /api/admin/security/attacks - Recent attack attempts
-- GET /api/admin/security/overview - Full security overview
-
-## All Other Features
-- [x] AI Reel Script Generator
-- [x] Kids Story Video Pack Generator
+### Implemented ✅
+- [x] AI Reel Script Generator (instant generation, 1 credit)
+- [x] Kids Story Video Pack Generator (async, 6-10 credits)
+- [x] Credit System (54 free credits on signup)
+- [x] User Authentication (JWT & Google Sign-On)
+- [x] Admin Dashboard with Analytics
+- [x] Feature Voting System
+- [x] International Currency Support (INR, USD, EUR, GBP)
 - [x] AI Chatbot (GPT-5.2)
-- [x] Credit System (54 free credits)
-- [x] Razorpay Payments (TEST MODE)
-- [x] International Currency (Live rates)
-- [x] Email Notifications
-- [x] Circuit Breaker (Resilience4j)
-- [x] Privacy/GDPR Compliance
-- [x] Automation System
+- [x] Feedback Widget & Admin View
+- [x] Privacy Policy & Settings
+- [x] Automation Dashboard
+
+### In Test Mode / Mocked
+- Razorpay Payments (test keys)
+- Currency Exchange Rates (hardcoded)
+- Email Service (stub)
+
+## Security Features
+- JWT Authentication with role-based access
+- Input validation & sanitization
+- CORS configuration
+- Admin-only routes protection
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - Email/password login
+- `POST /api/auth/google-callback` - Google OAuth callback
+- `GET /api/auth/me` - Get current user
+
+### Credits
+- `GET /api/credits/balance` - Get credit balance
+- `GET /api/credits/ledger` - Get credit history
+
+### Generation
+- `POST /api/generate/reel` - Generate reel script
+- `POST /api/generate/story` - Generate story pack
+- `GET /api/generate/generations` - Get user generations
+- `GET /api/generate/generations/{id}` - Get specific generation
+- `POST /api/generate/demo-reel` - Public demo endpoint
+
+### Payments
+- `GET /api/payments/products` - Get products
+- `GET /api/payments/currencies` - Get currencies & rates
+- `POST /api/payments/create-order` - Create order
+- `POST /api/payments/verify` - Verify payment
+- `GET /api/payments/history` - Payment history
+
+### Feedback
+- `POST /api/feedback/suggestion` - Submit feedback
+- `POST /api/feedback` - Legacy feedback endpoint
+- `POST /api/contact` - Contact form
+
+### Admin
+- `GET /api/admin/analytics/dashboard` - Analytics data
+- `GET /api/admin/feedback/all` - All feedback
+- `DELETE /api/admin/feedback/{id}` - Delete feedback
+
+### Chatbot
+- `POST /api/chatbot/message` - Chat with AI
+- `POST /api/chat` - Chat proxy
 
 ## Test Credentials
 - **Admin:** admin@creatorstudio.ai / Admin@123
-- **Test User:** corstest1771172193@example.com / CorsTest123!
+- **Demo User:** demo@example.com / Password123!
 
-## Security Status
-- WAF: ✅ ACTIVE
-- Rate Limiting: ✅ ACTIVE
-- Input Sanitization: ✅ ACTIVE
-- Security Headers: ✅ ACTIVE
-- Attack Monitoring: ✅ ACTIVE
+## File Structure
+```
+/app/
+├── backend/                # FastAPI backend
+│   └── server.py          # Main API server
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── admin/     # Refactored admin components
+│       │   │   ├── StatCard.js
+│       │   │   ├── OverviewTab.js
+│       │   │   ├── VisitorsTab.js
+│       │   │   ├── FeaturesTab.js
+│       │   │   ├── PaymentsTab.js
+│       │   │   ├── SatisfactionTab.js
+│       │   │   ├── FeatureRequestsTab.js
+│       │   │   └── UserFeedbackTab.js
+│       │   ├── AIChatbot.js
+│       │   └── FeedbackWidget.js
+│       └── pages/
+│           ├── AdminDashboard.js (refactored)
+│           ├── Dashboard.js
+│           ├── Login.js
+│           └── ...
+├── worker/                 # AI generation worker
+│   └── app.py
+└── automation/             # Self-healing scripts
+```
+
+## Recent Updates (February 2026)
+
+### Fixed Issues
+1. **P0 Bug: Feedback not showing on Admin Dashboard** - FIXED
+   - Migrated backend to FastAPI with proper feedback endpoints
+   - Feedback now saves to MongoDB and displays on admin dashboard
+
+2. **P0 Bug: Browser back button to login** - FIXED
+   - Using `navigate('/app', { replace: true })` to prevent history stack issues
+
+### Completed Tasks
+- Refactored AdminDashboard.js into 8 separate components
+- Migrated backend from Spring Boot to FastAPI (due to Java unavailability)
+- Implemented all core API endpoints in FastAPI
+- Created comprehensive admin analytics dashboard
+
+## Remaining Tasks
+
+### P1 (High Priority)
+- [ ] Verify "Share Your Creation" feature
+- [ ] Integrate Email Notification Service
+- [ ] Add more comprehensive error handling
+
+### P2 (Medium Priority)
+- [ ] Razorpay Production Setup
+- [ ] Implement Razorpay Subscription Webhooks
+- [ ] Real currency conversion API integration
+
+### P3 (Low Priority)
+- [ ] Conduct Copyright Review
+- [ ] Add user profile management
+- [ ] Enhanced analytics tracking
+
+## Known Limitations
+- Razorpay in test mode only
+- Currency rates are hardcoded
+- Email service is stubbed
+- Story generation is simplified (no RabbitMQ)
