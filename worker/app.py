@@ -57,25 +57,63 @@ Rules:
 
 Return ONLY valid JSON, no markdown or explanation."""
 
-STORY_SYSTEM_PROMPT = """You create safe kids content. Output must be structured JSON only. No violence, no fear, no adult themes."""
+STORY_SYSTEM_PROMPT = """You are a creative children's story writer. Each story you create must be COMPLETELY UNIQUE and DIFFERENT from any previous stories. 
 
-# Optimized story prompt - concise and fast
-STORY_USER_PROMPT_TEMPLATE = """Create kids story video pack in JSON format.
+CRITICAL RULES:
+- NEVER repeat the same plot, characters, or storyline
+- Always create FRESH, ORIGINAL content
+- Use the provided genre and age group to craft age-appropriate content
+- Make stories engaging, educational, and fun
+- No violence, fear, or adult themes
+- Output must be structured JSON only"""
 
-Input: Age:{ageGroup}|Theme:{theme}|Moral:{moral}|Chars:{characters}|Setting:{setting}|Scenes:{scenes}|Lang:{language}
+# Story prompt with more variation and uniqueness
+STORY_USER_PROMPT_TEMPLATE = """Create a COMPLETELY UNIQUE and ORIGINAL kids story video pack. This story must be DIFFERENT from any story you've created before.
 
-Output ONLY this JSON (no markdown):
+**REQUIREMENTS:**
+- Genre: {genre}
+- Age Group: {ageGroup} years old
+- Theme/Moral: {theme}
+- Number of Scenes: {scenes}
+- Custom Elements: {customElements}
+- Unique ID: {uniqueId}
+
+**CREATIVITY INSTRUCTIONS:**
+- Invent NEW character names (don't use common names like "Max" or "Luna")
+- Create a FRESH plot that hasn't been done before
+- Use unexpected twists and creative scenarios
+- Make the setting unique and interesting
+- The title should be catchy and original
+
+Output ONLY this JSON format (no markdown, no explanation):
 {{
-"title":"catchy title",
-"synopsis":"2 sentence summary",
-"characters":[{{"name":"","description":""}}],
-"scenes":[
-{{"scene_number":1,"shot_type":"Medium/Close","visual_description":"1 sentence","narration":"narrator text","dialogue":[{{"speaker":"","line":""}}],"image_prompt":"detailed visual"}}
-],
-"youtube":{{"title":"","description":"","tags":["tag1","tag2","tag3"]}}
+  "title": "A unique, catchy title for this specific story",
+  "synopsis": "A 2-3 sentence summary of this unique story",
+  "genre": "{genre}",
+  "ageGroup": "{ageGroup}",
+  "moral": "The lesson or moral of this story",
+  "characters": [
+    {{"name": "Unique character name", "role": "protagonist/supporting", "description": "Brief description"}}
+  ],
+  "scenes": [
+    {{
+      "scene_number": 1,
+      "title": "Scene title",
+      "setting": "Where this scene takes place",
+      "visual_description": "Detailed description for illustration",
+      "narration": "The narrator's text for this scene",
+      "dialogue": [{{"speaker": "Character name", "line": "What they say"}}],
+      "image_prompt": "Detailed prompt for generating scene illustration"
+    }}
+  ],
+  "youtubeMetadata": {{
+    "title": "YouTube video title",
+    "description": "YouTube description with story summary",
+    "tags": ["relevant", "tags", "for", "youtube"]
+  }}
 }}
 
-Keep concise, safe, consistent characters. JSON only."""
+Remember: Create something FRESH and ORIGINAL. Do not repeat patterns from other stories."""
 
 async def generate_reel_content(data):
     """Generate reel script using LLM - optimized"""
