@@ -107,6 +107,12 @@ public class GenerationService {
     }
 
     public GenerationResponse generateDemoReel(ReelGenerationRequest request) {
+        // Validate content for inappropriate language
+        ContentFilterService.ValidationResult topicValidation = contentFilterService.validateContent(request.getTopic());
+        if (!topicValidation.isValid()) {
+            throw new RuntimeException(topicValidation.getMessage());
+        }
+        
         // Demo generation - no user, no credits, no rate limit
         // Just call the worker and return result with watermark
         try {
