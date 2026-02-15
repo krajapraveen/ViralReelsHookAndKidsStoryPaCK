@@ -17,7 +17,8 @@ export default function Pricing() {
   const fetchProducts = async () => {
     try {
       const response = await paymentAPI.getProducts();
-      setProducts(response.data);
+      // API returns { success: true, products: [...] }
+      setProducts(response.data.products || []);
     } catch (error) {
       console.log('Not authenticated, showing empty products');
       setProducts([]);
