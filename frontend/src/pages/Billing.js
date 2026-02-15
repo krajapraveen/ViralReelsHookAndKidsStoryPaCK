@@ -20,7 +20,8 @@ export default function Billing() {
         paymentAPI.getProducts(),
         creditAPI.getBalance()
       ]);
-      setProducts(productsRes.data);
+      // API returns { success: true, products: [...] }
+      setProducts(productsRes.data.products || []);
       setCredits(creditsRes.data.balance);
     } catch (error) {
       toast.error('Failed to load billing data');
