@@ -10,6 +10,7 @@ import History from './pages/History';
 import Billing from './pages/Billing';
 import Pricing from './pages/Pricing';
 import AdminDashboard from './pages/AdminDashboard';
+import FeatureRequests from './pages/FeatureRequests';
 import AuthCallback from './pages/AuthCallback';
 import Contact from './pages/Contact';
 import Reviews from './pages/Reviews';
@@ -48,6 +49,7 @@ function App() {
       <Route path="/app/history" element={isAuthenticated ? <History /> : <Navigate to="/login" />} />
       <Route path="/app/billing" element={isAuthenticated ? <Billing /> : <Navigate to="/login" />} />
       <Route path="/app/admin" element={isAuthenticated ? <AdminDashboard /> : <Navigate to="/login" />} />
+      <Route path="/app/feature-requests" element={isAuthenticated ? <FeatureRequests /> : <Navigate to="/login" />} />
     </Routes>
   );
 }
