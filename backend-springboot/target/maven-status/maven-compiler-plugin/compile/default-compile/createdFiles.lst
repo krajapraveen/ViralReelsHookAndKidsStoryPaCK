@@ -10,6 +10,7 @@ com/creatorstudio/entity/FeatureRequest$Status.class
 com/creatorstudio/exception/PaymentGatewayUnavailableException.class
 com/creatorstudio/config/RedisCacheConfig.class
 com/creatorstudio/config/GlobalExceptionHandler.class
+com/creatorstudio/security/RequestValidationFilter.class
 com/creatorstudio/exception/PaymentSignatureException.class
 com/creatorstudio/entity/Generation$Status.class
 com/creatorstudio/entity/RateLimit.class
@@ -31,6 +32,7 @@ com/creatorstudio/config/RabbitMQConfig.class
 com/creatorstudio/config/CorsConfig.class
 com/creatorstudio/repository/ReviewRepository.class
 com/creatorstudio/entity/User$Role.class
+com/creatorstudio/security/InputSanitizer.class
 com/creatorstudio/repository/CreditWalletRepository.class
 com/creatorstudio/repository/FeedbackRepository.class
 com/creatorstudio/dto/GenerationResponse.class
@@ -64,6 +66,7 @@ com/creatorstudio/service/PaymentService.class
 com/creatorstudio/entity/User.class
 com/creatorstudio/config/SecurityConfig.class
 com/creatorstudio/service/StoryResultListener.class
+com/creatorstudio/security/SecurityMonitoringService$SecurityEvent.class
 com/creatorstudio/repository/ProductRepository.class
 com/creatorstudio/repository/ContactMessageRepository.class
 com/creatorstudio/exception/RazorpayConnectionException.class
@@ -72,6 +75,7 @@ com/creatorstudio/service/CreditService.class
 com/creatorstudio/exception/PaymentVerificationException.class
 com/creatorstudio/config/SecurityHeadersFilter.class
 com/creatorstudio/entity/Product.class
+com/creatorstudio/security/SecurityMonitoringService.class
 com/creatorstudio/controller/PaymentController.class
 com/creatorstudio/repository/PageVisitRepository.class
 com/creatorstudio/service/DataPrivacyService.class
@@ -79,6 +83,7 @@ com/creatorstudio/entity/Feedback.class
 com/creatorstudio/service/CurrencyConversionService.class
 com/creatorstudio/controller/CreditController.class
 com/creatorstudio/entity/UserSession.class
+com/creatorstudio/controller/SecurityDashboardController.class
 com/creatorstudio/config/DatabasePoolConfig.class
 com/creatorstudio/repository/PaymentRepository.class
 com/creatorstudio/repository/CreditLedgerRepository.class
@@ -94,6 +99,7 @@ com/creatorstudio/controller/FeedbackController.class
 com/creatorstudio/config/ResilienceConfig.class
 com/creatorstudio/entity/CreditLedger$Reason.class
 com/creatorstudio/util/InputSanitizer.class
+com/creatorstudio/security/WebApplicationFirewall.class
 com/creatorstudio/entity/Payment$Status.class
 com/creatorstudio/entity/PageVisit.class
 com/creatorstudio/controller/AuthController.class
