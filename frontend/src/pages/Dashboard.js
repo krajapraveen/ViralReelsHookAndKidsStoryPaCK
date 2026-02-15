@@ -56,6 +56,13 @@ export default function Dashboard() {
               </Link>
             )}
             
+            <Link to="/app/profile">
+              <Button variant="ghost" size="sm" data-testid="profile-btn">
+                <User className="w-4 h-4 mr-2" />
+                Profile
+              </Button>
+            </Link>
+            
             <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2" data-testid="credit-balance">
               <Coins className="w-4 h-4 text-purple-500" />
               <span className="font-semibold">{credits} Credits</span>
