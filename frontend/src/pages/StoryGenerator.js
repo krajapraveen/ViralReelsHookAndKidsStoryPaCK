@@ -64,6 +64,12 @@ export default function StoryGenerator() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate age group is selected
+    if (!formData.ageGroup) {
+      toast.error('Please select an Age Group before generating');
+      return;
+    }
+    
     const cost = getCreditCost();
     if (credits < cost) {
       toast.error(`Insufficient credits! Need ${cost} credits.`);
