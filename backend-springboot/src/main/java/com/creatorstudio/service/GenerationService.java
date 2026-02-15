@@ -62,6 +62,20 @@ public class GenerationService {
 
     @Transactional
     public GenerationResponse generateReel(UUID userId, ReelGenerationRequest request) {
+        // Validate content for inappropriate language
+        ContentFilterService.ValidationResult topicValidation = contentFilterService.validateContent(request.getTopic());
+        if (!topicValidation.isValid()) {
+            throw new RuntimeException(topicValidation.getMessage());
+        }
+        
+        // Also validate audience if provided
+        if (request.getAudience() != null && !request.getAudience().isEmpty()) {
+            ContentFilterService.ValidationResult audienceValidation = contentFilterService.validateContent(request.getAudience());
+            if (!audienceValidation.isValid()) {
+                throw new RuntimeException(audienceValidation.getMessage());
+            }
+        }
+        
         // Check rate limit
         rateLimitService.checkAndIncrementRateLimit(userId);
         // Deduct 1 credit
