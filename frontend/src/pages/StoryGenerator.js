@@ -23,7 +23,7 @@ export default function StoryGenerator() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    ageGroup: '4-6',
+    ageGroup: '',
     theme: 'Adventure',
     genre: 'Fantasy',
     moral: 'Friendship',
