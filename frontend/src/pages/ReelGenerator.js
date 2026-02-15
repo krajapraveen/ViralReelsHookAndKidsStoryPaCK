@@ -111,11 +111,12 @@ export default function ReelGenerator() {
     
     try {
       const response = await generationAPI.generateReel(formData);
-      setResult(response.data.output);
-      setCredits(credits - 1);
+      // Backend returns result, not output
+      setResult(response.data.result);
+      setCredits(response.data.remainingCredits || credits - 1);
       toast.success('Reel script generated successfully!');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Generation failed');
+      toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
     } finally {
       setLoading(false);
     }
