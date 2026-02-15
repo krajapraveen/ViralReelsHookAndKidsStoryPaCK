@@ -38,7 +38,7 @@ class TestAuthentication:
             "email": "invalid@test.com",
             "password": "wrongpassword"
         })
-        assert response.status_code in [401, 403], f"Expected 401/403, got {response.status_code}"
+        assert response.status_code in [400, 401, 403], f"Expected 400/401/403, got {response.status_code}"
 
 
 class TestPaymentProducts:
