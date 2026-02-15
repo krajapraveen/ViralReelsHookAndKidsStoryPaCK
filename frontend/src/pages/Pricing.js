@@ -8,7 +8,27 @@ import { Check, Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
 export default function Pricing() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState({});
+  const [selectedCurrency, setSelectedCurrency] = useState('INR');
   const navigate = useNavigate();
+
+  const currencySymbols = {
+    INR: '₹',
+    USD: '$',
+    EUR: '€',
+    GBP: '£'
+  };
+
+  const exchangeRates = {
+    INR: 1,
+    USD: 0.012, // 1 INR = 0.012 USD (approx)
+    EUR: 0.011,
+    GBP: 0.0095
+  };
+
+  const getConvertedPrice = (priceInr) => {
+    const converted = Math.ceil(priceInr * exchangeRates[selectedCurrency]);
+    return converted;
+  };
 
   useEffect(() => {
     fetchProducts();
