@@ -378,7 +378,7 @@ public class AnalyticsService {
         for (Feedback review : recentReviews) {
             Map<String, Object> item = new HashMap<>();
             item.put("rating", review.getRating());
-            item.put("comment", review.getComment());
+            item.put("comment", review.getMessage());
             item.put("createdAt", review.getCreatedAt().toString());
             recentList.add(item);
         }
