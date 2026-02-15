@@ -77,10 +77,120 @@ public class PaymentService {
     }
 
     /**
-     * Create a Razorpay order with comprehensive error handling
+     * Get supported currencies for international payments
+     */
+    public List<Map<String, Object>> getSupportedCurrencies() {
+        return currencyService.getSupportedCurrencies();
+    }
+
+    /**
+     * Create a Razorpay order with international currency support
+     */
+    @Transactional
+    public Map<String, Object> createInternationalOrder(UUID userId, Long productId, String currency) {
+        logger.info("Creating international order for user {} and product {} in {}", userId, productId, currency);
+        
+        // Validate currency
+        if (currency == null || currency.isEmpty()) {
+            currency = "INR";
+        }
+        currency = currency.toUpperCase();
+        
+        if (!RAZORPAY_SUPPORTED_CURRENCIES.contains(currency)) {
+            throw new RazorpayOrderException("Currency " + currency + " is not supported. Supported currencies: " + RAZORPAY_SUPPORTED_CURRENCIES);
+        }
+
+        // Validate product exists
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ProductNotFoundException(productId));
+
+        if (!product.isActive()) {
+            throw new ProductNotFoundException(productId);
+        }
+
+        if (product.getPriceInr() == null || product.getPriceInr().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RazorpayOrderException("Invalid product price configuration");
+        }
+
+        // Convert price to target currency
+        BigDecimal priceInTargetCurrency = currencyService.convertFromINR(product.getPriceInr(), currency);
+        
+        // Use circuit breaker for Razorpay calls
+        CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("razorpay");
+        
+        Supplier<Order> orderSupplier = CircuitBreaker.decorateSupplier(circuitBreaker, () -> {
+            try {
+                RazorpayClient client = createRazorpayClient();
+                return createOrderWithCurrency(client, product, currency, priceInTargetCurrency);
+            } catch (RazorpayException e) {
+                throw new RazorpayOrderException("Failed to create order", e);
+            }
+        });
+
+        Order order;
+        try {
+            order = orderSupplier.get();
+        } catch (Exception e) {
+            logger.error("Circuit breaker prevented order creation: {}", e.getMessage());
+            throw new RazorpayConnectionException("Payment service temporarily unavailable. Please try again.", e);
+        }
+
+        // Save payment record
+        Payment payment = savePaymentRecord(userId, product, order, currency, priceInTargetCurrency);
+
+        logger.info("International order created: {} in {} for user {}", order.get("id"), currency, userId);
+
+        String currencySymbol = currencyService.getCurrencySymbol(currency);
+        
+        return Map.of(
+                "orderId", order.get("id"),
+                "amount", order.get("amount"),
+                "currency", currency,
+                "currencySymbol", currencySymbol,
+                "displayAmount", currencySymbol + priceInTargetCurrency.setScale(2, RoundingMode.HALF_UP),
+                "amountInINR", product.getPriceInr(),
+                "keyId", razorpayKeyId,
+                "productName", product.getName(),
+                "productCredits", product.getCredits(),
+                "exchangeRate", currencyService.getExchangeRate("INR", currency)
+        );
+    }
+
+    /**
+     * Create order with specific currency
+     */
+    private Order createOrderWithCurrency(RazorpayClient client, Product product, String currency, BigDecimal amount) throws RazorpayException {
+        JSONObject options = new JSONObject();
+        
+        // Amount in smallest currency unit (paise for INR, cents for USD, etc.)
+        int amountInSmallestUnit = amount.multiply(new BigDecimal("100")).intValue();
+        
+        options.put("amount", amountInSmallestUnit);
+        options.put("currency", currency);
+        options.put("receipt", "rcpt_" + System.currentTimeMillis());
+        options.put("notes", new JSONObject()
+                .put("product_id", product.getId())
+                .put("product_name", product.getName())
+                .put("original_currency", "INR")
+                .put("original_amount", product.getPriceInr())
+        );
+
+        return client.orders.create(options);
+    }
+
+    /**
+     * Create a Razorpay order with comprehensive error handling (INR default)
      */
     @Transactional
     public Map<String, Object> createOrder(UUID userId, Long productId) {
+        return createInternationalOrder(userId, productId, "INR");
+    }
+
+    /**
+     * Legacy createOrder method - delegates to international version
+     */
+    @Transactional
+    public Map<String, Object> createOrderLegacy(UUID userId, Long productId) {
         logger.info("Creating order for user {} and product {}", userId, productId);
         
         // Validate product exists
