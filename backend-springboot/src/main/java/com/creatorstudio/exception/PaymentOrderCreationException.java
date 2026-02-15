@@ -1,15 +1,13 @@
 package com.creatorstudio.exception;
 
 /**
- * Comprehensive Payment Exception Hierarchy for Razorpay Integration
+ * Exception for payment order creation failures
  */
-
-// Order Creation Exceptions
 public class PaymentOrderCreationException extends PaymentException {
     public PaymentOrderCreationException(String message) {
-        super(message, "PAYMENT_ORDER_CREATION_FAILED");
+        super("PAYMENT_ORDER_CREATION_FAILED", message, "Unable to create payment order. Please try again.");
     }
     public PaymentOrderCreationException(String message, Throwable cause) {
-        super(message, "PAYMENT_ORDER_CREATION_FAILED", cause);
+        super("PAYMENT_ORDER_CREATION_FAILED", message, "Unable to create payment order. Please try again.", cause);
     }
 }

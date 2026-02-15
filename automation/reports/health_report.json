@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-02-15T17:09:22.466589",
-  "status": "healthy",
+  "timestamp": "2026-02-15T17:10:26.070091",
+  "status": "critical",
   "services": {
     "springboot": {
       "name": "Spring Boot Backend",
-      "supervisor_status": "RUNNING",
-      "http_status": 200,
-      "healthy": true
+      "supervisor_status": "FATAL",
+      "http_status": 520,
+      "healthy": false
     },
     "frontend": {
       "name": "React Frontend",
@@ -36,9 +36,11 @@
     "queue_messages": 0
   },
   "actions_taken": [],
-  "issues": [],
+  "issues": [
+    "Spring Boot Backend is unhealthy"
+  ],
   "api_validation": {
-    "/api/auth/login": true,
-    "/api/payments/products": true
+    "/api/auth/login": false,
+    "/api/payments/products": false
   }
 }
