@@ -40,6 +40,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/RateLimit.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/CreditController.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/ContactMessageRepository.java
+/app/backend-springboot/src/main/java/com/creatorstudio/config/SecurityHeadersFilter.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/ReelGenerationRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/RabbitMQConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/StoryGenerationRequest.java

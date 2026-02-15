@@ -16,6 +16,7 @@ com/creatorstudio/entity/RateLimit.class
 com/creatorstudio/service/EmailService.class
 com/creatorstudio/config/ValidationConfig.class
 com/creatorstudio/service/CreditService.class
+com/creatorstudio/config/SecurityHeadersFilter.class
 com/creatorstudio/entity/Product.class
 com/creatorstudio/repository/GenerationRepository.class
 com/creatorstudio/entity/CreditLedger.class
