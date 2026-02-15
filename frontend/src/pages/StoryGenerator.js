@@ -6,10 +6,11 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle } from 'lucide-react';
+import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle, Share2 } from 'lucide-react';
 import StoryProgressBar from '../components/StoryProgressBar';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
+import ShareButton from '../components/ShareButton';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
