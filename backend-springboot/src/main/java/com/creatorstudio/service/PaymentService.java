@@ -94,10 +94,10 @@ public class PaymentService {
         if (currency == null || currency.isEmpty()) {
             currency = "INR";
         }
-        currency = currency.toUpperCase();
+        final String finalCurrency = currency.toUpperCase();
         
-        if (!RAZORPAY_SUPPORTED_CURRENCIES.contains(currency)) {
-            throw new RazorpayOrderException("Currency " + currency + " is not supported. Supported currencies: " + RAZORPAY_SUPPORTED_CURRENCIES);
+        if (!RAZORPAY_SUPPORTED_CURRENCIES.contains(finalCurrency)) {
+            throw new RazorpayOrderException("Currency " + finalCurrency + " is not supported. Supported currencies: " + RAZORPAY_SUPPORTED_CURRENCIES);
         }
 
         // Validate product exists
@@ -113,7 +113,7 @@ public class PaymentService {
         }
 
         // Convert price to target currency
-        BigDecimal priceInTargetCurrency = currencyService.convertFromINR(product.getPriceInr(), currency);
+        final BigDecimal priceInTargetCurrency = currencyService.convertFromINR(product.getPriceInr(), finalCurrency);
         
         // Use circuit breaker for Razorpay calls
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("razorpay");
@@ -121,7 +121,7 @@ public class PaymentService {
         Supplier<Order> orderSupplier = CircuitBreaker.decorateSupplier(circuitBreaker, () -> {
             try {
                 RazorpayClient client = createRazorpayClient();
-                return createOrderWithCurrency(client, product, currency, priceInTargetCurrency);
+                return createOrderWithCurrency(client, product, finalCurrency, priceInTargetCurrency);
             } catch (RazorpayException e) {
                 throw new RazorpayOrderException("Failed to create order", e);
             }
@@ -136,23 +136,23 @@ public class PaymentService {
         }
 
         // Save payment record
-        Payment payment = savePaymentRecord(userId, product, order, currency, priceInTargetCurrency);
+        Payment payment = savePaymentRecord(userId, product, order, finalCurrency, priceInTargetCurrency);
 
-        logger.info("International order created: {} in {} for user {}", order.get("id"), currency, userId);
+        logger.info("International order created: {} in {} for user {}", order.get("id"), finalCurrency, userId);
 
-        String currencySymbol = currencyService.getCurrencySymbol(currency);
+        String currencySymbol = currencyService.getCurrencySymbol(finalCurrency);
         
         return Map.of(
                 "orderId", order.get("id"),
                 "amount", order.get("amount"),
-                "currency", currency,
+                "currency", finalCurrency,
                 "currencySymbol", currencySymbol,
                 "displayAmount", currencySymbol + priceInTargetCurrency.setScale(2, RoundingMode.HALF_UP),
                 "amountInINR", product.getPriceInr(),
                 "keyId", razorpayKeyId,
                 "productName", product.getName(),
                 "productCredits", product.getCredits(),
-                "exchangeRate", currencyService.getExchangeRate("INR", currency)
+                "exchangeRate", currencyService.getExchangeRate("INR", finalCurrency)
         );
     }
 
