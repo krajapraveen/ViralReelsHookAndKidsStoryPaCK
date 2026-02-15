@@ -17,6 +17,7 @@ import Reviews from './pages/Reviews';
 import PrivacySettings from './pages/PrivacySettings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import AutomationDashboard from './pages/AutomationDashboard';
+import AIChatbot from './components/AIChatbot';
 import './App.css';
 
 function App() {
@@ -36,18 +37,19 @@ function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/pricing" element={<Pricing />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/reviews" element={<Reviews />} />
-      <Route path="/login" element={<Login setAuth={setIsAuthenticated} />} />
-      <Route path="/signup" element={<Signup setAuth={setIsAuthenticated} />} />
-      <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
-      
-      {/* Protected routes */}
-      <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/reels" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
+    <>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/reviews" element={<Reviews />} />
+        <Route path="/login" element={<Login setAuth={setIsAuthenticated} />} />
+        <Route path="/signup" element={<Signup setAuth={setIsAuthenticated} />} />
+        <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
+        
+        {/* Protected routes */}
+        <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
+        <Route path="/app/reels" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/stories" element={isAuthenticated ? <StoryGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/history" element={isAuthenticated ? <History /> : <Navigate to="/login" />} />
       <Route path="/app/billing" element={isAuthenticated ? <Billing /> : <Navigate to="/login" />} />
