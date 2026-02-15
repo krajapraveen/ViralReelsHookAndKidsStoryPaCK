@@ -41,13 +41,18 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
 ### Credit System
 - [x] Credit wallet per user
 - [x] Credit ledger for transaction history
-- [x] 5 free credits for new users (default)
+- [x] 54 free credits for new users
 - [x] Credit balance display in UI
 
-### Billing (Partially Implemented)
+### Billing & Payments (COMPLETE)
 - [x] Products table with credit packs and subscriptions
 - [x] Pricing page with plan display
-- [ ] Razorpay checkout integration (NOT COMPLETE)
+- [x] Razorpay checkout integration
+- [x] Order creation endpoint
+- [x] Payment verification with signature validation
+- [x] Webhook endpoint for production
+- [x] Credits automatically added after successful payment
+- [x] User tier upgrade (removes watermarks after purchase)
 - [ ] Webhook verification
 
 ### Admin Dashboard
