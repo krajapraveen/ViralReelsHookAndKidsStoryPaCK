@@ -58,7 +58,7 @@ export const generationAPI = {
 
 export const paymentAPI = {
   getProducts: () => api.get('/api/payments/products'),
-  createOrder: (productId) => api.post('/api/payments/create-order', { productId }),
+  createOrder: (productId, currency = 'INR') => api.post('/api/payments/create-order', { productId, currency }),
   verifyPayment: (data) => api.post('/api/payments/verify', data),
   getPaymentHistory: (page = 0, size = 20) => api.get(`/api/payments/history?page=${page}&size=${size}`),
 };
