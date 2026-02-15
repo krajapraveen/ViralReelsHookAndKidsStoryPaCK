@@ -34,6 +34,10 @@ public class Product implements Serializable {
     @Column(nullable = false)
     private Boolean active = true;
 
+    public boolean isActive() {
+        return active != null && active;
+    }
+
     public enum Type {
         SUBSCRIPTION, CREDIT_PACK
     }
