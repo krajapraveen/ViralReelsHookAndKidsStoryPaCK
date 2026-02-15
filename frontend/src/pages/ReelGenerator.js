@@ -280,9 +280,9 @@ export default function ReelGenerator() {
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold">Generated Script</h2>
-              {result && (
+              {result && result.hooks && (
                 <div className="flex gap-2">
-                  <ShareButton type="REEL" title={result.best_hook} preview={result.caption_short} />
+                  <ShareButton type="REEL" title={result.best_hook || ''} preview={result.caption_short || ''} />
                   <Button variant="outline" size="sm" onClick={() => copyToClipboard(JSON.stringify(result, null, 2))} data-testid="copy-result-btn">
                     <Copy className="w-4 h-4 mr-2" />
                     Copy All
