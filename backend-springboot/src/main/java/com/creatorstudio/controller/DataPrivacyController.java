@@ -60,7 +60,10 @@ public class DataPrivacyController {
         try {
             User user = authService.getUserByEmail(userDetails.getUsername());
             Map<String, Object> exportData = privacyService.exportUserDataForDownload(user.getId());
-            return ResponseEntity.ok(exportData);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", exportData
+            ));
         } catch (Exception e) {
             logger.error("Error exporting user data: {}", e.getMessage());
             return ResponseEntity.internalServerError().body(Map.of(
