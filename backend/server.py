@@ -248,6 +248,11 @@ async def google_callback(data: GoogleCallback):
             
         email = auth_data.get('email', '').lower()
         name = auth_data.get('name', email.split('@')[0])
+        picture = auth_data.get('picture', '')
+        google_id = auth_data.get('id', '')  # 'id' field from the response
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="No email received from Google")
         
         # Check if user exists
         user = await db.users.find_one({"email": email}, {"_id": 0})
@@ -262,7 +267,8 @@ async def google_callback(data: GoogleCallback):
                 "password": "",  # No password for Google users
                 "role": "USER",
                 "credits": 54,
-                "googleId": auth_data.get('sub', ''),
+                "googleId": google_id,
+                "picture": picture,
                 "createdAt": datetime.now(timezone.utc).isoformat()
             }
             await db.users.insert_one(user)
@@ -276,6 +282,16 @@ async def google_callback(data: GoogleCallback):
                 "description": "Welcome bonus - 54 free credits",
                 "createdAt": datetime.now(timezone.utc).isoformat()
             })
+            
+            logger.info(f"New Google user created: {email}")
+        else:
+            # Update existing user's Google info if needed
+            if not user.get("googleId"):
+                await db.users.update_one(
+                    {"email": email},
+                    {"$set": {"googleId": google_id, "picture": picture}}
+                )
+            logger.info(f"Existing user logged in: {email}")
         
         token = create_token(user["id"], user["role"])
         
