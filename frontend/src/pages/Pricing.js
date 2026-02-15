@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { paymentAPI, creditAPI } from '../utils/api';
+import { paymentAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Check, Sparkles, ArrowLeft } from 'lucide-react';
+import { Check, Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function Pricing() {
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchProducts();
@@ -19,6 +21,58 @@ export default function Pricing() {
     } catch (error) {
       console.log('Not authenticated, showing empty products');
       setProducts([]);
+    }
+  };
+
+  const handlePurchase = async (productId) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to purchase');
+      navigate('/login');
+      return;
+    }
+
+    setLoading({...loading, [productId]: true});
+    try {
+      const response = await paymentAPI.createOrder(productId);
+      
+      const options = {
+        key: response.data.keyId,
+        amount: response.data.amount,
+        currency: response.data.currency,
+        order_id: response.data.orderId,
+        name: 'CreatorStudio AI',
+        description: 'Credits Purchase',
+        handler: async (paymentResponse) => {
+          try {
+            await paymentAPI.verifyPayment({
+              razorpayOrderId: paymentResponse.razorpay_order_id,
+              razorpayPaymentId: paymentResponse.razorpay_payment_id,
+              razorpaySignature: paymentResponse.razorpay_signature
+            });
+            toast.success('Payment successful! Credits added to your account.');
+            // Store that user has purchased
+            localStorage.setItem('has_purchased', 'true');
+            navigate('/app');
+          } catch (error) {
+            toast.error('Payment verification failed');
+          }
+        },
+        prefill: {
+          email: localStorage.getItem('userEmail') || ''
+        },
+        theme: { color: '#6366f1' }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        toast.error('Payment failed: ' + response.error.description);
+      });
+      rzp.open();
+    } catch (error) {
+      toast.error('Failed to create order. Please login first.');
+    } finally {
+      setLoading({...loading, [productId]: false});
     }
   };
 
