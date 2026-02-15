@@ -87,7 +87,7 @@ public class AdminFeedbackController {
      * Delete a feedback entry
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteFeedback(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deleteFeedback(@PathVariable UUID id) {
         try {
             feedbackRepository.deleteById(id);
             logger.info("Deleted feedback with id: {}", id);
