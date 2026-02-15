@@ -171,50 +171,15 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Reviews Section */}
-      <section className="py-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-white mb-4">Loved by Creators</h2>
-            <p className="text-slate-400 text-lg">See what our users are saying</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { name: 'Priya S.', rating: 5, text: 'CreatorStudio AI transformed my content workflow. The reel scripts are incredibly engaging!' },
-              { name: 'Rahul V.', rating: 5, text: 'The kids story generator is amazing! My YouTube channel has grown 10x since using it.' },
-              { name: 'Anita D.', rating: 5, text: 'Best investment for my social media business. I generate weeks of content in hours!' }
-            ].map((review, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                <div className="flex gap-1 mb-3">
-                  {[...Array(review.rating)].map((_, j) => (
-                    <Star key={j} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-slate-300 mb-4">"{review.text}"</p>
-                <p className="text-white font-semibold">{review.name}</p>
-              </div>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <Link to="/reviews">
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                View All Reviews
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
       <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-12">
-          <h2 className="text-4xl font-bold text-white mb-4">Start Creating Today</h2>
-          <p className="text-xl text-slate-300 mb-8">
+        <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-8 sm:p-12">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">Start Creating Today</h2>
+          <p className="text-base sm:text-lg md:text-xl text-slate-300 mb-8 px-4">
             Get 54 free credits on signup. No credit card required.
           </p>
           <Link to="/signup">
-            <Button size="lg" className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-full px-12 py-6 text-lg shadow-lg hover:scale-105 transition-all" data-testid="cta-signup-btn">
+            <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-full px-8 sm:px-12 py-4 sm:py-6 text-base sm:text-lg shadow-lg hover:scale-105 transition-all" data-testid="cta-signup-btn">
               Get Started Free
             </Button>
           </Link>
