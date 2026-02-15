@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface FeedbackRepository extends JpaRepository<Feedback, UUID> {
     List<Feedback> findByAllowPublicTrueAndTypeOrderByCreatedAtDesc(Feedback.FeedbackType type);
     List<Feedback> findByAllowPublicTrueOrderByCreatedAtDesc();
+    List<Feedback> findAllByOrderByCreatedAtDesc();
 }
