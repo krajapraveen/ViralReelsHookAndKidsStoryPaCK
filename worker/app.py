@@ -270,6 +270,104 @@ def run_rabbitmq_consumer():
             logger.error(f"Consumer error: {str(e)}")
             time.sleep(5)
 
+# ==================== AI CHATBOT ====================
+
+CHATBOT_SYSTEM_PROMPT = """You are CreatorStudio AI Assistant, a friendly and helpful chatbot for the CreatorStudio AI platform.
+
+About the Platform:
+- CreatorStudio AI helps content creators generate viral Instagram Reel scripts and Kids Story Video packs
+- Users get 54 FREE credits when they sign up
+- Reel Script Generation costs 1 credit
+- Kids Story Pack Generation costs 6-8 credits depending on scene count
+
+Features:
+1. AI Reel Script Generator: Creates hooks, scripts, captions, hashtags, and posting tips for Instagram Reels
+2. Kids Story Video Pack Generator: Creates complete story packages with scenes, narration, and YouTube metadata
+
+Pricing:
+- Free: 54 credits on signup
+- Starter Pack: ₹99 for 50 credits
+- Pro Pack: ₹249 for 150 credits
+- Creator Pack: ₹499 for 400 credits
+- Monthly Subscription: ₹199/month for 100 credits
+
+Your Role:
+- Help users understand how to use the platform
+- Answer questions about features, pricing, and credits
+- Provide tips for creating better content
+- Be friendly, concise, and helpful
+- If you don't know something, suggest contacting support
+
+Do NOT:
+- Share any technical implementation details
+- Provide refunds or account changes
+- Access user accounts or data
+- Generate actual content (direct them to use the generators)"""
+
+# Store chat sessions in memory (in production, use Redis/DB)
+chat_sessions = {}
+
+async def get_chatbot_response(session_id, user_message):
+    """Generate chatbot response using LLM"""
+    try:
+        # Create or get existing chat session
+        if session_id not in chat_sessions:
+            chat_sessions[session_id] = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"chatbot_{session_id}",
+                system_message=CHATBOT_SYSTEM_PROMPT
+            ).with_model("openai", "gpt-5.2")
+        
+        chat = chat_sessions[session_id]
+        message = UserMessage(text=user_message)
+        response = await chat.send_message(message)
+        
+        return response.strip()
+    except Exception as e:
+        logger.error(f"Chatbot error: {str(e)}")
+        return "I'm sorry, I'm having trouble right now. Please try again or contact support at support@creatorstudio.ai"
+
+@app.route('/chatbot/message', methods=['POST'])
+def chatbot_message():
+    """Endpoint for chatbot messages"""
+    try:
+        data = request.json
+        session_id = data.get('sessionId', 'default')
+        user_message = data.get('message', '')
+        
+        if not user_message:
+            return jsonify({"error": "Message is required"}), 400
+        
+        logger.info(f"Chatbot message from session {session_id}: {user_message[:50]}...")
+        response = asyncio.run(get_chatbot_response(session_id, user_message))
+        
+        return jsonify({
+            "success": True,
+            "response": response,
+            "sessionId": session_id
+        }), 200
+    except Exception as e:
+        logger.error(f"Chatbot endpoint error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to get response",
+            "response": "I'm sorry, something went wrong. Please try again."
+        }), 500
+
+@app.route('/chatbot/clear', methods=['POST'])
+def clear_chat_session():
+    """Clear a chat session"""
+    try:
+        data = request.json
+        session_id = data.get('sessionId', 'default')
+        
+        if session_id in chat_sessions:
+            del chat_sessions[session_id]
+        
+        return jsonify({"success": True, "message": "Session cleared"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 if __name__ == '__main__':
     # Start RabbitMQ consumer in background thread
     consumer_thread = threading.Thread(target=run_rabbitmq_consumer, daemon=True)
