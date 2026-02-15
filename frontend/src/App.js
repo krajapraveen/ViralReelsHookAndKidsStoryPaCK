@@ -63,6 +63,9 @@ function App() {
       
       {/* AI Chatbot - Available on all pages */}
       <AIChatbot />
+      
+      {/* Feedback Widget - Collect user suggestions */}
+      <FeedbackWidget />
     </>
   );
 }
