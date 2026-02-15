@@ -231,15 +231,17 @@ async def login(data: UserLogin):
 async def google_callback(data: GoogleCallback):
     try:
         # Exchange session ID for user info via Emergent Auth
-        async with httpx.AsyncClient(follow_redirects=True) as client_http:
+        # CORRECT ENDPOINT: https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client_http:
             response = await client_http.get(
-                f"https://auth.emergentagent.com/api/session/{data.sessionId}"
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": data.sessionId}
             )
-            logger.info(f"Google auth response: {response.status_code}")
+            logger.info(f"Google auth response status: {response.status_code}")
             
             if response.status_code != 200:
-                logger.error(f"Auth failed: {response.text}")
-                raise HTTPException(status_code=400, detail="Invalid session")
+                logger.error(f"Auth failed: {response.text[:500]}")
+                raise HTTPException(status_code=400, detail="Invalid session or session expired")
             
             auth_data = response.json()
             logger.info(f"Auth data received for: {auth_data.get('email', 'unknown')}")
