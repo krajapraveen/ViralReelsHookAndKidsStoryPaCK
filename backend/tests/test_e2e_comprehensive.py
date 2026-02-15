@@ -323,7 +323,8 @@ class TestAIChatbot:
         print(f"Chatbot response: {response.status_code} - {response.text[:500]}")
         assert response.status_code == 200, f"Chatbot failed: {response.text}"
         data = response.json()
-        assert "response" in data or "message" in data, "No response from chatbot"
+        assert data.get("success") == True, "Chatbot response not successful"
+        assert "response" in data, "No response from chatbot"
     
     def test_chatbot_empty_message(self):
         """Test chatbot handles empty message"""
