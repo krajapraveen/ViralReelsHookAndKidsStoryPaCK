@@ -1,6 +1,7 @@
 .App {
   min-height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -19,6 +20,7 @@ a[href*="emergent.sh"],
 .min-h-screen {
   min-height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -26,17 +28,31 @@ a[href*="emergent.sh"],
 @media (max-width: 768px) {
   html, body {
     overflow-y: auto !important;
+    overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch !important;
     position: relative !important;
     height: auto !important;
     min-height: 100% !important;
+    touch-action: pan-y !important;
   }
   
   #root {
     overflow-y: auto !important;
+    overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch !important;
     position: relative !important;
     height: auto !important;
     min-height: 100% !important;
+    touch-action: pan-y !important;
   }
+  
+  .min-h-screen {
+    touch-action: pan-y !important;
+  }
+}
+
+/* Fix for fixed position elements blocking scroll */
+.fixed {
+  touch-action: none;
+  pointer-events: auto;
 }
