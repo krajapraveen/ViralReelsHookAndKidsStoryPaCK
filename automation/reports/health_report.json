@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-02-15T19:22:44.538541",
-  "status": "healthy",
+  "timestamp": "2026-02-15T19:25:41.169238",
+  "status": "critical",
   "services": {
     "springboot": {
       "name": "Spring Boot Backend",
-      "supervisor_status": "RUNNING",
+      "supervisor_status": "FATAL",
       "http_status": 200,
-      "healthy": true
+      "healthy": false
     },
     "frontend": {
       "name": "React Frontend",
@@ -23,20 +23,25 @@
   },
   "infrastructure": {
     "postgresql": {
-      "status": "up",
-      "message": "Connected"
+      "status": "down",
+      "message": "connection to server at \"localhost\" (127.0.0.1), port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (::1), port 5432 failed: Cannot assign requested address\n\tIs the server running on that host and accepting TCP/IP connections?\n"
     },
     "redis": {
-      "status": "up",
-      "message": "Connected"
+      "status": "down",
+      "message": "Error 99 connecting to localhost:6379. Cannot assign requested address."
     },
     "rabbitmq": {
-      "status": "up"
+      "status": "down"
     },
     "queue_messages": 0
   },
   "actions_taken": [],
-  "issues": [],
+  "issues": [
+    "PostgreSQL is down",
+    "Redis is down",
+    "RabbitMQ is down",
+    "Spring Boot Backend is unhealthy"
+  ],
   "api_validation": {
     "/api/auth/login": true,
     "/api/payments/products": true

@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-02-15T16:59:56.508487",
+  "timestamp": "2026-02-15T19:25:29.485309",
   "services": {
-    "postgresql": true,
-    "redis": true,
-    "rabbitmq": true,
-    "springboot": true,
+    "postgresql": false,
+    "redis": false,
+    "rabbitmq": false,
+    "springboot": false,
     "frontend": true,
     "worker": true
   },
-  "overall_status": "healthy"
+  "overall_status": "degraded"
 }

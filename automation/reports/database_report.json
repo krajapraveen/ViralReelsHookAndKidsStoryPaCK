@@ -1,39 +1,9 @@
 {
-  "timestamp": "2026-02-15T19:00:18.807956",
+  "timestamp": "2026-02-15T19:25:59.803355",
   "health": {
-    "connected": true,
-    "database_size": "8391 kB",
-    "table_counts": {
-      "credit_ledger": 30,
-      "generations": 19,
-      "credit_wallet": 11,
-      "users": 11,
-      "products": 6,
-      "rate_limits": 4,
-      "feature_votes": 0,
-      "feature_requests": 0,
-      "user_sessions": 0,
-      "contact_messages": 0,
-      "payments": 0,
-      "feature_usage": 0,
-      "page_visits": 0,
-      "feedback": 0
-    },
-    "status": "healthy"
+    "error": "connection to server at \"localhost\" (127.0.0.1), port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (::1), port 5432 failed: Cannot assign requested address\n\tIs the server running on that host and accepting TCP/IP connections?\n",
+    "status": "unhealthy"
   },
-  "cleanup": {
-    "sessions_deleted": 0,
-    "page_visits_deleted": 0,
-    "failed_generations_deleted": 0,
-    "vacuum_completed": true
-  },
-  "stats": {
-    "total_users": 11,
-    "generations_by_type": {
-      "REEL": 9,
-      "STORY": 10
-    },
-    "payments_by_status": {},
-    "generations_last_24h": 19
-  }
+  "cleanup": {},
+  "stats": {}
 }

@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://kidsstory-3.preview.emergentagent.com
+**Website:** https://creatorstudio-9.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai
