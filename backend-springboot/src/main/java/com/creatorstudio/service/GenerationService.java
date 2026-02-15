@@ -128,6 +128,21 @@ public class GenerationService {
 
     @Transactional
     public GenerationResponse generateStory(UUID userId, StoryGenerationRequest request) {
+        // Validate content for kids-appropriate content (stricter filter)
+        if (request.getGenre() != null && !request.getGenre().isEmpty()) {
+            ContentFilterService.ValidationResult genreValidation = contentFilterService.validateKidsContent(request.getGenre());
+            if (!genreValidation.isValid()) {
+                throw new RuntimeException(genreValidation.getMessage());
+            }
+        }
+        
+        if (request.getTheme() != null && !request.getTheme().isEmpty()) {
+            ContentFilterService.ValidationResult themeValidation = contentFilterService.validateKidsContent(request.getTheme());
+            if (!themeValidation.isValid()) {
+                throw new RuntimeException(themeValidation.getMessage());
+            }
+        }
+        
         // Check rate limit
         rateLimitService.checkAndIncrementRateLimit(userId);
         
