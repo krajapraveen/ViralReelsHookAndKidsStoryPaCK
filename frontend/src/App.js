@@ -52,6 +52,7 @@ function App() {
       <Route path="/app/history" element={isAuthenticated ? <History /> : <Navigate to="/login" />} />
       <Route path="/app/billing" element={isAuthenticated ? <Billing /> : <Navigate to="/login" />} />
       <Route path="/app/admin" element={isAuthenticated ? <AdminDashboard /> : <Navigate to="/login" />} />
+      <Route path="/app/admin/automation" element={isAuthenticated ? <AutomationDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/feature-requests" element={isAuthenticated ? <FeatureRequests /> : <Navigate to="/login" />} />
       <Route path="/app/privacy" element={isAuthenticated ? <PrivacySettings /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
