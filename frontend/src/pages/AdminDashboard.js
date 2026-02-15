@@ -183,6 +183,7 @@ export default function AdminDashboard() {
             {activeTab === 'features' && <FeaturesTab featureUsage={featureUsage} />}
             {activeTab === 'payments' && <PaymentsTab payments={payments} />}
             {activeTab === 'satisfaction' && <SatisfactionTab satisfaction={satisfaction} />}
+            {activeTab === 'feature-requests' && <FeatureRequestsTab data={featureRequests} onUpdateStatus={updateFeatureStatus} />}
           </div>
         </div>
       </div>
