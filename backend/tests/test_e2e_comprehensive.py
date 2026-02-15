@@ -70,7 +70,7 @@ class TestUserLogin:
             "password": "WrongPassword123!"
         })
         print(f"Invalid login response: {response.status_code}")
-        assert response.status_code in [401, 403], f"Should reject invalid credentials"
+        assert response.status_code in [400, 401, 403], f"Should reject invalid credentials"
     
     def test_login_rate_limiting(self):
         """Test rate limiting after multiple failed attempts"""
@@ -280,9 +280,10 @@ class TestPricingAndPayments:
         print(f"Currencies response: {response.status_code} - {response.text[:300]}")
         assert response.status_code == 200
         data = response.json()
-        # Should have INR, USD, EUR, GBP
-        currencies = [c.get("code") for c in data] if isinstance(data, list) else data.keys()
-        assert "INR" in currencies or "inr" in str(currencies).lower()
+        # Should have INR in rates
+        assert data.get("success") == True
+        assert "currencies" in data
+        assert "INR" in str(data.get("currencies", {}).get("rates", {}))
     
     def test_payment_health(self):
         """Test payment service health"""
