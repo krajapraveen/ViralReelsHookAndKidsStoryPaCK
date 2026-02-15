@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-02-15T17:00:03.106649",
+  "health": {
+    "connected": true,
+    "database_size": "8151 kB",
+    "table_counts": {
+      "credit_ledger": 19,
+      "generations": 11,
+      "credit_wallet": 8,
+      "users": 8,
+      "products": 6,
+      "rate_limits": 3,
+      "feature_votes": 0,
+      "feature_requests": 0,
+      "user_sessions": 0,
+      "contact_messages": 0,
+      "payments": 0,
+      "feature_usage": 0,
+      "page_visits": 0,
+      "feedback": 0
+    },
+    "status": "healthy"
+  },
+  "cleanup": {
+    "sessions_deleted": 0,
+    "page_visits_deleted": 0,
+    "failed_generations_deleted": 0,
+    "vacuum_completed": true
+  },
+  "stats": {
+    "total_users": 8,
+    "generations_by_type": {
+      "REEL": 4,
+      "STORY": 7
+    },
+    "payments_by_status": {},
+    "generations_last_24h": 11
+  }
+}

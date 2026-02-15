@@ -1,0 +1,94 @@
+{
+  "timestamp": "2026-02-15T17:00:00.512243",
+  "base_url": "https://kidsstory-3.preview.emergentagent.com",
+  "results": [
+    {
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status_code": 400,
+      "response_time_ms": 393.58,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/payments/products",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 136.4,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/payments/currencies",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 172.65,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/auth/me",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 205.55,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/credits/balance",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 149.1,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/credits/ledger?page=0&size=10",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 188.78,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/generate/generations?page=0&size=10",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 145.83,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/payments/history?page=0&size=10",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 266.74,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/privacy/my-data",
+      "method": "GET",
+      "status_code": 200,
+      "response_time_ms": 174.31,
+      "success": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/features?page=0&size=10",
+      "method": "GET",
+      "status_code": 520,
+      "response_time_ms": 115.87,
+      "success": false,
+      "error": null
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "passed": 9,
+    "failed": 1,
+    "avg_response_time": 194.88,
+    "pass_rate": 90.0,
+    "status": "healthy"
+  }
+}
