@@ -403,11 +403,17 @@ public class PaymentService {
     }
 
     private Payment savePaymentRecord(UUID userId, Product product, Order order) {
+        return savePaymentRecord(userId, product, order, "INR", product.getPriceInr());
+    }
+
+    private Payment savePaymentRecord(UUID userId, Product product, Order order, String currency, BigDecimal amount) {
         Payment payment = new Payment();
         payment.setUser(new User());
         payment.getUser().setId(userId);
         payment.setProduct(product);
-        payment.setAmountInr(product.getPriceInr());
+        payment.setAmountInr(product.getPriceInr()); // Always store INR equivalent
+        payment.setCurrency(currency);
+        payment.setAmountInCurrency(amount);
         payment.setProviderOrderId(order.get("id"));
         payment.setStatus(Payment.Status.CREATED);
         return paymentRepository.save(payment);
