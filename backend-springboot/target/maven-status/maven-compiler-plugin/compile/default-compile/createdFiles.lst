@@ -43,6 +43,7 @@ com/creatorstudio/config/RateLimitFilter.class
 com/creatorstudio/entity/FeatureVote.class
 com/creatorstudio/entity/FeatureUsage$Feature.class
 com/creatorstudio/entity/Feedback$FeedbackType.class
+com/creatorstudio/service/ContentFilterService$ValidationResult.class
 com/creatorstudio/entity/Product$Type.class
 com/creatorstudio/entity/Generation$Type.class
 com/creatorstudio/controller/FeatureRequestController.class
@@ -76,6 +77,7 @@ com/creatorstudio/repository/PaymentRepository.class
 com/creatorstudio/repository/CreditLedgerRepository.class
 com/creatorstudio/controller/AdminAnalyticsController.class
 com/creatorstudio/exception/InvalidSignatureException.class
+com/creatorstudio/service/ContentFilterService.class
 com/creatorstudio/dto/VerifyPaymentRequest.class
 com/creatorstudio/entity/FeatureUsage.class
 com/creatorstudio/service/GenerationService.class

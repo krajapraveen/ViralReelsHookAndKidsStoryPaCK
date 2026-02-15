@@ -80,5 +80,6 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/security/JwtAuthenticationFilter.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/FeatureRequestRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/AnalyticsService.java
+/app/backend-springboot/src/main/java/com/creatorstudio/service/ContentFilterService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/PageVisitRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/AdminController.java
