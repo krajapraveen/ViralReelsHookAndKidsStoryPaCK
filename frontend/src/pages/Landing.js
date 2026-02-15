@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play } from 'lucide-react';
+import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play, Star, MessageSquare } from 'lucide-react';
 import DemoReelGenerator from '../components/DemoReelGenerator';
 
 export default function Landing() {
@@ -171,6 +171,41 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Reviews Section */}
+      <section className="py-20 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-white mb-4">Loved by Creators</h2>
+            <p className="text-slate-400 text-lg">See what our users are saying</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { name: 'Priya S.', rating: 5, text: 'CreatorStudio AI transformed my content workflow. The reel scripts are incredibly engaging!' },
+              { name: 'Rahul V.', rating: 5, text: 'The kids story generator is amazing! My YouTube channel has grown 10x since using it.' },
+              { name: 'Anita D.', rating: 5, text: 'Best investment for my social media business. I generate weeks of content in hours!' }
+            ].map((review, i) => (
+              <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                <div className="flex gap-1 mb-3">
+                  {[...Array(review.rating)].map((_, j) => (
+                    <Star key={j} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <p className="text-slate-300 mb-4">"{review.text}"</p>
+                <p className="text-white font-semibold">{review.name}</p>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <Link to="/reviews">
+              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                View All Reviews
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-20 px-4">
         <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-12">
@@ -188,8 +223,19 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-8 px-4">
-        <div className="max-w-7xl mx-auto text-center text-slate-400">
-          <p>&copy; 2026 CreatorStudio AI. All rights reserved.</p>
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-500" />
+              <span className="text-white font-semibold">CreatorStudio AI</span>
+            </div>
+            <div className="flex items-center gap-6 text-slate-400">
+              <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+              <Link to="/reviews" className="hover:text-white transition-colors">Reviews</Link>
+              <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
+            </div>
+            <p className="text-slate-500 text-sm">© 2026 Visionary Suite. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>
