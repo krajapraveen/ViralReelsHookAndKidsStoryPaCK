@@ -2,6 +2,7 @@ package com.creatorstudio.config;
 
 import com.creatorstudio.exception.*;
 import com.razorpay.RazorpayException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,39 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    // ==================== Circuit Breaker Exception Handler ====================
+    
+    @ExceptionHandler(CallNotPermittedException.class)
+    public ResponseEntity<Map<String, Object>> handleCircuitBreakerOpen(CallNotPermittedException ex) {
+        logger.warn("Circuit breaker is open: {}", ex.getMessage());
+        
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("errorCode", "SERVICE_UNAVAILABLE");
+        error.put("error", "Service temporarily unavailable");
+        error.put("message", "The service is experiencing issues. Please try again in a few moments.");
+        error.put("timestamp", LocalDateTime.now().toString());
+        error.put("retryAfterSeconds", 30);
+        
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
+    }
+    
+    @ExceptionHandler(ServiceCircuitBreakerOpenException.class)
+    public ResponseEntity<Map<String, Object>> handleServiceCircuitBreakerOpen(ServiceCircuitBreakerOpenException ex) {
+        logger.warn("Service circuit breaker open for: {}", ex.getServiceName());
+        
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("errorCode", "CIRCUIT_BREAKER_OPEN");
+        error.put("error", "Service temporarily unavailable");
+        error.put("message", ex.getMessage());
+        error.put("service", ex.getServiceName());
+        error.put("timestamp", LocalDateTime.now().toString());
+        error.put("retryAfterSeconds", 30);
+        
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
+    }
 
     // ==================== Payment Exception Handlers ====================
 
