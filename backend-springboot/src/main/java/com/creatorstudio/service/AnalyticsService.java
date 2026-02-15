@@ -350,7 +350,7 @@ public class AnalyticsService {
         satisfaction.put("averageRating", avgRating != null ? Math.round(avgRating * 100.0) / 100.0 : 0);
         
         // Total Reviews
-        long totalReviews = reviewRepository.count();
+        long totalReviews = reviewRepository.countReviews();
         satisfaction.put("totalReviews", totalReviews);
         
         // Rating Distribution
@@ -373,9 +373,9 @@ public class AnalyticsService {
         satisfaction.put("satisfactionPercentage", Math.round(satisfactionPercentage * 100.0) / 100.0);
         
         // Recent Reviews
-        List<Review> recentReviews = reviewRepository.findTop5ByOrderByCreatedAtDesc();
+        List<Feedback> recentReviews = reviewRepository.findTop5ReviewsByOrderByCreatedAtDesc();
         List<Map<String, Object>> recentList = new ArrayList<>();
-        for (Review review : recentReviews) {
+        for (Feedback review : recentReviews) {
             Map<String, Object> item = new HashMap<>();
             item.put("rating", review.getRating());
             item.put("comment", review.getComment());
