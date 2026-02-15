@@ -74,6 +74,7 @@ export default function FeedbackWidget() {
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-24 right-6 w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center text-white z-40 group hover:scale-105"
+        style={{ touchAction: 'manipulation' }}
         data-testid="feedback-toggle"
         title="Share your feedback"
       >
