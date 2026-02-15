@@ -67,6 +67,8 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/PageVisit.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/ContactMessageRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/SecurityHeadersFilter.java
+/app/backend-springboot/src/main/java/com/creatorstudio/service/CurrencyConversionService.java
+/app/backend-springboot/src/main/java/com/creatorstudio/service/EmailNotificationService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/ReelGenerationRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/RabbitMQConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/exception/WebhookProcessingException.java

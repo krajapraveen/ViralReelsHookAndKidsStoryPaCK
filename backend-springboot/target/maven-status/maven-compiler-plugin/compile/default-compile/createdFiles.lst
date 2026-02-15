@@ -49,6 +49,7 @@ com/creatorstudio/entity/FeatureUsage$Feature.class
 com/creatorstudio/entity/Feedback$FeedbackType.class
 com/creatorstudio/service/ContentFilterService$ValidationResult.class
 com/creatorstudio/entity/Product$Type.class
+com/creatorstudio/service/EmailNotificationService.class
 com/creatorstudio/entity/Generation$Type.class
 com/creatorstudio/controller/FeatureRequestController.class
 com/creatorstudio/service/CurrencyService$CurrencyInfo.class
@@ -75,6 +76,7 @@ com/creatorstudio/controller/PaymentController.class
 com/creatorstudio/repository/PageVisitRepository.class
 com/creatorstudio/service/DataPrivacyService.class
 com/creatorstudio/entity/Feedback.class
+com/creatorstudio/service/CurrencyConversionService.class
 com/creatorstudio/controller/CreditController.class
 com/creatorstudio/entity/UserSession.class
 com/creatorstudio/config/DatabasePoolConfig.class
