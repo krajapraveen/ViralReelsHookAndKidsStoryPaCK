@@ -1,94 +1,94 @@
 {
-  "timestamp": "2026-02-15T17:05:02.034853",
+  "timestamp": "2026-02-15T17:10:04.662543",
   "base_url": "https://kidsstory-3.preview.emergentagent.com",
   "results": [
     {
       "endpoint": "/api/auth/login",
       "method": "POST",
-      "status_code": 400,
-      "response_time_ms": 227.96,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 111.46,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/payments/products",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 112.94,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 105.89,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/payments/currencies",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 143.09,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 109.57,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/auth/me",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 248.44,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 122.86,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/credits/balance",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 173.28,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 102.4,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/credits/ledger?page=0&size=10",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 209.1,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 134.9,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/generate/generations?page=0&size=10",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 210.34,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 130.31,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/payments/history?page=0&size=10",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 116.25,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 101.34,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/privacy/my-data",
       "method": "GET",
-      "status_code": 200,
-      "response_time_ms": 153.57,
-      "success": true,
+      "status_code": 520,
+      "response_time_ms": 121.98,
+      "success": false,
       "error": null
     },
     {
       "endpoint": "/api/features?page=0&size=10",
       "method": "GET",
       "status_code": 520,
-      "response_time_ms": 151.62,
+      "response_time_ms": 105.12,
       "success": false,
       "error": null
     }
   ],
   "summary": {
     "total": 10,
-    "passed": 9,
-    "failed": 1,
-    "avg_response_time": 174.66,
-    "pass_rate": 90.0,
-    "status": "healthy"
+    "passed": 0,
+    "failed": 10,
+    "avg_response_time": 114.58,
+    "pass_rate": 0.0,
+    "status": "critical"
   }
 }
