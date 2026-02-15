@@ -1,0 +1,153 @@
+{
+  "timestamp": "2026-02-15T17:11:45.147686",
+  "target": "https://kidsstory-3.preview.emergentagent.com",
+  "summary": {
+    "vulnerabilities": 11,
+    "warnings": 8,
+    "info": 4,
+    "critical": 10,
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  },
+  "vulnerabilities": [
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /.env",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:40.478870"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /config.json",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:40.577861"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /settings.json",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:40.679634"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /.git/config",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:40.813737"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /backup.sql",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:40.879251"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /dump.sql",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:40.979004"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /phpinfo.php",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:41.280020"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /server-status",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:41.380540"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /elmah.axd",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:41.486716"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "description": "Sensitive file accessible: /trace.axd",
+      "details": "Status: 200",
+      "timestamp": "2026-02-15T17:11:41.583462"
+    },
+    {
+      "category": "CORS",
+      "severity": "MEDIUM",
+      "description": "CORS allows all origins",
+      "details": "Access-Control-Allow-Origin: *",
+      "timestamp": "2026-02-15T17:11:45.088477"
+    }
+  ],
+  "warnings": [
+    {
+      "category": "HEADERS",
+      "description": "Missing security header: X-Content-Type-Options",
+      "details": null
+    },
+    {
+      "category": "HEADERS",
+      "description": "Missing security header: X-Frame-Options",
+      "details": null
+    },
+    {
+      "category": "HEADERS",
+      "description": "Missing security header: X-XSS-Protection",
+      "details": null
+    },
+    {
+      "category": "HEADERS",
+      "description": "Missing security header: Strict-Transport-Security",
+      "details": null
+    },
+    {
+      "category": "HEADERS",
+      "description": "Missing security header: Content-Security-Policy",
+      "details": null
+    },
+    {
+      "category": "INFO_DISCLOSURE",
+      "description": "Server info exposed via Server: cloudflare",
+      "details": null
+    },
+    {
+      "category": "INFO_DISCLOSURE",
+      "description": "Server info exposed via X-Powered-By: Express",
+      "details": null
+    },
+    {
+      "category": "RATE_LIMITING",
+      "description": "No rate limiting detected on login endpoint",
+      "details": "Endpoint allows unlimited login attempts"
+    }
+  ],
+  "info": [
+    {
+      "category": "SQL_INJECTION",
+      "description": "SQL injection scan completed"
+    },
+    {
+      "category": "XSS",
+      "description": "XSS scan completed"
+    },
+    {
+      "category": "AUTH",
+      "description": "Authentication security scan completed"
+    },
+    {
+      "category": "DATA_EXPOSURE",
+      "description": "Data exposure scan completed"
+    }
+  ],
+  "status": "FAIL"
+}
