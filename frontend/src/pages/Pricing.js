@@ -3,12 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { paymentAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Check, Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
+import { Check, Sparkles, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 
 export default function Pricing() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState({});
   const [selectedCurrency, setSelectedCurrency] = useState('INR');
+  const [exchangeRates, setExchangeRates] = useState({ INR: 1, USD: 0.012, EUR: 0.011, GBP: 0.0095 });
+  const [isLiveRate, setIsLiveRate] = useState(false);
   const navigate = useNavigate();
 
   const currencySymbols = {
@@ -18,30 +20,39 @@ export default function Pricing() {
     GBP: '£'
   };
 
-  const exchangeRates = {
-    INR: 1,
-    USD: 0.012, // 1 INR = 0.012 USD (approx)
-    EUR: 0.011,
-    GBP: 0.0095
-  };
-
   const getConvertedPrice = (priceInr) => {
-    const converted = Math.ceil(priceInr * exchangeRates[selectedCurrency]);
+    const rate = exchangeRates[selectedCurrency] || 1;
+    const converted = Math.ceil(priceInr * rate);
     return converted;
   };
 
   useEffect(() => {
     fetchProducts();
+    fetchExchangeRates();
   }, []);
 
   const fetchProducts = async () => {
     try {
       const response = await paymentAPI.getProducts();
-      // API returns { success: true, products: [...] }
       setProducts(response.data.products || []);
     } catch (error) {
       console.log('Not authenticated, showing empty products');
       setProducts([]);
+    }
+  };
+
+  const fetchExchangeRates = async () => {
+    try {
+      const response = await paymentAPI.getCurrencies();
+      if (response.data.success && response.data.currencies) {
+        const { rates, isLiveRate } = response.data.currencies;
+        if (rates) {
+          setExchangeRates(rates);
+          setIsLiveRate(isLiveRate);
+        }
+      }
+    } catch (error) {
+      console.log('Using fallback exchange rates');
     }
   };
 
