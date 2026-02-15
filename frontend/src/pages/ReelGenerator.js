@@ -32,6 +32,49 @@ export default function ReelGenerator() {
     audience: 'General'
   });
 
+  // Blocked words for content filtering
+  const blockedWords = [
+    // Adult/Sexual content
+    'sex', 'porn', 'xxx', 'nude', 'naked', 'erotic', 'adult', 'nsfw', 'explicit',
+    'orgasm', 'masturbat', 'penis', 'vagina', 'boob', 'breast', 'nipple', 'genital',
+    'prostitut', 'escort', 'stripper', 'onlyfans', 'fetish', 'bdsm', 'kinky',
+    // Violence
+    'kill', 'murder', 'blood', 'gore', 'violent', 'torture', 'abuse', 'assault',
+    'rape', 'molest', 'stab', 'shoot', 'bomb', 'terrorist', 'massacre', 'genocide',
+    'decapitat', 'dismember', 'mutilat', 'brutal',
+    // Hate/Discrimination
+    'racist', 'racism', 'nazi', 'hitler', 'hate', 'discriminat', 'slur', 'bigot',
+    'homophob', 'transphob', 'sexist', 'supremac', 'extremist',
+    // Drugs/Illegal
+    'cocaine', 'heroin', 'meth', 'crack', 'ecstasy', 'lsd', 'overdose', 'drug deal',
+    // Self-harm
+    'suicide', 'self-harm', 'cutting', 'anorex', 'bulimi',
+    // Disturbing
+    'pedophil', 'incest', 'bestiality', 'necrophil', 'cannibal',
+    // Profanity (common)
+    'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'cock', 'whore'
+  ];
+
+  // Validate content for inappropriate words
+  const validateContent = (text) => {
+    if (!text || text.trim() === '') {
+      return { valid: false, message: 'Please enter a topic' };
+    }
+    
+    const lowerText = text.toLowerCase();
+    
+    for (const word of blockedWords) {
+      if (lowerText.includes(word)) {
+        return { 
+          valid: false, 
+          message: 'Your topic contains inappropriate content. Please use family-friendly language.' 
+        };
+      }
+    }
+    
+    return { valid: true, message: '' };
+  };
+
   useEffect(() => {
     fetchCredits();
   }, []);
@@ -48,6 +91,13 @@ export default function ReelGenerator() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate topic content
+    const validation = validateContent(formData.topic);
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
     
     if (credits < 1) {
       toast.error('Insufficient credits! Please buy more.');
