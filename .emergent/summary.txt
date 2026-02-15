@@ -172,7 +172,7 @@ Future Tasks:
 - 
 - 
 - 🔒 CreatorStudio AI Security Test Suite
-Testing API: https://reel-creator-42.preview.emergentagent.com
+Testing API: https://viralmakers-1.preview.emergentagent.com
 ========================================
 
 1. PUBLIC ENDPOINT TESTS
@@ -257,7 +257,7 @@ SECURITY TEST SUMMARY
   - Testing agent used after significant changes: YES
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: [🔒 CreatorStudio AI Security Test Suite
-Testing API: https://reel-creator-42.preview.emergentagent.com
+Testing API: https://viralmakers-1.preview.emergentagent.com
 ========================================
 
 1. PUBLIC ENDPOINT TESTS
