@@ -312,7 +312,7 @@ export default function ReelGenerator() {
               </div>
             )}
             
-            {result && (
+            {result && result.hooks && (
               <div className="space-y-6" data-testid="reel-result">
                 {/* Free Tier Watermark Banner */}
                 {isFreeTier && (
