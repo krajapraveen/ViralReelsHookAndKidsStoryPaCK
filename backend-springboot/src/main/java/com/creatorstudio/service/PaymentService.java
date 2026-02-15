@@ -11,6 +11,8 @@ import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
 import com.razorpay.Utils;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,11 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.net.SocketTimeoutException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.math.RoundingMode;
+import java.util.*;
+import java.util.function.Supplier;
 
 @Service
 public class PaymentService {
@@ -46,6 +46,12 @@ public class PaymentService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private CurrencyService currencyService;
+
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
     @Value("${razorpay.key.id}")
     private String razorpayKeyId;
 
@@ -54,6 +60,11 @@ public class PaymentService {
 
     @Value("${razorpay.webhook.secret}")
     private String webhookSecret;
+
+    // Supported international currencies for Razorpay
+    private static final Set<String> RAZORPAY_SUPPORTED_CURRENCIES = Set.of(
+            "INR", "USD", "EUR", "GBP", "SGD", "AED", "AUD", "CAD", "MYR"
+    );
 
     // Retry configuration
     private static final int MAX_RETRIES = 3;
