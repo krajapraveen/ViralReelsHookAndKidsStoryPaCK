@@ -105,7 +105,10 @@ export default function ReelGenerator() {
       return;
     }
 
+    // Reset state for new generation
+    setResult(null);
     setLoading(true);
+    
     try {
       const response = await generationAPI.generateReel(formData);
       setResult(response.data.output);
