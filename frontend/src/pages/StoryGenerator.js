@@ -260,7 +260,7 @@ export default function StoryGenerator() {
                   </Select>
                 </div>
                 <div><Label>Genre</Label>
-                  <Select value={formData.genre} onValueChange={(value) => setFormData({...formData, genre: value})}>
+                  <Select value={formData.genre} onValueChange={(value) => setFormData({...formData, genre: value, customGenre: value === 'Custom' ? formData.customGenre : ''})}>
                     <SelectTrigger data-testid="story-genre-select"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Fantasy">Fantasy</SelectItem>
@@ -275,10 +275,34 @@ export default function StoryGenerator() {
                       <SelectItem value="Superhero">Superhero</SelectItem>
                       <SelectItem value="Friendship">Friendship</SelectItem>
                       <SelectItem value="Educational">Educational</SelectItem>
+                      <SelectItem value="Custom">✨ Custom Genre</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+              
+              {/* Custom Genre Input */}
+              {formData.genre === 'Custom' && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <Label className="text-purple-700">Enter Custom Genre <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., Space Exploration, Underwater Adventure, Time Travel..."
+                    value={formData.customGenre}
+                    onChange={(e) => setFormData({...formData, customGenre: e.target.value})}
+                    className="mt-2 bg-white"
+                    maxLength={50}
+                    data-testid="custom-genre-input"
+                  />
+                  <p className="text-xs text-purple-600 mt-2">
+                    💡 Suggestions: Nature & Wildlife, Space Exploration, Underwater Adventure, Time Travel, 
+                    Dinosaur World, Magical Creatures, Sports & Teamwork, Music & Dance, Cooking Adventures
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Note: Only kid-friendly genres are allowed. Inappropriate content will be rejected.
+                  </p>
+                </div>
+              )}
               <div><Label>Number of Scenes</Label>
                 <Select value={formData.scenes.toString()} onValueChange={(value) => setFormData({...formData, scenes: parseInt(value)})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
