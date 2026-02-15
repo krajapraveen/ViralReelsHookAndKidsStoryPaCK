@@ -301,4 +301,77 @@ public class EmailService {
             </html>
             """.formatted(userName, remainingCredits);
     }
+
+    @Async
+    public void sendContactNotification(String name, String email, String subject, String messageContent) {
+        if (mailSender == null) {
+            logger.warn("Email not sent - service not configured");
+            return;
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(mailUsername);
+            helper.setTo("krajapraveen@visionary-suite.com");
+            helper.setSubject("📬 New Contact Form: " + subject);
+
+            String htmlContent = """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }
+                        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                        .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 30px; text-align: center; }
+                        .header h1 { color: white; margin: 0; font-size: 24px; }
+                        .content { padding: 30px; }
+                        .info-box { background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0; }
+                        .label { color: #64748b; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }
+                        .value { color: #1e293b; font-weight: 600; }
+                        .message-box { background: #f1f5f9; border-left: 4px solid #6366f1; padding: 15px; margin-top: 20px; }
+                        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>📬 New Contact Form Submission</h1>
+                        </div>
+                        <div class="content">
+                            <div class="info-box">
+                                <div style="margin-bottom: 15px;">
+                                    <div class="label">From</div>
+                                    <div class="value">%s</div>
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <div class="label">Email</div>
+                                    <div class="value">%s</div>
+                                </div>
+                                <div>
+                                    <div class="label">Subject</div>
+                                    <div class="value">%s</div>
+                                </div>
+                            </div>
+                            <div class="message-box">
+                                <div class="label">Message</div>
+                                <p style="color: #1e293b; white-space: pre-wrap;">%s</p>
+                            </div>
+                        </div>
+                        <div class="footer">
+                            <p>CreatorStudio AI Contact Form</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """.formatted(name, email, subject, messageContent);
+
+            helper.setText(htmlContent, true);
+            mailSender.send(message);
+            logger.info("Contact notification sent for: {}", email);
+        } catch (MessagingException e) {
+            logger.error("Failed to send contact notification: {}", e.getMessage());
+        }
+    }
 }
