@@ -13,12 +13,14 @@ import com.razorpay.Utils;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -47,6 +49,7 @@ public class PaymentService {
     @Value("${razorpay.webhook.secret}")
     private String webhookSecret;
 
+    @Cacheable(value = "products")
     public List<Product> getProducts() {
         return productRepository.findByActiveTrue();
     }
