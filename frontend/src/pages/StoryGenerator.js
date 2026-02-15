@@ -127,7 +127,10 @@ export default function StoryGenerator() {
     try {
       // Use custom genre if selected, otherwise use the selected genre
       const genreToUse = formData.genre === 'Custom' ? formData.customGenre.trim() : formData.genre;
-      const requestData = { ...formData, genre: genreToUse };
+      
+      // Create clean request data without customGenre field
+      const { customGenre, ...cleanFormData } = formData;
+      const requestData = { ...cleanFormData, genre: genreToUse };
       
       const response = await generationAPI.generateStory(requestData);
       setGenerationId(response.data.generationId);
