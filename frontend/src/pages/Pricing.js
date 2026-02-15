@@ -114,8 +114,15 @@ export default function Pricing() {
                 <div className="bg-indigo-500/20 rounded-lg px-4 py-2 mb-6">
                   <p className="text-indigo-300 font-semibold">{product.credits} Credits</p>
                 </div>
-                <Button className="w-full bg-indigo-500 hover:bg-indigo-600 rounded-full" data-testid={`subscribe-${product.id}-btn`}>
-                  Subscribe Now
+                <Button 
+                  onClick={() => handlePurchase(product.id)} 
+                  disabled={loading[product.id]}
+                  className="w-full bg-indigo-500 hover:bg-indigo-600 rounded-full" 
+                  data-testid={`subscribe-${product.id}-btn`}
+                >
+                  {loading[product.id] ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing...</>
+                  ) : 'Subscribe Now'}
                 </Button>
               </div>
             ))}
