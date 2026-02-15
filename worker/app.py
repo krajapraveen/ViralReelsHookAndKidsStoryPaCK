@@ -27,33 +27,44 @@ executor = ThreadPoolExecutor(max_workers=5)
 
 REEL_SYSTEM_PROMPT = """You are an elite social media scriptwriter. Output must be structured JSON only."""
 
-REEL_USER_PROMPT_TEMPLATE = """Generate a high-retention Instagram Reel package.
-Constraints:
-• Language: {language}
-• Niche: {niche}
-• Tone: {tone}
-• Duration: {duration}
-• Goal: {goal}
-• Topic: {topic}
-Output JSON schema:
+REEL_USER_PROMPT_TEMPLATE = """Generate a UNIQUE and ORIGINAL high-retention Instagram Reel package. This content must be COMPLETELY DIFFERENT from anything generated before.
+
+**Input Parameters:**
+- Language: {language}
+- Niche: {niche}
+- Tone: {tone}
+- Duration: {duration}
+- Goal: {goal}
+- Topic: {topic}
+- Unique Request ID: {uniqueId}
+
+**CREATIVITY REQUIREMENTS:**
+- Create FRESH hooks that haven't been used before
+- Make the script UNIQUE and engaging
+- Use creative, unexpected angles on the topic
+- Don't use generic or overused phrases
+
+Output ONLY this JSON format:
 {{
-"hooks":["hook1", "hook2", "hook3", "hook4", "hook5"],
-"best_hook":"selected hook",
-"script":{{
-"scenes":[
-{{"time":"0-2s","on_screen_text":"...","voiceover":"...","broll":["..."]}},
-],
-"cta":"call to action"
-}},
-"caption_short":"...",
-"caption_long":"...",
-"hashtags":["20 hashtags"],
-"posting_tips":["5 tips"]
+  "hooks": ["5 unique, attention-grabbing hooks under 12 words each"],
+  "best_hook": "The most powerful hook from above",
+  "script": {{
+    "scenes": [
+      {{"time": "0-2s", "on_screen_text": "...", "voiceover": "...", "broll": ["visual suggestions"]}}
+    ],
+    "cta": "Compelling call to action"
+  }},
+  "caption_short": "Short engaging caption",
+  "caption_long": "Detailed caption with value",
+  "hashtags": ["20 relevant trending hashtags"],
+  "posting_tips": ["5 specific tips for this content"]
 }}
+
 Rules:
-• Hook must be under 12 words.
-• Scenes must be punchy and scroll-stopping.
-• No unsafe/illegal content.
+• Hooks MUST be under 12 words and attention-grabbing
+• Script must be punchy and scroll-stopping
+• Make it UNIQUE - don't repeat common patterns
+• No unsafe/illegal content
 
 Return ONLY valid JSON, no markdown or explanation."""
 
