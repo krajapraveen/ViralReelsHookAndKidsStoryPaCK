@@ -195,9 +195,11 @@ export default function StoryGenerator() {
             <h2 className="text-2xl font-bold mb-6">Create Kids Story Pack</h2>
             <form onSubmit={handleSubmit} className="space-y-6" data-testid="story-form">
               <div className="grid md:grid-cols-2 gap-4">
-                <div><Label>Age Group</Label>
+                <div><Label>Age Group <span className="text-red-500">*</span></Label>
                   <Select value={formData.ageGroup} onValueChange={(value) => setFormData({...formData, ageGroup: value})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={!formData.ageGroup ? 'border-orange-300' : ''}>
+                      <SelectValue placeholder="Select age group" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="3-5">3-5 years (Preschool)</SelectItem>
                       <SelectItem value="6-8">6-8 years (Early Elementary)</SelectItem>
