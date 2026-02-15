@@ -131,4 +131,12 @@ public class PaymentService {
     public Page<Payment> getUserPayments(UUID userId, Pageable pageable) {
         return paymentRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
+
+    @Transactional
+    public void markPaymentFailed(String orderId) {
+        paymentRepository.findByProviderOrderId(orderId).ifPresent(payment -> {
+            payment.setStatus(Payment.Status.FAILED);
+            paymentRepository.save(payment);
+        });
+    }
 }
