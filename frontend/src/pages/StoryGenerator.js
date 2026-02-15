@@ -106,6 +106,15 @@ export default function StoryGenerator() {
       toast.error('Please select an Age Group before generating');
       return;
     }
+
+    // Validate custom genre if selected
+    if (formData.genre === 'Custom') {
+      const validation = validateCustomGenre(formData.customGenre);
+      if (!validation.valid) {
+        toast.error(validation.message);
+        return;
+      }
+    }
     
     const cost = getCreditCost();
     if (credits < cost) {
@@ -116,7 +125,11 @@ export default function StoryGenerator() {
 
     setLoading(true);
     try {
-      const response = await generationAPI.generateStory(formData);
+      // Use custom genre if selected, otherwise use the selected genre
+      const genreToUse = formData.genre === 'Custom' ? formData.customGenre.trim() : formData.genre;
+      const requestData = { ...formData, genre: genreToUse };
+      
+      const response = await generationAPI.generateStory(requestData);
       setGenerationId(response.data.generationId);
       setCredits(credits - cost);
       setPolling(true);
