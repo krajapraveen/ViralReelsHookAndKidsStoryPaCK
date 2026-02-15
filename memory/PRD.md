@@ -75,15 +75,21 @@ CreatorStudio AI is a full-stack SaaS application that helps content creators ge
 - generations: {id, user_id, type, status, input_json, output_json, credits_used}
 
 ## API Endpoints
-- POST /api/auth/register - User registration
+- POST /api/auth/register - User registration (sends welcome email)
 - POST /api/auth/login - User login
 - GET /api/auth/google - Google OAuth initiation
-- GET /api/credits/balance - Get credit balance
+- GET /api/credits/balance - Get credit balance with isFreeTier status
 - GET /api/products - List products
 - POST /api/generate/reel - Generate reel script (instant)
+- POST /api/generate/demo-reel - Demo reel generation (public, no auth)
 - POST /api/generate/story - Generate story pack (async)
 - GET /api/generate/generations/{id} - Get generation status/result
 - GET /api/generate/generations/{id}/pdf - Download story as PDF
+- POST /api/payments/create-order - Create Razorpay order
+- POST /api/payments/verify - Verify payment signature
+- POST /api/payments/webhook - Razorpay webhook endpoint
+- GET /api/payments/products - List payment products
+- GET /api/payments/history - User payment history
 - GET /api/admin/stats - Admin statistics
 
 ## Issues Fixed (Latest Session - Feb 14, 2026)
