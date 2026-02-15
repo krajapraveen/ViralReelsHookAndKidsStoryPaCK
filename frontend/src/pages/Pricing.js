@@ -150,7 +150,9 @@ export default function Pricing() {
               <div key={product.id} className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 hover:border-indigo-500/50 transition-all">
                 <h3 className="text-2xl font-bold text-white mb-2">{product.name}</h3>
                 <div className="flex items-baseline gap-2 mb-6">
-                  <span className="text-4xl font-bold text-white">₹{product.priceInr}</span>
+                  <span className="text-4xl font-bold text-white">
+                    {currencySymbols[selectedCurrency]}{selectedCurrency === 'INR' ? product.priceInr : getConvertedPrice(product.priceInr)}
+                  </span>
                   <span className="text-slate-400">/month</span>
                 </div>
                 <div className="bg-indigo-500/20 rounded-lg px-4 py-2 mb-6">
