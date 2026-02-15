@@ -1,6 +1,7 @@
 com/creatorstudio/service/PDFExportService.class
 com/creatorstudio/service/RateLimitService.class
 com/creatorstudio/security/JwtAuthenticationFilter.class
+com/creatorstudio/service/FeatureRequestService.class
 com/creatorstudio/service/AuthService.class
 com/creatorstudio/repository/UserSessionRepository.class
 com/creatorstudio/service/PaymentService.class
@@ -9,6 +10,7 @@ com/creatorstudio/dto/LoginRequest.class
 com/creatorstudio/entity/ContactMessage.class
 com/creatorstudio/entity/User.class
 com/creatorstudio/config/SecurityConfig.class
+com/creatorstudio/entity/FeatureRequest$Status.class
 com/creatorstudio/service/StoryResultListener.class
 com/creatorstudio/repository/ProductRepository.class
 com/creatorstudio/config/GlobalExceptionHandler.class
@@ -27,6 +29,7 @@ com/creatorstudio/entity/Product.class
 com/creatorstudio/repository/GenerationRepository.class
 com/creatorstudio/exception/WebhookProcessingException.class
 com/creatorstudio/entity/CreditLedger.class
+com/creatorstudio/repository/FeatureRequestRepository.class
 com/creatorstudio/config/RedisConfig.class
 com/creatorstudio/controller/PaymentController.class
 com/creatorstudio/repository/PageVisitRepository.class
@@ -34,6 +37,7 @@ com/creatorstudio/dto/ReelGenerationRequest.class
 com/creatorstudio/entity/Feedback.class
 com/creatorstudio/config/AppConfig.class
 com/creatorstudio/exception/PaymentNotFoundException.class
+com/creatorstudio/entity/FeatureRequest$Category.class
 com/creatorstudio/controller/CreditController.class
 com/creatorstudio/entity/UserSession.class
 com/creatorstudio/exception/RazorpayOrderException.class
@@ -59,20 +63,24 @@ com/creatorstudio/dto/RegisterRequest.class
 com/creatorstudio/entity/CreditWallet.class
 com/creatorstudio/exception/ProductNotFoundException.class
 com/creatorstudio/repository/UserRepository.class
+com/creatorstudio/entity/FeatureRequest.class
 com/creatorstudio/controller/AdminController.class
 com/creatorstudio/controller/FeedbackController.class
 com/creatorstudio/config/RateLimitFilter.class
 com/creatorstudio/entity/CreditLedger$Reason.class
+com/creatorstudio/entity/FeatureVote.class
 com/creatorstudio/entity/FeatureUsage$Feature.class
 com/creatorstudio/entity/Feedback$FeedbackType.class
 com/creatorstudio/entity/Payment$Status.class
 com/creatorstudio/entity/Product$Type.class
 com/creatorstudio/entity/Generation$Type.class
+com/creatorstudio/controller/FeatureRequestController.class
 com/creatorstudio/dto/CreateOrderRequest.class
 com/creatorstudio/entity/PageVisit.class
 com/creatorstudio/controller/AuthController.class
 com/creatorstudio/dto/AuthResponse.class
 com/creatorstudio/CreatorStudioApplication.class
+com/creatorstudio/repository/FeatureVoteRepository.class
 com/creatorstudio/entity/CreditLedger$Type.class
 com/creatorstudio/entity/Generation.class
 com/creatorstudio/dto/StoryGenerationRequest.class

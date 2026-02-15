@@ -1,6 +1,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/FeatureUsageRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/CreditLedgerRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/PaymentRepository.java
+/app/backend-springboot/src/main/java/com/creatorstudio/service/FeatureRequestService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/LoginRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/AdminAnalyticsController.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/RateLimitService.java
@@ -19,6 +20,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/config/CorsConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/UserRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/security/CustomUserDetailsService.java
+/app/backend-springboot/src/main/java/com/creatorstudio/controller/FeatureRequestController.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/PaymentController.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/ReviewRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/CreditWallet.java
@@ -33,9 +35,11 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/service/AuthService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/exception/PaymentNotFoundException.java
 /app/backend-springboot/src/main/java/com/creatorstudio/dto/AuthResponse.java
+/app/backend-springboot/src/main/java/com/creatorstudio/repository/FeatureVoteRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/EmailService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/Payment.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/PDFExportService.java
+/app/backend-springboot/src/main/java/com/creatorstudio/entity/FeatureVote.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/RateLimitRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/ValidationConfig.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/FeedbackRepository.java
@@ -49,6 +53,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/config/GlobalExceptionHandler.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/RateLimit.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/CreditController.java
+/app/backend-springboot/src/main/java/com/creatorstudio/entity/FeatureRequest.java
 /app/backend-springboot/src/main/java/com/creatorstudio/entity/PageVisit.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/ContactMessageRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/config/SecurityHeadersFilter.java
@@ -66,6 +71,7 @@
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/CreditWalletRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/exception/ProductNotFoundException.java
 /app/backend-springboot/src/main/java/com/creatorstudio/security/JwtAuthenticationFilter.java
+/app/backend-springboot/src/main/java/com/creatorstudio/repository/FeatureRequestRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/service/AnalyticsService.java
 /app/backend-springboot/src/main/java/com/creatorstudio/repository/PageVisitRepository.java
 /app/backend-springboot/src/main/java/com/creatorstudio/controller/AdminController.java
