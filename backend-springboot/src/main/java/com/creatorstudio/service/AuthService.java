@@ -38,6 +38,9 @@ public class AuthService {
     @Autowired
     private CreditService creditService;
 
+    @Autowired
+    private EmailService emailService;
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -61,6 +64,9 @@ public class AuthService {
         creditService.addCreditLedgerEntry(user.getId(), BigDecimal.valueOf(54), 
                 com.creatorstudio.entity.CreditLedger.Type.CREDIT,
                 com.creatorstudio.entity.CreditLedger.Reason.BONUS, "Welcome bonus");
+
+        // Send welcome email
+        emailService.sendWelcomeEmail(user.getEmail(), user.getName());
 
         String token = jwtUtil.generateToken(user.getEmail());
         return new AuthResponse(token, user.getEmail(), user.getName());
