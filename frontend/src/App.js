@@ -18,6 +18,7 @@ import PrivacySettings from './pages/PrivacySettings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import AutomationDashboard from './pages/AutomationDashboard';
 import AIChatbot from './components/AIChatbot';
+import FeedbackWidget from './components/FeedbackWidget';
 import './App.css';
 
 function App() {
