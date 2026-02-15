@@ -296,8 +296,183 @@ async def get_me(user: dict = Depends(get_current_user)):
         "name": user["name"],
         "email": user["email"],
         "role": user["role"],
-        "credits": user["credits"]
+        "credits": user["credits"],
+        "createdAt": user.get("createdAt", datetime.now(timezone.utc).isoformat()),
+        "googleId": user.get("googleId")
     }
+
+class ProfileUpdate(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+
+class PasswordChange(BaseModel):
+    currentPassword: str
+    newPassword: str = Field(min_length=6)
+
+@auth_router.put("/profile")
+async def update_profile(data: ProfileUpdate, user: dict = Depends(get_current_user)):
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"name": data.name, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "message": "Profile updated successfully"}
+
+@auth_router.put("/password")
+async def change_password(data: PasswordChange, user: dict = Depends(get_current_user)):
+    if user.get("googleId"):
+        raise HTTPException(status_code=400, detail="Cannot change password for Google accounts")
+    
+    if not verify_password(data.currentPassword, user["password"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"password": hash_password(data.newPassword), "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "message": "Password changed successfully"}
+
+@auth_router.get("/export-data")
+async def export_user_data(user: dict = Depends(get_current_user)):
+    """Export all user data for GDPR compliance"""
+    # Get generations
+    generations = await db.generations.find(
+        {"userId": user["id"]},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Get credit ledger
+    ledger = await db.credit_ledger.find(
+        {"userId": user["id"]},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Get orders
+    orders = await db.orders.find(
+        {"userId": user["id"]},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    return {
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "user": {
+            "id": user["id"],
+            "name": user["name"],
+            "email": user["email"],
+            "role": user["role"],
+            "credits": user["credits"],
+            "createdAt": user.get("createdAt")
+        },
+        "generations": generations,
+        "creditHistory": ledger,
+        "paymentHistory": orders
+    }
+
+@auth_router.delete("/account")
+async def delete_account(user: dict = Depends(get_current_user)):
+    """Delete user account and all associated data"""
+    user_id = user["id"]
+    
+    # Delete all user data
+    await db.generations.delete_many({"userId": user_id})
+    await db.credit_ledger.delete_many({"userId": user_id})
+    await db.orders.delete_many({"userId": user_id})
+    await db.users.delete_one({"id": user_id})
+    
+    logger.info(f"User account deleted: {user['email']}")
+    return {"success": True, "message": "Account deleted successfully"}
+
+# ==================== EMAIL NOTIFICATION SERVICE ====================
+
+async def send_email_notification(to_email: str, subject: str, body: str, email_type: str = "general"):
+    """Send email notification (stubbed - ready for SMTP integration)"""
+    # Log the email for now
+    logger.info(f"Email notification [{email_type}] to {to_email}: {subject}")
+    
+    # Save to database for tracking
+    await db.email_logs.insert_one({
+        "id": str(uuid.uuid4()),
+        "toEmail": to_email,
+        "subject": subject,
+        "body": body,
+        "type": email_type,
+        "status": "QUEUED",  # Would be SENT after actual sending
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
+    # For production, uncomment and configure:
+    # import smtplib
+    # from email.mime.text import MIMEText
+    # smtp_server = os.environ.get('SMTP_SERVER')
+    # smtp_user = os.environ.get('SMTP_USER')
+    # smtp_pass = os.environ.get('SMTP_PASS')
+    
+    return True
+
+async def notify_payment_success(user: dict, order: dict):
+    """Send payment success notification"""
+    subject = f"Payment Confirmed - {order.get('productName', 'Credit Pack')}"
+    body = f"""
+Hi {user['name']},
+
+Your payment has been successfully processed!
+
+Order Details:
+- Product: {order.get('productName', 'Credit Pack')}
+- Amount: {order.get('currency', 'INR')} {order.get('amount', 0)}
+- Credits Added: {order.get('credits', 0)}
+
+Your new credit balance: {user['credits'] + order.get('credits', 0)} credits
+
+Thank you for using CreatorStudio AI!
+
+Best regards,
+CreatorStudio AI Team
+"""
+    await send_email_notification(user['email'], subject, body, "payment")
+
+async def notify_generation_complete(user: dict, generation_type: str, generation_id: str):
+    """Send generation completion notification"""
+    subject = f"Your {generation_type} is Ready! - CreatorStudio AI"
+    body = f"""
+Hi {user['name']},
+
+Great news! Your {generation_type.lower()} generation is complete and ready to download.
+
+Generation ID: {generation_id}
+
+Log in to your dashboard to view and download your creation.
+
+Happy creating!
+CreatorStudio AI Team
+"""
+    await send_email_notification(user['email'], subject, body, "generation")
+
+async def notify_welcome(user: dict):
+    """Send welcome email to new users"""
+    subject = "Welcome to CreatorStudio AI! 🎉"
+    body = f"""
+Hi {user['name']},
+
+Welcome to CreatorStudio AI! We're thrilled to have you on board.
+
+You've received 54 free credits to get started! Here's what you can create:
+
+🎬 Reel Scripts (1 credit each)
+- Generate viral Instagram reel scripts in seconds
+- Complete with hooks, scenes, and hashtags
+
+📖 Kids Story Packs (6-8 credits each)
+- Full video production packages
+- AI-generated scripts and scene breakdowns
+
+Log in to your dashboard and start creating!
+
+Questions? Just reply to this email or use our AI chatbot.
+
+Happy creating!
+CreatorStudio AI Team
+"""
+    await send_email_notification(user['email'], subject, body, "welcome")
 
 # ==================== CREDITS ROUTES ====================
 
