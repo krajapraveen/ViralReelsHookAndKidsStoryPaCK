@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-02-15T18:00:14.406808",
+  "timestamp": "2026-02-15T19:00:18.807956",
   "health": {
     "connected": true,
-    "database_size": "8375 kB",
+    "database_size": "8391 kB",
     "table_counts": {
-      "credit_ledger": 24,
-      "generations": 16,
-      "credit_wallet": 8,
-      "users": 8,
+      "credit_ledger": 30,
+      "generations": 19,
+      "credit_wallet": 11,
+      "users": 11,
       "products": 6,
       "rate_limits": 4,
       "feature_votes": 0,
@@ -28,12 +28,12 @@
     "vacuum_completed": true
   },
   "stats": {
-    "total_users": 8,
+    "total_users": 11,
     "generations_by_type": {
-      "REEL": 6,
+      "REEL": 9,
       "STORY": 10
     },
     "payments_by_status": {},
-    "generations_last_24h": 16
+    "generations_last_24h": 19
   }
 }
