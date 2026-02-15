@@ -22,7 +22,7 @@ export default function Login({ setAuth }) {
       localStorage.setItem('token', response.data.token);
       setAuth(true);
       toast.success('Login successful!');
-      navigate('/app');
+      navigate('/app', { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login failed');
     } finally {
