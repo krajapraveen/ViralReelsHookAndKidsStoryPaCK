@@ -90,6 +90,7 @@ export default function AIChatbot() {
         <button
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center text-white z-50 group"
+          style={{ touchAction: 'manipulation' }}
           data-testid="chatbot-toggle"
         >
           <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
@@ -99,7 +100,7 @@ export default function AIChatbot() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-96 h-[550px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden border border-slate-200" data-testid="chatbot-window">
+        <div className="fixed bottom-6 right-6 w-[90vw] max-w-96 h-[70vh] max-h-[550px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden border border-slate-200" style={{ touchAction: 'none' }} data-testid="chatbot-window">
           {/* Header */}
           <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
