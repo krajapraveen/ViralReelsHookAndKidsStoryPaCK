@@ -26,6 +26,7 @@ export default function StoryGenerator() {
     ageGroup: '',
     theme: 'Adventure',
     genre: 'Fantasy',
+    customGenre: '',
     moral: 'Friendship',
     characters: ['Kid', 'Dog'],
     setting: 'forest',
@@ -34,6 +35,42 @@ export default function StoryGenerator() {
     style: 'Pixar-like 3D',
     length: '60s'
   });
+
+  // List of inappropriate/vulgar words to block in custom genre
+  const blockedWords = [
+    'adult', 'sex', 'porn', 'xxx', 'nude', 'naked', 'erotic', 'violent', 'gore', 'blood',
+    'kill', 'murder', 'death', 'drug', 'alcohol', 'beer', 'wine', 'cigarette', 'smoke',
+    'gun', 'weapon', 'abuse', 'hate', 'racist', 'discrimination', 'vulgar', 'profanity',
+    'explicit', 'mature', 'inappropriate', 'offensive', 'disturbing', 'graphic', 'brutal',
+    'torture', 'horror', 'scary', 'nightmare', 'demon', 'devil', 'evil', 'cult', 'occult',
+    'gambling', 'casino', 'betting', 'suicide', 'self-harm', 'bully', 'harassment'
+  ];
+
+  // Validate custom genre
+  const validateCustomGenre = (genre) => {
+    if (!genre || genre.trim() === '') return { valid: false, message: 'Please enter a genre' };
+    
+    const lowerGenre = genre.toLowerCase();
+    
+    // Check for blocked words
+    for (const word of blockedWords) {
+      if (lowerGenre.includes(word)) {
+        return { valid: false, message: 'This genre contains inappropriate content. Please choose a kid-friendly genre.' };
+      }
+    }
+    
+    // Check minimum length
+    if (genre.trim().length < 3) {
+      return { valid: false, message: 'Genre must be at least 3 characters' };
+    }
+    
+    // Check maximum length
+    if (genre.trim().length > 50) {
+      return { valid: false, message: 'Genre must be less than 50 characters' };
+    }
+    
+    return { valid: true, message: '' };
+  };
 
   useEffect(() => {
     fetchCredits();
