@@ -31,7 +31,6 @@ com/creatorstudio/repository/GenerationRepository.class
 com/creatorstudio/exception/WebhookProcessingException.class
 com/creatorstudio/entity/CreditLedger.class
 com/creatorstudio/repository/FeatureRequestRepository.class
-com/creatorstudio/config/RedisConfig.class
 com/creatorstudio/controller/PaymentController.class
 com/creatorstudio/repository/PageVisitRepository.class
 com/creatorstudio/dto/ReelGenerationRequest.class
