@@ -9,6 +9,7 @@ import com.creatorstudio.exception.InvalidSignatureException;
 import com.creatorstudio.exception.WebhookProcessingException;
 import com.creatorstudio.service.AuthService;
 import com.creatorstudio.service.PaymentService;
+import com.creatorstudio.service.CurrencyConversionService;
 import com.razorpay.Utils;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -43,6 +44,9 @@ public class PaymentController {
 
     @Autowired
     private AuthService authService;
+    
+    @Autowired
+    private CurrencyConversionService currencyService;
 
     /**
      * Get all available products
@@ -68,13 +72,24 @@ public class PaymentController {
     }
 
     /**
-     * Get supported currencies for international payments
+     * Get supported currencies with live exchange rates
      */
     @GetMapping("/currencies")
     public ResponseEntity<Map<String, Object>> getSupportedCurrencies() {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
-        response.put("currencies", paymentService.getSupportedCurrencies());
+        response.put("currencies", currencyService.getSupportedCurrencies());
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Get live exchange rate for a specific currency
+     */
+    @GetMapping("/exchange-rate/{currency}")
+    public ResponseEntity<Map<String, Object>> getExchangeRate(@PathVariable String currency) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("currency", currencyService.getCurrencyInfo(currency));
         return ResponseEntity.ok(response);
     }
 
