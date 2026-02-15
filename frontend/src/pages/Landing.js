@@ -8,7 +8,7 @@ export default function Landing() {
   const [showDemo, setShowDemo] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
       {/* Demo Modal */}
       <DemoReelGenerator isOpen={showDemo} onClose={() => setShowDemo(false)} />
       {/* Floating Navbar */}
