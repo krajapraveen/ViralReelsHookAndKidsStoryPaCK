@@ -54,6 +54,9 @@ public class GenerationService {
     @Autowired
     private RateLimitService rateLimitService;
 
+    @Autowired
+    private ContentFilterService contentFilterService;
+
     @Value("${worker.api.url}")
     private String workerApiUrl;
 
