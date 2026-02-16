@@ -15,7 +15,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-load_dotenv('/app/backend-springboot/.env')
+load_dotenv('/app/backend/.env')
 
 app = Flask(__name__)
 
