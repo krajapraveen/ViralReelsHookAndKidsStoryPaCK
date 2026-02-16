@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle } from 'lucide-react';
+import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle, LogOut } from 'lucide-react';
 
 import ShareButton from '../components/ShareButton';
 import UpgradeBanner from '../components/UpgradeBanner';
