@@ -2,7 +2,7 @@
 
 ## Overview
 **Tagline:** "Generate viral reels + kids story videos in minutes."
-**URL:** https://creatorstudio-9.preview.emergentagent.com
+**URL:** https://viral-video-gen-14.preview.emergentagent.com
 
 ## Tech Stack
 - **Frontend:** React + TailwindCSS + Shadcn/UI

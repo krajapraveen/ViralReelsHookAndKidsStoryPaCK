@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 from urllib.parse import urljoin
 
-API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://creatorstudio-9.preview.emergentagent.com')
+API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://viral-video-gen-14.preview.emergentagent.com')
 LOG_FILE = '/app/automation/logs/security_scan.log'
 REPORT_FILE = '/app/automation/reports/security_report.json'
 

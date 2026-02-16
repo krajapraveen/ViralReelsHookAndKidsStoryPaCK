@@ -2,7 +2,7 @@
 # CreatorStudio AI - Load Test Script
 # Run: chmod +x load_test.sh && ./load_test.sh
 
-API_URL="${1:-https://creatorstudio-9.preview.emergentagent.com}"
+API_URL="${1:-https://viral-video-gen-14.preview.emergentagent.com}"
 CONCURRENT_USERS="${2:-100}"
 DURATION="${3:-30}"
 
