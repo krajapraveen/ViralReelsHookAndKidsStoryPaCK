@@ -17,6 +17,14 @@ import json
 import random
 import string
 
+# SendGrid for email
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, To, Content
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -32,6 +40,14 @@ JWT_EXPIRATION_HOURS = 168  # 7 days
 
 # Worker URL
 WORKER_URL = os.environ.get('WORKER_URL', 'http://localhost:5000')
+
+# Email Configuration
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
+ADMIN_ALERT_EMAIL = os.environ.get('ADMIN_ALERT_EMAIL', 'krajapraveen@visionary-suite.com')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'alerts@creatorstudio.ai')
+
+# Initialize SendGrid
+EMAIL_ENABLED = SENDGRID_AVAILABLE and bool(SENDGRID_API_KEY)
 
 # Security
 security = HTTPBearer(auto_error=False)
