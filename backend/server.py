@@ -1116,10 +1116,22 @@ async def send_test_email(user: dict = Depends(get_admin_user)):
     
     success = await send_email_notification(user['email'], subject, html_body, "test")
     
+    # Get the last log entry
+    last_log = await db.email_logs.find_one(
+        {"toEmail": user['email'], "type": "test"},
+        {"_id": 0},
+        sort=[("createdAt", -1)]
+    )
+    
+    error_msg = None
+    if last_log and last_log.get("status") == "FAILED":
+        error_msg = last_log.get("error", "Unknown error")
+    
     return {
         "success": success,
-        "message": "Test email sent successfully!" if success else "Email sending is not configured or failed",
-        "emailEnabled": EMAIL_ENABLED
+        "message": "Test email sent successfully!" if success else f"Email failed: {error_msg}",
+        "emailEnabled": EMAIL_ENABLED,
+        "note": "Resend free tier only allows sending to the account owner's email. Verify a domain at resend.com/domains for full functionality." if not success and "own email" in str(error_msg) else None
     }
 
 # ==================== FEEDBACK ROUTES ====================
