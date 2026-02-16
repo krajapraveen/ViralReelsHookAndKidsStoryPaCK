@@ -130,42 +130,72 @@ async def generate_reel_content(data):
     """Generate reel script using LLM - with unique content each time"""
     import uuid
     
-    try:
-        # Generate unique session ID for fresh context
-        unique_session = f"reel_{uuid.uuid4().hex[:12]}_{int(time.time())}"
-        
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=unique_session,
-            system_message=REEL_SYSTEM_PROMPT
-        ).with_model("openai", "gpt-5.2")
-        
-        prompt = REEL_USER_PROMPT_TEMPLATE.format(
-            language=data.get('language', 'English'),
-            niche=data.get('niche', 'General'),
-            tone=data.get('tone', 'Bold'),
-            duration=data.get('duration', '30s'),
-            goal=data.get('goal', 'Followers'),
-            topic=data.get('topic', ''),
-            uniqueId=unique_session
-        )
-        
-        user_message = UserMessage(text=prompt)
-        response = await chat.send_message(user_message)
-        
-        # Parse JSON from response
-        result_text = response.strip()
-        if result_text.startswith('```json'):
-            result_text = result_text[7:]
-        if result_text.startswith('```'):
-            result_text = result_text[3:]
-        if result_text.endswith('```'):
-            result_text = result_text[:-3]
-        
-        return json.loads(result_text.strip())
-    except Exception as e:
-        logger.error(f"Reel generation error: {str(e)}")
-        raise
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            # Generate unique session ID for fresh context
+            unique_session = f"reel_{uuid.uuid4().hex[:12]}_{int(time.time())}"
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=unique_session,
+                system_message=REEL_SYSTEM_PROMPT
+            ).with_model("openai", "gpt-5.2")
+            
+            prompt = REEL_USER_PROMPT_TEMPLATE.format(
+                language=data.get('language', 'English'),
+                niche=data.get('niche', 'General'),
+                tone=data.get('tone', 'Bold'),
+                duration=data.get('duration', '30s'),
+                goal=data.get('goal', 'Followers'),
+                topic=data.get('topic', ''),
+                uniqueId=unique_session
+            )
+            
+            user_message = UserMessage(text=prompt)
+            
+            # Add timeout for reel generation
+            response = await asyncio.wait_for(
+                chat.send_message(user_message),
+                timeout=60.0
+            )
+            
+            # Parse JSON from response
+            result_text = response.strip()
+            if result_text.startswith('```json'):
+                result_text = result_text[7:]
+            if result_text.startswith('```'):
+                result_text = result_text[3:]
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
+            
+            return json.loads(result_text.strip())
+            
+        except asyncio.TimeoutError:
+            logger.warning(f"Reel generation timeout (attempt {attempt + 1}/{max_retries})")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                raise Exception("Reel generation timed out. Please try again.")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error (attempt {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                raise Exception("Failed to parse reel response. Please try again.")
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Reel generation error (attempt {attempt + 1}): {error_msg}")
+            if any(code in error_msg for code in ['502', '503', '504', 'BadGateway', 'timeout', 'connection']):
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying reel generation in {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+            raise
 
 async def generate_story_content(data):
     """Generate story pack using LLM - with unique content each time"""
