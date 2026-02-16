@@ -1034,14 +1034,33 @@ async def create_order(data: CreateOrderRequest, user: dict = Depends(get_curren
         if currency not in EXCHANGE_RATES:
             raise HTTPException(status_code=400, detail=f"Currency '{currency}' is not supported. Supported currencies: {', '.join(EXCHANGE_RATES.keys())}")
         
-        # Create mock order (Razorpay integration would go here)
-        order_id = f"order_{''.join(random.choices(string.ascii_letters + string.digits, k=14))}"
-        
         # Calculate price in selected currency
         rate = EXCHANGE_RATES.get(currency, 1.0)
         converted_price = round(product["price"] * rate, 2)
+        amount_in_paise = int(converted_price * 100)  # Razorpay requires amount in smallest currency unit
         
-        # Save order
+        # Create actual Razorpay order
+        if razorpay_client:
+            try:
+                razorpay_order = razorpay_client.order.create({
+                    "amount": amount_in_paise,
+                    "currency": currency,
+                    "payment_capture": 1,
+                    "notes": {
+                        "product_id": data.productId,
+                        "user_id": user["id"],
+                        "credits": product["credits"]
+                    }
+                })
+                order_id = razorpay_order["id"]
+            except Exception as e:
+                logger.error(f"Razorpay order creation failed: {e}")
+                raise HTTPException(status_code=500, detail="Payment service unavailable. Please try again.")
+        else:
+            # Fallback to mock order if Razorpay not configured
+            order_id = f"order_{''.join(random.choices(string.ascii_letters + string.digits, k=14))}"
+        
+        # Save order to database
         order = {
             "id": str(uuid.uuid4()),
             "razorpayOrderId": order_id,
@@ -1063,7 +1082,7 @@ async def create_order(data: CreateOrderRequest, user: dict = Depends(get_curren
             "success": True,
             "orderId": order_id,
             "keyId": RAZORPAY_KEY_ID,
-            "amount": int(converted_price * 100),  # In smallest currency unit
+            "amount": amount_in_paise,
             "currency": currency,
             "productName": product["name"],
             "credits": product["credits"]
