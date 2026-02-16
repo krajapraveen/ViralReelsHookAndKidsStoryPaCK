@@ -985,7 +985,9 @@ PRODUCTS = [
     {"id": "starter", "name": "Starter Pack", "credits": 50, "price": 99, "currency": "INR", "type": "ONE_TIME"},
     {"id": "pro", "name": "Pro Pack", "credits": 150, "price": 249, "currency": "INR", "type": "ONE_TIME"},
     {"id": "creator", "name": "Creator Pack", "credits": 400, "price": 499, "currency": "INR", "type": "ONE_TIME"},
-    {"id": "monthly", "name": "Monthly Subscription", "credits": 100, "price": 199, "currency": "INR", "type": "SUBSCRIPTION"}
+    {"id": "monthly", "name": "Monthly", "credits": 100, "price": 199, "currency": "INR", "type": "SUBSCRIPTION", "interval": "month"},
+    {"id": "quarterly", "name": "Quarterly", "credits": 350, "price": 499, "currency": "INR", "type": "SUBSCRIPTION", "interval": "quarter", "savings": "17%"},
+    {"id": "yearly", "name": "Yearly", "credits": 1500, "price": 1499, "currency": "INR", "type": "SUBSCRIPTION", "interval": "year", "savings": "37%"}
 ]
 
 EXCHANGE_RATES = {
