@@ -1152,22 +1152,31 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
     try:
         # Try inline generation first (for production), fall back to worker (for local dev)
         result = None
+        generation_error = None
+        
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
                 result = await generate_story_content_inline(data.model_dump())
             except Exception as inline_error:
-                logger.warning(f"Inline story generation failed, trying worker: {inline_error}")
+                logger.warning(f"Inline story generation failed: {inline_error}")
+                generation_error = str(inline_error)
         
-        # Fall back to worker if inline failed or not available
+        # Fall back to worker if inline failed or not available (local dev only)
+        if result is None and WORKER_URL and 'localhost' not in WORKER_URL:
+            try:
+                async with httpx.AsyncClient(timeout=180.0) as client_http:
+                    response = await client_http.post(
+                        f"{WORKER_URL}/generate/story",
+                        json=data.model_dump()
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+            except Exception as worker_error:
+                logger.warning(f"Worker fallback also failed: {worker_error}")
+        
         if result is None:
-            async with httpx.AsyncClient(timeout=180.0) as client_http:
-                response = await client_http.post(
-                    f"{WORKER_URL}/generate/story",
-                    json=data.model_dump()
-                )
-                if response.status_code != 200:
-                    raise HTTPException(status_code=500, detail="Story generation failed")
-                result = response.json()
+            error_msg = generation_error or "AI service unavailable. Please try again."
+            raise HTTPException(status_code=503, detail=error_msg)
         
         # Deduct credits after successful generation
         await db.users.update_one(
