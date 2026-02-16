@@ -634,19 +634,10 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
     # Process in background (simplified - directly call worker)
     try:
         async with httpx.AsyncClient(timeout=120.0) as client_http:
-            # Use the worker's story generation endpoint directly
+            # Use the worker's story generation endpoint
             response = await client_http.post(
-                f"{WORKER_URL}/generate/reel",  # We'll create a story endpoint
-                json={
-                    "topic": f"{data.genre} story for ages {data.ageGroup}",
-                    "niche": data.genre,
-                    "tone": "Fun and Educational",
-                    "duration": f"{data.sceneCount} scenes",
-                    "goal": data.theme,
-                    "language": "English",
-                    "isStory": True,
-                    **data.model_dump()
-                }
+                f"{WORKER_URL}/generate/story",
+                json=data.model_dump()
             )
             
             if response.status_code == 200:
@@ -660,6 +651,12 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
                             "completedAt": datetime.now(timezone.utc).isoformat()
                         }
                     }
+                )
+            else:
+                logger.error(f"Story generation failed: {response.text}")
+                await db.generations.update_one(
+                    {"id": generation_id},
+                    {"$set": {"status": "FAILED", "errorMessage": "Generation service error"}}
                 )
     except Exception as e:
         logger.error(f"Story generation error: {e}")
