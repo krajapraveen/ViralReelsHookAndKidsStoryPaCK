@@ -212,11 +212,15 @@ export default function StoryGenerator() {
       : result;
     
     const blob = new Blob([JSON.stringify(downloadContent, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
+    a.style.display = 'none';
     a.href = url;
     a.download = `story-pack-${Date.now()}.json`;
+    document.body.appendChild(a);
     a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
     toast.success('Downloaded!');
   };
 
