@@ -201,12 +201,14 @@
 ## Remaining Tasks
 
 ### Production Ready
-- [ ] Connect Razorpay production keys
+- [x] Connect Razorpay test keys ✅ DONE
 - [x] Configure real email service (SendGrid) ✅ DONE
+- [ ] Connect Razorpay production keys (when ready for live payments)
 - [ ] Set up real currency conversion API
 
 ### Enhancements
 - [ ] User avatar upload
 - [ ] 2FA authentication
-- [ ] Subscription webhooks
+- [ ] Subscription webhooks for auto-renewal
 - [ ] Social sharing integration
+- [ ] Payment history page
