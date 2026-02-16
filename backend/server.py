@@ -423,19 +423,312 @@ async def delete_account(user: dict = Depends(get_current_user)):
 
 # ==================== EMAIL NOTIFICATION SERVICE ====================
 
-async def send_email_notification(to_email: str, subject: str, body: str, email_type: str = "general"):
-    """Send email notification (stubbed - logs to database)"""
-    logger.info(f"Email notification [{email_type}] to {to_email}: {subject}")
+def send_email_sync(to_email: str, subject: str, html_content: str):
+    """Send email using SendGrid (synchronous)"""
+    if not EMAIL_ENABLED:
+        logger.info(f"Email disabled - would send to {to_email}: {subject}")
+        return False
     
-    await db.email_logs.insert_one({
+    try:
+        message = Mail(
+            from_email=Email(SENDER_EMAIL, "CreatorStudio AI"),
+            to_emails=To(to_email),
+            subject=subject,
+            html_content=Content("text/html", html_content)
+        )
+        
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        
+        logger.info(f"Email sent to {to_email}: {subject} (Status: {response.status_code})")
+        return response.status_code == 202
+    except Exception as e:
+        logger.error(f"Email send failed to {to_email}: {e}")
+        return False
+
+async def send_email_notification(to_email: str, subject: str, html_body: str, email_type: str = "general"):
+    """Send email notification and log to database"""
+    email_log = {
         "id": str(uuid.uuid4()),
         "toEmail": to_email,
         "subject": subject,
         "type": email_type,
-        "status": "LOGGED",
         "createdAt": datetime.now(timezone.utc).isoformat()
-    })
-    return True
+    }
+    
+    if EMAIL_ENABLED:
+        try:
+            success = send_email_sync(to_email, subject, html_body)
+            email_log["status"] = "SENT" if success else "FAILED"
+        except Exception as e:
+            email_log["status"] = "FAILED"
+            email_log["error"] = str(e)
+    else:
+        email_log["status"] = "LOGGED"
+        logger.info(f"Email logged [{email_type}] to {to_email}: {subject}")
+    
+    await db.email_logs.insert_one(email_log)
+    return email_log["status"] == "SENT"
+
+# ==================== ADMIN ALERT EMAILS ====================
+
+async def send_admin_alert(alert_type: str, title: str, message: str, severity: str = "INFO", details: dict = None):
+    """Send alert email to admin"""
+    severity_colors = {
+        "CRITICAL": "#dc2626",
+        "ERROR": "#ea580c",
+        "WARNING": "#ca8a04",
+        "INFO": "#2563eb",
+        "SUCCESS": "#16a34a"
+    }
+    
+    severity_icons = {
+        "CRITICAL": "🚨",
+        "ERROR": "❌",
+        "WARNING": "⚠️",
+        "INFO": "ℹ️",
+        "SUCCESS": "✅"
+    }
+    
+    color = severity_colors.get(severity, "#6b7280")
+    icon = severity_icons.get(severity, "📧")
+    
+    details_html = ""
+    if details:
+        details_html = "<table style='width:100%;border-collapse:collapse;margin-top:15px;'>"
+        for key, value in details.items():
+            details_html += f"<tr><td style='padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:bold;'>{key}</td><td style='padding:8px;border:1px solid #e5e7eb;'>{value}</td></tr>"
+        details_html += "</table>"
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f3f4f6; }}
+            .container {{ max-width: 600px; margin: 20px auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            .header {{ background: {color}; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 30px; }}
+            .alert-badge {{ display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-bottom: 10px; }}
+            .footer {{ background: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #6b7280; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <span class="alert-badge">{alert_type}</span>
+                <h1 style="margin:10px 0;">{icon} {title}</h1>
+                <p style="margin:0;opacity:0.9;">Severity: {severity}</p>
+            </div>
+            <div class="content">
+                <p style="font-size:16px;line-height:1.6;">{message}</p>
+                {details_html}
+                <p style="margin-top:20px;color:#6b7280;font-size:14px;">
+                    <strong>Timestamp:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+                </p>
+            </div>
+            <div class="footer">
+                <p>CreatorStudio AI Alert System</p>
+                <p>This is an automated message. Do not reply.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    subject = f"[{severity}] {icon} {title} - CreatorStudio AI"
+    await send_email_notification(ADMIN_ALERT_EMAIL, subject, html_body, f"alert_{alert_type.lower()}")
+
+async def send_health_report(services_status: dict, metrics: dict):
+    """Send health report email to admin"""
+    all_healthy = all(s.get("status") == "healthy" for s in services_status.values())
+    
+    status_html = ""
+    for service, status in services_status.items():
+        is_healthy = status.get("status") == "healthy"
+        status_color = "#16a34a" if is_healthy else "#dc2626"
+        status_icon = "✅" if is_healthy else "❌"
+        status_html += f"""
+        <tr>
+            <td style="padding:10px;border:1px solid #e5e7eb;">{status_icon} {service}</td>
+            <td style="padding:10px;border:1px solid #e5e7eb;color:{status_color};font-weight:bold;">{status.get('status', 'unknown').upper()}</td>
+            <td style="padding:10px;border:1px solid #e5e7eb;">{status.get('response_time', 'N/A')}</td>
+        </tr>
+        """
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f3f4f6; }}
+            .container {{ max-width: 700px; margin: 20px auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            .header {{ background: {'#16a34a' if all_healthy else '#dc2626'}; color: white; padding: 25px; text-align: center; }}
+            .content {{ padding: 30px; }}
+            table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+            th {{ background: #f3f4f6; padding: 12px; text-align: left; border: 1px solid #e5e7eb; }}
+            .metric-box {{ display: inline-block; background: #f3f4f6; padding: 15px 25px; border-radius: 8px; margin: 5px; text-align: center; }}
+            .metric-value {{ font-size: 24px; font-weight: bold; color: #1f2937; }}
+            .metric-label {{ font-size: 12px; color: #6b7280; }}
+            .footer {{ background: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #6b7280; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 style="margin:0;">{'✅ All Systems Operational' if all_healthy else '🚨 System Issues Detected'}</h1>
+                <p style="margin:10px 0 0 0;opacity:0.9;">Health Report - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</p>
+            </div>
+            <div class="content">
+                <h2 style="color:#1f2937;">Service Status</h2>
+                <table>
+                    <tr>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Response Time</th>
+                    </tr>
+                    {status_html}
+                </table>
+                
+                <h2 style="color:#1f2937;margin-top:30px;">System Metrics</h2>
+                <div style="text-align:center;">
+                    <div class="metric-box">
+                        <div class="metric-value">{metrics.get('total_users', 0)}</div>
+                        <div class="metric-label">Total Users</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{metrics.get('total_generations', 0)}</div>
+                        <div class="metric-label">Generations</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{metrics.get('active_sessions', 0)}</div>
+                        <div class="metric-label">Active Sessions</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">₹{metrics.get('total_revenue', 0)}</div>
+                        <div class="metric-label">Revenue</div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer">
+                <p>CreatorStudio AI - Automated Health Report</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    subject = f"{'✅' if all_healthy else '🚨'} Health Report - CreatorStudio AI"
+    await send_email_notification(ADMIN_ALERT_EMAIL, subject, html_body, "health_report")
+
+async def send_service_down_alert(service_name: str, error_message: str, last_healthy: str = None):
+    """Send service down alert"""
+    await send_admin_alert(
+        alert_type="SERVICE_DOWN",
+        title=f"{service_name} is DOWN",
+        message=f"The {service_name} service has stopped responding and requires immediate attention.",
+        severity="CRITICAL",
+        details={
+            "Service": service_name,
+            "Error": error_message,
+            "Last Healthy": last_healthy or "Unknown",
+            "Action Required": "Please check the service logs and restart if necessary."
+        }
+    )
+
+async def send_functionality_error_alert(functionality: str, error_message: str, user_email: str = None):
+    """Send functionality error alert"""
+    details = {
+        "Functionality": functionality,
+        "Error": error_message,
+        "Impact": "Users may be unable to use this feature"
+    }
+    if user_email:
+        details["Affected User"] = user_email
+    
+    await send_admin_alert(
+        alert_type="FUNCTIONALITY_ERROR",
+        title=f"{functionality} Not Working",
+        message=f"A critical functionality error has been detected in the {functionality} feature.",
+        severity="ERROR",
+        details=details
+    )
+
+async def send_analytics_report(period: str, analytics_data: dict):
+    """Send analytics report email"""
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f3f4f6; }}
+            .container {{ max-width: 700px; margin: 20px auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            .header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 25px; text-align: center; }}
+            .content {{ padding: 30px; }}
+            .stat-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }}
+            .stat-box {{ background: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; }}
+            .stat-value {{ font-size: 28px; font-weight: bold; color: #1f2937; }}
+            .stat-label {{ font-size: 13px; color: #6b7280; margin-top: 5px; }}
+            .stat-change {{ font-size: 12px; margin-top: 5px; }}
+            .positive {{ color: #16a34a; }}
+            .negative {{ color: #dc2626; }}
+            .footer {{ background: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #6b7280; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 style="margin:0;">📊 Analytics Report</h1>
+                <p style="margin:10px 0 0 0;opacity:0.9;">{period}</p>
+            </div>
+            <div class="content">
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-value">{analytics_data.get('new_users', 0)}</div>
+                        <div class="stat-label">New Users</div>
+                        <div class="stat-change positive">+{analytics_data.get('user_growth', 0)}%</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{analytics_data.get('total_generations', 0)}</div>
+                        <div class="stat-label">Generations</div>
+                        <div class="stat-change positive">+{analytics_data.get('generation_growth', 0)}%</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">₹{analytics_data.get('revenue', 0)}</div>
+                        <div class="stat-label">Revenue</div>
+                        <div class="stat-change positive">+{analytics_data.get('revenue_growth', 0)}%</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">{analytics_data.get('satisfaction', 0)}%</div>
+                        <div class="stat-label">Satisfaction</div>
+                    </div>
+                </div>
+                
+                <h3 style="color:#1f2937;">Top Features</h3>
+                <ul style="color:#4b5563;">
+                    <li>Reel Generation: {analytics_data.get('reel_count', 0)} generations</li>
+                    <li>Story Generation: {analytics_data.get('story_count', 0)} generations</li>
+                </ul>
+                
+                <h3 style="color:#1f2937;">Key Insights</h3>
+                <ul style="color:#4b5563;">
+                    <li>Most active day: {analytics_data.get('most_active_day', 'N/A')}</li>
+                    <li>Average session duration: {analytics_data.get('avg_session', 'N/A')}</li>
+                    <li>Conversion rate: {analytics_data.get('conversion_rate', 0)}%</li>
+                </ul>
+            </div>
+            <div class="footer">
+                <p>CreatorStudio AI - Analytics Report</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    subject = f"📊 Analytics Report ({period}) - CreatorStudio AI"
+    await send_email_notification(ADMIN_ALERT_EMAIL, subject, html_body, "analytics_report")
+
+# ==================== USER NOTIFICATION EMAILS ====================
 
 async def notify_payment_success(user: dict, order: dict):
     """Send payment success notification"""
