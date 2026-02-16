@@ -38,9 +38,8 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'creatorstudio-secret-key-change-in-pr
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 168  # 7 days
 
-# Razorpay Configuration
-RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', 'rzp_test_1DP5mmOlF5G5ag')
-RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+# Worker URL
+WORKER_URL = os.environ.get('WORKER_URL', 'http://localhost:5000')
 
 # Email Configuration
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
