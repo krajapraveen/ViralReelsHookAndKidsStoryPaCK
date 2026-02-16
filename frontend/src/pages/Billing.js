@@ -66,7 +66,7 @@ export default function Billing() {
   };
 
   const subscriptions = products.filter(p => p.type === 'SUBSCRIPTION');
-  const packs = products.filter(p => p.type === 'CREDIT_PACK');
+  const packs = products.filter(p => p.type === 'ONE_TIME');
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -86,7 +86,7 @@ export default function Billing() {
             {subscriptions.map((product) => (
               <div key={product.id} className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-indigo-500 transition-all">
                 <h3 className="text-xl font-bold mb-2">{product.name}</h3>
-                <div className="flex items-baseline gap-2 mb-4"><span className="text-3xl font-bold">₹{product.priceInr}</span><span className="text-slate-500">/month</span></div>
+                <div className="flex items-baseline gap-2 mb-4"><span className="text-3xl font-bold">₹{product.price}</span><span className="text-slate-500">/month</span></div>
                 <div className="bg-indigo-50 rounded-lg px-4 py-2 mb-4"><p className="text-indigo-700 font-semibold">{product.credits} Credits</p></div>
                 <Button onClick={() => handlePurchase(product.id)} disabled={loading[product.id]} className="w-full bg-indigo-500 hover:bg-indigo-600" data-testid={`buy-${product.id}-btn`}>
                   {loading[product.id] ? 'Processing...' : 'Subscribe'}
@@ -101,7 +101,7 @@ export default function Billing() {
             {packs.map((product) => (
               <div key={product.id} className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-purple-500 transition-all">
                 <h3 className="text-xl font-bold mb-2">{product.name}</h3>
-                <div className="flex items-baseline gap-2 mb-4"><span className="text-3xl font-bold">₹{product.priceInr}</span></div>
+                <div className="flex items-baseline gap-2 mb-4"><span className="text-3xl font-bold">₹{product.price}</span></div>
                 <div className="bg-purple-50 rounded-lg px-4 py-2 mb-4"><p className="text-purple-700 font-semibold">{product.credits} Credits</p></div>
                 <Button onClick={() => handlePurchase(product.id)} disabled={loading[product.id]} className="w-full bg-purple-500 hover:bg-purple-600" data-testid={`buy-pack-${product.id}-btn`}>
                   {loading[product.id] ? 'Processing...' : 'Buy Now'}
