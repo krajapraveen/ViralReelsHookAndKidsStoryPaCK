@@ -178,9 +178,15 @@ export default function ReelGenerator() {
               <span className="text-xl font-bold">Reel Generator</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
-            <Coins className="w-4 h-4 text-purple-500" />
-            <span className="font-semibold">{credits} Credits</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
+              <Coins className="w-4 h-4 text-purple-500" />
+              <span className="font-semibold">{credits} Credits</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} data-testid="reel-logout-btn">
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </div>
         </div>
       </header>
