@@ -1137,17 +1137,24 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
     generation_id = str(uuid.uuid4())
     
     try:
-        # Generate story synchronously
-        async with httpx.AsyncClient(timeout=180.0) as client_http:
-            response = await client_http.post(
-                f"{WORKER_URL}/generate/story",
-                json=data.model_dump()
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Story generation failed")
-            
-            result = response.json()
+        # Try inline generation first (for production), fall back to worker (for local dev)
+        result = None
+        if LLM_AVAILABLE and EMERGENT_LLM_KEY:
+            try:
+                result = await generate_story_content_inline(data.model_dump())
+            except Exception as inline_error:
+                logger.warning(f"Inline story generation failed, trying worker: {inline_error}")
+        
+        # Fall back to worker if inline failed or not available
+        if result is None:
+            async with httpx.AsyncClient(timeout=180.0) as client_http:
+                response = await client_http.post(
+                    f"{WORKER_URL}/generate/story",
+                    json=data.model_dump()
+                )
+                if response.status_code != 200:
+                    raise HTTPException(status_code=500, detail="Story generation failed")
+                result = response.json()
         
         # Deduct credits after successful generation
         await db.users.update_one(
