@@ -407,200 +407,37 @@ async def delete_account(user: dict = Depends(get_current_user)):
 
 # ==================== EMAIL NOTIFICATION SERVICE ====================
 
-async def send_email_notification(to_email: str, subject: str, html_body: str, email_type: str = "general"):
-    """Send email notification using Resend"""
-    email_log = {
+async def send_email_notification(to_email: str, subject: str, body: str, email_type: str = "general"):
+    """Send email notification (stubbed - logs to database)"""
+    logger.info(f"Email notification [{email_type}] to {to_email}: {subject}")
+    
+    await db.email_logs.insert_one({
         "id": str(uuid.uuid4()),
         "toEmail": to_email,
         "subject": subject,
         "type": email_type,
+        "status": "LOGGED",
         "createdAt": datetime.now(timezone.utc).isoformat()
-    }
-    
-    if EMAIL_ENABLED and RESEND_AVAILABLE:
-        try:
-            params = {
-                "from": f"CreatorStudio AI <{SENDER_EMAIL}>",
-                "to": [to_email],
-                "subject": subject,
-                "html": html_body
-            }
-            
-            # Run sync SDK in thread to keep FastAPI non-blocking
-            result = await asyncio.to_thread(resend.Emails.send, params)
-            
-            email_log["status"] = "SENT"
-            email_log["resendId"] = result.get("id") if isinstance(result, dict) else str(result)
-            logger.info(f"Email sent [{email_type}] to {to_email}: {subject}")
-            
-        except Exception as e:
-            email_log["status"] = "FAILED"
-            email_log["error"] = str(e)
-            logger.error(f"Email send failed [{email_type}] to {to_email}: {e}")
-    else:
-        email_log["status"] = "SKIPPED"
-        email_log["reason"] = "Email not configured" if not EMAIL_ENABLED else "Resend not available"
-        logger.info(f"Email skipped [{email_type}] to {to_email}: {subject} (not configured)")
-    
-    # Save to database for tracking
-    await db.email_logs.insert_one(email_log)
-    return email_log["status"] == "SENT"
+    })
+    return True
 
 async def notify_payment_success(user: dict, order: dict):
     """Send payment success notification"""
     subject = f"Payment Confirmed - {order.get('productName', 'Credit Pack')}"
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
-            .content {{ background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; }}
-            .order-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-            .highlight {{ color: #6366f1; font-weight: bold; }}
-            .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>✨ Payment Confirmed!</h1>
-            </div>
-            <div class="content">
-                <p>Hi <strong>{user['name']}</strong>,</p>
-                <p>Your payment has been successfully processed! Here are your order details:</p>
-                
-                <div class="order-details">
-                    <p><strong>Product:</strong> {order.get('productName', 'Credit Pack')}</p>
-                    <p><strong>Amount:</strong> {order.get('currency', 'INR')} {order.get('amount', 0)}</p>
-                    <p><strong>Credits Added:</strong> <span class="highlight">+{order.get('credits', 0)} credits</span></p>
-                </div>
-                
-                <p>Your new credit balance: <span class="highlight">{user['credits']} credits</span></p>
-                
-                <p>Start creating amazing content now!</p>
-                
-                <div class="footer">
-                    <p>Thank you for using CreatorStudio AI!</p>
-                    <p>© 2026 CreatorStudio AI. All rights reserved.</p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    await send_email_notification(user['email'], subject, html_body, "payment")
+    body = f"Payment of {order.get('currency', 'INR')} {order.get('amount', 0)} confirmed. {order.get('credits', 0)} credits added."
+    await send_email_notification(user['email'], subject, body, "payment")
 
 async def notify_generation_complete(user: dict, generation_type: str, generation_id: str):
     """Send generation completion notification"""
-    subject = f"Your {generation_type} is Ready! 🎉 - CreatorStudio AI"
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
-            .content {{ background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; }}
-            .cta-button {{ display: inline-block; background: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
-            .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎬 Your {generation_type} is Ready!</h1>
-            </div>
-            <div class="content">
-                <p>Hi <strong>{user['name']}</strong>,</p>
-                <p>Great news! Your {generation_type.lower()} generation is complete and ready to download.</p>
-                
-                <p><strong>Generation ID:</strong> {generation_id[:8]}...</p>
-                
-                <p>Log in to your dashboard to view, download, and share your creation!</p>
-                
-                <div class="footer">
-                    <p>Happy creating! 🚀</p>
-                    <p>© 2026 CreatorStudio AI. All rights reserved.</p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    await send_email_notification(user['email'], subject, html_body, "generation")
+    subject = f"Your {generation_type} is Ready!"
+    body = f"Generation {generation_id} completed successfully."
+    await send_email_notification(user['email'], subject, body, "generation")
 
 async def notify_welcome(user: dict):
     """Send welcome email to new users"""
-    subject = "Welcome to CreatorStudio AI! 🎉"
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }}
-            .content {{ background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; }}
-            .feature-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #6366f1; }}
-            .credits-badge {{ display: inline-block; background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; }}
-            .cta-button {{ display: inline-block; background: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }}
-            .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎉 Welcome to CreatorStudio AI!</h1>
-                <p>Your creative journey starts here</p>
-            </div>
-            <div class="content">
-                <p>Hi <strong>{user['name']}</strong>,</p>
-                <p>We're thrilled to have you on board! You've received:</p>
-                
-                <p style="text-align: center;">
-                    <span class="credits-badge">🎁 54 FREE CREDITS</span>
-                </p>
-                
-                <p>Here's what you can create:</p>
-                
-                <div class="feature-box">
-                    <h3>🎬 Reel Scripts (1 credit each)</h3>
-                    <ul>
-                        <li>Generate viral Instagram reel scripts in seconds</li>
-                        <li>Complete with hooks, scenes, and hashtags</li>
-                        <li>Optimized for engagement and growth</li>
-                    </ul>
-                </div>
-                
-                <div class="feature-box">
-                    <h3>📖 Kids Story Packs (6-8 credits each)</h3>
-                    <ul>
-                        <li>Full video production packages</li>
-                        <li>AI-generated scripts and scene breakdowns</li>
-                        <li>Age-appropriate, safe content</li>
-                    </ul>
-                </div>
-                
-                <p style="text-align: center;">
-                    <a href="https://creatorstudio-9.preview.emergentagent.com/app" class="cta-button">Start Creating Now →</a>
-                </p>
-                
-                <p>Questions? Use our AI chatbot or reply to this email!</p>
-                
-                <div class="footer">
-                    <p>Happy creating! 🚀</p>
-                    <p>© 2026 CreatorStudio AI. All rights reserved.</p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    await send_email_notification(user['email'], subject, html_body, "welcome")
+    subject = "Welcome to CreatorStudio AI!"
+    body = f"Welcome {user['name']}! You have 54 free credits to start creating."
+    await send_email_notification(user['email'], subject, body, "welcome")
 
 # ==================== CREDITS ROUTES ====================
 
