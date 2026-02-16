@@ -552,29 +552,71 @@ async def notify_generation_complete(user: dict, generation_type: str, generatio
 async def notify_welcome(user: dict):
     """Send welcome email to new users"""
     subject = "Welcome to CreatorStudio AI! 🎉"
-    body = f"""
-Hi {user['name']},
-
-Welcome to CreatorStudio AI! We're thrilled to have you on board.
-
-You've received 54 free credits to get started! Here's what you can create:
-
-🎬 Reel Scripts (1 credit each)
-- Generate viral Instagram reel scripts in seconds
-- Complete with hooks, scenes, and hashtags
-
-📖 Kids Story Packs (6-8 credits each)
-- Full video production packages
-- AI-generated scripts and scene breakdowns
-
-Log in to your dashboard and start creating!
-
-Questions? Just reply to this email or use our AI chatbot.
-
-Happy creating!
-CreatorStudio AI Team
-"""
-    await send_email_notification(user['email'], subject, body, "welcome")
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }}
+            .content {{ background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; }}
+            .feature-box {{ background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #6366f1; }}
+            .credits-badge {{ display: inline-block; background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; }}
+            .cta-button {{ display: inline-block; background: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }}
+            .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎉 Welcome to CreatorStudio AI!</h1>
+                <p>Your creative journey starts here</p>
+            </div>
+            <div class="content">
+                <p>Hi <strong>{user['name']}</strong>,</p>
+                <p>We're thrilled to have you on board! You've received:</p>
+                
+                <p style="text-align: center;">
+                    <span class="credits-badge">🎁 54 FREE CREDITS</span>
+                </p>
+                
+                <p>Here's what you can create:</p>
+                
+                <div class="feature-box">
+                    <h3>🎬 Reel Scripts (1 credit each)</h3>
+                    <ul>
+                        <li>Generate viral Instagram reel scripts in seconds</li>
+                        <li>Complete with hooks, scenes, and hashtags</li>
+                        <li>Optimized for engagement and growth</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-box">
+                    <h3>📖 Kids Story Packs (6-8 credits each)</h3>
+                    <ul>
+                        <li>Full video production packages</li>
+                        <li>AI-generated scripts and scene breakdowns</li>
+                        <li>Age-appropriate, safe content</li>
+                    </ul>
+                </div>
+                
+                <p style="text-align: center;">
+                    <a href="https://creatorstudio-9.preview.emergentagent.com/app" class="cta-button">Start Creating Now →</a>
+                </p>
+                
+                <p>Questions? Use our AI chatbot or reply to this email!</p>
+                
+                <div class="footer">
+                    <p>Happy creating! 🚀</p>
+                    <p>© 2026 CreatorStudio AI. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    await send_email_notification(user['email'], subject, html_body, "welcome")
 
 # ==================== CREDITS ROUTES ====================
 
