@@ -1050,6 +1050,75 @@ async def payment_webhook(request: Request):
     """Razorpay webhook handler"""
     return {"status": "ok"}
 
+# ==================== EMAIL ROUTES ====================
+
+@api_router.get("/email/status")
+async def get_email_status():
+    """Check email service status"""
+    return {
+        "enabled": EMAIL_ENABLED,
+        "provider": "Resend" if RESEND_AVAILABLE else "None",
+        "senderEmail": SENDER_EMAIL if EMAIL_ENABLED else None
+    }
+
+@admin_router.get("/email/logs")
+async def get_email_logs(page: int = 0, size: int = 50, user: dict = Depends(get_admin_user)):
+    """Get email logs for admin"""
+    skip = page * size
+    logs = await db.email_logs.find({}, {"_id": 0}).sort("createdAt", -1).skip(skip).limit(size).to_list(size)
+    total = await db.email_logs.count_documents({})
+    
+    # Get stats
+    sent_count = await db.email_logs.count_documents({"status": "SENT"})
+    failed_count = await db.email_logs.count_documents({"status": "FAILED"})
+    skipped_count = await db.email_logs.count_documents({"status": "SKIPPED"})
+    
+    return {
+        "success": True,
+        "logs": logs,
+        "stats": {
+            "total": total,
+            "sent": sent_count,
+            "failed": failed_count,
+            "skipped": skipped_count,
+            "deliveryRate": round((sent_count / total * 100) if total > 0 else 0, 1)
+        },
+        "page": page,
+        "size": size
+    }
+
+@api_router.post("/email/test")
+async def send_test_email(user: dict = Depends(get_admin_user)):
+    """Send a test email (admin only)"""
+    subject = "Test Email from CreatorStudio AI"
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; padding: 20px; }}
+            .box {{ background: #f0f9ff; border: 1px solid #0ea5e9; padding: 20px; border-radius: 8px; }}
+        </style>
+    </head>
+    <body>
+        <div class="box">
+            <h2>✅ Email Test Successful!</h2>
+            <p>This is a test email sent from CreatorStudio AI.</p>
+            <p><strong>Timestamp:</strong> {datetime.now(timezone.utc).isoformat()}</p>
+            <p><strong>Sent to:</strong> {user['email']}</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    success = await send_email_notification(user['email'], subject, html_body, "test")
+    
+    return {
+        "success": success,
+        "message": "Test email sent successfully!" if success else "Email sending is not configured or failed",
+        "emailEnabled": EMAIL_ENABLED
+    }
+
 # ==================== FEEDBACK ROUTES ====================
 
 @feedback_router.post("/suggestion")
