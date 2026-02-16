@@ -423,70 +423,131 @@ async def delete_account(user: dict = Depends(get_current_user)):
 
 # ==================== EMAIL NOTIFICATION SERVICE ====================
 
-async def send_email_notification(to_email: str, subject: str, body: str, email_type: str = "general"):
-    """Send email notification (stubbed - ready for SMTP integration)"""
-    # Log the email for now
-    logger.info(f"Email notification [{email_type}] to {to_email}: {subject}")
-    
-    # Save to database for tracking
-    await db.email_logs.insert_one({
+async def send_email_notification(to_email: str, subject: str, html_body: str, email_type: str = "general"):
+    """Send email notification using Resend"""
+    email_log = {
         "id": str(uuid.uuid4()),
         "toEmail": to_email,
         "subject": subject,
-        "body": body,
         "type": email_type,
-        "status": "QUEUED",  # Would be SENT after actual sending
         "createdAt": datetime.now(timezone.utc).isoformat()
-    })
+    }
     
-    # TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
-    # For production, uncomment and configure:
-    # import smtplib
-    # from email.mime.text import MIMEText
-    # smtp_server = os.environ.get('SMTP_SERVER')
-    # smtp_user = os.environ.get('SMTP_USER')
-    # smtp_pass = os.environ.get('SMTP_PASS')
+    if EMAIL_ENABLED and RESEND_AVAILABLE:
+        try:
+            params = {
+                "from": f"CreatorStudio AI <{SENDER_EMAIL}>",
+                "to": [to_email],
+                "subject": subject,
+                "html": html_body
+            }
+            
+            # Run sync SDK in thread to keep FastAPI non-blocking
+            result = await asyncio.to_thread(resend.Emails.send, params)
+            
+            email_log["status"] = "SENT"
+            email_log["resendId"] = result.get("id") if isinstance(result, dict) else str(result)
+            logger.info(f"Email sent [{email_type}] to {to_email}: {subject}")
+            
+        except Exception as e:
+            email_log["status"] = "FAILED"
+            email_log["error"] = str(e)
+            logger.error(f"Email send failed [{email_type}] to {to_email}: {e}")
+    else:
+        email_log["status"] = "SKIPPED"
+        email_log["reason"] = "Email not configured" if not EMAIL_ENABLED else "Resend not available"
+        logger.info(f"Email skipped [{email_type}] to {to_email}: {subject} (not configured)")
     
-    return True
+    # Save to database for tracking
+    await db.email_logs.insert_one(email_log)
+    return email_log["status"] == "SENT"
 
 async def notify_payment_success(user: dict, order: dict):
     """Send payment success notification"""
     subject = f"Payment Confirmed - {order.get('productName', 'Credit Pack')}"
-    body = f"""
-Hi {user['name']},
-
-Your payment has been successfully processed!
-
-Order Details:
-- Product: {order.get('productName', 'Credit Pack')}
-- Amount: {order.get('currency', 'INR')} {order.get('amount', 0)}
-- Credits Added: {order.get('credits', 0)}
-
-Your new credit balance: {user['credits'] + order.get('credits', 0)} credits
-
-Thank you for using CreatorStudio AI!
-
-Best regards,
-CreatorStudio AI Team
-"""
-    await send_email_notification(user['email'], subject, body, "payment")
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+            .content {{ background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; }}
+            .order-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+            .highlight {{ color: #6366f1; font-weight: bold; }}
+            .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>✨ Payment Confirmed!</h1>
+            </div>
+            <div class="content">
+                <p>Hi <strong>{user['name']}</strong>,</p>
+                <p>Your payment has been successfully processed! Here are your order details:</p>
+                
+                <div class="order-details">
+                    <p><strong>Product:</strong> {order.get('productName', 'Credit Pack')}</p>
+                    <p><strong>Amount:</strong> {order.get('currency', 'INR')} {order.get('amount', 0)}</p>
+                    <p><strong>Credits Added:</strong> <span class="highlight">+{order.get('credits', 0)} credits</span></p>
+                </div>
+                
+                <p>Your new credit balance: <span class="highlight">{user['credits']} credits</span></p>
+                
+                <p>Start creating amazing content now!</p>
+                
+                <div class="footer">
+                    <p>Thank you for using CreatorStudio AI!</p>
+                    <p>© 2026 CreatorStudio AI. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    await send_email_notification(user['email'], subject, html_body, "payment")
 
 async def notify_generation_complete(user: dict, generation_type: str, generation_id: str):
     """Send generation completion notification"""
-    subject = f"Your {generation_type} is Ready! - CreatorStudio AI"
-    body = f"""
-Hi {user['name']},
-
-Great news! Your {generation_type.lower()} generation is complete and ready to download.
-
-Generation ID: {generation_id}
-
-Log in to your dashboard to view and download your creation.
-
-Happy creating!
-CreatorStudio AI Team
-"""
-    await send_email_notification(user['email'], subject, body, "generation")
+    subject = f"Your {generation_type} is Ready! 🎉 - CreatorStudio AI"
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+            .content {{ background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; }}
+            .cta-button {{ display: inline-block; background: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+            .footer {{ text-align: center; color: #64748b; font-size: 12px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎬 Your {generation_type} is Ready!</h1>
+            </div>
+            <div class="content">
+                <p>Hi <strong>{user['name']}</strong>,</p>
+                <p>Great news! Your {generation_type.lower()} generation is complete and ready to download.</p>
+                
+                <p><strong>Generation ID:</strong> {generation_id[:8]}...</p>
+                
+                <p>Log in to your dashboard to view, download, and share your creation!</p>
+                
+                <div class="footer">
+                    <p>Happy creating! 🚀</p>
+                    <p>© 2026 CreatorStudio AI. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    await send_email_notification(user['email'], subject, html_body, "generation")
 
 async def notify_welcome(user: dict):
     """Send welcome email to new users"""
