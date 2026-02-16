@@ -760,74 +760,147 @@ async def get_exchange_rate(currency: str):
 
 @payments_router.post("/create-order")
 async def create_order(data: CreateOrderRequest, user: dict = Depends(get_current_user)):
-    product = next((p for p in PRODUCTS if p["id"] == data.productId), None)
-    if not product:
-        raise HTTPException(status_code=400, detail="Invalid product")
-    
-    # Create mock order (Razorpay integration would go here)
-    order_id = f"order_{''.join(random.choices(string.ascii_letters + string.digits, k=14))}"
-    
-    # Calculate price in selected currency
-    rate = EXCHANGE_RATES.get(data.currency.upper(), 1.0)
-    converted_price = round(product["price"] * rate, 2)
-    
-    # Save order
-    order = {
-        "id": str(uuid.uuid4()),
-        "razorpayOrderId": order_id,
-        "userId": user["id"],
-        "productId": data.productId,
-        "productName": product["name"],
-        "amount": converted_price,
-        "currency": data.currency.upper(),
-        "credits": product["credits"],
-        "status": "PENDING",
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    }
-    await db.orders.insert_one(order)
-    
-    return {
-        "orderId": order_id,
-        "amount": int(converted_price * 100),  # In smallest currency unit
-        "currency": data.currency.upper(),
-        "productName": product["name"],
-        "credits": product["credits"]
-    }
+    try:
+        product = next((p for p in PRODUCTS if p["id"] == data.productId), None)
+        if not product:
+            raise HTTPException(status_code=400, detail="Invalid product ID. Please select a valid product.")
+        
+        # Validate currency
+        currency = data.currency.upper()
+        if currency not in EXCHANGE_RATES:
+            raise HTTPException(status_code=400, detail=f"Currency '{currency}' is not supported. Supported currencies: {', '.join(EXCHANGE_RATES.keys())}")
+        
+        # Create mock order (Razorpay integration would go here)
+        order_id = f"order_{''.join(random.choices(string.ascii_letters + string.digits, k=14))}"
+        
+        # Calculate price in selected currency
+        rate = EXCHANGE_RATES.get(currency, 1.0)
+        converted_price = round(product["price"] * rate, 2)
+        
+        # Save order
+        order = {
+            "id": str(uuid.uuid4()),
+            "razorpayOrderId": order_id,
+            "userId": user["id"],
+            "productId": data.productId,
+            "productName": product["name"],
+            "amount": converted_price,
+            "currency": currency,
+            "credits": product["credits"],
+            "status": "PENDING",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "expiresAt": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        }
+        await db.orders.insert_one(order)
+        
+        logger.info(f"Order created: {order_id} for user {user['email']}")
+        
+        return {
+            "success": True,
+            "orderId": order_id,
+            "amount": int(converted_price * 100),  # In smallest currency unit
+            "currency": currency,
+            "productName": product["name"],
+            "credits": product["credits"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Order creation failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create order. Please try again.")
 
 @payments_router.post("/verify")
 async def verify_payment(data: VerifyPaymentRequest, user: dict = Depends(get_current_user)):
-    # In production, verify with Razorpay
-    # For now, just process the payment
-    
-    order = await db.orders.find_one({"razorpayOrderId": data.razorpay_order_id}, {"_id": 0})
-    if not order:
-        raise HTTPException(status_code=400, detail="Order not found")
-    
-    if order["userId"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Update order
-    await db.orders.update_one(
-        {"razorpayOrderId": data.razorpay_order_id},
-        {
-            "$set": {
-                "status": "PAID",
-                "razorpayPaymentId": data.razorpay_payment_id,
-                "paidAt": datetime.now(timezone.utc).isoformat()
+    try:
+        # Find order
+        order = await db.orders.find_one({"razorpayOrderId": data.razorpay_order_id}, {"_id": 0})
+        if not order:
+            logger.warning(f"Order not found: {data.razorpay_order_id}")
+            raise HTTPException(status_code=400, detail="Order not found. The order may have expired or is invalid.")
+        
+        # Verify ownership
+        if order["userId"] != user["id"]:
+            logger.warning(f"Unauthorized payment verification attempt: {data.razorpay_order_id} by {user['email']}")
+            raise HTTPException(status_code=403, detail="You are not authorized to verify this payment.")
+        
+        # Check if already paid
+        if order["status"] == "PAID":
+            return {
+                "success": True,
+                "message": "Payment already verified",
+                "creditsAdded": order["credits"],
+                "alreadyProcessed": True
             }
+        
+        # Check if order expired (24 hours)
+        if order.get("expiresAt"):
+            expires_at = datetime.fromisoformat(order["expiresAt"].replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expires_at:
+                await db.orders.update_one(
+                    {"razorpayOrderId": data.razorpay_order_id},
+                    {"$set": {"status": "EXPIRED"}}
+                )
+                raise HTTPException(status_code=400, detail="Order has expired. Please create a new order.")
+        
+        # In production, verify signature with Razorpay
+        # razorpay_signature verification would go here
+        
+        # Update order
+        await db.orders.update_one(
+            {"razorpayOrderId": data.razorpay_order_id},
+            {
+                "$set": {
+                    "status": "PAID",
+                    "razorpayPaymentId": data.razorpay_payment_id,
+                    "razorpaySignature": data.razorpay_signature,
+                    "paidAt": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        # Add credits to user
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$inc": {"credits": order["credits"]}}
+        )
+        
+        # Log transaction
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": user["id"],
+            "amount": order["credits"],
+            "type": "PURCHASE",
+            "description": f"Purchased {order['productName']} - {order['credits']} credits",
+            "orderId": data.razorpay_order_id,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Send email notification (stubbed)
+        updated_user = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+        await notify_payment_success(updated_user, order)
+        
+        logger.info(f"Payment verified: {data.razorpay_order_id} for user {user['email']}")
+        
+        return {
+            "success": True,
+            "message": "Payment verified successfully",
+            "creditsAdded": order["credits"],
+            "newBalance": updated_user["credits"]
         }
-    )
-    
-    # Add credits
-    await db.users.update_one(
-        {"id": user["id"]},
-        {"$inc": {"credits": order["credits"]}}
-    )
-    
-    # Log transaction
-    await db.credit_ledger.insert_one({
-        "id": str(uuid.uuid4()),
-        "userId": user["id"],
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Payment verification failed: {e}")
+        # Log failed payment
+        await db.payment_failures.insert_one({
+            "id": str(uuid.uuid4()),
+            "orderId": data.razorpay_order_id,
+            "paymentId": data.razorpay_payment_id,
+            "userId": user["id"],
+            "error": str(e),
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        raise HTTPException(status_code=500, detail="Payment verification failed. Please contact support if money was deducted.")
         "amount": order["credits"],
         "type": "PURCHASE",
         "description": f"Purchased {order['productName']} - {order['credits']} credits",
