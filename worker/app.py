@@ -214,7 +214,7 @@ async def generate_story_content(data):
                 api_key=EMERGENT_LLM_KEY,
                 session_id=unique_session,
                 system_message=STORY_SYSTEM_PROMPT
-            ).with_model("openai", "gpt-5.2")
+            ).with_model("gemini", "gemini-2.0-flash")
             
             # Get genre from input or default
             genre = data.get('genre', 'Adventure')
