@@ -4,31 +4,36 @@ import { Loader2 } from 'lucide-react';
 export default function StoryProgressBar({ isGenerating }) {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('Initializing...');
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     if (!isGenerating) {
       setProgress(0);
+      setElapsed(0);
       return;
     }
 
+    // More realistic stages for 60-90 second generation
     const stages = [
-      { duration: 5000, progress: 15, text: 'Creating story outline...' },
-      { duration: 10000, progress: 35, text: 'Developing characters...' },
-      { duration: 15000, progress: 55, text: 'Writing scenes...' },
-      { duration: 20000, progress: 75, text: 'Adding visual descriptions...' },
-      { duration: 30000, progress: 90, text: 'Finalizing story pack...' },
-      { duration: 45000, progress: 95, text: 'Almost done...' }
+      { duration: 5000, progress: 10, text: 'Connecting to AI...' },
+      { duration: 15000, progress: 25, text: 'Creating story outline...' },
+      { duration: 30000, progress: 45, text: 'Developing characters & plot...' },
+      { duration: 50000, progress: 65, text: 'Writing scene narrations...' },
+      { duration: 70000, progress: 80, text: 'Adding visual descriptions...' },
+      { duration: 85000, progress: 90, text: 'Finalizing story pack...' },
+      { duration: 120000, progress: 95, text: 'Almost done...' }
     ];
 
     let currentStage = 0;
     const startTime = Date.now();
 
     const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
+      const elapsedMs = Date.now() - startTime;
+      setElapsed(Math.floor(elapsedMs / 1000));
       
       // Find current stage based on elapsed time
       for (let i = 0; i < stages.length; i++) {
-        if (elapsed < stages[i].duration) {
+        if (elapsedMs < stages[i].duration) {
           if (i !== currentStage) {
             currentStage = i;
             setProgress(stages[i].progress);
@@ -39,7 +44,7 @@ export default function StoryProgressBar({ isGenerating }) {
       }
 
       // If we've passed all stages, stay at 95%
-      if (elapsed >= stages[stages.length - 1].duration) {
+      if (elapsedMs >= stages[stages.length - 1].duration) {
         setProgress(95);
         setStatusText('Almost done...');
       }
@@ -49,6 +54,8 @@ export default function StoryProgressBar({ isGenerating }) {
   }, [isGenerating]);
 
   if (!isGenerating) return null;
+
+  const estimatedRemaining = Math.max(0, 75 - elapsed);
 
   return (
     <div className="space-y-4 p-6 bg-purple-50 rounded-lg border border-purple-200" data-testid="story-progress">
@@ -66,12 +73,12 @@ export default function StoryProgressBar({ isGenerating }) {
         </div>
         <div className="flex justify-between text-sm text-purple-700">
           <span>{progress}% complete</span>
-          <span>Estimated time: {Math.max(0, Math.ceil((45 - progress * 0.45)))}s</span>
+          <span>~{estimatedRemaining > 0 ? `${estimatedRemaining}s remaining` : 'Finishing up...'}</span>
         </div>
       </div>
 
       <p className="text-sm text-purple-700">
-        ✨ Generating your personalized story pack... This may take 30-45 seconds.
+        ✨ Creating your personalized story pack with AI... This typically takes 60-90 seconds for high-quality results.
       </p>
     </div>
   );
