@@ -224,13 +224,18 @@ export default function StoryGenerator() {
     try {
       const response = await generationAPI.downloadPDF(generationId);
       const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
       a.download = `story-pack-${generationId}.pdf`;
+      document.body.appendChild(a);
       a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
       toast.success(isFreeTier ? 'PDF Downloaded with watermark!' : 'PDF Downloaded!');
     } catch (error) {
+      console.error('PDF download error:', error);
       toast.error('Failed to download PDF');
     }
   };
