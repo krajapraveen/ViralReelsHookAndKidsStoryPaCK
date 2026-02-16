@@ -901,6 +901,158 @@ async def get_ledger(page: int = 0, size: int = 20, user: dict = Depends(get_cur
         "size": size
     }
 
+# ==================== AI GENERATION HELPERS ====================
+
+async def generate_reel_content_inline(data: dict) -> dict:
+    """Generate reel script using LLM directly (no worker needed)"""
+    import time
+    
+    if not LLM_AVAILABLE or not EMERGENT_LLM_KEY:
+        raise Exception("LLM service not available")
+    
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            unique_session = f"reel_{uuid.uuid4().hex[:12]}_{int(time.time())}"
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=unique_session,
+                system_message=REEL_SYSTEM_PROMPT
+            ).with_model("openai", "gpt-5.2")
+            
+            prompt = REEL_USER_PROMPT_TEMPLATE.format(
+                language=data.get('language', 'English'),
+                niche=data.get('niche', 'General'),
+                tone=data.get('tone', 'Bold'),
+                duration=data.get('duration', '30s'),
+                goal=data.get('goal', 'Followers'),
+                topic=data.get('topic', ''),
+                uniqueId=unique_session
+            )
+            
+            user_message = UserMessage(text=prompt)
+            response = await asyncio.wait_for(chat.send_message(user_message), timeout=60.0)
+            
+            result_text = response.strip()
+            if result_text.startswith('```json'):
+                result_text = result_text[7:]
+            if result_text.startswith('```'):
+                result_text = result_text[3:]
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
+            
+            return json.loads(result_text.strip())
+            
+        except asyncio.TimeoutError:
+            logger.warning(f"Reel generation timeout (attempt {attempt + 1}/{max_retries})")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                raise Exception("Reel generation timed out. Please try again.")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error (attempt {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                raise Exception("Failed to parse response. Please try again.")
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Reel generation error (attempt {attempt + 1}): {error_msg}")
+            if any(code in error_msg for code in ['502', '503', '504', 'BadGateway', 'timeout', 'connection']):
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+            raise
+
+async def generate_story_content_inline(data: dict) -> dict:
+    """Generate story pack using LLM directly (no worker needed)"""
+    import time
+    
+    if not LLM_AVAILABLE or not EMERGENT_LLM_KEY:
+        raise Exception("LLM service not available")
+    
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            unique_session = f"story_{uuid.uuid4().hex[:12]}_{int(time.time())}"
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=unique_session,
+                system_message=STORY_SYSTEM_PROMPT
+            ).with_model("openai", "gpt-5.2")
+            
+            genre = data.get('genre', 'Adventure')
+            if genre == 'Custom' and data.get('customGenre'):
+                genre = data.get('customGenre')
+            
+            custom_elements = []
+            if data.get('theme'):
+                custom_elements.append(f"Theme: {data.get('theme')}")
+            if data.get('moral'):
+                custom_elements.append(f"Moral: {data.get('moral')}")
+            if data.get('setting'):
+                custom_elements.append(f"Setting: {data.get('setting')}")
+            if data.get('characters'):
+                chars = data.get('characters')
+                if isinstance(chars, list):
+                    custom_elements.append(f"Include characters like: {', '.join(chars)}")
+            
+            random_themes = ["unexpected friendship", "magical discovery", "brave adventure", "funny mishap", "learning moment", "helping others", "creative solution", "teamwork triumph"]
+            custom_elements.append(f"Include element of: {random.choice(random_themes)}")
+            
+            prompt = STORY_USER_PROMPT_TEMPLATE.format(
+                genre=genre,
+                ageGroup=data.get('ageGroup', '4-6'),
+                theme=data.get('theme', 'Friendship and Adventure'),
+                scenes=data.get('sceneCount', data.get('scenes', 8)),
+                customElements='; '.join(custom_elements) if custom_elements else 'Create freely',
+                uniqueId=unique_session
+            )
+            
+            user_message = UserMessage(text=prompt)
+            response = await asyncio.wait_for(chat.send_message(user_message), timeout=90.0)
+            
+            result_text = response.strip()
+            if result_text.startswith('```json'):
+                result_text = result_text[7:]
+            if result_text.startswith('```'):
+                result_text = result_text[3:]
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
+            
+            return json.loads(result_text.strip())
+            
+        except asyncio.TimeoutError:
+            logger.warning(f"Story generation timeout (attempt {attempt + 1}/{max_retries})")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                raise Exception("Story generation timed out. Please try again.")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error (attempt {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                raise Exception("Failed to parse response. Please try again.")
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Story generation error (attempt {attempt + 1}): {error_msg}")
+            if any(code in error_msg for code in ['502', '503', '504', 'BadGateway', 'timeout', 'connection']):
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+            raise
+
 # ==================== GENERATION ROUTES ====================
 
 @generate_router.post("/reel")
