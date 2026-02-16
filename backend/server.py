@@ -1617,6 +1617,7 @@ api_router.include_router(feedback_router)
 api_router.include_router(admin_router)
 api_router.include_router(chatbot_router)
 api_router.include_router(health_router)
+api_router.include_router(alert_router)
 
 app.include_router(api_router)
 
