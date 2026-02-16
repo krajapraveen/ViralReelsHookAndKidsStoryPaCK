@@ -1056,6 +1056,7 @@ async def create_order(data: CreateOrderRequest, user: dict = Depends(get_curren
         return {
             "success": True,
             "orderId": order_id,
+            "keyId": RAZORPAY_KEY_ID,
             "amount": int(converted_price * 100),  # In smallest currency unit
             "currency": currency,
             "productName": product["name"],
