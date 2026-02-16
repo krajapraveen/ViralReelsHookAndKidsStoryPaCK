@@ -464,7 +464,7 @@ async def get_chatbot_response(session_id, user_message):
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"chatbot_{session_id}",
                 system_message=CHATBOT_SYSTEM_PROMPT
-            ).with_model("openai", "gpt-5.2")
+            ).with_model("gemini", "gemini-2.0-flash")
         
         chat = chat_sessions[session_id]
         message = UserMessage(text=user_message)
