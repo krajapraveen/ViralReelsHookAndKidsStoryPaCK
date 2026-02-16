@@ -662,31 +662,6 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
     except Exception as e:
         logger.error(f"Story generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Story generation failed: {str(e)}")
-                            "completedAt": datetime.now(timezone.utc).isoformat()
-                        }
-                    }
-                )
-            else:
-                logger.error(f"Story generation failed: {response.text}")
-                await db.generations.update_one(
-                    {"id": generation_id},
-                    {"$set": {"status": "FAILED", "errorMessage": "Generation service error"}}
-                )
-    except Exception as e:
-        logger.error(f"Story generation error: {e}")
-        await db.generations.update_one(
-            {"id": generation_id},
-            {"$set": {"status": "FAILED", "errorMessage": str(e)}}
-        )
-    
-    return {
-        "success": True,
-        "generationId": generation_id,
-        "status": "PROCESSING",
-        "creditsUsed": credits_needed,
-        "remainingCredits": user["credits"] - credits_needed,
-        "message": "Your story pack is being generated. Check back in a few seconds."
-    }
 
 @generate_router.get("/generations/{generation_id}")
 async def get_generation(generation_id: str, user: dict = Depends(get_current_user)):
