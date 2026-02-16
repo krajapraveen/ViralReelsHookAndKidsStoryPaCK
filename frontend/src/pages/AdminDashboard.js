@@ -126,6 +126,10 @@ export default function AdminDashboard() {
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
+            <Button onClick={handleLogout} variant="ghost" size="sm" className="text-slate-300 hover:text-white" data-testid="admin-logout-btn">
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </div>
         </div>
       </header>
