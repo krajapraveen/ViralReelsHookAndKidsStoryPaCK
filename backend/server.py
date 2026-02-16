@@ -602,52 +602,66 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
     
     # Create generation record
     generation_id = str(uuid.uuid4())
-    generation = {
-        "id": generation_id,
-        "userId": user["id"],
-        "type": "STORY",
-        "status": "PROCESSING",
-        "inputJson": data.model_dump(),
-        "outputJson": None,
-        "creditsUsed": credits_needed,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "completedAt": None
-    }
-    await db.generations.insert_one(generation)
     
-    # Deduct credits
-    await db.users.update_one(
-        {"id": user["id"]},
-        {"$inc": {"credits": -credits_needed}}
-    )
-    
-    # Log transaction
-    await db.credit_ledger.insert_one({
-        "id": str(uuid.uuid4()),
-        "userId": user["id"],
-        "amount": -credits_needed,
-        "type": "USAGE",
-        "description": f"Story pack generation: {data.genre} ({data.sceneCount} scenes)",
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
-    
-    # Process in background (simplified - directly call worker)
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client_http:
-            # Use the worker's story generation endpoint
+        # Generate story synchronously
+        async with httpx.AsyncClient(timeout=180.0) as client_http:
             response = await client_http.post(
                 f"{WORKER_URL}/generate/story",
                 json=data.model_dump()
             )
             
-            if response.status_code == 200:
-                result = response.json()
-                await db.generations.update_one(
-                    {"id": generation_id},
-                    {
-                        "$set": {
-                            "status": "COMPLETED",
-                            "outputJson": result,
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Story generation failed")
+            
+            result = response.json()
+        
+        # Deduct credits after successful generation
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$inc": {"credits": -credits_needed}}
+        )
+        
+        # Log transaction
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": user["id"],
+            "amount": -credits_needed,
+            "type": "USAGE",
+            "description": f"Story pack generation: {data.genre} ({data.sceneCount} scenes)",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Save generation record
+        generation = {
+            "id": generation_id,
+            "userId": user["id"],
+            "type": "STORY",
+            "status": "COMPLETED",
+            "inputJson": data.model_dump(),
+            "outputJson": result,
+            "creditsUsed": credits_needed,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "completedAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.generations.insert_one(generation)
+        
+        return {
+            "success": True,
+            "generationId": generation_id,
+            "status": "COMPLETED",
+            "result": result,
+            "creditsUsed": credits_needed,
+            "remainingCredits": user["credits"] - credits_needed
+        }
+        
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Story generation timed out. Please try again.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Story generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Story generation failed: {str(e)}")
                             "completedAt": datetime.now(timezone.utc).isoformat()
                         }
                     }
