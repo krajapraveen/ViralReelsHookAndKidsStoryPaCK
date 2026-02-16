@@ -1062,17 +1062,24 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
         raise HTTPException(status_code=400, detail="Insufficient credits. You need 1 credit for reel generation.")
     
     try:
-        # Call worker to generate
-        async with httpx.AsyncClient(timeout=90.0) as client_http:
-            response = await client_http.post(
-                f"{WORKER_URL}/generate/reel",
-                json=data.model_dump()
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Generation failed")
-            
-            result = response.json()
+        # Try inline generation first (for production), fall back to worker (for local dev)
+        result = None
+        if LLM_AVAILABLE and EMERGENT_LLM_KEY:
+            try:
+                result = await generate_reel_content_inline(data.model_dump())
+            except Exception as inline_error:
+                logger.warning(f"Inline generation failed, trying worker: {inline_error}")
+        
+        # Fall back to worker if inline failed or not available
+        if result is None:
+            async with httpx.AsyncClient(timeout=90.0) as client_http:
+                response = await client_http.post(
+                    f"{WORKER_URL}/generate/reel",
+                    json=data.model_dump()
+                )
+                if response.status_code != 200:
+                    raise HTTPException(status_code=500, detail="Generation failed")
+                result = response.json()
         
         # Deduct credit
         await db.users.update_one(
