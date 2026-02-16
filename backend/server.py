@@ -41,6 +41,10 @@ JWT_EXPIRATION_HOURS = 168  # 7 days
 # Worker URL
 WORKER_URL = os.environ.get('WORKER_URL', 'http://localhost:5000')
 
+# Razorpay Configuration
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', 'rzp_test_1DP5mmOlF5G5ag')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+
 # Email Configuration
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
 ADMIN_ALERT_EMAIL = os.environ.get('ADMIN_ALERT_EMAIL', 'krajapraveen@visionary-suite.com')
