@@ -172,71 +172,94 @@ async def generate_story_content(data):
     import random
     import uuid
     
-    try:
-        # Generate unique session ID for fresh context
-        unique_session = f"story_{uuid.uuid4().hex[:12]}_{int(time.time())}"
-        
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=unique_session,
-            system_message=STORY_SYSTEM_PROMPT
-        ).with_model("openai", "gpt-5.2")
-        
-        # Get genre from input or default
-        genre = data.get('genre', 'Adventure')
-        if genre == 'Custom' and data.get('customGenre'):
-            genre = data.get('customGenre')
-        
-        # Create custom elements string for more variation
-        custom_elements = []
-        if data.get('theme'):
-            custom_elements.append(f"Theme: {data.get('theme')}")
-        if data.get('moral'):
-            custom_elements.append(f"Moral: {data.get('moral')}")
-        if data.get('setting'):
-            custom_elements.append(f"Setting: {data.get('setting')}")
-        if data.get('characters'):
-            chars = data.get('characters')
-            if isinstance(chars, list):
-                custom_elements.append(f"Include characters like: {', '.join(chars)}")
-        
-        # Add random element for extra uniqueness
-        random_themes = ["unexpected friendship", "magical discovery", "brave adventure", "funny mishap", "learning moment", "helping others", "creative solution", "teamwork triumph"]
-        custom_elements.append(f"Include element of: {random.choice(random_themes)}")
-        
-        prompt = STORY_USER_PROMPT_TEMPLATE.format(
-            genre=genre,
-            ageGroup=data.get('ageGroup', '4-6'),
-            theme=data.get('theme', 'Friendship and Adventure'),
-            scenes=data.get('sceneCount', data.get('scenes', 8)),
-            customElements='; '.join(custom_elements) if custom_elements else 'Create freely',
-            uniqueId=unique_session
-        )
-        
-        user_message = UserMessage(text=prompt)
-        
-        # Use faster generation with timeout
-        response = await asyncio.wait_for(
-            chat.send_message(user_message),
-            timeout=60.0  # 60 second timeout for more detailed stories
-        )
-        
-        # Parse JSON from response
-        result_text = response.strip()
-        if result_text.startswith('```json'):
-            result_text = result_text[7:]
-        if result_text.startswith('```'):
-            result_text = result_text[3:]
-        if result_text.endswith('```'):
-            result_text = result_text[:-3]
-        
-        return json.loads(result_text.strip())
-    except asyncio.TimeoutError:
-        logger.error("Story generation timeout after 60s")
-        raise Exception("Generation timeout - please try again")
-    except Exception as e:
-        logger.error(f"Story generation error: {str(e)}")
-        raise
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            # Generate unique session ID for fresh context
+            unique_session = f"story_{uuid.uuid4().hex[:12]}_{int(time.time())}"
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=unique_session,
+                system_message=STORY_SYSTEM_PROMPT
+            ).with_model("openai", "gpt-5.2")
+            
+            # Get genre from input or default
+            genre = data.get('genre', 'Adventure')
+            if genre == 'Custom' and data.get('customGenre'):
+                genre = data.get('customGenre')
+            
+            # Create custom elements string for more variation
+            custom_elements = []
+            if data.get('theme'):
+                custom_elements.append(f"Theme: {data.get('theme')}")
+            if data.get('moral'):
+                custom_elements.append(f"Moral: {data.get('moral')}")
+            if data.get('setting'):
+                custom_elements.append(f"Setting: {data.get('setting')}")
+            if data.get('characters'):
+                chars = data.get('characters')
+                if isinstance(chars, list):
+                    custom_elements.append(f"Include characters like: {', '.join(chars)}")
+            
+            # Add random element for extra uniqueness
+            random_themes = ["unexpected friendship", "magical discovery", "brave adventure", "funny mishap", "learning moment", "helping others", "creative solution", "teamwork triumph"]
+            custom_elements.append(f"Include element of: {random.choice(random_themes)}")
+            
+            prompt = STORY_USER_PROMPT_TEMPLATE.format(
+                genre=genre,
+                ageGroup=data.get('ageGroup', '4-6'),
+                theme=data.get('theme', 'Friendship and Adventure'),
+                scenes=data.get('sceneCount', data.get('scenes', 8)),
+                customElements='; '.join(custom_elements) if custom_elements else 'Create freely',
+                uniqueId=unique_session
+            )
+            
+            user_message = UserMessage(text=prompt)
+            
+            # Use longer timeout for story generation (90 seconds)
+            response = await asyncio.wait_for(
+                chat.send_message(user_message),
+                timeout=90.0
+            )
+            
+            # Parse JSON from response
+            result_text = response.strip()
+            if result_text.startswith('```json'):
+                result_text = result_text[7:]
+            if result_text.startswith('```'):
+                result_text = result_text[3:]
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
+            
+            return json.loads(result_text.strip())
+            
+        except asyncio.TimeoutError:
+            logger.warning(f"Story generation timeout (attempt {attempt + 1}/{max_retries})")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                raise Exception("Story generation timed out after multiple attempts. Please try again.")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error (attempt {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                raise Exception("Failed to parse story response. Please try again.")
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Story generation error (attempt {attempt + 1}): {error_msg}")
+            # Retry on transient errors (502, 503, etc.)
+            if any(code in error_msg for code in ['502', '503', '504', 'BadGateway', 'timeout', 'connection']):
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying story generation in {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+            raise
 
 @app.route('/generate/reel', methods=['POST'])
 def generate_reel():
