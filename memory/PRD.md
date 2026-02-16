@@ -38,12 +38,15 @@
 - **Ledger API:** Full transaction history
 
 ### 4. Payment System
-- **Status:** ✅ WORKING (Test Mode)
-- **Products:**
+- **Status:** ✅ WORKING (Test Mode with Real Razorpay Integration)
+- **Subscriptions:**
+  - Monthly: 100 credits, ₹199/month
+  - Quarterly: 350 credits, ₹499/quarter (Save 17%)
+  - Yearly: 1500 credits, ₹1499/year (Save 37%)
+- **Credit Packs (One-time):**
   - Starter Pack: 50 credits, ₹99
   - Pro Pack: 150 credits, ₹249
   - Creator Pack: 400 credits, ₹499
-  - Monthly Subscription: 100 credits, ₹199
 - **Currencies:** INR, USD, EUR, GBP
 - **Exception Handling:** ✅ Implemented
   - Invalid product → 400 error
