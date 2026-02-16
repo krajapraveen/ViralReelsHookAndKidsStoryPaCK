@@ -182,7 +182,7 @@ async def get_admin_user(user: dict = Depends(get_current_user)):
 # ==================== AUTHENTICATION ROUTES ====================
 
 @auth_router.post("/register")
-async def register(data: UserCreate):
+async def register(data: UserCreate, background_tasks: BackgroundTasks):
     # Check if user exists
     existing = await db.users.find_one({"email": data.email.lower()})
     if existing:
@@ -210,6 +210,9 @@ async def register(data: UserCreate):
         "description": "Welcome bonus - 54 free credits",
         "createdAt": datetime.now(timezone.utc).isoformat()
     })
+    
+    # Send welcome email in background
+    background_tasks.add_task(notify_welcome, user)
     
     token = create_token(user_id, "USER")
     
