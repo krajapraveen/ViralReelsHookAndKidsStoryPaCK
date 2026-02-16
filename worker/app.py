@@ -142,7 +142,7 @@ async def generate_reel_content(data):
                 api_key=EMERGENT_LLM_KEY,
                 session_id=unique_session,
                 system_message=REEL_SYSTEM_PROMPT
-            ).with_model("openai", "gpt-5.2")
+            ).with_model("gemini", "gemini-2.0-flash")
             
             prompt = REEL_USER_PROMPT_TEMPLATE.format(
                 language=data.get('language', 'English'),
