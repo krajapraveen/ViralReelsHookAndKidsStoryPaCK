@@ -139,12 +139,23 @@ export default function StoryGenerator() {
       const requestData = { ...cleanFormData, genre: genreToUse };
       
       const response = await generationAPI.generateStory(requestData);
-      setGenerationId(response.data.generationId);
-      setCredits(credits - cost);
-      setPolling(true);
-      toast.success('Story generation started! This may take 30-90 seconds.');
+      
+      // Story generation is now synchronous - get result directly
+      if (response.data.status === 'COMPLETED' && response.data.result) {
+        setResult(response.data.result);
+        setGenerationId(response.data.generationId);
+        setCredits(response.data.remainingCredits || credits - cost);
+        toast.success('Story pack generated successfully!');
+      } else {
+        // Fallback to polling if still processing
+        setGenerationId(response.data.generationId);
+        setCredits(response.data.remainingCredits || credits - cost);
+        setPolling(true);
+        toast.success('Story generation started! This may take 30-90 seconds.');
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
+    } finally {
       setLoading(false);
     }
   };
