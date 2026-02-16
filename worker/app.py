@@ -251,6 +251,19 @@ def generate_reel():
         logger.error(f"Reel endpoint error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/generate/story', methods=['POST'])
+def generate_story():
+    """Endpoint for instant story generation"""
+    try:
+        data = request.json
+        logger.info(f"Story generation started for genre: {data.get('genre', 'N/A')}")
+        result = asyncio.run(generate_story_content(data))
+        logger.info("Story generation completed successfully")
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Story endpoint error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "healthy", "timestamp": time.time()}), 200
