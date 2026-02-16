@@ -67,6 +67,110 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'alerts@creatorstudio.ai')
 # Initialize SendGrid
 EMAIL_ENABLED = SENDGRID_AVAILABLE and bool(SENDGRID_API_KEY)
 
+# LLM Configuration for AI Generation
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+
+# AI Generation Prompts
+REEL_SYSTEM_PROMPT = """You are an elite social media scriptwriter. Output must be structured JSON only."""
+
+REEL_USER_PROMPT_TEMPLATE = """Generate a UNIQUE and ORIGINAL high-retention Instagram Reel package. This content must be COMPLETELY DIFFERENT from anything generated before.
+
+**Input Parameters:**
+- Language: {language}
+- Niche: {niche}
+- Tone: {tone}
+- Duration: {duration}
+- Goal: {goal}
+- Topic: {topic}
+- Unique Request ID: {uniqueId}
+
+**CREATIVITY REQUIREMENTS:**
+- Create FRESH hooks that haven't been used before
+- Make the script UNIQUE and engaging
+- Use creative, unexpected angles on the topic
+- Don't use generic or overused phrases
+
+Output ONLY this JSON format:
+{{
+  "hooks": ["5 unique, attention-grabbing hooks under 12 words each"],
+  "best_hook": "The most powerful hook from above",
+  "script": {{
+    "scenes": [
+      {{"time": "0-2s", "on_screen_text": "...", "voiceover": "...", "broll": ["visual suggestions"]}}
+    ],
+    "cta": "Compelling call to action"
+  }},
+  "caption_short": "Short engaging caption",
+  "caption_long": "Detailed caption with value",
+  "hashtags": ["20 relevant trending hashtags"],
+  "posting_tips": ["5 specific tips for this content"]
+}}
+
+Rules:
+• Hooks MUST be under 12 words and attention-grabbing
+• Script must be punchy and scroll-stopping
+• Make it UNIQUE - don't repeat common patterns
+• No unsafe/illegal content
+
+Return ONLY valid JSON, no markdown or explanation."""
+
+STORY_SYSTEM_PROMPT = """You are a creative children's story writer. Each story you create must be COMPLETELY UNIQUE and DIFFERENT from any previous stories. 
+
+CRITICAL RULES:
+- NEVER repeat the same plot, characters, or storyline
+- Always create FRESH, ORIGINAL content
+- Use the provided genre and age group to craft age-appropriate content
+- Make stories engaging, educational, and fun
+- No violence, fear, or adult themes
+- Output must be structured JSON only"""
+
+STORY_USER_PROMPT_TEMPLATE = """Create a COMPLETELY UNIQUE and ORIGINAL kids story video pack. This story must be DIFFERENT from any story you've created before.
+
+**REQUIREMENTS:**
+- Genre: {genre}
+- Age Group: {ageGroup} years old
+- Theme/Moral: {theme}
+- Number of Scenes: {scenes}
+- Custom Elements: {customElements}
+- Unique ID: {uniqueId}
+
+**CREATIVITY INSTRUCTIONS:**
+- Invent NEW character names (don't use common names like "Max" or "Luna")
+- Create a FRESH plot that hasn't been done before
+- Use unexpected twists and creative scenarios
+- Make the setting unique and interesting
+- The title should be catchy and original
+
+Output ONLY this JSON format (no markdown, no explanation):
+{{
+  "title": "A unique, catchy title for this specific story",
+  "synopsis": "A 2-3 sentence summary of this unique story",
+  "genre": "{genre}",
+  "ageGroup": "{ageGroup}",
+  "moral": "The lesson or moral of this story",
+  "characters": [
+    {{"name": "Unique character name", "role": "protagonist/supporting", "description": "Brief description"}}
+  ],
+  "scenes": [
+    {{
+      "scene_number": 1,
+      "title": "Scene title",
+      "setting": "Where this scene takes place",
+      "visual_description": "Detailed description for illustration",
+      "narration": "The narrator's text for this scene",
+      "dialogue": [{{"speaker": "Character name", "line": "What they say"}}],
+      "image_prompt": "Detailed prompt for generating scene illustration"
+    }}
+  ],
+  "youtubeMetadata": {{
+    "title": "YouTube video title",
+    "description": "YouTube description with story summary",
+    "tags": ["relevant", "tags", "for", "youtube"]
+  }}
+}}
+
+Remember: Create something FRESH and ORIGINAL. Do not repeat patterns from other stories."""
+
 # Security
 security = HTTPBearer(auto_error=False)
 
