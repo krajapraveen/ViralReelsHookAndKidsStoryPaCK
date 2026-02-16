@@ -16,7 +16,15 @@ import httpx
 import json
 import random
 import string
+import asyncio
 import razorpay
+
+# LLM Integration for AI generation
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
 
 # SendGrid for email
 try:
