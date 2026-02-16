@@ -1219,6 +1219,110 @@ async def get_generation(generation_id: str, user: dict = Depends(get_current_us
     
     return generation
 
+@generate_router.get("/generations/{generation_id}/pdf")
+async def download_generation_pdf(generation_id: str, user: dict = Depends(get_current_user)):
+    """Generate and download a PDF for a story generation"""
+    from fastapi.responses import Response
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    from io import BytesIO
+    
+    generation = await db.generations.find_one(
+        {"id": generation_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    
+    if not generation:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    
+    result = generation.get("outputJson", {})
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=24, spaceAfter=20, textColor=colors.HexColor('#7c3aed'))
+    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=16, spaceAfter=10, textColor=colors.HexColor('#4f46e5'))
+    body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=11, spaceAfter=8, leading=14)
+    scene_title_style = ParagraphStyle('SceneTitle', parent=styles['Heading3'], fontSize=13, spaceAfter=6, textColor=colors.HexColor('#6366f1'))
+    
+    story = []
+    
+    # Title
+    story.append(Paragraph(result.get('title', 'Story Pack'), title_style))
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Synopsis
+    if result.get('synopsis'):
+        story.append(Paragraph('<b>Synopsis:</b>', heading_style))
+        story.append(Paragraph(result.get('synopsis', ''), body_style))
+        story.append(Spacer(1, 0.2*inch))
+    
+    # Genre & Age Group
+    story.append(Paragraph(f"<b>Genre:</b> {result.get('genre', 'N/A')} | <b>Age Group:</b> {result.get('ageGroup', 'N/A')}", body_style))
+    if result.get('moral'):
+        story.append(Paragraph(f"<b>Moral:</b> {result.get('moral', '')}", body_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Characters
+    characters = result.get('characters', [])
+    if characters:
+        story.append(Paragraph('Characters', heading_style))
+        for char in characters:
+            story.append(Paragraph(f"<b>{char.get('name', 'Unknown')}</b> ({char.get('role', 'character')}): {char.get('description', '')}", body_style))
+        story.append(Spacer(1, 0.3*inch))
+    
+    # Scenes
+    scenes = result.get('scenes', [])
+    if scenes:
+        story.append(Paragraph('Scenes', heading_style))
+        for scene in scenes:
+            story.append(Paragraph(f"Scene {scene.get('scene_number', '?')}: {scene.get('title', 'Untitled')}", scene_title_style))
+            if scene.get('setting'):
+                story.append(Paragraph(f"<i>Setting: {scene.get('setting')}</i>", body_style))
+            if scene.get('narration'):
+                story.append(Paragraph(f"<b>Narration:</b> {scene.get('narration')}", body_style))
+            if scene.get('visual_description'):
+                story.append(Paragraph(f"<b>Visual:</b> {scene.get('visual_description')}", body_style))
+            dialogues = scene.get('dialogue', [])
+            if dialogues:
+                for d in dialogues:
+                    story.append(Paragraph(f"<b>{d.get('speaker', 'Speaker')}:</b> \"{d.get('line', '')}\"", body_style))
+            story.append(Spacer(1, 0.15*inch))
+    
+    # YouTube Metadata
+    yt = result.get('youtubeMetadata', {})
+    if yt:
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph('YouTube Metadata', heading_style))
+        story.append(Paragraph(f"<b>Title:</b> {yt.get('title', '')}", body_style))
+        story.append(Paragraph(f"<b>Description:</b> {yt.get('description', '')}", body_style))
+        tags = yt.get('tags', [])
+        if tags:
+            story.append(Paragraph(f"<b>Tags:</b> {', '.join(tags[:15])}", body_style))
+    
+    # Watermark for free tier
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+    if user_data and user_data.get("credits", 0) < 100:
+        story.append(Spacer(1, 0.5*inch))
+        story.append(Paragraph("⚡ Made with CreatorStudio AI - Upgrade to remove watermark", 
+                              ParagraphStyle('Watermark', parent=styles['Normal'], fontSize=10, textColor=colors.gray)))
+    
+    doc.build(story)
+    
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=story-pack-{generation_id}.pdf"}
+    )
+
 @generate_router.get("/generations")
 async def get_generations(type: Optional[str] = None, page: int = 0, size: int = 20, user: dict = Depends(get_current_user)):
     query = {"userId": user["id"]}
