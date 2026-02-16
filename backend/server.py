@@ -42,8 +42,12 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'creatorstudio-secret-key-change-in-production-very-long-key-minimum-256-bits')
+# JWT Configuration - require JWT_SECRET in production for security
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    # Generate a default for development only - in production, JWT_SECRET must be set
+    JWT_SECRET = 'dev-only-secret-' + str(uuid.uuid4())
+    logger.warning("JWT_SECRET not set - using generated development secret. Set JWT_SECRET in production!")
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 168  # 7 days
 
