@@ -901,17 +901,6 @@ async def verify_payment(data: VerifyPaymentRequest, user: dict = Depends(get_cu
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         raise HTTPException(status_code=500, detail="Payment verification failed. Please contact support if money was deducted.")
-        "amount": order["credits"],
-        "type": "PURCHASE",
-        "description": f"Purchased {order['productName']} - {order['credits']} credits",
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
-    
-    return {
-        "success": True,
-        "message": "Payment verified successfully",
-        "creditsAdded": order["credits"]
-    }
 
 @payments_router.get("/history")
 async def get_payment_history(page: int = 0, size: int = 20, user: dict = Depends(get_current_user)):
