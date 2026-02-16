@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Header
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Header, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -16,6 +16,14 @@ import httpx
 import json
 import random
 import string
+import asyncio
+
+# Resend for email
+try:
+    import resend
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -32,6 +40,17 @@ JWT_EXPIRATION_HOURS = 168  # 7 days
 
 # Worker URL
 WORKER_URL = os.environ.get('WORKER_URL', 'http://localhost:5000')
+
+# Email Configuration
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+
+# Initialize Resend
+if RESEND_AVAILABLE and RESEND_API_KEY and not RESEND_API_KEY.startswith('re_123'):
+    resend.api_key = RESEND_API_KEY
+    EMAIL_ENABLED = True
+else:
+    EMAIL_ENABLED = False
 
 # Security
 security = HTTPBearer(auto_error=False)
