@@ -136,7 +136,7 @@ export default function GenStudioDashboard() {
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
             Generate stunning images, videos, and more with our AI-powered tools. 
-            Files available for <span className="text-yellow-400 font-semibold">15 minutes</span> after generation.
+            Files auto-deleted after <span className="text-red-400 font-semibold">3 MINUTES</span> for security.
           </p>
         </div>
 

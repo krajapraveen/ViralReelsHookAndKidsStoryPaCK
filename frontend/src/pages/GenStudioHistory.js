@@ -172,7 +172,7 @@ export default function GenStudioHistory() {
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
           <div className="flex items-center gap-2 text-yellow-400 text-sm">
             <Clock className="w-4 h-4" />
-            <span>Files expire 15 minutes after generation. Download promptly!</span>
+            <span>⚠️ SECURITY: Files auto-deleted 3 minutes after generation. Download immediately!</span>
           </div>
         </div>
 
