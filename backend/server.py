@@ -3360,29 +3360,70 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
     
     # Page callback functions for watermark and backgrounds
     def add_page_decorations(canvas_obj, doc):
-        """Add watermark and background to each page"""
+        """Add Disney-style vibrant watermark and background to each page"""
         canvas_obj.saveState()
         
-        # Draw colored background first (behind content)
+        # Get page number for color cycling
         page_num = doc.page
         color_idx = page_num % len(PAGE_COLORS)
+        accent_idx = page_num % len(DISNEY_ACCENT_COLORS)
+        
+        # Draw vibrant background gradient effect (top color to slightly lighter bottom)
         bg_color = HexColor(PAGE_COLORS[color_idx])
         canvas_obj.setFillColor(bg_color)
         canvas_obj.rect(0, 0, letter[0], letter[1], fill=True, stroke=False)
         
-        # Draw diagonal watermark (light, behind content)
-        canvas_obj.setFont("Helvetica-Bold", 55)
-        canvas_obj.setFillColor(Color(0.6, 0.5, 0.7, alpha=0.10))  # Light purple-gray
+        # Add subtle gradient overlay - lighter at top for "magical glow" effect
+        from reportlab.lib.colors import Color
+        accent_top, accent_bottom = DISNEY_ACCENT_COLORS[accent_idx]
+        
+        # Draw soft corner decorations (Disney sparkle effect)
+        corner_color = HexColor(accent_top)
+        canvas_obj.setFillColor(Color(corner_color.red, corner_color.green, corner_color.blue, alpha=0.15))
+        
+        # Top-left corner arc
+        canvas_obj.ellipse(-0.5*inch, letter[1]-0.5*inch, 2*inch, letter[1]+1*inch, fill=True, stroke=False)
+        # Top-right corner arc
+        canvas_obj.ellipse(letter[0]-1.5*inch, letter[1]-0.5*inch, letter[0]+0.5*inch, letter[1]+1*inch, fill=True, stroke=False)
+        # Bottom decorative wave
+        canvas_obj.setFillColor(Color(HexColor(accent_bottom).red, HexColor(accent_bottom).green, HexColor(accent_bottom).blue, alpha=0.12))
+        canvas_obj.ellipse(-1*inch, -1.5*inch, letter[0]+1*inch, 1.5*inch, fill=True, stroke=False)
+        
+        # Draw sparkle/star decorations at corners
+        canvas_obj.setFont("Helvetica", 24)
+        canvas_obj.setFillColor(Color(0.9, 0.7, 0.2, alpha=0.35))  # Gold sparkles
+        magic_deco = MAGIC_DECORATIONS[page_num % len(MAGIC_DECORATIONS)]
+        canvas_obj.drawString(0.5*inch, letter[1]-0.6*inch, "✨")
+        canvas_obj.drawString(letter[0]-0.8*inch, letter[1]-0.6*inch, "⭐")
+        canvas_obj.drawString(0.5*inch, 0.4*inch, "🌟")
+        canvas_obj.drawString(letter[0]-0.8*inch, 0.4*inch, "💫")
+        
+        # Draw diagonal watermark (light, magical feel)
+        canvas_obj.setFont("Helvetica-Bold", 60)
+        canvas_obj.setFillColor(Color(0.6, 0.4, 0.8, alpha=0.07))  # Soft purple watermark
         canvas_obj.saveState()
         canvas_obj.translate(letter[0]/2, letter[1]/2)  # Center of page
-        canvas_obj.rotate(45)
+        canvas_obj.rotate(40)
         canvas_obj.drawCentredString(0, 0, "CreatorStudio AI")
         canvas_obj.restoreState()
         
-        # Add decorative border
-        canvas_obj.setStrokeColor(HexColor('#E9D5FF'))
-        canvas_obj.setLineWidth(2)
-        canvas_obj.roundRect(0.4*inch, 0.4*inch, letter[0]-0.8*inch, letter[1]-0.8*inch, 10, stroke=True, fill=False)
+        # Add colorful decorative border with rounded corners
+        accent_color = HexColor(accent_top)
+        canvas_obj.setStrokeColor(accent_color)
+        canvas_obj.setLineWidth(3)
+        canvas_obj.roundRect(0.35*inch, 0.35*inch, letter[0]-0.7*inch, letter[1]-0.7*inch, 15, stroke=True, fill=False)
+        
+        # Inner softer border for depth
+        inner_accent = HexColor(accent_bottom)
+        canvas_obj.setStrokeColor(Color(inner_accent.red, inner_accent.green, inner_accent.blue, alpha=0.5))
+        canvas_obj.setLineWidth(1.5)
+        canvas_obj.roundRect(0.45*inch, 0.45*inch, letter[0]-0.9*inch, letter[1]-0.9*inch, 12, stroke=True, fill=False)
+        
+        # Add page number at bottom center with decorative style
+        canvas_obj.setFont("Helvetica-Bold", 11)
+        canvas_obj.setFillColor(HexColor('#7C3AED'))
+        page_text = f"~ {page_num} ~"
+        canvas_obj.drawCentredString(letter[0]/2, 0.25*inch, page_text)
         
         canvas_obj.restoreState()
     
