@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://creatormuse-2.preview.emergentagent.com
+**Website:** https://creator-tools-app-2.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai
