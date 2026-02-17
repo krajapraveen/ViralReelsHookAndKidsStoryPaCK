@@ -3561,62 +3561,106 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
             elements.append(Spacer(1, 0.3*inch))
             elements.append(PageBreak())
         
-        # === MORAL PAGE ===
-        elements.append(Spacer(1, 1.5*inch))
-        elements.append(Paragraph("🌟 The Moral of the Story 🌟", heading_style))
+        # === MORAL PAGE with Nature Image ===
         elements.append(Spacer(1, 0.5*inch))
+        
+        # Beautiful nature image for moral page
+        moral_nature_url = "https://source.unsplash.com/600x300/?sunrise,peaceful,nature"
+        moral_nature_img = download_image(moral_nature_url, 5*inch, 2.5*inch)
+        if moral_nature_img:
+            moral_img_table = Table([[moral_nature_img]], colWidths=[6.5*inch])
+            moral_img_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('BOX', (0, 0), (-1, -1), 2, HexColor('#10B981')),
+            ]))
+            elements.append(moral_img_table)
+            elements.append(Spacer(1, 0.3*inch))
+        
+        elements.append(Paragraph("🌟 The Moral of the Story 🌟", heading_style))
+        elements.append(Spacer(1, 0.3*inch))
         
         # Decorative moral box
         moral_text = story.get('moral', 'Every story has a lesson to teach us.')
         elements.append(Paragraph(f"✨ {moral_text} ✨", moral_style))
         elements.append(Spacer(1, 0.5*inch))
         
-        # Add a character image reflecting on moral
-        moral_img_url = "https://api.dicebear.com/7.x/adventurer/png?seed=wisdom&backgroundColor=fdcb6e&size=150"
-        moral_img = download_image(moral_img_url, 1.5*inch, 1.5*inch)
-        if moral_img:
-            elements.append(Table([[moral_img]], colWidths=[7*inch]))
+        # Cute animal character for moral page
+        moral_animal_url = "https://source.unsplash.com/300x300/?cute,puppy,kitten"
+        moral_animal_img = download_image(moral_animal_url, 2*inch, 2*inch)
+        if moral_animal_img:
+            elements.append(Table([[moral_animal_img]], colWidths=[6.5*inch]))
         
         elements.append(PageBreak())
         
-        # === ACTIVITY PAGE (if included) ===
+        # === ACTIVITY PAGE with Animal Images (if included) ===
         if include_activities:
             elements.append(Paragraph("🎨 Activity Page 🎨", heading_style))
-            elements.append(Spacer(1, 0.3*inch))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            # Cute animals decoration row
+            animal_decorations = []
+            cute_animals = ["rabbit", "butterfly", "bird", "squirrel"]
+            for animal in cute_animals:
+                if animal in ANIMAL_IMAGES:
+                    anim_img = download_image(ANIMAL_IMAGES[animal], 0.9*inch, 0.9*inch)
+                    if anim_img:
+                        animal_decorations.append(anim_img)
+            
+            if animal_decorations:
+                deco_table = Table([animal_decorations], colWidths=[1.5*inch] * len(animal_decorations))
+                deco_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                elements.append(deco_table)
+                elements.append(Spacer(1, 0.2*inch))
             
             # Drawing prompt
-            elements.append(Paragraph("<b>Draw your favorite scene from the story:</b>", body_style))
+            elements.append(Paragraph("<b>🖍️ Draw your favorite scene from the story:</b>", body_style))
             elements.append(Spacer(1, 0.1*inch))
             
-            # Drawing box
-            drawing_box = Table([["[Your Drawing Here]"]], colWidths=[6*inch], rowHeights=[2.5*inch])
+            # Drawing box with decorative border
+            drawing_box = Table([["[Your Drawing Here]"]], colWidths=[6*inch], rowHeights=[2.2*inch])
             drawing_box.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFFFF')),
-                ('GRID', (0, 0), (-1, -1), 2, HexColor('#9333EA')),
+                ('BOX', (0, 0), (-1, -1), 3, HexColor('#9333EA')),
                 ('TEXTCOLOR', (0, 0), (-1, -1), HexColor('#D1D5DB')),
             ]))
             elements.append(drawing_box)
-            elements.append(Spacer(1, 0.3*inch))
+            elements.append(Spacer(1, 0.25*inch))
             
             # Reflection questions
             elements.append(Paragraph("<b>📝 What did you learn from this story?</b>", body_style))
-            for _ in range(3):
+            for _ in range(2):
                 elements.append(Paragraph("_" * 70, ParagraphStyle('Line', fontSize=12, textColor=HexColor('#9CA3AF'))))
             
-            elements.append(Spacer(1, 0.3*inch))
+            elements.append(Spacer(1, 0.2*inch))
             elements.append(Paragraph("<b>🌈 What was your favorite part?</b>", body_style))
             for _ in range(2):
                 elements.append(Paragraph("_" * 70, ParagraphStyle('Line', fontSize=12, textColor=HexColor('#9CA3AF'))))
         
-        # === THE END PAGE ===
+        # === THE END PAGE with Beautiful Image ===
         elements.append(PageBreak())
-        elements.append(Spacer(1, 2.5*inch))
-        elements.append(Paragraph("🌟 ✨ 🌟", ParagraphStyle('EndDeco', alignment=TA_CENTER, fontSize=40)))
-        elements.append(Spacer(1, 0.3*inch))
-        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=32, textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold')))
         elements.append(Spacer(1, 0.5*inch))
+        
+        # Beautiful sunset/nature image for end page
+        end_img_url = "https://source.unsplash.com/600x350/?sunset,beautiful,sky,colorful"
+        end_img = download_image(end_img_url, 5.5*inch, 3*inch)
+        if end_img:
+            end_img_table = Table([[end_img]], colWidths=[6.5*inch])
+            end_img_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('BOX', (0, 0), (-1, -1), 3, HexColor('#7C3AED')),
+            ]))
+            elements.append(end_img_table)
+            elements.append(Spacer(1, 0.4*inch))
+        
+        elements.append(Paragraph("🌟 ✨ 🌟", ParagraphStyle('EndDeco', alignment=TA_CENTER, fontSize=40)))
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=32, textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold')))
+        elements.append(Spacer(1, 0.3*inch))
         elements.append(Paragraph("Thank you for reading!", ParagraphStyle('Thanks', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#6B7280'))))
         elements.append(Spacer(1, 1*inch))
         elements.append(Paragraph("📚 Made with love by CreatorStudio AI 📚", watermark_note))
