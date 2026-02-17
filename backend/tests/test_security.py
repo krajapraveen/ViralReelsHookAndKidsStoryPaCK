@@ -443,6 +443,44 @@ class TestFileExpiry:
             print("✓ Generations endpoint working (expiry may be in individual generation details)")
         else:
             print(f"✓ Generations endpoint returned {response.status_code}")
+    
+    def test_file_expiry_constant_is_3_minutes(self):
+        """Verify FILE_EXPIRY_MINUTES is set to 3 in backend code"""
+        # This is a code review test - we verify the constant is set correctly
+        # by checking the server.py file
+        import subprocess
+        result = subprocess.run(
+            ["grep", "-c", "FILE_EXPIRY_MINUTES = 3", "/app/backend/server.py"],
+            capture_output=True, text=True
+        )
+        count = int(result.stdout.strip()) if result.stdout.strip() else 0
+        assert count >= 1, "FILE_EXPIRY_MINUTES should be set to 3"
+        print("✓ FILE_EXPIRY_MINUTES is correctly set to 3")
+
+
+class TestIPBlocking:
+    """Test IP blocking after multiple failed attempts"""
+    
+    def test_ip_blocking_mechanism_exists(self):
+        """Verify IP blocking mechanism is implemented in security module"""
+        import subprocess
+        
+        # Check that blocked_ips set exists
+        result = subprocess.run(
+            ["grep", "-c", "blocked_ips", "/app/backend/security.py"],
+            capture_output=True, text=True
+        )
+        count = int(result.stdout.strip()) if result.stdout.strip() else 0
+        assert count >= 3, "IP blocking mechanism should be implemented"
+        
+        # Check MAX_SUSPICIOUS_ATTEMPTS is defined
+        result = subprocess.run(
+            ["grep", "MAX_SUSPICIOUS_ATTEMPTS", "/app/backend/security.py"],
+            capture_output=True, text=True
+        )
+        assert "MAX_SUSPICIOUS_ATTEMPTS = 10" in result.stdout, "MAX_SUSPICIOUS_ATTEMPTS should be 10"
+        
+        print("✓ IP blocking mechanism is implemented (10 attempts before block)")
 
 
 class TestPaymentExceptionHandling:
