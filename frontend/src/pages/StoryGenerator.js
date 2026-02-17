@@ -701,6 +701,9 @@ export default function StoryGenerator() {
                             const response = await api.post(`/api/story-tools/printable-book/generate?generation_id=${generationId}`, payload);
                             setCredits(response.data.remainingCredits);
                             
+                            // Show expiry notice
+                            toast.info('⏰ Download link active for 5 minutes!', { duration: 5000 });
+                            
                             // Step 2: Rendering PDF
                             setPdfProgress({ step: 2, message: 'Rendering beautiful pages...' });
                             await new Promise(resolve => setTimeout(resolve, 500));
@@ -716,6 +719,9 @@ export default function StoryGenerator() {
                             });
                             
                             if (!pdfResponse.ok) {
+                              if (pdfResponse.status === 410) {
+                                throw new Error('Download link expired. Please generate a new PDF.');
+                              }
                               throw new Error('Failed to download PDF');
                             }
                             
@@ -738,7 +744,7 @@ export default function StoryGenerator() {
                             }, 100);
                             
                             setPdfProgress({ step: 5, message: 'Complete!' });
-                            toast.success('PDF downloaded successfully!');
+                            toast.success('PDF downloaded! Note: Download links expire after 5 minutes.');
                           } catch (error) {
                             console.error('PDF Download Error:', error);
                             toast.error(error.response?.data?.detail || error.message || 'Failed to create printable book');
