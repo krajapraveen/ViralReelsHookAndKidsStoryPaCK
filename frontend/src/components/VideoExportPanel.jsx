@@ -127,7 +127,7 @@ export default function VideoExportPanel({ storyId, storyTitle, onClose }) {
   };
 
   const getCost = () => {
-    return settings.resolution === '1080p' ? 199 : 99;
+    return settings.resolution === '1080p' ? 20 : 10;
   };
 
   return (
