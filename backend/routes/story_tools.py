@@ -9,11 +9,20 @@ from typing import Optional, Dict, Any
 import uuid
 import os
 import sys
+import io
 
 # Ensure backend directory is in path for absolute imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, logger, get_current_user, deduct_credits, FILE_EXPIRY_MINUTES
+
+# PDF Generation imports
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib.colors import HexColor
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 
 router = APIRouter(prefix="/story-tools", tags=["Story Tools"])
 
