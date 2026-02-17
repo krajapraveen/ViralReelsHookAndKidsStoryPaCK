@@ -370,15 +370,6 @@ export default function StoryGenerator() {
                     <Download className="w-4 h-4 mr-2" />
                     JSON
                   </Button>
-                  <Button 
-                    size="sm" 
-                    onClick={() => setShowVideoExport(true)} 
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                    data-testid="export-video-btn"
-                  >
-                    <Video className="w-4 h-4 mr-2" />
-                    Export Video
-                  </Button>
                 </div>
               )}
             </div>
