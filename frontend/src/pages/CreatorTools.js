@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { 
   Sparkles, Calendar, LayoutGrid, Hash, Type, RefreshCw, 
   BookOpen, FileText, TrendingUp, Loader2, ArrowLeft, 
-  Coins, Download, Copy, Check, LogOut, Wand2
+  Coins, Download, Copy, Check, LogOut, Wand2, Video, MessageSquare
 } from 'lucide-react';
 import api from '../utils/api';
 
