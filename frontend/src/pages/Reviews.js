@@ -82,7 +82,7 @@ export default function Reviews() {
       id: 6,
       name: 'Arjun Kapoor',
       rating: 4,
-      message: 'Excellent platform! The 54 free credits let me try everything before committing. Now I\'m a happy subscriber.',
+      message: 'Excellent platform! The 100 free credits let me try everything before committing. Now I\'m a happy subscriber.',
       createdAt: '2026-01-28',
       type: 'review'
     }
@@ -190,7 +190,7 @@ export default function Reviews() {
           <div className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl p-8 text-white">
             <h2 className="text-2xl font-bold mb-4">Ready to Join Our Happy Customers?</h2>
             <p className="text-white/90 mb-6 max-w-xl mx-auto">
-              Start creating viral content today with 54 free credits. No credit card required.
+              Start creating viral content today with 100 free credits. No credit card required.
             </p>
             <Link to="/signup">
               <Button className="bg-white text-indigo-600 hover:bg-slate-100 px-8 py-6 text-lg">
