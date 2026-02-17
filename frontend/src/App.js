@@ -79,6 +79,9 @@ function App() {
       {/* GenStudio Routes */}
       <Route path="/app/gen-studio" element={isAuthenticated ? <GenStudioDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/gen-studio/text-to-image" element={isAuthenticated ? <GenStudioTextToImage /> : <Navigate to="/login" />} />
+      <Route path="/app/gen-studio/text-to-video" element={isAuthenticated ? <GenStudioTextToVideo /> : <Navigate to="/login" />} />
+      <Route path="/app/gen-studio/image-to-video" element={isAuthenticated ? <GenStudioImageToVideo /> : <Navigate to="/login" />} />
+      <Route path="/app/gen-studio/video-remix" element={isAuthenticated ? <GenStudioVideoRemix /> : <Navigate to="/login" />} />
       <Route path="/app/gen-studio/history" element={isAuthenticated ? <GenStudioHistory /> : <Navigate to="/login" />} />
       <Route path="/app/gen-studio/style-profiles" element={isAuthenticated ? <GenStudioStyleProfiles /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
