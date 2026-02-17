@@ -2574,6 +2574,7 @@ async def get_user_video_exports(
 api_router.include_router(auth_router)
 api_router.include_router(credits_router)
 api_router.include_router(generate_router)
+api_router.include_router(video_router)
 api_router.include_router(payments_router)
 api_router.include_router(feedback_router)
 api_router.include_router(admin_router)
