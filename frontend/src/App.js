@@ -22,6 +22,11 @@ import CopyrightInfo from './pages/CopyrightInfo';
 import CreatorTools from './pages/CreatorTools';
 import ContentVault from './pages/ContentVault';
 import PaymentHistory from './pages/PaymentHistory';
+// GenStudio Pages
+import GenStudioDashboard from './pages/GenStudioDashboard';
+import GenStudioTextToImage from './pages/GenStudioTextToImage';
+import GenStudioHistory from './pages/GenStudioHistory';
+import GenStudioStyleProfiles from './pages/GenStudioStyleProfiles';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import './App.css';
