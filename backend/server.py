@@ -3414,28 +3414,49 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         
         elements = []
         
-        # === COVER PAGE ===
-        elements.append(Spacer(1, 1.5*inch))
+        # === COVER PAGE with Genre-based Image ===
+        elements.append(Spacer(1, 0.5*inch))
+        
+        # Cover image based on genre
+        cover_img_url = get_cover_image_url(story.get('genre', 'adventure'))
+        cover_img = download_cover_image(cover_img_url)
+        if cover_img:
+            cover_table = Table([[cover_img]], colWidths=[6.5*inch])
+            cover_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BOX', (0, 0), (-1, -1), 3, HexColor('#9333EA')),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFFFF')),
+            ]))
+            elements.append(cover_table)
+            elements.append(Spacer(1, 0.3*inch))
         
         # Title with decorative elements
         elements.append(Paragraph("✨ 📖 ✨", ParagraphStyle('Deco', alignment=TA_CENTER, fontSize=36)))
-        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Spacer(1, 0.2*inch))
         elements.append(Paragraph(story.get('title', 'My Story'), title_style))
-        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Spacer(1, 0.2*inch))
         elements.append(Paragraph(f"<i>{story.get('synopsis', 'A wonderful adventure awaits...')}</i>", subtitle_style))
-        elements.append(Spacer(1, 0.8*inch))
+        elements.append(Spacer(1, 0.4*inch))
         
         # Genre badge
         genre_info = f"🎭 {story.get('genre', 'Adventure')} Story  |  👶 Ages: {story.get('ageGroup', 'All')}"
         elements.append(Paragraph(genre_info, ParagraphStyle('GenreBadge', alignment=TA_CENTER, fontSize=12, textColor=HexColor('#6B7280'), backColor=HexColor('#F3F4F6'), borderPadding=10)))
         
-        elements.append(Spacer(1, 1*inch))
+        elements.append(Spacer(1, 0.5*inch))
         elements.append(Paragraph("🌟 Made with CreatorStudio AI 🌟", watermark_note))
         elements.append(PageBreak())
         
         # === DEDICATION PAGE (if personalized) ===
         if story.get("dedication") or story.get("birthday_message"):
-            elements.append(Spacer(1, 2*inch))
+            elements.append(Spacer(1, 1*inch))
+            
+            # Add a cute nature decoration
+            deco_img = download_decoration_image()
+            if deco_img:
+                elements.append(Table([[deco_img]], colWidths=[6.5*inch]))
+                elements.append(Spacer(1, 0.3*inch))
+            
             elements.append(Paragraph("💝 Dedication 💝", ParagraphStyle('DedicationTitle', alignment=TA_CENTER, fontSize=20, textColor=HexColor('#EC4899'))))
             elements.append(Spacer(1, 0.3*inch))
             if story.get("dedication"):
@@ -3445,7 +3466,7 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
                 elements.append(Paragraph(f"🎂🎈 {story.get('birthday_message')} 🎈🎂", ParagraphStyle('Birthday', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#F59E0B'))))
             elements.append(PageBreak())
         
-        # === CHARACTERS PAGE with Images ===
+        # === CHARACTERS PAGE with Larger Images ===
         elements.append(Paragraph("🎭 Meet the Characters 🎭", heading_style))
         elements.append(Spacer(1, 0.3*inch))
         
@@ -3458,9 +3479,9 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
             char_role = char.get('role', 'character')
             char_desc = char.get('description', '')
             
-            # Get character image
-            img_url = get_character_image_url(char_name)
-            char_img = download_image(img_url, 1.3*inch, 1.3*inch)
+            # Get character image - larger size
+            img_url = get_character_image_url(char_name, char_role)
+            char_img = download_image(img_url, 1.5*inch, 1.5*inch)
             
             # Create character cell content
             char_cell = []
