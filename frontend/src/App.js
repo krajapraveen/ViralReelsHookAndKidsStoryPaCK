@@ -87,6 +87,9 @@ function App() {
       <Route path="/app/gen-studio/video-remix" element={isAuthenticated ? <GenStudioVideoRemix /> : <Navigate to="/login" />} />
       <Route path="/app/gen-studio/history" element={isAuthenticated ? <GenStudioHistory /> : <Navigate to="/login" />} />
       <Route path="/app/gen-studio/style-profiles" element={isAuthenticated ? <GenStudioStyleProfiles /> : <Navigate to="/login" />} />
+      {/* Creator Pro & TwinFinder Routes */}
+      <Route path="/app/creator-pro" element={isAuthenticated ? <CreatorProTools /> : <Navigate to="/login" />} />
+      <Route path="/app/twinfinder" element={isAuthenticated ? <TwinFinder /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
