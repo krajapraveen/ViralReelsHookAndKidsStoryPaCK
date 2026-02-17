@@ -3860,27 +3860,52 @@ async def generate_image_to_video(
     
     try:
         from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
         
-        # Generate video using Sora 2 with image input
+        # Step 1: Use Gemini to analyze the image and create a detailed video prompt
+        logger.info(f"Analyzing uploaded image for job {job_id}")
+        
+        with open(input_image_path, "rb") as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        
+        analysis_chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"analyze-{job_id}",
+            system_message="You are an expert at describing images for video generation. Analyze the image and create a detailed, vivid description suitable for generating an animated video."
+        ).with_model("gemini", "gemini-2.0-flash")
+        
+        analysis_prompt = f"""Analyze this image and create a detailed video generation prompt that:
+1. Describes the main subjects and their appearance
+2. Describes the setting/background
+3. Incorporates this motion/animation request: {motion_prompt}
+4. Keeps the visual style consistent with the image
+
+Output ONLY the video prompt, no explanations. Make it cinematic and detailed."""
+        
+        analysis_msg = UserMessage(
+            text=analysis_prompt,
+            images=[ImageContent(base64_data=image_data, media_type="image/png")]
+        )
+        
+        image_description = await analysis_chat.send_message(analysis_msg)
+        logger.info(f"Image analyzed, generating video for job {job_id}")
+        
+        # Step 2: Generate video using Sora 2 with the enhanced prompt
         video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
         
         filename = f"genstudio_{job_id}.mp4"
         filepath = f"/tmp/{filename}"
         
-        # Build prompt with motion description
-        full_prompt = f"Animate this image: {motion_prompt}"
+        # Build final prompt with image description and motion
+        full_prompt = f"{image_description.strip()}"
         if add_watermark or user.get("plan") == "free":
-            full_prompt += ". Include subtle 'GenStudio' watermark."
+            full_prompt += ". Include subtle 'GenStudio' watermark in corner."
         
-        # Read image as base64
-        with open(input_image_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode('utf-8')
-        
-        # Generate video from image
-        video_bytes = video_gen.image_to_video(
+        # Generate video using text_to_video with the analyzed image description
+        video_bytes = video_gen.text_to_video(
             prompt=full_prompt,
-            image_data=image_data,
             model="sora-2",
+            size="1280x720",
             duration=duration,
             max_wait_time=600
         )
