@@ -3285,29 +3285,45 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
     def download_image(url, max_width=1.2*inch, max_height=1.2*inch):
         """Download image and return ReportLab Image object"""
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=8) as response:
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'image/*'
+            })
+            with urllib.request.urlopen(req, timeout=12) as response:
                 img_data = response.read()
                 img_buffer = io.BytesIO(img_data)
                 img = Image(img_buffer, width=max_width, height=max_height)
                 return img
         except Exception as e:
-            logger.warning(f"Failed to download image: {url} - {e}")
+            logger.warning(f"Failed to download image: {url[:50]}... - {e}")
             return None
     
     def download_scene_image(url):
-        """Download larger scene image"""
-        return download_image(url, max_width=5.5*inch, max_height=3*inch)
+        """Download larger scene image with retry"""
+        img = download_image(url, max_width=5.5*inch, max_height=3*inch)
+        if not img:
+            # Fallback to a reliable placeholder
+            fallback_url = f"https://picsum.photos/800/400?random={hash(url) % 1000}"
+            img = download_image(fallback_url, max_width=5.5*inch, max_height=3*inch)
+        return img
     
     def download_cover_image(url):
-        """Download cover image"""
-        return download_image(url, max_width=5*inch, max_height=3.5*inch)
+        """Download cover image with retry"""
+        img = download_image(url, max_width=5*inch, max_height=3.5*inch)
+        if not img:
+            fallback_url = "https://picsum.photos/600/400?random=cover"
+            img = download_image(fallback_url, max_width=5*inch, max_height=3.5*inch)
+        return img
     
     def download_decoration_image():
         """Download random nature decoration"""
         import random
         url = random.choice(NATURE_DECORATIONS)
-        return download_image(url, max_width=0.8*inch, max_height=0.8*inch)
+        img = download_image(url, max_width=0.8*inch, max_height=0.8*inch)
+        if not img:
+            fallback_url = f"https://picsum.photos/200/200?random={random.randint(1,100)}"
+            img = download_image(fallback_url, max_width=0.8*inch, max_height=0.8*inch)
+        return img
     
     # Page callback functions for watermark and backgrounds
     def add_page_decorations(canvas_obj, doc):
