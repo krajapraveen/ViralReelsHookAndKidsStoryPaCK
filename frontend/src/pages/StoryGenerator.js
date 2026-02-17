@@ -564,7 +564,7 @@ export default function StoryGenerator() {
                           }
                           setWorksheetLoading(true);
                           try {
-                            const response = await api.post(`/api/story-tools/worksheet/generate?generation_id=${generationId}`);
+                            const response = await api.post(`/api/story-tools/worksheet/${generationId}`);
                             setWorksheetResult(response.data.worksheet);
                             setCredits(response.data.remainingCredits);
                             setFillBlankAnswers({});  // Reset answers
