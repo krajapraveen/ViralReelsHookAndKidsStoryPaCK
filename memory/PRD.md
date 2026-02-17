@@ -1,106 +1,136 @@
 # CreatorStudio AI - Product Requirements Document
 
-## Overview
-**Tagline:** "Generate viral reels + kids story videos in minutes."
-**URL:** https://aistudio-51.preview.emergentagent.com
-**Last Updated:** February 17, 2026
+## Original Problem Statement
+Build a full-stack application named "CreatorStudio AI" for generating viral reels and kids story videos, with expanded capabilities including:
+- GenStudio AI generation suite (Text-to-Image, Text-to-Video, etc.)
+- Security hardening and content moderation
+- Admin dashboard with payment and exception monitoring
+- Creator Pro Tools (15+ features)
+- TwinFinder face lookalike finder (future)
 
-## Latest Implementation (Feb 17, 2026)
+## User Personas
+1. **Content Creators** - Need viral content scripts, hooks, captions for social media
+2. **Parents/Educators** - Need kid-friendly story generation
+3. **Business Owners** - Need AI image/video generation for marketing
+4. **Admin Users** - Need monitoring of payments, exceptions, and system health
 
-### 1. Backend Refactoring ✅
-Created modular architecture with separate files:
-- `/app/backend/shared.py` - Shared dependencies (db, auth, credits)
-- `/app/backend/security.py` - Security module (rate limiting, headers)
-- `/app/backend/ml_threat_detection.py` - ML-based threat detection
-- `/app/backend/routes/style_profiles.py` - Style profile management
-- `/app/backend/routes/convert.py` - Content conversion endpoints
+## Core Requirements
+- [x] Viral reel script generation with hooks, captions, hashtags
+- [x] Kids story generation with scenes and narration
+- [x] GenStudio suite (Text-to-Image, Text-to-Video)
+- [x] User authentication (Email/Password + Google OAuth)
+- [x] Credit-based system with Razorpay payments
+- [x] Admin dashboard with analytics
+- [x] Payment monitoring (successful/failed/refunded)
+- [x] Exception monitoring and logging
+- [x] Content moderation and security hardening
+- [x] File expiry (3 minutes for security)
 
-### 2. Style Profile Training ✅
-**Endpoints:**
-- `POST /api/genstudio/style-profile` - Create profile (20 credits)
-- `POST /api/genstudio/style-profile/{id}/upload-image` - Upload reference image
-- `POST /api/genstudio/style-profile/{id}/train` - Train profile (needs 5+ images)
-- `DELETE /api/genstudio/style-profile/{id}` - Delete profile
+## Tech Stack
+- **Frontend**: React, TailwindCSS, Shadcn/UI
+- **Backend**: FastAPI, MongoDB (motor)
+- **AI**: Gemini (text/image), Sora 2 (video) via emergentintegrations
+- **Auth**: JWT + Emergent-managed Google Auth
+- **Payments**: Razorpay (test mode)
+- **Security**: Rate limiting, CSP headers, ML content moderation
 
-**Features:**
-- Upload up to 20 reference images per profile
-- Minimum 5 images required for training
-- Gemini-powered style analysis
-- Generated style guide for consistent content
+## What's Been Implemented
 
-### 3. Convert Feature Backend ✅
-**Endpoints:**
-- `POST /api/convert/text-to-story` - Convert text to kids story (10 credits)
-- `POST /api/convert/text-to-reel` - Convert text to reel script (15 credits)
-- `GET /api/convert/status/{job_id}` - Poll conversion status
-- `GET /api/convert/history` - Get conversion history
-- `GET /api/convert/costs` - Get conversion costs
+### February 17, 2026
+- ✅ Admin dashboard payment monitoring tab
+- ✅ Admin dashboard exception monitoring tab
+- ✅ Updated landing page text to include "much more"
+- ✅ Updated description with GenStudio, content tools, etc.
+- ✅ Backend routes for /admin/payments/successful, /failed, /refunded
+- ✅ Backend routes for /admin/exceptions/all, resolve, delete
+- ✅ Exception logging utility for all features
+- ✅ Payment logging with refund support
+- ✅ Modular route files created (routes/*.py)
 
-**Conversion Types:**
-| Type | Cost | Description |
-|------|------|-------------|
-| text-to-story | 10 | Transform any text into a kids story |
-| text-to-reel | 15 | Transform text into viral reel script |
-| story-to-reel | 1 | Convert story to reel (existing) |
-| reel-to-carousel | 1 | Convert reel to carousel (existing) |
+### Previous Sessions
+- ✅ GenStudio suite (Text-to-Image, Text-to-Video, Image-to-Video, Video Remix)
+- ✅ Async job pattern for video generation (background tasks + polling)
+- ✅ Security middleware (CSP headers, rate limiting, attack pattern blocking)
+- ✅ ML content moderation
+- ✅ 3-minute file expiry for security
+- ✅ Style profiles for GenStudio
+- ✅ Content vault and trending topics
+- ✅ Story tools (worksheets, printable books)
+- ✅ Creator tools (hashtag bank, thumbnails, calendar, carousel)
+- ✅ Convert tools (reel-to-carousel, story-to-reel, etc.)
 
-### 4. Advanced ML Threat Detection ✅
-**Components:**
-- `RequestPatternAnalyzer` - Anomaly detection using statistical analysis
-- `BotDetector` - Bot detection using user agent and behavior analysis
-- `ContentModerator` - ML-based content moderation with severity levels
+## Prioritized Backlog
 
-**Content Categories Blocked:**
-| Category | Severity | Examples |
-|----------|----------|----------|
-| identity_theft | CRITICAL | deepfake, face swap, impersonate |
-| celebrity | HIGH | celebrity, famous person, public figure |
-| explicit | CRITICAL | nude, porn, nsfw |
-| violence | CRITICAL | gore, murder, terrorist |
-| child_safety | CRITICAL | child abuse, minor |
-| illegal | CRITICAL | drug dealing, weapon sale |
-| hate_speech | HIGH | racist, discrimination |
-| scam | HIGH | phishing, fraud |
-| copyright | MEDIUM | copyright infringement |
+### P0 - Critical (Next Sprint)
+1. Complete backend refactoring (server.py → modular routes)
+   - Move remaining logic from server.py to routes/
+   - Reduce server.py to thin orchestrator
+2. TwinFinder implementation (face lookalike finder)
+3. Creator Pro Tools implementation (15+ features)
 
-**Integration:**
-- Integrated into GenStudio text-to-image endpoint
-- Integrated into reel generation endpoint
-- Integrated into story generation endpoint
-- All blocked content is logged for security audit
+### P1 - High Priority
+1. Razorpay production setup (awaiting live keys)
+2. Subscription webhooks for auto-renewal
+3. Advanced ML threat detection model
+4. Performance optimization for high load
+
+### P2 - Medium Priority
+1. Style Profile Gallery UI improvements
+2. Additional content repurposing formats
+3. API rate limiting refinement
+4. Enhanced error messages
+
+## Known Issues
+1. **Image-to-Video Workaround**: Uses Gemini image-to-text + Sora text-to-video instead of direct image-to-video API (library limitation)
+2. **server.py Size**: ~4900 lines, needs refactoring into modular routes
+
+## API Endpoints
+
+### Core Generation
+- POST /api/generate/reel - Generate reel script (10 credits)
+- POST /api/generate/story - Generate kids story (10 credits)
+
+### GenStudio
+- POST /api/genstudio/text-to-image - Generate image (10 credits)
+- POST /api/genstudio/text-to-video - Generate video (10 credits, async)
+- GET /api/genstudio/job/{id} - Poll job status
+- GET /api/genstudio/download/{id}/{filename} - Download file
+
+### Admin
+- GET /api/admin/analytics/dashboard - Full analytics
+- GET /api/admin/payments/successful - Success payments
+- GET /api/admin/payments/failed - Failed payments with reasons
+- GET /api/admin/payments/refunded - Refunded payments
+- GET /api/admin/exceptions/all - All logged exceptions
+- PUT /api/admin/exceptions/{id}/resolve - Mark resolved
+- DELETE /api/admin/exceptions/{id} - Delete exception
+
+### Payments
+- GET /api/payments/products - Available products
+- POST /api/payments/create-order - Create Razorpay order
+- POST /api/payments/verify - Verify and complete payment
+
+## Database Collections
+- users: User accounts with credits
+- generations: Reel/Story generation history
+- genstudio_jobs: AI generation jobs with status
+- orders: Payment orders
+- payment_logs: Payment transaction logs
+- exception_logs: System exception logs
+- credit_ledger: Credit transaction history
+- style_profiles: GenStudio brand profiles
+- feedback: User feedback
+- trending_topics: Admin-managed trending topics
+
+## Security Measures
+- JWT authentication with 7-day expiry
+- Rate limiting on auth/payment endpoints
+- CSP headers and X-Frame-Options
+- ML content moderation on prompts
+- Input sanitization for attack patterns
+- 3-minute file expiry for generated content
+- Exception logging for monitoring
 
 ## Test Credentials
-| Role | Email | Password |
-|------|-------|----------|
-| **Admin** | `admin@creatorstudio.ai` | `Cr3@t0rStud!o#2026` |
-| **Demo User** | `demo@example.com` | `Password123!` |
-
-## Security Configuration
-- File expiry: 3 minutes (aggressive cleanup)
-- Rate limiting: Register 5/min, Login 10/min, Payments 10-20/min
-- Security headers: CSP, HSTS, X-Frame-Options, etc.
-- IP blocking after 10 suspicious attempts
-
-## Test Reports
-- `/app/test_reports/iteration_22.json` - Security testing (30/30 PASS)
-- `/app/test_reports/iteration_23.json` - New features testing
-
-## Architecture
-```
-/app/backend/
-├── server.py           # Main server (4600+ lines)
-├── shared.py           # Shared dependencies
-├── security.py         # Security module
-├── ml_threat_detection.py  # ML threat detection
-├── pdf_generator.py    # PDF generation
-└── routes/
-    ├── style_profiles.py   # Style profile CRUD
-    ├── convert.py          # Content conversion
-    └── ...
-```
-
-## Backlog
-- [ ] Complete server.py refactoring (move all routes to /routes/)
-- [ ] Razorpay production setup
-- [ ] Style profile gallery preview
-- [ ] Batch generation capability
+- **Admin**: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
+- **User**: demo@example.com / Password123!
