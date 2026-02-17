@@ -3783,8 +3783,8 @@ async def generate_text_to_image(data: TextToImageRequest, user: dict = Depends(
             "outputUrls": output_urls,
             "creditsUsed": cost,
             "remainingCredits": user["credits"] - cost,
-            "expiresIn": "15 minutes",
-            "message": "Image generated! Download within 15 minutes before it expires."
+            "expiresIn": "3 minutes",
+            "message": "Image generated! Download within 3 MINUTES before auto-deletion."
         }
         
     except Exception as e:
