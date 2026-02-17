@@ -4116,7 +4116,18 @@ async def download_genstudio_file(job_id: str, filename: str, user: dict = Depen
     if not os.path.exists(filepath):
         raise HTTPException(status_code=410, detail="File expired or not found")
     
-    return FileResponse(filepath, filename=filename, media_type="image/png")
+    # Detect media type based on file extension
+    media_type = "image/png"
+    if filename.endswith(".mp4"):
+        media_type = "video/mp4"
+    elif filename.endswith(".webm"):
+        media_type = "video/webm"
+    elif filename.endswith(".jpg") or filename.endswith(".jpeg"):
+        media_type = "image/jpeg"
+    elif filename.endswith(".webp"):
+        media_type = "image/webp"
+    
+    return FileResponse(filepath, filename=filename, media_type=media_type)
 
 
 @genstudio_router.get("/history")
