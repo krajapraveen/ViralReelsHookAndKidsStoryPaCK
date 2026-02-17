@@ -3829,6 +3829,7 @@ api_router.include_router(story_tools_router)
 api_router.include_router(content_router)
 api_router.include_router(convert_router)
 api_router.include_router(genstudio_router)
+api_router.include_router(genstudio_router)
 
 app.include_router(api_router)
 
