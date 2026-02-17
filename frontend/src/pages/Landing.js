@@ -58,15 +58,16 @@ export default function Landing() {
           
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white mb-6 tracking-tight leading-tight">
             Generate viral reels +<br />
-            kids story videos<br />
+            kids story videos + much more<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
               in minutes
             </span>
           </h1>
           
           <p className="text-base sm:text-lg md:text-xl text-slate-300 max-w-3xl mx-auto mb-8 sm:mb-12 px-4">
-            Hooks, scripts, captions, hashtags — and complete kids story video packs with scene prompts and voiceovers. 
-            Everything you need to create viral content.
+            Hooks, scripts, captions, hashtags — complete kids story video packs with scene prompts and voiceovers, 
+            AI image & video generation (GenStudio), content repurposing tools, thumbnail text generators, content calendars, 
+            carousel makers, and so much more. Everything you need to create viral content.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8 px-4">
