@@ -3504,8 +3504,12 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         
         elements = []
         
-        # === COVER PAGE with Genre-based Image ===
-        elements.append(Spacer(1, 0.5*inch))
+        # === COVER PAGE with Disney-style magical design ===
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Magical header decorations
+        elements.append(Paragraph("🏰 ✨ 🌟 ✨ 🏰", ParagraphStyle('MagicHeader', alignment=TA_CENTER, fontSize=32)))
+        elements.append(Spacer(1, 0.2*inch))
         
         # Cover image based on genre
         cover_img_url = get_cover_image_url(story.get('genre', 'adventure'))
@@ -3515,14 +3519,15 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
             cover_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('BOX', (0, 0), (-1, -1), 3, HexColor('#9333EA')),
-                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFFFF')),
+                ('BOX', (0, 0), (-1, -1), 4, HexColor('#FF69B4')),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFAFC')),
             ]))
             elements.append(cover_table)
             elements.append(Spacer(1, 0.3*inch))
         
-        # Title with decorative elements
-        elements.append(Paragraph("✨ 📖 ✨", ParagraphStyle('Deco', alignment=TA_CENTER, fontSize=36)))
+        # Title with magical decorative elements
+        elements.append(Paragraph("📖 ✨ A Magical Story ✨ 📖", ParagraphStyle('Deco', alignment=TA_CENTER, fontSize=20, textColor=HexColor('#EC4899'))))
+        elements.append(Spacer(1, 0.15*inch))
         elements.append(Spacer(1, 0.2*inch))
         elements.append(Paragraph(story.get('title', 'My Story'), title_style))
         elements.append(Spacer(1, 0.2*inch))
