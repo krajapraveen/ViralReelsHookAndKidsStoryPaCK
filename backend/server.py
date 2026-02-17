@@ -1098,9 +1098,20 @@ async def generate_story_content_inline(data: dict) -> dict:
 
 @generate_router.post("/reel")
 async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_current_user)):
-    # Check credits
-    if user["credits"] < 1:
-        raise HTTPException(status_code=400, detail="Insufficient credits. You need 1 credit for reel generation.")
+    """Generate a viral reel - costs 10 credits"""
+    credits_needed = 10  # Fixed 10 credits per reel
+    
+    # Check if user has subscription or free credits
+    user_credits = user.get("credits", 0)
+    user_subscription = user.get("subscription")
+    
+    if user_credits < credits_needed:
+        if not user_subscription:
+            raise HTTPException(
+                status_code=402, 
+                detail="You've used all your free credits! Please subscribe to continue generating reels."
+            )
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. You need {credits_needed} credits for reel generation.")
     
     try:
         # Try inline generation first (for production), fall back to worker (for local dev)
@@ -1131,10 +1142,10 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
             error_msg = generation_error or "AI service unavailable. Please try again."
             raise HTTPException(status_code=503, detail=error_msg)
         
-        # Deduct credit
+        # Deduct credits
         await db.users.update_one(
             {"id": user["id"]},
-            {"$inc": {"credits": -1}}
+            {"$inc": {"credits": -credits_needed}}
         )
         
         # Log transaction
