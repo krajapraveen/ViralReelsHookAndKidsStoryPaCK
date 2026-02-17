@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://viral-video-gen-14.preview.emergentagent.com
+**Website:** https://creatora-studio.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

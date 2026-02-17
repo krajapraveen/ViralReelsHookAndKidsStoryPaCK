@@ -2,7 +2,7 @@
 # CreatorStudio AI - Security Scan Script
 # Run: chmod +x security_scan.sh && ./security_scan.sh
 
-API_URL="${1:-https://viral-video-gen-14.preview.emergentagent.com}"
+API_URL="${1:-https://creatora-studio.preview.emergentagent.com}"
 echo "=========================================="
 echo "🔒 CreatorStudio AI Security Scan"
 echo "=========================================="

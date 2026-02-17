@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://viral-video-gen-14.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://creatora-studio.preview.emergentagent.com')
 
 class TestAIChatbot:
     """AI Chatbot endpoint tests"""
