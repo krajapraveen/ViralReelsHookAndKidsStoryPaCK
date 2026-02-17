@@ -24,7 +24,7 @@ export default function Dashboard() {
       ]);
       setCredits(creditsRes.data.credits);
       setUser(userRes.data);
-      setRecentGenerations(generationsRes.data.content || []);
+      setRecentGenerations(generationsRes.data.generations || []);
     } catch (error) {
       toast.error('Failed to load dashboard data');
     }
