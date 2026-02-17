@@ -93,6 +93,16 @@ EMAIL_ENABLED = SENDGRID_AVAILABLE and bool(SENDGRID_API_KEY)
 # LLM Configuration for AI Generation
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
+# ElevenLabs Configuration for TTS
+ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY', '')
+eleven_client = None
+if ELEVENLABS_AVAILABLE and ELEVENLABS_API_KEY:
+    eleven_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+
+# Video storage directory
+VIDEO_STORAGE_DIR = Path("/tmp/creatorstudio_videos")
+VIDEO_STORAGE_DIR.mkdir(exist_ok=True)
+
 # AI Generation Prompts
 REEL_SYSTEM_PROMPT = """You are an elite social media scriptwriter. Output must be structured JSON only."""
 
