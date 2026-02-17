@@ -19,6 +19,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import AutomationDashboard from './pages/AutomationDashboard';
 import Profile from './pages/Profile';
 import CopyrightInfo from './pages/CopyrightInfo';
+import CreatorTools from './pages/CreatorTools';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import './App.css';
