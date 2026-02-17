@@ -21,6 +21,7 @@ import Profile from './pages/Profile';
 import CopyrightInfo from './pages/CopyrightInfo';
 import CreatorTools from './pages/CreatorTools';
 import ContentVault from './pages/ContentVault';
+import PaymentHistory from './pages/PaymentHistory';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import './App.css';
