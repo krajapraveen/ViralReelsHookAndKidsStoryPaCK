@@ -594,7 +594,7 @@ async def get_consistency_stats(user: dict = Depends(get_current_user)):
 
 
 # =============================================================================
-# 6. CAPTION GENERATOR
+# 6. CAPTION GENERATOR (AI-POWERED)
 # =============================================================================
 @router.post("/caption-generator")
 async def generate_caption(
@@ -605,56 +605,90 @@ async def generate_caption(
     platform: str = Form("instagram"),
     user: dict = Depends(get_current_user)
 ):
-    """Generate optimized captions - 2 credits"""
+    """Generate AI-powered captions - 2 credits"""
     cost = PRO_COSTS["caption_generator"]
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
-    # Generate captions based on tone
-    captions = {
-        "engaging": [
-            f"Here's something about {topic} that changed my perspective...",
-            f"Can we talk about {topic}? Because this is important.",
-            f"I've been thinking a lot about {topic} lately. Here's why..."
-        ],
-        "educational": [
-            f"3 things you need to know about {topic}:",
-            f"The truth about {topic} that nobody talks about:",
-            f"Everything you've been told about {topic} is wrong. Here's why:"
-        ],
-        "storytelling": [
-            f"Story time: How {topic} changed everything for me...",
-            f"I never thought I'd be talking about {topic}, but here we are...",
-            f"The {topic} journey that taught me the biggest lesson..."
-        ],
-        "promotional": [
-            f"Excited to share something about {topic} with you!",
-            f"This is why {topic} matters more than ever...",
-            f"If you've been struggling with {topic}, this is for you."
+    ai_captions = []
+    
+    # Try AI generation first
+    if AI_AVAILABLE:
+        prompt = f"""Generate 3 unique {tone} captions for {platform} about: {topic}
+
+Requirements:
+- Tone: {tone}
+- Platform: {platform}
+- Include CTA: {include_cta}
+- Include hashtags: {include_hashtags}
+- Each caption should be engaging and optimized for the platform
+- Use emojis appropriately
+- Make each caption distinct in style
+
+Return ONLY a JSON array of 3 caption strings:
+["caption1", "caption2", "caption3"]"""
+        
+        ai_response = await generate_ai_content(
+            prompt,
+            "You are a viral social media copywriter who creates captions that drive engagement."
+        )
+        
+        if ai_response:
+            try:
+                import re
+                json_match = re.search(r'\[.*?\]', ai_response, re.DOTALL)
+                if json_match:
+                    ai_captions = json.loads(json_match.group())
+            except Exception as e:
+                logger.warning(f"Failed to parse AI captions: {e}")
+    
+    # Fallback to templates if AI fails
+    if not ai_captions:
+        captions_templates = {
+            "engaging": [
+                f"Here's something about {topic} that changed my perspective...",
+                f"Can we talk about {topic}? Because this is important.",
+                f"I've been thinking a lot about {topic} lately. Here's why..."
+            ],
+            "educational": [
+                f"3 things you need to know about {topic}:",
+                f"The truth about {topic} that nobody talks about:",
+                f"Everything you've been told about {topic} is wrong. Here's why:"
+            ],
+            "storytelling": [
+                f"Story time: How {topic} changed everything for me...",
+                f"I never thought I'd be talking about {topic}, but here we are...",
+                f"The {topic} journey that taught me the biggest lesson..."
+            ],
+            "promotional": [
+                f"Excited to share something about {topic} with you!",
+                f"This is why {topic} matters more than ever...",
+                f"If you've been struggling with {topic}, this is for you."
+            ]
+        }
+        
+        ai_captions = captions_templates.get(tone, captions_templates["engaging"])
+        
+        # Add CTA
+        ctas = [
+            "\n\n👉 Save this for later!",
+            "\n\n💬 Drop a comment if you agree!",
+            "\n\n🔔 Follow for more!",
+            "\n\n❤️ Double tap if this resonates!"
         ]
-    }
-    
-    selected_captions = captions.get(tone, captions["engaging"])
-    
-    # Add CTA
-    ctas = [
-        "\n\n👉 Save this for later!",
-        "\n\n💬 Drop a comment if you agree!",
-        "\n\n🔔 Follow for more!",
-        "\n\n❤️ Double tap if this resonates!"
-    ]
-    
-    # Add hashtags
-    hashtags = f"\n\n#{topic.replace(' ', '').lower()} #content #viral #trending #fyp"
-    
-    final_captions = []
-    for cap in selected_captions:
-        final = cap
-        if include_cta:
-            final += random.choice(ctas)
-        if include_hashtags:
-            final += hashtags
-        final_captions.append({"caption": final, "charCount": len(final)})
+        
+        # Add hashtags
+        hashtags = f"\n\n#{topic.replace(' ', '').lower()} #content #viral #trending #fyp"
+        
+        enhanced_captions = []
+        for cap in ai_captions:
+            final = cap
+            if include_cta:
+                final += random.choice(ctas)
+            if include_hashtags:
+                final += hashtags
+            enhanced_captions.append(final)
+        ai_captions = enhanced_captions
     
     await deduct_credits(user["id"], cost, "Caption Generator")
     
@@ -662,7 +696,8 @@ async def generate_caption(
         "success": True,
         "topic": topic,
         "tone": tone,
-        "captions": final_captions,
+        "captions": [{"caption": cap, "charCount": len(cap)} for cap in ai_captions[:3]],
+        "aiPowered": bool(AI_AVAILABLE),
         "creditsUsed": cost
     }
 
