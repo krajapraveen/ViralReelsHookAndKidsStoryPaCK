@@ -103,8 +103,6 @@ export default function VideoRemix() {
     setResult(null);
 
     try {
-      setProgress({ step: 2, message: 'Remixing with AI...' });
-      
       const formData = new FormData();
       formData.append('video', selectedVideo);
       formData.append('remix_prompt', remixPrompt.trim());
@@ -116,16 +114,48 @@ export default function VideoRemix() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setProgress({ step: 3, message: 'Video remixed!' });
+      const jobId = response.data.jobId;
       setCredits(response.data.remainingCredits);
-      setResult(response.data);
-      toast.success('Video remixed successfully!');
+      setProgress({ step: 2, message: 'Remixing with AI... (1-3 min)' });
+      
+      // Poll for job completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await api.get(`/api/genstudio/job/${jobId}`);
+          const job = statusRes.data;
+          
+          if (job.status === 'completed') {
+            clearInterval(pollInterval);
+            setProgress({ step: 3, message: 'Video remixed!' });
+            setResult({
+              ...response.data,
+              status: 'completed',
+              outputUrls: job.outputUrls
+            });
+            toast.success('Video remixed successfully!');
+            setGenerating(false);
+          } else if (job.status === 'failed') {
+            clearInterval(pollInterval);
+            toast.error(job.error || 'Video remix failed');
+            setGenerating(false);
+          }
+        } catch (pollError) {
+          console.error('Polling error:', pollError);
+        }
+      }, 5000);
+      
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (generating) {
+          toast.error('Video remix timed out. Check history for status.');
+          setGenerating(false);
+        }
+      }, 600000);
 
     } catch (error) {
       console.error('Generation error:', error);
       const message = error.response?.data?.detail || 'Remix failed';
       toast.error(message);
-    } finally {
       setGenerating(false);
       setProgress({ step: 0, message: '' });
     }
