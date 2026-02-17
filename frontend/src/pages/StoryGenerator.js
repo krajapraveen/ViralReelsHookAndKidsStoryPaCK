@@ -21,7 +21,6 @@ export default function StoryGenerator() {
   const [isFreeTier, setIsFreeTier] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [pendingDownloadType, setPendingDownloadType] = useState(null);
-  const [showVideoExport, setShowVideoExport] = useState(false);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
