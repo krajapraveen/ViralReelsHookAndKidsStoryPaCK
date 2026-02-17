@@ -190,8 +190,7 @@ async def generate_text_to_image(data: TextToImageRequest, user: dict = Depends(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"genstudio-{job_id}",
             system_message="You are an AI image generator. Generate high-quality images based on the user's prompt."
-        )
-        chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+        ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
         
         msg = UserMessage(text=full_prompt)
         text_response, images = await chat.send_message_multimodal_response(msg)
