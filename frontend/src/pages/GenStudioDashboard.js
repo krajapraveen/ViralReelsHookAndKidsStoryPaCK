@@ -44,12 +44,11 @@ export default function GenStudioDashboard() {
     {
       id: 'text-to-video',
       name: 'Text → Video',
-      description: 'Create videos from text descriptions',
+      description: 'Create videos from text with Sora 2',
       icon: Video,
       color: 'from-blue-500 to-cyan-500',
       cost: 10,
-      path: '/app/gen-studio/text-to-video',
-      comingSoon: true
+      path: '/app/gen-studio/text-to-video'
     },
     {
       id: 'image-to-video',
@@ -58,8 +57,7 @@ export default function GenStudioDashboard() {
       icon: Play,
       color: 'from-green-500 to-emerald-500',
       cost: 10,
-      path: '/app/gen-studio/image-to-video',
-      comingSoon: true
+      path: '/app/gen-studio/image-to-video'
     },
     {
       id: 'style-profiles',
@@ -77,8 +75,7 @@ export default function GenStudioDashboard() {
       icon: Scissors,
       color: 'from-red-500 to-rose-500',
       cost: 12,
-      path: '/app/gen-studio/video-remix',
-      comingSoon: true
+      path: '/app/gen-studio/video-remix'
     }
   ];
 
