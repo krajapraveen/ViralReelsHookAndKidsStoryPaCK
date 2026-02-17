@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -22,6 +23,20 @@ import razorpay
 import base64
 import tempfile
 import shutil
+import re
+import html
+
+# Import security module
+from security import (
+    limiter, rate_limit_exceeded_handler, sanitize_input, sanitize_filename,
+    detect_dangerous_content, detect_prohibited_content, validate_prompt,
+    add_security_headers, security_middleware, validate_password_strength,
+    generate_secure_token, validate_file_type, validate_file_size,
+    log_security_event, sanitize_mongo_query, SECURITY_HEADERS,
+    ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, record_suspicious_activity
+)
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # LLM Integration for AI generation
 try:
