@@ -72,6 +72,9 @@
   html {
     min-height: 100%;
     height: 100%;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   body {
     min-height: 100%;
@@ -80,15 +83,119 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    color: rgb(51 65 85);
   }
   #root {
     min-height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
+  
+  /* Typography System */
   h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: rgb(15 23 42);
+    line-height: 1.2;
+  }
+  
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+  }
+  
+  h2 {
+    font-size: 1.875rem;
+    font-weight: 700;
+  }
+  
+  h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  h4 {
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+  
+  h5 {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+  
+  h6 {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  
+  p {
+    color: rgb(51 65 85);
+    line-height: 1.7;
+  }
+  
+  /* Professional text colors */
+  .text-heading {
+    color: rgb(15 23 42);
+  }
+  
+  .text-body {
+    color: rgb(51 65 85);
+  }
+  
+  .text-muted-pro {
+    color: rgb(100 116 139);
+  }
+  
+  /* Accent colors for highlights */
+  .text-accent-purple {
+    color: rgb(124 58 237);
+  }
+  
+  .text-accent-indigo {
+    color: rgb(99 102 241);
+  }
+  
+  .text-accent-emerald {
+    color: rgb(16 185 129);
+  }
+  
+  .text-accent-amber {
+    color: rgb(245 158 11);
+  }
+  
+  /* Label styling */
+  label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgb(51 65 85);
+    letter-spacing: 0;
+  }
+  
+  /* Small text */
+  small, .text-sm {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  
+  .text-xs {
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+  
+  /* Font weight utilities */
+  .font-display {
     font-family: 'Outfit', sans-serif;
+  }
+  
+  .font-body {
+    font-family: 'Inter', sans-serif;
   }
   
   /* Comprehensive autofill styling removal - NO YELLOW backgrounds */
