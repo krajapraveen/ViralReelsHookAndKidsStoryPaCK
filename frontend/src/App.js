@@ -73,6 +73,11 @@ function App() {
       <Route path="/app/creator-tools" element={isAuthenticated ? <CreatorTools /> : <Navigate to="/login" />} />
       <Route path="/app/content-vault" element={isAuthenticated ? <ContentVault /> : <Navigate to="/login" />} />
       <Route path="/app/payment-history" element={isAuthenticated ? <PaymentHistory /> : <Navigate to="/login" />} />
+      {/* GenStudio Routes */}
+      <Route path="/app/gen-studio" element={isAuthenticated ? <GenStudioDashboard /> : <Navigate to="/login" />} />
+      <Route path="/app/gen-studio/text-to-image" element={isAuthenticated ? <GenStudioTextToImage /> : <Navigate to="/login" />} />
+      <Route path="/app/gen-studio/history" element={isAuthenticated ? <GenStudioHistory /> : <Navigate to="/login" />} />
+      <Route path="/app/gen-studio/style-profiles" element={isAuthenticated ? <GenStudioStyleProfiles /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
