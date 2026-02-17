@@ -229,8 +229,65 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create the main app
-app = FastAPI(title="CreatorStudio API")
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+# File expiry time - 3 MINUTES for security
+FILE_EXPIRY_MINUTES = 3
+GENSTUDIO_FILE_EXPIRY_MINUTES = 3
+PDF_FILE_EXPIRY_MINUTES = 3
+
+# Create the main app with security settings
+app = FastAPI(
+    title="CreatorStudio API",
+    docs_url=None,  # Disable Swagger in production
+    redoc_url=None,  # Disable ReDoc in production
+    openapi_url=None  # Disable OpenAPI schema in production
+)
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Add security middleware
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        response.headers[header] = value
+    return response
+
+@app.middleware("http")
+async def threat_detection_middleware(request: Request, call_next):
+    """Detect and block malicious requests"""
+    # Get client IP
+    client_ip = request.client.host if request.client else "unknown"
+    
+    # Check for suspicious patterns in URL
+    path = request.url.path.lower()
+    query = str(request.url.query).lower() if request.url.query else ""
+    
+    # Block common attack vectors
+    attack_patterns = [
+        '../', '..\\', '/etc/', '/proc/', '.env', '.git', 
+        'wp-admin', 'phpinfo', 'eval(', 'exec(', '<script',
+        'javascript:', 'vbscript:', 'onload=', 'onerror=',
+        'union select', 'drop table', '1=1', "' or '",
+        'cmd.exe', '/bin/sh', '/bin/bash'
+    ]
+    
+    for pattern in attack_patterns:
+        if pattern in path or pattern in query:
+            log_security_event("BLOCKED_REQUEST", {
+                "ip": client_ip,
+                "path": path,
+                "pattern": pattern
+            }, "WARNING")
+            record_suspicious_activity(client_ip, f"Attack pattern: {pattern}")
+            return Response(content="Forbidden", status_code=403)
+    
+    return await call_next(request)
 
 # Create routers
 api_router = APIRouter(prefix="/api")
