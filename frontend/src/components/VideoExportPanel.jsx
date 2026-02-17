@@ -162,8 +162,8 @@ export default function VideoExportPanel({ storyId, storyTitle, onClose }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="720p">720p HD (₹99)</SelectItem>
-                <SelectItem value="1080p">1080p Full HD (₹199)</SelectItem>
+                <SelectItem value="720p">720p HD (10 credits)</SelectItem>
+                <SelectItem value="1080p">1080p Full HD (20 credits)</SelectItem>
               </SelectContent>
             </Select>
           </div>
