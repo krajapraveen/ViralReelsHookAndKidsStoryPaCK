@@ -3862,7 +3862,9 @@ PLAN_ACCESS = {
 
 @content_router.get("/vault")
 async def get_content_vault(niche: Optional[str] = None, user: dict = Depends(get_current_user)):
-    """Get content vault items based on plan"""
+    """Get content vault items based on plan - themes and morals are shuffled for variety"""
+    import random
+    
     user_plan = user.get("plan", "free")
     access = PLAN_ACCESS.get(user_plan, PLAN_ACCESS["free"])
     
@@ -3870,12 +3872,18 @@ async def get_content_vault(niche: Optional[str] = None, user: dict = Depends(ge
     if niche:
         hooks = [h for h in hooks if h["niche"] == niche.lower()]
     
+    # Shuffle kids themes and moral templates for variety each time
+    shuffled_themes = KIDS_STORY_THEMES.copy()
+    shuffled_morals = MORAL_TEMPLATES.copy()
+    random.shuffle(shuffled_themes)
+    random.shuffle(shuffled_morals)
+    
     return {
         "plan": user_plan,
         "viral_hooks": hooks[:access["hooks"]],
         "reel_structures": REEL_STRUCTURES[:access["structures"]],
-        "kids_themes": KIDS_STORY_THEMES[:access["themes"]],
-        "moral_templates": MORAL_TEMPLATES[:access["morals"]],
+        "kids_themes": shuffled_themes[:access["themes"]],
+        "moral_templates": shuffled_morals[:access["morals"]],
         "total_hooks": len(CONTENT_VAULT_HOOKS),
         "total_structures": len(REEL_STRUCTURES),
         "total_themes": len(KIDS_STORY_THEMES),
