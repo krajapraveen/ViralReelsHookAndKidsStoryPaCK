@@ -38,6 +38,9 @@ from security import (
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+# Import ML Threat Detection
+from ml_threat_detection import threat_intel, ContentModerator
+
 # LLM Integration for AI generation
 try:
     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
