@@ -662,44 +662,172 @@ export default function StoryGenerator() {
                 {/* Worksheet Result */}
                 {worksheetResult && (
                   <div className="mt-4 bg-white rounded-lg p-4 border border-amber-200">
-                    <h5 className="font-bold mb-3 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-amber-600" />
-                      Generated Worksheet: {worksheetResult.story_title}
-                    </h5>
+                    <div className="flex items-center justify-between mb-4">
+                      <h5 className="font-bold flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-amber-600" />
+                        Interactive Worksheet: {worksheetResult.story_title}
+                      </h5>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAnswers(!showAnswers)}
+                        className="flex items-center gap-1"
+                      >
+                        {showAnswers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showAnswers ? 'Hide Answers' : 'Show Answers'}
+                      </Button>
+                    </div>
                     
-                    <div className="space-y-4">
+                    <div className="space-y-6">
+                      {/* Fill in the Blanks - Interactive */}
+                      <div className="bg-amber-50 rounded-lg p-4">
+                        <h6 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          ✏️ Fill in the Blanks
+                          <span className="text-xs text-slate-500">(Type your answers and check)</span>
+                        </h6>
+                        <div className="space-y-4">
+                          {worksheetResult.fill_blanks?.map((fb, i) => {
+                            const userAnswer = fillBlankAnswers[i] || '';
+                            const result = fillBlankResults[i];
+                            const correctAnswer = fb.answer;
+                            
+                            return (
+                              <div key={i} className="space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <span className="font-medium text-amber-700 mt-2">{fb.number}.</span>
+                                  <div className="flex-1">
+                                    <p className="text-sm text-slate-700 mb-2">
+                                      {fb.sentence.split('_______')[0]}
+                                      <Input
+                                        className={`inline-block w-40 mx-1 text-center ${
+                                          result === true ? 'border-green-500 bg-green-50' :
+                                          result === false ? 'border-red-500 bg-red-50' : ''
+                                        }`}
+                                        placeholder="your answer"
+                                        value={userAnswer}
+                                        onChange={(e) => {
+                                          setFillBlankAnswers({...fillBlankAnswers, [i]: e.target.value});
+                                          setFillBlankResults({...fillBlankResults, [i]: undefined});
+                                        }}
+                                      />
+                                      {fb.sentence.split('_______')[1]}
+                                    </p>
+                                    
+                                    {/* Validation result */}
+                                    {result === true && (
+                                      <div className="flex items-center gap-1 text-green-600 text-sm">
+                                        <CheckCircle className="w-4 h-4" />
+                                        <span>Correct!</span>
+                                      </div>
+                                    )}
+                                    {result === false && (
+                                      <div className="text-sm">
+                                        <div className="flex items-center gap-1 text-red-600">
+                                          <XCircle className="w-4 h-4" />
+                                          <span>Not quite right</span>
+                                        </div>
+                                        {showAnswers && (
+                                          <p className="text-green-700 mt-1">
+                                            <strong>Correct answer:</strong> {correctAnswer}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Show answer when toggled */}
+                                    {showAnswers && result === undefined && (
+                                      <p className="text-sm text-blue-600 mt-1">
+                                        <strong>Answer:</strong> {correctAnswer}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {/* Check Answers Button */}
+                        <div className="mt-4 flex gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-amber-500 hover:bg-amber-600"
+                            onClick={() => {
+                              const newResults = {};
+                              worksheetResult.fill_blanks?.forEach((fb, i) => {
+                                const userAnswer = (fillBlankAnswers[i] || '').toLowerCase().trim();
+                                const correctAnswer = (fb.answer || '').toLowerCase().trim();
+                                // Check if the answer contains the key words or is similar
+                                newResults[i] = userAnswer.length > 0 && (
+                                  correctAnswer.includes(userAnswer) || 
+                                  userAnswer.includes(correctAnswer.split(' ')[0]) ||
+                                  userAnswer === correctAnswer
+                                );
+                              });
+                              setFillBlankResults(newResults);
+                              
+                              const correct = Object.values(newResults).filter(v => v === true).length;
+                              const total = worksheetResult.fill_blanks?.length || 0;
+                              toast.success(`You got ${correct} out of ${total} correct!`);
+                            }}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Check My Answers
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setFillBlankAnswers({});
+                              setFillBlankResults({});
+                            }}
+                          >
+                            Reset
+                          </Button>
+                        </div>
+                      </div>
+                      
                       {/* Comprehension Questions */}
-                      <div>
-                        <h6 className="font-semibold text-sm mb-2">📝 Comprehension Questions</h6>
-                        <ol className="list-decimal list-inside space-y-1">
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <h6 className="font-semibold text-sm mb-3">📝 Comprehension Questions</h6>
+                        <div className="space-y-3">
                           {worksheetResult.comprehension_questions?.map((q, i) => (
-                            <li key={i} className="text-sm text-slate-700">{q.question}</li>
-                          ))}
-                        </ol>
-                      </div>
-                      
-                      {/* Fill in the Blanks */}
-                      <div>
-                        <h6 className="font-semibold text-sm mb-2">✏️ Fill in the Blanks</h6>
-                        <ol className="list-decimal list-inside space-y-1">
-                          {worksheetResult.fill_blanks?.map((fb, i) => (
-                            <li key={i} className="text-sm text-slate-700">{fb.sentence}</li>
-                          ))}
-                        </ol>
-                      </div>
-                      
-                      {/* Vocabulary */}
-                      <div>
-                        <h6 className="font-semibold text-sm mb-2">📖 Vocabulary Words</h6>
-                        <div className="flex flex-wrap gap-2">
-                          {worksheetResult.vocabulary?.map((v, i) => (
-                            <span key={i} className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded">{v.word}</span>
+                            <div key={i} className="bg-white rounded p-3 border border-blue-200">
+                              <p className="text-sm font-medium text-slate-800 mb-2">{q.number}. {q.question}</p>
+                              {showAnswers && (
+                                <p className="text-sm text-green-700 bg-green-50 p-2 rounded">
+                                  <strong>Answer:</strong> {q.answer}
+                                </p>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
                       
+                      {/* Vocabulary */}
+                      <div className="bg-purple-50 rounded-lg p-4">
+                        <h6 className="font-semibold text-sm mb-3">📖 Vocabulary Words</h6>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {worksheetResult.vocabulary?.map((v, i) => (
+                            <div key={i} className="bg-white rounded p-2 border border-purple-200 text-center">
+                              <span className="font-medium text-purple-800">{v.word}</span>
+                              {v.hint && <p className="text-xs text-slate-500 mt-1">{v.hint}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Moral Reflection */}
+                      <div className="bg-green-50 rounded-lg p-4">
+                        <h6 className="font-semibold text-sm mb-2">💭 Moral Reflection</h6>
+                        <p className="text-sm text-slate-700 mb-2">
+                          <strong>Story's Moral:</strong> "{worksheetResult.moral_reflection?.moral}"
+                        </p>
+                        <p className="text-sm text-slate-600 italic">{worksheetResult.moral_reflection?.question}</p>
+                      </div>
+                      
                       {/* Coloring Prompt */}
-                      <div>
+                      <div className="bg-pink-50 rounded-lg p-4">
                         <h6 className="font-semibold text-sm mb-2">🎨 Drawing Activity</h6>
                         <p className="text-sm text-slate-700 italic">{worksheetResult.coloring_prompt}</p>
                       </div>
