@@ -302,6 +302,9 @@ export default function StoryGenerator() {
                       <SelectItem value="4-6">4-6 years (Preschool)</SelectItem>
                       <SelectItem value="6-8">6-8 years (Early Elementary)</SelectItem>
                       <SelectItem value="8-10">8-10 years (Middle Childhood)</SelectItem>
+                      <SelectItem value="10-13">10-13 years (Pre-Teen)</SelectItem>
+                      <SelectItem value="13-15">13-15 years (Early Teen)</SelectItem>
+                      <SelectItem value="15-17">15-17 years (Late Teen)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
