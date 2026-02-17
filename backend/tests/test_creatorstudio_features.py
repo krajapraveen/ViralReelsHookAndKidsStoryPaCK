@@ -7,7 +7,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://creatora-studio.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://creatormuse-2.preview.emergentagent.com')
 
 class TestContentFiltering:
     """Test content filtering for inappropriate words"""

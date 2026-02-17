@@ -2,7 +2,7 @@
 
 ## Overview
 **Tagline:** "Generate viral reels + kids story videos in minutes."
-**URL:** https://creatora-studio.preview.emergentagent.com
+**URL:** https://creatormuse-2.preview.emergentagent.com
 **Last Updated:** February 17, 2026
 
 ## Tech Stack
