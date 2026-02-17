@@ -3507,7 +3507,7 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FAFAFA')),
-                ('GRID', (0, 0), (-1, -1), 1, HexColor('#E5E7EB')),
+                ('GRID', (0, 0), (-1, -1), 2, HexColor('#E9D5FF')),
                 ('TOPPADDING', (0, 0), (-1, -1), 15),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
                 ('LEFTPADDING', (0, 0), (-1, -1), 10),
@@ -3517,7 +3517,7 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         
         elements.append(PageBreak())
         
-        # === STORY PAGES with Scene Illustrations ===
+        # === STORY PAGES with Full Scene Illustrations ===
         scenes = story.get("scenes", [])
         for scene_idx, scene in enumerate(scenes):
             # Scene header with colorful background
@@ -3525,22 +3525,29 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
             scene_title = scene.get('title', f'Scene {scene_num}')
             elements.append(Paragraph(f"📖 Chapter {scene_num}: {scene_title}", scene_title_style))
             
-            # Setting
-            if scene.get('setting'):
-                elements.append(Paragraph(f"<i>📍 {scene.get('setting')}</i>", ParagraphStyle('Setting', fontSize=11, textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique')))
+            # Setting with description
+            setting_text = scene.get('setting', '')
+            if setting_text:
+                elements.append(Paragraph(f"<i>📍 {setting_text}</i>", ParagraphStyle('Setting', fontSize=11, textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique')))
             elements.append(Spacer(1, 0.15*inch))
             
-            # Scene illustration placeholder with character image
-            scene_seed = f"scene{scene_num}{story.get('title', '')[:10]}"
-            scene_img_url = f"https://api.dicebear.com/7.x/shapes/png?seed={scene_seed}&backgroundColor=b6e3f4,c0aede,ffd5dc,ffdfbf,d1f4d1&size=200"
-            scene_img = download_image(scene_img_url, 2.5*inch, 1.8*inch)
+            # Large scene illustration based on setting (indoor/outdoor/nature)
+            scene_img_url = get_scene_image_url(setting_text or scene_title, scene_num)
+            scene_img = download_scene_image(scene_img_url)
             if scene_img:
-                elements.append(Table([[scene_img]], colWidths=[7*inch]))
-                elements.append(Spacer(1, 0.1*inch))
+                scene_table = Table([[scene_img]], colWidths=[6.5*inch])
+                scene_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('BOX', (0, 0), (-1, -1), 2, HexColor('#9333EA')),
+                    ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFFFF')),
+                ]))
+                elements.append(scene_table)
+                elements.append(Spacer(1, 0.15*inch))
             
-            # Narration
+            # Narration in a styled box
             if scene.get('narration'):
-                elements.append(Paragraph(scene.get('narration'), body_style))
+                narration_text = scene.get('narration')
+                elements.append(Paragraph(narration_text, body_style))
             
             # Dialogue with speech bubble style
             if scene.get('dialogue'):
