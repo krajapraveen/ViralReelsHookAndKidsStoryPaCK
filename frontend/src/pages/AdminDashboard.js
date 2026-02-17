@@ -18,6 +18,8 @@ import SatisfactionTab from '../components/admin/SatisfactionTab';
 import FeatureRequestsTab from '../components/admin/FeatureRequestsTab';
 import UserFeedbackTab from '../components/admin/UserFeedbackTab';
 import TrendingTopicsTab from '../components/admin/TrendingTopicsTab';
+import PaymentMonitoringTab from '../components/admin/PaymentMonitoringTab';
+import ExceptionMonitoringTab from '../components/admin/ExceptionMonitoringTab';
 
 export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState(null);
