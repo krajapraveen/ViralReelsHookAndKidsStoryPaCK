@@ -321,35 +321,52 @@ async def generate_printable_book(
 @router.get("/download-book/{book_id}")
 async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_current_user)):
     """Download printable book PDF"""
-    book = await db.printable_books.find_one(
-        {"id": book_id, "userId": user["id"]},
-        {"_id": 0}
-    )
-    
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found or expired")
-    
-    # Check expiry
-    expiry_str = book.get("expiresAt")
-    if expiry_str:
-        expiry_time = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
-        if datetime.now(timezone.utc) > expiry_time:
-            raise HTTPException(status_code=410, detail="Download link expired. Files are available for 3 minutes only.")
-    
-    # Check for PDF file
-    pdf_path = f"/tmp/printable_book_{book_id}.pdf"
-    if os.path.exists(pdf_path):
-        return FileResponse(
-            pdf_path,
-            filename=f"{book.get('title', 'story')}_printable.pdf",
-            media_type="application/pdf"
+    try:
+        book = await db.printable_books.find_one(
+            {"id": book_id, "userId": user["id"]},
+            {"_id": 0}
         )
-    
-    # Return book data for client-side PDF generation
-    return {
-        "book": book,
-        "message": "PDF not available. Use book data for client-side generation."
-    }
+        
+        if not book:
+            raise HTTPException(status_code=404, detail="Book not found or access denied")
+        
+        # Check expiry
+        expiry_str = book.get("expiresAt")
+        if expiry_str:
+            try:
+                expiry_time = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
+                if datetime.now(timezone.utc) > expiry_time:
+                    raise HTTPException(status_code=410, detail="Download link expired. Files are available for 3 minutes only.")
+            except ValueError:
+                pass  # Skip expiry check if parsing fails
+        
+        # Check for PDF file
+        pdf_path = f"/tmp/printable_book_{book_id}.pdf"
+        
+        if not os.path.exists(pdf_path):
+            # Regenerate PDF if missing but book record exists
+            logger.info(f"Regenerating PDF for book {book_id}")
+            generate_story_pdf(book, pdf_path)
+        
+        if os.path.exists(pdf_path):
+            # Sanitize filename
+            safe_title = "".join(c for c in book.get('title', 'story') if c.isalnum() or c in ' -_').strip()[:50]
+            return FileResponse(
+                pdf_path,
+                filename=f"{safe_title}_printable.pdf",
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{safe_title}_printable.pdf"'
+                }
+            )
+        
+        raise HTTPException(status_code=500, detail="PDF file could not be generated")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"PDF download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
 
 @router.get("/worksheets")
