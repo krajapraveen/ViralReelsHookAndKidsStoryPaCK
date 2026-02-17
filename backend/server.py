@@ -3250,7 +3250,7 @@ async def get_trending_topics(active_only: bool = True, niche: Optional[str] = N
     """Get current trending topics"""
     query = {}
     if active_only:
-        query["status"] = "active"
+        query["is_active"] = True
     if niche:
         query["niche"] = niche.lower()
     
