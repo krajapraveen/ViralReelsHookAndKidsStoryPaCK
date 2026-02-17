@@ -4451,40 +4451,55 @@ async def startup():
 
 
 async def cleanup_expired_downloads():
-    """Background task to clean up expired download links every minute"""
+    """Background task to clean up expired files every minute - FILES EXPIRE IN 3 MINUTES"""
     import asyncio
     import glob
     
     while True:
         try:
-            # Delete all expired printable books (5 min expiry)
+            logger.info("Running security cleanup task...")
+            
+            # Delete all expired printable books (3 min expiry)
             result = await db.printable_books.delete_many({
                 "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
             })
             if result.deleted_count > 0:
-                logger.info(f"Cleaned up {result.deleted_count} expired printable book(s)")
+                logger.info(f"SECURITY: Cleaned up {result.deleted_count} expired printable book(s)")
             
-            # Delete all expired GenStudio jobs (15 min expiry) and their files
+            # Delete all expired GenStudio jobs (3 min expiry) and their files
             expired_jobs = await db.genstudio_jobs.find({
                 "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
             }).to_list(100)
             
             for job in expired_jobs:
                 job_id = job.get("id", "")
-                # Delete associated files
-                for filepath in glob.glob(f"/tmp/genstudio_{job_id}_*"):
-                    try:
-                        os.remove(filepath)
-                        logger.info(f"Deleted expired GenStudio file: {filepath}")
-                    except:
-                        pass
+                # Delete associated files - all patterns
+                for pattern in [f"/tmp/genstudio_{job_id}*", f"/tmp/genstudio_input_{job_id}*", f"/tmp/genstudio_remix_{job_id}*"]:
+                    for filepath in glob.glob(pattern):
+                        try:
+                            os.remove(filepath)
+                            logger.info(f"SECURITY: Deleted expired file: {filepath}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete file {filepath}: {e}")
             
             # Delete expired job records
             result = await db.genstudio_jobs.delete_many({
                 "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
             })
             if result.deleted_count > 0:
-                logger.info(f"Cleaned up {result.deleted_count} expired GenStudio job(s)")
+                logger.info(f"SECURITY: Cleaned up {result.deleted_count} expired GenStudio job(s)")
+            
+            # AGGRESSIVE CLEANUP: Delete any temp files older than 3 minutes
+            current_time = datetime.now(timezone.utc)
+            for pattern in ["/tmp/genstudio_*", "/tmp/printable_*", "/tmp/story_*", "/tmp/reel_*"]:
+                for filepath in glob.glob(pattern):
+                    try:
+                        file_age = current_time.timestamp() - os.path.getmtime(filepath)
+                        if file_age > (FILE_EXPIRY_MINUTES * 60):  # 3 minutes in seconds
+                            os.remove(filepath)
+                            logger.info(f"SECURITY: Force-deleted old file: {filepath}")
+                    except Exception as e:
+                        pass
             
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
