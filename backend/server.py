@@ -3906,12 +3906,17 @@ async def generate_text_to_image(data: TextToImageRequest, user: dict = Depends(
     if not data.consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
     
-    # Check for prohibited content
-    prohibited_terms = ["celebrity", "famous person", "real person", "deepfake", "face swap"]
-    prompt_lower = data.prompt.lower()
-    for term in prohibited_terms:
-        if term in prompt_lower:
-            raise HTTPException(status_code=400, detail=f"Prohibited content detected: {term}. We don't allow identity cloning.")
+    # ML-based content moderation
+    moderation_result = threat_intel.moderate_content(data.prompt, user.get("id"))
+    if not moderation_result["allowed"]:
+        violations = moderation_result.get("violations", [])
+        violation_msg = violations[0].get("message") if violations else "Content policy violation"
+        log_security_event("CONTENT_BLOCKED", {
+            "user_id": user.get("id"),
+            "violations": violations,
+            "prompt_preview": data.prompt[:100]
+        }, "WARNING")
+        raise HTTPException(status_code=400, detail=f"Content blocked: {violation_msg}")
     
     cost = GENSTUDIO_COSTS["text_to_image"]
     
