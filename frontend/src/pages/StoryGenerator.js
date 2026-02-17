@@ -775,12 +775,25 @@ export default function StoryGenerator() {
                               worksheetResult.fill_blanks?.forEach((fb, i) => {
                                 const userAnswer = (fillBlankAnswers[i] || '').toLowerCase().trim();
                                 const correctAnswer = (fb.answer || '').toLowerCase().trim();
-                                // Check if the answer contains the key words or is similar
-                                newResults[i] = userAnswer.length > 0 && (
-                                  correctAnswer.includes(userAnswer) || 
-                                  userAnswer.includes(correctAnswer.split(' ')[0]) ||
-                                  userAnswer === correctAnswer
+                                
+                                // Strict validation - must match exactly or be very close
+                                // Normalize both answers for comparison
+                                const normalizeAnswer = (str) => str.replace(/[^a-z0-9]/g, '').toLowerCase();
+                                const normalizedUser = normalizeAnswer(userAnswer);
+                                const normalizedCorrect = normalizeAnswer(correctAnswer);
+                                
+                                // Check for exact match or if user answer is at least 80% of correct answer
+                                const isCorrect = normalizedUser.length >= 2 && (
+                                  normalizedUser === normalizedCorrect ||
+                                  // Allow slight variations (e.g., "sophie" vs "Sophie")
+                                  (normalizedCorrect.length >= 3 && normalizedUser === normalizedCorrect) ||
+                                  // Allow if the main keyword matches exactly
+                                  (correctAnswer.split(' ').some(word => 
+                                    normalizeAnswer(word).length >= 3 && normalizeAnswer(word) === normalizedUser
+                                  ))
                                 );
+                                
+                                newResults[i] = isCorrect;
                               });
                               setFillBlankResults(newResults);
                               
