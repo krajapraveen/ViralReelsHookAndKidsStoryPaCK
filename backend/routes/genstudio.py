@@ -12,13 +12,17 @@ import os
 import base64
 import asyncio
 import traceback
+import sys
 
-from ..shared import (
+# Ensure backend directory is in path for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared import (
     db, logger, get_current_user, deduct_credits, log_exception,
     LLM_AVAILABLE, EMERGENT_LLM_KEY, FILE_EXPIRY_MINUTES
 )
-from ..ml_threat_detection import threat_intel
-from ..security import log_security_event
+from ml_threat_detection import threat_intel
+from security import log_security_event
 
 genstudio_router = APIRouter(prefix="/genstudio", tags=["GenStudio"])
 
