@@ -280,7 +280,7 @@ async def train_style_profile(profile_id: str, user: dict = Depends(get_current_
             api_key=EMERGENT_LLM_KEY,
             session_id=f"style-train-{profile_id}",
             system_message="You are an expert art director and style analyst. Analyze images to extract consistent visual style characteristics."
-        ).with_model("gemini", "gemini-2.0-flash")
+        ).with_model("gemini", "gemini-3-flash-preview")
         
         # Analyze first 5 images (to save costs)
         images_to_analyze = profile.get("images", [])[:5]
