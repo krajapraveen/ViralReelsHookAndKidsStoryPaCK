@@ -2464,17 +2464,17 @@ async def process_video_generation(
         )
         
         # Deduct credits
+        credit_cost = 20 if request.resolution == "1080p" else 10
         await db.users.update_one(
             {"id": user_id},
-            {"$inc": {"credits": -request.cost if hasattr(request, 'cost') else -99}}
+            {"$inc": {"credits": -credit_cost}}
         )
         
         # Log transaction
-        cost = 199 if request.resolution == "1080p" else 99
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
             "userId": user_id,
-            "amount": -cost,
+            "amount": -credit_cost,
             "type": "VIDEO_EXPORT",
             "description": f"Video export ({request.resolution}, {request.aspect_ratio})",
             "createdAt": datetime.now(timezone.utc).isoformat()
