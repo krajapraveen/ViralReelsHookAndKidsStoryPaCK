@@ -4,8 +4,13 @@ CreatorStudio AI
 """
 from fastapi import APIRouter
 from datetime import datetime, timezone
+import os
+import sys
 
-from ..shared import db, FILE_EXPIRY_MINUTES
+# Ensure backend directory is in path for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared import db, FILE_EXPIRY_MINUTES
 
 router = APIRouter(prefix="/health", tags=["Health"])
 

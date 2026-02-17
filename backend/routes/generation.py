@@ -9,16 +9,21 @@ import uuid
 import json
 import httpx
 import traceback
+import os
+import sys
 
-from ..shared import (
+# Ensure backend directory is in path for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared import (
     db, logger, get_current_user, check_credits, deduct_credits, log_exception,
     LLM_AVAILABLE, EMERGENT_LLM_KEY, WORKER_URL,
     REEL_SYSTEM_PROMPT, REEL_USER_PROMPT_TEMPLATE,
     STORY_SYSTEM_PROMPT, STORY_USER_PROMPT_TEMPLATE
 )
-from ..models.schemas import GenerateReelRequest, GenerateStoryRequest
-from ..ml_threat_detection import threat_intel
-from ..security import log_security_event
+from models.schemas import GenerateReelRequest, GenerateStoryRequest
+from ml_threat_detection import threat_intel
+from security import log_security_event
 
 router = APIRouter(prefix="/generate", tags=["Generation"])
 

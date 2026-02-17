@@ -5,9 +5,14 @@ CreatorStudio AI
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timezone
 import uuid
+import os
+import sys
 
-from ..shared import db, logger, get_optional_user, log_exception
-from ..models.schemas import FeedbackSuggestion, ContactMessage, ChatMessage
+# Ensure backend directory is in path for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared import db, logger, get_optional_user, log_exception
+from models.schemas import FeedbackSuggestion, ContactMessage, ChatMessage
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
