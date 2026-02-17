@@ -1721,8 +1721,14 @@ async def create_order(request: Request, data: CreateOrderRequest, user: dict = 
         raise HTTPException(status_code=500, detail="Failed to create order. Please try again.")
 
 @payments_router.post("/verify")
-async def verify_payment(data: VerifyPaymentRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("20/minute")  # Rate limit verification attempts
+async def verify_payment(request: Request, data: VerifyPaymentRequest, user: dict = Depends(get_current_user)):
+    """Verify payment with security logging"""
     try:
+        log_security_event("PAYMENT_VERIFICATION_ATTEMPT", {
+            "user_id": user["id"],
+            "order_id": data.razorpay_order_id
+        }, "INFO")
         # Find order
         order = await db.orders.find_one({"razorpayOrderId": data.razorpay_order_id}, {"_id": 0})
         if not order:
