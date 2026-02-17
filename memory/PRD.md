@@ -2,7 +2,7 @@
 
 ## Overview
 **Tagline:** "Generate viral reels + kids story videos in minutes."
-**URL:** https://creator-tools-app-2.preview.emergentagent.com
+**URL:** https://creator-studio-ai-1.preview.emergentagent.com
 **Last Updated:** February 17, 2026
 
 ## Tech Stack
