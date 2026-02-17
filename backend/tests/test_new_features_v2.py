@@ -197,16 +197,16 @@ class TestConvertFeatures:
         assert "text_to_reel" in data["costs"]
         print(f"✓ Conversion costs: {data['costs']}")
     
-    def test_02_text_to_story(self, auth_headers):
-        """Test converting text to story - 10 credits"""
+    def test_02_text_to_story(self, auth_headers_multipart):
+        """Test converting text to story - 10 credits (uses form data)"""
         response = requests.post(
             f"{BASE_URL}/api/convert/text-to-story",
-            headers=auth_headers,
-            json={
+            headers=auth_headers_multipart,
+            data={
                 "text": "A brave little rabbit named Hoppy lived in a magical forest. One day, Hoppy discovered a hidden treasure map that led to the legendary Golden Carrot.",
                 "story_style": "adventure",
                 "target_age_group": "kids",
-                "include_moral": True
+                "include_moral": "true"
             }
         )
         print(f"Text-to-Story Response: {response.status_code} - {response.text[:500]}")
@@ -222,12 +222,12 @@ class TestConvertFeatures:
         TestConvertFeatures.text_to_story_job_id = data["jobId"]
         print(f"✓ Text-to-story job created: {data['jobId']}")
     
-    def test_03_text_to_reel(self, auth_headers):
-        """Test converting text to reel - 15 credits"""
+    def test_03_text_to_reel(self, auth_headers_multipart):
+        """Test converting text to reel - 15 credits (uses form data)"""
         response = requests.post(
             f"{BASE_URL}/api/convert/text-to-reel",
-            headers=auth_headers,
-            json={
+            headers=auth_headers_multipart,
+            data={
                 "text": "5 amazing facts about space that will blow your mind! Did you know that a day on Venus is longer than a year on Venus?",
                 "reel_style": "engaging",
                 "platform": "instagram"
