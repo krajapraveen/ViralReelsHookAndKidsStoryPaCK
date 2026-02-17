@@ -1,0 +1,279 @@
+"""
+CreatorStudio AI - Modular FastAPI Application
+Refactored from monolithic server.py to use modular routes
+"""
+from fastapi import FastAPI, APIRouter, Request, Response
+from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+import os
+import sys
+import logging
+from pathlib import Path
+import asyncio
+import uuid
+import glob
+from datetime import datetime, timezone
+
+# Setup path for imports
+ROOT_DIR = Path(__file__).parent
+sys.path.insert(0, str(ROOT_DIR))
+load_dotenv(ROOT_DIR / '.env')
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("creatorstudio")
+
+# Import shared modules
+from shared import (
+    db, client, hash_password, FILE_EXPIRY_MINUTES
+)
+
+# Import security modules
+from security import (
+    limiter, rate_limit_exceeded_handler,
+    add_security_headers, security_middleware
+)
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+# Import route modules
+from routes.auth import router as auth_router
+from routes.credits import router as credits_router
+from routes.generation import router as generate_router
+from routes.payments import router as payments_router
+from routes.feedback import router as feedback_router
+from routes.admin import router as admin_router
+from routes.health import router as health_router
+from routes.genstudio import genstudio_router
+from routes.creator_pro import router as creator_pro_router
+from routes.twin_finder import router as twinfinder_router
+from routes.content_vault import router as content_router
+from routes.story_tools import router as story_tools_router
+from routes.creator_tools import router as creator_tools_router
+from routes.convert_tools import router as convert_router
+
+# Create FastAPI app
+app = FastAPI(
+    title="CreatorStudio AI API",
+    description="AI-powered content generation platform for viral reels and kids story videos",
+    version="2.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
+)
+
+# Add rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ==================== MIDDLEWARE ====================
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ==================== ROUTERS ====================
+
+# Create main API router
+api_router = APIRouter(prefix="/api")
+
+# Include all route modules
+api_router.include_router(auth_router)
+api_router.include_router(credits_router)
+api_router.include_router(generate_router)
+api_router.include_router(payments_router)
+api_router.include_router(feedback_router)
+api_router.include_router(admin_router)
+api_router.include_router(health_router)
+api_router.include_router(genstudio_router)
+api_router.include_router(creator_pro_router)
+api_router.include_router(twinfinder_router)
+api_router.include_router(content_router)
+api_router.include_router(story_tools_router)
+api_router.include_router(creator_tools_router)
+api_router.include_router(convert_router)
+
+# Include API router in app
+app.include_router(api_router)
+
+# ==================== ROOT ENDPOINTS ====================
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "name": "CreatorStudio AI API",
+        "version": "2.0.0",
+        "status": "running",
+        "endpoints": {
+            "docs": "/api/docs",
+            "health": "/api/health"
+        }
+    }
+
+@app.get("/health")
+async def root_health():
+    """Root health check"""
+    return {"status": "healthy", "version": "2.0.0"}
+
+# ==================== STARTUP/SHUTDOWN ====================
+
+async def cleanup_expired_downloads():
+    """Background task to clean up expired files every minute - FILES EXPIRE IN 3 MINUTES"""
+    while True:
+        try:
+            logger.info("Running security cleanup task...")
+            
+            # Delete all expired printable books (3 min expiry)
+            result = await db.printable_books.delete_many({
+                "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
+            })
+            if result.deleted_count > 0:
+                logger.info(f"SECURITY: Cleaned up {result.deleted_count} expired printable book(s)")
+            
+            # Delete all expired GenStudio jobs (3 min expiry) and their files
+            expired_jobs = await db.genstudio_jobs.find({
+                "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
+            }).to_list(100)
+            
+            for job in expired_jobs:
+                job_id = job.get("id", "")
+                # Delete associated files - all patterns
+                for pattern in [f"/tmp/genstudio_{job_id}*", f"/tmp/genstudio_input_{job_id}*", f"/tmp/genstudio_remix_{job_id}*"]:
+                    for filepath in glob.glob(pattern):
+                        try:
+                            os.remove(filepath)
+                            logger.info(f"SECURITY: Deleted expired file: {filepath}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete file {filepath}: {e}")
+            
+            # Delete expired job records
+            result = await db.genstudio_jobs.delete_many({
+                "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
+            })
+            if result.deleted_count > 0:
+                logger.info(f"SECURITY: Cleaned up {result.deleted_count} expired GenStudio job(s)")
+            
+            # AGGRESSIVE CLEANUP: Delete any temp files older than 3 minutes
+            current_time = datetime.now(timezone.utc)
+            for pattern in ["/tmp/genstudio_*", "/tmp/printable_*", "/tmp/story_*", "/tmp/reel_*", "/tmp/style_profile_*"]:
+                for filepath in glob.glob(pattern):
+                    try:
+                        file_age = current_time.timestamp() - os.path.getmtime(filepath)
+                        if file_age > (FILE_EXPIRY_MINUTES * 60):  # 3 minutes in seconds
+                            os.remove(filepath)
+                            logger.info(f"SECURITY: Force-deleted old file: {filepath}")
+                    except Exception as e:
+                        pass
+            
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
+        
+        await asyncio.sleep(60)  # Run every minute
+
+
+@app.on_event("startup")
+async def startup():
+    """Application startup - create indexes, seed data, start background tasks"""
+    logger.info("CreatorStudio API starting...")
+    
+    # Create database indexes
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("id", unique=True)
+        await db.generations.create_index("userId")
+        await db.generations.create_index("id", unique=True)
+        await db.feedback.create_index("id", unique=True)
+        await db.orders.create_index("userId")
+        await db.credit_ledger.create_index("userId")
+        await db.printable_books.create_index("expiresAt")
+        await db.genstudio_jobs.create_index("userId")
+        await db.genstudio_jobs.create_index("expiresAt")
+        await db.style_profiles.create_index("userId")
+        await db.twinfinder_analyses.create_index("userId")
+        await db.consistency_tracker.create_index("userId")
+        logger.info("Database indexes created")
+    except Exception as e:
+        logger.warning(f"Index creation warning: {e}")
+    
+    # Create admin user if not exists
+    admin = await db.users.find_one({"email": "admin@creatorstudio.ai"})
+    if not admin:
+        admin_id = str(uuid.uuid4())
+        await db.users.insert_one({
+            "id": admin_id,
+            "name": "Admin",
+            "email": "admin@creatorstudio.ai",
+            "password": hash_password("Cr3@t0rStud!o#2026"),
+            "role": "ADMIN",
+            "credits": 999999,
+            "plan": "admin",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        logger.info("Admin user created")
+    else:
+        # Update admin credentials and credits
+        await db.users.update_one(
+            {"email": "admin@creatorstudio.ai"},
+            {"$set": {
+                "credits": 999999,
+                "plan": "admin",
+                "password": hash_password("Cr3@t0rStud!o#2026")
+            }}
+        )
+    
+    # Create demo user if not exists
+    demo = await db.users.find_one({"email": "demo@example.com"})
+    if not demo:
+        demo_id = str(uuid.uuid4())
+        await db.users.insert_one({
+            "id": demo_id,
+            "name": "Demo User",
+            "email": "demo@example.com",
+            "password": hash_password("Password123!"),
+            "role": "USER",
+            "credits": 100,
+            "plan": "free",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        logger.info("Demo user created")
+    else:
+        await db.users.update_one(
+            {"email": "demo@example.com"},
+            {"$set": {"credits": 100, "plan": "free"}}
+        )
+    
+    # Start background cleanup task
+    asyncio.create_task(cleanup_expired_downloads())
+    
+    logger.info("CreatorStudio API ready!")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Application shutdown"""
+    client.close()
+    logger.info("CreatorStudio API shutdown")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
