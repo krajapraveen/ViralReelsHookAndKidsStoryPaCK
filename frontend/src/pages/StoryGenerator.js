@@ -591,40 +591,68 @@ export default function StoryGenerator() {
                     </div>
                     <p className="text-sm text-slate-600 mb-2">Beautiful PDF with cover, story pages, moral, and activity page</p>
                     
-                    {/* Personalization Toggle */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <input 
-                        type="checkbox" 
-                        id="personalize" 
-                        checked={showPersonalization}
-                        onChange={(e) => setShowPersonalization(e.target.checked)}
-                        className="rounded"
-                      />
-                      <label htmlFor="personalize" className="text-xs text-slate-600 flex items-center gap-1">
-                        <Gift className="w-3 h-3 text-pink-500" /> Add personalization (+2 credits)
-                      </label>
+                    {/* Personalization Pack - Premium Upsell */}
+                    <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg p-3 mb-3 border border-pink-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            id="personalize" 
+                            checked={showPersonalization}
+                            onChange={(e) => setShowPersonalization(e.target.checked)}
+                            className="rounded border-pink-300"
+                            data-testid="personalization-checkbox"
+                          />
+                          <label htmlFor="personalize" className="text-sm font-medium text-pink-700 flex items-center gap-1 cursor-pointer">
+                            <Gift className="w-4 h-4 text-pink-500" /> 
+                            Personalization Pack
+                          </label>
+                        </div>
+                        <span className="text-xs bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full">+2 credits</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-2">Make the story special with your child's name and a personal dedication!</p>
+                      
+                      {showPersonalization && (
+                        <div className="space-y-2 pt-2 border-t border-pink-200">
+                          <div>
+                            <label className="text-xs font-medium text-slate-600">Child's Name</label>
+                            <Input 
+                              placeholder="e.g., Emma, Aarav, Sofia" 
+                              value={personalization.child_name}
+                              onChange={(e) => setPersonalization({...personalization, child_name: e.target.value})}
+                              className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              data-testid="child-name-input"
+                            />
+                            <p className="text-xs text-slate-400 mt-1">This will replace the hero's name in the story</p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-slate-600">Dedication Message</label>
+                            <Input 
+                              placeholder="e.g., For my little star, with love from Mommy" 
+                              value={personalization.dedication}
+                              onChange={(e) => setPersonalization({...personalization, dedication: e.target.value})}
+                              className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              data-testid="dedication-input"
+                            />
+                            <p className="text-xs text-slate-400 mt-1">Appears on a special dedication page</p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-slate-600">Birthday Message (Optional)</label>
+                            <Input 
+                              placeholder="e.g., Happy 5th Birthday!" 
+                              value={personalization.birthday_message || ''}
+                              onChange={(e) => setPersonalization({...personalization, birthday_message: e.target.value})}
+                              className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              data-testid="birthday-input"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
-                    {showPersonalization && (
-                      <div className="space-y-2 mb-3">
-                        <Input 
-                          placeholder="Child's name (replaces hero)" 
-                          value={personalization.child_name}
-                          onChange={(e) => setPersonalization({...personalization, child_name: e.target.value})}
-                          className="text-sm"
-                        />
-                        <Input 
-                          placeholder="Dedication message (optional)" 
-                          value={personalization.dedication}
-                          onChange={(e) => setPersonalization({...personalization, dedication: e.target.value})}
-                          className="text-sm"
-                        />
-                      </div>
-                    )}
-                    
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-orange-700 font-medium flex items-center gap-1">
-                        <Coins className="w-3 h-3" /> {showPersonalization ? '6' : '4'} credits
+                      <span className="text-sm text-orange-700 font-semibold flex items-center gap-1">
+                        <Coins className="w-4 h-4" /> {showPersonalization ? '6' : '4'} credits
                       </span>
                       <Button 
                         size="sm" 
