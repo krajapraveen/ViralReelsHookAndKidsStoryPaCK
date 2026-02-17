@@ -3134,6 +3134,671 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
             except:
                 pass
     
+    # ========== STOCK-FREE IMAGE LIBRARIES ==========
+    
+    # Character avatar images (DiceBear - free, no API key needed)
+    CHARACTER_AVATARS = {
+        "boy": "https://api.dicebear.com/7.x/adventurer/png?seed=boyHero&backgroundColor=b6e3f4&size=180",
+        "girl": "https://api.dicebear.com/7.x/adventurer/png?seed=girlHero&backgroundColor=ffd5dc&size=180",
+        "child": "https://api.dicebear.com/7.x/adventurer/png?seed=childAdventure&backgroundColor=81ecec&size=180",
+        "kid": "https://api.dicebear.com/7.x/adventurer/png?seed=kidExplorer&backgroundColor=74b9ff&size=180",
+        "hero": "https://api.dicebear.com/7.x/adventurer/png?seed=braveHero&backgroundColor=fdcb6e&size=180",
+        "friend": "https://api.dicebear.com/7.x/adventurer/png?seed=bestFriend&backgroundColor=a29bfe&size=180",
+        "wizard": "https://api.dicebear.com/7.x/adventurer/png?seed=wiseWizard&backgroundColor=a29bfe&size=180",
+        "fairy": "https://api.dicebear.com/7.x/adventurer/png?seed=magicFairy&backgroundColor=fd79a8&size=180",
+        "princess": "https://api.dicebear.com/7.x/adventurer/png?seed=royalPrincess&backgroundColor=fd79a8&size=180",
+        "prince": "https://api.dicebear.com/7.x/adventurer/png?seed=bravePrince&backgroundColor=74b9ff&size=180",
+        "knight": "https://api.dicebear.com/7.x/adventurer/png?seed=nobleKnight&backgroundColor=636e72&size=180",
+        "queen": "https://api.dicebear.com/7.x/adventurer/png?seed=queenRoyal&backgroundColor=e84393&size=180",
+        "king": "https://api.dicebear.com/7.x/adventurer/png?seed=kingRoyal&backgroundColor=6c5ce7&size=180",
+    }
+    
+    # Cute animal images (Lorem Picsum with specific seeds for consistency)
+    ANIMAL_IMAGES = {
+        "dog": "https://placedog.net/400/300?random",
+        "cat": "https://placekitten.com/400/300",
+        "rabbit": "https://api.dicebear.com/7.x/thumbs/png?seed=fluffyRabbit&backgroundColor=d1f4d1&size=180",
+        "bird": "https://api.dicebear.com/7.x/thumbs/png?seed=colorfulBird&backgroundColor=ffeaa7&size=180",
+        "bear": "https://api.dicebear.com/7.x/thumbs/png?seed=teddyBear&backgroundColor=dfe6e9&size=180",
+        "lion": "https://api.dicebear.com/7.x/thumbs/png?seed=braveLion&backgroundColor=fdcb6e&size=180",
+        "unicorn": "https://api.dicebear.com/7.x/thumbs/png?seed=magicUnicorn&backgroundColor=fd79a8&size=180",
+        "dragon": "https://api.dicebear.com/7.x/bottts/png?seed=friendlyDragon&backgroundColor=fab1a0&size=180",
+        "butterfly": "https://api.dicebear.com/7.x/thumbs/png?seed=prettyButterfly&backgroundColor=ffeaa7&size=180",
+        "fish": "https://api.dicebear.com/7.x/thumbs/png?seed=goldFish&backgroundColor=74b9ff&size=180",
+        "owl": "https://api.dicebear.com/7.x/thumbs/png?seed=wiseOwl&backgroundColor=a29bfe&size=180",
+        "fox": "https://api.dicebear.com/7.x/thumbs/png?seed=cleverFox&backgroundColor=fab1a0&size=180",
+        "elephant": "https://api.dicebear.com/7.x/thumbs/png?seed=gentleElephant&backgroundColor=dfe6e9&size=180",
+        "monkey": "https://api.dicebear.com/7.x/thumbs/png?seed=playfulMonkey&backgroundColor=fdcb6e&size=180",
+        "turtle": "https://api.dicebear.com/7.x/thumbs/png?seed=wiseTurtle&backgroundColor=55efc4&size=180",
+        "frog": "https://api.dicebear.com/7.x/thumbs/png?seed=happyFrog&backgroundColor=00b894&size=180",
+        "squirrel": "https://api.dicebear.com/7.x/thumbs/png?seed=busySquirrel&backgroundColor=fdcb6e&size=180",
+        "mouse": "https://api.dicebear.com/7.x/thumbs/png?seed=tinyMouse&backgroundColor=dfe6e9&size=180",
+    }
+    
+    # Scene/Setting images (Unsplash Source - free, no API key)
+    SCENE_IMAGES = {
+        # Outdoor Nature Scenes
+        "forest": "https://source.unsplash.com/800x400/?forest,trees,nature",
+        "garden": "https://source.unsplash.com/800x400/?garden,flowers,colorful",
+        "meadow": "https://source.unsplash.com/800x400/?meadow,grass,sunny",
+        "mountain": "https://source.unsplash.com/800x400/?mountain,landscape,scenic",
+        "beach": "https://source.unsplash.com/800x400/?beach,ocean,sand",
+        "river": "https://source.unsplash.com/800x400/?river,stream,water",
+        "lake": "https://source.unsplash.com/800x400/?lake,calm,nature",
+        "waterfall": "https://source.unsplash.com/800x400/?waterfall,nature,beautiful",
+        "jungle": "https://source.unsplash.com/800x400/?jungle,tropical,green",
+        "desert": "https://source.unsplash.com/800x400/?desert,sand,dunes",
+        "field": "https://source.unsplash.com/800x400/?field,countryside,green",
+        "park": "https://source.unsplash.com/800x400/?park,trees,pathway",
+        "farm": "https://source.unsplash.com/800x400/?farm,barn,countryside",
+        "pond": "https://source.unsplash.com/800x400/?pond,ducks,peaceful",
+        "hill": "https://source.unsplash.com/800x400/?hills,rolling,green",
+        "valley": "https://source.unsplash.com/800x400/?valley,scenic,nature",
+        "cave": "https://source.unsplash.com/800x400/?cave,mysterious,rock",
+        "island": "https://source.unsplash.com/800x400/?island,tropical,paradise",
+        "sky": "https://source.unsplash.com/800x400/?sky,clouds,blue",
+        "rainbow": "https://source.unsplash.com/800x400/?rainbow,colorful,sky",
+        "sunset": "https://source.unsplash.com/800x400/?sunset,orange,beautiful",
+        "sunrise": "https://source.unsplash.com/800x400/?sunrise,morning,golden",
+        "night": "https://source.unsplash.com/800x400/?night,stars,moon",
+        "snow": "https://source.unsplash.com/800x400/?snow,winter,white",
+        "spring": "https://source.unsplash.com/800x400/?spring,blossoms,flowers",
+        
+        # Indoor Scenes
+        "castle": "https://source.unsplash.com/800x400/?castle,medieval,fairytale",
+        "palace": "https://source.unsplash.com/800x400/?palace,royal,grand",
+        "cottage": "https://source.unsplash.com/800x400/?cottage,cozy,house",
+        "house": "https://source.unsplash.com/800x400/?house,home,warm",
+        "room": "https://source.unsplash.com/800x400/?room,interior,cozy",
+        "bedroom": "https://source.unsplash.com/800x400/?bedroom,cozy,comfortable",
+        "kitchen": "https://source.unsplash.com/800x400/?kitchen,home,cooking",
+        "library": "https://source.unsplash.com/800x400/?library,books,reading",
+        "school": "https://source.unsplash.com/800x400/?school,classroom,learning",
+        "shop": "https://source.unsplash.com/800x400/?shop,store,colorful",
+        "bakery": "https://source.unsplash.com/800x400/?bakery,bread,pastry",
+        "cafe": "https://source.unsplash.com/800x400/?cafe,coffee,cozy",
+        "museum": "https://source.unsplash.com/800x400/?museum,art,gallery",
+        "theater": "https://source.unsplash.com/800x400/?theater,stage,curtains",
+        "circus": "https://source.unsplash.com/800x400/?circus,colorful,tent",
+        
+        # Fantasy/Magical Scenes
+        "magical": "https://source.unsplash.com/800x400/?magical,fantasy,mystical",
+        "enchanted": "https://source.unsplash.com/800x400/?enchanted,forest,magical",
+        "fairy": "https://source.unsplash.com/800x400/?fairy,fantasy,magical",
+        "kingdom": "https://source.unsplash.com/800x400/?kingdom,castle,fantasy",
+        "treasure": "https://source.unsplash.com/800x400/?treasure,gold,chest",
+        "adventure": "https://source.unsplash.com/800x400/?adventure,exploration,journey",
+        
+        # Default fallback
+        "default": "https://source.unsplash.com/800x400/?storybook,illustration,colorful"
+    }
+    
+    # Cover page images by genre
+    COVER_IMAGES = {
+        "adventure": "https://source.unsplash.com/600x400/?adventure,exploration,journey",
+        "fantasy": "https://source.unsplash.com/600x400/?fantasy,magical,fairytale",
+        "fairy tale": "https://source.unsplash.com/600x400/?fairytale,castle,magical",
+        "friendship": "https://source.unsplash.com/600x400/?friendship,together,happy",
+        "nature": "https://source.unsplash.com/600x400/?nature,beautiful,peaceful",
+        "animals": "https://source.unsplash.com/600x400/?cute,animals,wildlife",
+        "mystery": "https://source.unsplash.com/600x400/?mystery,curious,exploration",
+        "magic": "https://source.unsplash.com/600x400/?magic,sparkle,wonder",
+        "default": "https://source.unsplash.com/600x400/?storybook,children,colorful"
+    }
+    
+    # Nature decoration images
+    NATURE_DECORATIONS = [
+        "https://source.unsplash.com/200x200/?flower,colorful",
+        "https://source.unsplash.com/200x200/?butterfly,nature",
+        "https://source.unsplash.com/200x200/?leaves,green",
+        "https://source.unsplash.com/200x200/?bird,cute",
+        "https://source.unsplash.com/200x200/?rainbow,sky",
+        "https://source.unsplash.com/200x200/?stars,sparkle",
+        "https://source.unsplash.com/200x200/?heart,love",
+        "https://source.unsplash.com/200x200/?sun,bright",
+    ]
+    
+    # Disney-style vibrant page background colors
+    PAGE_COLORS = [
+        "#FFF5E6",  # Warm peachy cream (like Moana)
+        "#E8FFE8",  # Fresh mint green (like Tinkerbell)
+        "#E6F3FF",  # Sky blue (like Frozen)
+        "#FFE6F0",  # Princess pink (like Aurora)
+        "#F0E6FF",  # Magical lavender (like Rapunzel)
+        "#FFFDE6",  # Sunshine yellow (like Belle)
+        "#E6FFFA",  # Ocean aqua (like Ariel)
+        "#FFE6E6",  # Rose blush (like Snow White)
+    ]
+    
+    # Disney-style vibrant accent colors for page decorations
+    DISNEY_ACCENT_COLORS = [
+        ("#FF6B9D", "#FFB347"),  # Pink to Orange (sunset magic)
+        ("#7B68EE", "#87CEEB"),  # Purple to Sky Blue (fairy dust)
+        ("#FF69B4", "#FFD700"),  # Hot Pink to Gold (princess sparkle)
+        ("#00CED1", "#98FB98"),  # Turquoise to Pale Green (ocean dreams)
+        ("#DDA0DD", "#F0E68C"),  # Plum to Khaki (enchanted forest)
+        ("#FF7F50", "#FAFAD2"),  # Coral to Light Goldenrod (sunrise)
+        ("#87CEFA", "#E6E6FA"),  # Light Sky Blue to Lavender (cloud dreams)
+        ("#F08080", "#FFFACD"),  # Light Coral to Lemon Chiffon (warm glow)
+    ]
+    
+    # Magical decorative emojis for Disney feel
+    MAGIC_DECORATIONS = ["✨", "🌟", "⭐", "💫", "🪄", "🦋", "🌸", "🌺", "🌈", "💎", "👑", "🏰"]
+    
+    def get_character_image_url(char_name, char_type="human"):
+        """Get appropriate image URL for character based on name and type"""
+        name_lower = char_name.lower()
+        
+        # Check for animal characters first
+        for animal in ANIMAL_IMAGES:
+            if animal in name_lower:
+                return ANIMAL_IMAGES[animal]
+        
+        # Check for human character types
+        for char_type in CHARACTER_AVATARS:
+            if char_type in name_lower:
+                return CHARACTER_AVATARS[char_type]
+        
+        # Generate unique avatar based on name
+        seed = char_name.replace(" ", "").lower()
+        return f"https://api.dicebear.com/7.x/adventurer/png?seed={seed}&backgroundColor=b6e3f4,ffd5dc,c0aede,ffdfbf&size=180"
+    
+    def get_scene_image_url(setting_text, scene_num):
+        """Get appropriate scene image based on setting description"""
+        if not setting_text:
+            return SCENE_IMAGES["default"]
+        
+        setting_lower = setting_text.lower()
+        
+        # Check for matching scene keywords
+        for keyword, url in SCENE_IMAGES.items():
+            if keyword in setting_lower:
+                # Add scene number to make each scene unique
+                return url + f"&sig={scene_num}"
+        
+        # Default with unique signature
+        return SCENE_IMAGES["default"] + f"&sig={scene_num}"
+    
+    def get_cover_image_url(genre):
+        """Get cover image based on story genre"""
+        if not genre:
+            return COVER_IMAGES["default"]
+        
+        genre_lower = genre.lower()
+        for keyword, url in COVER_IMAGES.items():
+            if keyword in genre_lower:
+                return url
+        return COVER_IMAGES["default"]
+    
+    def download_image(url, max_width=1.2*inch, max_height=1.2*inch):
+        """Download image and return ReportLab Image object"""
+        try:
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'image/*'
+            })
+            with urllib.request.urlopen(req, timeout=12) as response:
+                img_data = response.read()
+                img_buffer = io.BytesIO(img_data)
+                img = Image(img_buffer, width=max_width, height=max_height)
+                return img
+        except Exception as e:
+            logger.warning(f"Failed to download image: {url[:50]}... - {e}")
+            return None
+    
+    def download_scene_image(url):
+        """Download larger scene image with retry"""
+        img = download_image(url, max_width=5.5*inch, max_height=3*inch)
+        if not img:
+            # Fallback to a reliable placeholder
+            fallback_url = f"https://picsum.photos/800/400?random={hash(url) % 1000}"
+            img = download_image(fallback_url, max_width=5.5*inch, max_height=3*inch)
+        return img
+    
+    def download_cover_image(url):
+        """Download cover image with retry"""
+        img = download_image(url, max_width=5*inch, max_height=3.5*inch)
+        if not img:
+            fallback_url = "https://picsum.photos/600/400?random=cover"
+            img = download_image(fallback_url, max_width=5*inch, max_height=3.5*inch)
+        return img
+    
+    def download_decoration_image():
+        """Download random nature decoration"""
+        import random
+        url = random.choice(NATURE_DECORATIONS)
+        img = download_image(url, max_width=0.8*inch, max_height=0.8*inch)
+        if not img:
+            fallback_url = f"https://picsum.photos/200/200?random={random.randint(1,100)}"
+            img = download_image(fallback_url, max_width=0.8*inch, max_height=0.8*inch)
+        return img
+    
+    # Page callback functions for watermark and backgrounds
+    def add_page_decorations(canvas_obj, doc):
+        """Add Disney-style vibrant watermark and background to each page"""
+        canvas_obj.saveState()
+        
+        # Get page number for color cycling
+        page_num = doc.page
+        color_idx = page_num % len(PAGE_COLORS)
+        accent_idx = page_num % len(DISNEY_ACCENT_COLORS)
+        
+        # Draw vibrant background gradient effect (top color to slightly lighter bottom)
+        bg_color = HexColor(PAGE_COLORS[color_idx])
+        canvas_obj.setFillColor(bg_color)
+        canvas_obj.rect(0, 0, letter[0], letter[1], fill=True, stroke=False)
+        
+        # Add subtle gradient overlay - lighter at top for "magical glow" effect
+        from reportlab.lib.colors import Color
+        accent_top, accent_bottom = DISNEY_ACCENT_COLORS[accent_idx]
+        
+        # Draw soft corner decorations (Disney sparkle effect)
+        corner_color = HexColor(accent_top)
+        canvas_obj.setFillColor(Color(corner_color.red, corner_color.green, corner_color.blue, alpha=0.15))
+        
+        # Top-left corner arc
+        canvas_obj.ellipse(-0.5*inch, letter[1]-0.5*inch, 2*inch, letter[1]+1*inch, fill=True, stroke=False)
+        # Top-right corner arc
+        canvas_obj.ellipse(letter[0]-1.5*inch, letter[1]-0.5*inch, letter[0]+0.5*inch, letter[1]+1*inch, fill=True, stroke=False)
+        # Bottom decorative wave
+        canvas_obj.setFillColor(Color(HexColor(accent_bottom).red, HexColor(accent_bottom).green, HexColor(accent_bottom).blue, alpha=0.12))
+        canvas_obj.ellipse(-1*inch, -1.5*inch, letter[0]+1*inch, 1.5*inch, fill=True, stroke=False)
+        
+        # Draw sparkle/star decorations at corners
+        canvas_obj.setFont("Helvetica", 24)
+        canvas_obj.setFillColor(Color(0.9, 0.7, 0.2, alpha=0.35))  # Gold sparkles
+        magic_deco = MAGIC_DECORATIONS[page_num % len(MAGIC_DECORATIONS)]
+        canvas_obj.drawString(0.5*inch, letter[1]-0.6*inch, "✨")
+        canvas_obj.drawString(letter[0]-0.8*inch, letter[1]-0.6*inch, "⭐")
+        canvas_obj.drawString(0.5*inch, 0.4*inch, "🌟")
+        canvas_obj.drawString(letter[0]-0.8*inch, 0.4*inch, "💫")
+        
+        # Draw diagonal watermark (light, magical feel)
+        canvas_obj.setFont("Helvetica-Bold", 60)
+        canvas_obj.setFillColor(Color(0.6, 0.4, 0.8, alpha=0.07))  # Soft purple watermark
+        canvas_obj.saveState()
+        canvas_obj.translate(letter[0]/2, letter[1]/2)  # Center of page
+        canvas_obj.rotate(40)
+        canvas_obj.drawCentredString(0, 0, "CreatorStudio AI")
+        canvas_obj.restoreState()
+        
+        # Add colorful decorative border with rounded corners
+        accent_color = HexColor(accent_top)
+        canvas_obj.setStrokeColor(accent_color)
+        canvas_obj.setLineWidth(3)
+        canvas_obj.roundRect(0.35*inch, 0.35*inch, letter[0]-0.7*inch, letter[1]-0.7*inch, 15, stroke=True, fill=False)
+        
+        # Inner softer border for depth
+        inner_accent = HexColor(accent_bottom)
+        canvas_obj.setStrokeColor(Color(inner_accent.red, inner_accent.green, inner_accent.blue, alpha=0.5))
+        canvas_obj.setLineWidth(1.5)
+        canvas_obj.roundRect(0.45*inch, 0.45*inch, letter[0]-0.9*inch, letter[1]-0.9*inch, 12, stroke=True, fill=False)
+        
+        # Add page number at bottom center with decorative style
+        canvas_obj.setFont("Helvetica-Bold", 11)
+        canvas_obj.setFillColor(HexColor('#7C3AED'))
+        page_text = f"~ {page_num} ~"
+        canvas_obj.drawCentredString(letter[0]/2, 0.25*inch, page_text)
+        
+        canvas_obj.restoreState()
+    
+    def on_first_page(canvas_obj, doc):
+        add_page_decorations(canvas_obj, doc)
+    
+    def on_later_pages(canvas_obj, doc):
+        add_page_decorations(canvas_obj, doc)
+    
+    # Create PDF with custom canvas
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+        doc = SimpleDocTemplate(
+            tmp_file.name, 
+            pagesize=letter,
+            topMargin=0.75*inch,
+            bottomMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            rightMargin=0.75*inch
+        )
+        styles = getSampleStyleSheet()
+        
+        # Custom styles for DISNEY-STYLE colorful storybook
+        title_style = ParagraphStyle(
+            'BookTitle', parent=styles['Heading1'], 
+            fontSize=44, alignment=TA_CENTER, spaceAfter=20, 
+            textColor=HexColor('#9333EA'), fontName='Helvetica-Bold',
+            leading=52, backColor=HexColor('#FFF5F7'), borderPadding=12
+        )
+        subtitle_style = ParagraphStyle(
+            'Subtitle', parent=styles['Normal'], 
+            fontSize=16, alignment=TA_CENTER, spaceAfter=12,
+            textColor=HexColor('#8B5CF6'), fontName='Helvetica-Oblique'
+        )
+        heading_style = ParagraphStyle(
+            'Heading', parent=styles['Heading2'], 
+            fontSize=24, spaceAfter=15, 
+            textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold',
+            backColor=HexColor('#F3E8FF'), borderPadding=10
+        )
+        body_style = ParagraphStyle(
+            'Body', parent=styles['Normal'], 
+            fontSize=13, spaceAfter=10, leading=20,
+            textColor=HexColor('#374151'), fontName='Helvetica'
+        )
+        scene_title_style = ParagraphStyle(
+            'SceneTitle', parent=styles['Heading3'], 
+            fontSize=18, textColor=HexColor('#EC4899'),
+            fontName='Helvetica-Bold', spaceAfter=10,
+            backColor=HexColor('#FDF2F8'), borderPadding=10
+        )
+        moral_style = ParagraphStyle(
+            'Moral', parent=styles['Normal'], 
+            fontSize=17, alignment=TA_CENTER, 
+            textColor=HexColor('#059669'), fontName='Helvetica-Bold',
+            backColor=HexColor('#D1FAE5'), borderPadding=18
+        )
+        character_name_style = ParagraphStyle(
+            'CharName', parent=styles['Normal'],
+            fontSize=14, alignment=TA_CENTER,
+            textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold'
+        )
+        character_desc_style = ParagraphStyle(
+            'CharDesc', parent=styles['Normal'],
+            fontSize=11, alignment=TA_CENTER,
+            textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique'
+        )
+        dialogue_style = ParagraphStyle(
+            'Dialogue', parent=styles['Normal'],
+            fontSize=12, leftIndent=20,
+            textColor=HexColor('#1F2937'), fontName='Helvetica',
+            backColor=HexColor('#FEF3C7'), borderPadding=5
+        )
+        watermark_note = ParagraphStyle(
+            'WatermarkNote', parent=styles['Normal'],
+            fontSize=10, alignment=TA_CENTER,
+            textColor=HexColor('#9CA3AF')
+        )
+        
+        elements = []
+        
+        # === COVER PAGE with Disney-style magical design ===
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Magical header decorations
+        elements.append(Paragraph("🏰 ✨ 🌟 ✨ 🏰", ParagraphStyle('MagicHeader', alignment=TA_CENTER, fontSize=32)))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Cover image based on genre
+        cover_img_url = get_cover_image_url(story.get('genre', 'adventure'))
+        cover_img = download_cover_image(cover_img_url)
+        if cover_img:
+            cover_table = Table([[cover_img]], colWidths=[6.5*inch])
+            cover_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BOX', (0, 0), (-1, -1), 4, HexColor('#FF69B4')),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFAFC')),
+            ]))
+            elements.append(cover_table)
+            elements.append(Spacer(1, 0.3*inch))
+        
+        # Title with magical decorative elements
+        elements.append(Paragraph("📖 ✨ A Magical Story ✨ 📖", ParagraphStyle('Deco', alignment=TA_CENTER, fontSize=20, textColor=HexColor('#EC4899'))))
+        elements.append(Spacer(1, 0.15*inch))
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph(story.get('title', 'My Story'), title_style))
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph(f"<i>{story.get('synopsis', 'A wonderful adventure awaits...')}</i>", subtitle_style))
+        elements.append(Spacer(1, 0.4*inch))
+        
+        # Genre badge
+        genre_info = f"🎭 {story.get('genre', 'Adventure')} Story  |  👶 Ages: {story.get('ageGroup', 'All')}"
+        elements.append(Paragraph(genre_info, ParagraphStyle('GenreBadge', alignment=TA_CENTER, fontSize=12, textColor=HexColor('#6B7280'), backColor=HexColor('#F3F4F6'), borderPadding=10)))
+        
+        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Paragraph("🌟 Made with CreatorStudio AI 🌟", watermark_note))
+        elements.append(PageBreak())
+        
+        # === DEDICATION PAGE (if personalized) ===
+        if story.get("dedication") or story.get("birthday_message"):
+            elements.append(Spacer(1, 1*inch))
+            
+            # Add a cute nature decoration
+            deco_img = download_decoration_image()
+            if deco_img:
+                elements.append(Table([[deco_img]], colWidths=[6.5*inch]))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            elements.append(Paragraph("💝 Dedication 💝", ParagraphStyle('DedicationTitle', alignment=TA_CENTER, fontSize=20, textColor=HexColor('#EC4899'))))
+            elements.append(Spacer(1, 0.3*inch))
+            if story.get("dedication"):
+                elements.append(Paragraph(f"<i>\"{story.get('dedication')}\"</i>", ParagraphStyle('Dedication', alignment=TA_CENTER, fontSize=16, textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique')))
+            if story.get("birthday_message"):
+                elements.append(Spacer(1, 0.5*inch))
+                elements.append(Paragraph(f"🎂🎈 {story.get('birthday_message')} 🎈🎂", ParagraphStyle('Birthday', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#F59E0B'))))
+            elements.append(PageBreak())
+        
+        # === CHARACTERS PAGE with Larger Images ===
+        elements.append(Paragraph("🎭 Meet the Characters 🎭", heading_style))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        characters = story.get("characters", [])
+        char_table_data = []
+        char_row = []
+        
+        for idx, char in enumerate(characters):
+            char_name = char.get('name', 'Character')
+            char_role = char.get('role', 'character')
+            char_desc = char.get('description', '')
+            
+            # Get character image - larger size
+            img_url = get_character_image_url(char_name, char_role)
+            char_img = download_image(img_url, 1.5*inch, 1.5*inch)
+            
+            # Create character cell content
+            char_cell = []
+            if char_img:
+                char_cell.append(char_img)
+            char_cell.append(Paragraph(f"<b>{char_name}</b>", character_name_style))
+            char_cell.append(Paragraph(f"({char_role})", character_desc_style))
+            if char_desc:
+                char_cell.append(Paragraph(char_desc[:80] + "..." if len(char_desc) > 80 else char_desc, character_desc_style))
+            
+            char_row.append(char_cell)
+            
+            # 2 characters per row
+            if len(char_row) == 2 or idx == len(characters) - 1:
+                if len(char_row) == 1:
+                    char_row.append([])  # Empty cell for alignment
+                char_table_data.append(char_row)
+                char_row = []
+        
+        if char_table_data:
+            char_table = Table(char_table_data, colWidths=[3.2*inch, 3.2*inch])
+            char_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FAFAFA')),
+                ('GRID', (0, 0), (-1, -1), 2, HexColor('#E9D5FF')),
+                ('TOPPADDING', (0, 0), (-1, -1), 15),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            elements.append(char_table)
+        
+        elements.append(PageBreak())
+        
+        # === STORY PAGES with Full Scene Illustrations ===
+        scenes = story.get("scenes", [])
+        for scene_idx, scene in enumerate(scenes):
+            # Scene header with colorful background
+            scene_num = scene.get('scene_number', scene_idx + 1)
+            scene_title = scene.get('title', f'Scene {scene_num}')
+            elements.append(Paragraph(f"📖 Chapter {scene_num}: {scene_title}", scene_title_style))
+            
+            # Setting with description
+            setting_text = scene.get('setting', '')
+            if setting_text:
+                elements.append(Paragraph(f"<i>📍 {setting_text}</i>", ParagraphStyle('Setting', fontSize=11, textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique')))
+            elements.append(Spacer(1, 0.15*inch))
+            
+            # Large scene illustration based on setting (indoor/outdoor/nature)
+            scene_img_url = get_scene_image_url(setting_text or scene_title, scene_num)
+            scene_img = download_scene_image(scene_img_url)
+            if scene_img:
+                scene_table = Table([[scene_img]], colWidths=[6.5*inch])
+                scene_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('BOX', (0, 0), (-1, -1), 2, HexColor('#9333EA')),
+                    ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFFFF')),
+                ]))
+                elements.append(scene_table)
+                elements.append(Spacer(1, 0.15*inch))
+            
+            # Narration in a styled box
+            if scene.get('narration'):
+                narration_text = scene.get('narration')
+                elements.append(Paragraph(narration_text, body_style))
+            
+            # Dialogue with speech bubble style
+            if scene.get('dialogue'):
+                elements.append(Spacer(1, 0.15*inch))
+                for d in scene.get('dialogue', []):
+                    speaker = d.get('speaker', 'Speaker')
+                    line = d.get('line', '')
+                    elements.append(Paragraph(f"<b>💬 {speaker}:</b> \"{line}\"", dialogue_style))
+                    elements.append(Spacer(1, 0.08*inch))
+            
+            elements.append(Spacer(1, 0.3*inch))
+            elements.append(PageBreak())
+        
+        # === MORAL PAGE with Nature Image ===
+        elements.append(Spacer(1, 0.5*inch))
+        
+        # Beautiful nature image for moral page
+        moral_nature_url = "https://source.unsplash.com/600x300/?sunrise,peaceful,nature"
+        moral_nature_img = download_image(moral_nature_url, 5*inch, 2.5*inch)
+        if moral_nature_img:
+            moral_img_table = Table([[moral_nature_img]], colWidths=[6.5*inch])
+            moral_img_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('BOX', (0, 0), (-1, -1), 2, HexColor('#10B981')),
+            ]))
+            elements.append(moral_img_table)
+            elements.append(Spacer(1, 0.3*inch))
+        
+        elements.append(Paragraph("🌟 The Moral of the Story 🌟", heading_style))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Decorative moral box
+        moral_text = story.get('moral', 'Every story has a lesson to teach us.')
+        elements.append(Paragraph(f"✨ {moral_text} ✨", moral_style))
+        elements.append(Spacer(1, 0.5*inch))
+        
+        # Cute animal character for moral page
+        moral_animal_url = "https://source.unsplash.com/300x300/?cute,puppy,kitten"
+        moral_animal_img = download_image(moral_animal_url, 2*inch, 2*inch)
+        if moral_animal_img:
+            elements.append(Table([[moral_animal_img]], colWidths=[6.5*inch]))
+        
+        elements.append(PageBreak())
+        
+        # === ACTIVITY PAGE with Animal Images (if included) ===
+        if include_activities:
+            elements.append(Paragraph("🎨 Activity Page 🎨", heading_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            # Cute animals decoration row
+            animal_decorations = []
+            cute_animals = ["rabbit", "butterfly", "bird", "squirrel"]
+            for animal in cute_animals:
+                if animal in ANIMAL_IMAGES:
+                    anim_img = download_image(ANIMAL_IMAGES[animal], 0.9*inch, 0.9*inch)
+                    if anim_img:
+                        animal_decorations.append(anim_img)
+            
+            if animal_decorations:
+                deco_table = Table([animal_decorations], colWidths=[1.5*inch] * len(animal_decorations))
+                deco_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                elements.append(deco_table)
+                elements.append(Spacer(1, 0.2*inch))
+            
+            # Drawing prompt
+            elements.append(Paragraph("<b>🖍️ Draw your favorite scene from the story:</b>", body_style))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            # Drawing box with decorative border
+            drawing_box = Table([["[Your Drawing Here]"]], colWidths=[6*inch], rowHeights=[2.2*inch])
+            drawing_box.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFFFF')),
+                ('BOX', (0, 0), (-1, -1), 3, HexColor('#9333EA')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), HexColor('#D1D5DB')),
+            ]))
+            elements.append(drawing_box)
+            elements.append(Spacer(1, 0.25*inch))
+            
+            # Reflection questions
+            elements.append(Paragraph("<b>📝 What did you learn from this story?</b>", body_style))
+            for _ in range(2):
+                elements.append(Paragraph("_" * 70, ParagraphStyle('Line', fontSize=12, textColor=HexColor('#9CA3AF'))))
+            
+            elements.append(Spacer(1, 0.2*inch))
+            elements.append(Paragraph("<b>🌈 What was your favorite part?</b>", body_style))
+            for _ in range(2):
+                elements.append(Paragraph("_" * 70, ParagraphStyle('Line', fontSize=12, textColor=HexColor('#9CA3AF'))))
+        
+        # === THE END PAGE with Disney-style magical design ===
+        elements.append(PageBreak())
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Magical top decoration
+        elements.append(Paragraph("🏰 ✨ 🌈 ✨ 🏰", ParagraphStyle('EndMagic', alignment=TA_CENTER, fontSize=36)))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Beautiful sunset/fairytale image for end page
+        end_img_url = "https://source.unsplash.com/600x350/?sunset,beautiful,sky,colorful"
+        end_img = download_image(end_img_url, 5.5*inch, 3*inch)
+        if end_img:
+            end_img_table = Table([[end_img]], colWidths=[6.5*inch])
+            end_img_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('BOX', (0, 0), (-1, -1), 4, HexColor('#FF69B4')),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFAFC')),
+            ]))
+            elements.append(end_img_table)
+            elements.append(Spacer(1, 0.4*inch))
+        
+        # Disney-style "The End" with sparkles
+        elements.append(Paragraph("🌟 ✨ 💫 ✨ 🌟", ParagraphStyle('EndDeco', alignment=TA_CENTER, fontSize=32)))
+        elements.append(Spacer(1, 0.15*inch))
+        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=38, textColor=HexColor('#9333EA'), fontName='Helvetica-Bold', backColor=HexColor('#F3E8FF'), borderPadding=15)))
+        elements.append(Spacer(1, 0.25*inch))
+        elements.append(Paragraph("...and they lived happily ever after! 🦋", ParagraphStyle('HappyEnding', alignment=TA_CENTER, fontSize=16, textColor=HexColor('#EC4899'), fontName='Helvetica-Oblique')))
+        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Paragraph("Thank you for reading this magical adventure! ❤️", ParagraphStyle('Thanks', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#6B7280'))))
+        elements.append(Spacer(1, 0.8*inch))
+        elements.append(Paragraph("👑 Made with love by CreatorStudio AI 👑", watermark_note))
+        elements.append(Spacer(1, 0.15*inch))
+        elements.append(Paragraph("✨ Where every story is magical ✨", ParagraphStyle('Tagline', alignment=TA_CENTER, fontSize=11, textColor=HexColor('#A78BFA'))))
+        
+        # Build PDF with page decorations (watermark, colored backgrounds)
+        doc.build(elements, onFirstPage=on_first_page, onLaterPages=on_later_pages)
+        
+        # Read and return PDF
+        with open(tmp_file.name, 'rb') as f:
+            pdf_content = f.read()
+        
+        from fastapi.responses import Response
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=storybook-{book_id}.pdf"}
+        )
+
 # ==================== CONTENT VAULT ENDPOINTS ====================
 
 CONTENT_VAULT_HOOKS = [
