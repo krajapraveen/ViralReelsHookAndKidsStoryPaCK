@@ -3554,6 +3554,244 @@ async def convert_story_to_quote(generation_id: str, user: dict = Depends(get_cu
     return {"success": True, "quotes": quotes, "moral": moral, "hashtags": ["morals", "wisdom", "lifelessons"]}
 
 
+@convert_router.post("/text-to-story")
+async def convert_text_to_story(
+    text: str = Form(...),
+    story_style: str = Form(default="adventure"),
+    target_age_group: str = Form(default="kids"),
+    include_moral: bool = Form(default=True),
+    user: dict = Depends(get_current_user)
+):
+    """Convert any text into a kids story - 10 credits"""
+    cost = 10
+    
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Need {cost} credits")
+    
+    if len(text) < 10 or len(text) > 5000:
+        raise HTTPException(status_code=400, detail="Text must be 10-5000 characters")
+    
+    job_id = str(uuid.uuid4())
+    
+    await db.conversion_jobs.insert_one({
+        "id": job_id,
+        "userId": user["id"],
+        "type": "text_to_story",
+        "status": "processing",
+        "progress": 0,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
+    })
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -cost}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "amount": -cost,
+        "type": "USAGE",
+        "description": "Convert: Text to Story",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    async def run_conversion():
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            await db.conversion_jobs.update_one({"id": job_id}, {"$set": {"progress": 30}})
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"convert-{job_id}",
+                system_message=f"You are a creative children's story writer specializing in {story_style} stories for {target_age_group}."
+            ).with_model("gemini", "gemini-2.0-flash")
+            
+            prompt = f"""Transform this text into an engaging children's story.
+
+TEXT: {text}
+
+STYLE: {story_style}
+AGE GROUP: {target_age_group}
+INCLUDE MORAL: {include_moral}
+
+Create a complete story with title, chapters, dialogue, and {"a moral lesson" if include_moral else "an engaging conclusion"}."""
+
+            await db.conversion_jobs.update_one({"id": job_id}, {"$set": {"progress": 60}})
+            
+            result = await chat.send_message(UserMessage(text=prompt))
+            
+            await db.conversion_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "progress": 100,
+                    "result": {"story": result},
+                    "completedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            
+        except Exception as e:
+            logger.error(f"Conversion error: {e}")
+            await db.conversion_jobs.update_one({"id": job_id}, {"$set": {"status": "failed", "error": str(e)}})
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": cost}})
+    
+    asyncio.create_task(run_conversion())
+    
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "processing",
+        "pollUrl": f"/api/convert/status/{job_id}",
+        "creditsUsed": cost,
+        "remainingCredits": user["credits"] - cost
+    }
+
+
+@convert_router.post("/text-to-reel")
+async def convert_text_to_reel(
+    text: str = Form(...),
+    reel_style: str = Form(default="engaging"),
+    platform: str = Form(default="instagram"),
+    user: dict = Depends(get_current_user)
+):
+    """Convert any text into a reel script - 15 credits"""
+    cost = 15
+    
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Need {cost} credits")
+    
+    if len(text) < 10 or len(text) > 2000:
+        raise HTTPException(status_code=400, detail="Text must be 10-2000 characters")
+    
+    job_id = str(uuid.uuid4())
+    
+    await db.conversion_jobs.insert_one({
+        "id": job_id,
+        "userId": user["id"],
+        "type": "text_to_reel",
+        "status": "processing",
+        "progress": 0,
+        "options": {"platform": platform, "style": reel_style},
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
+    })
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -cost}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "amount": -cost,
+        "type": "USAGE",
+        "description": f"Convert: Text to Reel ({platform})",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    async def run_conversion():
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            await db.conversion_jobs.update_one({"id": job_id}, {"$set": {"progress": 30}})
+            
+            platform_specs = {
+                "instagram": "9:16 vertical, 30-60 seconds, trending audio friendly",
+                "tiktok": "9:16 vertical, 15-60 seconds, fast-paced",
+                "youtube": "9:16 shorts format, up to 60 seconds"
+            }
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"convert-{job_id}",
+                system_message=f"You are a viral content creator for {platform}."
+            ).with_model("gemini", "gemini-2.0-flash")
+            
+            prompt = f"""Transform this text into a viral reel script for {platform}.
+
+TEXT: {text}
+
+PLATFORM: {platform} ({platform_specs.get(platform, '')})
+STYLE: {reel_style}
+
+Create a reel script with:
+1. HOOK (first 3 seconds)
+2. CONTENT (main message)
+3. CTA (call to action)
+4. VISUAL DIRECTIONS
+5. HASHTAGS (10 relevant)
+6. CAPTION
+
+Format as JSON."""
+
+            await db.conversion_jobs.update_one({"id": job_id}, {"$set": {"progress": 60}})
+            
+            result = await chat.send_message(UserMessage(text=prompt))
+            
+            await db.conversion_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "progress": 100,
+                    "result": {"script": result, "platform": platform},
+                    "completedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            
+        except Exception as e:
+            logger.error(f"Conversion error: {e}")
+            await db.conversion_jobs.update_one({"id": job_id}, {"$set": {"status": "failed", "error": str(e)}})
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": cost}})
+    
+    asyncio.create_task(run_conversion())
+    
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "processing",
+        "pollUrl": f"/api/convert/status/{job_id}",
+        "creditsUsed": cost,
+        "remainingCredits": user["credits"] - cost
+    }
+
+
+@convert_router.get("/status/{job_id}")
+async def get_conversion_status(job_id: str, user: dict = Depends(get_current_user)):
+    """Get conversion job status"""
+    job = await db.conversion_jobs.find_one({"id": job_id, "userId": user["id"]}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Conversion job not found")
+    return job
+
+
+@convert_router.get("/history")
+async def get_conversion_history(
+    page: int = 1,
+    limit: int = 20,
+    user: dict = Depends(get_current_user)
+):
+    """Get conversion history"""
+    skip = (page - 1) * limit
+    jobs = await db.conversion_jobs.find(
+        {"userId": user["id"]},
+        {"_id": 0, "result": 0}
+    ).sort("createdAt", -1).skip(skip).limit(limit).to_list(limit)
+    
+    total = await db.conversion_jobs.count_documents({"userId": user["id"]})
+    
+    return {"jobs": jobs, "total": total, "page": page}
+
+
+@convert_router.get("/costs")
+async def get_conversion_costs():
+    """Get conversion costs"""
+    return {
+        "costs": {
+            "story_to_reel": 1,
+            "reel_to_carousel": 1,
+            "story_to_quote": 0,
+            "text_to_story": 10,
+            "text_to_reel": 15
+        }
+    }
+
+
 # ==================== GENSTUDIO AI GENERATION ====================
 
 genstudio_router = APIRouter(prefix="/genstudio", tags=["GenStudio"])
