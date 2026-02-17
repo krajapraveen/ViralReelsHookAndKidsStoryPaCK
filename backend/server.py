@@ -2072,6 +2072,503 @@ async def feature_requests_analytics(user: dict = Depends(get_admin_user)):
 async def root():
     return {"message": "CreatorStudio API", "version": "1.0.0"}
 
+# ==================== VIDEO GENERATION ROUTES ====================
+
+video_router = APIRouter(prefix="/video", tags=["Video Generation"])
+
+# Video generation request models
+class VideoGenerateRequest(BaseModel):
+    story_id: str  # ID of the story generation to convert to video
+    resolution: str = "1080p"  # 720p or 1080p
+    aspect_ratio: str = "landscape"  # landscape (16:9) or portrait (9:16)
+    scene_duration: int = 10  # seconds per scene (5, 10, 15, 20, 25, up to 120)
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # ElevenLabs voice ID (Rachel - default)
+    include_subtitles: bool = True
+    include_music: bool = True
+    image_source: str = "ai"  # "ai" or "upload"
+    uploaded_images: Optional[List[str]] = None  # Base64 images if image_source is "upload"
+
+class VideoExportPricing(BaseModel):
+    basic_720p: int = 99  # INR
+    hd_1080p: int = 199  # INR
+    pro_monthly: int = 499  # 10 exports/month
+    pro_additional: int = 49  # Per additional export
+
+# Available ElevenLabs voices for kids stories
+ELEVENLABS_VOICES = [
+    {"id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel", "description": "Calm, warm female voice"},
+    {"id": "AZnzlk1XvdvUeBnXmlld", "name": "Domi", "description": "Strong, confident female"},
+    {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Bella", "description": "Soft, gentle female"},
+    {"id": "ErXwobaYiN019PkySvjV", "name": "Antoni", "description": "Well-rounded male"},
+    {"id": "MF3mGyEYCl7XYWbV9V6O", "name": "Elli", "description": "Emotional, young female"},
+    {"id": "TxGEqnHWrfWFTfGW9XjX", "name": "Josh", "description": "Deep, young male"},
+    {"id": "VR6AewLTigWG4xSOukaG", "name": "Arnold", "description": "Crisp, older male"},
+    {"id": "pNInz6obpgDQGcFmaJgB", "name": "Adam", "description": "Deep, middle-aged male"},
+    {"id": "yoZ06aMxZJJ28mfd3POQ", "name": "Sam", "description": "Raspy, young male"},
+]
+
+# Background music options (royalty-free)
+BACKGROUND_MUSIC = [
+    {"id": "happy", "name": "Happy & Playful", "url": "https://cdn.pixabay.com/audio/2024/11/04/audio_ae4ae15c12.mp3"},
+    {"id": "magical", "name": "Magical Adventure", "url": "https://cdn.pixabay.com/audio/2023/10/30/audio_fc820d2c51.mp3"},
+    {"id": "calm", "name": "Calm & Peaceful", "url": "https://cdn.pixabay.com/audio/2024/09/10/audio_6e5d7d1912.mp3"},
+    {"id": "adventure", "name": "Epic Adventure", "url": "https://cdn.pixabay.com/audio/2022/10/25/audio_11563e4e37.mp3"},
+]
+
+@video_router.get("/voices")
+async def get_available_voices():
+    """Get list of available ElevenLabs voices"""
+    return {"voices": ELEVENLABS_VOICES}
+
+@video_router.get("/music")
+async def get_background_music():
+    """Get list of available background music"""
+    return {"music": BACKGROUND_MUSIC}
+
+@video_router.get("/pricing")
+async def get_video_pricing():
+    """Get video export pricing"""
+    return {
+        "basic_720p": 99,
+        "hd_1080p": 199,
+        "pro_plan": {
+            "monthly": 499,
+            "exports_included": 10,
+            "additional_export": 49
+        }
+    }
+
+async def generate_scene_image(scene: dict, aspect_ratio: str) -> bytes:
+    """Generate image for a scene using Gemini"""
+    if not LLM_AVAILABLE or not EMERGENT_LLM_KEY:
+        raise Exception("Image generation service not available")
+    
+    unique_session = f"img_{uuid.uuid4().hex[:12]}"
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=unique_session,
+        system_message="You are an expert children's book illustrator. Create colorful, friendly, age-appropriate images."
+    ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+    
+    # Build prompt from scene
+    prompt = scene.get('image_prompt', scene.get('visual_description', f"A colorful children's illustration of: {scene.get('title', 'a story scene')}"))
+    
+    # Add aspect ratio instruction
+    if aspect_ratio == "portrait":
+        prompt += " Create in portrait orientation (9:16 aspect ratio), suitable for mobile/reels."
+    else:
+        prompt += " Create in landscape orientation (16:9 aspect ratio), suitable for YouTube."
+    
+    msg = UserMessage(text=prompt)
+    text_response, images = await chat.send_message_multimodal_response(msg)
+    
+    if images and len(images) > 0:
+        return base64.b64decode(images[0]['data'])
+    else:
+        raise Exception("Failed to generate image")
+
+async def generate_scene_audio(text: str, voice_id: str) -> bytes:
+    """Generate TTS audio for scene narration using ElevenLabs"""
+    if not eleven_client:
+        raise Exception("ElevenLabs service not available")
+    
+    try:
+        audio_generator = eleven_client.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id="eleven_multilingual_v2"
+        )
+        
+        audio_data = b""
+        for chunk in audio_generator:
+            audio_data += chunk
+        
+        return audio_data
+    except Exception as e:
+        logger.error(f"TTS generation error: {e}")
+        raise Exception(f"Failed to generate audio: {str(e)}")
+
+async def download_music(music_url: str) -> bytes:
+    """Download background music"""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(music_url, timeout=60.0)
+        if response.status_code == 200:
+            return response.content
+        raise Exception("Failed to download background music")
+
+def create_video_from_scenes(
+    scenes_data: List[dict],
+    output_path: str,
+    resolution: str,
+    aspect_ratio: str,
+    scene_duration: int,
+    include_subtitles: bool,
+    music_path: Optional[str] = None
+) -> str:
+    """Create video from scene images, audio, and subtitles using MoviePy"""
+    if not MOVIEPY_AVAILABLE:
+        raise Exception("Video generation service not available")
+    
+    # Set dimensions based on resolution and aspect ratio
+    if resolution == "1080p":
+        if aspect_ratio == "portrait":
+            width, height = 1080, 1920
+        else:
+            width, height = 1920, 1080
+    else:  # 720p
+        if aspect_ratio == "portrait":
+            width, height = 720, 1280
+        else:
+            width, height = 1280, 720
+    
+    clips = []
+    
+    for scene in scenes_data:
+        # Load image
+        img_clip = ImageClip(scene['image_path']).resized((width, height))
+        
+        # Load audio if available
+        if scene.get('audio_path') and os.path.exists(scene['audio_path']):
+            audio = AudioFileClip(scene['audio_path'])
+            duration = max(audio.duration, scene_duration)
+            img_clip = img_clip.with_duration(duration)
+            img_clip = img_clip.with_audio(audio)
+        else:
+            img_clip = img_clip.with_duration(scene_duration)
+        
+        # Add subtitles if enabled
+        if include_subtitles and scene.get('narration'):
+            try:
+                txt_clip = TextClip(
+                    text=scene['narration'][:100],  # Limit text length
+                    font_size=36 if aspect_ratio == "landscape" else 28,
+                    color='white',
+                    bg_color='rgba(0,0,0,0.7)',
+                    size=(width - 100, None),
+                    method='caption'
+                ).with_position(('center', height - 150)).with_duration(img_clip.duration)
+                img_clip = CompositeVideoClip([img_clip, txt_clip])
+            except Exception as e:
+                logger.warning(f"Could not add subtitles: {e}")
+        
+        clips.append(img_clip)
+    
+    # Concatenate all clips
+    final_video = concatenate_videoclips(clips, method="compose")
+    
+    # Add background music if provided
+    if music_path and os.path.exists(music_path):
+        try:
+            bg_music = AudioFileClip(music_path)
+            # Loop music if shorter than video
+            if bg_music.duration < final_video.duration:
+                loops_needed = int(final_video.duration / bg_music.duration) + 1
+                bg_music = concatenate_videoclips([bg_music] * loops_needed).subclipped(0, final_video.duration)
+            else:
+                bg_music = bg_music.subclipped(0, final_video.duration)
+            
+            # Mix with narration (lower volume for background)
+            bg_music = bg_music.with_effects([lambda gf, t: gf(t) * 0.2])
+            
+            if final_video.audio:
+                final_video = final_video.with_audio(CompositeVideoClip([final_video]).audio)
+        except Exception as e:
+            logger.warning(f"Could not add background music: {e}")
+    
+    # Write video file
+    final_video.write_videofile(
+        output_path,
+        fps=24,
+        codec='libx264',
+        audio_codec='aac',
+        temp_audiofile=f"{output_path}_temp_audio.m4a",
+        remove_temp=True,
+        logger=None
+    )
+    
+    # Cleanup
+    final_video.close()
+    for clip in clips:
+        clip.close()
+    
+    return output_path
+
+@video_router.post("/generate")
+async def generate_video(
+    request: VideoGenerateRequest,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user)
+):
+    """Start video generation from a story"""
+    
+    # Calculate cost
+    cost = 199 if request.resolution == "1080p" else 99
+    
+    # Check credits
+    if user["credits"] < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. You need {cost} credits for video export.")
+    
+    # Get the story generation
+    story = await db.generations.find_one({"id": request.story_id, "userId": user["id"]}, {"_id": 0})
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    
+    story_data = story.get("outputJson", {})
+    scenes = story_data.get("scenes", [])
+    
+    if not scenes:
+        raise HTTPException(status_code=400, detail="Story has no scenes to generate video from")
+    
+    # Create video export record
+    export_id = str(uuid.uuid4())
+    export_record = {
+        "id": export_id,
+        "userId": user["id"],
+        "storyId": request.story_id,
+        "status": "PROCESSING",
+        "progress": 0,
+        "resolution": request.resolution,
+        "aspectRatio": request.aspect_ratio,
+        "sceneDuration": request.scene_duration,
+        "voiceId": request.voice_id,
+        "includeSubtitles": request.include_subtitles,
+        "includeMusic": request.include_music,
+        "cost": cost,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.video_exports.insert_one(export_record)
+    
+    # Start background video generation
+    background_tasks.add_task(
+        process_video_generation,
+        export_id,
+        user["id"],
+        story_data,
+        request
+    )
+    
+    return {
+        "success": True,
+        "exportId": export_id,
+        "status": "PROCESSING",
+        "message": "Video generation started. This may take several minutes."
+    }
+
+async def process_video_generation(
+    export_id: str,
+    user_id: str,
+    story_data: dict,
+    request: VideoGenerateRequest
+):
+    """Background task to process video generation"""
+    temp_dir = None
+    try:
+        temp_dir = tempfile.mkdtemp(prefix="video_")
+        scenes = story_data.get("scenes", [])
+        total_scenes = len(scenes)
+        scenes_data = []
+        
+        # Update progress
+        await db.video_exports.update_one(
+            {"id": export_id},
+            {"$set": {"progress": 5, "statusMessage": "Generating scene images..."}}
+        )
+        
+        # Generate images for each scene
+        for i, scene in enumerate(scenes):
+            try:
+                # Generate or use uploaded image
+                if request.image_source == "upload" and request.uploaded_images and i < len(request.uploaded_images):
+                    image_data = base64.b64decode(request.uploaded_images[i])
+                else:
+                    image_data = await generate_scene_image(scene, request.aspect_ratio)
+                
+                image_path = os.path.join(temp_dir, f"scene_{i}.png")
+                with open(image_path, "wb") as f:
+                    f.write(image_data)
+                
+                scene_info = {
+                    "scene_number": i + 1,
+                    "image_path": image_path,
+                    "narration": scene.get("narration", "")
+                }
+                scenes_data.append(scene_info)
+                
+                progress = 5 + int((i + 1) / total_scenes * 30)
+                await db.video_exports.update_one(
+                    {"id": export_id},
+                    {"$set": {"progress": progress}}
+                )
+                
+            except Exception as e:
+                logger.error(f"Error generating image for scene {i}: {e}")
+                # Use placeholder if image generation fails
+                continue
+        
+        # Generate audio for each scene
+        await db.video_exports.update_one(
+            {"id": export_id},
+            {"$set": {"progress": 40, "statusMessage": "Generating voiceover..."}}
+        )
+        
+        for i, scene_info in enumerate(scenes_data):
+            if scene_info.get("narration"):
+                try:
+                    audio_data = await generate_scene_audio(scene_info["narration"], request.voice_id)
+                    audio_path = os.path.join(temp_dir, f"scene_{i}.mp3")
+                    with open(audio_path, "wb") as f:
+                        f.write(audio_data)
+                    scene_info["audio_path"] = audio_path
+                    
+                    progress = 40 + int((i + 1) / len(scenes_data) * 30)
+                    await db.video_exports.update_one(
+                        {"id": export_id},
+                        {"$set": {"progress": progress}}
+                    )
+                except Exception as e:
+                    logger.error(f"Error generating audio for scene {i}: {e}")
+        
+        # Download background music if enabled
+        music_path = None
+        if request.include_music:
+            await db.video_exports.update_one(
+                {"id": export_id},
+                {"$set": {"progress": 75, "statusMessage": "Adding background music..."}}
+            )
+            try:
+                music_url = BACKGROUND_MUSIC[0]["url"]  # Default to happy music
+                music_data = await download_music(music_url)
+                music_path = os.path.join(temp_dir, "background.mp3")
+                with open(music_path, "wb") as f:
+                    f.write(music_data)
+            except Exception as e:
+                logger.warning(f"Could not download background music: {e}")
+        
+        # Create video
+        await db.video_exports.update_one(
+            {"id": export_id},
+            {"$set": {"progress": 80, "statusMessage": "Assembling video..."}}
+        )
+        
+        output_filename = f"story_video_{export_id}.mp4"
+        output_path = VIDEO_STORAGE_DIR / output_filename
+        
+        create_video_from_scenes(
+            scenes_data,
+            str(output_path),
+            request.resolution,
+            request.aspect_ratio,
+            request.scene_duration,
+            request.include_subtitles,
+            music_path
+        )
+        
+        # Deduct credits
+        await db.users.update_one(
+            {"id": user_id},
+            {"$inc": {"credits": -request.cost if hasattr(request, 'cost') else -99}}
+        )
+        
+        # Log transaction
+        cost = 199 if request.resolution == "1080p" else 99
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": user_id,
+            "amount": -cost,
+            "type": "VIDEO_EXPORT",
+            "description": f"Video export ({request.resolution}, {request.aspect_ratio})",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Update export record
+        await db.video_exports.update_one(
+            {"id": export_id},
+            {"$set": {
+                "status": "COMPLETED",
+                "progress": 100,
+                "videoPath": str(output_path),
+                "statusMessage": "Video ready for download!",
+                "completedAt": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        logger.info(f"Video generation completed: {export_id}")
+        
+    except Exception as e:
+        logger.error(f"Video generation failed: {e}")
+        await db.video_exports.update_one(
+            {"id": export_id},
+            {"$set": {
+                "status": "FAILED",
+                "statusMessage": str(e),
+                "error": str(e)
+            }}
+        )
+    finally:
+        # Cleanup temp directory
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
+
+@video_router.get("/export/{export_id}")
+async def get_video_export_status(export_id: str, user: dict = Depends(get_current_user)):
+    """Get video export status"""
+    export = await db.video_exports.find_one(
+        {"id": export_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not export:
+        raise HTTPException(status_code=404, detail="Video export not found")
+    
+    return export
+
+@video_router.get("/export/{export_id}/download")
+async def download_video(export_id: str, user: dict = Depends(get_current_user)):
+    """Download generated video"""
+    export = await db.video_exports.find_one(
+        {"id": export_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not export:
+        raise HTTPException(status_code=404, detail="Video export not found")
+    
+    if export.get("status") != "COMPLETED":
+        raise HTTPException(status_code=400, detail="Video is not ready for download")
+    
+    video_path = export.get("videoPath")
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+        filename=f"story_video_{export_id}.mp4"
+    )
+
+@video_router.get("/exports")
+async def get_user_video_exports(
+    page: int = 0,
+    size: int = 10,
+    user: dict = Depends(get_current_user)
+):
+    """Get user's video exports"""
+    skip = page * size
+    exports = await db.video_exports.find(
+        {"userId": user["id"]},
+        {"_id": 0}
+    ).sort("createdAt", -1).skip(skip).limit(size).to_list(size)
+    
+    total = await db.video_exports.count_documents({"userId": user["id"]})
+    
+    return {
+        "content": exports,
+        "totalElements": total,
+        "page": page,
+        "size": size
+    }
+
 # ==================== INCLUDE ROUTERS ====================
 
 api_router.include_router(auth_router)
