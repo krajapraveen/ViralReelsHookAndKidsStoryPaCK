@@ -4993,6 +4993,10 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
 
 # ==================== INCLUDE ROUTERS ====================
 
+# Import new route modules
+from routes.creator_pro import router as creator_pro_router
+from routes.twin_finder import router as twinfinder_router
+
 api_router.include_router(auth_router)
 api_router.include_router(credits_router)
 api_router.include_router(generate_router)
@@ -5008,6 +5012,8 @@ api_router.include_router(story_tools_router)
 api_router.include_router(content_router)
 api_router.include_router(convert_router)
 api_router.include_router(genstudio_router)
+api_router.include_router(creator_pro_router)
+api_router.include_router(twinfinder_router)
 
 app.include_router(api_router)
 
