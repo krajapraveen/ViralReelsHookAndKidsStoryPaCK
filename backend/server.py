@@ -1536,6 +1536,15 @@ async def create_order(data: CreateOrderRequest, user: dict = Depends(get_curren
         if not product:
             raise HTTPException(status_code=400, detail="Invalid product ID. Please select a valid product.")
         
+        # Check if this is a top-up (ONE_TIME) - only allowed for subscribers
+        if product.get("type") == "ONE_TIME":
+            user_subscription = user.get("subscription")
+            if not user_subscription:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Top-up credit packs are only available for subscribers. Please subscribe first to unlock top-up options."
+                )
+        
         # Validate currency
         currency = data.currency.upper()
         if currency not in EXCHANGE_RATES:
