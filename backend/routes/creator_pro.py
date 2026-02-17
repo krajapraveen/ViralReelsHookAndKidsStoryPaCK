@@ -1,971 +1,1013 @@
 """
-Creator Tools Pro - Template-Based Features (No AI Cost)
-Includes: Hook Swipe File, Hook Analyzer, Bio Generator, Hashtag Matrix, etc.
+Creator Pro Tools - 15+ Advanced Features for Content Creators
+CreatorStudio AI
 """
-import re
-import random
+from fastapi import APIRouter, HTTPException, Depends, Form
+from datetime import datetime, timezone, timedelta
+from typing import Optional, List, Dict, Any
 import uuid
-from datetime import datetime, timezone
-from typing import List, Optional, Dict
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
+import json
+import random
+import re
 
-# Router
-creator_pro_router = APIRouter(prefix="/creator-pro", tags=["Creator Pro Tools"])
+from ..shared import (
+    db, logger, get_current_user, deduct_credits, log_exception,
+    LLM_AVAILABLE, EMERGENT_LLM_KEY
+)
+
+router = APIRouter(prefix="/creator-pro", tags=["Creator Pro"])
 
 # =============================================================================
-# VIRAL HOOK SWIPE FILE ENGINE - 500+ Categorized Hooks
+# CREDIT COSTS FOR PRO FEATURES
 # =============================================================================
-HOOK_DATABASE = {
-    "controversial": [
-        "Nobody wants to hear this but...",
-        "I'm going to get hate for this but...",
-        "This is going to make people mad...",
-        "Unpopular opinion but...",
-        "I don't care what anyone says...",
-        "Everyone's lying about this...",
-        "The truth nobody tells you about...",
-        "Stop doing this immediately...",
-        "This is why you're failing at...",
-        "The biggest lie in the industry is...",
-        "I was wrong about everything...",
-        "What they don't want you to know...",
-        "This will change everything you believe about...",
-        "The controversial truth about...",
-        "I'm risking my reputation to tell you...",
-        "Everyone is doing this wrong...",
-        "Here's why experts are lying to you...",
-        "The uncomfortable truth about...",
-        "I've been keeping this secret...",
-        "This advice ruined my life..."
-    ],
-    "emotional": [
-        "This brought me to tears...",
-        "I wasn't ready for this...",
-        "My heart literally stopped when...",
-        "I still can't believe this happened...",
-        "This is the most beautiful thing I've seen...",
-        "Warning: you might cry watching this...",
-        "I've never felt more alive than...",
-        "This moment changed my life forever...",
-        "I didn't expect to feel this way...",
-        "The moment that broke me...",
-        "I'm not crying, you're crying...",
-        "This hits different at 2am...",
-        "The day my world fell apart...",
-        "I've never told anyone this before...",
-        "This is why I do what I do...",
-        "The hardest goodbye I ever said...",
-        "When everything finally made sense...",
-        "The moment I knew things would never be the same...",
-        "This gave me goosebumps...",
-        "I wish someone told me this earlier..."
-    ],
-    "authority": [
-        "After 10 years in this industry...",
-        "As someone who's made $1M from this...",
-        "I've helped 1000+ people with this...",
-        "Here's what Harvard research shows...",
-        "According to the latest studies...",
-        "Expert tip most people miss...",
-        "The secret top performers know...",
-        "What CEOs do differently...",
-        "The strategy billionaires use...",
-        "After coaching 500+ clients...",
-        "My mentor taught me this...",
-        "What professionals never tell beginners...",
-        "The framework that changed everything...",
-        "Scientific proof that...",
-        "Data from 10,000 users shows...",
-        "The method used by industry leaders...",
-        "After analyzing 1000+ successful...",
-        "What separates amateurs from pros...",
-        "The insider strategy for...",
-        "Top 1% secret revealed..."
-    ],
-    "storytime": [
-        "So this crazy thing happened...",
-        "Story time: how I almost...",
-        "You won't believe what happened next...",
-        "Let me tell you about the time...",
-        "This is the wildest story...",
-        "I've never shared this publicly...",
-        "The craziest thing that ever happened to me...",
-        "Plot twist: it wasn't what I expected...",
-        "Here's the full story of how...",
-        "Day 1 of my journey to...",
-        "It all started when I...",
-        "The story of how I went from...",
-        "This is how it all began...",
-        "Three years ago, everything changed...",
-        "The day I decided to change my life...",
-        "Here's what actually happened...",
-        "The behind-the-scenes story of...",
-        "My biggest failure taught me...",
-        "The moment that started everything...",
-        "How I accidentally discovered..."
-    ],
-    "pov": [
-        "POV: You finally figured it out...",
-        "POV: You're about to change your life...",
-        "POV: You're watching this at 3am...",
-        "POV: You just discovered the secret...",
-        "POV: You're about to level up...",
-        "POV: Everyone doubted you but...",
-        "POV: You took the leap and...",
-        "POV: This is your sign to...",
-        "POV: You're realizing everything was worth it...",
-        "POV: You're the main character now...",
-        "POV: You just unlocked a new level...",
-        "POV: The universe is aligning...",
-        "POV: You're about to have a breakthrough...",
-        "POV: Everything is falling into place...",
-        "POV: You're watching your dreams come true...",
-        "POV: You finally chose yourself...",
-        "POV: The plot twist in your favor...",
-        "POV: You stopped playing small...",
-        "POV: You're becoming who you're meant to be...",
-        "POV: This is your moment..."
-    ],
-    "luxury": [
-        "How I afford this lifestyle...",
-        "A day in my life as a...",
-        "What $10K/month looks like...",
-        "The upgrade that changed everything...",
-        "Living the dream, here's how...",
-        "My morning routine as a...",
-        "Inside my luxury apartment...",
-        "Things I never thought I'd own...",
-        "The life I manifested...",
-        "What financial freedom feels like...",
-        "My biggest purchase ever...",
-        "Why I'll never go back to...",
-        "The lifestyle business model...",
-        "How I built this from nothing...",
-        "Money tips rich people use...",
-        "The investment that paid off...",
-        "What my income streams look like...",
-        "Passive income changed my life...",
-        "The wealth mindset shift...",
-        "From broke to this in 2 years..."
-    ],
-    "relationship": [
-        "Green flags I ignored until...",
-        "What healthy love actually looks like...",
-        "The moment I knew they were the one...",
-        "Red flags I wish I noticed sooner...",
-        "Dating advice that actually works...",
-        "How we met vs how it's going...",
-        "Things I learned from my breakup...",
-        "The relationship hack nobody talks about...",
-        "Why I stopped settling for...",
-        "What true partnership looks like...",
-        "The conversation that changed everything...",
-        "How we survived long distance...",
-        "Things couples should discuss before...",
-        "The secret to lasting love...",
-        "Why this relationship is different...",
-        "What I wish I knew about love...",
-        "The boundary that saved my relationship...",
-        "How to know when it's real...",
-        "The moment everything clicked...",
-        "Love lessons learned the hard way..."
-    ],
-    "health": [
-        "The habit that changed my health...",
-        "What happened when I tried this for 30 days...",
-        "The food I cut out and noticed...",
-        "My morning routine for energy...",
-        "Simple changes, massive results...",
-        "What nobody tells you about...",
-        "The workout that actually works...",
-        "My mental health non-negotiables...",
-        "The supplement that changed everything...",
-        "How I fixed my sleep...",
-        "The 5-minute hack for...",
-        "What I eat in a day for...",
-        "The routine that cured my...",
-        "Signs your body is telling you...",
-        "The health test everyone should take...",
-        "Why you're always tired...",
-        "The gut health secret...",
-        "What happens when you stop...",
-        "The daily habit that transformed me...",
-        "My body's transformation story..."
-    ],
-    "curiosity": [
-        "Wait for it...",
-        "You'll never guess what happens next...",
-        "The ending will shock you...",
-        "Watch until the end...",
-        "I bet you didn't know this...",
-        "Here's something you've never seen...",
-        "This changes everything...",
-        "The secret nobody knows...",
-        "You're not going to believe this...",
-        "What I found will blow your mind...",
-        "This is actually insane...",
-        "I can't unsee this now...",
-        "The thing everyone's been looking for...",
-        "Finally, the answer to...",
-        "This explains so much...",
-        "The missing piece you need...",
-        "Why didn't I know this before...",
-        "This is what they're hiding...",
-        "The truth finally revealed...",
-        "What happens when you try..."
-    ],
-    "fear": [
-        "If you don't do this now...",
-        "The biggest mistake you're making...",
-        "You're losing money by not...",
-        "Stop doing this immediately...",
-        "Warning signs you're ignoring...",
-        "The silent killer of success...",
-        "Why most people fail at...",
-        "The trap everyone falls into...",
-        "You're sabotaging yourself by...",
-        "The costly error most make...",
-        "Time is running out for...",
-        "Don't wait until it's too late...",
-        "The hidden danger of...",
-        "What happens if you ignore...",
-        "The risk you don't see coming...",
-        "Why waiting is costing you...",
-        "The problem with doing nothing...",
-        "What you're losing every day...",
-        "The mistake that cost me everything...",
-        "If I had known earlier..."
-    ],
-    "desire": [
-        "What if you could...",
-        "Imagine waking up to...",
-        "The life you deserve starts with...",
-        "You're one step away from...",
-        "Everything you've ever wanted...",
-        "The shortcut to your dreams...",
-        "What your future self will thank you for...",
-        "The path to everything you want...",
-        "How to finally achieve...",
-        "The blueprint for your dream...",
-        "This is how winners do it...",
-        "Your transformation starts here...",
-        "The opportunity you've been waiting for...",
-        "How to get there faster...",
-        "The key to unlocking...",
-        "What success really looks like...",
-        "The secret to getting what you want...",
-        "How to make it happen...",
-        "Your best life is waiting...",
-        "The formula for achieving..."
-    ],
-    "scarcity": [
-        "Only a few people know this...",
-        "This won't be available for long...",
-        "Limited spots remaining for...",
-        "Before everyone finds out about...",
-        "The window is closing on...",
-        "Exclusive access to...",
-        "Not everyone can do this...",
-        "This is rare and valuable...",
-        "While supplies last...",
-        "The last chance to...",
-        "First come, first served...",
-        "Join the exclusive few who...",
-        "This opportunity won't come again...",
-        "Only for serious people...",
-        "The elite secret is...",
-        "Before the algorithm buries this...",
-        "Save this before it's gone...",
-        "The inside track to...",
-        "What 1% of people have access to...",
-        "This information is priceless..."
-    ]
+PRO_COSTS = {
+    "hook_analyzer": 2,
+    "swipe_file": 3,
+    "bio_generator": 3,
+    "content_repurpose": 5,
+    "consistency_tracker": 1,
+    "caption_generator": 2,
+    "trend_predictor": 3,
+    "engagement_optimizer": 2,
+    "viral_score": 1,
+    "headline_generator": 2,
+    "thread_generator": 5,
+    "poll_generator": 1,
+    "story_template": 2,
+    "collab_finder": 3,
+    "posting_schedule": 2
 }
 
-# Add more hooks dynamically
-for category in HOOK_DATABASE:
-    base_hooks = HOOK_DATABASE[category].copy()
-    variations = []
-    for hook in base_hooks[:10]:
-        variations.extend([
-            hook.replace("...", " - here's what happened..."),
-            "🔥 " + hook,
-            hook.upper(),
-        ])
-    HOOK_DATABASE[category].extend(variations[:15])
-
-class HookCategory(BaseModel):
-    category: str
-    hooks: List[str]
-    count: int
-    is_pro: bool = False
-
-class HookRequest(BaseModel):
-    category: Optional[str] = None
-    count: int = Field(default=10, ge=1, le=50)
-    emotion: Optional[str] = None
-
-@creator_pro_router.get("/hooks/categories")
-async def get_hook_categories():
-    """Get all hook categories with counts"""
-    categories = []
-    for cat, hooks in HOOK_DATABASE.items():
-        categories.append({
-            "category": cat,
-            "count": len(hooks),
-            "preview": hooks[:3],
-            "is_pro": cat in ["luxury", "authority", "scarcity"]
-        })
-    return {"categories": categories, "total_hooks": sum(len(h) for h in HOOK_DATABASE.values())}
-
-@creator_pro_router.get("/hooks/{category}")
-async def get_hooks_by_category(category: str, limit: int = 20):
-    """Get hooks from a specific category"""
-    if category not in HOOK_DATABASE:
-        raise HTTPException(status_code=404, detail="Category not found")
-    
-    hooks = HOOK_DATABASE[category]
-    return {
-        "category": category,
-        "hooks": hooks[:limit],
-        "total": len(hooks),
-        "is_pro": category in ["luxury", "authority", "scarcity"]
-    }
-
-@creator_pro_router.post("/hooks/random")
-async def get_random_hooks(data: HookRequest):
-    """Get random hooks, optionally filtered"""
-    all_hooks = []
-    
-    if data.category:
-        if data.category not in HOOK_DATABASE:
-            raise HTTPException(status_code=404, detail="Category not found")
-        all_hooks = HOOK_DATABASE[data.category]
-    else:
-        for hooks in HOOK_DATABASE.values():
-            all_hooks.extend(hooks)
-    
-    random.shuffle(all_hooks)
-    return {"hooks": all_hooks[:data.count], "total_available": len(all_hooks)}
-
 # =============================================================================
-# HOOK ANALYZER - Rule-Based Scoring (No AI)
+# HOOK ANALYSIS DATA
 # =============================================================================
 POWER_WORDS = [
-    "secret", "exclusive", "limited", "free", "new", "proven", "guaranteed",
-    "instant", "easy", "simple", "fast", "powerful", "ultimate", "essential",
-    "shocking", "incredible", "amazing", "unbelievable", "revolutionary",
-    "breakthrough", "discover", "unlock", "transform", "boost", "skyrocket",
-    "massive", "huge", "critical", "urgent", "warning", "alert", "finally"
+    "secret", "free", "new", "proven", "discover", "instant", "guaranteed",
+    "exclusive", "limited", "powerful", "breakthrough", "revolutionary",
+    "shocking", "incredible", "amazing", "ultimate", "essential", "urgent",
+    "warning", "banned", "exposed", "revealed", "hidden", "truth", "lies"
 ]
 
-EMOTIONAL_TRIGGERS = [
-    "love", "hate", "fear", "joy", "anger", "surprise", "sad", "happy",
-    "excited", "worried", "anxious", "proud", "ashamed", "guilty", "grateful",
-    "frustrated", "overwhelmed", "inspired", "motivated", "determined"
-]
-
-CURIOSITY_GAPS = [
-    "...", "?", "secret", "hidden", "revealed", "truth", "discover",
-    "find out", "learn", "uncover", "expose", "what happens", "why",
-    "how", "the reason", "nobody knows", "you won't believe"
-]
-
-class HookAnalysisRequest(BaseModel):
-    hook: str = Field(..., min_length=3, max_length=500)
-
-class HookAnalysisResult(BaseModel):
-    score: int
-    breakdown: dict
-    suggestions: List[str]
-    grade: str
-
-@creator_pro_router.post("/hooks/analyze")
-async def analyze_hook(data: HookAnalysisRequest):
-    """Analyze a hook and return score with suggestions (No AI - Rule Based)"""
-    hook = data.hook.lower()
-    hook_words = hook.split()
-    
-    score = 0
-    breakdown = {}
-    suggestions = []
-    
-    # Length check (ideal 6-12 words)
-    word_count = len(hook_words)
-    if 6 <= word_count <= 12:
-        score += 20
-        breakdown["length"] = {"score": 20, "status": "optimal", "value": word_count}
-    elif word_count < 6:
-        score += 10
-        breakdown["length"] = {"score": 10, "status": "too_short", "value": word_count}
-        suggestions.append("Add more words to create intrigue (aim for 6-12 words)")
-    else:
-        score += 10
-        breakdown["length"] = {"score": 10, "status": "too_long", "value": word_count}
-        suggestions.append("Shorten your hook for better impact (aim for 6-12 words)")
-    
-    # Power words check
-    power_word_count = sum(1 for word in POWER_WORDS if word in hook)
-    if power_word_count >= 2:
-        score += 20
-        breakdown["power_words"] = {"score": 20, "status": "excellent", "found": power_word_count}
-    elif power_word_count == 1:
-        score += 15
-        breakdown["power_words"] = {"score": 15, "status": "good", "found": power_word_count}
-        suggestions.append(f"Add more power words like: {', '.join(random.sample(POWER_WORDS, 3))}")
-    else:
-        score += 0
-        breakdown["power_words"] = {"score": 0, "status": "missing", "found": 0}
-        suggestions.append(f"Add power words like: {', '.join(random.sample(POWER_WORDS, 5))}")
-    
-    # Curiosity gap check
-    has_curiosity = any(gap in hook for gap in CURIOSITY_GAPS)
-    if has_curiosity:
-        score += 20
-        breakdown["curiosity_gap"] = {"score": 20, "status": "present"}
-    else:
-        score += 0
-        breakdown["curiosity_gap"] = {"score": 0, "status": "missing"}
-        suggestions.append("Add a curiosity gap with '...' or a question")
-    
-    # Emotional trigger check
-    emotional_count = sum(1 for trigger in EMOTIONAL_TRIGGERS if trigger in hook)
-    if emotional_count >= 1:
-        score += 15
-        breakdown["emotional_trigger"] = {"score": 15, "status": "present", "found": emotional_count}
-    else:
-        score += 0
-        breakdown["emotional_trigger"] = {"score": 0, "status": "missing"}
-        suggestions.append(f"Add emotional triggers like: {', '.join(random.sample(EMOTIONAL_TRIGGERS, 3))}")
-    
-    # Number check
-    has_number = bool(re.search(r'\d+', hook))
-    if has_number:
-        score += 15
-        breakdown["number"] = {"score": 15, "status": "present"}
-    else:
-        score += 5
-        breakdown["number"] = {"score": 5, "status": "optional"}
-        suggestions.append("Consider adding a specific number for credibility (e.g., '7 secrets', '$10K')")
-    
-    # First word impact check
-    strong_starters = ["stop", "warning", "secret", "nobody", "the", "why", "how", "this", "what", "i"]
-    first_word = hook_words[0] if hook_words else ""
-    if first_word in strong_starters:
-        score += 10
-        breakdown["opening"] = {"score": 10, "status": "strong", "word": first_word}
-    else:
-        score += 5
-        breakdown["opening"] = {"score": 5, "status": "average", "word": first_word}
-        suggestions.append(f"Start with impact words like: {', '.join(random.sample(strong_starters, 4))}")
-    
-    # Determine grade
-    if score >= 85:
-        grade = "A+"
-    elif score >= 75:
-        grade = "A"
-    elif score >= 65:
-        grade = "B+"
-    elif score >= 55:
-        grade = "B"
-    elif score >= 45:
-        grade = "C"
-    else:
-        grade = "D"
-    
-    return {
-        "original_hook": data.hook,
-        "score": min(score, 100),
-        "grade": grade,
-        "breakdown": breakdown,
-        "suggestions": suggestions[:5],
-        "improved_version": generate_improved_hook(data.hook, suggestions)
-    }
-
-def generate_improved_hook(original: str, suggestions: List[str]) -> str:
-    """Generate an improved version of the hook"""
-    improved = original
-    if "..." not in original:
-        improved = improved.rstrip(".!?") + "..."
-    if not any(word in original.lower() for word in POWER_WORDS[:5]):
-        improved = random.choice(["🔥 ", "⚠️ ", "💡 "]) + improved
-    return improved
-
-# =============================================================================
-# TRENDING FORMATS LIBRARY
-# =============================================================================
-TRENDING_FORMATS = {
-    "pov": {
-        "name": "POV Format",
-        "description": "First-person perspective that makes viewers feel like they're living the experience",
-        "template": "POV: You [action/situation]\n[Visual: Show the outcome/reaction]\n[Text overlay with relatable detail]",
-        "examples": [
-            "POV: You finally quit your 9-5 and this is day 1",
-            "POV: You're watching this instead of doing what you should",
-            "POV: The gym is empty at 5am and you own it"
-        ],
-        "best_for": ["lifestyle", "motivation", "comedy", "relatable"]
-    },
-    "storytime": {
-        "name": "Storytime Format",
-        "description": "Personal narrative that hooks viewers with drama and keeps them watching",
-        "template": "Hook: [Dramatic statement]\nSetup: [Context - 5 sec]\nTension: [The problem/conflict]\nResolution: [What happened]\nLesson: [Takeaway]",
-        "examples": [
-            "Story time: The day I got fired changed everything",
-            "So this thing happened at the airport...",
-            "I've never told anyone this but..."
-        ],
-        "best_for": ["personal brand", "entertainment", "education"]
-    },
-    "three_mistakes": {
-        "name": "3 Mistakes Format",
-        "description": "List format highlighting common errors - educational and engaging",
-        "template": "Hook: '3 mistakes that are [ruining/killing/destroying] your [topic]'\nMistake 1: [Most common]\nMistake 2: [Surprising one]\nMistake 3: [The one they didn't expect]\nBonus: [What to do instead]",
-        "examples": [
-            "3 mistakes killing your engagement",
-            "3 mistakes that make you look poor",
-            "3 mistakes in your morning routine"
-        ],
-        "best_for": ["education", "niche expertise", "tips"]
-    },
-    "unpopular_opinion": {
-        "name": "Unpopular Opinion Format",
-        "description": "Controversial take that drives engagement through debate",
-        "template": "Hook: 'Unpopular opinion: [controversial statement]'\nReason 1: [Your logic]\nReason 2: [Supporting evidence]\nDefense: [Preempt criticism]\nCTA: [Invite discussion]",
-        "examples": [
-            "Unpopular opinion: College is a waste of time",
-            "Unpopular opinion: Morning routines are overrated",
-            "Unpopular opinion: Most advice is terrible"
-        ],
-        "best_for": ["thought leadership", "debate", "viral"]
-    },
-    "before_after": {
-        "name": "Before/After Format",
-        "description": "Transformation content showing clear contrast",
-        "template": "Before: [The problem state - visual]\nThe process: [Quick montage/explanation]\nAfter: [The result - satisfying reveal]\nHow: [Brief explanation or CTA]",
-        "examples": [
-            "My room before vs after minimalism",
-            "My income before vs after this side hustle",
-            "My skin before vs after this routine"
-        ],
-        "best_for": ["transformation", "tutorials", "motivation"]
-    },
-    "day_in_life": {
-        "name": "Day In Life Format",
-        "description": "Behind-the-scenes content showing your daily routine",
-        "template": "Morning: [Wake up routine - aspirational]\nWork: [What you actually do]\nBreak: [Lifestyle moment]\nEvening: [Wind down + productivity]\nEnd: [Reflection or motivation]",
-        "examples": [
-            "Day in my life as a 6-figure creator",
-            "Realistic day in my life working from home",
-            "Day in my life at 25 living alone"
-        ],
-        "best_for": ["lifestyle", "personal brand", "aspirational"]
-    },
-    "this_vs_that": {
-        "name": "This vs That Format",
-        "description": "Comparison content that helps viewers make decisions",
-        "template": "Option A: [First choice]\nOption B: [Second choice]\nComparison: [Key differences]\nVerdict: [Your recommendation]\nWhy: [Brief reasoning]",
-        "examples": [
-            "iPhone vs Android in 2024",
-            "Gym vs Home workouts",
-            "$50 product vs $500 product"
-        ],
-        "best_for": ["reviews", "education", "decision-making"]
-    },
-    "ranking": {
-        "name": "Ranking Format",
-        "description": "List-based content ranking things from worst to best",
-        "template": "Hook: 'Ranking [items] from worst to best'\n5th: [Worst - explain why]\n4th-2nd: [Quick progression]\n1st: [Best - detailed reason]\nHonorable mention: [Surprise pick]",
-        "examples": [
-            "Ranking fast food chains from worst to best",
-            "Ranking side hustles by profit",
-            "Ranking cities to live in your 20s"
-        ],
-        "best_for": ["entertainment", "reviews", "opinions"]
-    }
+EMOTIONAL_TRIGGERS = {
+    "curiosity": ["why", "how", "what if", "secret", "hidden", "truth", "revealed"],
+    "fear": ["warning", "danger", "mistake", "avoid", "stop", "never", "wrong"],
+    "urgency": ["now", "today", "limited", "last chance", "hurry", "before"],
+    "desire": ["want", "need", "must have", "dream", "wish", "imagine"],
+    "social_proof": ["everyone", "millions", "viral", "trending", "famous"]
 }
 
-@creator_pro_router.get("/formats")
-async def get_trending_formats():
-    """Get all trending content formats"""
-    formats_list = []
-    for key, data in TRENDING_FORMATS.items():
-        formats_list.append({
-            "id": key,
-            "name": data["name"],
-            "description": data["description"],
-            "best_for": data["best_for"],
-            "example_count": len(data["examples"])
-        })
-    return {"formats": formats_list, "total": len(formats_list)}
-
-@creator_pro_router.get("/formats/{format_id}")
-async def get_format_detail(format_id: str):
-    """Get detailed format template and examples"""
-    if format_id not in TRENDING_FORMATS:
-        raise HTTPException(status_code=404, detail="Format not found")
-    
-    return TRENDING_FORMATS[format_id]
+HOOK_FORMULAS = [
+    {"name": "Problem-Solution", "pattern": "Struggling with X? Here's how to fix it"},
+    {"name": "Controversy", "pattern": "Unpopular opinion: [hot take]"},
+    {"name": "Story Loop", "pattern": "I did X and this happened..."},
+    {"name": "Direct Challenge", "pattern": "Stop doing X right now"},
+    {"name": "Curiosity Gap", "pattern": "The secret to X that nobody talks about"},
+    {"name": "Social Proof", "pattern": "This is why millions are doing X"},
+    {"name": "Before/After", "pattern": "X changed my life in Y days"},
+    {"name": "Listicle", "pattern": "N things you need to know about X"},
+    {"name": "Question Hook", "pattern": "What if I told you X?"},
+    {"name": "Fear Appeal", "pattern": "Warning: X is ruining your Y"}
+]
 
 # =============================================================================
-# VIRAL TITLE GENERATOR FOR YOUTUBE SHORTS
+# VIRAL SWIPE FILE DATABASE
 # =============================================================================
-TITLE_TEMPLATES = {
-    "curiosity": [
-        "Nobody Talks About This...",
-        "The Truth About {topic}...",
-        "What They Don't Tell You About {topic}",
-        "The Secret Behind {topic}",
-        "Why {topic} Is Actually {twist}",
-        "The Real Reason {topic} {action}",
-        "What Happens When You {action}",
-        "I Finally Discovered Why {topic}",
-        "This Changes Everything About {topic}",
-        "The Hidden Truth About {topic}"
+VIRAL_HOOKS_DATABASE = {
+    "fitness": [
+        {"hook": "I lost 30 pounds in 90 days doing this one thing", "views": "2.5M", "engagement": "18%"},
+        {"hook": "The workout nobody talks about that actually works", "views": "1.8M", "engagement": "15%"},
+        {"hook": "Stop doing crunches. Here's what actually burns belly fat", "views": "3.1M", "engagement": "22%"},
+        {"hook": "I did 100 pushups a day for 30 days. Here's what happened", "views": "4.2M", "engagement": "19%"},
+        {"hook": "The morning routine that transformed my body", "views": "1.5M", "engagement": "16%"}
     ],
-    "transformation": [
-        "I Tried {topic} For 30 Days...",
-        "What Happened After {timeframe} Of {topic}",
-        "From {before} To {after} In {timeframe}",
-        "{topic} Changed My Life In {timeframe}",
-        "My {topic} Transformation",
-        "Before vs After {topic}",
-        "The {topic} That Changed Everything",
-        "How I Went From {before} To {after}",
-        "{timeframe} Of {topic} Results",
-        "My {timeframe} {topic} Journey"
+    "business": [
+        {"hook": "I made $10K in my first month doing this side hustle", "views": "5.2M", "engagement": "24%"},
+        {"hook": "The email template that got me a $50K client", "views": "2.8M", "engagement": "21%"},
+        {"hook": "Stop trading time for money. Here's how", "views": "3.5M", "engagement": "18%"},
+        {"hook": "The pricing mistake that's killing your business", "views": "1.9M", "engagement": "17%"},
+        {"hook": "What I'd do if I had to start over with $0", "views": "4.1M", "engagement": "23%"}
     ],
-    "listicle": [
-        "{number} {topic} That Will {benefit}",
-        "{number} Reasons Why {topic}",
-        "{number} {topic} You Need To Try",
-        "Top {number} {topic} In {year}",
-        "{number} {topic} Mistakes To Avoid",
-        "{number} {topic} Secrets Revealed",
-        "{number} {topic} That Actually Work",
-        "The {number} Best {topic}",
-        "{number} {topic} For Beginners",
-        "{number} {topic} Pros Don't Tell You"
+    "relationships": [
+        {"hook": "If they do this, run. Biggest red flag", "views": "6.8M", "engagement": "28%"},
+        {"hook": "The truth about modern dating nobody wants to hear", "views": "4.5M", "engagement": "25%"},
+        {"hook": "Green flags you're probably ignoring", "views": "3.2M", "engagement": "20%"},
+        {"hook": "This is why you're still single (harsh truth)", "views": "5.1M", "engagement": "26%"},
+        {"hook": "The 3 second rule that changed my dating life", "views": "2.9M", "engagement": "19%"}
     ],
-    "shock": [
-        "I Can't Believe This {topic}",
-        "This {topic} Shocked Me",
-        "You Won't Believe This {topic}",
-        "The Most {adjective} {topic} Ever",
-        "This {topic} Is Insane",
-        "Wait For The {topic}...",
-        "I Wasn't Expecting This {topic}",
-        "The {topic} That Broke The Internet",
-        "Everyone Is Wrong About {topic}",
-        "This {topic} Will Blow Your Mind"
+    "motivation": [
+        {"hook": "This is your sign to finally start", "views": "7.2M", "engagement": "30%"},
+        {"hook": "They laughed at me. Look at me now", "views": "5.8M", "engagement": "27%"},
+        {"hook": "Nobody is coming to save you. Watch this", "views": "4.3M", "engagement": "24%"},
+        {"hook": "The mindset shift that changed everything", "views": "3.6M", "engagement": "21%"},
+        {"hook": "You're not lazy. You're just doing this wrong", "views": "4.9M", "engagement": "23%"}
     ],
-    "how_to": [
-        "How To {action} In {timeframe}",
-        "The Easiest Way To {action}",
-        "How I {action} (Step By Step)",
-        "The Simple Trick To {action}",
-        "How To {action} Without {obstacle}",
-        "The Best Way To {action}",
-        "How To Actually {action}",
-        "Quick Guide To {action}",
-        "How To {action} Like A Pro",
-        "{action} Made Simple"
+    "lifestyle": [
+        {"hook": "My morning routine that makes me unstoppable", "views": "3.4M", "engagement": "19%"},
+        {"hook": "Life hacks I wish I knew sooner", "views": "4.7M", "engagement": "22%"},
+        {"hook": "Things I stopped buying that changed my life", "views": "2.8M", "engagement": "18%"},
+        {"hook": "The habit that 10x'd my productivity", "views": "3.9M", "engagement": "20%"},
+        {"hook": "Minimalist living: What I got rid of", "views": "2.5M", "engagement": "17%"}
+    ],
+    "general": [
+        {"hook": "Wait for it... you won't believe this", "views": "8.5M", "engagement": "32%"},
+        {"hook": "Nobody is talking about this and it's crazy", "views": "5.6M", "engagement": "26%"},
+        {"hook": "I finally figured it out after 10 years", "views": "4.2M", "engagement": "23%"},
+        {"hook": "This changed my perspective completely", "views": "3.8M", "engagement": "21%"},
+        {"hook": "The truth no one wants to tell you", "views": "6.1M", "engagement": "28%"}
     ]
 }
 
-class TitleGeneratorRequest(BaseModel):
-    topic: str = Field(..., min_length=2, max_length=100)
-    style: Optional[str] = None
-    count: int = Field(default=10, ge=1, le=20)
-
-@creator_pro_router.post("/titles/generate")
-async def generate_viral_titles(data: TitleGeneratorRequest):
-    """Generate viral YouTube Shorts titles (Template-based, No AI)"""
-    generated_titles = []
-    
-    styles = [data.style] if data.style and data.style in TITLE_TEMPLATES else list(TITLE_TEMPLATES.keys())
-    
-    for style in styles:
-        templates = TITLE_TEMPLATES[style]
-        for template in random.sample(templates, min(3, len(templates))):
-            title = template.format(
-                topic=data.topic,
-                action=f"master {data.topic}",
-                benefit=f"change your {data.topic.split()[0]} game",
-                before="nothing",
-                after="success",
-                timeframe="30 days",
-                number=random.choice(["3", "5", "7", "10"]),
-                year="2024",
-                adjective=random.choice(["insane", "incredible", "amazing", "shocking"]),
-                obstacle="spending money",
-                twist="a game changer"
-            )
-            generated_titles.append({
-                "title": title,
-                "style": style,
-                "character_count": len(title)
-            })
-    
-    random.shuffle(generated_titles)
-    return {
-        "titles": generated_titles[:data.count],
-        "topic": data.topic,
-        "tip": "Keep titles under 50 characters for best mobile display"
-    }
-
-# =============================================================================
-# PERSONAL BRANDING BIO GENERATOR
-# =============================================================================
 BIO_TEMPLATES = {
-    "instagram": {
-        "professional": [
-            "{title} | {niche} Expert\n💼 Helping {audience} {benefit}\n📍 {location}\n🔗 {cta}",
-            "{emoji} {title} in {niche}\n{achievement}\n{cta_emoji} {cta}",
-            "{niche} {title} | {personality}\n{tagline}\n{cta}"
-        ],
-        "personal": [
-            "{personality} {title} 🌟\n{hobby} enthusiast | {niche} lover\n{cta}",
-            "Just a {personality} {title} doing {niche} things ✨\n{tagline}",
-            "{name} | {age}s | {location}\n{niche} journey 📈\n{cta}"
-        ],
-        "creator": [
-            "Creating {content_type} about {niche} 🎬\n{followers}+ community\n{cta}",
-            "{niche} Creator | {posting_schedule}\n{tagline}\n{cta}",
-            "📱 {niche} content daily\n🎯 {mission}\n👇 {cta}"
-        ]
-    },
-    "youtube": {
-        "professional": [
-            "Welcome to {channel_name}! 🎬\n\nI create {content_type} about {niche} to help you {benefit}.\n\n📅 New videos every {schedule}\n🔔 Subscribe for {promise}\n\n{cta}",
-            "{channel_name} - Your go-to channel for {niche}!\n\nHere you'll find: {content_list}\n\n{achievement}\n\nSubscribe to join {followers}+ {audience}!"
-        ]
-    },
-    "linkedin": {
-        "professional": [
-            "{title} | {company} | {niche} Expert\n\nI help {audience} {benefit} through {method}.\n\n{achievement}",
-            "{title} specializing in {niche}\n{years}+ years of {expertise}\nPassionate about {passion}",
-            "{niche} Professional | {title} at {company}\n\nAreas of expertise:\n• {skill1}\n• {skill2}\n• {skill3}"
-        ]
-    },
-    "twitter": {
-        "professional": [
-            "{title} | {niche}\n{tagline}\n{cta}",
-            "Building {project} | {niche} thoughts | {hobby}",
-            "{emoji} {niche} {title}\n{achievement}\nDMs open for {offer}"
-        ]
-    },
-    "tiktok": {
-        "creator": [
-            "{niche} creator 🎬\n{posting_schedule}\n{cta}",
-            "Making {content_type} about {niche} ✨\n{tagline}",
-            "{emoji} {personality} {title}\n{niche} content daily\n{cta}"
-        ]
-    }
+    "professional": [
+        "🎯 {profession} | Helping {audience} {outcome}",
+        "💼 {profession} → {specialization} | {achievement}",
+        "🚀 {profession} | {unique_value} | DM for collabs",
+        "✨ {profession} sharing {content_type} | {cta}"
+    ],
+    "creative": [
+        "🌟 {profession} by day, {hobby} by night | {vibe}",
+        "✨ Making {content_type} that {benefit} | {cta}",
+        "🎨 {profession} | {passion} enthusiast | {location}",
+        "💫 {profession} + {side_interest} | {tagline}"
+    ],
+    "minimalist": [
+        "{profession}. {one_line_value}.",
+        "{what_you_do} → {result}",
+        "{profession} | {location}",
+        "Just a {profession} trying to {goal}"
+    ],
+    "bold": [
+        "🔥 {profession} who {bold_claim}",
+        "The {profession} your competitors follow",
+        "Making {audience} {transformation} since {year}",
+        "Not your average {profession} | {differentiator}"
+    ]
 }
 
-class BioGeneratorRequest(BaseModel):
-    platform: str = Field(..., description="instagram, youtube, linkedin, twitter, tiktok")
-    style: str = Field(default="professional", description="professional, personal, creator")
-    niche: str = Field(..., min_length=2, max_length=50)
-    personality: Optional[str] = Field(default="passionate")
-    name: Optional[str] = None
-    title: Optional[str] = None
-    achievement: Optional[str] = None
-    cta: Optional[str] = "Link in bio"
-
-@creator_pro_router.post("/bio/generate")
-async def generate_bio(data: BioGeneratorRequest):
-    """Generate platform-specific bios (Template-based)"""
-    platform = data.platform.lower()
-    style = data.style.lower()
-    
-    if platform not in BIO_TEMPLATES:
-        raise HTTPException(status_code=400, detail=f"Platform not supported. Choose from: {list(BIO_TEMPLATES.keys())}")
-    
-    platform_templates = BIO_TEMPLATES[platform]
-    if style not in platform_templates:
-        style = list(platform_templates.keys())[0]
-    
-    templates = platform_templates[style]
-    generated_bios = []
-    
-    for template in templates:
-        bio = template.format(
-            niche=data.niche,
-            personality=data.personality or "passionate",
-            title=data.title or f"{data.niche} Expert",
-            name=data.name or "Creator",
-            achievement=data.achievement or f"Sharing {data.niche} tips",
-            cta=data.cta or "Link in bio",
-            audience=f"{data.niche} enthusiasts",
-            benefit=f"level up their {data.niche}",
-            tagline=f"Making {data.niche} simple",
-            location="Worldwide",
-            emoji=random.choice(["🚀", "💡", "⭐", "🔥", "✨"]),
-            cta_emoji=random.choice(["👇", "🔗", "📩", "💬"]),
-            content_type="content",
-            followers="10K",
-            posting_schedule="New content daily",
-            channel_name=f"{data.niche} Hub",
-            schedule="week",
-            promise=f"{data.niche} mastery",
-            content_list=f"tips, tutorials, and {data.niche} insights",
-            company="Self-employed",
-            method="proven strategies",
-            years="5",
-            expertise=f"{data.niche} consulting",
-            passion=f"helping others succeed in {data.niche}",
-            skill1=f"{data.niche} Strategy",
-            skill2="Content Creation",
-            skill3="Community Building",
-            project=f"the future of {data.niche}",
-            hobby="coffee lover",
-            offer="collaborations",
-            age="20"
-        )
-        generated_bios.append({
-            "bio": bio,
-            "character_count": len(bio),
-            "platform": platform,
-            "style": style
-        })
-    
-    return {
-        "bios": generated_bios,
-        "platform": platform,
-        "tip": get_platform_tip(platform)
-    }
-
-def get_platform_tip(platform: str) -> str:
-    tips = {
-        "instagram": "Keep under 150 characters. Use line breaks and emojis strategically.",
-        "youtube": "Include keywords for SEO. Mention upload schedule.",
-        "linkedin": "Be professional. Include measurable achievements.",
-        "twitter": "Max 160 characters. Be memorable and clear.",
-        "tiktok": "Keep it fun and relatable. Emojis work well."
-    }
-    return tips.get(platform, "Be authentic and clear about your value proposition.")
-
 # =============================================================================
-# HASHTAG MATRIX (Curated Banks)
+# 1. HOOK ANALYZER
 # =============================================================================
-HASHTAG_BANKS = {
-    "fitness": {
-        "high_competition": ["fitness", "gym", "workout", "fitnessmotivation", "fit"],
-        "medium_competition": ["fitfam", "gymmotivation", "workoutmotivation", "fitnessjourney", "fitlife"],
-        "low_competition": ["fitnesstips2024", "homegymworkout", "beginnerfitness", "fitnessover30", "fitnessmindset"],
-        "engagement": ["fitcheck", "gymbro", "liftingtiktok", "fitnessreels", "workouttok"]
-    },
-    "business": {
-        "high_competition": ["business", "entrepreneur", "success", "motivation", "money"],
-        "medium_competition": ["businessowner", "entrepreneurlife", "smallbusiness", "startuplife", "businesstips"],
-        "low_competition": ["businessmindset2024", "solopreneurlife", "businesscoaching", "sidehustletips", "passiveincome2024"],
-        "engagement": ["businesstok", "moneytok", "corporatetiktok", "9to5escape", "hustleculture"]
-    },
-    "beauty": {
-        "high_competition": ["beauty", "makeup", "skincare", "beautytips", "makeupartist"],
-        "medium_competition": ["beautyblogger", "makeuptutorial", "skincareroutine", "beautyhacks", "makeuplover"],
-        "low_competition": ["cleanbeauty2024", "affordablemakeup", "drugstoremakeup", "skincareover30", "acnejourney"],
-        "engagement": ["beautytok", "makeuptok", "grwm", "skincaretok", "beautycommunity"]
-    },
-    "food": {
-        "high_competition": ["food", "foodie", "cooking", "recipe", "foodporn"],
-        "medium_competition": ["foodblogger", "homecooking", "easyrecipes", "foodlover", "instafood"],
-        "low_competition": ["mealprep2024", "budgetmeals", "healthyeating", "quickdinners", "airfryerrecipes"],
-        "engagement": ["foodtok", "cookingtiktok", "recipetok", "foodasmr", "whatieatinaday"]
-    },
-    "travel": {
-        "high_competition": ["travel", "wanderlust", "vacation", "travelgram", "adventure"],
-        "medium_competition": ["travelblogger", "travellife", "exploremore", "travelphotography", "bucketlist"],
-        "low_competition": ["budgettravel2024", "solotravel", "hiddengems", "traveltips2024", "digitalnomad"],
-        "engagement": ["traveltok", "travelreels", "packingtips", "airportlife", "hotelreview"]
-    },
-    "parenting": {
-        "high_competition": ["parenting", "mom", "momlife", "motherhood", "kids"],
-        "medium_competition": ["parentingtips", "toddlermom", "boymom", "girlmom", "parenthood"],
-        "low_competition": ["gentleparenting", "momhacks2024", "toddleractivities", "momof3", "parentingwin"],
-        "engagement": ["momtok", "parentingtiktok", "momsoftiktok", "dadtok", "familyvlog"]
-    },
-    "motivation": {
-        "high_competition": ["motivation", "success", "mindset", "goals", "inspiration"],
-        "medium_competition": ["motivationalquotes", "successmindset", "growthmindset", "selfimprovement", "positivity"],
-        "low_competition": ["morningmotivation", "motivationdaily", "mindsetcoach", "goalsetting2024", "levelup"],
-        "engagement": ["motivationtok", "selfhelptok", "growthtok", "mindsetcheck", "dailymotivation"]
-    }
-}
-
-class HashtagRequest(BaseModel):
-    niche: str
-    count: int = Field(default=30, ge=10, le=50)
-    include_engagement: bool = True
-    location: Optional[str] = None
-
-@creator_pro_router.post("/hashtags/generate")
-async def generate_hashtags(data: HashtagRequest):
-    """Generate optimized hashtag mix from curated banks"""
-    niche = data.niche.lower().replace(" ", "")
+@router.post("/hook-analyzer")
+async def analyze_hook(
+    hook: str = Form(...),
+    niche: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user)
+):
+    """Analyze a hook for virality factors - 2 credits"""
+    cost = PRO_COSTS["hook_analyzer"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
-    # Find closest matching niche
-    available_niches = list(HASHTAG_BANKS.keys())
-    matched_niche = None
-    for n in available_niches:
-        if n in niche or niche in n:
-            matched_niche = n
+    hook_lower = hook.lower()
+    
+    # Analyze power words
+    found_power_words = [w for w in POWER_WORDS if w in hook_lower]
+    power_word_score = min(len(found_power_words) * 10, 30)
+    
+    # Analyze emotional triggers
+    emotional_analysis = {}
+    for emotion, triggers in EMOTIONAL_TRIGGERS.items():
+        found = [t for t in triggers if t in hook_lower]
+        if found:
+            emotional_analysis[emotion] = found
+    emotion_score = min(len(emotional_analysis) * 15, 30)
+    
+    # Length analysis
+    word_count = len(hook.split())
+    length_score = 20 if 5 <= word_count <= 12 else (10 if 3 <= word_count <= 15 else 5)
+    
+    # Structure analysis
+    has_number = bool(re.search(r'\d+', hook))
+    has_question = "?" in hook
+    has_call_to_action = any(w in hook_lower for w in ["stop", "watch", "try", "learn", "discover"])
+    structure_score = (10 if has_number else 0) + (5 if has_question else 0) + (5 if has_call_to_action else 0)
+    
+    # Total score
+    total_score = power_word_score + emotion_score + length_score + structure_score
+    
+    # Determine rating
+    if total_score >= 80:
+        rating = "🔥 VIRAL POTENTIAL"
+        color = "green"
+    elif total_score >= 60:
+        rating = "👍 STRONG"
+        color = "blue"
+    elif total_score >= 40:
+        rating = "⚡ GOOD"
+        color = "yellow"
+    else:
+        rating = "📈 NEEDS WORK"
+        color = "orange"
+    
+    # Generate improvements
+    improvements = []
+    if not found_power_words:
+        improvements.append("Add power words like 'secret', 'proven', 'instant'")
+    if not emotional_analysis:
+        improvements.append("Include emotional triggers (curiosity, urgency, desire)")
+    if word_count > 15:
+        improvements.append("Shorten your hook - aim for 5-12 words")
+    if not has_number:
+        improvements.append("Consider adding a specific number for credibility")
+    if not has_call_to_action:
+        improvements.append("Add an action word (stop, watch, try, discover)")
+    
+    # Find matching formula
+    matched_formula = None
+    for formula in HOOK_FORMULAS:
+        if any(keyword in hook_lower for keyword in formula["pattern"].lower().split()):
+            matched_formula = formula["name"]
             break
     
-    if not matched_niche:
-        matched_niche = random.choice(available_niches)
+    await deduct_credits(user["id"], cost, "Hook Analyzer")
     
-    bank = HASHTAG_BANKS[matched_niche]
+    return {
+        "success": True,
+        "hook": hook,
+        "analysis": {
+            "totalScore": total_score,
+            "rating": rating,
+            "color": color,
+            "breakdown": {
+                "powerWords": {"score": power_word_score, "found": found_power_words},
+                "emotionalTriggers": {"score": emotion_score, "analysis": emotional_analysis},
+                "length": {"score": length_score, "wordCount": word_count, "optimal": "5-12 words"},
+                "structure": {"score": structure_score, "hasNumber": has_number, "hasQuestion": has_question, "hasCTA": has_call_to_action}
+            },
+            "matchedFormula": matched_formula,
+            "improvements": improvements
+        },
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 2. VIRAL SWIPE FILE ENGINE
+# =============================================================================
+@router.get("/swipe-file/{niche}")
+async def get_swipe_file(
+    niche: str,
+    limit: int = 10,
+    content_type: str = "reel",
+    user: dict = Depends(get_current_user)
+):
+    """Get viral hooks from swipe file database - 3 credits"""
+    cost = PRO_COSTS["swipe_file"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
-    # Build optimized mix (30/30/30/10 strategy)
-    hashtags = []
+    niche_lower = niche.lower()
+    hooks = VIRAL_HOOKS_DATABASE.get(niche_lower, VIRAL_HOOKS_DATABASE["general"])
     
-    # 30% high competition (reach)
-    high = random.sample(bank["high_competition"], min(int(data.count * 0.3), len(bank["high_competition"])))
-    hashtags.extend([{"tag": f"#{h}", "competition": "high"} for h in high])
+    # Add adaptations
+    adapted_hooks = []
+    for h in hooks[:limit]:
+        adapted_hooks.append({
+            **h,
+            "adaptations": [
+                f"POV: {h['hook']}",
+                f"Story time: {h['hook']}",
+                f"I need to talk about {h['hook'].lower()}"
+            ]
+        })
     
-    # 30% medium competition (balance)
-    medium = random.sample(bank["medium_competition"], min(int(data.count * 0.3), len(bank["medium_competition"])))
-    hashtags.extend([{"tag": f"#{h}", "competition": "medium"} for h in medium])
+    await deduct_credits(user["id"], cost, f"Swipe File: {niche}")
     
-    # 30% low competition (discovery)
-    low = random.sample(bank["low_competition"], min(int(data.count * 0.3), len(bank["low_competition"])))
-    hashtags.extend([{"tag": f"#{h}", "competition": "low"} for h in low])
+    return {
+        "success": True,
+        "niche": niche,
+        "contentType": content_type,
+        "hooks": adapted_hooks,
+        "tips": [
+            "Adapt these hooks to your unique voice",
+            "Test multiple variations",
+            "First 3 seconds are crucial",
+            "Match hook energy with video energy"
+        ],
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 3. BIO GENERATOR
+# =============================================================================
+@router.post("/bio-generator")
+async def generate_bio(
+    profession: str = Form(...),
+    keywords: str = Form(""),  # comma-separated
+    tone: str = Form("professional"),
+    platform: str = Form("instagram"),
+    user: dict = Depends(get_current_user)
+):
+    """Generate optimized social media bio - 3 credits"""
+    cost = PRO_COSTS["bio_generator"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
-    # 10% engagement tags
-    if data.include_engagement:
-        engagement = random.sample(bank["engagement"], min(int(data.count * 0.1) + 1, len(bank["engagement"])))
-        hashtags.extend([{"tag": f"#{h}", "competition": "engagement"} for h in engagement])
+    keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
+    templates = BIO_TEMPLATES.get(tone, BIO_TEMPLATES["professional"])
     
-    # Add location tags if specified
-    if data.location:
-        location_tags = [
-            f"#{data.location.lower().replace(' ', '')}",
-            f"#{data.location.lower().replace(' ', '')}life",
-            f"#{data.location.lower().replace(' ', '')}creator"
+    # Generate multiple bio options
+    bios = []
+    for template in templates:
+        bio = template.format(
+            profession=profession,
+            audience=keywords_list[0] if keywords_list else "people",
+            outcome=keywords_list[1] if len(keywords_list) > 1 else "achieve their goals",
+            specialization=keywords_list[0] if keywords_list else "expert tips",
+            achievement="10K+ helped" if random.random() > 0.5 else "Featured creator",
+            unique_value=f"Daily {profession.lower()} tips",
+            content_type=f"{profession.lower()} content",
+            cta="Link below ⬇️",
+            hobby=keywords_list[-1] if keywords_list else "creator",
+            vibe="Living the dream ✨",
+            passion=keywords_list[0] if keywords_list else "growth",
+            location="🌍 Global",
+            side_interest="coffee addict ☕",
+            tagline="Building something special",
+            one_line_value=f"Making {profession.lower()} simple",
+            what_you_do=f"I help with {profession.lower()}",
+            result="results",
+            goal="make an impact",
+            bold_claim=f"actually delivers results",
+            transformation="better",
+            year="2024",
+            differentiator="Results speak louder"
+        )
+        bios.append(bio)
+    
+    # Character count for each platform
+    char_limits = {"instagram": 150, "twitter": 160, "tiktok": 80, "linkedin": 220}
+    limit = char_limits.get(platform, 150)
+    
+    await deduct_credits(user["id"], cost, f"Bio Generator: {platform}")
+    
+    return {
+        "success": True,
+        "profession": profession,
+        "platform": platform,
+        "tone": tone,
+        "bios": [{"bio": b, "charCount": len(b), "withinLimit": len(b) <= limit} for b in bios],
+        "charLimit": limit,
+        "tips": [
+            f"Keep under {limit} characters for {platform}",
+            "Include a clear call-to-action",
+            "Use emojis sparingly but strategically",
+            "Update your bio regularly to reflect growth"
+        ],
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 4. CONTENT REPURPOSING ENGINE
+# =============================================================================
+@router.post("/content-repurpose")
+async def repurpose_content(
+    content: str = Form(...),
+    source_format: str = Form(...),  # blog, tweet, caption, video_script
+    target_formats: str = Form(...),  # comma-separated
+    user: dict = Depends(get_current_user)
+):
+    """Repurpose content into multiple formats - 5 credits"""
+    cost = PRO_COSTS["content_repurpose"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    targets = [t.strip() for t in target_formats.split(",")]
+    
+    repurposed = {}
+    
+    for target in targets:
+        if target == "reel_script":
+            # Convert to reel script
+            sentences = content.split(".")[:3]
+            repurposed["reel_script"] = {
+                "hook": sentences[0].strip() if sentences else content[:50],
+                "body": " ".join(sentences[1:3]) if len(sentences) > 1 else content[50:150],
+                "cta": "Follow for more! Link in bio.",
+                "duration": "15-30s"
+            }
+        elif target == "carousel":
+            # Convert to carousel slides
+            sentences = [s.strip() for s in content.split(".") if s.strip()]
+            repurposed["carousel"] = {
+                "slides": [
+                    {"slide": 1, "type": "cover", "text": sentences[0] if sentences else "Main Point"},
+                    *[{"slide": i+2, "type": "content", "text": s} for i, s in enumerate(sentences[1:6])],
+                    {"slide": len(sentences[:6])+2, "type": "cta", "text": "Save this post!"}
+                ]
+            }
+        elif target == "thread":
+            # Convert to Twitter/X thread
+            sentences = [s.strip() for s in content.split(".") if s.strip()]
+            repurposed["thread"] = {
+                "tweets": [
+                    {"number": 1, "text": f"🧵 {sentences[0]}" if sentences else "Thread incoming..."},
+                    *[{"number": i+2, "text": s} for i, s in enumerate(sentences[1:8])],
+                    {"number": "last", "text": "If this was helpful, RT the first tweet! Follow for more."}
+                ]
+            }
+        elif target == "linkedin_post":
+            repurposed["linkedin_post"] = {
+                "hook": content[:100] + "...",
+                "body": content,
+                "cta": "\n\n👉 What do you think? Share your thoughts below.\n\n#leadership #growth #insights"
+            }
+        elif target == "email":
+            repurposed["email"] = {
+                "subject": content[:50] + "...",
+                "preview": content[50:100],
+                "body": content,
+                "cta": "Reply to this email with your thoughts!"
+            }
+        elif target == "quote_cards":
+            sentences = [s.strip() for s in content.split(".") if len(s.strip()) > 20][:5]
+            repurposed["quote_cards"] = [{"quote": s, "attribution": "- You"} for s in sentences]
+    
+    await deduct_credits(user["id"], cost, "Content Repurposing")
+    
+    return {
+        "success": True,
+        "sourceFormat": source_format,
+        "targetFormats": targets,
+        "repurposed": repurposed,
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 5. CONSISTENCY TRACKER
+# =============================================================================
+@router.post("/consistency-track")
+async def track_consistency(
+    content_type: str = Form(...),
+    platform: str = Form("instagram"),
+    notes: str = Form(""),
+    user: dict = Depends(get_current_user)
+):
+    """Track content posting consistency - 1 credit"""
+    cost = PRO_COSTS["consistency_tracker"]
+    
+    # Save tracking entry
+    entry = {
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "contentType": content_type,
+        "platform": platform,
+        "notes": notes,
+        "postedAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.consistency_tracker.insert_one(entry)
+    
+    # Get stats
+    user_entries = await db.consistency_tracker.find(
+        {"userId": user["id"]},
+        {"_id": 0}
+    ).sort("postedAt", -1).to_list(100)
+    
+    # Calculate streak
+    streak = 0
+    today = datetime.now(timezone.utc).date()
+    for i, e in enumerate(user_entries):
+        entry_date = datetime.fromisoformat(e["postedAt"].replace('Z', '+00:00')).date()
+        expected_date = today - timedelta(days=i)
+        if entry_date == expected_date:
+            streak += 1
+        else:
+            break
+    
+    # Calculate weekly stats
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    weekly_posts = len([e for e in user_entries if e.get("postedAt", "") >= week_ago])
+    
+    await deduct_credits(user["id"], cost, "Consistency Tracker")
+    
+    return {
+        "success": True,
+        "tracked": entry,
+        "stats": {
+            "currentStreak": streak,
+            "weeklyPosts": weekly_posts,
+            "totalPosts": len(user_entries),
+            "bestStreak": max(streak, 1)  # Would need more logic for historical best
+        },
+        "motivation": "🔥 Keep going! Consistency beats perfection." if streak > 0 else "Start your streak today!",
+        "creditsUsed": cost
+    }
+
+
+@router.get("/consistency-stats")
+async def get_consistency_stats(user: dict = Depends(get_current_user)):
+    """Get consistency statistics - FREE"""
+    entries = await db.consistency_tracker.find(
+        {"userId": user["id"]},
+        {"_id": 0}
+    ).sort("postedAt", -1).to_list(100)
+    
+    # Group by platform
+    by_platform = {}
+    for e in entries:
+        platform = e.get("platform", "unknown")
+        if platform not in by_platform:
+            by_platform[platform] = 0
+        by_platform[platform] += 1
+    
+    # Group by content type
+    by_type = {}
+    for e in entries:
+        ct = e.get("contentType", "unknown")
+        if ct not in by_type:
+            by_type[ct] = 0
+        by_type[ct] += 1
+    
+    return {
+        "totalPosts": len(entries),
+        "byPlatform": by_platform,
+        "byContentType": by_type,
+        "recentPosts": entries[:10]
+    }
+
+
+# =============================================================================
+# 6. CAPTION GENERATOR
+# =============================================================================
+@router.post("/caption-generator")
+async def generate_caption(
+    topic: str = Form(...),
+    tone: str = Form("engaging"),
+    include_cta: bool = Form(True),
+    include_hashtags: bool = Form(True),
+    platform: str = Form("instagram"),
+    user: dict = Depends(get_current_user)
+):
+    """Generate optimized captions - 2 credits"""
+    cost = PRO_COSTS["caption_generator"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    # Generate captions based on tone
+    captions = {
+        "engaging": [
+            f"Here's something about {topic} that changed my perspective...",
+            f"Can we talk about {topic}? Because this is important.",
+            f"I've been thinking a lot about {topic} lately. Here's why..."
+        ],
+        "educational": [
+            f"3 things you need to know about {topic}:",
+            f"The truth about {topic} that nobody talks about:",
+            f"Everything you've been told about {topic} is wrong. Here's why:"
+        ],
+        "storytelling": [
+            f"Story time: How {topic} changed everything for me...",
+            f"I never thought I'd be talking about {topic}, but here we are...",
+            f"The {topic} journey that taught me the biggest lesson..."
+        ],
+        "promotional": [
+            f"Excited to share something about {topic} with you!",
+            f"This is why {topic} matters more than ever...",
+            f"If you've been struggling with {topic}, this is for you."
         ]
-        hashtags.extend([{"tag": t, "competition": "location"} for t in location_tags[:2]])
+    }
+    
+    selected_captions = captions.get(tone, captions["engaging"])
+    
+    # Add CTA
+    ctas = [
+        "\n\n👉 Save this for later!",
+        "\n\n💬 Drop a comment if you agree!",
+        "\n\n🔔 Follow for more!",
+        "\n\n❤️ Double tap if this resonates!"
+    ]
+    
+    # Add hashtags
+    hashtags = f"\n\n#{topic.replace(' ', '').lower()} #content #viral #trending #fyp"
+    
+    final_captions = []
+    for cap in selected_captions:
+        final = cap
+        if include_cta:
+            final += random.choice(ctas)
+        if include_hashtags:
+            final += hashtags
+        final_captions.append({"caption": final, "charCount": len(final)})
+    
+    await deduct_credits(user["id"], cost, "Caption Generator")
     
     return {
-        "hashtags": hashtags[:data.count],
-        "total": len(hashtags),
-        "niche_matched": matched_niche,
-        "copy_text": " ".join([h["tag"] for h in hashtags[:data.count]]),
-        "strategy": "30% high (reach) + 30% medium (balance) + 30% low (discovery) + 10% engagement"
+        "success": True,
+        "topic": topic,
+        "tone": tone,
+        "captions": final_captions,
+        "creditsUsed": cost
     }
 
-@creator_pro_router.get("/hashtags/niches")
-async def get_available_hashtag_niches():
-    """Get all available hashtag niches"""
+
+# =============================================================================
+# 7. VIRAL SCORE CALCULATOR
+# =============================================================================
+@router.post("/viral-score")
+async def calculate_viral_score(
+    hook: str = Form(...),
+    caption: str = Form(""),
+    hashtags: str = Form(""),
+    user: dict = Depends(get_current_user)
+):
+    """Calculate virality potential score - 1 credit"""
+    cost = PRO_COSTS["viral_score"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    scores = {}
+    
+    # Hook score (40% weight)
+    hook_words = len(hook.split())
+    power_count = sum(1 for w in POWER_WORDS if w in hook.lower())
+    hook_score = min(100, (power_count * 15) + (20 if 5 <= hook_words <= 12 else 10))
+    scores["hook"] = {"score": hook_score, "weight": 40}
+    
+    # Caption score (30% weight)
+    caption_length = len(caption)
+    has_emoji = bool(re.search(r'[\U0001F600-\U0001F64F]', caption))
+    has_cta = any(w in caption.lower() for w in ["follow", "save", "share", "comment", "like"])
+    caption_score = min(100, (30 if 100 <= caption_length <= 500 else 15) + (20 if has_emoji else 0) + (30 if has_cta else 0))
+    scores["caption"] = {"score": caption_score, "weight": 30}
+    
+    # Hashtag score (30% weight)
+    hashtag_count = len([h for h in hashtags.split() if h.startswith("#")])
+    hashtag_score = 100 if 5 <= hashtag_count <= 15 else (70 if 3 <= hashtag_count <= 20 else 40)
+    scores["hashtags"] = {"score": hashtag_score, "weight": 30}
+    
+    # Calculate weighted total
+    total_score = sum(s["score"] * s["weight"] / 100 for s in scores.values())
+    
+    # Determine tier
+    if total_score >= 85:
+        tier = "🚀 VIRAL READY"
+    elif total_score >= 70:
+        tier = "🔥 HIGH POTENTIAL"
+    elif total_score >= 50:
+        tier = "⚡ MODERATE"
+    else:
+        tier = "📈 NEEDS IMPROVEMENT"
+    
+    await deduct_credits(user["id"], cost, "Viral Score Calculator")
+    
     return {
-        "niches": list(HASHTAG_BANKS.keys()),
-        "total": len(HASHTAG_BANKS)
+        "success": True,
+        "totalScore": round(total_score, 1),
+        "tier": tier,
+        "breakdown": scores,
+        "recommendations": [
+            "Add more power words to your hook" if hook_score < 70 else None,
+            "Include a clear CTA in your caption" if not has_cta else None,
+            "Add emojis to increase engagement" if not has_emoji else None,
+            f"Use {15 - hashtag_count} more hashtags" if hashtag_count < 5 else None
+        ],
+        "creditsUsed": cost
     }
 
+
 # =============================================================================
-# EXPORTS
+# 8. HEADLINE GENERATOR
 # =============================================================================
-__all__ = ['creator_pro_router']
+@router.post("/headline-generator")
+async def generate_headlines(
+    topic: str = Form(...),
+    style: str = Form("all"),  # clickbait, informative, emotional, numbers
+    count: int = Form(5),
+    user: dict = Depends(get_current_user)
+):
+    """Generate attention-grabbing headlines - 2 credits"""
+    cost = PRO_COSTS["headline_generator"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    headlines = {
+        "clickbait": [
+            f"You Won't Believe What Happens When You Try {topic}",
+            f"The Shocking Truth About {topic} Nobody Tells You",
+            f"I Tried {topic} For 30 Days And This Happened",
+            f"Stop Everything: {topic} Just Changed The Game",
+            f"Why Everyone Is Talking About {topic} Right Now"
+        ],
+        "informative": [
+            f"The Complete Guide to {topic} in 2024",
+            f"Everything You Need to Know About {topic}",
+            f"How to Master {topic}: A Step-by-Step Guide",
+            f"{topic} Explained: What Beginners Need to Know",
+            f"The Science Behind {topic}: What Research Shows"
+        ],
+        "emotional": [
+            f"How {topic} Changed My Life Forever",
+            f"The {topic} Journey That Made Me Cry",
+            f"Why {topic} Means Everything to Me",
+            f"The Heartbreaking Truth About {topic}",
+            f"What {topic} Taught Me About Life"
+        ],
+        "numbers": [
+            f"7 Secrets About {topic} That Will Blow Your Mind",
+            f"10 {topic} Mistakes You're Probably Making",
+            f"5 Ways {topic} Will Transform Your Life",
+            f"3 Things I Wish I Knew About {topic} Sooner",
+            f"12 {topic} Hacks That Actually Work"
+        ]
+    }
+    
+    if style == "all":
+        result = {k: v[:count] for k, v in headlines.items()}
+    else:
+        result = {style: headlines.get(style, headlines["informative"])[:count]}
+    
+    await deduct_credits(user["id"], cost, "Headline Generator")
+    
+    return {
+        "success": True,
+        "topic": topic,
+        "style": style,
+        "headlines": result,
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 9. THREAD GENERATOR
+# =============================================================================
+@router.post("/thread-generator")
+async def generate_thread(
+    topic: str = Form(...),
+    points: int = Form(7),
+    platform: str = Form("twitter"),
+    user: dict = Depends(get_current_user)
+):
+    """Generate a viral thread structure - 5 credits"""
+    cost = PRO_COSTS["thread_generator"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    points = min(max(points, 3), 15)
+    
+    thread = {
+        "topic": topic,
+        "platform": platform,
+        "tweets": [
+            {"number": 1, "type": "hook", "template": f"🧵 Everything you need to know about {topic}.\n\nThread 👇"},
+            *[{"number": i+2, "type": "point", "template": f"{i}. [Key point about {topic}]\n\n[Explanation or example]"} for i in range(1, points)],
+            {"number": points+1, "type": "summary", "template": f"To summarize {topic}:\n\n• Point 1\n• Point 2\n• Point 3"},
+            {"number": points+2, "type": "cta", "template": "If you found this helpful:\n\n1. RT the first tweet\n2. Follow me for more\n3. Drop a 🔥 below"}
+        ],
+        "tips": [
+            "First tweet is crucial - make it irresistible",
+            "Each tweet should stand alone but connect",
+            "Use line breaks for readability",
+            "End with a clear CTA"
+        ]
+    }
+    
+    await deduct_credits(user["id"], cost, "Thread Generator")
+    
+    return {
+        "success": True,
+        "thread": thread,
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 10. POLL GENERATOR
+# =============================================================================
+@router.post("/poll-generator")
+async def generate_poll(
+    topic: str = Form(...),
+    poll_type: str = Form("opinion"),  # opinion, quiz, this_or_that
+    user: dict = Depends(get_current_user)
+):
+    """Generate engaging poll ideas - 1 credit"""
+    cost = PRO_COSTS["poll_generator"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    polls = {
+        "opinion": [
+            {
+                "question": f"What's your biggest challenge with {topic}?",
+                "options": ["Time", "Knowledge", "Resources", "Motivation"]
+            },
+            {
+                "question": f"Hot take: {topic} is overrated. Agree?",
+                "options": ["Strongly Agree", "Somewhat Agree", "Disagree", "Strongly Disagree"]
+            }
+        ],
+        "quiz": [
+            {
+                "question": f"How well do you know {topic}?",
+                "options": ["Expert", "Intermediate", "Beginner", "What's that?"]
+            },
+            {
+                "question": f"Can you guess the right answer about {topic}?",
+                "options": ["Option A", "Option B", "Option C", "Option D"]
+            }
+        ],
+        "this_or_that": [
+            {
+                "question": f"When it comes to {topic}, which do you prefer?",
+                "options": ["Option A", "Option B"]
+            },
+            {
+                "question": f"For {topic}, what matters more?",
+                "options": ["Quality", "Speed", "Both equally", "Neither"]
+            }
+        ]
+    }
+    
+    selected_polls = polls.get(poll_type, polls["opinion"])
+    
+    await deduct_credits(user["id"], cost, "Poll Generator")
+    
+    return {
+        "success": True,
+        "topic": topic,
+        "pollType": poll_type,
+        "polls": selected_polls,
+        "tips": [
+            "Polls boost engagement significantly",
+            "Ask questions your audience cares about",
+            "Share results and insights after"
+        ],
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 11. STORY TEMPLATE GENERATOR
+# =============================================================================
+@router.post("/story-templates")
+async def generate_story_templates(
+    niche: str = Form(...),
+    story_type: str = Form("engagement"),  # engagement, promo, behind_scenes
+    user: dict = Depends(get_current_user)
+):
+    """Generate Instagram/TikTok story templates - 2 credits"""
+    cost = PRO_COSTS["story_template"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    templates = {
+        "engagement": [
+            {"slide": 1, "type": "question", "text": f"Quick question about {niche}...", "sticker": "Question Box"},
+            {"slide": 2, "type": "poll", "text": "Which do you prefer?", "sticker": "Poll"},
+            {"slide": 3, "type": "slider", "text": f"Rate your {niche} knowledge", "sticker": "Emoji Slider"},
+            {"slide": 4, "type": "quiz", "text": f"Pop quiz: {niche} edition", "sticker": "Quiz"},
+            {"slide": 5, "type": "cta", "text": "DM me your answer!", "sticker": "Link/DM Button"}
+        ],
+        "promo": [
+            {"slide": 1, "type": "hook", "text": "Wait... have you seen this?", "sticker": None},
+            {"slide": 2, "type": "problem", "text": f"Struggling with {niche}?", "sticker": None},
+            {"slide": 3, "type": "solution", "text": "Here's how I can help...", "sticker": None},
+            {"slide": 4, "type": "proof", "text": "Results from my clients", "sticker": None},
+            {"slide": 5, "type": "cta", "text": "Link in bio!", "sticker": "Link"}
+        ],
+        "behind_scenes": [
+            {"slide": 1, "type": "intro", "text": "Day in my life as a...", "sticker": None},
+            {"slide": 2, "type": "process", "text": "Working on something big", "sticker": None},
+            {"slide": 3, "type": "insight", "text": "Here's what most people don't see", "sticker": None},
+            {"slide": 4, "type": "value", "text": "Quick tip for you", "sticker": None},
+            {"slide": 5, "type": "question", "text": "Want to see more BTS?", "sticker": "Poll"}
+        ]
+    }
+    
+    selected = templates.get(story_type, templates["engagement"])
+    
+    await deduct_credits(user["id"], cost, "Story Templates")
+    
+    return {
+        "success": True,
+        "niche": niche,
+        "storyType": story_type,
+        "templates": selected,
+        "tips": [
+            "Post stories consistently (at least daily)",
+            "Use stickers to boost engagement",
+            "Save best stories to Highlights"
+        ],
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# 12. POSTING SCHEDULE OPTIMIZER
+# =============================================================================
+@router.post("/posting-schedule")
+async def optimize_posting_schedule(
+    platform: str = Form(...),
+    timezone_str: str = Form("UTC"),
+    content_frequency: str = Form("daily"),  # daily, 3x_week, weekly
+    user: dict = Depends(get_current_user)
+):
+    """Generate optimized posting schedule - 2 credits"""
+    cost = PRO_COSTS["posting_schedule"]
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    # Optimal times by platform (in local time)
+    optimal_times = {
+        "instagram": {
+            "weekday": ["6:00 AM", "12:00 PM", "7:00 PM", "9:00 PM"],
+            "weekend": ["9:00 AM", "11:00 AM", "7:00 PM", "8:00 PM"],
+            "best_days": ["Tuesday", "Wednesday", "Friday"]
+        },
+        "tiktok": {
+            "weekday": ["7:00 AM", "12:00 PM", "3:00 PM", "7:00 PM"],
+            "weekend": ["9:00 AM", "12:00 PM", "7:00 PM"],
+            "best_days": ["Tuesday", "Thursday", "Friday"]
+        },
+        "twitter": {
+            "weekday": ["8:00 AM", "12:00 PM", "5:00 PM", "9:00 PM"],
+            "weekend": ["9:00 AM", "12:00 PM"],
+            "best_days": ["Wednesday", "Thursday"]
+        },
+        "linkedin": {
+            "weekday": ["7:30 AM", "12:00 PM", "5:00 PM"],
+            "weekend": ["Not recommended"],
+            "best_days": ["Tuesday", "Wednesday", "Thursday"]
+        },
+        "youtube": {
+            "weekday": ["2:00 PM", "4:00 PM", "9:00 PM"],
+            "weekend": ["9:00 AM", "12:00 PM"],
+            "best_days": ["Thursday", "Friday", "Saturday"]
+        }
+    }
+    
+    platform_data = optimal_times.get(platform.lower(), optimal_times["instagram"])
+    
+    # Generate weekly schedule
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    schedule = []
+    
+    if content_frequency == "daily":
+        for day in days:
+            is_weekend = day in ["Saturday", "Sunday"]
+            times = platform_data["weekend"] if is_weekend else platform_data["weekday"]
+            schedule.append({
+                "day": day,
+                "postTime": times[0] if times and times[0] != "Not recommended" else None,
+                "isOptimalDay": day in platform_data["best_days"]
+            })
+    elif content_frequency == "3x_week":
+        for day in platform_data["best_days"][:3]:
+            times = platform_data["weekday"]
+            schedule.append({
+                "day": day,
+                "postTime": times[0],
+                "isOptimalDay": True
+            })
+    else:  # weekly
+        best_day = platform_data["best_days"][0]
+        times = platform_data["weekday"]
+        schedule.append({
+            "day": best_day,
+            "postTime": times[0],
+            "isOptimalDay": True
+        })
+    
+    await deduct_credits(user["id"], cost, f"Posting Schedule: {platform}")
+    
+    return {
+        "success": True,
+        "platform": platform,
+        "timezone": timezone_str,
+        "frequency": content_frequency,
+        "schedule": schedule,
+        "optimalTimes": platform_data,
+        "tips": [
+            "Consistency matters more than perfect timing",
+            "Test and adjust based on your audience",
+            "Use scheduling tools to stay consistent"
+        ],
+        "creditsUsed": cost
+    }
+
+
+# =============================================================================
+# FEATURE COSTS ENDPOINT
+# =============================================================================
+@router.get("/costs")
+async def get_pro_costs():
+    """Get all Creator Pro feature costs"""
+    return {
+        "costs": PRO_COSTS,
+        "features": {
+            "hook_analyzer": "Analyze hooks for virality factors",
+            "swipe_file": "Access viral hook database",
+            "bio_generator": "Generate optimized social bios",
+            "content_repurpose": "Convert content to multiple formats",
+            "consistency_tracker": "Track posting consistency",
+            "caption_generator": "Generate engaging captions",
+            "viral_score": "Calculate content virality score",
+            "headline_generator": "Create attention-grabbing headlines",
+            "thread_generator": "Structure viral threads",
+            "poll_generator": "Create engaging polls",
+            "story_template": "Get story templates",
+            "posting_schedule": "Optimize posting times"
+        }
+    }
