@@ -25,6 +25,7 @@ export default function StoryGenerator() {
   const [worksheetLoading, setWorksheetLoading] = useState(false);
   const [worksheetResult, setWorksheetResult] = useState(null);
   const [printableLoading, setPrintableLoading] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState({ step: 0, message: '' });
   const [showPersonalization, setShowPersonalization] = useState(false);
   const [personalization, setPersonalization] = useState({
     child_name: '',
