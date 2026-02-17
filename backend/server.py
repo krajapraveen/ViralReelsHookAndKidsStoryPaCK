@@ -3445,23 +3445,23 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         )
         styles = getSampleStyleSheet()
         
-        # Custom styles for colorful storybook
+        # Custom styles for DISNEY-STYLE colorful storybook
         title_style = ParagraphStyle(
             'BookTitle', parent=styles['Heading1'], 
-            fontSize=42, alignment=TA_CENTER, spaceAfter=20, 
-            textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold',
-            leading=48
+            fontSize=44, alignment=TA_CENTER, spaceAfter=20, 
+            textColor=HexColor('#9333EA'), fontName='Helvetica-Bold',
+            leading=52, backColor=HexColor('#FFF5F7'), borderPadding=12
         )
         subtitle_style = ParagraphStyle(
             'Subtitle', parent=styles['Normal'], 
             fontSize=16, alignment=TA_CENTER, spaceAfter=12,
-            textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique'
+            textColor=HexColor('#8B5CF6'), fontName='Helvetica-Oblique'
         )
         heading_style = ParagraphStyle(
             'Heading', parent=styles['Heading2'], 
-            fontSize=22, spaceAfter=15, 
-            textColor=HexColor('#9333EA'), fontName='Helvetica-Bold',
-            borderColor=HexColor('#9333EA'), borderWidth=0, borderPadding=5
+            fontSize=24, spaceAfter=15, 
+            textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold',
+            backColor=HexColor('#F3E8FF'), borderPadding=10
         )
         body_style = ParagraphStyle(
             'Body', parent=styles['Normal'], 
@@ -3470,9 +3470,9 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         )
         scene_title_style = ParagraphStyle(
             'SceneTitle', parent=styles['Heading3'], 
-            fontSize=18, textColor=HexColor('#7C3AED'),
+            fontSize=18, textColor=HexColor('#EC4899'),
             fontName='Helvetica-Bold', spaceAfter=10,
-            backColor=HexColor('#F3E8FF'), borderPadding=8
+            backColor=HexColor('#FDF2F8'), borderPadding=10
         )
         moral_style = ParagraphStyle(
             'Moral', parent=styles['Normal'], 
