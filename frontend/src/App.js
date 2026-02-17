@@ -25,6 +25,9 @@ import PaymentHistory from './pages/PaymentHistory';
 // GenStudio Pages
 import GenStudioDashboard from './pages/GenStudioDashboard';
 import GenStudioTextToImage from './pages/GenStudioTextToImage';
+import GenStudioTextToVideo from './pages/GenStudioTextToVideo';
+import GenStudioImageToVideo from './pages/GenStudioImageToVideo';
+import GenStudioVideoRemix from './pages/GenStudioVideoRemix';
 import GenStudioHistory from './pages/GenStudioHistory';
 import GenStudioStyleProfiles from './pages/GenStudioStyleProfiles';
 import AIChatbot from './components/AIChatbot';
