@@ -412,72 +412,104 @@ async def get_admin_user(user: dict = Depends(get_current_user)):
 # ==================== AUTHENTICATION ROUTES ====================
 
 @auth_router.post("/register")
-async def register(data: UserCreate, background_tasks: BackgroundTasks):
-    # Check if user exists
-    existing = await db.users.find_one({"email": data.email.lower()})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    user_id = str(uuid.uuid4())
-    user = {
-        "id": user_id,
-        "name": data.name,
-        "email": data.email.lower(),
-        "password": hash_password(data.password),
-        "role": "USER",
-        "credits": 100,  # 100 free credits on signup
-        "plan": "free",  # Free plan by default
-        "subscription": None,  # No subscription initially
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.users.insert_one(user)
-    
-    # Log credit transaction
-    await db.credit_ledger.insert_one({
-        "id": str(uuid.uuid4()),
-        "userId": user_id,
-        "amount": 100,
-        "type": "BONUS",
-        "description": "Welcome bonus - 100 free credits",
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
-    
-    # Send welcome email in background
-    background_tasks.add_task(notify_welcome, user)
-    
-    token = create_token(user_id, "USER")
-    
-    return {
-        "token": token,
-        "user": {
+@limiter.limit("5/minute")  # Rate limit: 5 registrations per minute per IP
+async def register(request: Request, data: UserCreate, background_tasks: BackgroundTasks):
+    """User registration with security validation"""
+    try:
+        # Sanitize inputs
+        sanitized_name = sanitize_input(data.name, max_length=100)
+        sanitized_email = data.email.lower().strip()
+        
+        # Validate password strength
+        is_valid, error_msg = validate_password_strength(data.password)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        # Check if user exists
+        existing = await db.users.find_one({"email": sanitized_email})
+        if existing:
+            log_security_event("REGISTRATION_DUPLICATE", {"email": sanitized_email}, "INFO")
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        user_id = str(uuid.uuid4())
+        user = {
             "id": user_id,
-            "name": user["name"],
-            "email": user["email"],
-            "role": user["role"],
-            "credits": user["credits"]
+            "name": sanitized_name,
+            "email": sanitized_email,
+            "password": hash_password(data.password),
+            "role": "USER",
+            "credits": 100,  # 100 free credits on signup
+            "plan": "free",
+            "subscription": None,
+            "createdAt": datetime.now(timezone.utc).isoformat()
         }
-    }
+        
+        await db.users.insert_one(user)
+        
+        # Log credit transaction
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": user_id,
+            "amount": 100,
+            "type": "BONUS",
+            "description": "Welcome bonus - 100 free credits",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Send welcome email in background
+        background_tasks.add_task(notify_welcome, user)
+        
+        log_security_event("USER_REGISTERED", {"user_id": user_id, "email": sanitized_email}, "INFO")
+        
+        token = create_token(user_id, "USER")
+        
+        return {
+            "token": token,
+            "user": {
+                "id": user_id,
+                "name": user["name"],
+                "email": user["email"],
+                "role": user["role"],
+                "credits": user["credits"]
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
 
 @auth_router.post("/login")
-async def login(data: UserLogin):
-    user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    if not verify_password(data.password, user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    token = create_token(user["id"], user["role"])
-    
-    return {
-        "token": token,
-        "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "email": user["email"],
-            "role": user["role"],
-            "credits": user["credits"]
+@limiter.limit("10/minute")  # Rate limit: 10 login attempts per minute per IP
+async def login(request: Request, data: UserLogin):
+    """User login with security measures"""
+    try:
+        client_ip = request.client.host if request.client else "unknown"
+        sanitized_email = data.email.lower().strip()
+        
+        user = await db.users.find_one({"email": sanitized_email}, {"_id": 0})
+        if not user:
+            log_security_event("LOGIN_FAILED_USER_NOT_FOUND", {"email": sanitized_email, "ip": client_ip}, "WARNING")
+            record_suspicious_activity(client_ip, "Failed login - user not found")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not verify_password(data.password, user["password"]):
+            log_security_event("LOGIN_FAILED_WRONG_PASSWORD", {"email": sanitized_email, "ip": client_ip}, "WARNING")
+            record_suspicious_activity(client_ip, "Failed login - wrong password")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        token = create_token(user["id"], user["role"])
+        
+        log_security_event("LOGIN_SUCCESS", {"user_id": user["id"], "email": sanitized_email}, "INFO")
+        
+        return {
+            "token": token,
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"],
+                "role": user["role"],
+                "credits": user["credits"]
         }
     }
 
