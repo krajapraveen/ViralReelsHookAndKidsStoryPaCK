@@ -3094,19 +3094,9 @@ async def generate_printable_book(generation_id: str, include_activities: bool =
 
 @story_tools_router.get("/printable-book/{book_id}/pdf")
 async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_current_user)):
-    """Download printable story book as PDF with colorful design and character images"""
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.units import inch
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.colors import HexColor, Color
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.pdfgen import canvas
-    from reportlab.lib import colors
+    """Download printable story book as professional PDF using HTML templates + Playwright"""
     import tempfile
-    import math
-    import urllib.request
-    import io
+    from pdf_generator import generate_pdf_simple
     
     book_doc = await db.printable_books.find_one({
         "id": book_id,
@@ -3117,7 +3107,32 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         raise HTTPException(status_code=404, detail="Book not found")
     
     story = book_doc.get("story", {})
-    include_activities = book_doc.get("include_activities", True)
+    
+    # Generate PDF using Playwright + HTML templates
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+        try:
+            await generate_pdf_simple(story, tmp_file.name)
+            
+            # Read and return PDF
+            with open(tmp_file.name, 'rb') as f:
+                pdf_content = f.read()
+            
+            from fastapi.responses import Response
+            return Response(
+                content=pdf_content,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=storybook-{book_id}.pdf"}
+            )
+        except Exception as e:
+            logger.error(f"PDF generation error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+        finally:
+            # Cleanup temp file
+            try:
+                import os
+                os.remove(tmp_file.name)
+            except:
+                pass
     
     # ========== STOCK-FREE IMAGE LIBRARIES ==========
     
