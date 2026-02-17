@@ -74,8 +74,7 @@ async def analyze_face_with_ai(image_base64: str) -> dict:
         
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
-            model="gemini",
-            model_name="gemini-2.0-flash",
+            session_id=f"twinfinder-{uuid.uuid4().hex[:8]}",
             system_message="""You are a face analysis AI. Analyze the face in the image and return a JSON object with these fields:
 - hair_color: blonde, brunette, black, red, gray
 - eye_color: blue, green, brown, hazel, gray
@@ -84,16 +83,15 @@ async def analyze_face_with_ai(image_base64: str) -> dict:
 - estimated_age_range: e.g., "25-35"
 - gender_presentation: male, female
 
-Return ONLY valid JSON, no explanation.""",
-            session_id=f"twinfinder-{uuid.uuid4().hex[:8]}"
-        )
+Return ONLY valid JSON, no explanation."""
+        ).with_model("gemini", "gemini-3-flash-preview")
         
         message = UserMessage(
             text="Analyze this face and return the analysis as JSON.",
             images=[ImageContent(image_base64=image_base64, media_type="image/jpeg")]
         )
         
-        response = await chat.send_message_async(message)
+        response = await chat.send_message(message)
         
         # Parse response
         response_text = response.strip()
