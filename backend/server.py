@@ -3736,29 +3736,39 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
             for _ in range(2):
                 elements.append(Paragraph("_" * 70, ParagraphStyle('Line', fontSize=12, textColor=HexColor('#9CA3AF'))))
         
-        # === THE END PAGE with Beautiful Image ===
+        # === THE END PAGE with Disney-style magical design ===
         elements.append(PageBreak())
-        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Spacer(1, 0.3*inch))
         
-        # Beautiful sunset/nature image for end page
+        # Magical top decoration
+        elements.append(Paragraph("🏰 ✨ 🌈 ✨ 🏰", ParagraphStyle('EndMagic', alignment=TA_CENTER, fontSize=36)))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Beautiful sunset/fairytale image for end page
         end_img_url = "https://source.unsplash.com/600x350/?sunset,beautiful,sky,colorful"
         end_img = download_image(end_img_url, 5.5*inch, 3*inch)
         if end_img:
             end_img_table = Table([[end_img]], colWidths=[6.5*inch])
             end_img_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('BOX', (0, 0), (-1, -1), 3, HexColor('#7C3AED')),
+                ('BOX', (0, 0), (-1, -1), 4, HexColor('#FF69B4')),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFAFC')),
             ]))
             elements.append(end_img_table)
             elements.append(Spacer(1, 0.4*inch))
         
-        elements.append(Paragraph("🌟 ✨ 🌟", ParagraphStyle('EndDeco', alignment=TA_CENTER, fontSize=40)))
-        elements.append(Spacer(1, 0.2*inch))
-        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=32, textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold')))
+        # Disney-style "The End" with sparkles
+        elements.append(Paragraph("🌟 ✨ 💫 ✨ 🌟", ParagraphStyle('EndDeco', alignment=TA_CENTER, fontSize=32)))
+        elements.append(Spacer(1, 0.15*inch))
+        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=38, textColor=HexColor('#9333EA'), fontName='Helvetica-Bold', backColor=HexColor('#F3E8FF'), borderPadding=15)))
+        elements.append(Spacer(1, 0.25*inch))
+        elements.append(Paragraph("...and they lived happily ever after! 🦋", ParagraphStyle('HappyEnding', alignment=TA_CENTER, fontSize=16, textColor=HexColor('#EC4899'), fontName='Helvetica-Oblique')))
         elements.append(Spacer(1, 0.3*inch))
-        elements.append(Paragraph("Thank you for reading!", ParagraphStyle('Thanks', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#6B7280'))))
-        elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph("📚 Made with love by CreatorStudio AI 📚", watermark_note))
+        elements.append(Paragraph("Thank you for reading this magical adventure! ❤️", ParagraphStyle('Thanks', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#6B7280'))))
+        elements.append(Spacer(1, 0.8*inch))
+        elements.append(Paragraph("👑 Made with love by CreatorStudio AI 👑", watermark_note))
+        elements.append(Spacer(1, 0.15*inch))
+        elements.append(Paragraph("✨ Where every story is magical ✨", ParagraphStyle('Tagline', alignment=TA_CENTER, fontSize=11, textColor=HexColor('#A78BFA'))))
         
         # Build PDF with page decorations (watermark, colored backgrounds)
         doc.build(elements, onFirstPage=on_first_page, onLaterPages=on_later_pages)
