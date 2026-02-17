@@ -4993,7 +4993,9 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
 
 # ==================== INCLUDE ROUTERS ====================
 
-# Import new route modules
+# Import new route modules directly
+import sys
+sys.path.insert(0, '/app/backend')
 from routes.creator_pro import router as creator_pro_router
 from routes.twin_finder import router as twinfinder_router
 
