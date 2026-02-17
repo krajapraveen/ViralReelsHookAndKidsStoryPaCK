@@ -4029,27 +4029,45 @@ async def remix_video(
     
     try:
         from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
         
+        # Step 1: Use Gemini to analyze the remix request and create enhanced prompt
+        logger.info(f"Creating remix prompt for job {job_id}")
+        
+        analysis_chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"remix-{job_id}",
+            system_message="You are an expert video editor. Create detailed video generation prompts for remixing videos."
+        ).with_model("gemini", "gemini-2.0-flash")
+        
+        # Style templates
+        style_prompts = {
+            "dynamic": "dynamic editing, fast cuts, energetic transitions, upbeat pacing",
+            "smooth": "smooth transitions, gentle flow, cinematic feel, elegant movements",
+            "dramatic": "dramatic lighting, intense mood, cinematic color grading, powerful moments"
+        }
+        style_addition = style_prompts.get(template_style, style_prompts["dynamic"])
+        
+        analysis_prompt = f"""Create a detailed video generation prompt for a remix with these requirements:
+- User's remix request: {remix_prompt}
+- Style template: {style_addition}
+
+Create a cinematic, detailed prompt that captures the user's vision. Output ONLY the video prompt, no explanations."""
+        
+        remix_description = await analysis_chat.send_message(UserMessage(text=analysis_prompt))
+        
+        # Step 2: Generate remixed video using Sora 2
         video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
         
         filename = f"genstudio_remix_{job_id}.mp4"
         filepath = f"/tmp/{filename}"
         
-        # Style templates
-        style_prompts = {
-            "dynamic": "dynamic editing, fast cuts, energetic transitions",
-            "smooth": "smooth transitions, gentle flow, cinematic feel",
-            "dramatic": "dramatic lighting, intense mood, cinematic color grading"
-        }
-        style_addition = style_prompts.get(template_style, style_prompts["dynamic"])
-        
         # Build full prompt
-        full_prompt = f"Remix this video with: {remix_prompt}. Apply {style_addition}."
+        full_prompt = remix_description.strip()
         if add_watermark or user.get("plan") == "free":
-            full_prompt += " Include subtle 'GenStudio' watermark."
+            full_prompt += ". Include subtle 'GenStudio' watermark in corner."
         
-        # Generate remixed video - NOTE: Sora 2 may not support direct video remix
-        # Fall back to text-to-video with the remix prompt for now
+        # Generate remixed video
         video_bytes = video_gen.text_to_video(
             prompt=full_prompt,
             model="sora-2",
