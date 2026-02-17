@@ -30,6 +30,9 @@ export default function StoryGenerator() {
     child_name: '',
     dedication: ''
   });
+  const [fillBlankAnswers, setFillBlankAnswers] = useState({});
+  const [fillBlankResults, setFillBlankResults] = useState({});
+  const [showAnswers, setShowAnswers] = useState(false);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
