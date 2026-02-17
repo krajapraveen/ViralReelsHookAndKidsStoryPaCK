@@ -228,6 +228,12 @@ admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 chatbot_router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 health_router = APIRouter(prefix="/health", tags=["Health"])
 
+# New Creator Tools Routers
+creator_tools_router = APIRouter(prefix="/creator-tools", tags=["Creator Tools"])
+story_tools_router = APIRouter(prefix="/story-tools", tags=["Story Tools"])
+content_router = APIRouter(prefix="/content", tags=["Content Vault"])
+convert_router = APIRouter(prefix="/convert", tags=["Convert Tools"])
+
 # ==================== MODELS ====================
 
 class UserCreate(BaseModel):
