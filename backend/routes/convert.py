@@ -116,7 +116,7 @@ async def convert_story_to_reel(
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"convert-{job_id}",
                 system_message="You are an expert social media content creator who converts stories into viral reel scripts."
-            ).with_model("gemini", "gemini-2.0-flash")
+            ).with_model("gemini", "gemini-3-flash-preview")
             
             story_content = story.get("content", story.get("story", ""))
             
@@ -222,7 +222,7 @@ async def convert_reel_to_story(
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"convert-{job_id}",
                 system_message=f"You are a children's story writer creating {data.story_style} stories for {data.target_age_group}."
-            ).with_model("gemini", "gemini-2.0-flash")
+            ).with_model("gemini", "gemini-3-flash-preview")
             
             reel_content = reel.get("script", reel.get("content", ""))
             
@@ -314,7 +314,7 @@ async def convert_text_to_story(
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"convert-{job_id}",
                 system_message=f"You are a creative children's story writer specializing in {data.story_style} stories."
-            ).with_model("gemini", "gemini-2.0-flash")
+            ).with_model("gemini", "gemini-3-flash-preview")
             
             prompt = f"""Transform this text into an engaging children's story.
 
@@ -405,7 +405,7 @@ async def convert_text_to_reel(
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"convert-{job_id}",
                 system_message=f"You are a viral content creator specializing in {data.platform} reels."
-            ).with_model("gemini", "gemini-2.0-flash")
+            ).with_model("gemini", "gemini-3-flash-preview")
             
             prompt = f"""Transform this text into a viral reel script for {data.platform}.
 
