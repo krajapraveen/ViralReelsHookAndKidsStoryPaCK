@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;900&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -12,7 +12,7 @@
     --card-foreground: 15 23 42;
     --popover: 255 255 255;
     --popover-foreground: 15 23 42;
-    --primary: 99 102 241;
+    --primary: 124 58 237;
     --primary-foreground: 255 255 255;
     --secondary: 139 92 246;
     --secondary-foreground: 255 255 255;
@@ -24,8 +24,18 @@
     --destructive-foreground: 255 255 255;
     --border: 226 232 240;
     --input: 226 232 240;
-    --ring: 99 102 241;
+    --ring: 124 58 237;
     --radius: 0.5rem;
+    
+    /* Professional Color Palette */
+    --color-heading: 15 23 42;
+    --color-body: 51 65 85;
+    --color-muted: 100 116 139;
+    --color-accent-purple: 124 58 237;
+    --color-accent-indigo: 99 102 241;
+    --color-accent-emerald: 16 185 129;
+    --color-accent-amber: 245 158 11;
+    --color-accent-rose: 244 63 94;
   }
 
   .dark {
@@ -35,7 +45,7 @@
     --card-foreground: 248 250 252;
     --popover: 15 23 42;
     --popover-foreground: 248 250 252;
-    --primary: 99 102 241;
+    --primary: 139 92 246;
     --primary-foreground: 255 255 255;
     --secondary: 139 92 246;
     --secondary-foreground: 255 255 255;
@@ -47,7 +57,11 @@
     --destructive-foreground: 255 255 255;
     --border: 30 41 59;
     --input: 30 41 59;
-    --ring: 99 102 241;
+    --ring: 139 92 246;
+    
+    --color-heading: 248 250 252;
+    --color-body: 203 213 225;
+    --color-muted: 148 163 184;
   }
 }
 
