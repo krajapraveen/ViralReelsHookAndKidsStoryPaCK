@@ -78,7 +78,6 @@ pluggy==1.6.0
 propcache==0.4.1
 proto-plus==1.27.1
 protobuf==5.29.6
-psycopg2-binary==2.9.11
 pyasn1==0.6.2
 pyasn1_modules==0.4.2
 pycodestyle==2.14.0
@@ -99,7 +98,6 @@ python-multipart==0.0.22
 pytokens==0.4.1
 PyYAML==6.0.3
 razorpay==2.0.0
-redis==7.1.1
 referencing==0.37.0
 regex==2026.1.15
 requests==2.32.5
