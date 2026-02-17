@@ -224,7 +224,7 @@ export default function Pricing() {
               </div>
               <div>
                 <h4 className="text-white font-semibold mb-2">Reel Generation</h4>
-                <p className="text-slate-400">1 credit per full reel script with hooks, captions, and hashtags</p>
+                <p className="text-slate-400">10 credits per full reel script with hooks, captions, and hashtags</p>
               </div>
             </div>
             <div className="flex gap-4">
