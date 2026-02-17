@@ -3647,7 +3647,7 @@ async def generate_text_to_image(data: TextToImageRequest, user: dict = Depends(
         "costCredits": cost,
         "outputUrls": [],
         "createdAt": datetime.now(timezone.utc).isoformat(),
-        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
     })
     
     try:
@@ -3811,7 +3811,7 @@ async def generate_text_to_video(data: TextToVideoRequest, user: dict = Depends(
         "costCredits": cost,
         "outputUrls": [],
         "createdAt": datetime.now(timezone.utc).isoformat(),
-        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
     })
     
     # Start background video generation task
@@ -3947,7 +3947,7 @@ async def generate_image_to_video(
         "costCredits": cost,
         "outputUrls": [],
         "createdAt": datetime.now(timezone.utc).isoformat(),
-        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
     })
     
     # Background task for video generation
@@ -4106,7 +4106,7 @@ async def remix_video(
         "costCredits": cost,
         "outputUrls": [],
         "createdAt": datetime.now(timezone.utc).isoformat(),
-        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
     })
     
     # Background task for video remix
