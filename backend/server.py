@@ -4256,7 +4256,7 @@ Output ONLY the video prompt, no explanations. Make it cinematic."""
 
 @genstudio_router.get("/download/{job_id}/{filename}")
 async def download_genstudio_file(job_id: str, filename: str, user: dict = Depends(get_current_user)):
-    """Download generated file - expires after 15 minutes"""
+    """Download generated file - expires after 3 MINUTES (security policy)"""
     
     # Verify job belongs to user
     job = await db.genstudio_jobs.find_one({"id": job_id, "userId": user["id"]}, {"_id": 0})
