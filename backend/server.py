@@ -3713,6 +3713,22 @@ async def generate_text_to_video(data: TextToVideoRequest, user: dict = Depends(
     valid_durations = [4, 8, 12]
     duration = data.duration if data.duration in valid_durations else 4
     
+    # Deduct credits upfront
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$inc": {"credits": -cost}}
+    )
+    
+    # Log transaction
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "amount": -cost,
+        "type": "USAGE",
+        "description": f"GenStudio: Text to Video ({duration}s)",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
     # Create job record
     await db.genstudio_jobs.insert_one({
         "id": job_id,
@@ -3726,8 +3742,77 @@ async def generate_text_to_video(data: TextToVideoRequest, user: dict = Depends(
         "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
     })
     
-    try:
-        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+    # Start background video generation task
+    async def generate_video_task():
+        try:
+            from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+            
+            video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+            filename = f"genstudio_{job_id}.mp4"
+            filepath = f"/tmp/{filename}"
+            
+            full_prompt = data.prompt
+            if data.add_watermark or user.get("plan") == "free":
+                full_prompt += ". Include subtle 'GenStudio' watermark."
+            
+            video_bytes = video_gen.text_to_video(
+                prompt=full_prompt,
+                model="sora-2",
+                size=video_size,
+                duration=duration,
+                max_wait_time=600
+            )
+            
+            if not video_bytes:
+                raise Exception("Video generation failed - no video returned")
+            
+            video_gen.save_video(video_bytes, filepath)
+            output_urls = [f"/api/genstudio/download/{job_id}/{filename}"]
+            
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "outputUrls": output_urls,
+                    "completedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            logger.info(f"Text-to-video job {job_id} completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Text-to-video job {job_id} failed: {e}")
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "failed", "error": str(e)}}
+            )
+            # Refund credits on failure
+            await db.users.update_one(
+                {"id": user["id"]},
+                {"$inc": {"credits": cost}}
+            )
+            await db.credit_ledger.insert_one({
+                "id": str(uuid.uuid4()),
+                "userId": user["id"],
+                "amount": cost,
+                "type": "REFUND",
+                "description": f"GenStudio: Text to Video refund (failed)",
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            })
+    
+    # Start background task
+    asyncio.create_task(generate_video_task())
+    
+    # Return immediately with job ID
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "processing",
+        "message": "Video generation started! Check status by polling the job endpoint.",
+        "pollUrl": f"/api/genstudio/job/{job_id}",
+        "creditsUsed": cost,
+        "remainingCredits": user["credits"] - cost,
+        "estimatedTime": f"{duration * 15}-{duration * 20} seconds"
+    }
         
         # Generate video using Sora 2
         video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
