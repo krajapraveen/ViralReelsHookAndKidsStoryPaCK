@@ -3860,7 +3860,7 @@ async def generate_image_to_video(
     
     try:
         from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
         
         # Step 1: Use Gemini to analyze the image and create a detailed video prompt
         logger.info(f"Analyzing uploaded image for job {job_id}")
@@ -3882,10 +3882,9 @@ async def generate_image_to_video(
 
 Output ONLY the video prompt, no explanations. Make it cinematic and detailed."""
         
-        analysis_msg = UserMessage(
-            text=analysis_prompt,
-            images=[ImageContent(image_base64=image_data)]
-        )
+        # Use FileContent for image
+        image_file = FileContent(content_type="image/jpeg", file_content_base64=image_data)
+        analysis_msg = UserMessage(text=analysis_prompt, file_contents=[image_file])
         
         image_description = await analysis_chat.send_message(analysis_msg)
         logger.info(f"Image analyzed, generating video for job {job_id}")
