@@ -510,8 +510,13 @@ async def login(request: Request, data: UserLogin):
                 "email": user["email"],
                 "role": user["role"],
                 "credits": user["credits"]
+            }
         }
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail="Login failed. Please try again.")
 
 @auth_router.post("/google-callback")
 async def google_callback(data: GoogleCallback):
