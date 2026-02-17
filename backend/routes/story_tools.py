@@ -8,8 +8,12 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 import uuid
 import os
+import sys
 
-from ..shared import db, logger, get_current_user, deduct_credits, FILE_EXPIRY_MINUTES
+# Ensure backend directory is in path for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared import db, logger, get_current_user, deduct_credits, FILE_EXPIRY_MINUTES
 
 router = APIRouter(prefix="/story-tools", tags=["Story Tools"])
 
