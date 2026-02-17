@@ -8,13 +8,18 @@ from typing import Optional
 import uuid
 import traceback
 import logging
+import os
+import sys
 
-from ..shared import (
+# Ensure backend directory is in path for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared import (
     db, logger, get_current_user,
     razorpay_client, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET,
     log_exception, log_payment, process_refund, add_credits
 )
-from ..models.schemas import CreateOrderRequest, VerifyPaymentRequest
+from models.schemas import CreateOrderRequest, VerifyPaymentRequest
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 

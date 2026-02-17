@@ -7,13 +7,17 @@ from datetime import datetime, timezone
 import uuid
 import os
 import httpx
+import sys
 
-from ..shared import (
+# Ensure backend directory is in path for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared import (
     db, logger, hash_password, verify_password, create_token,
     get_current_user, log_exception
 )
-from ..models.schemas import UserCreate, UserLogin, GoogleCallback, ProfileUpdate, PasswordChange
-from ..security import limiter, validate_password_strength
+from models.schemas import UserCreate, UserLogin, GoogleCallback, ProfileUpdate, PasswordChange
+from security import limiter, validate_password_strength
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
