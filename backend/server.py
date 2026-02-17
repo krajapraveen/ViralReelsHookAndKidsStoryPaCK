@@ -2622,6 +2622,589 @@ async def get_user_video_exports(
         "size": size
     }
 
+# ==================== CREATOR TOOLS DATA ====================
+
+# Hashtag Banks by Niche
+HASHTAG_BANKS = {
+    "luxury": {
+        "low_competition": ["#luxurylifestyleblogger", "#luxurydaily", "#luxuryvibes", "#luxurycontent", "#luxurymindset", "#highendlife", "#luxurygoals", "#luxelife", "#premiumcontent", "#elitelifestyle"],
+        "medium_competition": ["#luxurylife", "#luxuryliving", "#luxuryhomes", "#luxurycars", "#billionairelifestyle", "#millionairemindset", "#wealthmindset", "#successmindset", "#richlife", "#abundancemindset"],
+        "trending": ["#luxury", "#lifestyle", "#rich", "#success", "#motivation", "#wealth", "#entrepreneur", "#millionaire", "#goals", "#dream"]
+    },
+    "relationship": {
+        "low_competition": ["#relationshipcoach", "#datingadvice", "#relationshipgoals101", "#couplegoalsaf", "#lovelessons", "#relationshiptips101", "#healthyrelationshiptips", "#datingtipsforwomen", "#relationshipwisdom", "#coupleadvice"],
+        "medium_competition": ["#relationshipquotes", "#couplesofinstagram", "#loveadvice", "#datinglife", "#relationshipmatters", "#lovetips", "#romancegoals", "#partnerlove", "#relationshipbuilding", "#datingcoach"],
+        "trending": ["#relationship", "#love", "#couple", "#dating", "#relationshipgoals", "#couplegoals", "#lovequotes", "#romance", "#together", "#soulmate"]
+    },
+    "health": {
+        "low_competition": ["#healthcoachtips", "#wellnesswarrior", "#healthylifestyleblogger", "#fitnesstransformation", "#nutritionfacts101", "#healthjourney2024", "#wellnesstips101", "#holistichealthcoach", "#cleaneatinglifestyle", "#mindfulhealth"],
+        "medium_competition": ["#healthylifestyle", "#fitnessmotivation", "#cleaneating", "#healthyliving", "#nutritioncoach", "#wellnessjourney", "#fitnessjourney", "#healthtips", "#workoutmotivation", "#mealprep"],
+        "trending": ["#health", "#fitness", "#healthy", "#workout", "#nutrition", "#wellness", "#gym", "#fit", "#motivation", "#exercise"]
+    },
+    "motivation": {
+        "low_competition": ["#motivationmondays", "#dailymotivational", "#successquotes101", "#motivationalspeaker", "#inspirationalquotes_", "#mindsetcoaching", "#positivevibesonly", "#motivateyourself", "#inspirationdaily_", "#growthmindsetquotes"],
+        "medium_competition": ["#motivationalquotes", "#successmindset", "#inspirationalquotes", "#motivationspeaker", "#mindsetmatters", "#positivemindset", "#selfimprovement", "#personaldevelopment", "#goalgetter", "#dreambig"],
+        "trending": ["#motivation", "#success", "#inspiration", "#mindset", "#goals", "#believe", "#dreams", "#hustle", "#grind", "#nevergiveup"]
+    },
+    "parenting": {
+        "low_competition": ["#parentingtipsandtricks", "#momlifehacks", "#dadlifestyle", "#toddlermomlife", "#parentingwin", "#realparenting", "#momstruggles", "#parentinghacks101", "#dadgoals", "#raisingkids"],
+        "medium_competition": ["#parentinglife", "#momlife", "#dadlife", "#parenthood", "#motherhood", "#fatherhood", "#familytime", "#kidsactivities", "#parentingtips", "#familyfirst"],
+        "trending": ["#parenting", "#mom", "#dad", "#family", "#kids", "#children", "#baby", "#toddler", "#mommy", "#parent"]
+    },
+    "business": {
+        "low_competition": ["#businesscoachtips", "#entrepreneurlifestyle", "#smallbusinessowner", "#startupfounder", "#businessgrowth101", "#sidehustleideas", "#onlinebusinesstips", "#digitalentrepreneur", "#businessstrategy101", "#freelancertips"],
+        "medium_competition": ["#businessmindset", "#entrepreneurship", "#smallbusiness", "#startuplife", "#businessowner", "#onlinebusiness", "#digitalbusiness", "#businesstips", "#entrepreneurlife", "#businesscoach"],
+        "trending": ["#business", "#entrepreneur", "#startup", "#money", "#success", "#marketing", "#branding", "#ceo", "#hustle", "#growth"]
+    },
+    "travel": {
+        "low_competition": ["#travelcontentcreator", "#wanderlustlife", "#traveldiaries2024", "#solotraveler", "#travelphotography", "#budgettraveltips", "#travelreels", "#exploringtheworld", "#travelinspo2024", "#adventureseeker"],
+        "medium_competition": ["#travelgram", "#travelblogger", "#travelphotography", "#traveltheworld", "#wanderlust", "#traveladdict", "#instatravel", "#travellife", "#traveler", "#adventure"],
+        "trending": ["#travel", "#vacation", "#trip", "#explore", "#destination", "#holiday", "#tourism", "#journey", "#world", "#visiting"]
+    },
+    "food": {
+        "low_competition": ["#foodbloggersofinstagram", "#homecooking101", "#foodphotographytips", "#recipeideas", "#healthyfoodrecipes", "#foodielife", "#cookingreels", "#instafoodblogger", "#deliciousfood", "#foodstyling"],
+        "medium_competition": ["#foodblogger", "#homecooking", "#foodphotography", "#recipeoftheday", "#healthyrecipes", "#foodlover", "#cookingathome", "#instafood", "#yummy", "#foodgasm"],
+        "trending": ["#food", "#foodie", "#cooking", "#recipe", "#delicious", "#homemade", "#dinner", "#lunch", "#breakfast", "#tasty"]
+    }
+}
+
+# Content Types for Calendar
+CONTENT_TYPES = [
+    "Storytime", "Myth-busting", "POV", "Luxury vibe", "Tutorial", 
+    "Day in my life", "Get ready with me", "Behind the scenes", 
+    "Before/After", "3 tips", "Unpopular opinion", "Hot take",
+    "This vs That", "React to", "Duet style", "Voiceover story"
+]
+
+# Hook Templates by Niche
+HOOK_TEMPLATES_NICHE = {
+    "luxury": [
+        "This is what {price} gets you in {location}",
+        "Rich people don't want you to know this",
+        "I bought a {item} and here's what happened",
+        "Living in a {price} apartment for a day",
+        "The difference between rich and wealthy",
+        "Why millionaires do this every morning",
+        "Stop doing this if you want to be rich",
+        "The luxury item that changed my life",
+        "Inside a {price} {place}",
+        "Rich habits that cost nothing"
+    ],
+    "relationship": [
+        "If they do this, run",
+        "Green flags you're ignoring",
+        "This is why you're still single",
+        "The truth about modern dating",
+        "Stop texting them this",
+        "Men secretly want this",
+        "Women never tell you this",
+        "The 3 second rule that works",
+        "Why your ex keeps coming back",
+        "If you've been hurt, watch this"
+    ],
+    "health": [
+        "I lost {amount} in {time} doing this",
+        "Stop eating this every morning",
+        "The workout nobody talks about",
+        "This changed my body in 30 days",
+        "Doctors don't want you to know this",
+        "The real reason you're not losing weight",
+        "What I eat in a day to stay fit",
+        "3 exercises that actually work",
+        "The morning routine that transformed me",
+        "Stop doing this at the gym"
+    ],
+    "motivation": [
+        "This is your sign to start",
+        "Remember why you started",
+        "They laughed at me until...",
+        "You're closer than you think",
+        "Stop waiting for permission",
+        "The mindset shift that changed everything",
+        "You're not lazy, you're just...",
+        "This is what discipline looks like",
+        "Watch this when you want to give up",
+        "Nobody is coming to save you"
+    ],
+    "parenting": [
+        "Things I wish I knew before having kids",
+        "What no one tells new parents",
+        "My toddler taught me this",
+        "Parenting hack that actually works",
+        "Stop doing this with your kids",
+        "The phrase that changed my parenting",
+        "Gentle parenting in action",
+        "When your kid says this, try this",
+        "Morning routine with {number} kids",
+        "How I get my kids to listen"
+    ],
+    "business": [
+        "I made {amount} doing this",
+        "The side hustle nobody talks about",
+        "Stop trading time for money",
+        "This business idea costs {amount} to start",
+        "Why most businesses fail in year 1",
+        "The email that got me {result}",
+        "How I got my first client",
+        "The pricing mistake killing your business",
+        "What I'd do if I started over",
+        "The tool that 10x'd my productivity"
+    ],
+    "general": [
+        "Wait for it...",
+        "I never knew this until now",
+        "This changed everything",
+        "Nobody is talking about this",
+        "You need to see this",
+        "I can't believe this works",
+        "This is why you're stuck",
+        "The truth no one tells you",
+        "Watch until the end",
+        "POV: You finally figure it out"
+    ]
+}
+
+# CTA Templates
+CTA_TEMPLATES = [
+    "Follow for more {niche} tips",
+    "Save this for later",
+    "Share with someone who needs this",
+    "Drop a fire emoji if you agree",
+    "Comment '{word}' for the full guide",
+    "Link in bio for more",
+    "Follow for daily {niche} content",
+    "Tag someone who needs to see this",
+    "Double tap if this helped",
+    "What should I post next?"
+]
+
+# Thumbnail Text Templates
+THUMBNAIL_TEMPLATES = {
+    "emotional": ["I CRIED", "This BROKE me", "I can't believe...", "My heart", "The TRUTH", "This HURT"],
+    "curiosity": ["Wait for it...", "You won't believe", "The SECRET", "Nobody knows this", "Hidden truth", "They hid this"],
+    "action": ["STOP doing this!", "Watch NOW", "TRY this today", "Don't miss this", "GAME CHANGER", "Life hack"],
+    "numbers": ["3 SECRETS", "5 mistakes", "10X your {topic}", "In {time}", "24 hours later", "Day {number}"]
+}
+
+# ==================== CREATOR TOOLS ENDPOINTS ====================
+
+@creator_tools_router.get("/hashtags/{niche}")
+async def get_hashtag_bank(niche: str, user: dict = Depends(get_current_user)):
+    """Get curated hashtag bank for a specific niche"""
+    niche_lower = niche.lower()
+    
+    if niche_lower not in HASHTAG_BANKS:
+        all_hashtags = []
+        for n in HASHTAG_BANKS.values():
+            all_hashtags.extend(n.get("trending", [])[:3])
+        return {
+            "niche": niche,
+            "hashtags": {"low_competition": all_hashtags[:10], "medium_competition": [], "trending": all_hashtags[:10]},
+            "total": len(all_hashtags),
+            "tip": f"Try: luxury, relationship, health, motivation, parenting, business, travel, food"
+        }
+    
+    bank = HASHTAG_BANKS[niche_lower]
+    return {"niche": niche, "hashtags": bank, "total": sum(len(v) for v in bank.values()), "tip": "Mix 3-5 hashtags from each category"}
+
+
+@creator_tools_router.get("/hashtags")
+async def get_all_niches(user: dict = Depends(get_current_user)):
+    """Get list of available niches"""
+    return {"niches": list(HASHTAG_BANKS.keys()), "total_hashtags": sum(sum(len(v) for v in n.values()) for n in HASHTAG_BANKS.values())}
+
+
+@creator_tools_router.post("/thumbnail-text")
+async def generate_thumbnail_text(topic: str, style: str = "all", user: dict = Depends(get_current_user)):
+    """Generate thumbnail text options - Free"""
+    results = {}
+    for s, templates in THUMBNAIL_TEMPLATES.items():
+        if style == "all" or style == s:
+            results[s] = [t.replace("{topic}", topic).replace("{time}", "30 days").replace("{number}", str(random.randint(1, 30))) for t in templates]
+    return {"topic": topic, "thumbnails": results, "tip": "Use CAPS for key words, add emojis for emotion"}
+
+
+@creator_tools_router.post("/calendar/generate")
+async def generate_content_calendar(niche: str, days: int = 30, include_full_scripts: bool = False, user: dict = Depends(get_current_user)):
+    """Generate 30-day content calendar - 10 credits (25 with full scripts)"""
+    credits_needed = 25 if include_full_scripts else 10
+    
+    if user["credits"] < credits_needed:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {credits_needed} credits.")
+    
+    hooks = HOOK_TEMPLATES_NICHE.get(niche.lower(), HOOK_TEMPLATES_NICHE["general"])
+    
+    calendar = []
+    for day in range(1, min(days + 1, 31)):
+        content_type = random.choice(CONTENT_TYPES)
+        hook = random.choice(hooks)
+        hook = hook.replace("{price}", f"₹{random.choice([1000, 5000, 10000, 50000])}")
+        hook = hook.replace("{location}", random.choice(["Dubai", "Mumbai", "New York", "Paris"]))
+        hook = hook.replace("{item}", random.choice(["watch", "car", "apartment", "bag"]))
+        hook = hook.replace("{place}", random.choice(["hotel", "restaurant", "villa"]))
+        hook = hook.replace("{amount}", random.choice(["10kg", "15kg", "20kg"]))
+        hook = hook.replace("{time}", random.choice(["30 days", "2 months", "90 days"]))
+        hook = hook.replace("{number}", str(random.randint(2, 5)))
+        hook = hook.replace("{result}", random.choice(["10 clients", "₹1 lakh", "1000 followers"]))
+        
+        cta = random.choice(CTA_TEMPLATES).replace("{niche}", niche).replace("{word}", "GUIDE")
+        
+        day_content = {
+            "day": day, "content_type": content_type, "hook": hook, "cta": cta,
+            "best_time": random.choice(["9 AM", "12 PM", "6 PM", "9 PM"]),
+            "format": random.choice(["Reel", "Carousel", "Story"])
+        }
+        
+        if include_full_scripts:
+            day_content["full_script"] = {
+                "intro": hook, "body": f"Main content about {niche}...",
+                "outro": cta, "duration": random.choice(["15s", "30s", "60s"])
+            }
+        calendar.append(day_content)
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credits_needed}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()), "userId": user["id"], "amount": -credits_needed,
+        "type": "USAGE", "description": f"30-Day Calendar: {niche}",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    generation_id = str(uuid.uuid4())
+    await db.generations.insert_one({
+        "id": generation_id, "userId": user["id"], "type": "CALENDAR", "status": "COMPLETED",
+        "inputJson": {"niche": niche, "days": days}, "outputJson": {"calendar": calendar},
+        "creditsUsed": credits_needed, "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"success": True, "generationId": generation_id, "calendar": calendar, "creditsUsed": credits_needed, "remainingCredits": user["credits"] - credits_needed}
+
+
+@creator_tools_router.post("/carousel/generate")
+async def generate_carousel(topic: str, niche: str = "general", slides: int = 7, user: dict = Depends(get_current_user)):
+    """Generate Instagram carousel - 2 credits"""
+    credits_needed = 2
+    if user["credits"] < credits_needed:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {credits_needed} credits.")
+    
+    hooks = HOOK_TEMPLATES_NICHE.get(niche.lower(), HOOK_TEMPLATES_NICHE["general"])
+    carousel = {"topic": topic, "slides": []}
+    
+    carousel["slides"].append({"slide_number": 1, "type": "hook", "text": random.choice(hooks), "subtext": topic, "design_tip": "Bold text, contrasting colors"})
+    
+    content_points = [f"Point {i}: Key insight about {topic}" for i in range(1, slides-1)]
+    for i, point in enumerate(content_points[:slides-2], 2):
+        carousel["slides"].append({"slide_number": i, "type": "content", "text": point, "design_tip": "Keep text minimal"})
+    
+    carousel["slides"].append({"slide_number": slides, "type": "cta", "text": "Found this helpful?", "subtext": random.choice(CTA_TEMPLATES).replace("{niche}", niche).replace("{word}", "YES")})
+    
+    hashtag_bank = HASHTAG_BANKS.get(niche.lower(), HASHTAG_BANKS.get("business", {}))
+    selected_hashtags = []
+    for cat in ["trending", "medium_competition", "low_competition"]:
+        if cat in hashtag_bank:
+            selected_hashtags.extend(random.sample(hashtag_bank[cat], min(3, len(hashtag_bank[cat]))))
+    
+    carousel["caption"] = {"short": f"Save this {topic} guide!", "long": f"Everything about {topic}...\n\n" + " ".join(selected_hashtags[:15])}
+    carousel["hashtags"] = selected_hashtags[:20]
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credits_needed}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()), "userId": user["id"], "amount": -credits_needed,
+        "type": "USAGE", "description": f"Carousel: {topic[:30]}",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    generation_id = str(uuid.uuid4())
+    await db.generations.insert_one({
+        "id": generation_id, "userId": user["id"], "type": "CAROUSEL", "status": "COMPLETED",
+        "inputJson": {"topic": topic, "niche": niche}, "outputJson": carousel,
+        "creditsUsed": credits_needed, "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"success": True, "generationId": generation_id, "carousel": carousel, "creditsUsed": credits_needed, "remainingCredits": user["credits"] - credits_needed}
+
+# ==================== STORY TOOLS ENDPOINTS ====================
+
+COMPREHENSION_TEMPLATES = [
+    "What is the main character's name?", "Where does the story take place?",
+    "What problem did the hero face?", "How did they solve the problem?",
+    "What lesson did you learn?", "Who helped the main character?",
+    "What happened at the beginning?", "What happened at the end?",
+    "Why do you think the character felt that way?", "What would you do?"
+]
+
+FILL_BLANKS = [
+    "The story is about a brave hero named _______.",
+    "The hero went to the _______ to find something special.",
+    "The moral of the story is _______.",
+    "The hero felt _______ when the adventure began.",
+    "At the end, the hero learned that _______."
+]
+
+@story_tools_router.post("/worksheet/generate")
+async def generate_worksheet(generation_id: str, user: dict = Depends(get_current_user)):
+    """Generate educational worksheet - 3 credits"""
+    credits_needed = 3
+    if user["credits"] < credits_needed:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {credits_needed} credits.")
+    
+    story_gen = await db.generations.find_one({"id": generation_id, "userId": user["id"], "type": "STORY"}, {"_id": 0})
+    if not story_gen:
+        raise HTTPException(status_code=404, detail="Story not found")
+    
+    story = story_gen.get("outputJson", {})
+    
+    worksheet = {
+        "story_title": story.get("title", "Story"),
+        "comprehension_questions": [{"number": i+1, "question": q, "lines": 2} for i, q in enumerate(random.sample(COMPREHENSION_TEMPLATES, 5))],
+        "fill_blanks": [{"number": i+1, "sentence": s} for i, s in enumerate(FILL_BLANKS)],
+        "vocabulary": [{"word": w, "prompt": f"What does '{w}' mean?"} for w in random.sample(["brave", "kind", "magical", "adventure", "friend"], 5)],
+        "moral_reflection": {"moral": story.get("moral", "Be kind"), "question": "Write about a time when you learned a similar lesson."},
+        "coloring_prompt": f"Draw your favorite scene from {story.get('title', 'the story')}"
+    }
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credits_needed}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()), "userId": user["id"], "amount": -credits_needed,
+        "type": "USAGE", "description": f"Worksheet: {story.get('title', '')[:30]}",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    worksheet_id = str(uuid.uuid4())
+    await db.worksheets.insert_one({"id": worksheet_id, "userId": user["id"], "storyId": generation_id, "content": worksheet, "createdAt": datetime.now(timezone.utc).isoformat()})
+    
+    return {"success": True, "worksheetId": worksheet_id, "worksheet": worksheet, "creditsUsed": credits_needed, "remainingCredits": user["credits"] - credits_needed}
+
+
+@story_tools_router.post("/printable-book/generate")
+async def generate_printable_book(generation_id: str, include_activities: bool = True, personalization: Optional[Dict[str, Any]] = None, user: dict = Depends(get_current_user)):
+    """Generate printable story book - 4-6 credits"""
+    credits_needed = 6 if include_activities else 4
+    if user["credits"] < credits_needed:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {credits_needed} credits.")
+    
+    story_gen = await db.generations.find_one({"id": generation_id, "userId": user["id"], "type": "STORY"}, {"_id": 0})
+    if not story_gen:
+        raise HTTPException(status_code=404, detail="Story not found")
+    
+    story = story_gen.get("outputJson", {})
+    
+    if personalization:
+        story_str = json.dumps(story)
+        if personalization.get("child_name"):
+            chars = story.get("characters", [])
+            if chars:
+                old_name = chars[0].get("name", "")
+                if old_name:
+                    story_str = story_str.replace(old_name, personalization["child_name"])
+        story = json.loads(story_str)
+        if personalization.get("dedication"):
+            story["dedication"] = personalization["dedication"]
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credits_needed}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()), "userId": user["id"], "amount": -credits_needed,
+        "type": "USAGE", "description": f"Printable Book: {story.get('title', '')[:30]}",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    book_id = str(uuid.uuid4())
+    await db.printable_books.insert_one({
+        "id": book_id, "userId": user["id"], "storyId": generation_id, "story": story,
+        "include_activities": include_activities, "personalization": personalization,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {
+        "success": True, "bookId": book_id, "title": story.get("title"),
+        "pages": len(story.get("scenes", [])) + 4, "creditsUsed": credits_needed,
+        "remainingCredits": user["credits"] - credits_needed,
+        "downloadUrl": f"/api/story-tools/printable-book/{book_id}/pdf"
+    }
+
+# ==================== CONTENT VAULT ENDPOINTS ====================
+
+CONTENT_VAULT_HOOKS = [
+    {"id": 1, "niche": "luxury", "hook": "This is what $10,000 gets you in Dubai"},
+    {"id": 2, "niche": "luxury", "hook": "Rich people never do this one thing"},
+    {"id": 3, "niche": "relationship", "hook": "If they do this, they're not the one"},
+    {"id": 4, "niche": "relationship", "hook": "The text that makes them obsessed"},
+    {"id": 5, "niche": "health", "hook": "I lost 20kg doing just this"},
+    {"id": 6, "niche": "health", "hook": "Stop eating this every morning"},
+    {"id": 7, "niche": "motivation", "hook": "This is your sign to start"},
+    {"id": 8, "niche": "motivation", "hook": "Nobody is coming to save you"},
+    {"id": 9, "niche": "business", "hook": "I made ₹1 lakh doing this"},
+    {"id": 10, "niche": "business", "hook": "The side hustle that actually works"},
+    {"id": 11, "niche": "parenting", "hook": "Things I wish I knew before having kids"},
+    {"id": 12, "niche": "parenting", "hook": "Parenting hack that actually works"},
+]
+
+REEL_STRUCTURES = [
+    {"id": 1, "name": "Hook-Problem-Solution", "structure": ["Hook (0-3s)", "Problem", "Solution", "CTA"]},
+    {"id": 2, "name": "Storytime", "structure": ["Teaser", "Background", "Climax", "Resolution"]},
+    {"id": 3, "name": "List Format", "structure": ["Big claim", "Point 1-3", "Bonus", "CTA"]},
+    {"id": 4, "name": "Before/After", "structure": ["Show after", "Rewind", "Transformation", "CTA"]},
+    {"id": 5, "name": "POV Style", "structure": ["POV setup", "Scenario", "Twist", "Resolution"]},
+]
+
+PLAN_ACCESS = {
+    "free": {"hooks": 20, "structures": 5},
+    "starter": {"hooks": 100, "structures": 10},
+    "pro": {"hooks": 500, "structures": 200}
+}
+
+@content_router.get("/vault")
+async def get_content_vault(niche: Optional[str] = None, user: dict = Depends(get_current_user)):
+    """Get content vault items based on plan"""
+    user_plan = user.get("plan", "free")
+    access = PLAN_ACCESS.get(user_plan, PLAN_ACCESS["free"])
+    
+    hooks = CONTENT_VAULT_HOOKS
+    if niche:
+        hooks = [h for h in hooks if h["niche"] == niche.lower()]
+    
+    return {
+        "plan": user_plan,
+        "viral_hooks": hooks[:access["hooks"]],
+        "reel_structures": REEL_STRUCTURES[:access["structures"]],
+        "is_limited": user_plan == "free",
+        "upgrade_message": "Upgrade to Pro to unlock 500+ viral hooks!" if user_plan == "free" else None
+    }
+
+
+@content_router.get("/trending")
+async def get_trending_topics(active_only: bool = True, niche: Optional[str] = None, user: dict = Depends(get_current_user)):
+    """Get current trending topics"""
+    query = {}
+    if active_only:
+        query["status"] = "active"
+    if niche:
+        query["niche"] = niche.lower()
+    
+    topics = await db.trending_topics.find(query, {"_id": 0}).sort("createdAt", -1).limit(20).to_list(length=20)
+    return {"topics": topics, "total": len(topics)}
+
+
+class TrendingTopicCreate(BaseModel):
+    title: str
+    niche: str
+    description: str
+    hook_preview: str
+    suggested_angle: str
+    week_start: str
+    week_end: str
+
+
+@content_router.post("/trending")
+async def create_trending_topic(data: TrendingTopicCreate, user: dict = Depends(get_admin_user)):
+    """Create trending topic (Admin)"""
+    topic = {
+        "id": str(uuid.uuid4()), "title": data.title, "niche": data.niche.lower(),
+        "description": data.description, "hook_preview": data.hook_preview,
+        "suggested_angle": data.suggested_angle, "status": "active",
+        "week_start": data.week_start, "week_end": data.week_end,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.trending_topics.insert_one(topic)
+    return {"success": True, "topic": topic}
+
+
+@content_router.delete("/trending/{topic_id}")
+async def delete_trending_topic(topic_id: str, user: dict = Depends(get_admin_user)):
+    """Delete trending topic (Admin)"""
+    result = await db.trending_topics.delete_one({"id": topic_id})
+    return {"success": result.deleted_count > 0}
+
+# ==================== CONVERT TOOLS ENDPOINTS ====================
+
+@convert_router.post("/reel-to-carousel")
+async def convert_reel_to_carousel(generation_id: str, user: dict = Depends(get_current_user)):
+    """Convert reel to carousel - 1 credit"""
+    credits_needed = 1
+    if user["credits"] < credits_needed:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits.")
+    
+    reel_gen = await db.generations.find_one({"id": generation_id, "userId": user["id"], "type": "REEL"}, {"_id": 0})
+    if not reel_gen:
+        raise HTTPException(status_code=404, detail="Reel not found")
+    
+    reel = reel_gen.get("outputJson", {})
+    carousel = {"original_reel_id": generation_id, "slides": [], "caption": reel.get("caption_long", ""), "hashtags": reel.get("hashtags", [])}
+    
+    carousel["slides"].append({"slide_number": 1, "type": "hook", "text": reel.get("best_hook", "")})
+    script = reel.get("script", {})
+    for i, scene in enumerate(script.get("scenes", [])[:5], 2):
+        carousel["slides"].append({"slide_number": i, "type": "content", "text": scene.get("on_screen_text", "") or scene.get("voiceover", "")[:100]})
+    carousel["slides"].append({"slide_number": len(carousel["slides"]) + 1, "type": "cta", "text": script.get("cta", "Follow!")})
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credits_needed}})
+    await db.credit_ledger.insert_one({"id": str(uuid.uuid4()), "userId": user["id"], "amount": -credits_needed, "type": "USAGE", "description": "Convert: Reel to Carousel", "createdAt": datetime.now(timezone.utc).isoformat()})
+    
+    conversion_id = str(uuid.uuid4())
+    await db.generations.insert_one({"id": conversion_id, "userId": user["id"], "type": "CAROUSEL", "status": "COMPLETED", "inputJson": {"source": generation_id}, "outputJson": carousel, "creditsUsed": credits_needed, "createdAt": datetime.now(timezone.utc).isoformat()})
+    
+    return {"success": True, "generationId": conversion_id, "carousel": carousel, "creditsUsed": credits_needed, "remainingCredits": user["credits"] - credits_needed}
+
+
+@convert_router.post("/story-to-reel")
+async def convert_story_to_reel(generation_id: str, user: dict = Depends(get_current_user)):
+    """Convert story to reel - 1 credit"""
+    credits_needed = 1
+    if user["credits"] < credits_needed:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits.")
+    
+    story_gen = await db.generations.find_one({"id": generation_id, "userId": user["id"], "type": "STORY"}, {"_id": 0})
+    if not story_gen:
+        raise HTTPException(status_code=404, detail="Story not found")
+    
+    story = story_gen.get("outputJson", {})
+    
+    reel = {
+        "original_story_id": generation_id,
+        "hooks": [f"This story will make your kids smile", f"The tale of {story.get('title', 'adventure')}", f"A lesson about {story.get('moral', 'life')[:30]}"],
+        "best_hook": f"Story time: {story.get('title', '')}",
+        "script": {
+            "scenes": [
+                {"time": "0-5s", "text": story.get("title", "Story"), "voiceover": f"Let me tell you about {story.get('title', '')}"},
+                {"time": "5-15s", "text": "The Beginning", "voiceover": story.get("synopsis", "")[:100]},
+                {"time": "15-25s", "text": "The Adventure", "voiceover": "Our hero faced challenges but learned something important..."},
+                {"time": "25-30s", "text": story.get("moral", "The Lesson"), "voiceover": f"The moral: {story.get('moral', 'Be kind')}"}
+            ],
+            "cta": "Follow for more bedtime stories!"
+        },
+        "caption": f"📚 {story.get('title', '')} - {story.get('moral', '')}",
+        "hashtags": ["kidsstory", "bedtimestory", "parenting", "storytime", "moralstory"]
+    }
+    
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credits_needed}})
+    await db.credit_ledger.insert_one({"id": str(uuid.uuid4()), "userId": user["id"], "amount": -credits_needed, "type": "USAGE", "description": f"Convert: Story to Reel", "createdAt": datetime.now(timezone.utc).isoformat()})
+    
+    conversion_id = str(uuid.uuid4())
+    await db.generations.insert_one({"id": conversion_id, "userId": user["id"], "type": "REEL", "status": "COMPLETED", "inputJson": {"source": generation_id}, "outputJson": reel, "creditsUsed": credits_needed, "createdAt": datetime.now(timezone.utc).isoformat()})
+    
+    return {"success": True, "generationId": conversion_id, "reel": reel, "creditsUsed": credits_needed, "remainingCredits": user["credits"] - credits_needed}
+
+
+@convert_router.post("/story-to-quote")
+async def convert_story_to_quote(generation_id: str, user: dict = Depends(get_current_user)):
+    """Convert story to moral quotes - Free"""
+    story_gen = await db.generations.find_one({"id": generation_id, "userId": user["id"], "type": "STORY"}, {"_id": 0})
+    if not story_gen:
+        raise HTTPException(status_code=404, detail="Story not found")
+    
+    story = story_gen.get("outputJson", {})
+    moral = story.get("moral", "Be kind to everyone")
+    title = story.get("title", "Story")
+    
+    quotes = [
+        f"'{moral}' - from {title}",
+        f"What we learned: {moral}",
+        f"The wisdom from '{title}': {moral}",
+        f"Remember: {moral} ✨",
+        f"🌟 {moral}"
+    ]
+    
+    return {"success": True, "quotes": quotes, "moral": moral, "hashtags": ["morals", "wisdom", "lifelessons"]}
+
 # ==================== INCLUDE ROUTERS ====================
 
 api_router.include_router(auth_router)
@@ -2634,6 +3217,10 @@ api_router.include_router(admin_router)
 api_router.include_router(chatbot_router)
 api_router.include_router(health_router)
 api_router.include_router(alert_router)
+api_router.include_router(creator_tools_router)
+api_router.include_router(story_tools_router)
+api_router.include_router(content_router)
+api_router.include_router(convert_router)
 
 app.include_router(api_router)
 
