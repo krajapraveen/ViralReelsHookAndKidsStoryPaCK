@@ -72,30 +72,44 @@
 
 ## Latest Updates (February 17, 2026)
 
-### 1. Content Vault Fix
-- **Backend:** Added `KIDS_STORY_THEMES` (15 themes) and `MORAL_TEMPLATES` (18 templates) constants
-- **Backend:** Added `best_for` field to `REEL_STRUCTURES`
-- **Backend:** Updated `/api/content/vault` endpoint to return all data with tier-based access
-- **Frontend:** Stats bar now shows: Viral Hooks (12/12), Reel Structures (5/8), Kids Themes (5/15), Moral Templates (5/18)
+### 1. Professional PDF Storybook System (Complete Redesign)
+**Removed:** Old reportlab-based PDF generation with external images
+**New:** HTML + CSS templates rendered with Playwright
 
-### 2. Disney-Style PDF Enhancement
-- **Vibrant page backgrounds:** Peachy cream, mint green, sky blue, princess pink, lavender, sunshine yellow, ocean aqua, rose blush
-- **Magical corner decorations:** Soft gradient ellipses with sparkle emojis (✨⭐🌟💫)
-- **Double border design:** Colorful accent borders with alternating colors per page
-- **Enhanced watermark:** Soft purple diagonal "CreatorStudio AI" text
-- **Magical cover:** Castle emojis, pink border, "A Magical Story" header
-- **Disney-style "The End":** Sparkle decorations, "...and they lived happily ever after!" tagline
-- **Page numbers:** Decorative "~ 1 ~" style at bottom center
+**Template Architecture:**
+- `/app/backend/templates/pdf/cover.html` - Cover page with gradient, title, synopsis, branding
+- `/app/backend/templates/pdf/story-page.html` - Story pages with rotating color themes
+- `/app/backend/templates/pdf/moral.html` - Green-themed moral page with quote styling
+- `/app/backend/templates/pdf/ending.html` - "The End" page with CTA
+
+**Design Features:**
+- Google Fonts: Poppins (headings) + Nunito (body)
+- 6 rotating pastel color themes: Lavender, Mint, Peach, Sky, Rose, Amber
+- Professional SVG decorations: Stars, hearts, sparkles
+- Scene headers with narration boxes and dialogue sections
+- Page numbers and consistent branding footer
+
+**Backend Changes:**
+- New `/app/backend/pdf_generator.py` - Playwright-based PDF renderer
+- Simplified endpoint in `server.py` using `generate_pdf_simple()` function
+- Dependencies: `playwright`, `PyPDF2`
+
+### 2. Content Vault Enhancements
+- **Reel Structures:** Added "💡 How to Use These Structures" 5-step guide
+- **Kids Story Themes & Moral Templates:** Dynamic shuffled content with "Get Fresh Ideas" button
+- **Usage Instructions:** Clear "How to use" guidance for each section
 
 ## Key Files
-- `/app/backend/server.py` - Main backend (3800+ lines)
-- `/app/frontend/src/pages/ContentVault.js` - Content Vault UI
-- `/app/frontend/src/pages/StoryGenerator.js` - Story & PDF generation
+- `/app/backend/server.py` - Main backend (3500+ lines)
+- `/app/backend/pdf_generator.py` - **NEW** PDF generator with Playwright
+- `/app/backend/templates/pdf/` - **NEW** HTML templates for PDF pages
+- `/app/frontend/src/pages/ContentVault.js` - Content Vault UI with refresh
 - `/app/USER_MANUAL.md` - User documentation
 
 ## Test Reports
 - `/app/test_reports/iteration_16.json` - P0 & P1 features (100% pass)
 - `/app/test_reports/iteration_17.json` - Content Vault fix (100% pass)
+- `/app/test_reports/iteration_18.json` - PDF system redesign (100% pass)
 
 ## Known Issues
 - Backend refactoring still pending (technical debt)
