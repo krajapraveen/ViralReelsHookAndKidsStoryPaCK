@@ -4376,6 +4376,141 @@ async def get_style_profiles(user: dict = Depends(get_current_user)):
     return {"profiles": profiles, "count": len(profiles)}
 
 
+@genstudio_router.post("/style-profile/{profile_id}/upload-image")
+async def upload_profile_image(
+    profile_id: str,
+    image: UploadFile = File(...),
+    user: dict = Depends(get_current_user)
+):
+    """Upload a reference image for style profile training"""
+    MAX_IMAGES = 20
+    MIN_IMAGES = 5
+    
+    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Style profile not found")
+    
+    current_count = profile.get("imageCount", 0)
+    if current_count >= MAX_IMAGES:
+        raise HTTPException(status_code=400, detail=f"Maximum {MAX_IMAGES} images per profile")
+    
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
+    if image.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid image type")
+    
+    image_content = await image.read()
+    if len(image_content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+    
+    image_id = str(uuid.uuid4())
+    image_data = {
+        "id": image_id,
+        "data": base64.b64encode(image_content).decode('utf-8'),
+        "contentType": image.content_type,
+        "size": len(image_content),
+        "uploadedAt": datetime.now(timezone.utc).isoformat()
+    }
+    
+    new_count = current_count + 1
+    can_train = new_count >= MIN_IMAGES
+    
+    await db.style_profiles.update_one(
+        {"id": profile_id},
+        {
+            "$push": {"images": image_data},
+            "$set": {
+                "imageCount": new_count,
+                "trainingStatus": "ready" if can_train else "needs_more_images",
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {
+        "success": True,
+        "imageId": image_id,
+        "currentImageCount": new_count,
+        "maxImages": MAX_IMAGES,
+        "canTrain": can_train,
+        "message": f"Image uploaded ({new_count}/{MAX_IMAGES}). " + 
+                   (f"Ready to train!" if can_train else f"Upload {MIN_IMAGES - new_count} more to train.")
+    }
+
+
+@genstudio_router.post("/style-profile/{profile_id}/train")
+async def train_style_profile(profile_id: str, user: dict = Depends(get_current_user)):
+    """Train a style profile using uploaded images"""
+    MIN_IMAGES = 5
+    
+    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Style profile not found")
+    
+    image_count = profile.get("imageCount", 0)
+    if image_count < MIN_IMAGES:
+        raise HTTPException(status_code=400, detail=f"Need at least {MIN_IMAGES} images to train")
+    
+    await db.style_profiles.update_one(
+        {"id": profile_id},
+        {"$set": {"trainingStatus": "training"}}
+    )
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"style-train-{profile_id}",
+            system_message="You are an expert style analyst. Analyze images to extract visual style characteristics."
+        ).with_model("gemini", "gemini-2.0-flash")
+        
+        images_to_analyze = profile.get("images", [])[:5]
+        
+        style_prompt = """Analyze these reference images and extract a style guide:
+1. Color palette (primary, secondary, accent)
+2. Lighting style
+3. Composition preferences
+4. Texture and material qualities
+5. Mood and atmosphere
+6. Art style
+
+Output as a detailed style description for AI image generation."""
+
+        file_contents = []
+        for img in images_to_analyze:
+            file_contents.append(FileContent(
+                content_type=img.get("contentType", "image/png"),
+                file_content_base64=img.get("data", "")
+            ))
+        
+        msg = UserMessage(text=style_prompt, file_contents=file_contents)
+        style_analysis = await chat.send_message(msg)
+        
+        await db.style_profiles.update_one(
+            {"id": profile_id},
+            {"$set": {
+                "trained": True,
+                "trainingStatus": "completed",
+                "styleVector": style_analysis,
+                "trainedAt": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        return {
+            "success": True,
+            "message": "Style profile trained successfully!",
+            "styleGuide": style_analysis[:500] + "..." if len(style_analysis) > 500 else style_analysis
+        }
+        
+    except Exception as e:
+        logger.error(f"Style training error: {e}")
+        await db.style_profiles.update_one(
+            {"id": profile_id},
+            {"$set": {"trainingStatus": "failed", "trainingError": str(e)}}
+        )
+        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
+
+
 @genstudio_router.delete("/style-profile/{profile_id}")
 async def delete_style_profile(profile_id: str, user: dict = Depends(get_current_user)):
     """Delete a style profile"""
