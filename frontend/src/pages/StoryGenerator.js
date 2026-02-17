@@ -646,8 +646,23 @@ export default function StoryGenerator() {
                             setCredits(response.data.remainingCredits);
                             toast.success('Printable book created! Downloading...');
                             
-                            // Download the PDF
-                            window.open(`${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`, '_blank');
+                            // Download the PDF with authentication
+                            const pdfResponse = await api.get(response.data.downloadUrl, {
+                              responseType: 'blob'
+                            });
+                            
+                            // Create blob URL and trigger download
+                            const blob = new Blob([pdfResponse.data], { type: 'application/pdf' });
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `storybook-${response.data.bookId}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                            
+                            toast.success('PDF downloaded successfully!');
                           } catch (error) {
                             toast.error(error.response?.data?.detail || 'Failed to create printable book');
                           } finally {
