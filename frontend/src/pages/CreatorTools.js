@@ -160,22 +160,22 @@ export default function CreatorTools() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Wand2 className="w-6 h-6 text-purple-500" />
-              <span className="text-xl font-bold">Creator Tools</span>
+              <Wand2 className="w-6 h-6 text-purple-600" />
+              <span className="text-xl font-bold text-slate-900">Creator Tools</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
-              <Coins className="w-4 h-4 text-purple-500" />
-              <span className="font-semibold">{credits} Credits</span>
+            <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-2">
+              <Coins className="w-4 h-4 text-purple-600" />
+              <span className="font-semibold text-purple-700">{credits} Credits</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} data-testid="creator-tools-logout">
+            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-600 hover:text-slate-900" data-testid="creator-tools-logout">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -185,28 +185,28 @@ export default function CreatorTools() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-6 lg:grid-cols-6 mb-8 bg-white border" data-testid="creator-tools-tabs">
-            <TabsTrigger value="calendar" className="flex items-center gap-2" data-testid="tab-calendar">
+          <TabsList className="grid grid-cols-6 lg:grid-cols-6 mb-8 bg-white border border-slate-200 shadow-sm" data-testid="creator-tools-tabs">
+            <TabsTrigger value="calendar" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-calendar">
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">Calendar</span>
             </TabsTrigger>
-            <TabsTrigger value="carousel" className="flex items-center gap-2" data-testid="tab-carousel">
+            <TabsTrigger value="carousel" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-carousel">
               <LayoutGrid className="w-4 h-4" />
               <span className="hidden sm:inline">Carousel</span>
             </TabsTrigger>
-            <TabsTrigger value="hashtags" className="flex items-center gap-2" data-testid="tab-hashtags">
+            <TabsTrigger value="hashtags" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-hashtags">
               <Hash className="w-4 h-4" />
               <span className="hidden sm:inline">Hashtags</span>
             </TabsTrigger>
-            <TabsTrigger value="thumbnails" className="flex items-center gap-2" data-testid="tab-thumbnails">
+            <TabsTrigger value="thumbnails" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-thumbnails">
               <Type className="w-4 h-4" />
               <span className="hidden sm:inline">Thumbnails</span>
             </TabsTrigger>
-            <TabsTrigger value="trending" className="flex items-center gap-2" data-testid="tab-trending">
+            <TabsTrigger value="trending" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-trending">
               <TrendingUp className="w-4 h-4" />
               <span className="hidden sm:inline">Trending</span>
             </TabsTrigger>
-            <TabsTrigger value="convert" className="flex items-center gap-2" data-testid="tab-convert">
+            <TabsTrigger value="convert" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-convert">
               <RefreshCw className="w-4 h-4" />
               <span className="hidden sm:inline">Convert</span>
             </TabsTrigger>
@@ -215,9 +215,9 @@ export default function CreatorTools() {
           {/* 30-Day Calendar Tab */}
           <TabsContent value="calendar">
             <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                  <Calendar className="w-6 h-6 text-purple-500" />
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                <h2 className="text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                  <Calendar className="w-6 h-6 text-purple-600" />
                   30-Day Content Calendar
                 </h2>
                 <p className="text-slate-500 mb-6">Generate a full month of content ideas</p>
