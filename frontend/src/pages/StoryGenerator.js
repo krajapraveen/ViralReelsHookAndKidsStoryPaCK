@@ -6,11 +6,12 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle, Share2, LogOut } from 'lucide-react';
+import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle, Share2, LogOut, Video } from 'lucide-react';
 import StoryProgressBar from '../components/StoryProgressBar';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
 import ShareButton from '../components/ShareButton';
+import VideoExportPanel from '../components/VideoExportPanel';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
@@ -21,6 +22,7 @@ export default function StoryGenerator() {
   const [isFreeTier, setIsFreeTier] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [pendingDownloadType, setPendingDownloadType] = useState(null);
+  const [showVideoExport, setShowVideoExport] = useState(false);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
