@@ -1634,8 +1634,15 @@ async def get_exchange_rate(currency: str):
     return {"currency": currency, "rate": EXCHANGE_RATES[currency]}
 
 @payments_router.post("/create-order")
-async def create_order(data: CreateOrderRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")  # Rate limit: 10 order creations per minute
+async def create_order(request: Request, data: CreateOrderRequest, user: dict = Depends(get_current_user)):
+    """Create payment order with security validation"""
     try:
+        log_security_event("PAYMENT_ORDER_INITIATED", {
+            "user_id": user["id"],
+            "product_id": data.productId,
+            "currency": data.currency
+        }, "INFO")
         product = next((p for p in PRODUCTS if p["id"] == data.productId), None)
         if not product:
             raise HTTPException(status_code=400, detail="Invalid product ID. Please select a valid product.")
