@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { generationAPI, creditAPI } from '../utils/api';
 import api from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle, Share2, LogOut, FileText, BookOpen, Palette, Gift } from 'lucide-react';
+import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle, Share2, LogOut, FileText, BookOpen, Palette, Gift, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import StoryProgressBar from '../components/StoryProgressBar';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
