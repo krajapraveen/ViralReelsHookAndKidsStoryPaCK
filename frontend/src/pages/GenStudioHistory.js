@@ -61,7 +61,7 @@ export default function GenStudioHistory() {
       
       if (!response.ok) {
         if (response.status === 410) {
-          toast.error('File expired (15 min limit)');
+          toast.error('File expired (3 min security limit)');
           return;
         }
         throw new Error('Download failed');
