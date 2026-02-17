@@ -3913,14 +3913,39 @@ async def startup():
 async def cleanup_expired_downloads():
     """Background task to clean up expired download links every minute"""
     import asyncio
+    import glob
+    
     while True:
         try:
-            # Delete all expired printable books
+            # Delete all expired printable books (5 min expiry)
             result = await db.printable_books.delete_many({
                 "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
             })
             if result.deleted_count > 0:
-                logger.info(f"Cleaned up {result.deleted_count} expired download(s)")
+                logger.info(f"Cleaned up {result.deleted_count} expired printable book(s)")
+            
+            # Delete all expired GenStudio jobs (15 min expiry) and their files
+            expired_jobs = await db.genstudio_jobs.find({
+                "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
+            }).to_list(100)
+            
+            for job in expired_jobs:
+                job_id = job.get("id", "")
+                # Delete associated files
+                for filepath in glob.glob(f"/tmp/genstudio_{job_id}_*"):
+                    try:
+                        os.remove(filepath)
+                        logger.info(f"Deleted expired GenStudio file: {filepath}")
+                    except:
+                        pass
+            
+            # Delete expired job records
+            result = await db.genstudio_jobs.delete_many({
+                "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
+            })
+            if result.deleted_count > 0:
+                logger.info(f"Cleaned up {result.deleted_count} expired GenStudio job(s)")
+            
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
         
