@@ -2333,7 +2333,7 @@ async def generate_video(
         "voiceId": request.voice_id,
         "includeSubtitles": request.include_subtitles,
         "includeMusic": request.include_music,
-        "cost": cost,
+        "creditCost": credit_cost,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.video_exports.insert_one(export_record)
