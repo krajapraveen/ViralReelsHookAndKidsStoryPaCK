@@ -3243,17 +3243,32 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         "https://source.unsplash.com/200x200/?sun,bright",
     ]
     
-    # Page background colors for storybook feel
+    # Disney-style vibrant page background colors
     PAGE_COLORS = [
-        "#FFF9E6",  # Warm cream
-        "#E8F5E9",  # Soft green
-        "#E3F2FD",  # Soft blue
-        "#FFF3E0",  # Soft orange
-        "#F3E5F5",  # Soft purple
-        "#FFEBEE",  # Soft pink
-        "#E0F7FA",  # Soft cyan
-        "#FFF8E1",  # Soft amber
+        "#FFF5E6",  # Warm peachy cream (like Moana)
+        "#E8FFE8",  # Fresh mint green (like Tinkerbell)
+        "#E6F3FF",  # Sky blue (like Frozen)
+        "#FFE6F0",  # Princess pink (like Aurora)
+        "#F0E6FF",  # Magical lavender (like Rapunzel)
+        "#FFFDE6",  # Sunshine yellow (like Belle)
+        "#E6FFFA",  # Ocean aqua (like Ariel)
+        "#FFE6E6",  # Rose blush (like Snow White)
     ]
+    
+    # Disney-style vibrant accent colors for page decorations
+    DISNEY_ACCENT_COLORS = [
+        ("#FF6B9D", "#FFB347"),  # Pink to Orange (sunset magic)
+        ("#7B68EE", "#87CEEB"),  # Purple to Sky Blue (fairy dust)
+        ("#FF69B4", "#FFD700"),  # Hot Pink to Gold (princess sparkle)
+        ("#00CED1", "#98FB98"),  # Turquoise to Pale Green (ocean dreams)
+        ("#DDA0DD", "#F0E68C"),  # Plum to Khaki (enchanted forest)
+        ("#FF7F50", "#FAFAD2"),  # Coral to Light Goldenrod (sunrise)
+        ("#87CEFA", "#E6E6FA"),  # Light Sky Blue to Lavender (cloud dreams)
+        ("#F08080", "#FFFACD"),  # Light Coral to Lemon Chiffon (warm glow)
+    ]
+    
+    # Magical decorative emojis for Disney feel
+    MAGIC_DECORATIONS = ["✨", "🌟", "⭐", "💫", "🪄", "🦋", "🌸", "🌺", "🌈", "💎", "👑", "🏰"]
     
     def get_character_image_url(char_name, char_type="human"):
         """Get appropriate image URL for character based on name and type"""
