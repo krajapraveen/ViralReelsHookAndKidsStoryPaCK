@@ -3884,7 +3884,7 @@ Output ONLY the video prompt, no explanations. Make it cinematic and detailed.""
         
         analysis_msg = UserMessage(
             text=analysis_prompt,
-            images=[ImageContent(base64_data=image_data, media_type="image/png")]
+            images=[ImageContent(image_base64=image_data)]
         )
         
         image_description = await analysis_chat.send_message(analysis_msg)
