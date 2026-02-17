@@ -4268,7 +4268,7 @@ async def download_genstudio_file(job_id: str, filename: str, user: dict = Depen
     if expiry_str:
         expiry_time = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
         if datetime.now(timezone.utc) > expiry_time:
-            raise HTTPException(status_code=410, detail="Download link expired. Files are available for 15 minutes only.")
+            raise HTTPException(status_code=410, detail="Download link expired. Files are automatically deleted after 3 minutes for security.")
     
     filepath = f"/tmp/{filename}"
     if not os.path.exists(filepath):
