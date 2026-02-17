@@ -403,13 +403,13 @@ export default function ImageToVideo() {
 
             {/* Tips */}
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-white mb-3">💡 Tips for Better Animation</h3>
+              <h3 className="text-sm font-semibold text-white mb-3">💡 How It Works</h3>
               <ul className="text-xs text-slate-400 space-y-2">
-                <li>• Use high-quality images with clear subjects</li>
-                <li>• Describe natural motion: "wind blowing", "water rippling"</li>
-                <li>• Include camera movement: "slow zoom", "pan left to right"</li>
-                <li>• Avoid complex motion for static images</li>
-                <li>• Works best with landscapes, portraits, and product shots</li>
+                <li>• AI analyzes your image to understand the scene</li>
+                <li>• Creates a video inspired by the image content</li>
+                <li>• Your motion prompt guides the animation style</li>
+                <li>• Best results with clear, well-lit images</li>
+                <li>• Works great with landscapes, portraits, products</li>
               </ul>
             </div>
           </div>
