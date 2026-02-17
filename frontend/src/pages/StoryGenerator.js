@@ -666,16 +666,25 @@ export default function StoryGenerator() {
                             return;
                           }
                           setPrintableLoading(true);
+                          setPdfProgress({ step: 1, message: 'Preparing your storybook...' });
+                          
                           try {
                             const payload = {
                               include_activities: true,
                               personalization: showPersonalization ? personalization : null
                             };
+                            
+                            // Step 1: Create printable book
+                            setPdfProgress({ step: 1, message: 'Creating printable book...' });
                             const response = await api.post(`/api/story-tools/printable-book/generate?generation_id=${generationId}`, payload);
                             setCredits(response.data.remainingCredits);
-                            toast.success('Printable book created! Downloading PDF...');
                             
-                            // Download the PDF with authentication using fetch for better blob handling
+                            // Step 2: Rendering PDF
+                            setPdfProgress({ step: 2, message: 'Rendering beautiful pages...' });
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            
+                            // Step 3: Download the PDF
+                            setPdfProgress({ step: 3, message: 'Generating PDF file...' });
                             const token = localStorage.getItem('token');
                             const pdfResponse = await fetch(`${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`, {
                               method: 'GET',
@@ -688,6 +697,7 @@ export default function StoryGenerator() {
                               throw new Error('Failed to download PDF');
                             }
                             
+                            setPdfProgress({ step: 4, message: 'Downloading your storybook...' });
                             const blob = await pdfResponse.blob();
                             
                             // Create download link
@@ -705,18 +715,47 @@ export default function StoryGenerator() {
                               window.URL.revokeObjectURL(url);
                             }, 100);
                             
+                            setPdfProgress({ step: 5, message: 'Complete!' });
                             toast.success('PDF downloaded successfully!');
                           } catch (error) {
                             console.error('PDF Download Error:', error);
                             toast.error(error.response?.data?.detail || error.message || 'Failed to create printable book');
                           } finally {
                             setPrintableLoading(false);
+                            setPdfProgress({ step: 0, message: '' });
                           }
                         }}
                         data-testid="generate-printable-btn"
                       >
-                        {printableLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create PDF'}
+                        {printableLoading ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            {pdfProgress.message || 'Processing...'}
+                          </span>
+                        ) : 'Create PDF'}
                       </Button>
+                      
+                      {/* PDF Progress Bar */}
+                      {printableLoading && (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex justify-between text-xs text-slate-600">
+                            <span>{pdfProgress.message}</span>
+                            <span>{Math.min(pdfProgress.step * 25, 100)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${Math.min(pdfProgress.step * 25, 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-400">
+                            <span className={pdfProgress.step >= 1 ? 'text-purple-600 font-medium' : ''}>Prepare</span>
+                            <span className={pdfProgress.step >= 2 ? 'text-purple-600 font-medium' : ''}>Render</span>
+                            <span className={pdfProgress.step >= 3 ? 'text-purple-600 font-medium' : ''}>Generate</span>
+                            <span className={pdfProgress.step >= 4 ? 'text-purple-600 font-medium' : ''}>Download</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
