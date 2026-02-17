@@ -1,5 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Header, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Header, BackgroundTasks, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -18,13 +19,31 @@ import random
 import string
 import asyncio
 import razorpay
+import base64
+import tempfile
+import shutil
 
 # LLM Integration for AI generation
 try:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
+
+# ElevenLabs for TTS
+try:
+    from elevenlabs import ElevenLabs
+    from elevenlabs.core import ApiError as ElevenLabsError
+    ELEVENLABS_AVAILABLE = True
+except ImportError:
+    ELEVENLABS_AVAILABLE = False
+
+# MoviePy for video generation
+try:
+    from moviepy import ImageClip, AudioFileClip, CompositeVideoClip, TextClip, concatenate_videoclips
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
 
 # SendGrid for email
 try:
