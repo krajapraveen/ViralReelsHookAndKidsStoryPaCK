@@ -3803,8 +3803,15 @@ async def get_content_vault(niche: Optional[str] = None, user: dict = Depends(ge
         "plan": user_plan,
         "viral_hooks": hooks[:access["hooks"]],
         "reel_structures": REEL_STRUCTURES[:access["structures"]],
+        "kids_themes": KIDS_STORY_THEMES[:access["themes"]],
+        "moral_templates": MORAL_TEMPLATES[:access["morals"]],
+        "total_hooks": len(CONTENT_VAULT_HOOKS),
+        "total_structures": len(REEL_STRUCTURES),
+        "total_themes": len(KIDS_STORY_THEMES),
+        "total_morals": len(MORAL_TEMPLATES),
+        "access_level": access,
         "is_limited": user_plan == "free",
-        "upgrade_message": "Upgrade to Pro to unlock 500+ viral hooks!" if user_plan == "free" else None
+        "upgrade_message": "Upgrade to Pro to unlock all premium content!" if user_plan == "free" else None
     }
 
 
