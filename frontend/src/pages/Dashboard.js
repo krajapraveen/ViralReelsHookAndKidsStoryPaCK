@@ -42,14 +42,14 @@ export default function Dashboard() {
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-indigo-500" />
-            <span className="text-xl font-bold">CreatorStudio AI</span>
+            <Sparkles className="w-6 h-6 text-purple-600" />
+            <span className="text-xl font-bold text-slate-900">CreatorStudio AI</span>
           </div>
           
           <div className="flex items-center gap-4">
             {isAdmin && (
               <Link to="/app/admin">
-                <Button variant="outline" size="sm" className="border-purple-300 text-purple-600 hover:bg-purple-50" data-testid="admin-dashboard-btn">
+                <Button variant="outline" size="sm" className="border-purple-200 text-purple-700 hover:bg-purple-50" data-testid="admin-dashboard-btn">
                   <Shield className="w-4 h-4 mr-2" />
                   Admin Panel
                 </Button>
@@ -57,18 +57,18 @@ export default function Dashboard() {
             )}
             
             <Link to="/app/profile">
-              <Button variant="ghost" size="sm" data-testid="profile-btn">
+              <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900" data-testid="profile-btn">
                 <User className="w-4 h-4 mr-2" />
                 Profile
               </Button>
             </Link>
             
-            <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2" data-testid="credit-balance">
-              <Coins className="w-4 h-4 text-purple-500" />
-              <span className="font-semibold">{credits} Credits</span>
+            <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-2" data-testid="credit-balance">
+              <Coins className="w-4 h-4 text-purple-600" />
+              <span className="font-semibold text-purple-700">{credits} Credits</span>
             </div>
             
-            <Button variant="ghost" onClick={handleLogout} data-testid="logout-btn">
+            <Button variant="ghost" onClick={handleLogout} className="text-slate-600 hover:text-slate-900" data-testid="logout-btn">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -78,8 +78,8 @@ export default function Dashboard() {
 
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-2" data-testid="dashboard-welcome">Welcome back, {user?.name}!</h1>
-          <p className="text-slate-600 text-lg">What would you like to create today?</p>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2" data-testid="dashboard-welcome">Welcome back, {user?.name}!</h1>
+          <p className="text-slate-500 text-lg">What would you like to create today?</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-12">
