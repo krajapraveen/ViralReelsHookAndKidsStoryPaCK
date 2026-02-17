@@ -2301,12 +2301,12 @@ async def generate_video(
 ):
     """Start video generation from a story"""
     
-    # Calculate cost
-    cost = 199 if request.resolution == "1080p" else 99
+    # Calculate credit cost (10 credits for 720p, 20 credits for 1080p)
+    credit_cost = 20 if request.resolution == "1080p" else 10
     
     # Check credits
-    if user["credits"] < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. You need {cost} credits for video export.")
+    if user["credits"] < credit_cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. You need {credit_cost} credits for video export.")
     
     # Get the story generation
     story = await db.generations.find_one({"id": request.story_id, "userId": user["id"]}, {"_id": 0})
