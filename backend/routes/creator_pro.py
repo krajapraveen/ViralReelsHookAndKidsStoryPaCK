@@ -401,7 +401,6 @@ Return ONLY a JSON array of 5 bio strings, no explanations:
         if ai_response:
             try:
                 # Parse JSON from response
-                import re
                 json_match = re.search(r'\[.*?\]', ai_response, re.DOTALL)
                 if json_match:
                     ai_bios = json.loads(json_match.group())
@@ -670,7 +669,6 @@ Return ONLY a JSON array of 3 caption strings:
         
         if ai_response:
             try:
-                import re
                 json_match = re.search(r'\[.*?\]', ai_response, re.DOTALL)
                 if json_match:
                     ai_captions = json.loads(json_match.group())
