@@ -566,6 +566,9 @@ export default function StoryGenerator() {
                             const response = await api.post(`/api/story-tools/worksheet/generate?generation_id=${generationId}`);
                             setWorksheetResult(response.data.worksheet);
                             setCredits(response.data.remainingCredits);
+                            setFillBlankAnswers({});  // Reset answers
+                            setFillBlankResults({});  // Reset results
+                            setShowAnswers(false);    // Hide answers
                             toast.success('Worksheet generated!');
                           } catch (error) {
                             toast.error(error.response?.data?.detail || 'Failed to generate worksheet');
