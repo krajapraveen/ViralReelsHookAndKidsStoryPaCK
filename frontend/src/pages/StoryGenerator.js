@@ -752,32 +752,10 @@ export default function StoryGenerator() {
                         {printableLoading ? (
                           <span className="flex items-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            {pdfProgress.message || 'Processing...'}
+                            Processing...
                           </span>
                         ) : 'Create PDF'}
                       </Button>
-                      
-                      {/* PDF Progress Bar */}
-                      {printableLoading && (
-                        <div className="mt-3 space-y-2">
-                          <div className="flex justify-between text-xs text-slate-600">
-                            <span>{pdfProgress.message}</span>
-                            <span>{Math.min(pdfProgress.step * 25, 100)}%</span>
-                          </div>
-                          <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
-                              style={{ width: `${Math.min(pdfProgress.step * 25, 100)}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-[10px] text-slate-400">
-                            <span className={pdfProgress.step >= 1 ? 'text-purple-600 font-medium' : ''}>Prepare</span>
-                            <span className={pdfProgress.step >= 2 ? 'text-purple-600 font-medium' : ''}>Render</span>
-                            <span className={pdfProgress.step >= 3 ? 'text-purple-600 font-medium' : ''}>Generate</span>
-                            <span className={pdfProgress.step >= 4 ? 'text-purple-600 font-medium' : ''}>Download</span>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
