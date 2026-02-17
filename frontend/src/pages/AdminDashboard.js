@@ -216,6 +216,7 @@ export default function AdminDashboard() {
               <FeatureRequestsTab data={featureRequests} onUpdateStatus={updateFeatureStatus} />
             )}
             {activeTab === 'feedback' && <UserFeedbackTab />}
+            {activeTab === 'trending' && <TrendingTopicsTab />}
           </div>
         </div>
       </div>
