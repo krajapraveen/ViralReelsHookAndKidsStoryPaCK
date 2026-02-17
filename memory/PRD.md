@@ -3,13 +3,15 @@
 ## Overview
 **Tagline:** "Generate viral reels + kids story videos in minutes."
 **URL:** https://creatora-studio.preview.emergentagent.com
+**Last Updated:** February 17, 2026
 
 ## Tech Stack
 - **Frontend:** React + TailwindCSS + Shadcn/UI
 - **Backend:** Python/FastAPI on port 8001
 - **Database:** MongoDB
-- **AI Worker:** Python/Flask on port 5000 (GPT-5.2 via emergentintegrations)
-- **Automation:** Python scripts managed by Supervisor
+- **Story Generation:** Template-based (no LLM cost) - uses `story_templates` collection
+- **Reel Generation:** Gemini 2.0 Flash via emergentintegrations
+- **Payments:** Razorpay (TEST MODE - awaiting live keys)
 
 ## Test Credentials
 | Role | Email | Password |
@@ -26,10 +28,15 @@
 - **Returns:** Hooks (5), best hook, script with scenes, captions, hashtags, posting tips
 
 ### 2. Kids Story Video Pack Generator
-- **Status:** ✅ WORKING
+- **Status:** ✅ WORKING (Template-Based)
 - **Cost:** 6-10 credits based on scene count
-- **Unique Content:** Verified - same inputs produce different stories
-- **Returns:** Title, synopsis, characters, scenes with dialogue & image prompts, video metadata
+- **Age Groups:** 4-6 years, 6-8 years, 8-10 years
+- **Genres:** Adventure, Fantasy, Friendship, Animal, Educational
+- **Generation Method:** Uses pre-written templates from `story_templates` MongoDB collection (48 templates seeded)
+- **Dynamic Elements:** Character names are randomized for uniqueness
+- **Returns:** Title, synopsis, characters (2+), 8 scenes with dialogue & image prompts, YouTube metadata, moral
+- **Video Export:** REMOVED (per user request)
+- **Downloads:** PDF and JSON with watermark for free tier users
 
 ### 3. Credit System
 - **Status:** ✅ WORKING
