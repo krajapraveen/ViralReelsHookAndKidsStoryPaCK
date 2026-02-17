@@ -90,28 +90,29 @@ def render_story_page(story: Dict, scene: Dict, scene_number: int, page_number: 
     template = load_template("story-page.html")
     theme = PAGE_THEMES[(page_number - 1) % len(PAGE_THEMES)]
     
-    # Process scene content
+    # Process scene content - support both 'content' and 'narration' fields
     scene_title = scene.get("title", f"Scene {scene_number}")
-    scene_content = scene.get("content", "")
+    scene_content = scene.get("content") or scene.get("narration") or scene.get("text") or ""
     
     # Format paragraphs
     paragraphs = scene_content.split('\n\n') if '\n\n' in scene_content else [scene_content]
     formatted_content = ''.join([f"<p>{p.strip()}</p>" for p in paragraphs if p.strip()])
     
-    # Handle dialogue if present
+    # Handle dialogue if present - support both 'text' and 'line' fields
     dialogue_section = ""
     dialogue = scene.get("dialogue", [])
     if dialogue:
         dialogue_html = []
         for d in dialogue[:2]:  # Max 2 dialogues per page
             speaker = d.get("speaker", "Character")
-            text = d.get("text", "")
-            dialogue_html.append(f'''
-            <div class="dialogue-box">
-                <p class="speaker">{speaker}:</p>
-                <p class="dialogue-text">{text}</p>
-            </div>
-            ''')
+            text = d.get("text") or d.get("line") or ""
+            if text:
+                dialogue_html.append(f'''
+                <div class="dialogue-box">
+                    <p class="speaker">{speaker}:</p>
+                    <p class="dialogue-text">{text}</p>
+                </div>
+                ''')
         dialogue_section = ''.join(dialogue_html)
     
     return template.replace("{{BG_COLOR}}", theme["bg_color"]) \
