@@ -1152,7 +1152,7 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
             "userId": user["id"],
-            "amount": -1,
+            "amount": -credits_needed,
             "type": "USAGE",
             "description": f"Reel script generation: {data.topic[:50]}",
             "createdAt": datetime.now(timezone.utc).isoformat()
@@ -1167,7 +1167,7 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
             "status": "COMPLETED",
             "inputJson": data.model_dump(),
             "outputJson": result,
-            "creditsUsed": 1,
+            "creditsUsed": credits_needed,
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "completedAt": datetime.now(timezone.utc).isoformat()
         }
@@ -1177,8 +1177,8 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
             "success": True,
             "generationId": generation_id,
             "result": result,
-            "creditsUsed": 1,
-            "remainingCredits": user["credits"] - 1
+            "creditsUsed": credits_needed,
+            "remainingCredits": user["credits"] - credits_needed
         }
         
     except httpx.TimeoutException:
