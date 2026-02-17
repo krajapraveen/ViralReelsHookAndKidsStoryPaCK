@@ -176,7 +176,7 @@ export default function ImageToVideo() {
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-white">Image → Video</h1>
-                  <p className="text-xs text-slate-400">Animate images with AI motion</p>
+                  <p className="text-xs text-slate-400">Create video inspired by your image</p>
                 </div>
               </div>
             </div>
