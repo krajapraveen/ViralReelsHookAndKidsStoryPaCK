@@ -110,9 +110,9 @@ class TestAttackPatternBlocking:
         
         for path in attack_paths:
             response = requests.get(f"{BASE_URL}{path}")
-            # Should return 200 (normalized by proxy), 403, or 404
+            # Should return 200 (normalized by proxy), 400 (bad request), 403, or 404
             # The important thing is it doesn't return actual file contents
-            assert response.status_code in [200, 403, 404], f"Unexpected response for: {path}"
+            assert response.status_code in [200, 400, 403, 404], f"Unexpected response for: {path}"
             if response.status_code == 200:
                 # Verify it's not returning /etc/passwd content
                 assert "root:" not in response.text, "Path traversal returned sensitive file!"
