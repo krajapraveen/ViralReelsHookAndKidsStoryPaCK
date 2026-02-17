@@ -251,6 +251,40 @@ async def analyze_hook(
             matched_formula = formula["name"]
             break
     
+    # Generate AI-powered improved hooks if available
+    ai_improvements = []
+    if AI_AVAILABLE and total_score < 80:
+        prompt = f"""Analyze this social media hook and provide 3 improved versions:
+Original hook: "{hook}"
+Niche: {niche if niche else 'general'}
+Current score: {total_score}/100
+
+Issues identified:
+{chr(10).join(['- ' + imp for imp in improvements]) if improvements else '- Generally good but can be better'}
+
+Create 3 improved versions that:
+1. Include power words (secret, proven, instant, shocking, etc.)
+2. Add emotional triggers (curiosity, urgency, fear, desire)
+3. Keep it 5-12 words
+4. Use viral hook formulas
+
+Return ONLY a JSON array of 3 improved hook strings:
+["hook1", "hook2", "hook3"]"""
+        
+        ai_response = await generate_ai_content(
+            prompt,
+            "You are a viral content expert who creates hooks that get millions of views."
+        )
+        
+        if ai_response:
+            try:
+                import re
+                json_match = re.search(r'\[.*?\]', ai_response, re.DOTALL)
+                if json_match:
+                    ai_improvements = json.loads(json_match.group())
+            except Exception as e:
+                logger.warning(f"Failed to parse AI hook improvements: {e}")
+    
     await deduct_credits(user["id"], cost, "Hook Analyzer")
     
     return {
@@ -267,8 +301,10 @@ async def analyze_hook(
                 "structure": {"score": structure_score, "hasNumber": has_number, "hasQuestion": has_question, "hasCTA": has_call_to_action}
             },
             "matchedFormula": matched_formula,
-            "improvements": improvements
+            "improvements": improvements,
+            "aiImprovedHooks": ai_improvements if ai_improvements else None
         },
+        "aiPowered": bool(AI_AVAILABLE),
         "creditsUsed": cost
     }
 
