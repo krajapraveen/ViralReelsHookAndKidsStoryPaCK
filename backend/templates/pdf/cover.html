@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            width: 210mm;
+            height: 297mm;
+            background: linear-gradient(145deg, #E8F4FD 0%, #F3E8FF 50%, #FFF0F5 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .page {
+            width: 100%;
+            height: 100%;
+            padding: 20mm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        /* Decorative Elements */
+        .decoration {
+            position: absolute;
+            opacity: 0.6;
+        }
+        
+        .star {
+            fill: #FFD700;
+        }
+        
+        .heart {
+            fill: #FF6B9D;
+        }
+        
+        .cloud {
+            fill: #E8F4FD;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+        }
+        
+        .sparkle {
+            fill: #C4B5FD;
+        }
+        
+        /* Top Left Decorations */
+        .deco-top-left {
+            top: 15mm;
+            left: 15mm;
+        }
+        
+        /* Top Right Decorations */
+        .deco-top-right {
+            top: 20mm;
+            right: 20mm;
+        }
+        
+        /* Bottom decorations */
+        .deco-bottom-left {
+            bottom: 25mm;
+            left: 20mm;
+        }
+        
+        .deco-bottom-right {
+            bottom: 20mm;
+            right: 25mm;
+        }
+        
+        /* Main Content */
+        .content-wrapper {
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 30px;
+            padding: 40px 50px;
+            box-shadow: 0 20px 60px rgba(147, 51, 234, 0.15);
+            text-align: center;
+            max-width: 85%;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .genre-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            color: white;
+            padding: 8px 24px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        
+        .title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 42px;
+            font-weight: 800;
+            color: #4C1D95;
+            line-height: 1.2;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(139, 92, 246, 0.2);
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            color: #6B7280;
+            font-style: italic;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .age-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .divider {
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(90deg, #8B5CF6, #EC4899, #F59E0B);
+            border-radius: 2px;
+            margin: 30px auto;
+        }
+        
+        /* Brand Footer */
+        .brand-footer {
+            position: absolute;
+            bottom: 20mm;
+            left: 0;
+            right: 0;
+            text-align: center;
+            z-index: 10;
+        }
+        
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 12px 24px;
+            border-radius: 50px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .brand-logo svg {
+            width: 28px;
+            height: 28px;
+        }
+        
+        .brand-name {
+            font-family: 'Poppins', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Decorative SVG Elements -->
+        <svg class="decoration deco-top-left" width="80" height="80" viewBox="0 0 80 80">
+            <path class="star" d="M40 0L48.5 28.5L80 32L56 52L62 80L40 64L18 80L24 52L0 32L31.5 28.5L40 0Z"/>
+        </svg>
+        
+        <svg class="decoration deco-top-right" width="60" height="60" viewBox="0 0 60 60">
+            <path class="heart" d="M30 54L25.5 50C10 36 0 27 0 16C0 7 7 0 16 0C21.5 0 26.5 3 30 7C33.5 3 38.5 0 44 0C53 0 60 7 60 16C60 27 50 36 34.5 50L30 54Z"/>
+        </svg>
+        
+        <svg class="decoration" style="top: 60mm; right: 15mm; opacity: 0.4;" width="100" height="50" viewBox="0 0 100 50">
+            <ellipse class="cloud" cx="30" cy="30" rx="25" ry="15"/>
+            <ellipse class="cloud" cx="50" cy="25" rx="30" ry="20"/>
+            <ellipse class="cloud" cx="75" cy="30" rx="25" ry="15"/>
+        </svg>
+        
+        <svg class="decoration deco-bottom-left" width="50" height="50" viewBox="0 0 50 50">
+            <path class="sparkle" d="M25 0L28 22L50 25L28 28L25 50L22 28L0 25L22 22L25 0Z"/>
+        </svg>
+        
+        <svg class="decoration deco-bottom-right" width="70" height="70" viewBox="0 0 80 80">
+            <path class="star" d="M40 0L48.5 28.5L80 32L56 52L62 80L40 64L18 80L24 52L0 32L31.5 28.5L40 0Z"/>
+        </svg>
+        
+        <!-- Small floating decorations -->
+        <svg class="decoration" style="top: 40mm; left: 30mm; opacity: 0.5;" width="20" height="20" viewBox="0 0 20 20">
+            <circle class="sparkle" cx="10" cy="10" r="8"/>
+        </svg>
+        
+        <svg class="decoration" style="bottom: 60mm; right: 40mm; opacity: 0.5;" width="25" height="25" viewBox="0 0 25 25">
+            <path class="heart" d="M12.5 22L10.5 20C4 14 0 11 0 6.5C0 3 3 0 6.5 0C9 0 11 1.5 12.5 3.5C14 1.5 16 0 18.5 0C22 0 25 3 25 6.5C25 11 21 14 14.5 20L12.5 22Z"/>
+        </svg>
+        
+        <!-- Main Content -->
+        <div class="content-wrapper">
+            <div class="genre-badge">{{GENRE}} Story</div>
+            <h1 class="title">{{TITLE}}</h1>
+            <p class="subtitle">{{SYNOPSIS}}</p>
+            <div class="divider"></div>
+            <div class="age-badge">
+                <span>👶</span>
+                <span>Ages: {{AGE_GROUP}}</span>
+            </div>
+        </div>
+        
+        <!-- Brand Footer -->
+        <div class="brand-footer">
+            <div class="brand-logo">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="url(#grad1)"/>
+                    <defs>
+                        <linearGradient id="grad1" x1="2" y1="2" x2="22" y2="22">
+                            <stop offset="0%" style="stop-color:#8B5CF6"/>
+                            <stop offset="100%" style="stop-color:#EC4899"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="brand-name">CreatorStudio AI</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            width: 210mm;
+            height: 297mm;
+            background: linear-gradient(145deg, #FDF4FF 0%, #FAF5FF 50%, #F3E8FF 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .page {
+            width: 100%;
+            height: 100%;
+            padding: 25mm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        /* The End Title */
+        .end-section {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .end-decorations {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .end-decorations svg {
+            width: 30px;
+            height: 30px;
+        }
+        
+        .the-end {
+            font-family: 'Poppins', sans-serif;
+            font-size: 52px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        
+        .happily-ever-after {
+            font-size: 20px;
+            color: #6B7280;
+            font-style: italic;
+        }
+        
+        /* About Section */
+        .about-section {
+            background: white;
+            border-radius: 25px;
+            padding: 40px 50px;
+            max-width: 80%;
+            box-shadow: 0 15px 40px rgba(139, 92, 246, 0.12);
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .about-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: #8B5CF6;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        
+        .brand-logo-large {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .brand-logo-large svg {
+            width: 50px;
+            height: 50px;
+        }
+        
+        .brand-name-large {
+            font-family: 'Poppins', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .about-description {
+            font-size: 16px;
+            color: #6B7280;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+        
+        .about-tagline {
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: #8B5CF6;
+            font-style: italic;
+        }
+        
+        /* CTA Section */
+        .cta-section {
+            text-align: center;
+        }
+        
+        .cta-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: #4C1D95;
+            margin-bottom: 15px;
+        }
+        
+        .cta-box {
+            display: inline-block;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            color: white;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.3);
+        }
+        
+        .cta-subtitle {
+            font-size: 14px;
+            color: #9CA3AF;
+            margin-top: 15px;
+        }
+        
+        /* Corner Decorations */
+        .decoration {
+            position: absolute;
+            opacity: 0.3;
+        }
+        
+        .corner-top-left {
+            top: 15mm;
+            left: 15mm;
+            width: 80px;
+            height: 80px;
+        }
+        
+        .corner-top-right {
+            top: 15mm;
+            right: 15mm;
+            width: 70px;
+            height: 70px;
+        }
+        
+        .corner-bottom-left {
+            bottom: 25mm;
+            left: 15mm;
+            width: 60px;
+            height: 60px;
+        }
+        
+        .corner-bottom-right {
+            bottom: 25mm;
+            right: 15mm;
+            width: 70px;
+            height: 70px;
+        }
+        
+        /* Footer */
+        .footer {
+            position: absolute;
+            bottom: 15mm;
+            text-align: center;
+        }
+        
+        .copyright {
+            font-size: 12px;
+            color: #9CA3AF;
+        }
+        
+        .page-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            color: white;
+            border-radius: 50%;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 10px;
+        }
+        
+        .star-purple { fill: #8B5CF6; }
+        .heart-pink { fill: #EC4899; }
+        .sparkle-violet { fill: #A78BFA; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Corner Decorations -->
+        <svg class="decoration corner-top-left" viewBox="0 0 80 80">
+            <path class="star-purple" d="M40 0L48.5 28.5L80 32L56 52L62 80L40 64L18 80L24 52L0 32L31.5 28.5L40 0Z"/>
+        </svg>
+        
+        <svg class="decoration corner-top-right" viewBox="0 0 70 70">
+            <path class="heart-pink" d="M35 63L31.5 60C12 42 0 32 0 19C0 8 8 0 19 0C25.5 0 31.5 3.5 35 8.5C38.5 3.5 44.5 0 51 0C62 0 70 8 70 19C70 32 58 42 38.5 60L35 63Z"/>
+        </svg>
+        
+        <svg class="decoration corner-bottom-left" viewBox="0 0 60 60">
+            <path class="sparkle-violet" d="M30 0L34 26L60 30L34 34L30 60L26 34L0 30L26 26L30 0Z"/>
+        </svg>
+        
+        <svg class="decoration corner-bottom-right" viewBox="0 0 70 70">
+            <path class="star-purple" d="M35 0L42.5 25L70 28L49 46L54 70L35 56L16 70L21 46L0 28L27.5 25L35 0Z"/>
+        </svg>
+        
+        <!-- The End Section -->
+        <div class="end-section">
+            <div class="end-decorations">
+                <svg viewBox="0 0 30 30"><path class="star-purple" d="M15 0L18 11L30 12L21 20L24 30L15 24L6 30L9 20L0 12L12 11L15 0Z"/></svg>
+                <svg viewBox="0 0 30 30"><path class="heart-pink" d="M15 27L13 25C5 18 0 14 0 9C0 4 4 0 9 0C12 0 14 1.5 15 4C16 1.5 18 0 21 0C26 0 30 4 30 9C30 14 25 18 17 25L15 27Z"/></svg>
+                <svg viewBox="0 0 30 30"><path class="sparkle-violet" d="M15 0L17 13L30 15L17 17L15 30L13 17L0 15L13 13L15 0Z"/></svg>
+            </div>
+            <h1 class="the-end">The End</h1>
+            <p class="happily-ever-after">...and they lived happily ever after!</p>
+        </div>
+        
+        <!-- About Section -->
+        <div class="about-section">
+            <p class="about-title">Created With Love By</p>
+            <div class="brand-logo-large">
+                <svg viewBox="0 0 50 50" fill="none">
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0" y1="0" x2="50" y2="50">
+                            <stop offset="0%" style="stop-color:#8B5CF6"/>
+                            <stop offset="100%" style="stop-color:#EC4899"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M25 4L31.5 17.5L46 19.5L36 29L38 43.5L25 36.5L12 43.5L14 29L4 19.5L18.5 17.5L25 4Z" fill="url(#logoGrad)"/>
+                </svg>
+                <span class="brand-name-large">CreatorStudio AI</span>
+            </div>
+            <p class="about-description">
+                We believe every child deserves magical stories filled with wonder, 
+                adventure, and valuable life lessons. Our AI-powered platform helps 
+                parents and creators bring imagination to life.
+            </p>
+            <p class="about-tagline">"Where Every Story is Magical"</p>
+        </div>
+        
+        <!-- CTA Section -->
+        <div class="cta-section">
+            <p class="cta-title">Want More Magical Stories?</p>
+            <div class="cta-box">
+                Visit CreatorStudio.ai
+            </div>
+            <p class="cta-subtitle">Create unlimited stories for your little ones</p>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p class="copyright">© {{YEAR}} CreatorStudio AI. All stories are uniquely generated.</p>
+            <div class="page-number">{{PAGE_NUMBER}}</div>
+        </div>
+    </div>
+</body>
+</html>
