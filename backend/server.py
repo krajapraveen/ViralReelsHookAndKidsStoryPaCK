@@ -1318,7 +1318,7 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
     credits_needed = 10  # Fixed 10 credits per story
     
     # ML-based content moderation - check all story parameters
-    content_to_check = f"{data.characterName} {data.setting} {data.moral} {data.genre}"
+    content_to_check = f"{data.theme} {data.genre} {data.customGenre or ''}"
     moderation_result = threat_intel.moderate_content(content_to_check, user.get("id"))
     if not moderation_result["allowed"]:
         violations = moderation_result.get("violations", [])
