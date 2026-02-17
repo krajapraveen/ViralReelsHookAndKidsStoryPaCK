@@ -22,6 +22,14 @@ export default function StoryGenerator() {
   const [isFreeTier, setIsFreeTier] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [pendingDownloadType, setPendingDownloadType] = useState(null);
+  const [worksheetLoading, setWorksheetLoading] = useState(false);
+  const [worksheetResult, setWorksheetResult] = useState(null);
+  const [printableLoading, setPrintableLoading] = useState(false);
+  const [showPersonalization, setShowPersonalization] = useState(false);
+  const [personalization, setPersonalization] = useState({
+    child_name: '',
+    dedication: ''
+  });
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
