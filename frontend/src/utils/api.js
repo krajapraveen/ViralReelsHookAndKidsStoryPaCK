@@ -44,13 +44,13 @@ export const creditAPI = {
 export const generationAPI = {
   generateReel: (data) => api.post('/api/generate/reel', data),
   generateStory: (data) => api.post('/api/generate/story', data),
-  getGeneration: (id) => api.get(`/api/generate/generations/${id}`),
+  getGeneration: (id) => api.get(`/api/generate/${id}`),
   getGenerations: (type, page = 0, size = 20) => {
     const typeParam = type ? `type=${type}&` : '';
-    return api.get(`/api/generate/generations?${typeParam}page=${page}&size=${size}`);
+    return api.get(`/api/generate/?${typeParam}page=${page}&size=${size}`);
   },
   downloadPDF: (id) => {
-    return api.get(`/api/generate/generations/${id}/pdf`, {
+    return api.get(`/api/generate/${id}/pdf`, {
       responseType: 'blob'
     });
   }
