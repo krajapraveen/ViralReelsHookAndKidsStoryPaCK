@@ -3444,8 +3444,8 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         elements.append(Spacer(1, 1*inch))
         elements.append(Paragraph("📚 Made with love by CreatorStudio AI 📚", watermark_note))
         
-        # Build PDF with custom canvas for watermark
-        doc.build(elements, canvasmaker=StoryBookCanvas)
+        # Build PDF with page decorations (watermark, colored backgrounds)
+        doc.build(elements, onFirstPage=on_first_page, onLaterPages=on_later_pages)
         
         # Read and return PDF
         with open(tmp_file.name, 'rb') as f:
