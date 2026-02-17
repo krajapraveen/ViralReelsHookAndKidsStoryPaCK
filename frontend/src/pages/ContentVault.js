@@ -232,24 +232,40 @@ export default function ContentVault() {
 
         {/* Reel Structures Section */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
-          <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
             <Video className="w-5 h-5 text-blue-500" />
             Reel Structures
           </h3>
           
+          {/* How to Use Instructions */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+              💡 How to Use These Structures
+            </h4>
+            <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+              <li><strong>Pick a structure</strong> that matches your content type</li>
+              <li><strong>Follow the flow</strong> - each step is a section of your reel (3-5 seconds each)</li>
+              <li><strong>Add your hook</strong> from the Viral Hooks section above</li>
+              <li><strong>Record or script</strong> your content following the structure order</li>
+              <li><strong>End with a CTA</strong> - "Follow for more", "Save this", or "Comment below"</li>
+            </ol>
+          </div>
+          
           <div className="grid md:grid-cols-2 gap-4">
             {vaultData?.reel_structures?.map((structure, idx) => (
-              <div key={idx} className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <div key={idx} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200 hover:shadow-md transition-shadow">
                 <h4 className="font-bold text-blue-800 mb-2">{structure.name}</h4>
-                <div className="flex flex-wrap gap-2 mb-2">
+                <div className="flex flex-wrap gap-2 mb-3">
                   {structure.structure?.map((step, sIdx) => (
-                    <span key={sIdx} className="text-xs bg-white border border-blue-200 px-2 py-1 rounded flex items-center gap-1">
-                      <ChevronRight className="w-3 h-3 text-blue-400" />
+                    <span key={sIdx} className="text-xs bg-white border border-blue-200 px-2 py-1 rounded flex items-center gap-1 shadow-sm">
+                      <span className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center text-[10px] font-bold">{sIdx + 1}</span>
                       {step}
                     </span>
                   ))}
                 </div>
-                <p className="text-sm text-blue-600">Best for: {structure.best_for}</p>
+                <p className="text-sm text-blue-600 bg-white/50 rounded px-2 py-1">
+                  <strong>Best for:</strong> {structure.best_for}
+                </p>
               </div>
             ))}
           </div>
