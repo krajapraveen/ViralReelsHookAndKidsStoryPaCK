@@ -3986,40 +3986,45 @@ async def remix_video(
 ):
     """Remix a video with new style/prompt using AI - costs 12 credits"""
     
-    # Safety check
     if not consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
     
     cost = GENSTUDIO_COSTS["video_remix"]
     
-    # Check credits
     if user.get("credits", 0) < cost:
         user_subscription = user.get("subscription")
         if not user_subscription:
             raise HTTPException(status_code=402, detail="You've used all your free credits! Please subscribe to continue.")
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
-    # Validate video type
     allowed_types = ["video/mp4", "video/webm", "video/quicktime"]
     if video.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid video type. Supported: MP4, WebM, MOV")
     
-    # Check file size (max 50MB)
     video_content = await video.read()
     if len(video_content) > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Video file too large. Maximum size is 50MB.")
     
     job_id = str(uuid.uuid4())
-    
-    # Save uploaded video temporarily
     input_video_path = f"/tmp/genstudio_input_{job_id}.mp4"
+    
     try:
         with open(input_video_path, "wb") as f:
             f.write(video_content)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process video: {str(e)}")
     
-    # Create job record
+    # Deduct credits upfront
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -cost}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "amount": -cost,
+        "type": "USAGE",
+        "description": f"GenStudio: Video Remix ({template_style})",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+    
     await db.genstudio_jobs.insert_one({
         "id": job_id,
         "userId": user["id"],
@@ -4032,113 +4037,99 @@ async def remix_video(
         "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
     })
     
-    try:
-        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        # Step 1: Use Gemini to analyze the remix request and create enhanced prompt
-        logger.info(f"Creating remix prompt for job {job_id}")
-        
-        analysis_chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"remix-{job_id}",
-            system_message="You are an expert video editor. Create detailed video generation prompts for remixing videos."
-        ).with_model("gemini", "gemini-2.0-flash")
-        
-        # Style templates
-        style_prompts = {
-            "dynamic": "dynamic editing, fast cuts, energetic transitions, upbeat pacing",
-            "smooth": "smooth transitions, gentle flow, cinematic feel, elegant movements",
-            "dramatic": "dramatic lighting, intense mood, cinematic color grading, powerful moments"
-        }
-        style_addition = style_prompts.get(template_style, style_prompts["dynamic"])
-        
-        analysis_prompt = f"""Create a detailed video generation prompt for a remix with these requirements:
+    # Background task for video remix
+    async def generate_remix_task():
+        try:
+            from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            logger.info(f"Creating remix prompt for job {job_id}")
+            
+            analysis_chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"remix-{job_id}",
+                system_message="You are an expert video editor. Create detailed video generation prompts."
+            ).with_model("gemini", "gemini-2.0-flash")
+            
+            style_prompts = {
+                "dynamic": "dynamic editing, fast cuts, energetic transitions",
+                "smooth": "smooth transitions, gentle flow, cinematic feel",
+                "dramatic": "dramatic lighting, intense mood, cinematic color grading"
+            }
+            style_addition = style_prompts.get(template_style, style_prompts["dynamic"])
+            
+            analysis_prompt = f"""Create a detailed video generation prompt for a remix:
 - User's remix request: {remix_prompt}
-- Style template: {style_addition}
+- Style: {style_addition}
 
-Create a cinematic, detailed prompt that captures the user's vision. Output ONLY the video prompt, no explanations."""
-        
-        remix_description = await analysis_chat.send_message(UserMessage(text=analysis_prompt))
-        
-        # Step 2: Generate remixed video using Sora 2
-        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
-        
-        filename = f"genstudio_remix_{job_id}.mp4"
-        filepath = f"/tmp/{filename}"
-        
-        # Build full prompt
-        full_prompt = remix_description.strip()
-        if add_watermark or user.get("plan") == "free":
-            full_prompt += ". Include subtle 'GenStudio' watermark in corner."
-        
-        # Generate remixed video
-        video_bytes = video_gen.text_to_video(
-            prompt=full_prompt,
-            model="sora-2",
-            size="1280x720",
-            duration=4,
-            max_wait_time=600
-        )
-        
-        if not video_bytes:
-            raise Exception("Video remix failed - no video returned")
-        
-        video_gen.save_video(video_bytes, filepath)
-        
-        # Cleanup input video
-        if os.path.exists(input_video_path):
-            os.remove(input_video_path)
-        
-        output_urls = [f"/api/genstudio/download/{job_id}/{filename}"]
-        
-        # Update job with success
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "status": "completed",
-                "outputUrls": output_urls,
-                "completedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        # Deduct credits
-        await db.users.update_one(
-            {"id": user["id"]},
-            {"$inc": {"credits": -cost}}
-        )
-        
-        # Log transaction
-        await db.credit_ledger.insert_one({
-            "id": str(uuid.uuid4()),
-            "userId": user["id"],
-            "amount": -cost,
-            "type": "USAGE",
-            "description": f"GenStudio: Video Remix ({template_style})",
-            "createdAt": datetime.now(timezone.utc).isoformat()
-        })
-        
-        return {
-            "success": True,
-            "jobId": job_id,
-            "status": "completed",
-            "outputUrls": output_urls,
-            "creditsUsed": cost,
-            "remainingCredits": user["credits"] - cost,
-            "expiresIn": "15 minutes",
-            "message": "Video remixed! Download within 15 minutes before it expires."
-        }
-        
-    except Exception as e:
-        logger.error(f"GenStudio video-remix error: {e}")
-        # Cleanup input video on error
-        if os.path.exists(input_video_path):
-            os.remove(input_video_path)
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "failed", "error": str(e)}}
-        )
-        raise HTTPException(status_code=500, detail=f"Video remix failed: {str(e)}")
+Output ONLY the video prompt, no explanations. Make it cinematic."""
+            
+            remix_description = await analysis_chat.send_message(UserMessage(text=analysis_prompt))
+            
+            video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+            filename = f"genstudio_remix_{job_id}.mp4"
+            filepath = f"/tmp/{filename}"
+            
+            full_prompt = remix_description.strip()
+            if add_watermark or user.get("plan") == "free":
+                full_prompt += ". Include subtle 'GenStudio' watermark."
+            
+            video_bytes = video_gen.text_to_video(
+                prompt=full_prompt,
+                model="sora-2",
+                size="1280x720",
+                duration=4,
+                max_wait_time=600
+            )
+            
+            if not video_bytes:
+                raise Exception("Video remix failed - no video returned")
+            
+            video_gen.save_video(video_bytes, filepath)
+            
+            if os.path.exists(input_video_path):
+                os.remove(input_video_path)
+            
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "outputUrls": [f"/api/genstudio/download/{job_id}/{filename}"],
+                    "completedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            logger.info(f"Video remix job {job_id} completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Video remix job {job_id} failed: {e}")
+            if os.path.exists(input_video_path):
+                os.remove(input_video_path)
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "failed", "error": str(e)}}
+            )
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": cost}})
+            await db.credit_ledger.insert_one({
+                "id": str(uuid.uuid4()),
+                "userId": user["id"],
+                "amount": cost,
+                "type": "REFUND",
+                "description": f"GenStudio: Video Remix refund (failed)",
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            })
+    
+    asyncio.create_task(generate_remix_task())
+    
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "processing",
+        "message": "Video remix started! Check status by polling the job endpoint.",
+        "pollUrl": f"/api/genstudio/job/{job_id}",
+        "creditsUsed": cost,
+        "remainingCredits": user["credits"] - cost,
+        "estimatedTime": "60-120 seconds"
+    }
 
 
 @genstudio_router.get("/download/{job_id}/{filename}")
