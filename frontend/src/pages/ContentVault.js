@@ -280,38 +280,58 @@ export default function ContentVault() {
           </div>
         </div>
 
-        {/* Kids Themes & Morals */}
+        {/* Kids Themes & Morals - with Refresh Button */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-700">📚 Story Creation Resources</h2>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={refreshContent}
+            disabled={refreshing}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Loading...' : 'Get Fresh Ideas'}
+          </Button>
+        </div>
+        
         <div className="grid md:grid-cols-2 gap-8">
           <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-green-500" />
               Kids Story Themes
             </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              💡 <strong>How to use:</strong> Pick a theme below, then go to Story Generator to create a story around it. Each theme includes a suggested moral lesson.
+            </p>
             <div className="space-y-3">
               {vaultData?.kids_themes?.map((theme, idx) => (
-                <div key={idx} className="bg-green-50 rounded-lg p-3 border border-green-200">
+                <div key={idx} className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-semibold text-green-800">{theme.theme}</span>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{theme.age_group}</span>
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">{theme.age_group}</span>
                   </div>
-                  <p className="text-sm text-green-700">{theme.moral}</p>
+                  <p className="text-sm text-green-700 italic">"{theme.moral}"</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-purple-500" />
               Moral Templates
             </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              💡 <strong>How to use:</strong> Copy any moral below and use it as the ending lesson for your story. Great for teaching values to kids!
+            </p>
             <div className="space-y-3">
               {vaultData?.moral_templates?.map((moral, idx) => (
-                <div key={idx} className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                <div key={idx} className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">{moral.theme}</span>
-                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(moral.moral, `moral-${idx}`)}>
-                      {copied === `moral-${idx}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">{moral.theme}</span>
+                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(moral.moral, `moral-${idx}`)} className="h-7">
+                      {copied === `moral-${idx}` ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
                     </Button>
                   </div>
                   <p className="text-sm text-purple-800 font-medium">"{moral.moral}"</p>
