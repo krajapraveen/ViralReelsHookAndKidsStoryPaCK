@@ -30,6 +30,9 @@ import GenStudioImageToVideo from './pages/GenStudioImageToVideo';
 import GenStudioVideoRemix from './pages/GenStudioVideoRemix';
 import GenStudioHistory from './pages/GenStudioHistory';
 import GenStudioStyleProfiles from './pages/GenStudioStyleProfiles';
+// New Feature Pages
+import CreatorProTools from './pages/CreatorProTools';
+import TwinFinder from './pages/TwinFinder';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import './App.css';
