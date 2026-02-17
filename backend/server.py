@@ -3280,6 +3280,8 @@ async def create_trending_topic(data: TrendingTopicCreate, user: dict = Depends(
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.trending_topics.insert_one(topic)
+    # Remove MongoDB _id before returning
+    topic.pop("_id", None)
     return {"success": True, "topic": topic}
 
 
