@@ -177,7 +177,7 @@ async def generate_printable_book(
 
 @router.get("/download-book/{book_id}")
 async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_current_user)):
-    """Download printable book PDF"""
+    """Download Disney-style printable book PDF"""
     try:
         book = await db.printable_books.find_one(
             {"id": book_id, "userId": user["id"]},
@@ -201,9 +201,9 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         pdf_path = f"/tmp/printable_book_{book_id}.pdf"
         
         if not os.path.exists(pdf_path):
-            # Regenerate PDF if missing but book record exists
-            logger.info(f"Regenerating PDF for book {book_id}")
-            generate_story_pdf(book, pdf_path)
+            # Regenerate Disney-style PDF if missing
+            logger.info(f"Regenerating Disney-style PDF for book {book_id}")
+            await generate_pdf_simple(book, pdf_path)
         
         if os.path.exists(pdf_path):
             # Sanitize filename
