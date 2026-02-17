@@ -36,7 +36,15 @@ export default function ContentVault() {
       toast.error('Failed to load content vault');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const refreshContent = async () => {
+    setRefreshing(true);
+    toast.info('🔄 Getting fresh content...');
+    await fetchVaultData();
+    toast.success('✨ Fresh themes & templates loaded!');
   };
 
   const copyToClipboard = (text, id) => {
