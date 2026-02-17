@@ -283,10 +283,10 @@ export default function StoryGenerator() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
-            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-purple-500" /><span className="text-xl font-bold">Story Generator</span></div>
+            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-purple-600" /><span className="text-xl font-bold text-slate-900">Story Generator</span></div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-purple-500" /><span className="font-semibold">{credits} Credits</span></div>
+            <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-purple-600" /><span className="font-semibold text-purple-700">{credits} Credits</span></div>
             <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} data-testid="story-logout-btn">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
@@ -302,8 +302,8 @@ export default function StoryGenerator() {
         {isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
 
         <div className="grid lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-2xl font-bold mb-6">Create Kids Story Pack</h2>
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">Create Kids Story Pack</h2>
             <form onSubmit={handleSubmit} className="space-y-6" data-testid="story-form">
               <div className="grid md:grid-cols-2 gap-4">
                 <div><Label>Age Group <span className="text-red-500">*</span></Label>
