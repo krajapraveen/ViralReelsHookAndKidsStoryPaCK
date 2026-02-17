@@ -370,7 +370,7 @@ export default function StoryGenerator() {
                 <Select value={formData.scenes.toString()} onValueChange={(value) => setFormData({...formData, scenes: parseInt(value)})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="8">8 scenes (6 credits)</SelectItem>
+                    <SelectItem value="8">8 scenes (10 credits)</SelectItem>
                     <SelectItem value="10">10 scenes (10 credits)</SelectItem>
                     <SelectItem value="12">12 scenes (10 credits)</SelectItem>
                   </SelectContent>
