@@ -13,11 +13,15 @@ import json
 import httpx
 import traceback
 import math
+import sys
 
-from ..shared import (
-    db, logger, get_current_user, deduct_credits, log_exception,
-    LLM_AVAILABLE, EMERGENT_LLM_KEY, FILE_EXPIRY_MINUTES
-)
+# Import from shared module (absolute import for server.py compatibility)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY, FILE_EXPIRY_MINUTES
+except ImportError:
+    from ..shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY, FILE_EXPIRY_MINUTES
 
 router = APIRouter(prefix="/twinfinder", tags=["TwinFinder"])
 
