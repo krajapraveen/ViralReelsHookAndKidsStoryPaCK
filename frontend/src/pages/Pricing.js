@@ -233,7 +233,7 @@ export default function Pricing() {
               </div>
               <div>
                 <h4 className="text-white font-semibold mb-2">Story Pack</h4>
-                <p className="text-slate-400">6-8 credits depending on scene count (8, 10, or 12 scenes)</p>
+                <p className="text-slate-400">10 credits per story (any scene count)</p>
               </div>
             </div>
           </div>
