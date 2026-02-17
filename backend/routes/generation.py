@@ -317,20 +317,6 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
         raise HTTPException(status_code=500, detail="Generation failed")
 
 
-@router.get("/{generation_id}")
-async def get_generation(generation_id: str, user: dict = Depends(get_current_user)):
-    """Get a specific generation by ID"""
-    generation = await db.generations.find_one(
-        {"id": generation_id, "userId": user["id"]},
-        {"_id": 0}
-    )
-    
-    if not generation:
-        raise HTTPException(status_code=404, detail="Generation not found")
-    
-    return generation
-
-
 @router.get("/")
 async def get_generations(
     type: Optional[str] = None,
@@ -358,6 +344,20 @@ async def get_generations(
         "page": page,
         "size": size
     }
+
+
+@router.get("/{generation_id}")
+async def get_generation(generation_id: str, user: dict = Depends(get_current_user)):
+    """Get a specific generation by ID"""
+    generation = await db.generations.find_one(
+        {"id": generation_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    
+    if not generation:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    
+    return generation
 
 
 @router.post("/demo/reel")
