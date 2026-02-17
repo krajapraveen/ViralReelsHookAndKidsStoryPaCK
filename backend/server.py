@@ -3826,27 +3826,22 @@ async def generate_image_to_video(
 ):
     """Animate an image with AI motion using Sora 2 - costs 10 credits"""
     
-    # Safety check
     if not consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
     
     cost = GENSTUDIO_COSTS["image_to_video"]
     
-    # Check credits
     if user.get("credits", 0) < cost:
         user_subscription = user.get("subscription")
         if not user_subscription:
             raise HTTPException(status_code=402, detail="You've used all your free credits! Please subscribe to continue.")
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
-    # Validate image type
     allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
     if image.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid image type. Supported: PNG, JPEG, WebP")
     
     job_id = str(uuid.uuid4())
-    
-    # Validate duration
     valid_durations = [4, 8, 12]
     duration = duration if duration in valid_durations else 4
     
@@ -3858,6 +3853,17 @@ async def generate_image_to_video(
             f.write(image_content)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process image: {str(e)}")
+    
+    # Deduct credits upfront
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -cost}})
+    await db.credit_ledger.insert_one({
+        "id": str(uuid.uuid4()),
+        "userId": user["id"],
+        "amount": -cost,
+        "type": "USAGE",
+        "description": f"GenStudio: Image to Video ({duration}s)",
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
     
     # Create job record
     await db.genstudio_jobs.insert_one({
@@ -3872,115 +3878,101 @@ async def generate_image_to_video(
         "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
     })
     
-    try:
-        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
-        
-        # Step 1: Use Gemini to analyze the image and create a detailed video prompt
-        logger.info(f"Analyzing uploaded image for job {job_id}")
-        
-        with open(input_image_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode('utf-8')
-        
-        analysis_chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"analyze-{job_id}",
-            system_message="You are an expert at describing images for video generation. Analyze the image and create a detailed, vivid description suitable for generating an animated video."
-        ).with_model("gemini", "gemini-2.0-flash")
-        
-        analysis_prompt = f"""Analyze this image and create a detailed video generation prompt that:
+    # Background task for video generation
+    async def generate_image_video_task():
+        try:
+            from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+            from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
+            
+            logger.info(f"Analyzing uploaded image for job {job_id}")
+            
+            with open(input_image_path, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode('utf-8')
+            
+            analysis_chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"analyze-{job_id}",
+                system_message="You are an expert at describing images for video generation."
+            ).with_model("gemini", "gemini-2.0-flash")
+            
+            analysis_prompt = f"""Analyze this image and create a detailed video generation prompt that:
 1. Describes the main subjects and their appearance
-2. Describes the setting/background
+2. Describes the setting/background  
 3. Incorporates this motion/animation request: {motion_prompt}
 4. Keeps the visual style consistent with the image
 
 Output ONLY the video prompt, no explanations. Make it cinematic and detailed."""
-        
-        # Use FileContent for image
-        image_file = FileContent(content_type="image/jpeg", file_content_base64=image_data)
-        analysis_msg = UserMessage(text=analysis_prompt, file_contents=[image_file])
-        
-        image_description = await analysis_chat.send_message(analysis_msg)
-        logger.info(f"Image analyzed, generating video for job {job_id}")
-        
-        # Step 2: Generate video using Sora 2 with the enhanced prompt
-        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
-        
-        filename = f"genstudio_{job_id}.mp4"
-        filepath = f"/tmp/{filename}"
-        
-        # Build final prompt with image description and motion
-        full_prompt = f"{image_description.strip()}"
-        if add_watermark or user.get("plan") == "free":
-            full_prompt += ". Include subtle 'GenStudio' watermark in corner."
-        
-        # Generate video using text_to_video with the analyzed image description
-        video_bytes = video_gen.text_to_video(
-            prompt=full_prompt,
-            model="sora-2",
-            size="1280x720",
-            duration=duration,
-            max_wait_time=600
-        )
-        
-        if not video_bytes:
-            raise Exception("Video generation failed - no video returned")
-        
-        video_gen.save_video(video_bytes, filepath)
-        
-        # Cleanup input image
-        if os.path.exists(input_image_path):
-            os.remove(input_image_path)
-        
-        output_urls = [f"/api/genstudio/download/{job_id}/{filename}"]
-        
-        # Update job with success
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "status": "completed",
-                "outputUrls": output_urls,
-                "completedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        # Deduct credits
-        await db.users.update_one(
-            {"id": user["id"]},
-            {"$inc": {"credits": -cost}}
-        )
-        
-        # Log transaction
-        await db.credit_ledger.insert_one({
-            "id": str(uuid.uuid4()),
-            "userId": user["id"],
-            "amount": -cost,
-            "type": "USAGE",
-            "description": f"GenStudio: Image to Video ({duration}s)",
-            "createdAt": datetime.now(timezone.utc).isoformat()
-        })
-        
-        return {
-            "success": True,
-            "jobId": job_id,
-            "status": "completed",
-            "outputUrls": output_urls,
-            "creditsUsed": cost,
-            "remainingCredits": user["credits"] - cost,
-            "expiresIn": "15 minutes",
-            "message": f"Video generated! Download within 15 minutes before it expires."
-        }
-        
-    except Exception as e:
-        logger.error(f"GenStudio image-to-video error: {e}")
-        # Cleanup input image on error
-        if os.path.exists(input_image_path):
-            os.remove(input_image_path)
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "failed", "error": str(e)}}
-        )
-        raise HTTPException(status_code=500, detail=f"Video generation failed: {str(e)}")
+            
+            image_file = FileContent(content_type="image/jpeg", file_content_base64=image_data)
+            image_description = await analysis_chat.send_message(UserMessage(text=analysis_prompt, file_contents=[image_file]))
+            
+            logger.info(f"Image analyzed, generating video for job {job_id}")
+            
+            video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+            filename = f"genstudio_{job_id}.mp4"
+            filepath = f"/tmp/{filename}"
+            
+            full_prompt = image_description.strip()
+            if add_watermark or user.get("plan") == "free":
+                full_prompt += ". Include subtle 'GenStudio' watermark in corner."
+            
+            video_bytes = video_gen.text_to_video(
+                prompt=full_prompt,
+                model="sora-2",
+                size="1280x720",
+                duration=duration,
+                max_wait_time=600
+            )
+            
+            if not video_bytes:
+                raise Exception("Video generation failed - no video returned")
+            
+            video_gen.save_video(video_bytes, filepath)
+            
+            if os.path.exists(input_image_path):
+                os.remove(input_image_path)
+            
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "outputUrls": [f"/api/genstudio/download/{job_id}/{filename}"],
+                    "completedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            logger.info(f"Image-to-video job {job_id} completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Image-to-video job {job_id} failed: {e}")
+            if os.path.exists(input_image_path):
+                os.remove(input_image_path)
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "failed", "error": str(e)}}
+            )
+            # Refund credits
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": cost}})
+            await db.credit_ledger.insert_one({
+                "id": str(uuid.uuid4()),
+                "userId": user["id"],
+                "amount": cost,
+                "type": "REFUND",
+                "description": f"GenStudio: Image to Video refund (failed)",
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            })
+    
+    asyncio.create_task(generate_image_video_task())
+    
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "processing",
+        "message": "Video generation started! Check status by polling the job endpoint.",
+        "pollUrl": f"/api/genstudio/job/{job_id}",
+        "creditsUsed": cost,
+        "remainingCredits": user["credits"] - cost,
+        "estimatedTime": f"{duration * 15}-{duration * 20} seconds"
+    }
 
 
 @genstudio_router.post("/video-remix")
