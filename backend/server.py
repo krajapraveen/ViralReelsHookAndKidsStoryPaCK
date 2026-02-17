@@ -353,7 +353,9 @@ async def register(data: UserCreate, background_tasks: BackgroundTasks):
         "email": data.email.lower(),
         "password": hash_password(data.password),
         "role": "USER",
-        "credits": 54,  # Free credits on signup
+        "credits": 100,  # 100 free credits on signup
+        "plan": "free",  # Free plan by default
+        "subscription": None,  # No subscription initially
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     
@@ -363,9 +365,9 @@ async def register(data: UserCreate, background_tasks: BackgroundTasks):
     await db.credit_ledger.insert_one({
         "id": str(uuid.uuid4()),
         "userId": user_id,
-        "amount": 54,
+        "amount": 100,
         "type": "BONUS",
-        "description": "Welcome bonus - 54 free credits",
+        "description": "Welcome bonus - 100 free credits",
         "createdAt": datetime.now(timezone.utc).isoformat()
     })
     
