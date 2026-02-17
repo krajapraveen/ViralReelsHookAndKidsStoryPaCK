@@ -1179,33 +1179,52 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
     generation_id = str(uuid.uuid4())
     
     try:
-        # Try inline generation first (for production), fall back to worker (for local dev)
         result = None
-        generation_error = None
         
-        if LLM_AVAILABLE and EMERGENT_LLM_KEY:
-            try:
-                result = await generate_story_content_inline(data.model_dump())
-            except Exception as inline_error:
-                logger.warning(f"Inline story generation failed: {inline_error}")
-                generation_error = str(inline_error)
+        # TEMPLATE-BASED GENERATION (FREE - No LLM cost)
+        # Try to find a matching template first
+        template = await db.story_templates.find_one({
+            "ageGroup": data.ageGroup,
+            "genre": data.genre if data.genre != "Custom" else {"$exists": True}
+        }, {"_id": 0})
         
-        # Fall back to worker if inline failed or not available (local dev only)
-        if result is None and WORKER_URL and 'localhost' not in WORKER_URL:
-            try:
-                async with httpx.AsyncClient(timeout=180.0) as client_http:
-                    response = await client_http.post(
-                        f"{WORKER_URL}/generate/story",
-                        json=data.model_dump()
-                    )
-                    if response.status_code == 200:
-                        result = response.json()
-            except Exception as worker_error:
-                logger.warning(f"Worker fallback also failed: {worker_error}")
+        if template:
+            # Generate random character names for uniqueness
+            hero_names = ["Max", "Luna", "Leo", "Maya", "Sam", "Zoe", "Jack", "Lily", "Finn", "Emma", "Oliver", "Ava", "Noah", "Mia", "Ethan", "Sophie"]
+            friend_names = ["Pip", "Sparkle", "Buddy", "Twinkle", "Fuzzy", "Whiskers", "Bubbles", "Patches", "Ziggy", "Coco"]
+            mentor_names = ["Grandma Rose", "Old Wizard Oak", "Wise Owl", "Elder Willow", "Magic Fox", "Ancient Turtle"]
+            
+            hero_name = random.choice(hero_names)
+            friend_name = random.choice(friend_names)
+            mentor_name = random.choice(mentor_names)
+            
+            # Deep copy and replace placeholders
+            import copy
+            result = copy.deepcopy(template)
+            
+            # Remove template-specific fields
+            result.pop("templateNumber", None)
+            result.pop("usageCount", None)
+            result.pop("createdAt", None)
+            
+            # Convert to JSON string, replace placeholders, convert back
+            result_str = json.dumps(result)
+            result_str = result_str.replace("{{HERO_NAME}}", hero_name)
+            result_str = result_str.replace("{{FRIEND_NAME}}", friend_name)
+            result_str = result_str.replace("{{MENTOR_NAME}}", mentor_name)
+            result = json.loads(result_str)
+            
+            # Update template usage count
+            await db.story_templates.update_one(
+                {"id": template["id"]},
+                {"$inc": {"usageCount": 1}}
+            )
+            
+            logger.info(f"Used template story: {template['title']} for user {user['email']}")
         
+        # If no template found, the story generation fails gracefully
         if result is None:
-            error_msg = generation_error or "AI service unavailable. Please try again."
-            raise HTTPException(status_code=503, detail=error_msg)
+            raise HTTPException(status_code=503, detail="No matching story template found. Please try different options.")
         
         # Deduct credits after successful generation
         await db.users.update_one(
