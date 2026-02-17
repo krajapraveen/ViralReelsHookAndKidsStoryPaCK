@@ -3474,6 +3474,7 @@ async def startup():
     await db.feedback.create_index("id", unique=True)
     await db.orders.create_index("userId")
     await db.credit_ledger.create_index("userId")
+    await db.printable_books.create_index("expiresAt")  # For cleanup
     
     # Create admin user if not exists
     admin = await db.users.find_one({"email": "admin@creatorstudio.ai"})
@@ -3486,6 +3487,7 @@ async def startup():
             "password": hash_password("Admin@123"),
             "role": "ADMIN",
             "credits": 999999,  # Unlimited credits for admin
+            "plan": "admin",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         logger.info("Admin user created")
@@ -3493,7 +3495,7 @@ async def startup():
         # Update admin credits to unlimited
         await db.users.update_one(
             {"email": "admin@creatorstudio.ai"},
-            {"$set": {"credits": 999999}}
+            {"$set": {"credits": 999999, "plan": "admin"}}
         )
     
     # Create demo user if not exists
@@ -3506,12 +3508,41 @@ async def startup():
             "email": "demo@example.com",
             "password": hash_password("Password123!"),
             "role": "USER",
-            "credits": 54,
+            "credits": 100,  # 100 free credits for demo
+            "plan": "free",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         logger.info("Demo user created")
+    else:
+        # Update demo user credits to 100
+        await db.users.update_one(
+            {"email": "demo@example.com"},
+            {"$set": {"credits": 100, "plan": "free"}}
+        )
+    
+    # Start background cleanup task for expired downloads
+    import asyncio
+    asyncio.create_task(cleanup_expired_downloads())
     
     logger.info("CreatorStudio API ready!")
+
+
+async def cleanup_expired_downloads():
+    """Background task to clean up expired download links every minute"""
+    import asyncio
+    while True:
+        try:
+            # Delete all expired printable books
+            result = await db.printable_books.delete_many({
+                "expiresAt": {"$lt": datetime.now(timezone.utc).isoformat()}
+            })
+            if result.deleted_count > 0:
+                logger.info(f"Cleaned up {result.deleted_count} expired download(s)")
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
+        
+        await asyncio.sleep(60)  # Run every minute
+
 
 @app.on_event("shutdown")
 async def shutdown():
