@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://creator-studio-ai-1.preview.emergentagent.com
+**Website:** https://aistudio-51.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

@@ -2,7 +2,7 @@
 
 ## Overview
 **Tagline:** "Generate viral reels + kids story videos in minutes."
-**URL:** https://creator-studio-ai-1.preview.emergentagent.com
+**URL:** https://aistudio-51.preview.emergentagent.com
 **Last Updated:** February 17, 2026
 
 ## Latest Implementation (Feb 17, 2026)
