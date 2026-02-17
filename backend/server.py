@@ -2978,20 +2978,46 @@ async def generate_worksheet(generation_id: str, user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Story not found")
     
     story = story_gen.get("outputJson", {})
+    title = story.get("title", "Story")
+    moral = story.get("moral", "Be kind to others")
+    characters = story.get("characters", [])
+    main_char = characters[0].get("name", "the hero") if characters else "the hero"
+    scenes = story.get("scenes", [])
+    first_scene = scenes[0] if scenes else {}
+    setting = first_scene.get("setting", "a magical place")
+    
+    # Generate fill-in-the-blanks with answers
+    fill_blanks_with_answers = [
+        {"number": 1, "sentence": f"The story is about a brave hero named _______.", "answer": main_char},
+        {"number": 2, "sentence": f"The hero went to the _______ to find something special.", "answer": setting.split()[0] if setting else "forest"},
+        {"number": 3, "sentence": f"The moral of the story is _______.", "answer": moral[:50] if len(moral) > 50 else moral},
+        {"number": 4, "sentence": f"The hero felt _______ when the adventure began.", "answer": random.choice(["excited", "curious", "brave", "nervous"])},
+        {"number": 5, "sentence": f"At the end, the hero learned that _______.", "answer": moral.split('.')[0] if '.' in moral else moral[:40]}
+    ]
+    
+    # Generate comprehension questions with answers
+    comprehension_with_answers = [
+        {"number": 1, "question": "What is the main character's name in this story?", "answer": main_char, "lines": 2},
+        {"number": 2, "question": "Where does the story take place?", "answer": setting, "lines": 2},
+        {"number": 3, "question": f"What problem did {main_char} face in the story?", "answer": f"{main_char} had to go on an adventure and overcome challenges", "lines": 2},
+        {"number": 4, "question": f"How did {main_char} solve the problem?", "answer": f"By being brave and learning the lesson: {moral[:30]}", "lines": 2},
+        {"number": 5, "question": "What lesson did you learn from this story?", "answer": moral, "lines": 2}
+    ]
     
     worksheet = {
-        "story_title": story.get("title", "Story"),
-        "comprehension_questions": [{"number": i+1, "question": q, "lines": 2} for i, q in enumerate(random.sample(COMPREHENSION_TEMPLATES, 5))],
-        "fill_blanks": [{"number": i+1, "sentence": s} for i, s in enumerate(FILL_BLANKS)],
-        "vocabulary": [{"word": w, "prompt": f"What does '{w}' mean?"} for w in random.sample(["brave", "kind", "magical", "adventure", "friend"], 5)],
-        "moral_reflection": {"moral": story.get("moral", "Be kind"), "question": "Write about a time when you learned a similar lesson."},
-        "coloring_prompt": f"Draw your favorite scene from {story.get('title', 'the story')}"
+        "story_title": title,
+        "story_id": generation_id,
+        "comprehension_questions": comprehension_with_answers,
+        "fill_blanks": fill_blanks_with_answers,
+        "vocabulary": [{"word": w, "prompt": f"What does '{w}' mean?", "hint": f"Think about how it relates to {main_char}'s journey"} for w in random.sample(["brave", "kind", "magical", "adventure", "friend", "courage", "wisdom", "journey"], 5)],
+        "moral_reflection": {"moral": moral, "question": "Write about a time when you learned a similar lesson."},
+        "coloring_prompt": f"Draw your favorite scene from {title}"
     }
     
     await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credits_needed}})
     await db.credit_ledger.insert_one({
         "id": str(uuid.uuid4()), "userId": user["id"], "amount": -credits_needed,
-        "type": "USAGE", "description": f"Worksheet: {story.get('title', '')[:30]}",
+        "type": "USAGE", "description": f"Worksheet: {title[:30]}",
         "createdAt": datetime.now(timezone.utc).isoformat()
     })
     
