@@ -3160,44 +3160,39 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         except:
             return None
     
-    # Custom canvas class to add watermark and colored backgrounds
-    class StoryBookCanvas(canvas.Canvas):
-        def __init__(self, *args, **kwargs):
-            canvas.Canvas.__init__(self, *args, **kwargs)
-            self.pages = []
-            self.page_num = 0
-            
-        def showPage(self):
-            self.pages.append(dict(self.__dict__))
-            self.page_num += 1
-            self._startPage()
-            
-        def save(self):
-            for page in self.pages:
-                self.__dict__.update(page)
-                self.draw_watermark()
-                self.draw_page_background()
-                canvas.Canvas.showPage(self)
-            canvas.Canvas.save(self)
-            
-        def draw_watermark(self):
-            """Draw diagonal watermark on every page"""
-            self.saveState()
-            self.setFont("Helvetica-Bold", 60)
-            self.setFillColor(Color(0.5, 0.5, 0.5, alpha=0.08))  # Very light gray
-            
-            # Rotate and position watermark diagonally
-            self.translate(4.25*inch, 5.5*inch)  # Center of page
-            self.rotate(45)
-            self.drawCentredString(0, 0, "CreatorStudio AI")
-            self.restoreState()
-            
-        def draw_page_background(self):
-            """Draw subtle colored background"""
-            color_idx = self.page_num % len(PAGE_COLORS)
-            bg_color = HexColor(PAGE_COLORS[color_idx])
-            self.setFillColor(bg_color)
-            self.rect(0, 0, letter[0], letter[1], fill=True, stroke=False)
+    # Page callback functions for watermark and backgrounds
+    def add_page_decorations(canvas_obj, doc):
+        """Add watermark and background to each page"""
+        canvas_obj.saveState()
+        
+        # Draw colored background first (behind content)
+        page_num = doc.page
+        color_idx = page_num % len(PAGE_COLORS)
+        bg_color = HexColor(PAGE_COLORS[color_idx])
+        canvas_obj.setFillColor(bg_color)
+        canvas_obj.rect(0, 0, letter[0], letter[1], fill=True, stroke=False)
+        
+        # Draw diagonal watermark (light, behind content)
+        canvas_obj.setFont("Helvetica-Bold", 55)
+        canvas_obj.setFillColor(Color(0.6, 0.5, 0.7, alpha=0.10))  # Light purple-gray
+        canvas_obj.saveState()
+        canvas_obj.translate(letter[0]/2, letter[1]/2)  # Center of page
+        canvas_obj.rotate(45)
+        canvas_obj.drawCentredString(0, 0, "CreatorStudio AI")
+        canvas_obj.restoreState()
+        
+        # Add decorative border
+        canvas_obj.setStrokeColor(HexColor('#E9D5FF'))
+        canvas_obj.setLineWidth(2)
+        canvas_obj.roundRect(0.4*inch, 0.4*inch, letter[0]-0.8*inch, letter[1]-0.8*inch, 10, stroke=True, fill=False)
+        
+        canvas_obj.restoreState()
+    
+    def on_first_page(canvas_obj, doc):
+        add_page_decorations(canvas_obj, doc)
+    
+    def on_later_pages(canvas_obj, doc):
+        add_page_decorations(canvas_obj, doc)
     
     # Create PDF with custom canvas
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
