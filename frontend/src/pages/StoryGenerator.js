@@ -518,6 +518,180 @@ export default function StoryGenerator() {
                 </div>
               )}
               
+              {/* Story Tools - Educational Add-ons */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <span className="text-xl">🎓</span> Educational Add-ons
+                </h4>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  {/* Worksheet Generator */}
+                  <div className="bg-white rounded-lg p-4 border border-amber-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="w-5 h-5 text-amber-600" />
+                      <h5 className="font-semibold">Story Worksheet</h5>
+                    </div>
+                    <p className="text-sm text-slate-600 mb-3">5 comprehension questions, fill-in-the-blanks, vocabulary, and coloring prompt</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-amber-700 font-medium flex items-center gap-1">
+                        <Coins className="w-3 h-3" /> 3 credits
+                      </span>
+                      <Button 
+                        size="sm" 
+                        className="bg-amber-500 hover:bg-amber-600"
+                        disabled={worksheetLoading || !generationId}
+                        onClick={async () => {
+                          if (credits < 3) {
+                            toast.error('Need 3 credits for worksheet');
+                            return;
+                          }
+                          setWorksheetLoading(true);
+                          try {
+                            const response = await api.post(`/api/story-tools/worksheet/generate?generation_id=${generationId}`);
+                            setWorksheetResult(response.data.worksheet);
+                            setCredits(response.data.remainingCredits);
+                            toast.success('Worksheet generated!');
+                          } catch (error) {
+                            toast.error(error.response?.data?.detail || 'Failed to generate worksheet');
+                          } finally {
+                            setWorksheetLoading(false);
+                          }
+                        }}
+                        data-testid="generate-worksheet-btn"
+                      >
+                        {worksheetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generate'}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Printable Book */}
+                  <div className="bg-white rounded-lg p-4 border border-amber-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BookOpen className="w-5 h-5 text-orange-600" />
+                      <h5 className="font-semibold">Printable Story Book</h5>
+                    </div>
+                    <p className="text-sm text-slate-600 mb-2">Beautiful PDF with cover, story pages, moral, and activity page</p>
+                    
+                    {/* Personalization Toggle */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <input 
+                        type="checkbox" 
+                        id="personalize" 
+                        checked={showPersonalization}
+                        onChange={(e) => setShowPersonalization(e.target.checked)}
+                        className="rounded"
+                      />
+                      <label htmlFor="personalize" className="text-xs text-slate-600 flex items-center gap-1">
+                        <Gift className="w-3 h-3 text-pink-500" /> Add personalization (+2 credits)
+                      </label>
+                    </div>
+                    
+                    {showPersonalization && (
+                      <div className="space-y-2 mb-3">
+                        <Input 
+                          placeholder="Child's name (replaces hero)" 
+                          value={personalization.child_name}
+                          onChange={(e) => setPersonalization({...personalization, child_name: e.target.value})}
+                          className="text-sm"
+                        />
+                        <Input 
+                          placeholder="Dedication message (optional)" 
+                          value={personalization.dedication}
+                          onChange={(e) => setPersonalization({...personalization, dedication: e.target.value})}
+                          className="text-sm"
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-orange-700 font-medium flex items-center gap-1">
+                        <Coins className="w-3 h-3" /> {showPersonalization ? '6' : '4'} credits
+                      </span>
+                      <Button 
+                        size="sm" 
+                        className="bg-orange-500 hover:bg-orange-600"
+                        disabled={printableLoading || !generationId}
+                        onClick={async () => {
+                          const cost = showPersonalization ? 6 : 4;
+                          if (credits < cost) {
+                            toast.error(`Need ${cost} credits for printable book`);
+                            return;
+                          }
+                          setPrintableLoading(true);
+                          try {
+                            const payload = {
+                              include_activities: true,
+                              personalization: showPersonalization ? personalization : null
+                            };
+                            const response = await api.post(`/api/story-tools/printable-book/generate?generation_id=${generationId}`, payload);
+                            setCredits(response.data.remainingCredits);
+                            toast.success('Printable book created! Downloading...');
+                            
+                            // Download the PDF
+                            window.open(`${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`, '_blank');
+                          } catch (error) {
+                            toast.error(error.response?.data?.detail || 'Failed to create printable book');
+                          } finally {
+                            setPrintableLoading(false);
+                          }
+                        }}
+                        data-testid="generate-printable-btn"
+                      >
+                        {printableLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create PDF'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Worksheet Result */}
+                {worksheetResult && (
+                  <div className="mt-4 bg-white rounded-lg p-4 border border-amber-200">
+                    <h5 className="font-bold mb-3 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-amber-600" />
+                      Generated Worksheet: {worksheetResult.story_title}
+                    </h5>
+                    
+                    <div className="space-y-4">
+                      {/* Comprehension Questions */}
+                      <div>
+                        <h6 className="font-semibold text-sm mb-2">📝 Comprehension Questions</h6>
+                        <ol className="list-decimal list-inside space-y-1">
+                          {worksheetResult.comprehension_questions?.map((q, i) => (
+                            <li key={i} className="text-sm text-slate-700">{q.question}</li>
+                          ))}
+                        </ol>
+                      </div>
+                      
+                      {/* Fill in the Blanks */}
+                      <div>
+                        <h6 className="font-semibold text-sm mb-2">✏️ Fill in the Blanks</h6>
+                        <ol className="list-decimal list-inside space-y-1">
+                          {worksheetResult.fill_blanks?.map((fb, i) => (
+                            <li key={i} className="text-sm text-slate-700">{fb.sentence}</li>
+                          ))}
+                        </ol>
+                      </div>
+                      
+                      {/* Vocabulary */}
+                      <div>
+                        <h6 className="font-semibold text-sm mb-2">📖 Vocabulary Words</h6>
+                        <div className="flex flex-wrap gap-2">
+                          {worksheetResult.vocabulary?.map((v, i) => (
+                            <span key={i} className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded">{v.word}</span>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Coloring Prompt */}
+                      <div>
+                        <h6 className="font-semibold text-sm mb-2">🎨 Drawing Activity</h6>
+                        <p className="text-sm text-slate-700 italic">{worksheetResult.coloring_prompt}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
             </div>}
           </div>
         </div>
