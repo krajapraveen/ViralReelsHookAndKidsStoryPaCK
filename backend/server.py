@@ -1178,9 +1178,19 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
 
 @generate_router.post("/story")
 async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_current_user)):
-    credits_needed = min(max(data.sceneCount, 6), 10)  # 6-10 credits based on scenes
+    """Generate a kids story - costs 10 credits"""
+    credits_needed = 10  # Fixed 10 credits per story
     
-    if user["credits"] < credits_needed:
+    # Check if user has subscription or free credits
+    user_credits = user.get("credits", 0)
+    user_subscription = user.get("subscription")
+    
+    if user_credits < credits_needed:
+        if not user_subscription:
+            raise HTTPException(
+                status_code=402, 
+                detail="You've used all your free credits! Please subscribe to continue generating stories."
+            )
         raise HTTPException(status_code=400, detail=f"Insufficient credits. You need {credits_needed} credits for story generation.")
     
     # Create generation record
