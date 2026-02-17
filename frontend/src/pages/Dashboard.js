@@ -22,7 +22,7 @@ export default function Dashboard() {
         authAPI.getCurrentUser(),
         generationAPI.getGenerations(null, 0, 5)
       ]);
-      setCredits(creditsRes.data.balance);
+      setCredits(creditsRes.data.credits);
       setUser(userRes.data);
       setRecentGenerations(generationsRes.data.content || []);
     } catch (error) {
