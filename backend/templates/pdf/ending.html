@@ -20,6 +20,23 @@
             overflow: hidden;
         }
         
+        /* Diagonal Watermark */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-family: 'Poppins', sans-serif;
+            font-size: 48px;
+            font-weight: 700;
+            color: rgba(0, 0, 0, 0.04);
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+        }
+        
         .page {
             width: 100%;
             height: 100%;
