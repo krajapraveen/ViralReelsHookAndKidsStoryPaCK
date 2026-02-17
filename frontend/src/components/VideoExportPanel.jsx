@@ -323,7 +323,7 @@ export default function VideoExportPanel({ storyId, storyTitle, onClose }) {
       {!generating && exportStatus?.status !== 'COMPLETED' && (
         <div className="flex items-center justify-between pt-4 border-t">
           <div>
-            <p className="font-semibold text-lg">Cost: ₹{getCost()}</p>
+            <p className="font-semibold text-lg">Cost: {getCost()} credits</p>
             <p className="text-sm text-slate-500">
               {settings.resolution === '1080p' ? 'Full HD with premium quality' : 'HD quality video'}
             </p>
