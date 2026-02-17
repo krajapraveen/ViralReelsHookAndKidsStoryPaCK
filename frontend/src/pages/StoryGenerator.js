@@ -698,7 +698,7 @@ export default function StoryGenerator() {
                             
                             // Step 1: Create printable book
                             setPdfProgress({ step: 1, message: 'Creating printable book...' });
-                            const response = await api.post(`/api/story-tools/printable-book/generate?generation_id=${generationId}`, payload);
+                            const response = await api.post(`/api/story-tools/printable-book/${generationId}`, payload);
                             setCredits(response.data.remainingCredits);
                             
                             // Show expiry notice
