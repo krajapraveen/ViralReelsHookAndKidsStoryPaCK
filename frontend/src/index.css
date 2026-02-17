@@ -197,42 +197,77 @@
   .font-body {
     font-family: 'Inter', sans-serif;
   }
-  
-  /* Comprehensive autofill styling removal - NO YELLOW backgrounds */
-  input:-webkit-autofill,
-  input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus,
-  input:-webkit-autofill:active,
-  textarea:-webkit-autofill,
-  textarea:-webkit-autofill:hover,
-  textarea:-webkit-autofill:focus,
-  textarea:-webkit-autofill:active,
-  select:-webkit-autofill,
-  select:-webkit-autofill:hover,
-  select:-webkit-autofill:focus,
-  select:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0px 1000px white inset !important;
-    -webkit-text-fill-color: inherit !important;
-    background-color: white !important;
-    background-image: none !important;
-    transition: background-color 5000s ease-in-out 0s;
-  }
-  
-  /* For dark mode inputs if any */
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="number"],
-  input[type="tel"],
-  input[type="url"],
-  textarea {
-    background-color: white !important;
-  }
-  
-  /* Remove yellow on all form elements */
-  input:-internal-autofill-selected {
-    background-color: white !important;
-    background-image: none !important;
-    color: inherit !important;
-  }
+}
+
+/* AUTOFILL YELLOW REMOVAL - Must be outside @layer to work properly */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0px 1000px white inset !important;
+  -webkit-text-fill-color: #1e293b !important;
+  background-color: white !important;
+  background-image: none !important;
+  transition: background-color 9999s ease-in-out 0s !important;
+  caret-color: #1e293b !important;
+}
+
+/* Dark themed inputs autofill fix */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+.bg-slate-800 input:-webkit-autofill,
+.bg-slate-900 input:-webkit-autofill,
+[class*="bg-slate-7"] input:-webkit-autofill,
+[class*="bg-slate-8"] input:-webkit-autofill,
+[class*="bg-slate-9"] input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  background-color: #1e293b !important;
+  caret-color: #f8fafc !important;
+}
+
+/* Firefox autofill fix */
+input:-moz-autofill,
+textarea:-moz-autofill,
+select:-moz-autofill {
+  background-color: white !important;
+  color: #1e293b !important;
+}
+
+/* Chrome internal autofill fix */
+input:-internal-autofill-selected,
+input:-internal-autofill-previewed {
+  background-color: white !important;
+  background-image: none !important;
+  color: #1e293b !important;
+}
+
+/* Force white background on all standard inputs */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  background-color: inherit;
+}
+
+/* Ensure inputs inherit proper colors */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
 }
