@@ -63,6 +63,7 @@ function App() {
       <Route path="/app/privacy" element={isAuthenticated ? <PrivacySettings /> : <Navigate to="/login" />} />
       <Route path="/app/profile" element={isAuthenticated ? <Profile /> : <Navigate to="/login" />} />
       <Route path="/app/copyright" element={isAuthenticated ? <CopyrightInfo /> : <Navigate to="/login" />} />
+      <Route path="/app/creator-tools" element={isAuthenticated ? <CreatorTools /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
