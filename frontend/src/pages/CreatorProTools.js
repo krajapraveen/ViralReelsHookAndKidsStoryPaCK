@@ -106,7 +106,11 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Bios generated!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Generation failed');
+      const detail = error.response?.data?.detail;
+      const errorMsg = typeof detail === 'string' ? detail : 
+                       Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ') : 
+                       'Generation failed';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
