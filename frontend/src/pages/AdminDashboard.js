@@ -93,6 +93,7 @@ export default function AdminDashboard() {
     { id: 'satisfaction', label: 'Satisfaction' },
     { id: 'feature-requests', label: '💡 Feature Requests' },
     { id: 'feedback', label: '📝 User Feedback' },
+    { id: 'trending', label: '📈 Trending Topics' },
   ];
 
   return (
