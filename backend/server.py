@@ -3261,11 +3261,12 @@ async def get_trending_topics(active_only: bool = True, niche: Optional[str] = N
 class TrendingTopicCreate(BaseModel):
     title: str
     niche: str
-    description: str
+    description: Optional[str] = ""
     hook_preview: str
-    suggested_angle: str
-    week_start: str
-    week_end: str
+    suggested_angle: Optional[str] = ""
+    week_start: Optional[str] = None
+    week_end: Optional[str] = None
+    is_active: bool = True
 
 
 @content_router.post("/trending")
@@ -3273,8 +3274,8 @@ async def create_trending_topic(data: TrendingTopicCreate, user: dict = Depends(
     """Create trending topic (Admin)"""
     topic = {
         "id": str(uuid.uuid4()), "title": data.title, "niche": data.niche.lower(),
-        "description": data.description, "hook_preview": data.hook_preview,
-        "suggested_angle": data.suggested_angle, "status": "active",
+        "description": data.description or "", "hook_preview": data.hook_preview,
+        "suggested_angle": data.suggested_angle or "", "is_active": data.is_active,
         "week_start": data.week_start, "week_end": data.week_end,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
