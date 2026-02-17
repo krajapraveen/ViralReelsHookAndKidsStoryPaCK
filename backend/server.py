@@ -3476,9 +3476,9 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         )
         moral_style = ParagraphStyle(
             'Moral', parent=styles['Normal'], 
-            fontSize=16, alignment=TA_CENTER, 
+            fontSize=17, alignment=TA_CENTER, 
             textColor=HexColor('#059669'), fontName='Helvetica-Bold',
-            backColor=HexColor('#ECFDF5'), borderPadding=15
+            backColor=HexColor('#D1FAE5'), borderPadding=18
         )
         character_name_style = ParagraphStyle(
             'CharName', parent=styles['Normal'],
