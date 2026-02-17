@@ -1,5 +1,5 @@
 """
-Creator Pro Tools - 15+ Advanced Features for Content Creators
+Creator Pro Tools - 15+ AI-Powered Features for Content Creators
 CreatorStudio AI
 """
 from fastapi import APIRouter, HTTPException, Depends, Form
@@ -9,6 +9,7 @@ import uuid
 import json
 import random
 import re
+import asyncio
 
 # Import from shared module (absolute import for server.py compatibility)
 import sys
@@ -19,6 +20,32 @@ try:
     from shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY
 except ImportError:
     from ..shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY
+
+# Import emergent integrations for AI
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    AI_AVAILABLE = bool(EMERGENT_LLM_KEY)
+except ImportError:
+    AI_AVAILABLE = False
+    logger.warning("emergentintegrations not available - AI features will use templates")
+
+
+async def generate_ai_content(prompt: str, system_message: str = "You are a viral content expert.") -> str:
+    """Generate AI content using Gemini"""
+    if not AI_AVAILABLE:
+        return None
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"creator_pro_{uuid.uuid4().hex[:8]}",
+            system_message=system_message
+        ).with_model("gemini", "gemini-3-flash-preview")
+        
+        response = await chat.send_message(UserMessage(text=prompt))
+        return response
+    except Exception as e:
+        logger.error(f"AI generation error: {e}")
+        return None
 
 router = APIRouter(prefix="/creator-pro", tags=["Creator Pro"])
 
