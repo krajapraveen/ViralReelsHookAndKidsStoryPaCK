@@ -92,6 +92,8 @@ export default function AdminDashboard() {
     { id: 'visitors', label: 'Visitors' },
     { id: 'features', label: 'Features' },
     { id: 'payments', label: 'Payments' },
+    { id: 'payment-monitoring', label: '💰 Payment Monitor' },
+    { id: 'exceptions', label: '⚠️ Exceptions' },
     { id: 'satisfaction', label: 'Satisfaction' },
     { id: 'feature-requests', label: '💡 Feature Requests' },
     { id: 'feedback', label: '📝 User Feedback' },
