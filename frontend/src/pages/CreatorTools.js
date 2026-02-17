@@ -626,7 +626,7 @@ export default function CreatorTools() {
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900">Reel → Carousel</h3>
-                      <span className="text-xs text-indigo-600 font-medium bg-indigo-100 px-2 py-0.5 rounded-full">1 credit</span>
+                      <span className="text-xs text-indigo-600 font-medium bg-indigo-100 px-2 py-0.5 rounded-full">5 credits</span>
                     </div>
                   </div>
                   <p className="text-sm text-slate-600 mb-4">Convert your viral reel script into a 5-10 slide Instagram carousel with captions</p>
@@ -682,7 +682,7 @@ export default function CreatorTools() {
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900">Story → Reel</h3>
-                      <span className="text-xs text-pink-600 font-medium bg-pink-100 px-2 py-0.5 rounded-full">1 credit</span>
+                      <span className="text-xs text-pink-600 font-medium bg-pink-100 px-2 py-0.5 rounded-full">5 credits</span>
                     </div>
                   </div>
                   <p className="text-sm text-slate-600 mb-4">Convert your kids story into a short parenting reel about the moral/lesson</p>
