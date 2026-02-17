@@ -117,7 +117,7 @@ async def generate_printable_book(
         story = generation.get("outputJson", {})
         book_id = str(uuid.uuid4())
         
-        # Create printable book record
+        # Create printable book record with story data for PDF generation
         book = {
             "id": book_id,
             "generationId": generation_id,
@@ -126,6 +126,9 @@ async def generate_printable_book(
             "synopsis": story.get("synopsis", ""),
             "scenes": story.get("scenes", []),
             "characters": story.get("characters", []),
+            "moral": story.get("moral", "Every adventure teaches us something new!"),
+            "genre": story.get("genre", "Adventure"),
+            "ageGroup": story.get("ageGroup", "3-8"),
             "includeActivities": include_activities,
             "personalization": personalization or {},
             "status": "processing",
@@ -135,9 +138,11 @@ async def generate_printable_book(
         
         await db.printable_books.insert_one(book)
         
-        # Generate actual PDF file
+        # Generate Disney-style colorful PDF
         pdf_path = f"/tmp/printable_book_{book_id}.pdf"
-        generate_story_pdf(book, pdf_path)
+        
+        # Use the Disney-style PDF generator with HTML templates
+        await generate_pdf_simple(story, pdf_path)
         
         # Verify PDF was created
         if not os.path.exists(pdf_path):
@@ -152,7 +157,7 @@ async def generate_printable_book(
             {"$set": {"status": "completed", "pdfPath": pdf_path}}
         )
         
-        logger.info(f"PDF generated successfully: {pdf_path}")
+        logger.info(f"Disney-style PDF generated successfully: {pdf_path}")
         
         return {
             "success": True,
