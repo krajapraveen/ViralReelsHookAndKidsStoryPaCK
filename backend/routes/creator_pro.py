@@ -278,7 +278,6 @@ Return ONLY a JSON array of 3 improved hook strings:
         
         if ai_response:
             try:
-                import re
                 json_match = re.search(r'\[.*?\]', ai_response, re.DOTALL)
                 if json_match:
                     ai_improvements = json.loads(json_match.group())
