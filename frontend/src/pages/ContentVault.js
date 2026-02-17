@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { 
   Sparkles, Lock, Unlock, Crown, ArrowLeft, Coins, LogOut,
   Lightbulb, Video, BookOpen, MessageSquare, Copy, Check,
-  ChevronRight, Star
+  ChevronRight, Star, RefreshCw
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -16,6 +16,7 @@ export default function ContentVault() {
   const [loading, setLoading] = useState(true);
   const [selectedNiche, setSelectedNiche] = useState('all');
   const [copied, setCopied] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
