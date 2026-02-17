@@ -1214,7 +1214,7 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
     credits_needed = 10  # Fixed 10 credits per reel
     
     # ML-based content moderation - check topic for prohibited content
-    content_to_check = f"{data.topic} {data.targetAudience} {data.tone}"
+    content_to_check = f"{data.topic} {data.niche} {data.tone}"
     moderation_result = threat_intel.moderate_content(content_to_check, user.get("id"))
     if not moderation_result["allowed"]:
         violations = moderation_result.get("violations", [])
