@@ -1672,6 +1672,7 @@ async def verify_payment(data: VerifyPaymentRequest, user: dict = Depends(get_cu
 
 @payments_router.get("/history")
 async def get_payment_history(page: int = 0, size: int = 20, user: dict = Depends(get_current_user)):
+    """Get paginated payment history with stats"""
     skip = page * size
     orders = await db.orders.find(
         {"userId": user["id"]},
@@ -1680,9 +1681,26 @@ async def get_payment_history(page: int = 0, size: int = 20, user: dict = Depend
     
     total = await db.orders.count_documents({"userId": user["id"]})
     
+    # Calculate stats
+    successful_count = await db.orders.count_documents({
+        "userId": user["id"],
+        "status": {"$in": ["PAID", "paid", "SUCCESS", "completed"]}
+    })
+    
+    # Calculate total amount spent
+    pipeline = [
+        {"$match": {"userId": user["id"], "status": {"$in": ["PAID", "paid", "SUCCESS", "completed"]}}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    total_amount_result = await db.orders.aggregate(pipeline).to_list(1)
+    total_amount = total_amount_result[0]["total"] if total_amount_result else 0
+    
     return {
-        "content": orders,
-        "totalElements": total,
+        "payments": orders,
+        "total": total,
+        "successful": successful_count,
+        "totalAmount": total_amount,
+        "totalPages": (total + size - 1) // size,
         "page": page,
         "size": size
     }
