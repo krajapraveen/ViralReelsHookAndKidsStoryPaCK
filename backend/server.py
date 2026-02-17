@@ -3101,33 +3101,129 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
     story = book_doc.get("story", {})
     include_activities = book_doc.get("include_activities", True)
     
-    # Character image mappings (free placeholder images from DiceBear API)
-    CHARACTER_IMAGES = {
-        "boy": "https://api.dicebear.com/7.x/adventurer/png?seed=boy&backgroundColor=b6e3f4&size=150",
-        "girl": "https://api.dicebear.com/7.x/adventurer/png?seed=girl&backgroundColor=ffd5dc&size=150",
-        "dog": "https://api.dicebear.com/7.x/thumbs/png?seed=dog&backgroundColor=c0aede&size=150",
-        "cat": "https://api.dicebear.com/7.x/thumbs/png?seed=cat&backgroundColor=ffdfbf&size=150",
-        "rabbit": "https://api.dicebear.com/7.x/thumbs/png?seed=rabbit&backgroundColor=d1f4d1&size=150",
-        "bird": "https://api.dicebear.com/7.x/thumbs/png?seed=bird&backgroundColor=ffeaa7&size=150",
-        "dragon": "https://api.dicebear.com/7.x/bottts/png?seed=dragon&backgroundColor=fab1a0&size=150",
-        "fairy": "https://api.dicebear.com/7.x/adventurer/png?seed=fairy&backgroundColor=dfe6e9&size=150",
-        "wizard": "https://api.dicebear.com/7.x/adventurer/png?seed=wizard&backgroundColor=a29bfe&size=150",
-        "princess": "https://api.dicebear.com/7.x/adventurer/png?seed=princess&backgroundColor=fd79a8&size=150",
-        "prince": "https://api.dicebear.com/7.x/adventurer/png?seed=prince&backgroundColor=74b9ff&size=150",
-        "knight": "https://api.dicebear.com/7.x/adventurer/png?seed=knight&backgroundColor=636e72&size=150",
-        "robot": "https://api.dicebear.com/7.x/bottts/png?seed=robot&backgroundColor=00cec9&size=150",
-        "alien": "https://api.dicebear.com/7.x/bottts/png?seed=alien&backgroundColor=55efc4&size=150",
-        "monster": "https://api.dicebear.com/7.x/bottts/png?seed=monster&backgroundColor=e17055&size=150",
-        "hero": "https://api.dicebear.com/7.x/adventurer/png?seed=hero&backgroundColor=fdcb6e&size=150",
-        "kid": "https://api.dicebear.com/7.x/adventurer/png?seed=kid&backgroundColor=81ecec&size=150",
-        "child": "https://api.dicebear.com/7.x/adventurer/png?seed=child&backgroundColor=74b9ff&size=150",
-        "friend": "https://api.dicebear.com/7.x/adventurer/png?seed=friend&backgroundColor=a29bfe&size=150",
-        "animal": "https://api.dicebear.com/7.x/thumbs/png?seed=animal&backgroundColor=ffeaa7&size=150",
-        "bear": "https://api.dicebear.com/7.x/thumbs/png?seed=bear&backgroundColor=dfe6e9&size=150",
-        "lion": "https://api.dicebear.com/7.x/thumbs/png?seed=lion&backgroundColor=fdcb6e&size=150",
-        "unicorn": "https://api.dicebear.com/7.x/thumbs/png?seed=unicorn&backgroundColor=fd79a8&size=150",
-        "default": "https://api.dicebear.com/7.x/adventurer/png?seed=story&backgroundColor=b6e3f4&size=150"
+    # ========== STOCK-FREE IMAGE LIBRARIES ==========
+    
+    # Character avatar images (DiceBear - free, no API key needed)
+    CHARACTER_AVATARS = {
+        "boy": "https://api.dicebear.com/7.x/adventurer/png?seed=boyHero&backgroundColor=b6e3f4&size=180",
+        "girl": "https://api.dicebear.com/7.x/adventurer/png?seed=girlHero&backgroundColor=ffd5dc&size=180",
+        "child": "https://api.dicebear.com/7.x/adventurer/png?seed=childAdventure&backgroundColor=81ecec&size=180",
+        "kid": "https://api.dicebear.com/7.x/adventurer/png?seed=kidExplorer&backgroundColor=74b9ff&size=180",
+        "hero": "https://api.dicebear.com/7.x/adventurer/png?seed=braveHero&backgroundColor=fdcb6e&size=180",
+        "friend": "https://api.dicebear.com/7.x/adventurer/png?seed=bestFriend&backgroundColor=a29bfe&size=180",
+        "wizard": "https://api.dicebear.com/7.x/adventurer/png?seed=wiseWizard&backgroundColor=a29bfe&size=180",
+        "fairy": "https://api.dicebear.com/7.x/adventurer/png?seed=magicFairy&backgroundColor=fd79a8&size=180",
+        "princess": "https://api.dicebear.com/7.x/adventurer/png?seed=royalPrincess&backgroundColor=fd79a8&size=180",
+        "prince": "https://api.dicebear.com/7.x/adventurer/png?seed=bravePrince&backgroundColor=74b9ff&size=180",
+        "knight": "https://api.dicebear.com/7.x/adventurer/png?seed=nobleKnight&backgroundColor=636e72&size=180",
+        "queen": "https://api.dicebear.com/7.x/adventurer/png?seed=queenRoyal&backgroundColor=e84393&size=180",
+        "king": "https://api.dicebear.com/7.x/adventurer/png?seed=kingRoyal&backgroundColor=6c5ce7&size=180",
     }
+    
+    # Cute animal images (Lorem Picsum with specific seeds for consistency)
+    ANIMAL_IMAGES = {
+        "dog": "https://placedog.net/400/300?random",
+        "cat": "https://placekitten.com/400/300",
+        "rabbit": "https://api.dicebear.com/7.x/thumbs/png?seed=fluffyRabbit&backgroundColor=d1f4d1&size=180",
+        "bird": "https://api.dicebear.com/7.x/thumbs/png?seed=colorfulBird&backgroundColor=ffeaa7&size=180",
+        "bear": "https://api.dicebear.com/7.x/thumbs/png?seed=teddyBear&backgroundColor=dfe6e9&size=180",
+        "lion": "https://api.dicebear.com/7.x/thumbs/png?seed=braveLion&backgroundColor=fdcb6e&size=180",
+        "unicorn": "https://api.dicebear.com/7.x/thumbs/png?seed=magicUnicorn&backgroundColor=fd79a8&size=180",
+        "dragon": "https://api.dicebear.com/7.x/bottts/png?seed=friendlyDragon&backgroundColor=fab1a0&size=180",
+        "butterfly": "https://api.dicebear.com/7.x/thumbs/png?seed=prettyButterfly&backgroundColor=ffeaa7&size=180",
+        "fish": "https://api.dicebear.com/7.x/thumbs/png?seed=goldFish&backgroundColor=74b9ff&size=180",
+        "owl": "https://api.dicebear.com/7.x/thumbs/png?seed=wiseOwl&backgroundColor=a29bfe&size=180",
+        "fox": "https://api.dicebear.com/7.x/thumbs/png?seed=cleverFox&backgroundColor=fab1a0&size=180",
+        "elephant": "https://api.dicebear.com/7.x/thumbs/png?seed=gentleElephant&backgroundColor=dfe6e9&size=180",
+        "monkey": "https://api.dicebear.com/7.x/thumbs/png?seed=playfulMonkey&backgroundColor=fdcb6e&size=180",
+        "turtle": "https://api.dicebear.com/7.x/thumbs/png?seed=wiseTurtle&backgroundColor=55efc4&size=180",
+        "frog": "https://api.dicebear.com/7.x/thumbs/png?seed=happyFrog&backgroundColor=00b894&size=180",
+        "squirrel": "https://api.dicebear.com/7.x/thumbs/png?seed=busySquirrel&backgroundColor=fdcb6e&size=180",
+        "mouse": "https://api.dicebear.com/7.x/thumbs/png?seed=tinyMouse&backgroundColor=dfe6e9&size=180",
+    }
+    
+    # Scene/Setting images (Unsplash Source - free, no API key)
+    SCENE_IMAGES = {
+        # Outdoor Nature Scenes
+        "forest": "https://source.unsplash.com/800x400/?forest,trees,nature",
+        "garden": "https://source.unsplash.com/800x400/?garden,flowers,colorful",
+        "meadow": "https://source.unsplash.com/800x400/?meadow,grass,sunny",
+        "mountain": "https://source.unsplash.com/800x400/?mountain,landscape,scenic",
+        "beach": "https://source.unsplash.com/800x400/?beach,ocean,sand",
+        "river": "https://source.unsplash.com/800x400/?river,stream,water",
+        "lake": "https://source.unsplash.com/800x400/?lake,calm,nature",
+        "waterfall": "https://source.unsplash.com/800x400/?waterfall,nature,beautiful",
+        "jungle": "https://source.unsplash.com/800x400/?jungle,tropical,green",
+        "desert": "https://source.unsplash.com/800x400/?desert,sand,dunes",
+        "field": "https://source.unsplash.com/800x400/?field,countryside,green",
+        "park": "https://source.unsplash.com/800x400/?park,trees,pathway",
+        "farm": "https://source.unsplash.com/800x400/?farm,barn,countryside",
+        "pond": "https://source.unsplash.com/800x400/?pond,ducks,peaceful",
+        "hill": "https://source.unsplash.com/800x400/?hills,rolling,green",
+        "valley": "https://source.unsplash.com/800x400/?valley,scenic,nature",
+        "cave": "https://source.unsplash.com/800x400/?cave,mysterious,rock",
+        "island": "https://source.unsplash.com/800x400/?island,tropical,paradise",
+        "sky": "https://source.unsplash.com/800x400/?sky,clouds,blue",
+        "rainbow": "https://source.unsplash.com/800x400/?rainbow,colorful,sky",
+        "sunset": "https://source.unsplash.com/800x400/?sunset,orange,beautiful",
+        "sunrise": "https://source.unsplash.com/800x400/?sunrise,morning,golden",
+        "night": "https://source.unsplash.com/800x400/?night,stars,moon",
+        "snow": "https://source.unsplash.com/800x400/?snow,winter,white",
+        "spring": "https://source.unsplash.com/800x400/?spring,blossoms,flowers",
+        
+        # Indoor Scenes
+        "castle": "https://source.unsplash.com/800x400/?castle,medieval,fairytale",
+        "palace": "https://source.unsplash.com/800x400/?palace,royal,grand",
+        "cottage": "https://source.unsplash.com/800x400/?cottage,cozy,house",
+        "house": "https://source.unsplash.com/800x400/?house,home,warm",
+        "room": "https://source.unsplash.com/800x400/?room,interior,cozy",
+        "bedroom": "https://source.unsplash.com/800x400/?bedroom,cozy,comfortable",
+        "kitchen": "https://source.unsplash.com/800x400/?kitchen,home,cooking",
+        "library": "https://source.unsplash.com/800x400/?library,books,reading",
+        "school": "https://source.unsplash.com/800x400/?school,classroom,learning",
+        "shop": "https://source.unsplash.com/800x400/?shop,store,colorful",
+        "bakery": "https://source.unsplash.com/800x400/?bakery,bread,pastry",
+        "cafe": "https://source.unsplash.com/800x400/?cafe,coffee,cozy",
+        "museum": "https://source.unsplash.com/800x400/?museum,art,gallery",
+        "theater": "https://source.unsplash.com/800x400/?theater,stage,curtains",
+        "circus": "https://source.unsplash.com/800x400/?circus,colorful,tent",
+        
+        # Fantasy/Magical Scenes
+        "magical": "https://source.unsplash.com/800x400/?magical,fantasy,mystical",
+        "enchanted": "https://source.unsplash.com/800x400/?enchanted,forest,magical",
+        "fairy": "https://source.unsplash.com/800x400/?fairy,fantasy,magical",
+        "kingdom": "https://source.unsplash.com/800x400/?kingdom,castle,fantasy",
+        "treasure": "https://source.unsplash.com/800x400/?treasure,gold,chest",
+        "adventure": "https://source.unsplash.com/800x400/?adventure,exploration,journey",
+        
+        # Default fallback
+        "default": "https://source.unsplash.com/800x400/?storybook,illustration,colorful"
+    }
+    
+    # Cover page images by genre
+    COVER_IMAGES = {
+        "adventure": "https://source.unsplash.com/600x400/?adventure,exploration,journey",
+        "fantasy": "https://source.unsplash.com/600x400/?fantasy,magical,fairytale",
+        "fairy tale": "https://source.unsplash.com/600x400/?fairytale,castle,magical",
+        "friendship": "https://source.unsplash.com/600x400/?friendship,together,happy",
+        "nature": "https://source.unsplash.com/600x400/?nature,beautiful,peaceful",
+        "animals": "https://source.unsplash.com/600x400/?cute,animals,wildlife",
+        "mystery": "https://source.unsplash.com/600x400/?mystery,curious,exploration",
+        "magic": "https://source.unsplash.com/600x400/?magic,sparkle,wonder",
+        "default": "https://source.unsplash.com/600x400/?storybook,children,colorful"
+    }
+    
+    # Nature decoration images
+    NATURE_DECORATIONS = [
+        "https://source.unsplash.com/200x200/?flower,colorful",
+        "https://source.unsplash.com/200x200/?butterfly,nature",
+        "https://source.unsplash.com/200x200/?leaves,green",
+        "https://source.unsplash.com/200x200/?bird,cute",
+        "https://source.unsplash.com/200x200/?rainbow,sky",
+        "https://source.unsplash.com/200x200/?stars,sparkle",
+        "https://source.unsplash.com/200x200/?heart,love",
+        "https://source.unsplash.com/200x200/?sun,bright",
+    ]
     
     # Page background colors for storybook feel
     PAGE_COLORS = [
@@ -3141,24 +3237,77 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         "#FFF8E1",  # Soft amber
     ]
     
-    def get_character_image_url(char_name):
-        """Get appropriate image URL for character"""
+    def get_character_image_url(char_name, char_type="human"):
+        """Get appropriate image URL for character based on name and type"""
         name_lower = char_name.lower()
-        for key in CHARACTER_IMAGES:
-            if key in name_lower:
-                return CHARACTER_IMAGES[key]
-        return CHARACTER_IMAGES["default"].replace("story", char_name.replace(" ", ""))
+        
+        # Check for animal characters first
+        for animal in ANIMAL_IMAGES:
+            if animal in name_lower:
+                return ANIMAL_IMAGES[animal]
+        
+        # Check for human character types
+        for char_type in CHARACTER_AVATARS:
+            if char_type in name_lower:
+                return CHARACTER_AVATARS[char_type]
+        
+        # Generate unique avatar based on name
+        seed = char_name.replace(" ", "").lower()
+        return f"https://api.dicebear.com/7.x/adventurer/png?seed={seed}&backgroundColor=b6e3f4,ffd5dc,c0aede,ffdfbf&size=180"
+    
+    def get_scene_image_url(setting_text, scene_num):
+        """Get appropriate scene image based on setting description"""
+        if not setting_text:
+            return SCENE_IMAGES["default"]
+        
+        setting_lower = setting_text.lower()
+        
+        # Check for matching scene keywords
+        for keyword, url in SCENE_IMAGES.items():
+            if keyword in setting_lower:
+                # Add scene number to make each scene unique
+                return url + f"&sig={scene_num}"
+        
+        # Default with unique signature
+        return SCENE_IMAGES["default"] + f"&sig={scene_num}"
+    
+    def get_cover_image_url(genre):
+        """Get cover image based on story genre"""
+        if not genre:
+            return COVER_IMAGES["default"]
+        
+        genre_lower = genre.lower()
+        for keyword, url in COVER_IMAGES.items():
+            if keyword in genre_lower:
+                return url
+        return COVER_IMAGES["default"]
     
     def download_image(url, max_width=1.2*inch, max_height=1.2*inch):
         """Download image and return ReportLab Image object"""
         try:
-            with urllib.request.urlopen(url, timeout=5) as response:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=8) as response:
                 img_data = response.read()
                 img_buffer = io.BytesIO(img_data)
                 img = Image(img_buffer, width=max_width, height=max_height)
                 return img
-        except:
+        except Exception as e:
+            logger.warning(f"Failed to download image: {url} - {e}")
             return None
+    
+    def download_scene_image(url):
+        """Download larger scene image"""
+        return download_image(url, max_width=5.5*inch, max_height=3*inch)
+    
+    def download_cover_image(url):
+        """Download cover image"""
+        return download_image(url, max_width=5*inch, max_height=3.5*inch)
+    
+    def download_decoration_image():
+        """Download random nature decoration"""
+        import random
+        url = random.choice(NATURE_DECORATIONS)
+        return download_image(url, max_width=0.8*inch, max_height=0.8*inch)
     
     # Page callback functions for watermark and backgrounds
     def add_page_decorations(canvas_obj, doc):
