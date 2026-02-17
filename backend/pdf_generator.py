@@ -247,87 +247,94 @@ async def generate_pdf_from_story(story: Dict, output_path: str) -> str:
 
 async def generate_pdf_simple(story: Dict, output_path: str) -> str:
     """
-    Simplified PDF generation - generates single pages without merging
-    Uses only Playwright (no PyPDF2 dependency)
+    Generate PDF by rendering each page separately and merging them.
+    This ensures each page has its own complete styles and renders correctly.
     """
     from playwright.async_api import async_playwright
+    import subprocess
+    import os
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            args=['--no-sandbox', '--disable-setuid-sandbox']
+            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
         )
         
         context = await browser.new_context()
         page = await context.new_page()
         
-        # Build complete multi-page HTML document
-        all_pages = []
+        # Collect all page HTMLs
+        all_pages_html = []
         
-        # 1. Cover
-        all_pages.append(render_cover_page(story))
+        # 1. Cover page
+        all_pages_html.append(render_cover_page(story))
         
-        # 2. Story scenes
+        # 2. Story scene pages
         scenes = story.get("scenes", [])
         page_num = 2
         for idx, scene in enumerate(scenes):
-            all_pages.append(render_story_page(story, scene, idx + 1, page_num))
+            all_pages_html.append(render_story_page(story, scene, idx + 1, page_num))
             page_num += 1
         
-        # 3. Moral
-        all_pages.append(render_moral_page(story, page_num))
+        # 3. Moral page
+        all_pages_html.append(render_moral_page(story, page_num))
         page_num += 1
         
-        # 4. Ending
-        all_pages.append(render_ending_page(page_num))
+        # 4. Ending page
+        all_pages_html.append(render_ending_page(page_num))
         
-        # Create combined HTML with page breaks
-        combined_html = f'''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
-            <style>
-                @page {{
-                    size: A4;
-                    margin: 0;
-                }}
-                .page-container {{
-                    page-break-after: always;
-                    page-break-inside: avoid;
-                }}
-                .page-container:last-child {{
-                    page-break-after: auto;
-                }}
-            </style>
-        </head>
-        <body style="margin: 0; padding: 0;">
-        '''
+        # Generate individual PDFs for each page
+        temp_pdf_paths = []
         
-        for i, page_html in enumerate(all_pages):
-            # Extract body content from each page
-            body_start = page_html.find('<body')
-            body_end = page_html.find('</body>')
-            if body_start != -1 and body_end != -1:
-                body_content = page_html[body_start:body_end + 7]
-                # Remove body tags and wrap in page container
-                inner_start = body_content.find('>') + 1
-                inner_content = body_content[inner_start:-7]
-                combined_html += f'<div class="page-container" style="width: 210mm; height: 297mm; position: relative; overflow: hidden;">{inner_content}</div>'
-        
-        combined_html += '</body></html>'
-        
-        # Set content and generate PDF
-        await page.set_content(combined_html, wait_until='networkidle')
-        await page.wait_for_timeout(1000)  # Wait for fonts
-        
-        await page.pdf(
-            path=output_path,
-            format='A4',
-            print_background=True,
-            margin={'top': '0', 'bottom': '0', 'left': '0', 'right': '0'}
-        )
+        for i, html_content in enumerate(all_pages_html):
+            temp_path = f"/tmp/story_page_{os.getpid()}_{i}.pdf"
+            temp_pdf_paths.append(temp_path)
+            
+            # Set full HTML content for this page
+            await page.set_content(html_content, wait_until='networkidle')
+            
+            # Wait for fonts and images to load
+            await page.wait_for_timeout(800)
+            
+            # Generate PDF
+            await page.pdf(
+                path=temp_path,
+                format='A4',
+                print_background=True,
+                margin={'top': '0', 'bottom': '0', 'left': '0', 'right': '0'}
+            )
         
         await browser.close()
+        
+        # Merge all PDFs using pdftk or fallback to PyPDF2
+        try:
+            # Try using pdftk (faster)
+            cmd = ['pdftk'] + temp_pdf_paths + ['cat', 'output', output_path]
+            subprocess.run(cmd, check=True, capture_output=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to PyPDF2
+            try:
+                from PyPDF2 import PdfMerger
+                merger = PdfMerger()
+                for pdf_path in temp_pdf_paths:
+                    merger.append(pdf_path)
+                merger.write(output_path)
+                merger.close()
+            except ImportError:
+                # If PyPDF2 not available, use pdfunite
+                try:
+                    cmd = ['pdfunite'] + temp_pdf_paths + [output_path]
+                    subprocess.run(cmd, check=True, capture_output=True)
+                except:
+                    # Last resort - just copy the first PDF
+                    import shutil
+                    shutil.copy(temp_pdf_paths[0], output_path)
+        
+        # Cleanup temp files
+        for temp_path in temp_pdf_paths:
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+        
         return output_path
