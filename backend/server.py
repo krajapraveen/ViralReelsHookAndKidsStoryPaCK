@@ -3047,6 +3047,128 @@ async def generate_printable_book(generation_id: str, include_activities: bool =
         "downloadUrl": f"/api/story-tools/printable-book/{book_id}/pdf"
     }
 
+
+@story_tools_router.get("/printable-book/{book_id}/pdf")
+async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_current_user)):
+    """Download printable story book as PDF"""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.units import inch
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+    from reportlab.lib.enums import TA_CENTER
+    import tempfile
+    
+    book_doc = await db.printable_books.find_one({
+        "id": book_id,
+        "userId": user["id"]
+    }, {"_id": 0})
+    
+    if not book_doc:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    story = book_doc.get("story", {})
+    include_activities = book_doc.get("include_activities", True)
+    
+    # Create PDF
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+        doc = SimpleDocTemplate(tmp_file.name, pagesize=letter)
+        styles = getSampleStyleSheet()
+        
+        title_style = ParagraphStyle('BookTitle', parent=styles['Heading1'], fontSize=36, alignment=TA_CENTER, spaceAfter=30, textColor=HexColor('#6B21A8'))
+        subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=14, alignment=TA_CENTER, spaceAfter=10)
+        heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=18, spaceAfter=12, textColor=HexColor('#7C3AED'))
+        body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=12, spaceAfter=8, leading=18)
+        scene_title_style = ParagraphStyle('SceneTitle', parent=styles['Heading3'], fontSize=14, textColor=HexColor('#9333EA'))
+        moral_style = ParagraphStyle('Moral', parent=styles['Normal'], fontSize=14, alignment=TA_CENTER, textColor=HexColor('#059669'))
+        
+        elements = []
+        
+        # === COVER PAGE ===
+        elements.append(Spacer(1, 2*inch))
+        elements.append(Paragraph(f"📖 {story.get('title', 'My Story')}", title_style))
+        elements.append(Paragraph(story.get('synopsis', ''), subtitle_style))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph(f"Genre: {story.get('genre', 'Adventure')} | Ages: {story.get('ageGroup', 'All')}", subtitle_style))
+        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Paragraph("Made with CreatorStudio AI", ParagraphStyle('Footer', alignment=TA_CENTER, fontSize=10, textColor=HexColor('#9CA3AF'))))
+        elements.append(PageBreak())
+        
+        # === DEDICATION PAGE (if personalized) ===
+        if story.get("dedication") or story.get("birthday_message"):
+            elements.append(Spacer(1, 2*inch))
+            if story.get("dedication"):
+                elements.append(Paragraph(f"<i>{story.get('dedication')}</i>", ParagraphStyle('Dedication', alignment=TA_CENTER, fontSize=16, textColor=HexColor('#6B7280'))))
+            if story.get("birthday_message"):
+                elements.append(Spacer(1, 0.5*inch))
+                elements.append(Paragraph(f"🎂 {story.get('birthday_message')}", ParagraphStyle('Birthday', alignment=TA_CENTER, fontSize=14)))
+            elements.append(PageBreak())
+        
+        # === CHARACTERS PAGE ===
+        elements.append(Paragraph("Meet the Characters", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        for char in story.get("characters", []):
+            elements.append(Paragraph(f"<b>{char.get('name', 'Character')}</b> - {char.get('role', 'character')}", body_style))
+            elements.append(Paragraph(char.get('description', ''), body_style))
+            elements.append(Spacer(1, 0.1*inch))
+        elements.append(PageBreak())
+        
+        # === STORY PAGES ===
+        for scene in story.get("scenes", []):
+            elements.append(Paragraph(f"Chapter {scene.get('scene_number', '?')}: {scene.get('title', 'Scene')}", scene_title_style))
+            if scene.get('setting'):
+                elements.append(Paragraph(f"<i>📍 {scene.get('setting')}</i>", body_style))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            if scene.get('narration'):
+                elements.append(Paragraph(scene.get('narration'), body_style))
+            
+            if scene.get('dialogue'):
+                elements.append(Spacer(1, 0.1*inch))
+                for d in scene.get('dialogue', []):
+                    elements.append(Paragraph(f"<b>{d.get('speaker', 'Speaker')}:</b> \"{d.get('line', '')}\"", body_style))
+            
+            elements.append(Spacer(1, 0.3*inch))
+            elements.append(Paragraph("[Illustration Space]", ParagraphStyle('ImagePlaceholder', alignment=TA_CENTER, fontSize=12, textColor=HexColor('#D1D5DB'))))
+            elements.append(Spacer(1, 1*inch))
+            elements.append(PageBreak())
+        
+        # === MORAL PAGE ===
+        elements.append(Spacer(1, 2*inch))
+        elements.append(Paragraph("The Moral of the Story", heading_style))
+        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Paragraph(f"✨ {story.get('moral', 'Every story has a lesson.')}", moral_style))
+        elements.append(PageBreak())
+        
+        # === ACTIVITY PAGE (if included) ===
+        if include_activities:
+            elements.append(Paragraph("🎨 Activity Page", heading_style))
+            elements.append(Spacer(1, 0.2*inch))
+            elements.append(Paragraph("Draw your favorite scene from the story:", body_style))
+            elements.append(Spacer(1, 3*inch))
+            elements.append(Paragraph("What did you learn from this story?", body_style))
+            elements.append(Paragraph("_" * 60, body_style))
+            elements.append(Paragraph("_" * 60, body_style))
+            elements.append(Paragraph("_" * 60, body_style))
+        
+        # === THE END ===
+        elements.append(PageBreak())
+        elements.append(Spacer(1, 3*inch))
+        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=24, textColor=HexColor('#6B21A8'))))
+        
+        doc.build(elements)
+        
+        # Read and return PDF
+        with open(tmp_file.name, 'rb') as f:
+            pdf_content = f.read()
+        
+        from fastapi.responses import Response
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=storybook-{book_id}.pdf"}
+        )
+
 # ==================== CONTENT VAULT ENDPOINTS ====================
 
 CONTENT_VAULT_HOOKS = [
