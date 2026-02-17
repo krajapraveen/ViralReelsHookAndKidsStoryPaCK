@@ -2309,6 +2309,167 @@ async def get_story_template_stats(user: dict = Depends(get_current_user)):
         "byAgeGroup": {s["_id"]: s["count"] for s in age_stats}
     }
 
+# ==================== PAYMENT MONITORING ROUTES ====================
+
+@admin_router.get("/payments/successful")
+async def get_successful_payments(
+    page: int = 0,
+    size: int = 50,
+    days: int = 30,
+    user: dict = Depends(get_admin_user)
+):
+    """Get all successful payment transactions"""
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    skip = page * size
+    
+    # Get from payment_logs collection
+    payment_logs = await db.payment_logs.find(
+        {"status": {"$in": ["SUCCESS", "PAID"]}, "created_at": {"$gte": start_date}},
+        {"_id": 0}
+    ).sort("created_at", -1).skip(skip).limit(size).to_list(length=size)
+    
+    # Also get from orders collection for complete data
+    orders = await db.orders.find(
+        {"status": "PAID", "createdAt": {"$gte": start_date}},
+        {"_id": 0}
+    ).sort("createdAt", -1).limit(size).to_list(length=size)
+    
+    # Combine and dedupe
+    all_payments = payment_logs + orders
+    total = await db.payment_logs.count_documents({"status": {"$in": ["SUCCESS", "PAID"]}})
+    total += await db.orders.count_documents({"status": "PAID"})
+    
+    return {
+        "payments": all_payments[:size],
+        "total": total,
+        "page": page,
+        "size": size
+    }
+
+@admin_router.get("/payments/failed")
+async def get_failed_payments(
+    page: int = 0,
+    size: int = 50,
+    days: int = 30,
+    user: dict = Depends(get_admin_user)
+):
+    """Get all failed payment transactions with failure reasons"""
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    skip = page * size
+    
+    payments = await db.payment_logs.find(
+        {"status": "FAILED"},
+        {"_id": 0}
+    ).sort("created_at", -1).skip(skip).limit(size).to_list(length=size)
+    
+    # Also check orders with FAILED status
+    failed_orders = await db.orders.find(
+        {"status": "FAILED"},
+        {"_id": 0}
+    ).sort("createdAt", -1).limit(size).to_list(length=size)
+    
+    all_failed = payments + failed_orders
+    total = await db.payment_logs.count_documents({"status": "FAILED"})
+    
+    return {
+        "payments": all_failed[:size],
+        "total": total,
+        "page": page,
+        "size": size
+    }
+
+@admin_router.get("/payments/refunded")
+async def get_refunded_payments(
+    page: int = 0,
+    size: int = 50,
+    days: int = 30,
+    user: dict = Depends(get_admin_user)
+):
+    """Get all refunded payment transactions"""
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    skip = page * size
+    
+    payments = await db.payment_logs.find(
+        {"status": "REFUNDED"},
+        {"_id": 0}
+    ).sort("created_at", -1).skip(skip).limit(size).to_list(length=size)
+    
+    # Also check orders
+    refunded_orders = await db.orders.find(
+        {"status": "REFUNDED"},
+        {"_id": 0}
+    ).sort("refunded_at", -1).limit(size).to_list(length=size)
+    
+    all_refunded = payments + refunded_orders
+    total = await db.payment_logs.count_documents({"status": "REFUNDED"})
+    
+    return {
+        "payments": all_refunded[:size],
+        "total": total,
+        "page": page,
+        "size": size
+    }
+
+# ==================== EXCEPTION MONITORING ROUTES ====================
+
+@admin_router.get("/exceptions/all")
+async def get_all_exceptions(
+    page: int = 0,
+    size: int = 50,
+    severity: str = None,
+    resolved: bool = None,
+    user: dict = Depends(get_admin_user)
+):
+    """Get all logged exceptions from user actions and system"""
+    skip = page * size
+    
+    query = {}
+    if severity:
+        query["severity"] = severity.upper()
+    if resolved is not None:
+        query["resolved"] = resolved
+    
+    exceptions = await db.exception_logs.find(
+        query,
+        {"_id": 0}
+    ).sort("created_at", -1).skip(skip).limit(size).to_list(length=size)
+    
+    total = await db.exception_logs.count_documents(query)
+    
+    return {
+        "exceptions": exceptions,
+        "total": total,
+        "page": page,
+        "size": size
+    }
+
+@admin_router.put("/exceptions/{exception_id}/resolve")
+async def resolve_exception(exception_id: str, user: dict = Depends(get_admin_user)):
+    """Mark an exception as resolved"""
+    result = await db.exception_logs.update_one(
+        {"id": exception_id},
+        {
+            "$set": {
+                "resolved": True,
+                "resolved_by": user["id"],
+                "resolved_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Exception not found")
+    
+    return {"success": True, "message": "Exception marked as resolved"}
+
+@admin_router.delete("/exceptions/{exception_id}")
+async def delete_exception(exception_id: str, user: dict = Depends(get_admin_user)):
+    """Delete an exception log entry"""
+    result = await db.exception_logs.delete_one({"id": exception_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Exception not found")
+    return {"success": True, "message": "Exception deleted"}
+
 # ==================== HEALTH ROUTES ====================
 
 @health_router.get("/")
