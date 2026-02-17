@@ -10,10 +10,15 @@ import json
 import random
 import re
 
-from ..shared import (
-    db, logger, get_current_user, deduct_credits, log_exception,
-    LLM_AVAILABLE, EMERGENT_LLM_KEY
-)
+# Import from shared module (absolute import for server.py compatibility)
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY
+except ImportError:
+    from ..shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY
 
 router = APIRouter(prefix="/creator-pro", tags=["Creator Pro"])
 
