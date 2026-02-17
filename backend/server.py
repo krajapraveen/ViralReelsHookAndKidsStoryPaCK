@@ -3076,14 +3076,19 @@ async def generate_printable_book(generation_id: str, include_activities: bool =
 
 @story_tools_router.get("/printable-book/{book_id}/pdf")
 async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_current_user)):
-    """Download printable story book as PDF"""
+    """Download printable story book as PDF with colorful design and character images"""
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.units import inch
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.colors import HexColor
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.colors import HexColor, Color
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.pdfgen import canvas
+    from reportlab.lib import colors
     import tempfile
+    import math
+    import urllib.request
+    import io
     
     book_doc = await db.printable_books.find_one({
         "id": book_id,
@@ -3096,93 +3101,356 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
     story = book_doc.get("story", {})
     include_activities = book_doc.get("include_activities", True)
     
-    # Create PDF
+    # Character image mappings (free placeholder images from DiceBear API)
+    CHARACTER_IMAGES = {
+        "boy": "https://api.dicebear.com/7.x/adventurer/png?seed=boy&backgroundColor=b6e3f4&size=150",
+        "girl": "https://api.dicebear.com/7.x/adventurer/png?seed=girl&backgroundColor=ffd5dc&size=150",
+        "dog": "https://api.dicebear.com/7.x/thumbs/png?seed=dog&backgroundColor=c0aede&size=150",
+        "cat": "https://api.dicebear.com/7.x/thumbs/png?seed=cat&backgroundColor=ffdfbf&size=150",
+        "rabbit": "https://api.dicebear.com/7.x/thumbs/png?seed=rabbit&backgroundColor=d1f4d1&size=150",
+        "bird": "https://api.dicebear.com/7.x/thumbs/png?seed=bird&backgroundColor=ffeaa7&size=150",
+        "dragon": "https://api.dicebear.com/7.x/bottts/png?seed=dragon&backgroundColor=fab1a0&size=150",
+        "fairy": "https://api.dicebear.com/7.x/adventurer/png?seed=fairy&backgroundColor=dfe6e9&size=150",
+        "wizard": "https://api.dicebear.com/7.x/adventurer/png?seed=wizard&backgroundColor=a29bfe&size=150",
+        "princess": "https://api.dicebear.com/7.x/adventurer/png?seed=princess&backgroundColor=fd79a8&size=150",
+        "prince": "https://api.dicebear.com/7.x/adventurer/png?seed=prince&backgroundColor=74b9ff&size=150",
+        "knight": "https://api.dicebear.com/7.x/adventurer/png?seed=knight&backgroundColor=636e72&size=150",
+        "robot": "https://api.dicebear.com/7.x/bottts/png?seed=robot&backgroundColor=00cec9&size=150",
+        "alien": "https://api.dicebear.com/7.x/bottts/png?seed=alien&backgroundColor=55efc4&size=150",
+        "monster": "https://api.dicebear.com/7.x/bottts/png?seed=monster&backgroundColor=e17055&size=150",
+        "hero": "https://api.dicebear.com/7.x/adventurer/png?seed=hero&backgroundColor=fdcb6e&size=150",
+        "kid": "https://api.dicebear.com/7.x/adventurer/png?seed=kid&backgroundColor=81ecec&size=150",
+        "child": "https://api.dicebear.com/7.x/adventurer/png?seed=child&backgroundColor=74b9ff&size=150",
+        "friend": "https://api.dicebear.com/7.x/adventurer/png?seed=friend&backgroundColor=a29bfe&size=150",
+        "animal": "https://api.dicebear.com/7.x/thumbs/png?seed=animal&backgroundColor=ffeaa7&size=150",
+        "bear": "https://api.dicebear.com/7.x/thumbs/png?seed=bear&backgroundColor=dfe6e9&size=150",
+        "lion": "https://api.dicebear.com/7.x/thumbs/png?seed=lion&backgroundColor=fdcb6e&size=150",
+        "unicorn": "https://api.dicebear.com/7.x/thumbs/png?seed=unicorn&backgroundColor=fd79a8&size=150",
+        "default": "https://api.dicebear.com/7.x/adventurer/png?seed=story&backgroundColor=b6e3f4&size=150"
+    }
+    
+    # Page background colors for storybook feel
+    PAGE_COLORS = [
+        "#FFF9E6",  # Warm cream
+        "#E8F5E9",  # Soft green
+        "#E3F2FD",  # Soft blue
+        "#FFF3E0",  # Soft orange
+        "#F3E5F5",  # Soft purple
+        "#FFEBEE",  # Soft pink
+        "#E0F7FA",  # Soft cyan
+        "#FFF8E1",  # Soft amber
+    ]
+    
+    def get_character_image_url(char_name):
+        """Get appropriate image URL for character"""
+        name_lower = char_name.lower()
+        for key in CHARACTER_IMAGES:
+            if key in name_lower:
+                return CHARACTER_IMAGES[key]
+        return CHARACTER_IMAGES["default"].replace("story", char_name.replace(" ", ""))
+    
+    def download_image(url, max_width=1.2*inch, max_height=1.2*inch):
+        """Download image and return ReportLab Image object"""
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                img_data = response.read()
+                img_buffer = io.BytesIO(img_data)
+                img = Image(img_buffer, width=max_width, height=max_height)
+                return img
+        except:
+            return None
+    
+    # Custom canvas class to add watermark and colored backgrounds
+    class StoryBookCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            canvas.Canvas.__init__(self, *args, **kwargs)
+            self.pages = []
+            self.page_num = 0
+            
+        def showPage(self):
+            self.pages.append(dict(self.__dict__))
+            self.page_num += 1
+            self._startPage()
+            
+        def save(self):
+            for page in self.pages:
+                self.__dict__.update(page)
+                self.draw_watermark()
+                self.draw_page_background()
+                canvas.Canvas.showPage(self)
+            canvas.Canvas.save(self)
+            
+        def draw_watermark(self):
+            """Draw diagonal watermark on every page"""
+            self.saveState()
+            self.setFont("Helvetica-Bold", 60)
+            self.setFillColor(Color(0.5, 0.5, 0.5, alpha=0.08))  # Very light gray
+            
+            # Rotate and position watermark diagonally
+            self.translate(4.25*inch, 5.5*inch)  # Center of page
+            self.rotate(45)
+            self.drawCentredString(0, 0, "CreatorStudio AI")
+            self.restoreState()
+            
+        def draw_page_background(self):
+            """Draw subtle colored background"""
+            color_idx = self.page_num % len(PAGE_COLORS)
+            bg_color = HexColor(PAGE_COLORS[color_idx])
+            self.setFillColor(bg_color)
+            self.rect(0, 0, letter[0], letter[1], fill=True, stroke=False)
+    
+    # Create PDF with custom canvas
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
-        doc = SimpleDocTemplate(tmp_file.name, pagesize=letter)
+        doc = SimpleDocTemplate(
+            tmp_file.name, 
+            pagesize=letter,
+            topMargin=0.75*inch,
+            bottomMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            rightMargin=0.75*inch
+        )
         styles = getSampleStyleSheet()
         
-        title_style = ParagraphStyle('BookTitle', parent=styles['Heading1'], fontSize=36, alignment=TA_CENTER, spaceAfter=30, textColor=HexColor('#6B21A8'))
-        subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=14, alignment=TA_CENTER, spaceAfter=10)
-        heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=18, spaceAfter=12, textColor=HexColor('#7C3AED'))
-        body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=12, spaceAfter=8, leading=18)
-        scene_title_style = ParagraphStyle('SceneTitle', parent=styles['Heading3'], fontSize=14, textColor=HexColor('#9333EA'))
-        moral_style = ParagraphStyle('Moral', parent=styles['Normal'], fontSize=14, alignment=TA_CENTER, textColor=HexColor('#059669'))
+        # Custom styles for colorful storybook
+        title_style = ParagraphStyle(
+            'BookTitle', parent=styles['Heading1'], 
+            fontSize=42, alignment=TA_CENTER, spaceAfter=20, 
+            textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold',
+            leading=48
+        )
+        subtitle_style = ParagraphStyle(
+            'Subtitle', parent=styles['Normal'], 
+            fontSize=16, alignment=TA_CENTER, spaceAfter=12,
+            textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique'
+        )
+        heading_style = ParagraphStyle(
+            'Heading', parent=styles['Heading2'], 
+            fontSize=22, spaceAfter=15, 
+            textColor=HexColor('#9333EA'), fontName='Helvetica-Bold',
+            borderColor=HexColor('#9333EA'), borderWidth=0, borderPadding=5
+        )
+        body_style = ParagraphStyle(
+            'Body', parent=styles['Normal'], 
+            fontSize=13, spaceAfter=10, leading=20,
+            textColor=HexColor('#374151'), fontName='Helvetica'
+        )
+        scene_title_style = ParagraphStyle(
+            'SceneTitle', parent=styles['Heading3'], 
+            fontSize=18, textColor=HexColor('#7C3AED'),
+            fontName='Helvetica-Bold', spaceAfter=10,
+            backColor=HexColor('#F3E8FF'), borderPadding=8
+        )
+        moral_style = ParagraphStyle(
+            'Moral', parent=styles['Normal'], 
+            fontSize=16, alignment=TA_CENTER, 
+            textColor=HexColor('#059669'), fontName='Helvetica-Bold',
+            backColor=HexColor('#ECFDF5'), borderPadding=15
+        )
+        character_name_style = ParagraphStyle(
+            'CharName', parent=styles['Normal'],
+            fontSize=14, alignment=TA_CENTER,
+            textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold'
+        )
+        character_desc_style = ParagraphStyle(
+            'CharDesc', parent=styles['Normal'],
+            fontSize=11, alignment=TA_CENTER,
+            textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique'
+        )
+        dialogue_style = ParagraphStyle(
+            'Dialogue', parent=styles['Normal'],
+            fontSize=12, leftIndent=20,
+            textColor=HexColor('#1F2937'), fontName='Helvetica',
+            backColor=HexColor('#FEF3C7'), borderPadding=5
+        )
+        watermark_note = ParagraphStyle(
+            'WatermarkNote', parent=styles['Normal'],
+            fontSize=10, alignment=TA_CENTER,
+            textColor=HexColor('#9CA3AF')
+        )
         
         elements = []
         
         # === COVER PAGE ===
-        elements.append(Spacer(1, 2*inch))
-        elements.append(Paragraph(f"📖 {story.get('title', 'My Story')}", title_style))
-        elements.append(Paragraph(story.get('synopsis', ''), subtitle_style))
+        elements.append(Spacer(1, 1.5*inch))
+        
+        # Title with decorative elements
+        elements.append(Paragraph("✨ 📖 ✨", ParagraphStyle('Deco', alignment=TA_CENTER, fontSize=36)))
+        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Paragraph(story.get('title', 'My Story'), title_style))
+        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Paragraph(f"<i>{story.get('synopsis', 'A wonderful adventure awaits...')}</i>", subtitle_style))
+        elements.append(Spacer(1, 0.8*inch))
+        
+        # Genre badge
+        genre_info = f"🎭 {story.get('genre', 'Adventure')} Story  |  👶 Ages: {story.get('ageGroup', 'All')}"
+        elements.append(Paragraph(genre_info, ParagraphStyle('GenreBadge', alignment=TA_CENTER, fontSize=12, textColor=HexColor('#6B7280'), backColor=HexColor('#F3F4F6'), borderPadding=10)))
+        
         elements.append(Spacer(1, 1*inch))
-        elements.append(Paragraph(f"Genre: {story.get('genre', 'Adventure')} | Ages: {story.get('ageGroup', 'All')}", subtitle_style))
-        elements.append(Spacer(1, 0.5*inch))
-        elements.append(Paragraph("Made with CreatorStudio AI", ParagraphStyle('Footer', alignment=TA_CENTER, fontSize=10, textColor=HexColor('#9CA3AF'))))
+        elements.append(Paragraph("🌟 Made with CreatorStudio AI 🌟", watermark_note))
         elements.append(PageBreak())
         
         # === DEDICATION PAGE (if personalized) ===
         if story.get("dedication") or story.get("birthday_message"):
             elements.append(Spacer(1, 2*inch))
+            elements.append(Paragraph("💝 Dedication 💝", ParagraphStyle('DedicationTitle', alignment=TA_CENTER, fontSize=20, textColor=HexColor('#EC4899'))))
+            elements.append(Spacer(1, 0.3*inch))
             if story.get("dedication"):
-                elements.append(Paragraph(f"<i>{story.get('dedication')}</i>", ParagraphStyle('Dedication', alignment=TA_CENTER, fontSize=16, textColor=HexColor('#6B7280'))))
+                elements.append(Paragraph(f"<i>\"{story.get('dedication')}\"</i>", ParagraphStyle('Dedication', alignment=TA_CENTER, fontSize=16, textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique')))
             if story.get("birthday_message"):
                 elements.append(Spacer(1, 0.5*inch))
-                elements.append(Paragraph(f"🎂 {story.get('birthday_message')}", ParagraphStyle('Birthday', alignment=TA_CENTER, fontSize=14)))
+                elements.append(Paragraph(f"🎂🎈 {story.get('birthday_message')} 🎈🎂", ParagraphStyle('Birthday', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#F59E0B'))))
             elements.append(PageBreak())
         
-        # === CHARACTERS PAGE ===
-        elements.append(Paragraph("Meet the Characters", heading_style))
-        elements.append(Spacer(1, 0.2*inch))
-        for char in story.get("characters", []):
-            elements.append(Paragraph(f"<b>{char.get('name', 'Character')}</b> - {char.get('role', 'character')}", body_style))
-            elements.append(Paragraph(char.get('description', ''), body_style))
-            elements.append(Spacer(1, 0.1*inch))
+        # === CHARACTERS PAGE with Images ===
+        elements.append(Paragraph("🎭 Meet the Characters 🎭", heading_style))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        characters = story.get("characters", [])
+        char_table_data = []
+        char_row = []
+        
+        for idx, char in enumerate(characters):
+            char_name = char.get('name', 'Character')
+            char_role = char.get('role', 'character')
+            char_desc = char.get('description', '')
+            
+            # Get character image
+            img_url = get_character_image_url(char_name)
+            char_img = download_image(img_url, 1.3*inch, 1.3*inch)
+            
+            # Create character cell content
+            char_cell = []
+            if char_img:
+                char_cell.append(char_img)
+            char_cell.append(Paragraph(f"<b>{char_name}</b>", character_name_style))
+            char_cell.append(Paragraph(f"({char_role})", character_desc_style))
+            if char_desc:
+                char_cell.append(Paragraph(char_desc[:80] + "..." if len(char_desc) > 80 else char_desc, character_desc_style))
+            
+            char_row.append(char_cell)
+            
+            # 2 characters per row
+            if len(char_row) == 2 or idx == len(characters) - 1:
+                if len(char_row) == 1:
+                    char_row.append([])  # Empty cell for alignment
+                char_table_data.append(char_row)
+                char_row = []
+        
+        if char_table_data:
+            char_table = Table(char_table_data, colWidths=[3.2*inch, 3.2*inch])
+            char_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FAFAFA')),
+                ('GRID', (0, 0), (-1, -1), 1, HexColor('#E5E7EB')),
+                ('TOPPADDING', (0, 0), (-1, -1), 15),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            elements.append(char_table)
+        
         elements.append(PageBreak())
         
-        # === STORY PAGES ===
-        for scene in story.get("scenes", []):
-            elements.append(Paragraph(f"Chapter {scene.get('scene_number', '?')}: {scene.get('title', 'Scene')}", scene_title_style))
-            if scene.get('setting'):
-                elements.append(Paragraph(f"<i>📍 {scene.get('setting')}</i>", body_style))
-            elements.append(Spacer(1, 0.1*inch))
+        # === STORY PAGES with Scene Illustrations ===
+        scenes = story.get("scenes", [])
+        for scene_idx, scene in enumerate(scenes):
+            # Scene header with colorful background
+            scene_num = scene.get('scene_number', scene_idx + 1)
+            scene_title = scene.get('title', f'Scene {scene_num}')
+            elements.append(Paragraph(f"📖 Chapter {scene_num}: {scene_title}", scene_title_style))
             
+            # Setting
+            if scene.get('setting'):
+                elements.append(Paragraph(f"<i>📍 {scene.get('setting')}</i>", ParagraphStyle('Setting', fontSize=11, textColor=HexColor('#6B7280'), fontName='Helvetica-Oblique')))
+            elements.append(Spacer(1, 0.15*inch))
+            
+            # Scene illustration placeholder with character image
+            scene_seed = f"scene{scene_num}{story.get('title', '')[:10]}"
+            scene_img_url = f"https://api.dicebear.com/7.x/shapes/png?seed={scene_seed}&backgroundColor=b6e3f4,c0aede,ffd5dc,ffdfbf,d1f4d1&size=200"
+            scene_img = download_image(scene_img_url, 2.5*inch, 1.8*inch)
+            if scene_img:
+                elements.append(Table([[scene_img]], colWidths=[7*inch]))
+                elements.append(Spacer(1, 0.1*inch))
+            
+            # Narration
             if scene.get('narration'):
                 elements.append(Paragraph(scene.get('narration'), body_style))
             
+            # Dialogue with speech bubble style
             if scene.get('dialogue'):
-                elements.append(Spacer(1, 0.1*inch))
+                elements.append(Spacer(1, 0.15*inch))
                 for d in scene.get('dialogue', []):
-                    elements.append(Paragraph(f"<b>{d.get('speaker', 'Speaker')}:</b> \"{d.get('line', '')}\"", body_style))
+                    speaker = d.get('speaker', 'Speaker')
+                    line = d.get('line', '')
+                    elements.append(Paragraph(f"<b>💬 {speaker}:</b> \"{line}\"", dialogue_style))
+                    elements.append(Spacer(1, 0.08*inch))
             
             elements.append(Spacer(1, 0.3*inch))
-            elements.append(Paragraph("[Illustration Space]", ParagraphStyle('ImagePlaceholder', alignment=TA_CENTER, fontSize=12, textColor=HexColor('#D1D5DB'))))
-            elements.append(Spacer(1, 1*inch))
             elements.append(PageBreak())
         
         # === MORAL PAGE ===
-        elements.append(Spacer(1, 2*inch))
-        elements.append(Paragraph("The Moral of the Story", heading_style))
-        elements.append(Spacer(1, 0.3*inch))
-        elements.append(Paragraph(f"✨ {story.get('moral', 'Every story has a lesson.')}", moral_style))
+        elements.append(Spacer(1, 1.5*inch))
+        elements.append(Paragraph("🌟 The Moral of the Story 🌟", heading_style))
+        elements.append(Spacer(1, 0.5*inch))
+        
+        # Decorative moral box
+        moral_text = story.get('moral', 'Every story has a lesson to teach us.')
+        elements.append(Paragraph(f"✨ {moral_text} ✨", moral_style))
+        elements.append(Spacer(1, 0.5*inch))
+        
+        # Add a character image reflecting on moral
+        moral_img_url = "https://api.dicebear.com/7.x/adventurer/png?seed=wisdom&backgroundColor=fdcb6e&size=150"
+        moral_img = download_image(moral_img_url, 1.5*inch, 1.5*inch)
+        if moral_img:
+            elements.append(Table([[moral_img]], colWidths=[7*inch]))
+        
         elements.append(PageBreak())
         
         # === ACTIVITY PAGE (if included) ===
         if include_activities:
-            elements.append(Paragraph("🎨 Activity Page", heading_style))
-            elements.append(Spacer(1, 0.2*inch))
-            elements.append(Paragraph("Draw your favorite scene from the story:", body_style))
-            elements.append(Spacer(1, 3*inch))
-            elements.append(Paragraph("What did you learn from this story?", body_style))
-            elements.append(Paragraph("_" * 60, body_style))
-            elements.append(Paragraph("_" * 60, body_style))
-            elements.append(Paragraph("_" * 60, body_style))
+            elements.append(Paragraph("🎨 Activity Page 🎨", heading_style))
+            elements.append(Spacer(1, 0.3*inch))
+            
+            # Drawing prompt
+            elements.append(Paragraph("<b>Draw your favorite scene from the story:</b>", body_style))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            # Drawing box
+            drawing_box = Table([["[Your Drawing Here]"]], colWidths=[6*inch], rowHeights=[2.5*inch])
+            drawing_box.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FFFFFF')),
+                ('GRID', (0, 0), (-1, -1), 2, HexColor('#9333EA')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), HexColor('#D1D5DB')),
+            ]))
+            elements.append(drawing_box)
+            elements.append(Spacer(1, 0.3*inch))
+            
+            # Reflection questions
+            elements.append(Paragraph("<b>📝 What did you learn from this story?</b>", body_style))
+            for _ in range(3):
+                elements.append(Paragraph("_" * 70, ParagraphStyle('Line', fontSize=12, textColor=HexColor('#9CA3AF'))))
+            
+            elements.append(Spacer(1, 0.3*inch))
+            elements.append(Paragraph("<b>🌈 What was your favorite part?</b>", body_style))
+            for _ in range(2):
+                elements.append(Paragraph("_" * 70, ParagraphStyle('Line', fontSize=12, textColor=HexColor('#9CA3AF'))))
         
-        # === THE END ===
+        # === THE END PAGE ===
         elements.append(PageBreak())
-        elements.append(Spacer(1, 3*inch))
-        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=24, textColor=HexColor('#6B21A8'))))
+        elements.append(Spacer(1, 2.5*inch))
+        elements.append(Paragraph("🌟 ✨ 🌟", ParagraphStyle('EndDeco', alignment=TA_CENTER, fontSize=40)))
+        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Paragraph("~ The End ~", ParagraphStyle('End', alignment=TA_CENTER, fontSize=32, textColor=HexColor('#7C3AED'), fontName='Helvetica-Bold')))
+        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Paragraph("Thank you for reading!", ParagraphStyle('Thanks', alignment=TA_CENTER, fontSize=14, textColor=HexColor('#6B7280'))))
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph("📚 Made with love by CreatorStudio AI 📚", watermark_note))
         
-        doc.build(elements)
+        # Build PDF with custom canvas for watermark
+        doc.build(elements, canvasmaker=StoryBookCanvas)
         
         # Read and return PDF
         with open(tmp_file.name, 'rb') as f:
