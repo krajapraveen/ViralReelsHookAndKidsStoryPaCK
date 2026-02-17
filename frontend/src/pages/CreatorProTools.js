@@ -40,6 +40,14 @@ export default function CreatorProTools() {
   const [platformInput, setPlatformInput] = useState('instagram');
   const [contentInput, setContentInput] = useState('');
 
+  // Helper function to extract error message
+  const getErrorMessage = (error, defaultMsg = 'Operation failed') => {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) return detail.map(d => d.msg || d).join(', ');
+    return defaultMsg;
+  };
+
   useEffect(() => {
     fetchCredits();
   }, []);
