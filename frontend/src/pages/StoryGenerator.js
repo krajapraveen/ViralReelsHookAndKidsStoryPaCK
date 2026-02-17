@@ -644,27 +644,42 @@ export default function StoryGenerator() {
                             };
                             const response = await api.post(`/api/story-tools/printable-book/generate?generation_id=${generationId}`, payload);
                             setCredits(response.data.remainingCredits);
-                            toast.success('Printable book created! Downloading...');
+                            toast.success('Printable book created! Downloading PDF...');
                             
-                            // Download the PDF with authentication
-                            const pdfResponse = await api.get(response.data.downloadUrl, {
-                              responseType: 'blob'
+                            // Download the PDF with authentication using fetch for better blob handling
+                            const token = localStorage.getItem('token');
+                            const pdfResponse = await fetch(`${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`, {
+                              method: 'GET',
+                              headers: {
+                                'Authorization': `Bearer ${token}`
+                              }
                             });
                             
-                            // Create blob URL and trigger download
-                            const blob = new Blob([pdfResponse.data], { type: 'application/pdf' });
+                            if (!pdfResponse.ok) {
+                              throw new Error('Failed to download PDF');
+                            }
+                            
+                            const blob = await pdfResponse.blob();
+                            
+                            // Create download link
                             const url = window.URL.createObjectURL(blob);
                             const link = document.createElement('a');
                             link.href = url;
                             link.download = `storybook-${response.data.bookId}.pdf`;
+                            link.style.display = 'none';
                             document.body.appendChild(link);
                             link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
+                            
+                            // Cleanup
+                            setTimeout(() => {
+                              document.body.removeChild(link);
+                              window.URL.revokeObjectURL(url);
+                            }, 100);
                             
                             toast.success('PDF downloaded successfully!');
                           } catch (error) {
-                            toast.error(error.response?.data?.detail || 'Failed to create printable book');
+                            console.error('PDF Download Error:', error);
+                            toast.error(error.response?.data?.detail || error.message || 'Failed to create printable book');
                           } finally {
                             setPrintableLoading(false);
                           }
