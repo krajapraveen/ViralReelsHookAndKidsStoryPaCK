@@ -3783,9 +3783,10 @@ MORAL_TEMPLATES = [
 ]
 
 PLAN_ACCESS = {
-    "free": {"hooks": 20, "structures": 5},
-    "starter": {"hooks": 100, "structures": 10},
-    "pro": {"hooks": 500, "structures": 200}
+    "free": {"hooks": 20, "structures": 5, "themes": 5, "morals": 5},
+    "starter": {"hooks": 100, "structures": 10, "themes": 10, "morals": 10},
+    "pro": {"hooks": 500, "structures": 200, "themes": 100, "morals": 50},
+    "lifetime": {"hooks": 500, "structures": 200, "themes": 100, "morals": 50}
 }
 
 @content_router.get("/vault")
