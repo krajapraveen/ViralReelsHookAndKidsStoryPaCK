@@ -1326,7 +1326,7 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
         log_security_event("STORY_CONTENT_BLOCKED", {
             "user_id": user.get("id"),
             "violations": violations,
-            "character": data.characterName[:50]
+            "theme": data.theme[:50]
         }, "WARNING")
         raise HTTPException(status_code=400, detail=f"Content blocked: {violation_msg}")
     
