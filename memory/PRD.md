@@ -128,3 +128,10 @@ All tools now use Gemini 3 Flash for AI generation:
 - Backend: 100% (23/23 tests pass)
 - Frontend: 100% (All pages load correctly)
 - AI Integration: Working (Gemini 3 Flash via emergentintegrations)
+
+## Bug Fix - February 17, 2026
+- **PDF Generation Fixed**: Implemented actual PDF generation using ReportLab
+  - Beautiful formatted storybook with cover page, characters, scenes, activities
+  - Proper download endpoint with Content-Disposition header
+  - Auto-regeneration if PDF file is missing
+
