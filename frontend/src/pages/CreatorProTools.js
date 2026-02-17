@@ -114,11 +114,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Bios generated!');
     } catch (error) {
-      const detail = error.response?.data?.detail;
-      const errorMsg = typeof detail === 'string' ? detail : 
-                       Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ') : 
-                       'Generation failed';
-      toast.error(errorMsg);
+      toast.error(getErrorMessage(error, 'Generation failed'));
     } finally {
       setLoading(false);
     }
@@ -141,7 +137,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Captions generated!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Generation failed');
+      toast.error(getErrorMessage(error, 'Generation failed'));
     } finally {
       setLoading(false);
     }
@@ -164,7 +160,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Score calculated!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Calculation failed');
+      toast.error(getErrorMessage(error, 'Calculation failed'));
     } finally {
       setLoading(false);
     }
