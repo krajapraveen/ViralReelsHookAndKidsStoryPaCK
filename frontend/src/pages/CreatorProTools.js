@@ -183,7 +183,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Headlines generated!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Generation failed');
+      toast.error(getErrorMessage(error, 'Generation failed'));
     } finally {
       setLoading(false);
     }
@@ -206,7 +206,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Thread generated!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Generation failed');
+      toast.error(getErrorMessage(error, 'Generation failed'));
     } finally {
       setLoading(false);
     }
@@ -224,7 +224,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Schedule generated!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Generation failed');
+      toast.error(getErrorMessage(error, 'Generation failed'));
     } finally {
       setLoading(false);
     }
