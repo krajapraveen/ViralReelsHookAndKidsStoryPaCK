@@ -163,7 +163,11 @@ export default function Dashboard() {
         </div>
 
         {/* Privacy & Settings Quick Link */}
-        <div className="mb-12 flex gap-6">
+        <div className="mb-12 flex gap-6 flex-wrap">
+          <Link to="/app/content-vault" className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-800 transition-colors font-medium">
+            <Library className="w-4 h-4" />
+            <span className="text-sm">Content Vault</span>
+          </Link>
           <Link to="/app/privacy" className="inline-flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors">
             <Lock className="w-4 h-4" />
             <span className="text-sm">Privacy & Data Settings</span>
