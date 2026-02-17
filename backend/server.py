@@ -1213,6 +1213,19 @@ async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_curr
     """Generate a viral reel - costs 10 credits"""
     credits_needed = 10  # Fixed 10 credits per reel
     
+    # ML-based content moderation - check topic for prohibited content
+    content_to_check = f"{data.topic} {data.targetAudience} {data.tone}"
+    moderation_result = threat_intel.moderate_content(content_to_check, user.get("id"))
+    if not moderation_result["allowed"]:
+        violations = moderation_result.get("violations", [])
+        violation_msg = violations[0].get("message") if violations else "Content policy violation"
+        log_security_event("REEL_CONTENT_BLOCKED", {
+            "user_id": user.get("id"),
+            "violations": violations,
+            "topic": data.topic[:100]
+        }, "WARNING")
+        raise HTTPException(status_code=400, detail=f"Content blocked: {violation_msg}")
+    
     # Check if user has subscription or free credits
     user_credits = user.get("credits", 0)
     user_subscription = user.get("subscription")
