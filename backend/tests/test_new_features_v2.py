@@ -369,6 +369,8 @@ class TestMLThreatDetection:
         
         if response.status_code == 400 and "credits" in response.text.lower():
             pytest.skip("Insufficient credits")
+        if response.status_code == 402:
+            pytest.skip("Insufficient credits (402 Payment Required)")
         
         assert response.status_code == 200, f"Safe content should be allowed: {response.text}"
         print(f"✓ Safe content correctly allowed")
