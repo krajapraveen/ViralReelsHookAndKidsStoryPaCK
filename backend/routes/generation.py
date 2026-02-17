@@ -85,13 +85,11 @@ async def generate_story_content_inline(data: dict) -> dict:
     
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
-        model="gemini",
-        model_name="gemini-2.0-flash",
-        system_message=STORY_SYSTEM_PROMPT,
-        session_id=f"story-{unique_id}"
-    )
+        session_id=f"story-{unique_id}",
+        system_message=STORY_SYSTEM_PROMPT
+    ).with_model("gemini", "gemini-3-flash-preview")
     
-    response = await chat.send_message_async(UserMessage(text=prompt))
+    response = await chat.send_message(UserMessage(text=prompt))
     
     # Parse JSON response
     response_text = response.strip()
