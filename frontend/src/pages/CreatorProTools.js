@@ -77,7 +77,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Hook analyzed!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Analysis failed');
+      toast.error(getErrorMessage(error, 'Analysis failed'));
     } finally {
       setLoading(false);
     }
@@ -91,7 +91,7 @@ export default function CreatorProTools() {
       fetchCredits();
       toast.success('Swipe file loaded!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to load swipe file');
+      toast.error(getErrorMessage(error, 'Failed to load swipe file'));
     } finally {
       setLoading(false);
     }
