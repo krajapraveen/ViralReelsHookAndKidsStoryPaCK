@@ -2048,6 +2048,34 @@ async def track_event(event: str):
     """Public analytics tracking endpoint"""
     return {"status": "ok"}
 
+@admin_router.get("/story-templates/stats")
+async def get_story_template_stats(user: dict = Depends(get_current_user)):
+    """Get story template statistics (admin only)"""
+    if user.get("role") != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get template counts by genre
+    pipeline = [
+        {"$group": {"_id": "$genre", "count": {"$sum": 1}, "totalUsage": {"$sum": "$usageCount"}}}
+    ]
+    genre_stats = await db.story_templates.aggregate(pipeline).to_list(100)
+    
+    # Get template counts by age group
+    pipeline = [
+        {"$group": {"_id": "$ageGroup", "count": {"$sum": 1}}}
+    ]
+    age_stats = await db.story_templates.aggregate(pipeline).to_list(100)
+    
+    total_templates = await db.story_templates.count_documents({})
+    total_usage = sum(s.get("totalUsage", 0) for s in genre_stats)
+    
+    return {
+        "totalTemplates": total_templates,
+        "totalUsage": total_usage,
+        "byGenre": {s["_id"]: {"count": s["count"], "usage": s.get("totalUsage", 0)} for s in genre_stats},
+        "byAgeGroup": {s["_id"]: s["count"] for s in age_stats}
+    }
+
 # ==================== HEALTH ROUTES ====================
 
 @health_router.get("/")
