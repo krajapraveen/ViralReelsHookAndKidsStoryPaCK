@@ -215,6 +215,8 @@ export default function AdminDashboard() {
             {activeTab === 'visitors' && <VisitorsTab visitors={visitors} />}
             {activeTab === 'features' && <FeaturesTab featureUsage={featureUsage} />}
             {activeTab === 'payments' && <PaymentsTab payments={payments} />}
+            {activeTab === 'payment-monitoring' && <PaymentMonitoringTab />}
+            {activeTab === 'exceptions' && <ExceptionMonitoringTab />}
             {activeTab === 'satisfaction' && <SatisfactionTab satisfaction={satisfaction} />}
             {activeTab === 'feature-requests' && (
               <FeatureRequestsTab data={featureRequests} onUpdateStatus={updateFeatureStatus} />
