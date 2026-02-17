@@ -137,6 +137,9 @@ export default function StoryGenerator() {
     setResult(null);
     setGenerationId(null);
     setPolling(false);
+    setWorksheetResult(null);  // Reset worksheet
+    setShowPersonalization(false);  // Reset personalization
+    setPersonalization({ child_name: '', dedication: '' });
     setLoading(true);
     
     try {
