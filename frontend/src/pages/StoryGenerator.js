@@ -651,7 +651,29 @@ export default function StoryGenerator() {
                       )}
                     </div>
                     
-                    <div className="flex items-center justify-between">
+                    {/* PDF Progress Bar - Full Width */}
+                    {printableLoading && (
+                      <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                        <div className="flex justify-between text-sm text-purple-700 mb-2">
+                          <span className="font-medium">{pdfProgress.message}</span>
+                          <span className="font-bold">{Math.min(pdfProgress.step * 25, 100)}%</span>
+                        </div>
+                        <div className="w-full bg-purple-100 rounded-full h-3 overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${Math.min(pdfProgress.step * 25, 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-slate-500 mt-2">
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 1 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Prepare</span>
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 2 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Render</span>
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 3 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Generate</span>
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 4 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Download</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between mt-3">
                       <span className="text-sm text-orange-700 font-semibold flex items-center gap-1">
                         <Coins className="w-4 h-4" /> {showPersonalization ? '6' : '4'} credits
                       </span>
