@@ -101,8 +101,6 @@ export default function ImageToVideo() {
     setResult(null);
 
     try {
-      setProgress({ step: 2, message: 'Animating with Sora 2 AI...' });
-      
       const formData = new FormData();
       formData.append('image', selectedImage);
       formData.append('motion_prompt', motionPrompt.trim());
@@ -114,16 +112,48 @@ export default function ImageToVideo() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setProgress({ step: 3, message: 'Video generated!' });
+      const jobId = response.data.jobId;
       setCredits(response.data.remainingCredits);
-      setResult(response.data);
-      toast.success('Video generated successfully!');
+      setProgress({ step: 2, message: 'Analyzing image & generating video... (1-3 min)' });
+      
+      // Poll for job completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await api.get(`/api/genstudio/job/${jobId}`);
+          const job = statusRes.data;
+          
+          if (job.status === 'completed') {
+            clearInterval(pollInterval);
+            setProgress({ step: 3, message: 'Video generated!' });
+            setResult({
+              ...response.data,
+              status: 'completed',
+              outputUrls: job.outputUrls
+            });
+            toast.success('Video generated successfully!');
+            setGenerating(false);
+          } else if (job.status === 'failed') {
+            clearInterval(pollInterval);
+            toast.error(job.error || 'Video generation failed');
+            setGenerating(false);
+          }
+        } catch (pollError) {
+          console.error('Polling error:', pollError);
+        }
+      }, 5000);
+      
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (generating) {
+          toast.error('Video generation timed out. Check history for status.');
+          setGenerating(false);
+        }
+      }, 600000);
 
     } catch (error) {
       console.error('Generation error:', error);
       const message = error.response?.data?.detail || 'Generation failed';
       toast.error(message);
-    } finally {
       setGenerating(false);
       setProgress({ step: 0, message: '' });
     }
