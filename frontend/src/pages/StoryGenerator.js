@@ -282,15 +282,13 @@ export default function StoryGenerator() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div><Label>Age Group <span className="text-red-500">*</span></Label>
                   <Select value={formData.ageGroup} onValueChange={(value) => setFormData({...formData, ageGroup: value})}>
-                    <SelectTrigger className={!formData.ageGroup ? 'border-orange-300' : ''}>
+                    <SelectTrigger className={!formData.ageGroup ? 'border-orange-300' : ''} data-testid="story-age-select">
                       <SelectValue placeholder="Select age group" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="3-5">3-5 years (Preschool)</SelectItem>
+                      <SelectItem value="4-6">4-6 years (Preschool)</SelectItem>
                       <SelectItem value="6-8">6-8 years (Early Elementary)</SelectItem>
-                      <SelectItem value="9-12">9-12 years (Middle Childhood)</SelectItem>
-                      <SelectItem value="13-15">13-15 years (Early Teens)</SelectItem>
-                      <SelectItem value="16-17">16-17 years (Late Teens)</SelectItem>
+                      <SelectItem value="8-10">8-10 years (Middle Childhood)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
