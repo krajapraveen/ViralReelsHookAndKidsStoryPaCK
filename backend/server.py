@@ -2186,6 +2186,18 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
     # Get recent payments
     recent_payments = await db.orders.find({"status": "PAID"}, {"_id": 0}).sort("createdAt", -1).limit(10).to_list(10)
     
+    # Get exception stats
+    total_exceptions = await db.exception_logs.count_documents({})
+    unresolved_exceptions = await db.exception_logs.count_documents({"resolved": False})
+    critical_exceptions = await db.exception_logs.count_documents({"severity": "CRITICAL", "resolved": False})
+    
+    # Get payment stats
+    successful_payments = await db.payment_logs.count_documents({"status": {"$in": ["SUCCESS", "PAID"]}})
+    successful_payments += await db.orders.count_documents({"status": "PAID"})
+    failed_payments = await db.payment_logs.count_documents({"status": "FAILED"})
+    refunded_payments = await db.payment_logs.count_documents({"status": "REFUNDED"})
+    refunded_payments += await db.orders.count_documents({"status": "REFUNDED"})
+    
     return {
         "success": True,
         "data": {
@@ -2215,12 +2227,15 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
             "payments": {
                 "totalTransactions": len(paid_orders),
                 "successfulTransactions": len(paid_orders),
-                "failedTransactions": 0,
+                "failedTransactions": failed_payments,
                 "pendingTransactions": 0,
-                "successRate": 100,
+                "successRate": 100 if failed_payments == 0 else round(len(paid_orders) / (len(paid_orders) + failed_payments) * 100, 1),
                 "planBreakdown": [],
                 "failureReasons": [],
-                "dailyRevenueTrend": [{"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "revenue": random.randint(0, 500), "count": random.randint(0, 5)} for i in range(10)]
+                "dailyRevenueTrend": [{"date": (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"), "revenue": random.randint(0, 500), "count": random.randint(0, 5)} for i in range(10)],
+                "successful": successful_payments,
+                "failed": failed_payments,
+                "refunded": refunded_payments
             },
             "satisfaction": {
                 "satisfactionPercentage": 85,
@@ -2236,6 +2251,11 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
                 "storyGenerations": await db.generations.count_documents({"type": "STORY"}),
                 "successRate": 95,
                 "creditsUsed": random.randint(100, 500)
+            },
+            "exceptions": {
+                "total": total_exceptions,
+                "unresolved": unresolved_exceptions,
+                "critical": critical_exceptions
             },
             "recentActivity": {
                 "recentUsers": recent_users,
