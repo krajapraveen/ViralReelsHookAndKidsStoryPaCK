@@ -4023,9 +4023,6 @@ async def remix_video(
         if add_watermark or user.get("plan") == "free":
             full_prompt += " Include subtle 'GenStudio' watermark."
         
-        # Read video as base64 for remix
-        video_data = base64.b64encode(video_content).decode('utf-8')
-        
         # Generate remixed video - NOTE: Sora 2 may not support direct video remix
         # Fall back to text-to-video with the remix prompt for now
         video_bytes = video_gen.text_to_video(
