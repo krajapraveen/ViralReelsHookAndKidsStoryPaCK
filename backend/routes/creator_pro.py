@@ -321,7 +321,7 @@ async def get_swipe_file(
 
 
 # =============================================================================
-# 3. BIO GENERATOR
+# 3. BIO GENERATOR (AI-POWERED)
 # =============================================================================
 @router.post("/bio-generator")
 async def generate_bio(
@@ -331,46 +331,77 @@ async def generate_bio(
     platform: str = Form("instagram"),
     user: dict = Depends(get_current_user)
 ):
-    """Generate optimized social media bio - 3 credits"""
+    """Generate AI-powered social media bios - 3 credits"""
     cost = PRO_COSTS["bio_generator"]
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
     keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
-    templates = BIO_TEMPLATES.get(tone, BIO_TEMPLATES["professional"])
-    
-    # Generate multiple bio options
-    bios = []
-    for template in templates:
-        bio = template.format(
-            profession=profession,
-            audience=keywords_list[0] if keywords_list else "people",
-            outcome=keywords_list[1] if len(keywords_list) > 1 else "achieve their goals",
-            specialization=keywords_list[0] if keywords_list else "expert tips",
-            achievement="10K+ helped" if random.random() > 0.5 else "Featured creator",
-            unique_value=f"Daily {profession.lower()} tips",
-            content_type=f"{profession.lower()} content",
-            cta="Link below ⬇️",
-            hobby=keywords_list[-1] if keywords_list else "creator",
-            vibe="Living the dream ✨",
-            passion=keywords_list[0] if keywords_list else "growth",
-            location="🌍 Global",
-            side_interest="coffee addict ☕",
-            tagline="Building something special",
-            one_line_value=f"Making {profession.lower()} simple",
-            what_you_do=f"I help with {profession.lower()}",
-            result="results",
-            goal="make an impact",
-            bold_claim=f"actually delivers results",
-            transformation="better",
-            year="2024",
-            differentiator="Results speak louder"
-        )
-        bios.append(bio)
-    
-    # Character count for each platform
     char_limits = {"instagram": 150, "twitter": 160, "tiktok": 80, "linkedin": 220}
     limit = char_limits.get(platform, 150)
+    
+    # Try AI generation first
+    ai_bios = []
+    if AI_AVAILABLE:
+        prompt = f"""Generate 5 unique social media bios for a {profession}.
+Platform: {platform} (max {limit} characters each)
+Tone: {tone}
+Keywords to include: {', '.join(keywords_list) if keywords_list else 'none specified'}
+
+Requirements:
+- Each bio must be under {limit} characters
+- Use emojis strategically
+- Include a clear value proposition
+- Match the {tone} tone
+- Be creative and unique
+
+Return ONLY a JSON array of 5 bio strings, no explanations:
+["bio1", "bio2", "bio3", "bio4", "bio5"]"""
+        
+        ai_response = await generate_ai_content(
+            prompt,
+            "You are an expert social media copywriter who creates viral bios that convert."
+        )
+        
+        if ai_response:
+            try:
+                # Parse JSON from response
+                import re
+                json_match = re.search(r'\[.*?\]', ai_response, re.DOTALL)
+                if json_match:
+                    ai_bios = json.loads(json_match.group())
+            except Exception as e:
+                logger.warning(f"Failed to parse AI bios: {e}")
+    
+    # Fallback to templates if AI fails
+    if not ai_bios:
+        templates = BIO_TEMPLATES.get(tone, BIO_TEMPLATES["professional"])
+        for template in templates:
+            bio = template.format(
+                profession=profession,
+                audience=keywords_list[0] if keywords_list else "people",
+                outcome=keywords_list[1] if len(keywords_list) > 1 else "achieve their goals",
+                specialization=keywords_list[0] if keywords_list else "expert tips",
+                achievement="10K+ helped" if random.random() > 0.5 else "Featured creator",
+                unique_value=f"Daily {profession.lower()} tips",
+                content_type=f"{profession.lower()} content",
+                cta="Link below ⬇️",
+                hobby=keywords_list[-1] if keywords_list else "creator",
+                vibe="Living the dream ✨",
+                passion=keywords_list[0] if keywords_list else "growth",
+                location="🌍 Global",
+                side_interest="coffee addict ☕",
+                tagline="Building something special",
+                one_line_value=f"Making {profession.lower()} simple",
+                what_you_do=f"I help with {profession.lower()}",
+                result="results",
+                goal="make an impact",
+                bold_claim=f"actually delivers results",
+                transformation="better",
+                year="2024",
+                differentiator="Results speak louder"
+            )
+            ai_bios.append(bio)
     
     await deduct_credits(user["id"], cost, f"Bio Generator: {platform}")
     
@@ -379,8 +410,9 @@ async def generate_bio(
         "profession": profession,
         "platform": platform,
         "tone": tone,
-        "bios": [{"bio": b, "charCount": len(b), "withinLimit": len(b) <= limit} for b in bios],
+        "bios": [{"bio": b, "charCount": len(b), "withinLimit": len(b) <= limit} for b in ai_bios[:5]],
         "charLimit": limit,
+        "aiPowered": bool(AI_AVAILABLE and ai_bios),
         "tips": [
             f"Keep under {limit} characters for {platform}",
             "Include a clear call-to-action",
