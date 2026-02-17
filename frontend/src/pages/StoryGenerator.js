@@ -371,8 +371,8 @@ export default function StoryGenerator() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="8">8 scenes (6 credits)</SelectItem>
-                    <SelectItem value="10">10 scenes (7 credits)</SelectItem>
-                    <SelectItem value="12">12 scenes (8 credits)</SelectItem>
+                    <SelectItem value="10">10 scenes (10 credits)</SelectItem>
+                    <SelectItem value="12">12 scenes (10 credits)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
