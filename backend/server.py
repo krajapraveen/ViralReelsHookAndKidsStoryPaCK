@@ -3110,23 +3110,29 @@ async def generate_printable_book(generation_id: str, include_activities: bool =
     })
     
     book_id = str(uuid.uuid4())
+    expiry_time = datetime.now(timezone.utc) + timedelta(minutes=5)
+    
     await db.printable_books.insert_one({
         "id": book_id, "userId": user["id"], "storyId": generation_id, "story": story,
         "include_activities": include_activities, "personalization": personalization,
-        "createdAt": datetime.now(timezone.utc).isoformat()
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "expiresAt": expiry_time.isoformat()  # 5-minute expiry
     })
     
     return {
         "success": True, "bookId": book_id, "title": story.get("title"),
         "pages": len(story.get("scenes", [])) + 4, "creditsUsed": credits_needed,
         "remainingCredits": user["credits"] - credits_needed,
-        "downloadUrl": f"/api/story-tools/printable-book/{book_id}/pdf"
+        "downloadUrl": f"/api/story-tools/printable-book/{book_id}/pdf",
+        "expiresAt": expiry_time.isoformat(),
+        "expiryMinutes": 5,
+        "message": "Your PDF download link is active for 5 minutes. Please download within this time."
     }
 
 
 @story_tools_router.get("/printable-book/{book_id}/pdf")
 async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_current_user)):
-    """Download printable story book as professional PDF using HTML templates + Playwright"""
+    """Download printable story book as professional PDF - link expires in 5 minutes"""
     import tempfile
     from pdf_generator import generate_pdf_simple
     
@@ -3136,7 +3142,19 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
     }, {"_id": 0})
     
     if not book_doc:
-        raise HTTPException(status_code=404, detail="Book not found")
+        raise HTTPException(status_code=404, detail="Book not found or download link has expired")
+    
+    # Check if download link has expired
+    expiry_str = book_doc.get("expiresAt")
+    if expiry_str:
+        expiry_time = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) > expiry_time:
+            # Delete the expired record
+            await db.printable_books.delete_one({"id": book_id})
+            raise HTTPException(
+                status_code=410, 
+                detail="Download link has expired. Please generate a new PDF (this will cost credits)."
+            )
     
     story = book_doc.get("story", {})
     
