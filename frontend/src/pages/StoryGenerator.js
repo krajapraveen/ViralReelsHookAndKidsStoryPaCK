@@ -517,6 +517,15 @@ export default function StoryGenerator() {
                   </div>
                 </div>
               )}
+              
+              {/* Video Export Panel */}
+              {showVideoExport && (
+                <VideoExportPanel 
+                  storyId={generationId} 
+                  storyTitle={result.title}
+                  onClose={() => setShowVideoExport(false)}
+                />
+              )}
             </div>}
           </div>
         </div>
