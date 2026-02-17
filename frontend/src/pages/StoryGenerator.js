@@ -170,7 +170,14 @@ export default function StoryGenerator() {
         toast.success('Story generation started! This may take 30-90 seconds.');
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
+      console.error('Story generation error:', error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Generation failed. Please try again.';
+      toast.error(errorMessage);
+      
+      // If it's a template not found error, suggest trying a different combination
+      if (errorMessage.includes('template') || errorMessage.includes('matching')) {
+        toast.info('Try selecting a different age group or genre combination');
+      }
     } finally {
       setLoading(false);
     }
