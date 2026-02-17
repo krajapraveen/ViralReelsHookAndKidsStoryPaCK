@@ -1194,6 +1194,32 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
             "genre": data.genre if data.genre != "Custom" else {"$exists": True}
         }, {"_id": 0})
         
+        # Fallback 1: If no exact match, try any template for this age group
+        if not template:
+            logger.info(f"No exact match for {data.ageGroup}/{data.genre}, trying any template for age group")
+            template = await db.story_templates.find_one({
+                "ageGroup": data.ageGroup
+            }, {"_id": 0})
+        
+        # Fallback 2: If still no match, try a nearby age group
+        if not template:
+            logger.info(f"No template for {data.ageGroup}, trying nearby age groups")
+            age_fallbacks = {
+                "4-6": ["6-8", "8-10"],
+                "6-8": ["4-6", "8-10"],
+                "8-10": ["6-8", "10-13"],
+                "10-13": ["8-10", "13-15"],
+                "13-15": ["10-13", "15-17"],
+                "15-17": ["13-15", "10-13"]
+            }
+            for fallback_age in age_fallbacks.get(data.ageGroup, []):
+                template = await db.story_templates.find_one({
+                    "ageGroup": fallback_age
+                }, {"_id": 0})
+                if template:
+                    logger.info(f"Using fallback age group {fallback_age}")
+                    break
+        
         if template:
             # Generate random character names for uniqueness
             hero_names = ["Max", "Luna", "Leo", "Maya", "Sam", "Zoe", "Jack", "Lily", "Finn", "Emma", "Oliver", "Ava", "Noah", "Mia", "Ethan", "Sophie"]
