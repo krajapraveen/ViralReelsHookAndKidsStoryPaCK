@@ -3731,11 +3731,55 @@ CONTENT_VAULT_HOOKS = [
 ]
 
 REEL_STRUCTURES = [
-    {"id": 1, "name": "Hook-Problem-Solution", "structure": ["Hook (0-3s)", "Problem", "Solution", "CTA"]},
-    {"id": 2, "name": "Storytime", "structure": ["Teaser", "Background", "Climax", "Resolution"]},
-    {"id": 3, "name": "List Format", "structure": ["Big claim", "Point 1-3", "Bonus", "CTA"]},
-    {"id": 4, "name": "Before/After", "structure": ["Show after", "Rewind", "Transformation", "CTA"]},
-    {"id": 5, "name": "POV Style", "structure": ["POV setup", "Scenario", "Twist", "Resolution"]},
+    {"id": 1, "name": "Hook-Problem-Solution", "structure": ["Hook (0-3s)", "Problem", "Solution", "CTA"], "best_for": "Tips, tutorials, advice content"},
+    {"id": 2, "name": "Storytime", "structure": ["Teaser", "Background", "Climax", "Resolution"], "best_for": "Personal stories, transformations"},
+    {"id": 3, "name": "List Format", "structure": ["Big claim", "Point 1-3", "Bonus", "CTA"], "best_for": "Listicles, rankings, comparisons"},
+    {"id": 4, "name": "Before/After", "structure": ["Show after", "Rewind", "Transformation", "CTA"], "best_for": "Fitness, makeovers, renovations"},
+    {"id": 5, "name": "POV Style", "structure": ["POV setup", "Scenario", "Twist", "Resolution"], "best_for": "Relatable comedy, niche humor"},
+    {"id": 6, "name": "Educational Drop", "structure": ["Surprising fact", "Why it matters", "Deeper insight", "Takeaway"], "best_for": "Facts, myths, science content"},
+    {"id": 7, "name": "Day in Life", "structure": ["Wake up", "Morning routine", "Work/Activity", "Evening wind-down"], "best_for": "Lifestyle, productivity, routines"},
+    {"id": 8, "name": "Challenge Format", "structure": ["Challenge intro", "Attempt 1", "Attempt 2", "Final result"], "best_for": "Viral challenges, experiments"},
+]
+
+# Kids Story Themes for Content Vault
+KIDS_STORY_THEMES = [
+    {"id": 1, "theme": "Friendship & Kindness", "age_group": "3-5 years", "moral": "True friends help each other in times of need"},
+    {"id": 2, "theme": "Courage & Bravery", "age_group": "4-7 years", "moral": "Being brave doesn't mean not being scared, it means facing your fears"},
+    {"id": 3, "theme": "Honesty & Truth", "age_group": "4-8 years", "moral": "Telling the truth is always the right choice, even when it's hard"},
+    {"id": 4, "theme": "Sharing & Generosity", "age_group": "3-5 years", "moral": "Sharing brings more happiness than keeping things to yourself"},
+    {"id": 5, "theme": "Perseverance & Hard Work", "age_group": "5-8 years", "moral": "If you keep trying, you can achieve anything"},
+    {"id": 6, "theme": "Respect for Elders", "age_group": "4-7 years", "moral": "Elders have wisdom we can learn from"},
+    {"id": 7, "theme": "Environmental Care", "age_group": "5-9 years", "moral": "Taking care of nature is taking care of ourselves"},
+    {"id": 8, "theme": "Teamwork & Cooperation", "age_group": "4-8 years", "moral": "Together we can accomplish more than alone"},
+    {"id": 9, "theme": "Patience & Waiting", "age_group": "3-6 years", "moral": "Good things come to those who wait"},
+    {"id": 10, "theme": "Self-Confidence", "age_group": "5-9 years", "moral": "Believe in yourself and you can do amazing things"},
+    {"id": 11, "theme": "Gratitude & Thankfulness", "age_group": "3-7 years", "moral": "Being thankful makes us happier"},
+    {"id": 12, "theme": "Accepting Differences", "age_group": "4-8 years", "moral": "Everyone is special in their own way"},
+    {"id": 13, "theme": "Curiosity & Learning", "age_group": "4-9 years", "moral": "Asking questions helps us grow smarter"},
+    {"id": 14, "theme": "Responsibility", "age_group": "5-9 years", "moral": "Taking care of our duties makes us trustworthy"},
+    {"id": 15, "theme": "Forgiveness", "age_group": "4-8 years", "moral": "Forgiving others brings peace to our hearts"},
+]
+
+# Moral Templates for Story Generation
+MORAL_TEMPLATES = [
+    {"id": 1, "theme": "Friendship", "moral": "A friend in need is a friend indeed."},
+    {"id": 2, "theme": "Honesty", "moral": "Honesty is the best policy, even when it's difficult."},
+    {"id": 3, "theme": "Kindness", "moral": "Small acts of kindness can make a big difference."},
+    {"id": 4, "theme": "Courage", "moral": "Courage is not the absence of fear, but acting despite it."},
+    {"id": 5, "theme": "Hard Work", "moral": "With hard work and dedication, dreams come true."},
+    {"id": 6, "theme": "Sharing", "moral": "The more you share, the more you receive."},
+    {"id": 7, "theme": "Respect", "moral": "Treat others the way you want to be treated."},
+    {"id": 8, "theme": "Patience", "moral": "Patience is a virtue that leads to great rewards."},
+    {"id": 9, "theme": "Gratitude", "moral": "Being grateful opens the door to more blessings."},
+    {"id": 10, "theme": "Teamwork", "moral": "Together everyone achieves more."},
+    {"id": 11, "theme": "Perseverance", "moral": "Never give up, for success is just around the corner."},
+    {"id": 12, "theme": "Humility", "moral": "True greatness lies in being humble."},
+    {"id": 13, "theme": "Empathy", "moral": "Understanding others helps us understand ourselves."},
+    {"id": 14, "theme": "Responsibility", "moral": "Taking responsibility shows true character."},
+    {"id": 15, "theme": "Forgiveness", "moral": "Forgiveness sets both the forgiver and forgiven free."},
+    {"id": 16, "theme": "Self-belief", "moral": "Believe in yourself and others will believe in you too."},
+    {"id": 17, "theme": "Nature", "moral": "When we care for nature, nature cares for us."},
+    {"id": 18, "theme": "Learning", "moral": "Every mistake is a lesson in disguise."},
 ]
 
 PLAN_ACCESS = {
