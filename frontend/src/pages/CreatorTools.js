@@ -610,57 +610,132 @@ export default function CreatorTools() {
 
           {/* Convert Tab */}
           <TabsContent value="convert">
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                <RefreshCw className="w-6 h-6 text-indigo-500" />
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <h2 className="text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                <RefreshCw className="w-6 h-6 text-indigo-600" />
                 Convert Content
               </h2>
-              <p className="text-slate-500 mb-6">Repurpose your content across formats</p>
+              <p className="text-slate-500 mb-6">Repurpose your existing content into new formats</p>
               
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-                  <h3 className="font-bold mb-2">Reel → Carousel</h3>
-                  <p className="text-sm text-slate-600 mb-3">Convert your reel script into a carousel post</p>
-                  <p className="text-xs text-indigo-600 font-medium">1 credit</p>
-                  <Link to="/app/history">
-                    <Button variant="outline" size="sm" className="mt-2 w-full">
-                      Select from History
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Reel to Carousel */}
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <LayoutGrid className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Reel → Carousel</h3>
+                      <span className="text-xs text-indigo-600 font-medium bg-indigo-100 px-2 py-0.5 rounded-full">1 credit</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-4">Convert your viral reel script into a 5-10 slide Instagram carousel with captions</p>
+                  <div className="flex items-center gap-2">
+                    <Select defaultValue="">
+                      <SelectTrigger className="flex-1 bg-white" data-testid="convert-reel-carousel-select">
+                        <SelectValue placeholder="Select a reel to convert" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="recent">Use most recent reel</SelectItem>
+                        <SelectItem value="history">Browse from history...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button className="bg-indigo-600 hover:bg-indigo-700" size="sm" data-testid="convert-reel-carousel-btn">
+                      Convert
                     </Button>
-                  </Link>
+                  </div>
                 </div>
                 
-                <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-                  <h3 className="font-bold mb-2">Reel → YouTube</h3>
-                  <p className="text-sm text-slate-600 mb-3">Expand your reel into a full YouTube script</p>
-                  <p className="text-xs text-indigo-600 font-medium">2 credits</p>
-                  <Link to="/app/history">
-                    <Button variant="outline" size="sm" className="mt-2 w-full">
-                      Select from History
+                {/* Reel to YouTube */}
+                <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-5 border border-red-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-red-100 rounded-lg">
+                      <Video className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Reel → YouTube</h3>
+                      <span className="text-xs text-red-600 font-medium bg-red-100 px-2 py-0.5 rounded-full">2 credits</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-4">Expand your 60-second reel into a full 8-10 minute YouTube video script</p>
+                  <div className="flex items-center gap-2">
+                    <Select defaultValue="">
+                      <SelectTrigger className="flex-1 bg-white" data-testid="convert-reel-youtube-select">
+                        <SelectValue placeholder="Select a reel to expand" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="recent">Use most recent reel</SelectItem>
+                        <SelectItem value="history">Browse from history...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button className="bg-red-600 hover:bg-red-700" size="sm" data-testid="convert-reel-youtube-btn">
+                      Expand
                     </Button>
-                  </Link>
+                  </div>
                 </div>
                 
-                <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-                  <h3 className="font-bold mb-2">Story → Reel</h3>
-                  <p className="text-sm text-slate-600 mb-3">Convert your kids story into a short reel</p>
-                  <p className="text-xs text-indigo-600 font-medium">1 credit</p>
-                  <Link to="/app/history">
-                    <Button variant="outline" size="sm" className="mt-2 w-full">
-                      Select from History
+                {/* Story to Reel */}
+                <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl p-5 border border-pink-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-pink-100 rounded-lg">
+                      <BookOpen className="w-5 h-5 text-pink-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Story → Reel</h3>
+                      <span className="text-xs text-pink-600 font-medium bg-pink-100 px-2 py-0.5 rounded-full">1 credit</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-4">Convert your kids story into a short parenting reel about the moral/lesson</p>
+                  <div className="flex items-center gap-2">
+                    <Select defaultValue="">
+                      <SelectTrigger className="flex-1 bg-white" data-testid="convert-story-reel-select">
+                        <SelectValue placeholder="Select a story to convert" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="recent">Use most recent story</SelectItem>
+                        <SelectItem value="history">Browse from history...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button className="bg-pink-600 hover:bg-pink-700" size="sm" data-testid="convert-story-reel-btn">
+                      Convert
                     </Button>
-                  </Link>
+                  </div>
                 </div>
                 
-                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                  <h3 className="font-bold mb-2">Story → Quote</h3>
-                  <p className="text-sm text-slate-600 mb-3">Generate shareable moral quotes</p>
-                  <p className="text-xs text-green-600 font-medium">FREE</p>
-                  <Link to="/app/history">
-                    <Button variant="outline" size="sm" className="mt-2 w-full">
-                      Select from History
+                {/* Story to Quote */}
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-5 border border-emerald-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-emerald-100 rounded-lg">
+                      <MessageSquare className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Story → Quote</h3>
+                      <span className="text-xs text-emerald-600 font-medium bg-emerald-100 px-2 py-0.5 rounded-full">FREE</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-4">Generate shareable moral quotes and wisdom from your kids story</p>
+                  <div className="flex items-center gap-2">
+                    <Select defaultValue="">
+                      <SelectTrigger className="flex-1 bg-white" data-testid="convert-story-quote-select">
+                        <SelectValue placeholder="Select a story" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="recent">Use most recent story</SelectItem>
+                        <SelectItem value="history">Browse from history...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700" size="sm" data-testid="convert-story-quote-btn">
+                      Generate
                     </Button>
-                  </Link>
+                  </div>
                 </div>
+              </div>
+              
+              {/* Coming Soon */}
+              <div className="mt-6 bg-slate-50 rounded-lg p-4 border border-dashed border-slate-300">
+                <p className="text-sm text-slate-500 text-center">
+                  🚀 Coming Soon: Carousel → Thread, YouTube → Shorts, Story → Audiobook
+                </p>
               </div>
             </div>
           </TabsContent>
