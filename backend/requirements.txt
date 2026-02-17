@@ -139,3 +139,4 @@ ffmpeg-python==0.2.0
 imageio-ffmpeg==0.6.0
 moviepy==2.2.1
 playwright==1.58.0
+PyPDF2==3.0.1
