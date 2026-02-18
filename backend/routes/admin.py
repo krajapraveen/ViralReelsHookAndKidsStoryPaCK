@@ -479,6 +479,7 @@ async def get_alert_status():
 # =============================================================================
 # USER MANAGEMENT
 # =============================================================================
+@router.get("/users")
 @router.get("/users/list")
 async def get_all_users(
     page: int = 0,
