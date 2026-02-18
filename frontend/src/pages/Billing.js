@@ -20,8 +20,17 @@ export default function Billing() {
         paymentAPI.getProducts(),
         creditAPI.getBalance()
       ]);
-      const productsData = productsRes?.data?.products || productsRes?.data || [];
-      setProducts(Array.isArray(productsData) ? productsData : []);
+      
+      // Convert products object to array with id and type
+      const productsData = productsRes?.data?.products || {};
+      const productsArray = Object.entries(productsData).map(([id, product]) => ({
+        id,
+        ...product,
+        type: product.period ? 'SUBSCRIPTION' : 'ONE_TIME',
+        interval: product.period === 'quarterly' ? 'quarter' : product.period === 'yearly' ? 'year' : null
+      }));
+      
+      setProducts(productsArray);
       setCredits(creditsRes?.data?.balance || 0);
     } catch (error) {
       console.error('Billing fetch error:', error);
