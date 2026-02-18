@@ -23,12 +23,14 @@ from models.schemas import CreateOrderRequest, VerifyPaymentRequest
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
-# Product definitions
+# Product definitions - Cashfree Only (Razorpay removed)
 PRODUCTS = {
     "starter": {"name": "Starter Pack", "credits": 100, "price": 499, "popular": False},
     "creator": {"name": "Creator Pack", "credits": 300, "price": 999, "popular": True},
     "pro": {"name": "Pro Pack", "credits": 1000, "price": 2499, "popular": False},
-    "quarterly": {"name": "Quarterly Subscription", "credits": 500, "price": 1999, "popular": False, "period": "quarterly"},
+    "weekly": {"name": "Weekly Subscription", "credits": 50, "price": 199, "popular": False, "period": "weekly", "savings": "10%"},
+    "monthly": {"name": "Monthly Subscription", "credits": 200, "price": 699, "popular": False, "period": "monthly", "savings": "20%"},
+    "quarterly": {"name": "Quarterly Subscription", "credits": 500, "price": 1999, "popular": False, "period": "quarterly", "savings": "35%"},
     "yearly": {"name": "Yearly Subscription", "credits": 2500, "price": 5999, "popular": True, "period": "yearly", "savings": "50%"},
 }
 
