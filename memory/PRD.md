@@ -89,6 +89,12 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 Full QA reports:
 - `/app/test_reports/QA_COMPREHENSIVE_REPORT.md`
 - `/app/test_reports/MASTER_QA_REPORT_CONSOLIDATED.md`
+- `/app/test_reports/LANDING_PAGE_QA_REPORT.md`
+
+### Landing Page QA Fixes (Feb 18, 2026):
+1. **Contact Form API** - Fixed endpoint from `/api/contact` to `/api/feedback/contact`
+2. **AI Chatbot API** - Fixed endpoint from `/api/chatbot/message` to `/api/feedback/chatbot`
+3. **AI Chatbot Intelligence** - Added Gemini AI integration for intelligent responses
 
 ## Test Credentials
 - **Demo User**: demo@example.com / Password123!
