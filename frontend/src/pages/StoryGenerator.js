@@ -775,17 +775,17 @@ export default function StoryGenerator() {
                 
                 {/* Worksheet Result */}
                 {worksheetResult && (
-                  <div className="mt-4 bg-white rounded-lg p-4 border border-amber-200">
+                  <div className="mt-4 bg-slate-900/50 rounded-xl p-4 border border-amber-500/30">
                     <div className="flex items-center justify-between mb-4">
-                      <h5 className="font-bold flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-amber-600" />
+                      <h5 className="font-bold text-white flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-amber-400" />
                         Interactive Worksheet: {worksheetResult.story_title}
                       </h5>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setShowAnswers(!showAnswers)}
-                        className="flex items-center gap-1"
+                        className="flex items-center gap-1 border-slate-600 text-slate-300 hover:bg-slate-700"
                       >
                         {showAnswers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         {showAnswers ? 'Hide Answers' : 'Show Answers'}
@@ -794,10 +794,10 @@ export default function StoryGenerator() {
                     
                     <div className="space-y-6">
                       {/* Fill in the Blanks - Interactive */}
-                      <div className="bg-amber-50 rounded-lg p-4">
-                        <h6 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                        <h6 className="font-semibold text-sm mb-3 flex items-center gap-2 text-amber-300">
                           ✏️ Fill in the Blanks
-                          <span className="text-xs text-slate-500">(Type your answers and check)</span>
+                          <span className="text-xs text-slate-400">(Type your answers and check)</span>
                         </h6>
                         <div className="space-y-4">
                           {worksheetResult.fill_blanks?.map((fb, i) => {
@@ -808,14 +808,14 @@ export default function StoryGenerator() {
                             return (
                               <div key={i} className="space-y-2">
                                 <div className="flex items-start gap-2">
-                                  <span className="font-medium text-amber-700 mt-2">{fb.number}.</span>
+                                  <span className="font-medium text-amber-400 mt-2">{fb.number}.</span>
                                   <div className="flex-1">
-                                    <p className="text-sm text-slate-700 mb-2">
+                                    <p className="text-sm text-slate-200 mb-2">
                                       {fb.sentence.split('_______')[0]}
                                       <Input
-                                        className={`inline-block w-40 mx-1 text-center ${
-                                          result === true ? 'border-green-500 bg-green-50' :
-                                          result === false ? 'border-red-500 bg-red-50' : ''
+                                        className={`inline-block w-40 mx-1 text-center bg-slate-800 border-slate-600 text-white ${
+                                          result === true ? 'border-emerald-500 bg-emerald-500/20' :
+                                          result === false ? 'border-red-500 bg-red-500/20' : ''
                                         }`}
                                         placeholder="your answer"
                                         value={userAnswer}
@@ -829,28 +829,26 @@ export default function StoryGenerator() {
                                     
                                     {/* Validation result */}
                                     {result === true && (
-                                      <div className="flex items-center gap-1 text-green-600 text-sm">
+                                      <div className="flex items-center gap-1 text-emerald-400 text-sm">
                                         <CheckCircle className="w-4 h-4" />
-                                        <span>Correct!</span>
+                                        <span>Correct! Well done!</span>
                                       </div>
                                     )}
                                     {result === false && (
                                       <div className="text-sm">
-                                        <div className="flex items-center gap-1 text-red-600">
+                                        <div className="flex items-center gap-1 text-red-400">
                                           <XCircle className="w-4 h-4" />
                                           <span>Not quite right</span>
                                         </div>
-                                        {showAnswers && (
-                                          <p className="text-green-700 mt-1">
-                                            <strong>Correct answer:</strong> {correctAnswer}
-                                          </p>
-                                        )}
+                                        <p className="text-emerald-400 mt-1">
+                                          <strong>Correct answer:</strong> {correctAnswer}
+                                        </p>
                                       </div>
                                     )}
                                     
                                     {/* Show answer when toggled */}
                                     {showAnswers && result === undefined && (
-                                      <p className="text-sm text-blue-600 mt-1">
+                                      <p className="text-sm text-blue-400 mt-1">
                                         <strong>Answer:</strong> {correctAnswer}
                                       </p>
                                     )}
@@ -865,37 +863,41 @@ export default function StoryGenerator() {
                         <div className="mt-4 flex gap-2">
                           <Button
                             size="sm"
-                            className="bg-amber-500 hover:bg-amber-600"
+                            className="bg-amber-600 hover:bg-amber-700"
                             onClick={() => {
                               const newResults = {};
+                              let allCorrect = true;
                               worksheetResult.fill_blanks?.forEach((fb, i) => {
                                 const userAnswer = (fillBlankAnswers[i] || '').toLowerCase().trim();
                                 const correctAnswer = (fb.answer || '').toLowerCase().trim();
                                 
-                                // Strict validation - must match exactly or be very close
                                 // Normalize both answers for comparison
-                                const normalizeAnswer = (str) => str.replace(/[^a-z0-9]/g, '').toLowerCase();
+                                const normalizeAnswer = (str) => str.replace(/[^a-z0-9\s]/g, '').toLowerCase().trim();
                                 const normalizedUser = normalizeAnswer(userAnswer);
                                 const normalizedCorrect = normalizeAnswer(correctAnswer);
                                 
-                                // Check for exact match or if user answer is at least 80% of correct answer
+                                // Check for exact match or partial match
                                 const isCorrect = normalizedUser.length >= 2 && (
                                   normalizedUser === normalizedCorrect ||
-                                  // Allow slight variations (e.g., "sophie" vs "Sophie")
-                                  (normalizedCorrect.length >= 3 && normalizedUser === normalizedCorrect) ||
-                                  // Allow if the main keyword matches exactly
-                                  (correctAnswer.split(' ').some(word => 
-                                    normalizeAnswer(word).length >= 3 && normalizeAnswer(word) === normalizedUser
-                                  ))
+                                  normalizedCorrect.includes(normalizedUser) ||
+                                  normalizedUser.includes(normalizedCorrect.split(' ')[0])
                                 );
                                 
                                 newResults[i] = isCorrect;
+                                if (!isCorrect) allCorrect = false;
                               });
                               setFillBlankResults(newResults);
                               
                               const correct = Object.values(newResults).filter(v => v === true).length;
                               const total = worksheetResult.fill_blanks?.length || 0;
-                              toast.success(`You got ${correct} out of ${total} correct!`);
+                              
+                              if (allCorrect) {
+                                toast.success('🎉 Well done! All answers are correct!', { duration: 5000 });
+                              } else if (correct > 0) {
+                                toast.info(`You got ${correct} out of ${total} correct. Keep trying!`);
+                              } else {
+                                toast.error(`Try again! Check the answers shown below.`);
+                              }
                             }}
                           >
                             <CheckCircle className="w-4 h-4 mr-1" />
