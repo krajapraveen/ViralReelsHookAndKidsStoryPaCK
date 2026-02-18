@@ -38,56 +38,56 @@ export default function Dashboard() {
   const isAdmin = user?.role === 'ADMIN';
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-purple-600" />
-            <span className="text-xl font-bold text-slate-900">CreatorStudio AI</span>
+            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400" />
+            <span className="text-lg sm:text-xl font-bold text-white">CreatorStudio AI</span>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {isAdmin && (
               <Link to="/app/admin">
-                <Button variant="outline" size="sm" className="border-purple-200 text-purple-700 hover:bg-purple-50" data-testid="admin-dashboard-btn">
-                  <Shield className="w-4 h-4 mr-2" />
-                  Admin Panel
+                <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="admin-dashboard-btn">
+                  <Shield className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Admin Panel</span>
                 </Button>
               </Link>
             )}
             
             <Link to="/app/profile">
-              <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900" data-testid="profile-btn">
-                <User className="w-4 h-4 mr-2" />
-                Profile
+              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800" data-testid="profile-btn">
+                <User className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Profile</span>
               </Button>
             </Link>
             
-            <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-2" data-testid="credit-balance">
-              <Coins className="w-4 h-4 text-purple-600" />
-              <span className="font-semibold text-purple-700">{credits} Credits</span>
+            <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2" data-testid="credit-balance">
+              <Coins className="w-4 h-4 text-indigo-400" />
+              <span className="font-semibold text-indigo-300 text-sm sm:text-base">{credits}</span>
             </div>
             
-            <Button variant="ghost" onClick={handleLogout} className="text-slate-600 hover:text-slate-900" data-testid="logout-btn">
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+            <Button variant="ghost" onClick={handleLogout} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="logout-btn">
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline ml-2">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2" data-testid="dashboard-welcome">Welcome back, {user?.name}!</h1>
-          <p className="text-slate-500 text-lg">What would you like to create today?</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="mb-8 sm:mb-12">
+          <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2" data-testid="dashboard-welcome">Welcome back, {user?.name}!</h1>
+          <p className="text-slate-400 text-base sm:text-lg">What would you like to create today?</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-12">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
           <Link to="/app/reels">
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-8 text-white hover:scale-105 transition-transform cursor-pointer" data-testid="quick-action-reel">
-              <Video className="w-12 h-12 mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Generate Reel Script</h2>
-              <p className="text-indigo-100 mb-4">Create viral reel scripts in 5-10 seconds</p>
+            <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-indigo-500/20" data-testid="quick-action-reel">
+              <Video className="w-10 h-10 sm:w-12 sm:h-12 mb-4" />
+              <h2 className="text-xl sm:text-2xl font-bold mb-2">Generate Reel Script</h2>
+              <p className="text-indigo-200 mb-4 text-sm sm:text-base">Create viral reel scripts in 5-10 seconds</p>
               <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-2 text-sm">
                 <Coins className="w-4 h-4" />
                 <span>10 credits per reel</span>
@@ -96,10 +96,10 @@ export default function Dashboard() {
           </Link>
 
           <Link to="/app/stories">
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-8 text-white hover:scale-105 transition-transform cursor-pointer" data-testid="quick-action-story">
-              <BookOpen className="w-12 h-12 mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Create Kids Story Pack</h2>
-              <p className="text-purple-100 mb-4">Complete video production packages</p>
+            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-story">
+              <BookOpen className="w-10 h-10 sm:w-12 sm:h-12 mb-4" />
+              <h2 className="text-xl sm:text-2xl font-bold mb-2">Create Kids Story Pack</h2>
+              <p className="text-purple-200 mb-4 text-sm sm:text-base">Complete video production packages</p>
               <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-2 text-sm">
                 <Coins className="w-4 h-4" />
                 <span>10 credits per story</span>
@@ -110,15 +110,15 @@ export default function Dashboard() {
 
         {/* GenStudio AI Highlight */}
         <Link to="/app/gen-studio">
-          <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 rounded-2xl p-6 mb-6 text-white hover:scale-[1.02] transition-transform cursor-pointer" data-testid="quick-action-gen-studio">
+          <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-gen-studio">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="bg-white/20 rounded-xl p-3">
-                  <Sparkles className="w-8 h-8" />
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
+                  <Sparkles className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold mb-1">🎨 GenStudio AI</h2>
-                  <p className="text-white/80">Text→Image • Text→Video • Image→Video • Brand Style Profiles • Video Remix</p>
+                  <h2 className="text-lg sm:text-2xl font-bold mb-1">🎨 GenStudio AI</h2>
+                  <p className="text-white/80 text-xs sm:text-base">Text→Image • Text→Video • Image→Video • Brand Style Profiles • Video Remix</p>
                 </div>
               </div>
               <div className="hidden md:block text-right">
@@ -130,15 +130,15 @@ export default function Dashboard() {
 
         {/* Creator Tools Highlight */}
         <Link to="/app/creator-tools">
-          <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-2xl p-6 mb-12 text-white hover:scale-[1.02] transition-transform cursor-pointer" data-testid="quick-action-creator-tools">
+          <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-2xl p-5 sm:p-6 mb-8 sm:mb-12 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/20" data-testid="quick-action-creator-tools">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="bg-white/20 rounded-xl p-3">
-                  <Wand2 className="w-8 h-8" />
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
+                  <Wand2 className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold mb-1">⭐ Creator Tools</h2>
-                  <p className="text-white/80">30-Day Calendar • Carousel Generator • Hashtag Bank • Thumbnails • Trending Topics</p>
+                  <h2 className="text-lg sm:text-2xl font-bold mb-1">⭐ Creator Tools</h2>
+                  <p className="text-white/80 text-xs sm:text-base">30-Day Calendar • Carousel Generator • Hashtag Bank • Thumbnails • Trending Topics</p>
                 </div>
               </div>
               <div className="hidden md:block text-right">
@@ -148,65 +148,65 @@ export default function Dashboard() {
           </div>
         </Link>
 
-        <div className="grid md:grid-cols-4 gap-6 mb-12">
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-8 sm:mb-12">
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-600">Available Credits</span>
-              <Coins className="w-5 h-5 text-purple-500" />
+              <span className="text-slate-400 text-xs sm:text-base">Available Credits</span>
+              <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
             </div>
-            <div className="text-3xl font-bold text-slate-900">{credits}</div>
+            <div className="text-xl sm:text-3xl font-bold text-white">{credits}</div>
           </div>
 
-          <Link to="/app/history" className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+          <Link to="/app/history" className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 sm:p-6 hover:bg-slate-700/50 transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-600">Total Generations</span>
-              <Clock className="w-5 h-5 text-indigo-500" />
+              <span className="text-slate-400 text-xs sm:text-base">Total Generations</span>
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
             </div>
-            <div className="text-3xl font-bold text-slate-900">{recentGenerations.length}</div>
+            <div className="text-xl sm:text-3xl font-bold text-white">{recentGenerations.length}</div>
           </Link>
 
-          <Link to="/app/billing" className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+          <Link to="/app/billing" className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 sm:p-6 hover:bg-slate-700/50 transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-600">Buy More Credits</span>
-              <CreditCard className="w-5 h-5 text-green-500" />
+              <span className="text-slate-400 text-xs sm:text-base">Buy Credits</span>
+              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             </div>
-            <div className="text-lg font-semibold text-indigo-600">View Plans →</div>
+            <div className="text-sm sm:text-lg font-semibold text-indigo-400">View Plans →</div>
           </Link>
 
-          <Link to="/app/feature-requests" className="bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+          <Link to="/app/feature-requests" className="bg-gradient-to-br from-amber-500/20 to-yellow-500/20 border border-amber-500/30 rounded-xl p-4 sm:p-6 hover:bg-amber-500/30 transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-600">Feature Requests</span>
-              <Lightbulb className="w-5 h-5 text-yellow-500" />
+              <span className="text-slate-300 text-xs sm:text-base">Feature Requests</span>
+              <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             </div>
-            <div className="text-lg font-semibold text-yellow-700">Vote & Request →</div>
+            <div className="text-sm sm:text-lg font-semibold text-amber-400">Vote & Request →</div>
           </Link>
         </div>
 
         {/* Privacy & Settings Quick Link */}
-        <div className="mb-12 flex gap-6 flex-wrap">
-          <Link to="/app/content-vault" className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-800 transition-colors font-medium">
+        <div className="mb-8 sm:mb-12 flex gap-4 sm:gap-6 flex-wrap">
+          <Link to="/app/content-vault" className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors font-medium">
             <Library className="w-4 h-4" />
             <span className="text-sm">Content Vault</span>
           </Link>
-          <Link to="/app/payment-history" className="inline-flex items-center gap-2 text-emerald-600 hover:text-emerald-800 transition-colors font-medium">
+          <Link to="/app/payment-history" className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
             <Receipt className="w-4 h-4" />
             <span className="text-sm">Payment History</span>
           </Link>
-          <Link to="/app/privacy" className="inline-flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors">
+          <Link to="/app/privacy" className="inline-flex items-center gap-2 text-slate-400 hover:text-indigo-400 transition-colors">
             <Lock className="w-4 h-4" />
             <span className="text-sm">Privacy & Data Settings</span>
           </Link>
-          <Link to="/app/copyright" className="inline-flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors">
+          <Link to="/app/copyright" className="inline-flex items-center gap-2 text-slate-400 hover:text-indigo-400 transition-colors">
             <Copyright className="w-4 h-4" />
             <span className="text-sm">Copyright & Legal</span>
           </Link>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-5 sm:p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold">Recent Generations</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-white">Recent Generations</h3>
             <Link to="/app/history">
-              <Button variant="outline" size="sm" data-testid="view-all-history-btn">
+              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="view-all-history-btn">
                 <HistoryIcon className="w-4 h-4 mr-2" />
                 View All
               </Button>
@@ -214,32 +214,32 @@ export default function Dashboard() {
           </div>
 
           {recentGenerations.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">
+            <div className="text-center py-12 text-slate-400">
               <p>No generations yet. Start creating!</p>
             </div>
           ) : (
-            <div className="space-y-4" data-testid="recent-generations-list">
+            <div className="space-y-3 sm:space-y-4" data-testid="recent-generations-list">
               {recentGenerations.map((gen) => (
-                <div key={gen.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                  <div className="flex items-center gap-4">
+                <div key={gen.id} className="flex items-center justify-between p-3 sm:p-4 bg-slate-900/50 border border-slate-700/50 rounded-xl">
+                  <div className="flex items-center gap-3 sm:gap-4">
                     {gen.type === 'REEL' ? (
-                      <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                        <Video className="w-5 h-5 text-indigo-600" />
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-indigo-500/20 border border-indigo-500/30 rounded-lg flex items-center justify-center">
+                        <Video className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
                       </div>
                     ) : (
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <BookOpen className="w-5 h-5 text-purple-600" />
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-500/20 border border-purple-500/30 rounded-lg flex items-center justify-center">
+                        <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
                       </div>
                     )}
                     <div>
-                      <div className="font-medium">{gen.type} Generation</div>
-                      <div className="text-sm text-slate-500">{new Date(gen.createdAt).toLocaleString()}</div>
+                      <div className="font-medium text-white text-sm sm:text-base">{gen.type} Generation</div>
+                      <div className="text-xs sm:text-sm text-slate-400">{new Date(gen.createdAt).toLocaleString()}</div>
                     </div>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    gen.status === 'SUCCEEDED' ? 'bg-green-100 text-green-700' :
-                    gen.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                    'bg-slate-100 text-slate-700'
+                  <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
+                    gen.status === 'SUCCEEDED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                    gen.status === 'FAILED' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                    'bg-slate-700/50 text-slate-400 border border-slate-600'
                   }`}>
                     {gen.status}
                   </div>
