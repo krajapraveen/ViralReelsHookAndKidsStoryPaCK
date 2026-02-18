@@ -227,7 +227,7 @@ async def verify_cashfree_payment(request: Request, data: CashfreeVerifyRequest,
         # Fetch order status from Cashfree
         api_version = "2023-08-01"
         from cashfree_pg.api_client import Cashfree
-        response = Cashfree.PGFetchOrder(api_version, data.order_id, None)
+        response = Cashfree().PGFetchOrder(api_version, data.order_id, None)
         
         if not response.data:
             raise HTTPException(status_code=400, detail="Could not verify payment status")
