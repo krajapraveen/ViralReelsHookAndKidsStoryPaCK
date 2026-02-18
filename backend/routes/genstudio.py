@@ -122,7 +122,8 @@ async def get_templates():
 # TEXT TO IMAGE
 # =============================================================================
 @genstudio_router.post("/text-to-image")
-async def generate_text_to_image(data: TextToImageRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("20/minute")
+async def generate_text_to_image(request: Request, data: TextToImageRequest, user: dict = Depends(get_current_user)):
     """Generate image from text prompt using Gemini - costs 10 credits"""
     if not data.consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
