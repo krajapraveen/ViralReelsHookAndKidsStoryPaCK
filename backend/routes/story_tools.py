@@ -16,8 +16,223 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, logger, get_current_user, deduct_credits, FILE_EXPIRY_MINUTES
 
-# Import the Disney-style PDF generator
-from pdf_generator import generate_pdf_simple, PAGE_THEMES
+# ReportLab imports for PDF generation (production-safe)
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch, cm
+from reportlab.lib.colors import HexColor, Color
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# Page themes for colorful PDFs
+PAGE_THEMES = [
+    {"name": "lavender", "primary": "#8B5CF6", "secondary": "#F3E8FF", "accent": "#5B21B6"},
+    {"name": "mint", "primary": "#10B981", "secondary": "#D1FAE5", "accent": "#047857"},
+    {"name": "peach", "primary": "#F97316", "secondary": "#FFEDD5", "accent": "#C2410C"},
+    {"name": "sky", "primary": "#3B82F6", "secondary": "#DBEAFE", "accent": "#1D4ED8"},
+    {"name": "rose", "primary": "#F43F5E", "secondary": "#FFE4E6", "accent": "#BE123C"},
+]
+
+
+def generate_colorful_pdf(story: Dict, output_path: str):
+    """Generate a colorful Disney-style PDF using ReportLab (production-safe)"""
+    doc = SimpleDocTemplate(
+        output_path, 
+        pagesize=A4,
+        rightMargin=0.75*inch, 
+        leftMargin=0.75*inch,
+        topMargin=0.75*inch, 
+        bottomMargin=0.75*inch
+    )
+    
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'StoryTitle',
+        parent=styles['Title'],
+        fontSize=32,
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        textColor=HexColor('#5B21B6'),
+        leading=40
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=14,
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        textColor=HexColor('#6B7280')
+    )
+    
+    chapter_style = ParagraphStyle(
+        'Chapter',
+        parent=styles['Heading1'],
+        fontSize=20,
+        spaceBefore=30,
+        spaceAfter=15,
+        alignment=TA_CENTER,
+        textColor=HexColor('#3B82F6')
+    )
+    
+    body_style = ParagraphStyle(
+        'StoryBody',
+        parent=styles['Normal'],
+        fontSize=13,
+        spaceAfter=15,
+        alignment=TA_JUSTIFY,
+        leading=22,
+        textColor=HexColor('#374151')
+    )
+    
+    dialogue_style = ParagraphStyle(
+        'Dialogue',
+        parent=styles['Normal'],
+        fontSize=12,
+        spaceAfter=10,
+        leftIndent=20,
+        rightIndent=20,
+        textColor=HexColor('#7C3AED'),
+        leading=18
+    )
+    
+    moral_style = ParagraphStyle(
+        'Moral',
+        parent=styles['Normal'],
+        fontSize=16,
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        textColor=HexColor('#059669'),
+        leading=24
+    )
+    
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=10,
+        alignment=TA_CENTER,
+        textColor=HexColor('#9CA3AF')
+    )
+    
+    watermark_style = ParagraphStyle(
+        'Watermark',
+        parent=styles['Normal'],
+        fontSize=48,
+        alignment=TA_CENTER,
+        textColor=HexColor('#E5E7EB')
+    )
+    
+    elements = []
+    
+    # ===== COVER PAGE =====
+    elements.append(Spacer(1, 1.5*inch))
+    elements.append(Paragraph("✨ 📚 ✨", title_style))
+    elements.append(Spacer(1, 0.3*inch))
+    elements.append(Paragraph(story.get('title', 'My Story'), title_style))
+    elements.append(Spacer(1, 0.5*inch))
+    elements.append(Paragraph("A CreatorStudio AI Story", subtitle_style))
+    
+    if story.get('synopsis'):
+        elements.append(Spacer(1, 0.5*inch))
+        synopsis_style = ParagraphStyle(
+            'Synopsis',
+            parent=styles['Italic'],
+            fontSize=12,
+            alignment=TA_CENTER,
+            textColor=HexColor('#6B7280'),
+            leading=18
+        )
+        elements.append(Paragraph(f"<i>{story['synopsis']}</i>", synopsis_style))
+    
+    # Characters if present
+    if story.get('characters'):
+        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Paragraph("🌟 Characters 🌟", subtitle_style))
+        for char in story.get('characters', [])[:5]:
+            if isinstance(char, dict):
+                char_text = f"<b>{char.get('name', 'Character')}</b> - {char.get('description', '')}"
+            else:
+                char_text = f"• {char}"
+            elements.append(Paragraph(char_text, body_style))
+    
+    elements.append(PageBreak())
+    
+    # ===== STORY PAGES =====
+    scenes = story.get('scenes', [])
+    for i, scene in enumerate(scenes, 1):
+        theme = PAGE_THEMES[i % len(PAGE_THEMES)]
+        
+        # Scene title
+        if isinstance(scene, dict):
+            scene_title = scene.get('title', f'Chapter {i}')
+            narration = scene.get('narration', scene.get('description', ''))
+            dialogue = scene.get('dialogue', [])
+        else:
+            scene_title = f'Chapter {i}'
+            narration = str(scene)
+            dialogue = []
+        
+        # Chapter heading with theme color
+        chapter_colored = ParagraphStyle(
+            f'Chapter{i}',
+            parent=chapter_style,
+            textColor=HexColor(theme['primary'])
+        )
+        elements.append(Paragraph(f"Chapter {i}", chapter_colored))
+        elements.append(Paragraph(scene_title, subtitle_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Narration
+        if narration:
+            paragraphs = narration.split('\n') if '\n' in narration else [narration]
+            for para in paragraphs:
+                if para.strip():
+                    elements.append(Paragraph(para.strip(), body_style))
+        
+        # Dialogue
+        if dialogue:
+            elements.append(Spacer(1, 0.2*inch))
+            for d in dialogue[:3]:
+                if isinstance(d, dict):
+                    speaker = d.get('speaker', 'Character')
+                    text = d.get('text') or d.get('line', '')
+                    if text:
+                        elements.append(Paragraph(f'<b>{speaker}:</b> "{text}"', dialogue_style))
+        
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Page break after every 2 scenes
+        if i < len(scenes):
+            if i % 2 == 0:
+                elements.append(PageBreak())
+    
+    elements.append(PageBreak())
+    
+    # ===== MORAL PAGE =====
+    elements.append(Spacer(1, 2*inch))
+    elements.append(Paragraph("💫 The Lesson 💫", chapter_style))
+    elements.append(Spacer(1, 0.5*inch))
+    moral = story.get('moral', 'Every adventure teaches us something wonderful!')
+    elements.append(Paragraph(f'"{moral}"', moral_style))
+    elements.append(PageBreak())
+    
+    # ===== ENDING PAGE =====
+    elements.append(Spacer(1, 2*inch))
+    elements.append(Paragraph("✨ The End ✨", title_style))
+    elements.append(Spacer(1, 1*inch))
+    elements.append(Paragraph("Thank you for reading!", subtitle_style))
+    elements.append(Spacer(1, 0.5*inch))
+    elements.append(Paragraph("Created with CreatorStudio AI", footer_style))
+    elements.append(Paragraph(f"© {datetime.now().year} - All rights reserved", footer_style))
+    
+    # Build PDF
+    doc.build(elements)
+    return output_path
+
 
 router = APIRouter(prefix="/story-tools", tags=["Story Tools"])
 
