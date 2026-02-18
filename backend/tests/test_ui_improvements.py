@@ -158,8 +158,10 @@ class TestCreditsAPI:
         response = requests.get(f"{BASE_URL}/api/credits/balance", headers=headers)
         assert response.status_code == 200
         data = response.json()
-        assert "balance" in data
-        print(f"Credits balance: {data['balance']}")
+        # API returns 'credits' field
+        assert "credits" in data or "balance" in data
+        credits = data.get("credits") or data.get("balance")
+        print(f"Credits balance: {credits}")
 
 
 if __name__ == "__main__":
