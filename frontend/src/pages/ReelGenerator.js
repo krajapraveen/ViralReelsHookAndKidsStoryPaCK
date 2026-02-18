@@ -156,7 +156,7 @@ export default function ReelGenerator() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
       {/* Upgrade Modal */}
       <UpgradeModal 
         isOpen={showUpgradeModal} 
@@ -164,46 +164,46 @@ export default function ReelGenerator() {
         onDownloadWithWatermark={() => downloadJSON(true)}
       />
 
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Dashboard
+              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800">
+                <ArrowLeft className="w-4 h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Dashboard</span>
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-indigo-500" />
-              <span className="text-xl font-bold">Reel Generator</span>
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400" />
+              <span className="text-lg sm:text-xl font-bold text-white">Reel Generator</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
-              <Coins className="w-4 h-4 text-purple-500" />
-              <span className="font-semibold">{credits} Credits</span>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2">
+              <Coins className="w-4 h-4 text-indigo-400" />
+              <span className="font-semibold text-indigo-300 text-sm sm:text-base">{credits}</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} data-testid="reel-logout-btn">
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="reel-logout-btn">
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline ml-2">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Upgrade Banners */}
         {credits === 0 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="exhausted" />}
         {credits > 0 && credits <= 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="low" />}
         {isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Input Form */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-2xl font-bold mb-6">Generate Reel Script</h2>
-            <form onSubmit={handleSubmit} className="space-y-6" data-testid="reel-form">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 sm:p-6 shadow-xl">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-5 sm:mb-6">Generate Reel Script</h2>
+            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6" data-testid="reel-form">
               <div>
-                <Label htmlFor="topic">Topic *</Label>
+                <Label htmlFor="topic" className="text-slate-300 font-medium text-sm mb-2 block">Topic *</Label>
                 <Textarea
                   id="topic"
                   value={formData.topic}
@@ -211,105 +211,106 @@ export default function ReelGenerator() {
                   placeholder="E.g., Morning routines of successful entrepreneurs"
                   required
                   rows={3}
-                  className="bg-white"
+                  className="bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500/20 resize-none"
                   data-testid="reel-topic-input"
                 />
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <Label htmlFor="niche">Niche</Label>
+                  <Label htmlFor="niche" className="text-slate-300 font-medium text-sm mb-2 block">Niche</Label>
                   <Select value={formData.niche} onValueChange={(value) => setFormData({...formData, niche: value})}>
-                    <SelectTrigger data-testid="reel-niche-select">
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20" data-testid="reel-niche-select">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Luxury">Luxury</SelectItem>
-                      <SelectItem value="Relationships">Relationships</SelectItem>
-                      <SelectItem value="Health">Health & Fitness</SelectItem>
-                      <SelectItem value="Finance">Finance</SelectItem>
-                      <SelectItem value="Tech">Technology</SelectItem>
-                      <SelectItem value="Custom">Custom</SelectItem>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="Luxury" className="text-white focus:bg-indigo-600">Luxury</SelectItem>
+                      <SelectItem value="Relationships" className="text-white focus:bg-indigo-600">Relationships</SelectItem>
+                      <SelectItem value="Health" className="text-white focus:bg-indigo-600">Health & Fitness</SelectItem>
+                      <SelectItem value="Finance" className="text-white focus:bg-indigo-600">Finance</SelectItem>
+                      <SelectItem value="Tech" className="text-white focus:bg-indigo-600">Technology</SelectItem>
+                      <SelectItem value="Custom" className="text-white focus:bg-indigo-600">Custom</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label htmlFor="tone">Tone</Label>
+                  <Label htmlFor="tone" className="text-slate-300 font-medium text-sm mb-2 block">Tone</Label>
                   <Select value={formData.tone} onValueChange={(value) => setFormData({...formData, tone: value})}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Bold">Bold</SelectItem>
-                      <SelectItem value="Calm">Calm</SelectItem>
-                      <SelectItem value="Funny">Funny</SelectItem>
-                      <SelectItem value="Emotional">Emotional</SelectItem>
-                      <SelectItem value="Authority">Authority</SelectItem>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="Bold" className="text-white focus:bg-indigo-600">Bold</SelectItem>
+                      <SelectItem value="Calm" className="text-white focus:bg-indigo-600">Calm</SelectItem>
+                      <SelectItem value="Funny" className="text-white focus:bg-indigo-600">Funny</SelectItem>
+                      <SelectItem value="Emotional" className="text-white focus:bg-indigo-600">Emotional</SelectItem>
+                      <SelectItem value="Authority" className="text-white focus:bg-indigo-600">Authority</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <Label htmlFor="duration">Duration</Label>
+                  <Label htmlFor="duration" className="text-slate-300 font-medium text-sm mb-2 block">Duration</Label>
                   <Select value={formData.duration} onValueChange={(value) => setFormData({...formData, duration: value})}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15s">15 seconds</SelectItem>
-                      <SelectItem value="30s">30 seconds</SelectItem>
-                      <SelectItem value="60s">60 seconds</SelectItem>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="15s" className="text-white focus:bg-indigo-600">15 seconds</SelectItem>
+                      <SelectItem value="30s" className="text-white focus:bg-indigo-600">30 seconds</SelectItem>
+                      <SelectItem value="60s" className="text-white focus:bg-indigo-600">60 seconds</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label htmlFor="language">Language</Label>
+                  <Label htmlFor="language" className="text-slate-300 font-medium text-sm mb-2 block">Language</Label>
                   <Select value={formData.language} onValueChange={(value) => setFormData({...formData, language: value})}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="English">English</SelectItem>
-                      <SelectItem value="Telugu">Telugu</SelectItem>
-                      <SelectItem value="Hinglish">Hinglish</SelectItem>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="English" className="text-white focus:bg-indigo-600">English</SelectItem>
+                      <SelectItem value="Telugu" className="text-white focus:bg-indigo-600">Telugu</SelectItem>
+                      <SelectItem value="Hinglish" className="text-white focus:bg-indigo-600">Hinglish</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <Label htmlFor="goal">Goal</Label>
+                  <Label htmlFor="goal" className="text-slate-300 font-medium text-sm mb-2 block">Goal</Label>
                   <Select value={formData.goal} onValueChange={(value) => setFormData({...formData, goal: value})}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Followers">Gain Followers</SelectItem>
-                      <SelectItem value="Leads">Generate Leads</SelectItem>
-                      <SelectItem value="Sales">Drive Sales</SelectItem>
-                      <SelectItem value="Awareness">Brand Awareness</SelectItem>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="Followers" className="text-white focus:bg-indigo-600">Gain Followers</SelectItem>
+                      <SelectItem value="Leads" className="text-white focus:bg-indigo-600">Generate Leads</SelectItem>
+                      <SelectItem value="Sales" className="text-white focus:bg-indigo-600">Drive Sales</SelectItem>
+                      <SelectItem value="Awareness" className="text-white focus:bg-indigo-600">Brand Awareness</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label htmlFor="audience">Audience</Label>
+                  <Label htmlFor="audience" className="text-slate-300 font-medium text-sm mb-2 block">Audience</Label>
                   <Input
                     id="audience"
                     value={formData.audience}
                     onChange={(e) => setFormData({...formData, audience: e.target.value})}
                     placeholder="E.g., Young professionals"
+                    className="bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-indigo-700">
+              <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-indigo-300">
                   <Coins className="w-4 h-4" />
                   <span className="font-medium">Cost: 10 credits per reel</span>
                 </div>
@@ -318,7 +319,7 @@ export default function ReelGenerator() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white"
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-500/25"
                 data-testid="reel-generate-btn"
               >
                 {loading ? (
@@ -337,19 +338,19 @@ export default function ReelGenerator() {
           </div>
 
           {/* Result Display */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Generated Script</h2>
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 sm:p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-5 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Generated Script</h2>
               {result && result.hooks && (
                 <div className="flex gap-2">
                   <ShareButton type="REEL" title={result.best_hook || ''} preview={result.caption_short || ''} />
-                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(JSON.stringify(result, null, 2))} data-testid="copy-result-btn">
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy All
+                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(JSON.stringify(result, null, 2))} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="copy-result-btn">
+                    <Copy className="w-4 h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Copy</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownloadClick} data-testid="download-result-btn">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
+                  <Button variant="outline" size="sm" onClick={handleDownloadClick} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="download-result-btn">
+                    <Download className="w-4 h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Download</span>
                   </Button>
                 </div>
               )}
@@ -359,29 +360,29 @@ export default function ReelGenerator() {
             <ReelProgressBar isGenerating={loading} />
 
             {!result && !loading && (
-              <div className="text-center py-12 text-slate-500">
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+              <div className="text-center py-12 text-slate-400">
+                <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-600" />
                 <p>Your generated reel script will appear here</p>
               </div>
             )}
             
             {loading && !result && (
-              <div className="text-center py-12 text-slate-500">
-                <Loader2 className="w-12 h-12 mx-auto mb-4 text-indigo-500 animate-spin" />
+              <div className="text-center py-12 text-slate-400">
+                <Loader2 className="w-12 h-12 mx-auto mb-4 text-indigo-400 animate-spin" />
                 <p>Generating your reel script...</p>
               </div>
             )}
             
             {result && result.hooks && (
-              <div className="space-y-6" data-testid="reel-result">
+              <div className="space-y-5 sm:space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar" data-testid="reel-result">
                 {/* Free Tier Watermark Banner */}
                 {isFreeTier && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-purple-700 font-medium text-sm">⚡ Made with CreatorStudio AI</p>
-                      <p className="text-purple-600 text-xs mt-1">
-                        Free tier content includes watermark. <Link to="/pricing" className="underline font-medium">Upgrade</Link> to remove watermarks.
+                      <p className="text-purple-300 font-medium text-sm">⚡ Made with CreatorStudio AI</p>
+                      <p className="text-purple-400 text-xs mt-1">
+                        Free tier content includes watermark. <Link to="/pricing" className="underline font-medium hover:text-purple-300">Upgrade</Link> to remove watermarks.
                       </p>
                     </div>
                   </div>
@@ -389,12 +390,12 @@ export default function ReelGenerator() {
 
                 {/* Hooks */}
                 <div>
-                  <h3 className="font-bold text-lg mb-3">🎯 5 Hooks</h3>
+                  <h3 className="font-bold text-lg text-white mb-3">🎯 5 Hooks</h3>
                   <div className="space-y-2">
                     {result.hooks?.map((hook, idx) => (
-                      <div key={idx} className="bg-slate-50 p-3 rounded-lg flex items-start gap-2">
-                        <span className="font-semibold text-indigo-600">{idx + 1}.</span>
-                        <span>{hook}</span>
+                      <div key={idx} className="bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl flex items-start gap-2">
+                        <span className="font-bold text-indigo-400 min-w-[20px]">{idx + 1}.</span>
+                        <span className="text-slate-200">{hook}</span>
                       </div>
                     ))}
                   </div>
@@ -402,37 +403,37 @@ export default function ReelGenerator() {
 
                 {/* Best Hook */}
                 {result.best_hook && (
-                  <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4">
-                    <h3 className="font-bold text-lg mb-2">⭐ Best Hook</h3>
-                    <p className="text-indigo-900">{result.best_hook}</p>
+                  <div className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 rounded-xl p-4">
+                    <h3 className="font-bold text-lg text-white mb-2">⭐ Best Hook</h3>
+                    <p className="text-indigo-200">{result.best_hook}</p>
                   </div>
                 )}
 
                 {/* Script Scenes */}
                 {result.script?.scenes && (
                   <div>
-                    <h3 className="font-bold text-lg mb-3">🎬 Script</h3>
+                    <h3 className="font-bold text-lg text-white mb-3">🎬 Script</h3>
                     <div className="space-y-3">
                       {result.script.scenes.map((scene, idx) => (
-                        <div key={idx} className="border border-slate-200 rounded-lg p-4">
-                          <div className="font-semibold text-purple-600 mb-2">{scene.time}</div>
+                        <div key={idx} className="border border-slate-700/50 bg-slate-900/30 rounded-xl p-4">
+                          <div className="font-semibold text-purple-400 mb-2">{scene.time}</div>
                           <div className="space-y-2">
                             {scene.on_screen_text && (
                               <div>
-                                <span className="text-xs font-semibold text-slate-500">ON-SCREEN:</span>
-                                <p className="text-sm">{scene.on_screen_text}</p>
+                                <span className="text-xs font-semibold text-slate-500 uppercase">On-Screen:</span>
+                                <p className="text-sm text-slate-200">{scene.on_screen_text}</p>
                               </div>
                             )}
                             {scene.voiceover && (
                               <div>
-                                <span className="text-xs font-semibold text-slate-500">VOICEOVER:</span>
-                                <p className="text-sm">{scene.voiceover}</p>
+                                <span className="text-xs font-semibold text-slate-500 uppercase">Voiceover:</span>
+                                <p className="text-sm text-slate-200">{scene.voiceover}</p>
                               </div>
                             )}
                             {scene.broll && scene.broll.length > 0 && (
                               <div>
-                                <span className="text-xs font-semibold text-slate-500">B-ROLL:</span>
-                                <p className="text-sm text-slate-600">{scene.broll.join(', ')}</p>
+                                <span className="text-xs font-semibold text-slate-500 uppercase">B-Roll:</span>
+                                <p className="text-sm text-slate-400">{scene.broll.join(', ')}</p>
                               </div>
                             )}
                           </div>
@@ -444,9 +445,9 @@ export default function ReelGenerator() {
 
                 {/* CTA */}
                 {result.script?.cta && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="font-bold mb-2">📢 Call to Action</h3>
-                    <p>{result.script.cta}</p>
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+                    <h3 className="font-bold text-white mb-2">📢 Call to Action</h3>
+                    <p className="text-emerald-200">{result.script.cta}</p>
                   </div>
                 )}
 
