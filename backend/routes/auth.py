@@ -143,25 +143,39 @@ async def login(request: Request, data: UserLogin):
 async def google_callback(data: GoogleCallback):
     """Handle Google OAuth callback via Emergent Auth"""
     try:
+        logger.info(f"Google callback received with sessionId: {data.sessionId[:8]}...")
+        
         # Verify session with Emergent Auth service
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"https://oauth.emergent.sh/api/auth/session/{data.sessionId}"
-            )
+            try:
+                response = await client.get(
+                    f"https://oauth.emergent.sh/api/auth/session/{data.sessionId}"
+                )
+            except httpx.TimeoutException:
+                logger.error("Timeout connecting to Emergent Auth service")
+                raise HTTPException(status_code=503, detail="Authentication service timeout")
+            except httpx.ConnectError as e:
+                logger.error(f"Connection error to Emergent Auth: {e}")
+                raise HTTPException(status_code=503, detail="Cannot connect to authentication service")
             
             if response.status_code != 200:
+                logger.warning(f"Invalid session response: {response.status_code}")
                 raise HTTPException(status_code=400, detail="Invalid session")
             
             session_data = response.json()
             
             if not session_data.get("authenticated"):
+                logger.warning("Session not authenticated")
                 raise HTTPException(status_code=400, detail="Session not authenticated")
             
             email = session_data.get("email", "").lower()
             name = session_data.get("name", email.split("@")[0])
             
             if not email:
+                logger.warning("No email in session data")
                 raise HTTPException(status_code=400, detail="Email not provided")
+            
+            logger.info(f"Processing Google auth for: {email}")
             
             # Check if user exists
             existing = await db.users.find_one({"email": email})
@@ -173,6 +187,7 @@ async def google_callback(data: GoogleCallback):
                     {"$set": {"lastLogin": datetime.now(timezone.utc).isoformat()}}
                 )
                 token = create_token(existing["id"], existing.get("role", "user"))
+                logger.info(f"Existing user logged in: {email}")
                 return {
                     "token": token,
                     "user": {
@@ -228,12 +243,16 @@ async def google_callback(data: GoogleCallback):
     except HTTPException:
         raise
     except Exception as e:
-        await log_exception(
-            functionality="auth_google",
-            error_type="GOOGLE_AUTH_ERROR",
-            error_message=str(e),
-            severity="ERROR"
-        )
+        logger.error(f"Google auth error: {type(e).__name__}: {str(e)}")
+        try:
+            await log_exception(
+                functionality="auth_google",
+                error_type="GOOGLE_AUTH_ERROR",
+                error_message=str(e),
+                severity="ERROR"
+            )
+        except Exception as log_err:
+            logger.error(f"Failed to log exception: {log_err}")
         raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
 
 
