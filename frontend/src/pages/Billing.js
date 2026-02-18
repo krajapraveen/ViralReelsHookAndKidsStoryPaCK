@@ -159,20 +159,20 @@ export default function Billing() {
           <p className="text-slate-400 mb-8">One-time purchase, no commitment</p>
           <div className="grid md:grid-cols-3 gap-6">
             {packs.map((product) => (
-              <div key={product.id} className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-purple-500 hover:shadow-lg transition-all">
-                <h3 className="text-xl font-bold mb-2">{product.name}</h3>
+              <div key={product.id} className="bg-slate-800/50 backdrop-blur-sm border-2 border-slate-700 rounded-xl p-6 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 transition-all">
+                <h3 className="text-xl font-bold mb-2 text-white">{product.name}</h3>
                 <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold">₹{product.price}</span>
+                  <span className="text-3xl font-bold text-white">₹{product.price}</span>
                   <span className="text-slate-400 text-sm">one-time</span>
                 </div>
-                <div className="bg-purple-50 rounded-lg px-4 py-2 mb-4">
-                  <p className="text-purple-700 font-semibold">{product.credits} Credits</p>
-                  <p className="text-xs text-purple-500">₹{(product.price / product.credits).toFixed(1)}/credit</p>
+                <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg px-4 py-2 mb-4">
+                  <p className="text-purple-300 font-semibold">{product.credits} Credits</p>
+                  <p className="text-xs text-purple-400">₹{(product.price / product.credits).toFixed(1)}/credit</p>
                 </div>
                 <Button 
                   onClick={() => handlePurchase(product.id)} 
                   disabled={loading[product.id]} 
-                  className="w-full bg-purple-500 hover:bg-purple-600" 
+                  className="w-full bg-purple-600 hover:bg-purple-700" 
                   data-testid={`buy-pack-${product.id}-btn`}
                 >
                   {loading[product.id] ? 'Processing...' : 'Buy Now'}
