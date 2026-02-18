@@ -314,7 +314,9 @@ async def process_text_to_video(job_id: str, data: dict, user_id: str):
 
 
 @genstudio_router.post("/text-to-video")
+@limiter.limit("10/minute")
 async def generate_text_to_video(
+    request: Request,
     data: TextToVideoRequest,
     background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user)
