@@ -92,14 +92,14 @@ export default function Billing() {
   const loadCashfreeCheckout = () => {
     return new Promise((resolve) => {
       if (window.Cashfree) {
-        resolve(window.Cashfree({ mode: "production" }));
+        resolve(window.Cashfree({ mode: "sandbox" }));
         return;
       }
       
       const script = document.createElement('script');
       script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
       script.onload = () => {
-        resolve(window.Cashfree({ mode: "production" }));
+        resolve(window.Cashfree({ mode: "sandbox" }));
       };
       script.onerror = () => {
         toast.error('Failed to load payment gateway');
