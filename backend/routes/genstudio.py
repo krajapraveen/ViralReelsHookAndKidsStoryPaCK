@@ -495,7 +495,7 @@ async def upload_profile_image(
     user: dict = Depends(get_current_user)
 ):
     """Upload a reference image to style profile"""
-    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]})
+    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]}, {"_id": 0})
     if not profile:
         raise HTTPException(status_code=404, detail="Style profile not found")
     

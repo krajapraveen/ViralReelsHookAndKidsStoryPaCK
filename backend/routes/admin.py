@@ -497,7 +497,7 @@ async def adjust_user_credits(
     user: dict = Depends(get_admin_user)
 ):
     """Adjust a user's credits (add or subtract)"""
-    target_user = await db.users.find_one({"id": user_id})
+    target_user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
     

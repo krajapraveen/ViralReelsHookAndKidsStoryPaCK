@@ -33,7 +33,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             raise HTTPException(status_code=400, detail=password_check["message"])
         
         # Check if user exists
-        existing = await db.users.find_one({"email": data.email.lower()})
+        existing = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
         
@@ -100,7 +100,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
 async def login(request: Request, data: UserLogin):
     """Login with email and password"""
     try:
-        user = await db.users.find_one({"email": data.email.lower()})
+        user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
         
         if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -188,7 +188,7 @@ async def google_callback(data: GoogleCallback):
         logger.info(f"Processing Google auth for: {email}")
         
         # Check if user exists
-        existing = await db.users.find_one({"email": email})
+        existing = await db.users.find_one({"email": email}, {"_id": 0})
         
         if existing:
             # Update last login
@@ -297,7 +297,7 @@ async def update_profile(data: ProfileUpdate, user: dict = Depends(get_current_u
 @router.put("/password")
 async def change_password(data: PasswordChange, user: dict = Depends(get_current_user)):
     """Change user password"""
-    user_data = await db.users.find_one({"id": user["id"]})
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0})
     
     if user_data.get("authProvider") == "google":
         raise HTTPException(status_code=400, detail="Cannot change password for Google sign-in accounts")

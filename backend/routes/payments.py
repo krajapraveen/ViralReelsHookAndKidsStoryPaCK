@@ -196,7 +196,7 @@ async def verify_payment(request: Request, data: VerifyPaymentRequest, user: dic
         order = await db.orders.find_one({
             "razorpay_order_id": data.razorpay_order_id,
             "userId": user["id"]
-        })
+        }, {"_id": 0})
         
         if not order:
             await log_exception(
@@ -425,7 +425,7 @@ async def payment_webhook(request: Request):
             payment_id = refund.get("payment_id")
             
             # Find and update order
-            order = await db.orders.find_one({"razorpay_payment_id": payment_id})
+            order = await db.orders.find_one({"razorpay_payment_id": payment_id}, {"_id": 0})
             if order:
                 await db.orders.update_one(
                     {"razorpay_payment_id": payment_id},
@@ -464,7 +464,7 @@ async def payment_webhook(request: Request):
 @router.post("/refund/{order_id}")
 async def request_refund(order_id: str, reason: str = "Customer request", user: dict = Depends(get_current_user)):
     """Request a refund for an order (admin or order owner)"""
-    order = await db.orders.find_one({"razorpay_order_id": order_id})
+    order = await db.orders.find_one({"razorpay_order_id": order_id}, {"_id": 0})
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")

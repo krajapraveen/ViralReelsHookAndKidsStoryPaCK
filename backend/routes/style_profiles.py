@@ -124,7 +124,7 @@ async def get_style_profile(profile_id: str, user: dict = Depends(get_current_us
 @style_profile_router.put("/{profile_id}")
 async def update_style_profile(profile_id: str, data: StyleProfileUpdate, user: dict = Depends(get_current_user)):
     """Update style profile metadata"""
-    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]})
+    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]}, {"_id": 0})
     if not profile:
         raise HTTPException(status_code=404, detail="Style profile not found")
     
@@ -166,7 +166,7 @@ async def upload_profile_image(
     """Upload a reference image for style profile training"""
     
     # Validate profile exists and belongs to user
-    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]})
+    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]}, {"_id": 0})
     if not profile:
         raise HTTPException(status_code=404, detail="Style profile not found")
     
@@ -227,7 +227,7 @@ async def upload_profile_image(
 @style_profile_router.delete("/{profile_id}/image/{image_id}")
 async def delete_profile_image(profile_id: str, image_id: str, user: dict = Depends(get_current_user)):
     """Delete an image from a style profile"""
-    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]})
+    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]}, {"_id": 0})
     if not profile:
         raise HTTPException(status_code=404, detail="Style profile not found")
     
@@ -254,7 +254,7 @@ async def delete_profile_image(profile_id: str, image_id: str, user: dict = Depe
 async def train_style_profile(profile_id: str, user: dict = Depends(get_current_user)):
     """Train a style profile using uploaded images"""
     
-    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]})
+    profile = await db.style_profiles.find_one({"id": profile_id, "userId": user["id"]}, {"_id": 0})
     if not profile:
         raise HTTPException(status_code=404, detail="Style profile not found")
     
