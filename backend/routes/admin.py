@@ -84,9 +84,34 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
     
     # Calculate satisfaction from feedback
     feedback_count = await db.feedback.count_documents({})
-    feedback_with_rating = await db.feedback.find({"rating": {"$exists": True}}, {"_id": 0, "rating": 1}).to_list(100)
+    feedback_with_rating = await db.feedback.find({"rating": {"$exists": True}}, {"_id": 0, "rating": 1, "message": 1, "createdAt": 1}).to_list(100)
     avg_rating = sum([f.get("rating", 0) for f in feedback_with_rating]) / len(feedback_with_rating) if feedback_with_rating else 0
     satisfaction_percentage = int((avg_rating / 5) * 100) if avg_rating > 0 else 0
+    
+    # Calculate rating distribution
+    rating_distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    for f in feedback_with_rating:
+        rating = f.get("rating", 0)
+        if 1 <= rating <= 5:
+            rating_distribution[rating] += 1
+    
+    # Get recent reviews (feedback with comments)
+    recent_reviews = await db.feedback.find(
+        {"rating": {"$exists": True}},
+        {"_id": 0, "rating": 1, "message": 1, "createdAt": 1}
+    ).sort("createdAt", -1).limit(10).to_list(length=10)
+    
+    # Format reviews for frontend
+    formatted_reviews = [
+        {"rating": r.get("rating", 0), "comment": r.get("message", ""), "createdAt": r.get("createdAt", "")}
+        for r in recent_reviews
+    ]
+    
+    # Calculate NPS score (promoters - detractors)
+    promoters = rating_distribution.get(5, 0) + rating_distribution.get(4, 0)
+    detractors = rating_distribution.get(1, 0) + rating_distribution.get(2, 0)
+    total_responses = len(feedback_with_rating) or 1
+    nps_score = int(((promoters - detractors) / total_responses) * 100)
     
     # Generate daily trend data for visitors
     daily_trend = []
