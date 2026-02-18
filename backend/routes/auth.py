@@ -194,10 +194,13 @@ async def google_callback(data: GoogleCallback):
         existing = await db.users.find_one({"email": email}, {"_id": 0})
         
         if existing:
-            # Update last login
+            # Update last login and picture
             await db.users.update_one(
                 {"id": existing["id"]},
-                {"$set": {"lastLogin": datetime.now(timezone.utc).isoformat()}}
+                {"$set": {
+                    "lastLogin": datetime.now(timezone.utc).isoformat(),
+                    "picture": picture if picture else existing.get("picture", "")
+                }}
             )
             token = create_token(existing["id"], existing.get("role", "user"))
             logger.info(f"Existing user logged in: {email}")
@@ -206,9 +209,10 @@ async def google_callback(data: GoogleCallback):
                 "user": {
                     "id": existing["id"],
                     "email": existing["email"],
-                    "name": existing.get("name", ""),
+                    "name": existing.get("name", name),
                     "role": existing.get("role", "user"),
-                    "credits": existing.get("credits", 0)
+                    "credits": existing.get("credits", 0),
+                    "picture": picture if picture else existing.get("picture", "")
                 }
             }
         else:
@@ -218,6 +222,7 @@ async def google_callback(data: GoogleCallback):
                 "id": user_id,
                 "email": email,
                 "name": name,
+                "picture": picture,
                 "password": "",
                 "role": "user",
                 "credits": 100,
@@ -249,7 +254,8 @@ async def google_callback(data: GoogleCallback):
                     "email": email,
                     "name": name,
                     "role": "user",
-                    "credits": 100
+                    "credits": 100,
+                    "picture": picture
                 }
             }
                 
