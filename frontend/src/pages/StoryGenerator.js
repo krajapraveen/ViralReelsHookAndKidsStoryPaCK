@@ -619,36 +619,40 @@ export default function StoryGenerator() {
                       {showPersonalization && (
                         <div className="space-y-2 pt-2 border-t border-pink-200">
                           <div>
-                            <label className="text-xs font-medium text-slate-600">Child's Name</label>
+                            <label className="text-xs font-medium text-slate-600">Child's Name (max 300 chars)</label>
                             <Input 
                               placeholder="e.g., Emma, Aarav, Sofia" 
                               value={personalization.child_name}
-                              onChange={(e) => setPersonalization({...personalization, child_name: e.target.value})}
+                              onChange={(e) => setPersonalization({...personalization, child_name: e.target.value.slice(0, 300)})}
                               className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              maxLength={300}
                               data-testid="child-name-input"
                             />
-                            <p className="text-xs text-slate-400 mt-1">This will replace the hero's name in the story</p>
+                            <p className="text-xs text-slate-400 mt-1">{personalization.child_name?.length || 0}/300 characters</p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-slate-600">Dedication Message</label>
+                            <label className="text-xs font-medium text-slate-600">Dedication Message (max 300 chars)</label>
                             <Input 
                               placeholder="e.g., For my little star, with love from Mommy" 
                               value={personalization.dedication}
-                              onChange={(e) => setPersonalization({...personalization, dedication: e.target.value})}
+                              onChange={(e) => setPersonalization({...personalization, dedication: e.target.value.slice(0, 300)})}
                               className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              maxLength={300}
                               data-testid="dedication-input"
                             />
-                            <p className="text-xs text-slate-400 mt-1">Appears on a special dedication page</p>
+                            <p className="text-xs text-slate-400 mt-1">{personalization.dedication?.length || 0}/300 characters</p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-slate-600">Birthday Message (Optional)</label>
+                            <label className="text-xs font-medium text-slate-600">Birthday Message (Optional, max 300 chars)</label>
                             <Input 
                               placeholder="e.g., Happy 5th Birthday!" 
                               value={personalization.birthday_message || ''}
-                              onChange={(e) => setPersonalization({...personalization, birthday_message: e.target.value})}
+                              onChange={(e) => setPersonalization({...personalization, birthday_message: e.target.value.slice(0, 300)})}
                               className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              maxLength={300}
                               data-testid="birthday-input"
                             />
+                            <p className="text-xs text-slate-400 mt-1">{personalization.birthday_message?.length || 0}/300 characters</p>
                           </div>
                         </div>
                       )}
