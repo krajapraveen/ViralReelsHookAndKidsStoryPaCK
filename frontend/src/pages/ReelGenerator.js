@@ -455,14 +455,14 @@ export default function ReelGenerator() {
                 <div className="space-y-3">
                   {result.caption_short && (
                     <div>
-                      <h3 className="font-bold mb-2">📝 Short Caption</h3>
-                      <p className="text-sm bg-slate-50 p-3 rounded-lg">{result.caption_short}</p>
+                      <h3 className="font-bold text-white mb-2">📝 Short Caption</h3>
+                      <p className="text-sm bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl text-slate-200">{result.caption_short}</p>
                     </div>
                   )}
                   {result.caption_long && (
                     <div>
-                      <h3 className="font-bold mb-2">📄 Long Caption</h3>
-                      <p className="text-sm bg-slate-50 p-3 rounded-lg whitespace-pre-wrap">{result.caption_long}</p>
+                      <h3 className="font-bold text-white mb-2">📄 Long Caption</h3>
+                      <p className="text-sm bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl text-slate-200 whitespace-pre-wrap">{result.caption_long}</p>
                     </div>
                   )}
                 </div>
@@ -470,10 +470,10 @@ export default function ReelGenerator() {
                 {/* Hashtags */}
                 {result.hashtags && (
                   <div>
-                    <h3 className="font-bold mb-2">#️⃣ Hashtags</h3>
+                    <h3 className="font-bold text-white mb-2">#️⃣ Hashtags</h3>
                     <div className="flex flex-wrap gap-2">
                       {result.hashtags.map((tag, idx) => (
-                        <span key={idx} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
+                        <span key={idx} className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-full text-sm">
                           {tag}
                         </span>
                       ))}
@@ -484,8 +484,8 @@ export default function ReelGenerator() {
                 {/* Posting Tips */}
                 {result.posting_tips && (
                   <div>
-                    <h3 className="font-bold mb-2">💡 Posting Tips</h3>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-600">
+                    <h3 className="font-bold text-white mb-2">💡 Posting Tips</h3>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-300">
                       {result.posting_tips.map((tip, idx) => (
                         <li key={idx}>{tip}</li>
                       ))}
