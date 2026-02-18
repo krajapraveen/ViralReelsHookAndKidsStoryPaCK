@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="16" failures="3" skipped="0" tests="44" time="9.161" timestamp="2026-02-18T05:53:52.772146+00:00" hostname="agent-env-84da31cc-a739-41de-8aba-ab3fde054f5d"><testcase classname="backend.tests.test_comprehensive_qa.TestHealthEndpoints" name="test_health_main" time="0.163" /><testcase classname="backend.tests.test_comprehensive_qa.TestHealthEndpoints" name="test_health_live" time="0.099" /><testcase classname="backend.tests.test_comprehensive_qa.TestHealthEndpoints" name="test_health_ready" time="0.111" /><testcase classname="backend.tests.test_comprehensive_qa.TestAuthenticationFlows" name="test_login_demo_user_success" time="0.347" /><testcase classname="backend.tests.test_comprehensive_qa.TestAuthenticationFlows" name="test_login_admin_user_success" time="0.330" /><testcase classname="backend.tests.test_comprehensive_qa.TestAuthenticationFlows" name="test_login_invalid_password" time="0.334" /><testcase classname="backend.tests.test_comprehensive_qa.TestAuthenticationFlows" name="test_login_invalid_email" time="0.127" /><testcase classname="backend.tests.test_comprehensive_qa.TestAuthenticationFlows" name="test_login_empty_fields" time="0.105" /><testcase classname="backend.tests.test_comprehensive_qa.TestAuthenticationFlows" name="test_get_me_without_auth" time="0.118" /><testcase classname="backend.tests.test_comprehensive_qa.TestAuthenticationFlows" name="test_get_me_with_auth" time="0.432" /><testcase classname="backend.tests.test_comprehensive_qa.TestSignupFlow" name="test_signup_invalid_email" time="0.110" /><testcase classname="backend.tests.test_comprehensive_qa.TestSignupFlow" name="test_signup_weak_password" time="0.100"><failure message="assert 422 == 400&#10; +  where 422 = &lt;Response [422]&gt;.status_code">backend/tests/test_comprehensive_qa.py:123: in test_signup_weak_password
+    assert response.status_code == 400
+E   assert 422 == 400
+E    +  where 422 = &lt;Response [422]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestSignupFlow" name="test_signup_existing_email" time="0.107"><failure message="assert 520 == 400&#10; +  where 520 = &lt;Response [520]&gt;.status_code">backend/tests/test_comprehensive_qa.py:132: in test_signup_existing_email
+    assert response.status_code == 400
+E   assert 520 == 400
+E    +  where 520 = &lt;Response [520]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestCreditsEndpoints" name="test_get_credits_balance" time="0.429" /><testcase classname="backend.tests.test_comprehensive_qa.TestCreditsEndpoints" name="test_get_credits_ledger" time="0.441" /><testcase classname="backend.tests.test_comprehensive_qa.TestPaymentsEndpoints" name="test_get_products" time="0.104" /><testcase classname="backend.tests.test_comprehensive_qa.TestPaymentsEndpoints" name="test_payments_health" time="0.099" /><testcase classname="backend.tests.test_comprehensive_qa.TestPaymentsEndpoints" name="test_payment_history" time="0.433" /><testcase classname="backend.tests.test_comprehensive_qa.TestGenStudioEndpoints" name="test_genstudio_dashboard" time="0.683" /><testcase classname="backend.tests.test_comprehensive_qa.TestGenStudioEndpoints" name="test_genstudio_templates" time="0.445" /><testcase classname="backend.tests.test_comprehensive_qa.TestCreatorProEndpoints" name="test_creator_pro_costs" time="0.420" /><testcase classname="backend.tests.test_comprehensive_qa.TestCreatorProEndpoints" name="test_bio_generator" time="0.427"><failure message="assert 422 in [200, 402]&#10; +  where 422 = &lt;Response [422]&gt;.status_code">backend/tests/test_comprehensive_qa.py:242: in test_bio_generator
+    assert response.status_code in [200, 402]
+E   assert 422 in [200, 402]
+E    +  where 422 = &lt;Response [422]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestCreatorProEndpoints" name="test_hook_analyzer" time="0.108"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:220: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestCreatorProEndpoints" name="test_caption_generator" time="0.097"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:220: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestTwinFinderEndpoints" name="test_twinfinder_costs" time="0.100"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:273: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestTwinFinderEndpoints" name="test_twinfinder_celebrities" time="0.432" /><testcase classname="backend.tests.test_comprehensive_qa.TestTwinFinderEndpoints" name="test_twinfinder_dashboard" time="0.412" /><testcase classname="backend.tests.test_comprehensive_qa.TestStoryToolsEndpoints" name="test_get_printable_books" time="0.112"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:300: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestStoryToolsEndpoints" name="test_get_worksheets" time="0.102"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:300: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestGenerationsEndpoints" name="test_get_generations" time="0.104"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:320: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_dashboard_with_admin" time="0.121"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:337: in admin_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_dashboard_with_regular_user" time="0.100"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:343: in user_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_dashboard_without_auth" time="0.096" /><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_users_list" time="0.107"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:337: in admin_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_successful_payments" time="0.105"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:337: in admin_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_failed_payments" time="0.104"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:337: in admin_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_exceptions" time="0.094"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:337: in admin_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestAdminEndpoints" name="test_admin_feedback" time="0.127"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:337: in admin_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestFeatureRequestsEndpoints" name="test_get_feature_requests" time="0.122"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:424: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestFeedbackEndpoints" name="test_submit_feedback" time="0.119"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:439: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestContentVaultEndpoints" name="test_get_vault_items" time="0.106"><error message="failed on setup with &quot;KeyError: 'token'&quot;">backend/tests/test_comprehensive_qa.py:462: in auth_headers
+    token = login_res.json()["token"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'token'</error></testcase><testcase classname="backend.tests.test_comprehensive_qa.TestProtectedRouteAccess" name="test_credits_without_auth" time="0.107" /><testcase classname="backend.tests.test_comprehensive_qa.TestProtectedRouteAccess" name="test_generations_without_auth" time="0.097" /><testcase classname="backend.tests.test_comprehensive_qa.TestProtectedRouteAccess" name="test_genstudio_without_auth" time="0.109" /></testsuite></testsuites>
