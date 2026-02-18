@@ -407,46 +407,46 @@ export default function StoryGenerator() {
             {loading && !result && (
               <StoryProgressBar isGenerating={loading} />
             )}
-            {!loading && !result && <div className="text-center py-12 text-slate-500"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-300" /><p>Your story pack will appear here</p></div>}
-            {result && <div className="space-y-6 max-h-[700px] overflow-y-auto pr-2" data-testid="story-result">
+            {!loading && !result && <div className="text-center py-12 text-slate-400"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-600" /><p>Your story pack will appear here</p></div>}
+            {result && <div className="space-y-5 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar" data-testid="story-result">
               {/* Free Tier Watermark Banner */}
               {isFreeTier && (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-purple-700 font-medium text-sm">⚡ Made with CreatorStudio AI</p>
-                    <p className="text-purple-600 text-xs mt-1">
-                      Free tier content includes watermark. <Link to="/pricing" className="underline font-medium">Upgrade</Link> to remove watermarks.
+                    <p className="text-purple-300 font-medium text-sm">⚡ Made with CreatorStudio AI</p>
+                    <p className="text-purple-400 text-xs mt-1">
+                      Free tier content includes watermark. <Link to="/pricing" className="underline font-medium hover:text-purple-300">Upgrade</Link> to remove watermarks.
                     </p>
                   </div>
                 </div>
               )}
               
               {/* Story Title & Synopsis */}
-              <div className="bg-gradient-to-r from-purple-50 to-slate-50 border border-purple-200 rounded-lg p-6">
-                <h3 className="text-2xl font-bold text-purple-900 mb-2">{result.title}</h3>
-                <p className="text-slate-700 mb-3">{result.synopsis}</p>
+              <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-5">
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">{result.title}</h3>
+                <p className="text-slate-300 mb-3">{result.synopsis}</p>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded">{result.genre || formData.genre}</span>
-                  <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">Ages {result.ageGroup || formData.ageGroup}</span>
-                  {result.moral && <span className="bg-green-100 text-green-700 px-2 py-1 rounded">Moral: {result.moral}</span>}
+                  <span className="bg-purple-500/30 text-purple-200 px-2 py-1 rounded-lg">{result.genre || formData.genre}</span>
+                  <span className="bg-blue-500/30 text-blue-200 px-2 py-1 rounded-lg">Ages {result.ageGroup || formData.ageGroup}</span>
+                  {result.moral && <span className="bg-emerald-500/30 text-emerald-200 px-2 py-1 rounded-lg">Moral: {result.moral}</span>}
                 </div>
               </div>
               
               {/* Characters */}
               {result.characters && result.characters.length > 0 && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4">
+                  <h4 className="font-bold text-lg text-white mb-3 flex items-center gap-2">
                     <span className="text-xl">👥</span> Characters ({result.characters.length})
                   </h4>
                   <div className="grid gap-3">
                     {result.characters.map((char, idx) => (
-                      <div key={idx} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <div key={idx} className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-purple-700">{char.name}</span>
-                          <span className="text-xs bg-slate-200 px-2 py-0.5 rounded">{char.role}</span>
+                          <span className="font-semibold text-purple-300">{char.name}</span>
+                          <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">{char.role}</span>
                         </div>
-                        <p className="text-sm text-slate-600">{char.description}</p>
+                        <p className="text-sm text-slate-400">{char.description}</p>
                       </div>
                     ))}
                   </div>
@@ -455,41 +455,41 @@ export default function StoryGenerator() {
               
               {/* Scenes */}
               {result.scenes && result.scenes.length > 0 && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4">
+                  <h4 className="font-bold text-lg text-white mb-3 flex items-center gap-2">
                     <span className="text-xl">🎬</span> Scenes ({result.scenes.length})
                   </h4>
                   <div className="space-y-4">
                     {result.scenes.map((scene, idx) => (
-                      <div key={idx} className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                      <div key={idx} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded">Scene {scene.scene_number || idx + 1}</span>
-                          <span className="font-semibold text-slate-800">{scene.title}</span>
+                          <span className="bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded-lg">Scene {scene.scene_number || idx + 1}</span>
+                          <span className="font-semibold text-slate-200">{scene.title}</span>
                         </div>
-                        {scene.setting && <p className="text-xs text-slate-500 mb-2">📍 {scene.setting}</p>}
+                        {scene.setting && <p className="text-xs text-slate-400 mb-2">📍 {scene.setting}</p>}
                         
                         {/* Visual Description */}
                         {scene.visual_description && (
-                          <div className="bg-blue-50 rounded p-2 mb-2">
-                            <p className="text-xs font-medium text-blue-700 mb-1">🎨 Visual Description:</p>
-                            <p className="text-sm text-blue-800">{scene.visual_description}</p>
+                          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 mb-2">
+                            <p className="text-xs font-medium text-blue-300 mb-1">🎨 Visual Description:</p>
+                            <p className="text-sm text-blue-200">{scene.visual_description}</p>
                           </div>
                         )}
                         
                         {/* Narration */}
                         {scene.narration && (
-                          <div className="bg-purple-50 rounded p-2 mb-2">
-                            <p className="text-xs font-medium text-purple-700 mb-1">📖 Narration:</p>
-                            <p className="text-sm text-purple-800 italic">"{scene.narration}"</p>
+                          <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-2 mb-2">
+                            <p className="text-xs font-medium text-purple-300 mb-1">📖 Narration:</p>
+                            <p className="text-sm text-purple-200 italic">"{scene.narration}"</p>
                           </div>
                         )}
                         
                         {/* Dialogue */}
                         {scene.dialogue && scene.dialogue.length > 0 && (
-                          <div className="bg-green-50 rounded p-2 mb-2">
-                            <p className="text-xs font-medium text-green-700 mb-1">💬 Dialogue:</p>
+                          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 mb-2">
+                            <p className="text-xs font-medium text-emerald-300 mb-1">💬 Dialogue:</p>
                             {scene.dialogue.map((d, dIdx) => (
-                              <p key={dIdx} className="text-sm text-green-800">
+                              <p key={dIdx} className="text-sm text-emerald-200">
                                 <span className="font-semibold">{d.speaker}:</span> "{d.line}"
                               </p>
                             ))}
