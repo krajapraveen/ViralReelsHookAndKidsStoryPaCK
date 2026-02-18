@@ -182,7 +182,9 @@ BIO_TEMPLATES = {
 # 1. HOOK ANALYZER
 # =============================================================================
 @router.post("/hook-analyzer")
+@limiter.limit("30/minute")
 async def analyze_hook(
+    request: Request,
     hook: str = Form(...),
     niche: Optional[str] = Form(None),
     user: dict = Depends(get_current_user)
