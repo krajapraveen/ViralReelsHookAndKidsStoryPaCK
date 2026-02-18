@@ -145,7 +145,7 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         
         # Create order via Cashfree API
         api_version = "2023-08-01"
-        response = Cashfree.PGCreateOrder(api_version, order_request, None, None)
+        response = Cashfree().PGCreateOrder(api_version, order_request, None, None)
         
         if response.data:
             # Save order to database
