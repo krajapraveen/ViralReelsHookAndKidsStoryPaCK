@@ -26,6 +26,11 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/cashfree", tags=["Cashfree Payments"])
 
+# Rate limiting for payment endpoints
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+limiter = Limiter(key_func=get_remote_address)
+
 # Cashfree Configuration
 CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID")
 CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY")
