@@ -272,7 +272,7 @@ export default function StoryGenerator() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900">
       {/* Upgrade Modal */}
       <UpgradeModal 
         isOpen={showUpgradeModal} 
@@ -280,65 +280,67 @@ export default function StoryGenerator() {
         onDownloadWithWatermark={handleDownloadWithWatermark}
       />
 
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/app"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
-            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-purple-600" /><span className="text-xl font-bold text-slate-900">Story Generator</span></div>
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link to="/app"><Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800"><ArrowLeft className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Dashboard</span></Button></Link>
+            <div className="flex items-center gap-2"><Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" /><span className="text-lg sm:text-xl font-bold text-white">Story Generator</span></div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-purple-600" /><span className="font-semibold text-purple-700">{credits} Credits</span></div>
-            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} data-testid="story-logout-btn">
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-3 sm:px-4 py-2"><Coins className="w-4 h-4 text-purple-400" /><span className="font-semibold text-purple-300 text-sm sm:text-base">{credits}</span></div>
+            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="story-logout-btn">
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline ml-2">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Upgrade Banners */}
         {credits === 0 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="exhausted" />}
         {credits > 0 && credits <= 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="low" />}
         {isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">Create Kids Story Pack</h2>
-            <form onSubmit={handleSubmit} className="space-y-6" data-testid="story-form">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div><Label>Age Group <span className="text-red-500">*</span></Label>
+        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 sm:p-6 shadow-xl">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-5 sm:mb-6">Create Kids Story Pack</h2>
+            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6" data-testid="story-form">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <Label className="text-slate-300 font-medium text-sm mb-2 block">Age Group <span className="text-red-400">*</span></Label>
                   <Select value={formData.ageGroup} onValueChange={(value) => setFormData({...formData, ageGroup: value})}>
-                    <SelectTrigger className={!formData.ageGroup ? 'border-orange-300' : ''} data-testid="story-age-select">
+                    <SelectTrigger className={`bg-slate-900/60 border-slate-600 text-white focus:ring-purple-500/20 ${!formData.ageGroup ? 'border-orange-500/50' : ''}`} data-testid="story-age-select">
                       <SelectValue placeholder="Select age group" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="4-6">4-6 years (Preschool)</SelectItem>
-                      <SelectItem value="6-8">6-8 years (Early Elementary)</SelectItem>
-                      <SelectItem value="8-10">8-10 years (Middle Childhood)</SelectItem>
-                      <SelectItem value="10-13">10-13 years (Pre-Teen)</SelectItem>
-                      <SelectItem value="13-15">13-15 years (Early Teen)</SelectItem>
-                      <SelectItem value="15-17">15-17 years (Late Teen)</SelectItem>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="4-6" className="text-white focus:bg-purple-600">4-6 years (Preschool)</SelectItem>
+                      <SelectItem value="6-8" className="text-white focus:bg-purple-600">6-8 years (Early Elementary)</SelectItem>
+                      <SelectItem value="8-10" className="text-white focus:bg-purple-600">8-10 years (Middle Childhood)</SelectItem>
+                      <SelectItem value="10-13" className="text-white focus:bg-purple-600">10-13 years (Pre-Teen)</SelectItem>
+                      <SelectItem value="13-15" className="text-white focus:bg-purple-600">13-15 years (Early Teen)</SelectItem>
+                      <SelectItem value="15-17" className="text-white focus:bg-purple-600">15-17 years (Late Teen)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Genre</Label>
+                <div>
+                  <Label className="text-slate-300 font-medium text-sm mb-2 block">Genre</Label>
                   <Select value={formData.genre} onValueChange={(value) => setFormData({...formData, genre: value, customGenre: value === 'Custom' ? formData.customGenre : ''})}>
-                    <SelectTrigger data-testid="story-genre-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Fantasy">Fantasy</SelectItem>
-                      <SelectItem value="Adventure">Adventure</SelectItem>
-                      <SelectItem value="Mystery">Mystery/Detective</SelectItem>
-                      <SelectItem value="SciFi">Science Fiction</SelectItem>
-                      <SelectItem value="Fairy Tale">Fairy Tale</SelectItem>
-                      <SelectItem value="Mythology">Mythology</SelectItem>
-                      <SelectItem value="Historical">Historical Fiction</SelectItem>
-                      <SelectItem value="Comedy">Comedy/Humor</SelectItem>
-                      <SelectItem value="Animal">Animal Stories</SelectItem>
-                      <SelectItem value="Superhero">Superhero</SelectItem>
-                      <SelectItem value="Friendship">Friendship</SelectItem>
-                      <SelectItem value="Educational">Educational</SelectItem>
-                      <SelectItem value="Custom">✨ Custom Genre</SelectItem>
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-purple-500/20" data-testid="story-genre-select"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="Fantasy" className="text-white focus:bg-purple-600">Fantasy</SelectItem>
+                      <SelectItem value="Adventure" className="text-white focus:bg-purple-600">Adventure</SelectItem>
+                      <SelectItem value="Mystery" className="text-white focus:bg-purple-600">Mystery/Detective</SelectItem>
+                      <SelectItem value="SciFi" className="text-white focus:bg-purple-600">Science Fiction</SelectItem>
+                      <SelectItem value="Fairy Tale" className="text-white focus:bg-purple-600">Fairy Tale</SelectItem>
+                      <SelectItem value="Mythology" className="text-white focus:bg-purple-600">Mythology</SelectItem>
+                      <SelectItem value="Historical" className="text-white focus:bg-purple-600">Historical Fiction</SelectItem>
+                      <SelectItem value="Comedy" className="text-white focus:bg-purple-600">Comedy/Humor</SelectItem>
+                      <SelectItem value="Animal" className="text-white focus:bg-purple-600">Animal Stories</SelectItem>
+                      <SelectItem value="Superhero" className="text-white focus:bg-purple-600">Superhero</SelectItem>
+                      <SelectItem value="Friendship" className="text-white focus:bg-purple-600">Friendship</SelectItem>
+                      <SelectItem value="Educational" className="text-white focus:bg-purple-600">Educational</SelectItem>
+                      <SelectItem value="Custom" className="text-white focus:bg-purple-600">✨ Custom Genre</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -346,57 +348,58 @@ export default function StoryGenerator() {
               
               {/* Custom Genre Input */}
               {formData.genre === 'Custom' && (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <Label className="text-purple-700">Enter Custom Genre <span className="text-red-500">*</span></Label>
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
+                  <Label className="text-purple-300 font-medium text-sm mb-2 block">Enter Custom Genre <span className="text-red-400">*</span></Label>
                   <Input
                     type="text"
                     placeholder="e.g., Space Exploration, Underwater Adventure, Time Travel..."
                     value={formData.customGenre}
                     onChange={(e) => setFormData({...formData, customGenre: e.target.value})}
-                    className="mt-2 bg-white"
+                    className="mt-2 bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500"
                     maxLength={50}
                     data-testid="custom-genre-input"
                   />
-                  <p className="text-xs text-purple-600 mt-2">
+                  <p className="text-xs text-purple-300 mt-2">
                     💡 Suggestions: Nature & Wildlife, Space Exploration, Underwater Adventure, Time Travel, 
                     Dinosaur World, Magical Creatures, Sports & Teamwork, Music & Dance, Cooking Adventures
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Note: Only kid-friendly genres are allowed. Inappropriate content will be rejected.
                   </p>
                 </div>
               )}
-              <div><Label>Number of Scenes</Label>
+              <div>
+                <Label className="text-slate-300 font-medium text-sm mb-2 block">Number of Scenes</Label>
                 <Select value={formData.scenes.toString()} onValueChange={(value) => setFormData({...formData, scenes: parseInt(value)})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="8">8 scenes (10 credits)</SelectItem>
-                    <SelectItem value="10">10 scenes (10 credits)</SelectItem>
-                    <SelectItem value="12">12 scenes (10 credits)</SelectItem>
+                  <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-purple-500/20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="8" className="text-white focus:bg-purple-600">8 scenes (10 credits)</SelectItem>
+                    <SelectItem value="10" className="text-white focus:bg-purple-600">10 scenes (10 credits)</SelectItem>
+                    <SelectItem value="12" className="text-white focus:bg-purple-600">12 scenes (10 credits)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-purple-700"><Coins className="w-4 h-4" /><span className="font-medium">Cost: {getCreditCost()} credits</span></div>
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-purple-300"><Coins className="w-4 h-4" /><span className="font-medium">Cost: {getCreditCost()} credits</span></div>
               </div>
-              <Button type="submit" disabled={loading} className="w-full bg-purple-500 hover:bg-purple-600 text-white" data-testid="story-generate-btn">
+              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-purple-500/25" data-testid="story-generate-btn">
                 {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{polling ? 'Generating... (30-90s)' : 'Starting...'}</> : <><Sparkles className="w-4 h-4 mr-2" />Generate Story Pack</>}
               </Button>
             </form>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-6"><h2 className="text-2xl font-bold">Story Pack</h2>
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 sm:p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-5 sm:mb-6"><h2 className="text-xl sm:text-2xl font-bold text-white">Story Pack</h2>
               {result && (
                 <div className="flex gap-2">
                   <ShareButton type="STORY" title={result.title || 'Kids Story Pack'} preview={result.synopsis || ''} />
-                  <Button variant="outline" size="sm" onClick={() => handleDownloadClick('pdf')} data-testid="download-story-pdf">
-                    <Download className="w-4 h-4 mr-2" />
-                    PDF
+                  <Button variant="outline" size="sm" onClick={() => handleDownloadClick('pdf')} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="download-story-pdf">
+                    <Download className="w-4 h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">PDF</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDownloadClick('json')} data-testid="download-story-btn">
-                    <Download className="w-4 h-4 mr-2" />
-                    JSON
+                  <Button variant="outline" size="sm" onClick={() => handleDownloadClick('json')} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="download-story-btn">
+                    <Download className="w-4 h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">JSON</span>
                   </Button>
                 </div>
               )}
