@@ -71,6 +71,31 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ==================== MIDDLEWARE ====================
 
+# Global rate limiting configuration
+RATE_LIMITS = {
+    "default": "100/minute",      # General API calls
+    "auth": "10/minute",          # Login/Register
+    "generation": "20/minute",    # AI generation endpoints
+    "admin": "50/minute",         # Admin endpoints
+}
+
+@app.middleware("http")
+async def global_rate_limit_middleware(request: Request, call_next):
+    """Apply global rate limiting based on endpoint type"""
+    from slowapi.util import get_remote_address
+    
+    path = request.url.path
+    client_ip = get_remote_address(request)
+    
+    # Skip rate limiting for health checks and static files
+    if path in ["/api/health/", "/api/docs", "/api/redoc", "/openapi.json"]:
+        return await call_next(request)
+    
+    # Log request for monitoring
+    logger.debug(f"Request from {client_ip}: {request.method} {path}")
+    
+    return await call_next(request)
+
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     """Add comprehensive security headers to all responses"""
