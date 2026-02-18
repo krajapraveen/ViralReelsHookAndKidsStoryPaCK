@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://creatorai-dev.preview.emergentagent.com
+**Platform URL:** https://creatorstudio-11.preview.emergentagent.com
 
 ---
 
