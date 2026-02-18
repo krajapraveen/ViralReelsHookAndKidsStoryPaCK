@@ -41,51 +41,69 @@ export default function Billing() {
   const handlePurchase = async (productId) => {
     setLoading({...loading, [productId]: true});
     try {
-      const response = await paymentAPI.createOrder(productId);
+      // Use Cashfree API
+      const response = await api.post('/api/cashfree/create-order', { productId, currency: 'INR' });
       
-      if (!response.data.keyId) {
+      if (!response.data.paymentSessionId) {
         toast.error('Payment configuration error. Please contact support.');
         return;
       }
       
-      const options = {
-        key: response.data.keyId,
-        amount: response.data.amount,
-        currency: response.data.currency,
-        order_id: response.data.orderId,
-        name: 'CreatorStudio AI',
-        description: response.data.productName,
-        handler: async (paymentResponse) => {
-          try {
-            await paymentAPI.verifyPayment({
-              razorpayOrderId: paymentResponse.razorpay_order_id,
-              razorpayPaymentId: paymentResponse.razorpay_payment_id,
-              razorpaySignature: paymentResponse.razorpay_signature
-            });
-            toast.success('Payment successful! Credits added.');
-            fetchData();
-          } catch (error) {
-            toast.error('Payment verification failed');
+      // Load Cashfree checkout
+      const cashfree = await loadCashfreeCheckout();
+      
+      if (cashfree) {
+        const checkoutOptions = {
+          paymentSessionId: response.data.paymentSessionId,
+          redirectTarget: "_modal"
+        };
+        
+        cashfree.checkout(checkoutOptions).then(async (result) => {
+          if (result.error) {
+            toast.error('Payment failed: ' + result.error.message);
+          } else if (result.paymentDetails) {
+            // Verify payment
+            try {
+              const verifyRes = await api.post('/api/cashfree/verify', { order_id: response.data.orderId });
+              if (verifyRes.data.success) {
+                toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added.`);
+                fetchData();
+              } else {
+                toast.info(verifyRes.data.message || 'Payment is being processed');
+              }
+            } catch (e) {
+              toast.error('Payment verification failed');
+            }
           }
-        },
-        prefill: {
-          name: '',
-          email: '',
-        },
-        theme: { color: '#6366f1' }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function (response) {
-        toast.error('Payment failed. Please try again.');
-      });
-      rzp.open();
+        });
+      }
     } catch (error) {
       console.error('Order creation error:', error);
-      toast.error('Failed to create order');
+      toast.error(error.response?.data?.detail || 'Failed to create order');
     } finally {
       setLoading({...loading, [productId]: false});
     }
+  };
+  
+  // Load Cashfree checkout script
+  const loadCashfreeCheckout = () => {
+    return new Promise((resolve) => {
+      if (window.Cashfree) {
+        resolve(window.Cashfree({ mode: "production" }));
+        return;
+      }
+      
+      const script = document.createElement('script');
+      script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+      script.onload = () => {
+        resolve(window.Cashfree({ mode: "production" }));
+      };
+      script.onerror = () => {
+        toast.error('Failed to load payment gateway');
+        resolve(null);
+      };
+      document.body.appendChild(script);
+    });
   };
 
   const subscriptions = Array.isArray(products) ? products.filter(p => p.type === 'SUBSCRIPTION') : [];
