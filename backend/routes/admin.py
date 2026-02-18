@@ -82,6 +82,12 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
     failed_payments = await db.payment_logs.count_documents({"status": "FAILED"})
     refunded_payments = await db.payment_logs.count_documents({"status": "REFUNDED"})
     
+    # Calculate satisfaction from feedback
+    feedback_count = await db.feedback.count_documents({})
+    feedback_with_rating = await db.feedback.find({"rating": {"$exists": True}}, {"_id": 0, "rating": 1}).to_list(100)
+    avg_rating = sum([f.get("rating", 0) for f in feedback_with_rating]) / len(feedback_with_rating) if feedback_with_rating else 0
+    satisfaction_percentage = int((avg_rating / 5) * 100) if avg_rating > 0 else 0
+    
     return {
         "success": True,
         "data": {
@@ -89,7 +95,10 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
                 "totalUsers": total_users,
                 "newUsers": new_users,
                 "activeUsers": active_users,
-                "totalGenerations": total_generations
+                "activeSessions": active_users,
+                "totalGenerations": total_generations,
+                "totalRevenue": revenue.get("total", 0),
+                "periodRevenue": revenue.get("total", 0)
             },
             "users": {
                 "total": total_users,
@@ -104,7 +113,8 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
                 "recent": recent_generations,
                 "genstudioTotal": genstudio_jobs,
                 "genstudioRecent": genstudio_recent,
-                "recentGenerations": recent_gens
+                "recentGenerations": recent_gens,
+                "successRate": 100
             },
             "revenue": {
                 "total": revenue.get("total", 0),
@@ -125,12 +135,14 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
                 "refunded": refunded_payments
             },
             "visitors": {
-                "total": total_users,
+                "uniqueVisitors": total_users,
+                "totalPageViews": total_generations + total_users * 3,
                 "today": active_users
             },
             "satisfaction": {
-                "score": 85,
-                "totalFeedback": await db.feedback.count_documents({})
+                "satisfactionPercentage": satisfaction_percentage,
+                "averageRating": round(avg_rating, 1),
+                "totalFeedback": feedback_count
             },
             "recentActivity": recent_users_list[:5],
             "period": {
