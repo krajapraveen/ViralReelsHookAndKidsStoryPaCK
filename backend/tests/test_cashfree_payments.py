@@ -107,7 +107,7 @@ class TestCashfreeHealthAndProducts:
 
 
 class TestSubscriptionOrderCreation:
-    """Test order creation for all subscription plans"""
+    """Test order creation for all subscription plans - run with delays to avoid rate limiting"""
     
     def test_create_weekly_subscription_order(self, authenticated_client):
         """Test creating order for Weekly Subscription (₹199, 50 credits)"""
@@ -119,13 +119,14 @@ class TestSubscriptionOrderCreation:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 199.0
+        assert data["amount"] == 199.0 or data["amount"] == 199
         assert data["credits"] == 50
         assert data["productName"] == "Weekly Subscription"
         assert data["environment"] == "sandbox"
         assert "orderId" in data
         assert "paymentSessionId" in data
         print(f"✅ Weekly subscription order created: {data['orderId']}")
+        time.sleep(15)  # Wait to avoid rate limiting
     
     def test_create_monthly_subscription_order(self, authenticated_client):
         """Test creating order for Monthly Subscription (₹699, 200 credits)"""
@@ -137,12 +138,13 @@ class TestSubscriptionOrderCreation:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 699.0
+        assert data["amount"] == 699.0 or data["amount"] == 699
         assert data["credits"] == 200
         assert data["productName"] == "Monthly Subscription"
         assert "orderId" in data
         assert "paymentSessionId" in data
         print(f"✅ Monthly subscription order created: {data['orderId']}")
+        time.sleep(15)  # Wait to avoid rate limiting
     
     def test_create_quarterly_subscription_order(self, authenticated_client):
         """Test creating order for Quarterly Subscription (₹1999, 500 credits)"""
@@ -154,12 +156,13 @@ class TestSubscriptionOrderCreation:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 1999.0
+        assert data["amount"] == 1999.0 or data["amount"] == 1999
         assert data["credits"] == 500
         assert data["productName"] == "Quarterly Subscription"
         assert "orderId" in data
         assert "paymentSessionId" in data
         print(f"✅ Quarterly subscription order created: {data['orderId']}")
+        time.sleep(15)  # Wait to avoid rate limiting
     
     def test_create_yearly_subscription_order(self, authenticated_client):
         """Test creating order for Yearly Subscription (₹5999, 2500 credits)"""
@@ -171,12 +174,13 @@ class TestSubscriptionOrderCreation:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 5999.0
+        assert data["amount"] == 5999.0 or data["amount"] == 5999
         assert data["credits"] == 2500
         assert data["productName"] == "Yearly Subscription"
         assert "orderId" in data
         assert "paymentSessionId" in data
         print(f"✅ Yearly subscription order created: {data['orderId']}")
+        time.sleep(15)  # Wait to avoid rate limiting
 
 
 class TestCreditPackOrderCreation:
@@ -192,12 +196,13 @@ class TestCreditPackOrderCreation:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 499.0
+        assert data["amount"] == 499.0 or data["amount"] == 499
         assert data["credits"] == 100
         assert data["productName"] == "Starter Pack"
         assert "orderId" in data
         assert "paymentSessionId" in data
         print(f"✅ Starter pack order created: {data['orderId']}")
+        time.sleep(15)  # Wait to avoid rate limiting
     
     def test_create_creator_pack_order(self, authenticated_client):
         """Test creating order for Creator Pack (₹999, 300 credits)"""
@@ -209,12 +214,13 @@ class TestCreditPackOrderCreation:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 999.0
+        assert data["amount"] == 999.0 or data["amount"] == 999
         assert data["credits"] == 300
         assert data["productName"] == "Creator Pack"
         assert "orderId" in data
         assert "paymentSessionId" in data
         print(f"✅ Creator pack order created: {data['orderId']}")
+        time.sleep(15)  # Wait to avoid rate limiting
     
     def test_create_pro_pack_order(self, authenticated_client):
         """Test creating order for Pro Pack (₹2499, 1000 credits)"""
@@ -226,7 +232,7 @@ class TestCreditPackOrderCreation:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 2499.0
+        assert data["amount"] == 2499.0 or data["amount"] == 2499
         assert data["credits"] == 1000
         assert data["productName"] == "Pro Pack"
         assert "orderId" in data
@@ -239,6 +245,7 @@ class TestInvalidProductHandling:
     
     def test_invalid_product_id(self, authenticated_client):
         """Test creating order with invalid product ID"""
+        time.sleep(15)  # Wait for rate limit reset
         response = authenticated_client.post(
             f"{BASE_URL}/api/cashfree/create-order",
             json={"productId": "invalid_product", "currency": "INR"}
@@ -278,6 +285,7 @@ class TestPaymentVerification:
     
     def test_verify_pending_order(self, authenticated_client):
         """Test verifying a pending order (just created)"""
+        time.sleep(15)  # Wait for rate limit reset
         # First create an order
         create_response = authenticated_client.post(
             f"{BASE_URL}/api/cashfree/create-order",
@@ -304,6 +312,7 @@ class TestIdempotencyCheck:
     
     def test_double_verification_prevention(self, authenticated_client):
         """Test that verifying the same order twice doesn't add credits twice"""
+        time.sleep(15)  # Wait for rate limit reset
         # Create an order
         create_response = authenticated_client.post(
             f"{BASE_URL}/api/cashfree/create-order",
@@ -445,6 +454,7 @@ class TestAdminUserPayments:
     
     def test_admin_can_create_order(self, admin_client):
         """Test that admin user can create orders"""
+        time.sleep(15)  # Wait for rate limit reset
         response = admin_client.post(
             f"{BASE_URL}/api/cashfree/create-order",
             json={"productId": "yearly", "currency": "INR"}
@@ -453,7 +463,7 @@ class TestAdminUserPayments:
         
         data = response.json()
         assert data["success"] == True
-        assert data["amount"] == 5999.0
+        assert data["amount"] == 5999.0 or data["amount"] == 5999
         print(f"✅ Admin user can create orders: {data['orderId']}")
 
 
