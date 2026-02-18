@@ -160,14 +160,18 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
             "visitors": {
                 "uniqueVisitors": total_users,
                 "totalPageViews": total_generations + total_users * 3,
-                "today": active_users
+                "today": active_users,
+                "dailyTrend": daily_trend
             },
             "satisfaction": {
                 "satisfactionPercentage": satisfaction_percentage,
                 "averageRating": round(avg_rating, 1),
                 "totalFeedback": feedback_count
             },
-            "recentActivity": recent_users_list[:5],
+            "recentActivity": {
+                "recentUsers": recent_users_list[:5],
+                "recentPayments": recent_payments
+            },
             "period": {
                 "days": days,
                 "start": start_iso,
