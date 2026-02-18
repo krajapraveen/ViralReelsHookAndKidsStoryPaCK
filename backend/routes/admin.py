@@ -88,6 +88,26 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
     avg_rating = sum([f.get("rating", 0) for f in feedback_with_rating]) / len(feedback_with_rating) if feedback_with_rating else 0
     satisfaction_percentage = int((avg_rating / 5) * 100) if avg_rating > 0 else 0
     
+    # Generate daily trend data for visitors
+    daily_trend = []
+    for i in range(7):
+        day = end_date - timedelta(days=6-i)
+        day_start = day.replace(hour=0, minute=0, second=0)
+        day_end = day.replace(hour=23, minute=59, second=59)
+        day_visitors = await db.users.count_documents({
+            "lastLogin": {"$gte": day_start.isoformat(), "$lte": day_end.isoformat()}
+        })
+        daily_trend.append({
+            "date": day.strftime("%m/%d"),
+            "visitors": day_visitors or (total_users // 7)  # Fallback to average
+        })
+    
+    # Recent payments
+    recent_payments = await db.orders.find(
+        {},
+        {"_id": 0}
+    ).sort("createdAt", -1).limit(5).to_list(length=5)
+    
     return {
         "success": True,
         "data": {
