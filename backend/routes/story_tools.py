@@ -272,10 +272,10 @@ async def generate_worksheet(generation_id: str, user: dict = Depends(get_curren
                 "type": "comprehension",
                 "title": "Reading Questions",
                 "questions": [
-                    f"What is the main character's name?",
-                    f"What lesson did the story teach?",
-                    f"How did the story end?",
-                    f"What was your favorite part?"
+                    "What is the main character's name?",
+                    "What lesson did the story teach?",
+                    "How did the story end?",
+                    "What was your favorite part?"
                 ]
             },
             {
