@@ -39,7 +39,7 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 - **AI**: Gemini 3 Flash (text), Nano Banana (image) via emergentintegrations
 - **PDF**: ReportLab (production-safe, no Playwright)
 - **Auth**: JWT + Emergent-managed Google Auth
-- **Payments**: Razorpay (test mode)
+- **Payments**: Razorpay (test mode) + Cashfree (production mode)
 - **Security**: Rate limiting, CSP headers, content moderation
 
 ## Architecture
