@@ -45,8 +45,8 @@ EXCHANGE_RATES = {
 
 @router.get("/products")
 async def get_products():
-    """Get available products"""
-    return {"products": PRODUCTS, "razorpayKeyId": RAZORPAY_KEY_ID}
+    """Get available products - Cashfree gateway"""
+    return {"products": PRODUCTS, "gateway": "cashfree"}
 
 
 @router.get("/currencies")
