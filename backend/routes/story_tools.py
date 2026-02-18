@@ -299,9 +299,12 @@ async def generate_worksheet(generation_id: str, user: dict = Depends(get_curren
     # Deduct credit
     await deduct_credits(user["id"], 1, "Worksheet generation")
     
+    # Remove _id before returning (MongoDB adds it during insert)
+    worksheet_response = {k: v for k, v in worksheet.items() if k != '_id'}
+    
     return {
         "success": True,
-        "worksheet": worksheet,
+        "worksheet": worksheet_response,
         "creditsUsed": 1,
         "expiresIn": f"{FILE_EXPIRY_MINUTES} minutes"
     }
