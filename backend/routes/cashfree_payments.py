@@ -89,6 +89,7 @@ async def get_cashfree_products():
 
 
 @router.post("/create-order")
+@limiter.limit("5/minute")
 async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, user: dict = Depends(get_current_user)):
     """Create a Cashfree payment order"""
     if not cashfree_client:
