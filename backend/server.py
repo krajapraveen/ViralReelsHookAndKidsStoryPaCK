@@ -73,21 +73,60 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
-    """Add security headers to all responses"""
+    """Add comprehensive security headers to all responses"""
     response = await call_next(request)
+    
+    # Basic Security Headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # Content Security Policy (CSP) - Prevents XSS and other injection attacks
+    csp_directives = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob: https: http:",
+        "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.emergentagent.com wss:",
+        "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://auth.emergentagent.com",
+        "media-src 'self' blob: https:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+        "upgrade-insecure-requests"
+    ]
+    response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+    
+    # Additional Security Headers
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(self)"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
+    
     return response
 
-# CORS Configuration
+# CORS Configuration - Restricted to specific origins
+ALLOWED_ORIGINS = [
+    "https://creatorstudio-11.preview.emergentagent.com",
+    "https://creatorstudio.ai",
+    "https://www.creatorstudio.ai",
+    "https://auth.emergentagent.com",
+    "http://localhost:3000",  # Development
+    "http://127.0.0.1:3000",  # Development
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"],
+    expose_headers=["Content-Disposition", "X-Request-Id"],
+    max_age=600,  # Cache preflight for 10 minutes
 )
 
 # ==================== ROUTERS ====================
