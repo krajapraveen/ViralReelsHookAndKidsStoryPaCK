@@ -115,8 +115,39 @@ async def submit_contact(request: Request, data: ContactMessage):
 
 @router.post("/chatbot")
 async def chatbot_message(data: ChatMessage):
-    """Handle chatbot messages (placeholder)"""
-    return {
-        "response": "Thanks for your message! Our team will review it. For immediate assistance, please check our FAQ or contact support.",
-        "sessionId": data.sessionId
-    }
+    """Handle chatbot messages with AI"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # Common questions and quick responses
+        quick_responses = {
+            "pricing": "You can check our pricing at /pricing page. We offer flexible credit packs starting from ₹499!",
+            "features": "CreatorStudio AI offers: Viral Reel Generator, Kids Story Pack Creator, GenStudio AI tools, Creator Pro features, and TwinFinder!",
+            "help": "I can help you with: 1) Creating viral reels 2) Generating kids stories 3) Using AI tools 4) Understanding pricing",
+            "contact": "You can reach us at support@creatorstudio.ai or use the Contact page.",
+        }
+        
+        # Check for quick responses
+        message_lower = data.message.lower()
+        for keyword, response in quick_responses.items():
+            if keyword in message_lower:
+                return {"success": True, "response": response, "sessionId": data.sessionId}
+        
+        # Use AI for complex queries
+        chat = LlmChat().with_model("gemini-2.0-flash")
+        prompt = f"""You are a helpful assistant for CreatorStudio AI, a platform for creating viral reels and kids story videos.
+        
+Answer this user question concisely (2-3 sentences max): {data.message}
+
+Key features: Reel Generator, Story Generator, GenStudio (Text-to-Image, Text-to-Video), Creator Pro Tools, TwinFinder.
+Pricing starts at ₹499 for credit packs."""
+        
+        result = await chat.send_message(UserMessage(text=prompt))
+        return {"success": True, "response": result.text, "sessionId": data.sessionId}
+        
+    except Exception as e:
+        return {
+            "success": True,
+            "response": "Thanks for your message! Our team will review it. For immediate assistance, check our FAQ or contact support@creatorstudio.ai",
+            "sessionId": data.sessionId
+        }
