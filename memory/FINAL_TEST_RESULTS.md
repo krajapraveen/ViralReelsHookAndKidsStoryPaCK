@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://studio-deploy-2.preview.emergentagent.com
+**Website:** https://creator-qa-pay.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://studio-deploy-2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://creator-qa-pay.preview.emergentagent.com')
 
 class TestAIChatbot:
     """AI Chatbot endpoint tests"""

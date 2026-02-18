@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://studio-deploy-2.preview.emergentagent.com
+**Platform URL:** https://creator-qa-pay.preview.emergentagent.com
 
 ---
 
