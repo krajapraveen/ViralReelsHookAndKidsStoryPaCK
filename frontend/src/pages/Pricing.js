@@ -34,7 +34,22 @@ export default function Pricing() {
   const fetchProducts = async () => {
     try {
       const response = await paymentAPI.getProducts();
-      setProducts(response.data.products || []);
+      // Handle both array and object formats from API
+      const productsData = response.data.products;
+      if (Array.isArray(productsData)) {
+        setProducts(productsData);
+      } else if (productsData && typeof productsData === 'object') {
+        // Convert object to array with id from key
+        const productsArray = Object.entries(productsData).map(([id, product]) => ({
+          id,
+          ...product,
+          priceInr: product.price || product.priceInr,
+          type: product.period ? 'SUBSCRIPTION' : 'CREDIT_PACK'
+        }));
+        setProducts(productsArray);
+      } else {
+        setProducts([]);
+      }
     } catch (error) {
       console.log('Not authenticated, showing empty products');
       setProducts([]);
