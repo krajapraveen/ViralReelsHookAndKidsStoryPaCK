@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play } from 'lucide-react';
+import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play, Menu, X } from 'lucide-react';
 import DemoReelGenerator from '../components/DemoReelGenerator';
 
 export default function Landing() {
   const [showDemo, setShowDemo] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -13,12 +14,14 @@ export default function Landing() {
       <DemoReelGenerator isOpen={showDemo} onClose={() => setShowDemo(false)} />
       {/* Floating Navbar */}
       <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl px-4">
-        <div className="bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-8 py-4 flex items-center justify-between">
+        <div className="bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-indigo-500" />
-            <span className="text-xl font-bold text-white">CreatorStudio AI</span>
+            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500" />
+            <span className="text-base sm:text-xl font-bold text-white">CreatorStudio AI</span>
           </div>
-          <div className="flex items-center gap-4">
+          
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-4">
             <Link to="/pricing">
               <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-pricing-btn">
                 Pricing
@@ -45,7 +48,49 @@ export default function Landing() {
               </Button>
             </Link>
           </div>
+          
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden text-white p-2 hover:bg-white/10 rounded-full transition-colors"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            data-testid="mobile-menu-btn"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
+        
+        {/* Mobile Menu Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden mt-2 bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-col gap-2">
+              <Link to="/pricing" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start" data-testid="mobile-nav-pricing">
+                  Pricing
+                </Button>
+              </Link>
+              <Link to="/reviews" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start" data-testid="mobile-nav-reviews">
+                  Reviews
+                </Button>
+              </Link>
+              <Link to="/contact" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start" data-testid="mobile-nav-contact">
+                  Contact
+                </Button>
+              </Link>
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start" data-testid="mobile-nav-login">
+                  Login
+                </Button>
+              </Link>
+              <Link to="/signup" onClick={() => setMobileMenuOpen(false)}>
+                <Button className="w-full bg-indigo-500 hover:bg-indigo-600 text-white rounded-full mt-2" data-testid="mobile-nav-signup">
+                  Get Started
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero Section */}
