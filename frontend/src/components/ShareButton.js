@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Share2, Copy, Download } from 'lucide-react';
+import { Share2, Copy, Download, Twitter, Facebook, Linkedin, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ShareButton({ type, title, preview }) {
@@ -65,6 +65,40 @@ export default function ShareButton({ type, title, preview }) {
     toast.success('Share text copied to clipboard!');
   };
 
+  const getShareText = () => {
+    return `I just created an amazing ${type === 'REEL' ? 'reel script' : 'story pack'} with CreatorStudio AI! 🚀`;
+  };
+
+  const getShareUrl = () => {
+    return window.location.origin;
+  };
+
+  const handleTwitterShare = () => {
+    const text = encodeURIComponent(getShareText());
+    const url = encodeURIComponent(getShareUrl());
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'width=550,height=420');
+    toast.success('Opening Twitter...');
+  };
+
+  const handleFacebookShare = () => {
+    const url = encodeURIComponent(getShareUrl());
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=550,height=420');
+    toast.success('Opening Facebook...');
+  };
+
+  const handleLinkedInShare = () => {
+    const url = encodeURIComponent(getShareUrl());
+    const text = encodeURIComponent(getShareText());
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=550,height=420');
+    toast.success('Opening LinkedIn...');
+  };
+
+  const handleWhatsAppShare = () => {
+    const text = encodeURIComponent(`${getShareText()}\n\nGenerate yours: ${getShareUrl()}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+    toast.success('Opening WhatsApp...');
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -92,6 +126,49 @@ export default function ShareButton({ type, title, preview }) {
             </div>
           </div>
 
+          {/* Social Media Share Buttons */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-700">Share on social media</p>
+            <div className="flex gap-2 justify-center">
+              <Button 
+                onClick={handleTwitterShare} 
+                size="icon" 
+                variant="outline"
+                className="rounded-full w-12 h-12 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-500"
+                data-testid="share-twitter"
+              >
+                <Twitter className="w-5 h-5" />
+              </Button>
+              <Button 
+                onClick={handleFacebookShare} 
+                size="icon" 
+                variant="outline"
+                className="rounded-full w-12 h-12 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                data-testid="share-facebook"
+              >
+                <Facebook className="w-5 h-5" />
+              </Button>
+              <Button 
+                onClick={handleLinkedInShare} 
+                size="icon" 
+                variant="outline"
+                className="rounded-full w-12 h-12 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700"
+                data-testid="share-linkedin"
+              >
+                <Linkedin className="w-5 h-5" />
+              </Button>
+              <Button 
+                onClick={handleWhatsAppShare} 
+                size="icon" 
+                variant="outline"
+                className="rounded-full w-12 h-12 hover:bg-green-50 hover:border-green-400 hover:text-green-600"
+                data-testid="share-whatsapp"
+              >
+                <MessageCircle className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <Button onClick={handleDownloadShare} className="flex-1" data-testid="download-share-img">
               <Download className="w-4 h-4 mr-2" />
@@ -104,7 +181,7 @@ export default function ShareButton({ type, title, preview }) {
           </div>
 
           <p className="text-xs text-slate-500 text-center">
-            Share on social media to showcase your creation! ✨
+            Showcase your AI-powered creation! ✨
           </p>
         </div>
       </DialogContent>
