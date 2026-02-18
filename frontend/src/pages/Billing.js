@@ -20,9 +20,11 @@ export default function Billing() {
         paymentAPI.getProducts(),
         creditAPI.getBalance()
       ]);
-      setProducts(productsRes.data.products || []);
-      setCredits(creditsRes.data.balance);
+      const productsData = productsRes?.data?.products || productsRes?.data || [];
+      setProducts(Array.isArray(productsData) ? productsData : []);
+      setCredits(creditsRes?.data?.balance || 0);
     } catch (error) {
+      console.error('Billing fetch error:', error);
       toast.error('Failed to load billing data');
     }
   };
