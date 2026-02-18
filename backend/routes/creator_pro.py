@@ -2,7 +2,7 @@
 Creator Pro Tools - 15+ AI-Powered Features for Content Creators
 CreatorStudio AI
 """
-from fastapi import APIRouter, HTTPException, Depends, Form
+from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 import uuid
@@ -18,8 +18,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY
+    from security import limiter
 except ImportError:
     from ..shared import db, logger, get_current_user, deduct_credits, log_exception, LLM_AVAILABLE, EMERGENT_LLM_KEY
+    from ..security import limiter
 
 # Import emergent integrations for AI
 try:
