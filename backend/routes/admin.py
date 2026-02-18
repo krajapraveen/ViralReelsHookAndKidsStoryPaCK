@@ -2,7 +2,7 @@
 Admin Routes - Dashboard, Analytics, Payment Monitoring, Exception Tracking
 CreatorStudio AI Admin Panel
 """
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 import uuid
@@ -16,6 +16,7 @@ from shared import (
     db, logger, get_admin_user, get_current_user,
     SENDGRID_API_KEY, SENDGRID_AVAILABLE, ADMIN_ALERT_EMAIL, SENDER_EMAIL
 )
+from security import limiter
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -24,7 +25,8 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 # DASHBOARD ANALYTICS
 # =============================================================================
 @router.get("/analytics/dashboard")
-async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_user)):
+@limiter.limit("60/minute")
+async def get_admin_analytics(request: Request, days: int = 30, user: dict = Depends(get_admin_user)):
     """Get comprehensive admin dashboard analytics"""
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
