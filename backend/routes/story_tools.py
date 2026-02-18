@@ -353,11 +353,11 @@ async def generate_printable_book(
         
         await db.printable_books.insert_one(book)
         
-        # Generate Disney-style colorful PDF
+        # Generate colorful PDF using ReportLab (production-safe)
         pdf_path = f"/tmp/printable_book_{book_id}.pdf"
         
-        # Use the Disney-style PDF generator with HTML templates
-        await generate_pdf_simple(story, pdf_path)
+        # Use the ReportLab-based PDF generator (no Playwright dependency)
+        generate_colorful_pdf(story, pdf_path)
         
         # Verify PDF was created
         if not os.path.exists(pdf_path):
