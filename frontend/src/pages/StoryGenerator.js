@@ -511,25 +511,25 @@ export default function StoryGenerator() {
               
               {/* YouTube Metadata */}
               {result.youtubeMetadata && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                  <h4 className="font-bold text-lg text-white mb-3 flex items-center gap-2">
                     <span className="text-xl">📺</span> YouTube Metadata
                   </h4>
                   <div className="space-y-3">
                     <div>
-                      <p className="text-xs font-medium text-red-700">Video Title:</p>
-                      <p className="text-sm font-semibold text-slate-800">{result.youtubeMetadata.title}</p>
+                      <p className="text-xs font-medium text-red-300">Video Title:</p>
+                      <p className="text-sm font-semibold text-white">{result.youtubeMetadata.title}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-red-700">Description:</p>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{result.youtubeMetadata.description}</p>
+                      <p className="text-xs font-medium text-red-300">Description:</p>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">{result.youtubeMetadata.description}</p>
                     </div>
                     {result.youtubeMetadata.tags && (
                       <div>
-                        <p className="text-xs font-medium text-red-700 mb-1">Tags:</p>
+                        <p className="text-xs font-medium text-red-300 mb-1">Tags:</p>
                         <div className="flex flex-wrap gap-1">
                           {result.youtubeMetadata.tags.map((tag, idx) => (
-                            <span key={idx} className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded">{tag}</span>
+                            <span key={idx} className="bg-red-500/20 text-red-300 text-xs px-2 py-0.5 rounded border border-red-500/30">{tag}</span>
                           ))}
                         </div>
                       </div>
