@@ -90,31 +90,31 @@ export default function Billing() {
   };
 
   const getBorderColor = (product) => {
-    if (product.id === 'yearly') return 'border-amber-400 ring-2 ring-amber-200';
+    if (product.id === 'yearly') return 'border-amber-400 ring-2 ring-amber-400/30';
     if (product.id === 'quarterly') return 'border-indigo-400';
-    return 'border-slate-200';
+    return 'border-slate-700';
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/app"><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
-            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-indigo-500" /><span className="text-xl font-bold">Billing</span></div>
+            <Link to="/app"><Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
+            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-indigo-400" /><span className="text-xl font-bold text-white">Billing</span></div>
           </div>
-          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-purple-500" /><span className="font-semibold">{credits} Credits</span></div>
+          <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-indigo-400" /><span className="font-semibold text-indigo-300">{credits} Credits</span></div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Subscriptions Section */}
         <div className="mb-12">
-          <h2 className="text-3xl font-bold mb-2">Subscription Plans</h2>
-          <p className="text-slate-500 mb-8">Save more with longer commitments</p>
+          <h2 className="text-3xl font-bold mb-2 text-white">Subscription Plans</h2>
+          <p className="text-slate-400 mb-8">Save more with longer commitments</p>
           <div className="grid md:grid-cols-3 gap-6">
             {subscriptions.map((product) => (
-              <div key={product.id} className={`bg-white border-2 ${getBorderColor(product)} rounded-xl p-6 hover:shadow-lg transition-all relative`}>
+              <div key={product.id} className={`bg-slate-800/50 backdrop-blur-sm border-2 ${getBorderColor(product)} rounded-xl p-6 hover:shadow-lg hover:shadow-indigo-500/10 transition-all relative`}>
                 {product.savings && (
                   <div className="absolute -top-3 right-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                     <Star className="w-3 h-3" /> Save {product.savings}
@@ -125,25 +125,25 @@ export default function Billing() {
                     <Zap className="w-3 h-3" /> Best Value
                   </div>
                 )}
-                <h3 className="text-xl font-bold mb-2">{product.name}</h3>
+                <h3 className="text-xl font-bold mb-2 text-white">{product.name}</h3>
                 <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold">₹{product.price}</span>
-                  <span className="text-slate-500">{getIntervalLabel(product.interval)}</span>
+                  <span className="text-3xl font-bold text-white">₹{product.price}</span>
+                  <span className="text-slate-400">{getIntervalLabel(product.interval)}</span>
                 </div>
-                <div className="bg-indigo-50 rounded-lg px-4 py-2 mb-4">
-                  <p className="text-indigo-700 font-semibold">{product.credits} Credits</p>
-                  {product.interval === 'quarter' && <p className="text-xs text-indigo-500">~117 credits/month</p>}
-                  {product.interval === 'year' && <p className="text-xs text-indigo-500">~125 credits/month</p>}
+                <div className="bg-indigo-500/20 border border-indigo-500/30 rounded-lg px-4 py-2 mb-4">
+                  <p className="text-indigo-300 font-semibold">{product.credits} Credits</p>
+                  {product.interval === 'quarter' && <p className="text-xs text-indigo-400">~117 credits/month</p>}
+                  {product.interval === 'year' && <p className="text-xs text-indigo-400">~125 credits/month</p>}
                 </div>
-                <ul className="text-sm text-slate-600 mb-4 space-y-2">
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Auto-renewal</li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Priority support</li>
-                  {product.id === 'yearly' && <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Early feature access</li>}
+                <ul className="text-sm text-slate-300 mb-4 space-y-2">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Auto-renewal</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Priority support</li>
+                  {product.id === 'yearly' && <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Early feature access</li>}
                 </ul>
                 <Button 
                   onClick={() => handlePurchase(product.id)} 
                   disabled={loading[product.id]} 
-                  className={`w-full ${product.id === 'yearly' ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600' : 'bg-indigo-500 hover:bg-indigo-600'}`} 
+                  className={`w-full ${product.id === 'yearly' ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600' : 'bg-indigo-600 hover:bg-indigo-700'}`} 
                   data-testid={`buy-${product.id}-btn`}
                 >
                   {loading[product.id] ? 'Processing...' : 'Subscribe'}
@@ -155,8 +155,8 @@ export default function Billing() {
 
         {/* Credit Packs Section */}
         <div>
-          <h2 className="text-3xl font-bold mb-2">Credit Packs</h2>
-          <p className="text-slate-500 mb-8">One-time purchase, no commitment</p>
+          <h2 className="text-3xl font-bold mb-2 text-white">Credit Packs</h2>
+          <p className="text-slate-400 mb-8">One-time purchase, no commitment</p>
           <div className="grid md:grid-cols-3 gap-6">
             {packs.map((product) => (
               <div key={product.id} className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-purple-500 hover:shadow-lg transition-all">
