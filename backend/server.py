@@ -134,15 +134,18 @@ async def security_headers_middleware(request: Request, call_next):
     
     return response
 
-# CORS Configuration - Restricted to specific origins
-ALLOWED_ORIGINS = [
-    "https://creatorstudio-11.preview.emergentagent.com",
-    "https://creatorstudio.ai",
-    "https://www.creatorstudio.ai",
-    "https://auth.emergentagent.com",
-    "http://localhost:3000",  # Development
-    "http://127.0.0.1:3000",  # Development
-]
+# CORS Configuration - Read from environment variable for deployment flexibility
+cors_origins_env = os.environ.get('CORS_ORIGINS', '*')
+if cors_origins_env == '*':
+    ALLOWED_ORIGINS = ['*']
+else:
+    # Parse comma-separated list of origins
+    ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+    # Always include auth provider
+    if "https://auth.emergentagent.com" not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append("https://auth.emergentagent.com")
+
+logger.info(f"CORS configured with origins: {ALLOWED_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
