@@ -255,33 +255,103 @@ async def generate_worksheet(generation_id: str, user: dict = Depends(get_curren
     
     story = generation.get("outputJson", {})
     
+    # Generate dynamic fill-in-the-blanks based on story content
+    story_title = story.get('title', 'The Story')
+    characters = story.get('characters', [])
+    scenes = story.get('scenes', [])
+    moral = story.get('moral', 'Be kind to others')
+    
+    # Extract character names
+    character_names = [c.get('name', 'Hero') for c in characters[:3]] if characters else ['Hero']
+    main_character = character_names[0] if character_names else 'Hero'
+    
+    # Generate fill-in-the-blanks questions
+    fill_blanks = [
+        {
+            "number": 1,
+            "sentence": f"The main character of the story is _______.",
+            "answer": main_character
+        },
+        {
+            "number": 2,
+            "sentence": f"The title of this story is _______.",
+            "answer": story_title
+        },
+        {
+            "number": 3,
+            "sentence": f"The moral of the story teaches us to _______.",
+            "answer": moral.split('.')[0] if moral else "be kind"
+        }
+    ]
+    
+    # Add scene-based questions if available
+    if scenes and len(scenes) > 0:
+        first_scene = scenes[0]
+        setting = first_scene.get('setting', 'a magical place')
+        fill_blanks.append({
+            "number": 4,
+            "sentence": f"The story begins in _______.",
+            "answer": setting
+        })
+    
+    if len(character_names) > 1:
+        fill_blanks.append({
+            "number": 5,
+            "sentence": f"{main_character}'s friend in the story is _______.",
+            "answer": character_names[1]
+        })
+    
+    # Generate comprehension questions
+    comprehension_questions = [
+        {
+            "number": 1,
+            "question": f"What is the name of the main character in the story?",
+            "answer": main_character
+        },
+        {
+            "number": 2,
+            "question": "What lesson did the story teach you?",
+            "answer": moral
+        },
+        {
+            "number": 3,
+            "question": "How did the story end?",
+            "answer": "Open-ended answer"
+        },
+        {
+            "number": 4,
+            "question": "What was your favorite part of the story?",
+            "answer": "Open-ended answer"
+        }
+    ]
+    
     # Generate worksheet content
     worksheet = {
         "id": str(uuid.uuid4()),
         "generationId": generation_id,
         "userId": user["id"],
-        "title": f"Worksheet: {story.get('title', 'Story')}",
+        "story_title": story_title,
+        "title": f"Worksheet: {story_title}",
+        "fill_blanks": fill_blanks,
+        "comprehension_questions": comprehension_questions,
+        "vocabulary_words": story.get("keywords", ["adventure", "friendship", "courage", "magic", "dream"])[:5],
+        "coloring_prompt": f"Draw {main_character} in your favorite scene from the story!",
         "activities": [
             {
                 "type": "vocabulary",
                 "title": "New Words",
-                "words": story.get("keywords", [])[:5],
+                "words": story.get("keywords", ["adventure", "friendship", "courage"])[:5],
                 "instructions": "Match each word with its meaning"
             },
             {
                 "type": "comprehension",
                 "title": "Reading Questions",
-                "questions": [
-                    "What is the main character's name?",
-                    "What lesson did the story teach?",
-                    "How did the story end?",
-                    "What was your favorite part?"
-                ]
+                "questions": [q["question"] for q in comprehension_questions]
             },
             {
                 "type": "creative",
                 "title": "Draw Your Favorite Scene",
-                "instructions": "Draw a picture of your favorite moment from the story"
+                "instructions": f"Draw a picture of {main_character} in your favorite moment from the story"
             },
             {
                 "type": "sequencing",
