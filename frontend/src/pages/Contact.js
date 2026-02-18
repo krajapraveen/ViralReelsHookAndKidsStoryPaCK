@@ -27,7 +27,7 @@ export default function Contact() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/contact`, {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/feedback/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
