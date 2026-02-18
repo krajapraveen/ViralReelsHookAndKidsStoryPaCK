@@ -121,6 +121,7 @@ Full QA reports:
 - `/app/test_reports/QA_COMPREHENSIVE_REPORT.md`
 - `/app/test_reports/MASTER_QA_REPORT_CONSOLIDATED.md`
 - `/app/test_reports/LANDING_PAGE_QA_REPORT.md`
+- `/app/test_reports/iteration_31.json` - Latest UI/UX verification (Feb 18, 2026)
 
 ### Landing Page QA Fixes (Feb 18, 2026):
 1. **Contact Form API** - Fixed endpoint from `/api/contact` to `/api/feedback/contact`
