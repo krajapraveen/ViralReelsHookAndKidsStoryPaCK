@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Coins, Sparkles, Check, Star, Zap, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import api, { paymentAPI, creditAPI } from '../services/api';
+import api, { paymentAPI, creditAPI } from '../utils/api';
 
 export default function Billing() {
   const [products, setProducts] = useState([]);
