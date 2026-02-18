@@ -147,38 +147,35 @@ export default function Billing() {
         <div className="mb-12">
           <h2 className="text-3xl font-bold mb-2 text-white">Subscription Plans</h2>
           <p className="text-slate-400 mb-8">Save more with longer commitments</p>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {subscriptions.map((product) => (
-              <div key={product.id} className={`bg-slate-800/50 backdrop-blur-sm border-2 ${getBorderColor(product)} rounded-xl p-6 hover:shadow-lg hover:shadow-indigo-500/10 transition-all relative`}>
+              <div key={product.id} className={`bg-slate-800/50 backdrop-blur-sm border-2 ${getBorderColor(product)} rounded-xl p-5 hover:shadow-lg hover:shadow-indigo-500/10 transition-all relative`}>
                 {product.savings && (
-                  <div className="absolute -top-3 right-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                    <Star className="w-3 h-3" /> Save {product.savings}
+                  <div className="absolute -top-3 right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                    <Star className="w-3 h-3" /> {product.savings}
                   </div>
                 )}
                 {product.id === 'yearly' && (
-                  <div className="absolute -top-3 left-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                    <Zap className="w-3 h-3" /> Best Value
+                  <div className="absolute -top-3 left-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> Best
                   </div>
                 )}
-                <h3 className="text-xl font-bold mb-2 text-white">{product.name}</h3>
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold text-white">₹{product.price}</span>
-                  <span className="text-slate-400">{getIntervalLabel(product.interval)}</span>
+                <h3 className="text-lg font-bold mb-2 text-white">{product.name}</h3>
+                <div className="flex items-baseline gap-1 mb-3">
+                  <span className="text-2xl font-bold text-white">₹{product.price}</span>
+                  <span className="text-slate-400 text-sm">{getIntervalLabel(product.interval)}</span>
                 </div>
-                <div className="bg-indigo-500/20 border border-indigo-500/30 rounded-lg px-4 py-2 mb-4">
-                  <p className="text-indigo-300 font-semibold">{product.credits} Credits</p>
-                  {product.interval === 'quarter' && <p className="text-xs text-indigo-400">~117 credits/month</p>}
-                  {product.interval === 'year' && <p className="text-xs text-indigo-400">~125 credits/month</p>}
+                <div className="bg-indigo-500/20 border border-indigo-500/30 rounded-lg px-3 py-2 mb-3">
+                  <p className="text-indigo-300 font-semibold text-sm">{product.credits} Credits</p>
                 </div>
-                <ul className="text-sm text-slate-300 mb-4 space-y-2">
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Auto-renewal</li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Priority support</li>
-                  {product.id === 'yearly' && <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Early feature access</li>}
+                <ul className="text-xs text-slate-300 mb-3 space-y-1">
+                  <li className="flex items-center gap-1"><Check className="w-3 h-3 text-emerald-400" /> Auto-renewal</li>
+                  <li className="flex items-center gap-1"><Check className="w-3 h-3 text-emerald-400" /> Priority support</li>
                 </ul>
                 <Button 
                   onClick={() => handlePurchase(product.id)} 
                   disabled={loading[product.id]} 
-                  className={`w-full ${product.id === 'yearly' ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600' : 'bg-indigo-600 hover:bg-indigo-700'}`} 
+                  className={`w-full text-sm ${product.id === 'yearly' ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600' : 'bg-indigo-600 hover:bg-indigo-700'}`} 
                   data-testid={`buy-${product.id}-btn`}
                 >
                   {loading[product.id] ? 'Processing...' : 'Subscribe'}
