@@ -38,6 +38,7 @@ CASHFREE_ENVIRONMENT = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION")
 
 # Initialize Cashfree client
 cashfree_client = None
+cashfree_env = None
 try:
     from cashfree_pg.api_client import Cashfree
     from cashfree_pg.models.create_order_request import CreateOrderRequest
@@ -46,11 +47,13 @@ try:
     
     if CASHFREE_APP_ID and CASHFREE_SECRET_KEY:
         # Initialize Cashfree with environment
-        env = Cashfree.PRODUCTION if CASHFREE_ENVIRONMENT == "PRODUCTION" else Cashfree.SANDBOX
-        Cashfree.XClientId = CASHFREE_APP_ID
-        Cashfree.XClientSecret = CASHFREE_SECRET_KEY
-        Cashfree.XEnvironment = env
-        cashfree_client = Cashfree
+        cashfree_env = Cashfree.PRODUCTION if CASHFREE_ENVIRONMENT == "PRODUCTION" else Cashfree.SANDBOX
+        # Create client instance with proper initialization
+        cashfree_client = Cashfree(
+            XEnvironment=cashfree_env,
+            XClientId=CASHFREE_APP_ID,
+            XClientSecret=CASHFREE_SECRET_KEY
+        )
         logger.info(f"Cashfree client initialized in {CASHFREE_ENVIRONMENT} mode")
 except ImportError as e:
     logger.warning(f"Cashfree SDK not available: {e}")
