@@ -28,9 +28,9 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
     """Register a new user with validation"""
     try:
         # Validate password strength
-        password_check = validate_password_strength(data.password)
-        if not password_check["valid"]:
-            raise HTTPException(status_code=400, detail=password_check["message"])
+        is_valid, error_message = validate_password_strength(data.password)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_message)
         
         # Check if user exists
         existing = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
