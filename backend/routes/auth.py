@@ -186,69 +186,69 @@ async def google_callback(data: GoogleCallback):
             raise HTTPException(status_code=400, detail="Email not provided")
         
         logger.info(f"Processing Google auth for: {email}")
-            
-            # Check if user exists
-            existing = await db.users.find_one({"email": email})
-            
-            if existing:
-                # Update last login
-                await db.users.update_one(
-                    {"id": existing["id"]},
-                    {"$set": {"lastLogin": datetime.now(timezone.utc).isoformat()}}
-                )
-                token = create_token(existing["id"], existing.get("role", "user"))
-                logger.info(f"Existing user logged in: {email}")
-                return {
-                    "token": token,
-                    "user": {
-                        "id": existing["id"],
-                        "email": existing["email"],
-                        "name": existing.get("name", ""),
-                        "role": existing.get("role", "user"),
-                        "credits": existing.get("credits", 0)
-                    }
+        
+        # Check if user exists
+        existing = await db.users.find_one({"email": email})
+        
+        if existing:
+            # Update last login
+            await db.users.update_one(
+                {"id": existing["id"]},
+                {"$set": {"lastLogin": datetime.now(timezone.utc).isoformat()}}
+            )
+            token = create_token(existing["id"], existing.get("role", "user"))
+            logger.info(f"Existing user logged in: {email}")
+            return {
+                "token": token,
+                "user": {
+                    "id": existing["id"],
+                    "email": existing["email"],
+                    "name": existing.get("name", ""),
+                    "role": existing.get("role", "user"),
+                    "credits": existing.get("credits", 0)
                 }
-            else:
-                # Create new user
-                user_id = str(uuid.uuid4())
-                user = {
+            }
+        else:
+            # Create new user
+            user_id = str(uuid.uuid4())
+            user = {
+                "id": user_id,
+                "email": email,
+                "name": name,
+                "password": "",
+                "role": "user",
+                "credits": 100,
+                "authProvider": "google",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "lastLogin": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await db.users.insert_one(user)
+            
+            # Log initial credit grant
+            await db.credit_ledger.insert_one({
+                "id": str(uuid.uuid4()),
+                "userId": user_id,
+                "amount": 100,
+                "type": "SIGNUP_BONUS",
+                "description": "Welcome bonus credits (Google Sign-In)",
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            })
+            
+            token = create_token(user_id, "user")
+            
+            logger.info(f"New Google user registered: {email}")
+            
+            return {
+                "token": token,
+                "user": {
                     "id": user_id,
                     "email": email,
                     "name": name,
-                    "password": "",
                     "role": "user",
-                    "credits": 100,
-                    "authProvider": "google",
-                    "createdAt": datetime.now(timezone.utc).isoformat(),
-                    "lastLogin": datetime.now(timezone.utc).isoformat()
+                    "credits": 100
                 }
-                
-                await db.users.insert_one(user)
-                
-                # Log initial credit grant
-                await db.credit_ledger.insert_one({
-                    "id": str(uuid.uuid4()),
-                    "userId": user_id,
-                    "amount": 100,
-                    "type": "SIGNUP_BONUS",
-                    "description": "Welcome bonus credits (Google Sign-In)",
-                    "createdAt": datetime.now(timezone.utc).isoformat()
-                })
-                
-                token = create_token(user_id, "user")
-                
-                logger.info(f"New Google user registered: {email}")
-                
-                return {
-                    "token": token,
-                    "user": {
-                        "id": user_id,
-                        "email": email,
-                        "name": name,
-                        "role": "user",
-                        "credits": 100
-                    }
-                }
+            }
                 
     except HTTPException:
         raise
