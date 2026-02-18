@@ -55,6 +55,7 @@ from routes.content_vault import router as content_router
 from routes.story_tools import router as story_tools_router
 from routes.creator_tools import router as creator_tools_router
 from routes.convert_tools import router as convert_router
+from routes.cashfree_payments import router as cashfree_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -110,12 +111,12 @@ async def security_headers_middleware(request: Request, call_next):
     # Content Security Policy (CSP) - Prevents XSS and other injection attacks
     csp_directives = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com https://sdk.cashfree.com",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https: http:",
-        "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.emergentagent.com wss:",
-        "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://auth.emergentagent.com",
+        "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://*.emergentagent.com wss:",
+        "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://auth.emergentagent.com",
         "media-src 'self' blob: https:",
         "object-src 'none'",
         "base-uri 'self'",
@@ -177,6 +178,7 @@ api_router.include_router(content_router)
 api_router.include_router(story_tools_router)
 api_router.include_router(creator_tools_router)
 api_router.include_router(convert_router)
+api_router.include_router(cashfree_router)
 
 # Include API router in app
 app.include_router(api_router)
