@@ -61,7 +61,7 @@ export default function AIChatbot() {
 
   const clearChat = async () => {
     try {
-      await api.post('/api/chatbot/clear', { sessionId });
+      await api.post('/api/feedback/chatbot', { sessionId, clear: true });
     } catch (e) {}
     setMessages([{
       role: 'assistant',
