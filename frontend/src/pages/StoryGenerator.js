@@ -498,9 +498,9 @@ export default function StoryGenerator() {
                         
                         {/* Image Prompt */}
                         {scene.image_prompt && (
-                          <div className="bg-orange-50 rounded p-2">
-                            <p className="text-xs font-medium text-orange-700 mb-1">🖼️ Image Prompt:</p>
-                            <p className="text-xs text-orange-800">{scene.image_prompt}</p>
+                          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-2">
+                            <p className="text-xs font-medium text-orange-300 mb-1">🖼️ Image Prompt:</p>
+                            <p className="text-xs text-orange-200">{scene.image_prompt}</p>
                           </div>
                         )}
                       </div>
