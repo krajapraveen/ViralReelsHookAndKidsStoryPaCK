@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { paymentAPI, creditAPI } from '../utils/api';
+import { Coins, Sparkles, Check, Star, Zap, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { Sparkles, Coins, ArrowLeft, Check, Star, Zap } from 'lucide-react';
+import api, { paymentAPI, creditAPI } from '../services/api';
 
 export default function Billing() {
   const [products, setProducts] = useState([]);
