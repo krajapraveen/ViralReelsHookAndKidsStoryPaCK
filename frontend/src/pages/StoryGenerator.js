@@ -539,26 +539,26 @@ export default function StoryGenerator() {
               )}
               
               {/* Story Tools - Educational Add-ons */}
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
-                <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl p-4">
+                <h4 className="font-bold text-lg text-white mb-4 flex items-center gap-2">
                   <span className="text-xl">🎓</span> Educational Add-ons
                 </h4>
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   {/* Worksheet Generator */}
-                  <div className="bg-white rounded-lg p-4 border border-amber-200">
+                  <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
                     <div className="flex items-center gap-2 mb-2">
-                      <FileText className="w-5 h-5 text-amber-600" />
-                      <h5 className="font-semibold">Story Worksheet</h5>
+                      <FileText className="w-5 h-5 text-amber-400" />
+                      <h5 className="font-semibold text-white">Story Worksheet</h5>
                     </div>
-                    <p className="text-sm text-slate-600 mb-3">5 comprehension questions, fill-in-the-blanks, vocabulary, and coloring prompt</p>
+                    <p className="text-sm text-slate-300 mb-3">5 comprehension questions, fill-in-the-blanks, vocabulary, and coloring prompt</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-amber-700 font-medium flex items-center gap-1">
+                      <span className="text-xs text-amber-300 font-medium flex items-center gap-1">
                         <Coins className="w-3 h-3" /> 3 credits
                       </span>
                       <Button 
                         size="sm" 
-                        className="bg-amber-500 hover:bg-amber-600"
+                        className="bg-amber-600 hover:bg-amber-700"
                         disabled={worksheetLoading || !generationId}
                         onClick={async () => {
                           if (credits < 3) {
@@ -588,15 +588,15 @@ export default function StoryGenerator() {
                   </div>
                   
                   {/* Printable Book */}
-                  <div className="bg-white rounded-lg p-4 border border-amber-200">
+                  <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
                     <div className="flex items-center gap-2 mb-2">
-                      <BookOpen className="w-5 h-5 text-orange-600" />
-                      <h5 className="font-semibold">Printable Story Book</h5>
+                      <BookOpen className="w-5 h-5 text-orange-400" />
+                      <h5 className="font-semibold text-white">Printable Story Book</h5>
                     </div>
-                    <p className="text-sm text-slate-600 mb-2">Beautiful PDF with cover, story pages, moral, and activity page</p>
+                    <p className="text-sm text-slate-300 mb-2">Beautiful PDF with cover, story pages, moral, and activity page</p>
                     
                     {/* Personalization Pack - Premium Upsell */}
-                    <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg p-3 mb-3 border border-pink-200">
+                    <div className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-lg p-3 mb-3 border border-pink-500/30">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <input 
@@ -604,17 +604,17 @@ export default function StoryGenerator() {
                             id="personalize" 
                             checked={showPersonalization}
                             onChange={(e) => setShowPersonalization(e.target.checked)}
-                            className="rounded border-pink-300"
+                            className="rounded border-pink-500/50 bg-slate-800"
                             data-testid="personalization-checkbox"
                           />
-                          <label htmlFor="personalize" className="text-sm font-medium text-pink-700 flex items-center gap-1 cursor-pointer">
-                            <Gift className="w-4 h-4 text-pink-500" /> 
+                          <label htmlFor="personalize" className="text-sm font-medium text-pink-300 flex items-center gap-1 cursor-pointer">
+                            <Gift className="w-4 h-4 text-pink-400" /> 
                             Personalization Pack
                           </label>
                         </div>
-                        <span className="text-xs bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full">+2 credits</span>
+                        <span className="text-xs bg-pink-500/30 text-pink-300 px-2 py-0.5 rounded-full">+2 credits</span>
                       </div>
-                      <p className="text-xs text-slate-500 mb-2">Make the story special with your child's name and a personal dedication!</p>
+                      <p className="text-xs text-slate-400 mb-2">Make the story special with your child's name and a personal dedication!</p>
                       
                       {showPersonalization && (
                         <div className="space-y-2 pt-2 border-t border-pink-200">
