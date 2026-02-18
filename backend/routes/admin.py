@@ -191,7 +191,11 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
             "satisfaction": {
                 "satisfactionPercentage": satisfaction_percentage,
                 "averageRating": round(avg_rating, 1),
-                "totalFeedback": feedback_count
+                "totalFeedback": feedback_count,
+                "totalReviews": len(feedback_with_rating),
+                "npsScore": nps_score,
+                "ratingDistribution": rating_distribution,
+                "recentReviews": formatted_reviews
             },
             "recentActivity": {
                 "recentUsers": recent_users_list[:5],
