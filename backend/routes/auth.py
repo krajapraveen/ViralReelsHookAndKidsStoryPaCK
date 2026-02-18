@@ -145,11 +145,12 @@ async def google_callback(data: GoogleCallback):
     try:
         logger.info(f"Google callback received with sessionId: {data.sessionId[:8]}...")
         
-        # Verify session with Emergent Auth service
+        # Verify session with Emergent Auth service - CORRECT ENDPOINT
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
-                    f"https://oauth.emergent.sh/api/auth/session/{data.sessionId}"
+                    "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                    headers={"X-Session-ID": data.sessionId}
                 )
         except httpx.TimeoutException as e:
             logger.error(f"Timeout connecting to Emergent Auth service: {e}")
@@ -164,22 +165,24 @@ async def google_callback(data: GoogleCallback):
             logger.error(f"Unexpected error connecting to Emergent Auth: {type(e).__name__}: {e}")
             raise HTTPException(status_code=503, detail="Authentication service unavailable")
         
+        logger.info(f"Emergent Auth response status: {response.status_code}")
+        
         if response.status_code != 200:
-            logger.warning(f"Invalid session response: {response.status_code}")
-            raise HTTPException(status_code=400, detail="Invalid session")
+            logger.warning(f"Invalid session response: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=400, detail="Invalid session or session expired")
         
         try:
             session_data = response.json()
+            logger.info(f"Session data received: {list(session_data.keys())}")
         except Exception as e:
             logger.error(f"Failed to parse session response: {e}")
             raise HTTPException(status_code=500, detail="Invalid response from auth service")
         
-        if not session_data.get("authenticated"):
-            logger.warning("Session not authenticated")
-            raise HTTPException(status_code=400, detail="Session not authenticated")
-        
+        # Extract user info from session data
         email = session_data.get("email", "").lower()
         name = session_data.get("name", email.split("@")[0] if email else "User")
+        picture = session_data.get("picture", "")
+        session_token = session_data.get("session_token", "")
         
         if not email:
             logger.warning("No email in session data")
