@@ -139,6 +139,12 @@ async def login(request: Request, data: UserLogin):
         raise HTTPException(status_code=500, detail="Login failed")
 
 
+@router.options("/google-callback")
+async def google_callback_options():
+    """Handle CORS preflight for Google callback"""
+    return {"status": "ok"}
+
+
 @router.post("/google-callback")
 async def google_callback(data: GoogleCallback):
     """Handle Google OAuth callback via Emergent Auth"""
