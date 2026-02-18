@@ -77,8 +77,8 @@ export default function Billing() {
     }
   };
 
-  const subscriptions = products.filter(p => p.type === 'SUBSCRIPTION');
-  const packs = products.filter(p => p.type === 'ONE_TIME');
+  const subscriptions = Array.isArray(products) ? products.filter(p => p.type === 'SUBSCRIPTION') : [];
+  const packs = Array.isArray(products) ? products.filter(p => p.type === 'ONE_TIME') : [];
 
   const getIntervalLabel = (interval) => {
     switch(interval) {
