@@ -110,11 +110,14 @@ async def get_admin_analytics(days: int = 30, user: dict = Depends(get_admin_use
                 "total": total_generations,
                 "reels": reel_generations,
                 "stories": story_generations,
+                "reelGenerations": reel_generations,
+                "storyGenerations": story_generations,
                 "recent": recent_generations,
                 "genstudioTotal": genstudio_jobs,
                 "genstudioRecent": genstudio_recent,
                 "recentGenerations": recent_gens,
-                "successRate": 100
+                "successRate": 100,
+                "creditsUsed": credits_used
             },
             "revenue": {
                 "total": revenue.get("total", 0),
