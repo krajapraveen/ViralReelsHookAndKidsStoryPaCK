@@ -617,38 +617,38 @@ export default function StoryGenerator() {
                       <p className="text-xs text-slate-400 mb-2">Make the story special with your child's name and a personal dedication!</p>
                       
                       {showPersonalization && (
-                        <div className="space-y-2 pt-2 border-t border-pink-200">
+                        <div className="space-y-2 pt-2 border-t border-pink-500/30">
                           <div>
-                            <label className="text-xs font-medium text-slate-600">Child's Name (max 300 chars)</label>
+                            <label className="text-xs font-medium text-slate-300">Child's Name (max 300 chars)</label>
                             <Input 
                               placeholder="e.g., Emma, Aarav, Sofia" 
                               value={personalization.child_name}
                               onChange={(e) => setPersonalization({...personalization, child_name: e.target.value.slice(0, 300)})}
-                              className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              className="text-sm mt-1 bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500"
                               maxLength={300}
                               data-testid="child-name-input"
                             />
                             <p className="text-xs text-slate-400 mt-1">{personalization.child_name?.length || 0}/300 characters</p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-slate-600">Dedication Message (max 300 chars)</label>
+                            <label className="text-xs font-medium text-slate-300">Dedication Message (max 300 chars)</label>
                             <Input 
                               placeholder="e.g., For my little star, with love from Mommy" 
                               value={personalization.dedication}
                               onChange={(e) => setPersonalization({...personalization, dedication: e.target.value.slice(0, 300)})}
-                              className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              className="text-sm mt-1 bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500"
                               maxLength={300}
                               data-testid="dedication-input"
                             />
                             <p className="text-xs text-slate-400 mt-1">{personalization.dedication?.length || 0}/300 characters</p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-slate-600">Birthday Message (Optional, max 300 chars)</label>
+                            <label className="text-xs font-medium text-slate-300">Birthday Message (Optional, max 300 chars)</label>
                             <Input 
                               placeholder="e.g., Happy 5th Birthday!" 
                               value={personalization.birthday_message || ''}
                               onChange={(e) => setPersonalization({...personalization, birthday_message: e.target.value.slice(0, 300)})}
-                              className="text-sm mt-1 border-pink-200 focus:border-pink-400"
+                              className="text-sm mt-1 bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500"
                               maxLength={300}
                               data-testid="birthday-input"
                             />
@@ -660,28 +660,28 @@ export default function StoryGenerator() {
                     
                     {/* PDF Progress Bar - Full Width */}
                     {printableLoading && (
-                      <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                        <div className="flex justify-between text-sm text-purple-700 mb-2">
+                      <div className="mt-4 p-3 bg-purple-500/20 rounded-xl border border-purple-500/30">
+                        <div className="flex justify-between text-sm text-purple-300 mb-2">
                           <span className="font-medium">{pdfProgress.message}</span>
                           <span className="font-bold">{Math.min(pdfProgress.step * 25, 100)}%</span>
                         </div>
-                        <div className="w-full bg-purple-100 rounded-full h-3 overflow-hidden">
+                        <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
                           <div 
                             className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 rounded-full transition-all duration-500 ease-out"
                             style={{ width: `${Math.min(pdfProgress.step * 25, 100)}%` }}
                           />
                         </div>
-                        <div className="flex justify-between text-xs text-slate-500 mt-2">
-                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 1 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Prepare</span>
-                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 2 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Render</span>
-                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 3 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Generate</span>
-                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 4 ? 'bg-purple-200 text-purple-700 font-medium' : ''}`}>Download</span>
+                        <div className="flex justify-between text-xs text-slate-400 mt-2">
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 1 ? 'bg-purple-500/30 text-purple-300 font-medium' : ''}`}>Prepare</span>
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 2 ? 'bg-purple-500/30 text-purple-300 font-medium' : ''}`}>Render</span>
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 3 ? 'bg-purple-500/30 text-purple-300 font-medium' : ''}`}>Generate</span>
+                          <span className={`px-2 py-0.5 rounded ${pdfProgress.step >= 4 ? 'bg-purple-500/30 text-purple-300 font-medium' : ''}`}>Download</span>
                         </div>
                       </div>
                     )}
                     
                     <div className="flex items-center justify-between mt-3">
-                      <span className="text-sm text-orange-700 font-semibold flex items-center gap-1">
+                      <span className="text-sm text-orange-400 font-semibold flex items-center gap-1">
                         <Coins className="w-4 h-4" /> {showPersonalization ? '6' : '4'} credits
                       </span>
                       <Button 
