@@ -27,7 +27,10 @@ export default function Billing() {
         id,
         ...product,
         type: product.period ? 'SUBSCRIPTION' : 'ONE_TIME',
-        interval: product.period === 'quarterly' ? 'quarter' : product.period === 'yearly' ? 'year' : null
+        interval: product.period === 'weekly' ? 'week' : 
+                  product.period === 'monthly' ? 'month' : 
+                  product.period === 'quarterly' ? 'quarter' : 
+                  product.period === 'yearly' ? 'year' : null
       }));
       
       setProducts(productsArray);
