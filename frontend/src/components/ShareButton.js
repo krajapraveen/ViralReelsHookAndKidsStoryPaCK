@@ -102,23 +102,23 @@ export default function ShareButton({ type, title, preview }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2" data-testid="share-btn">
+        <Button variant="outline" size="sm" className="gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="share-btn">
           <Share2 className="w-4 h-4" />
           Share
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border-slate-700">
         <DialogHeader>
-          <DialogTitle>Share Your Creation</DialogTitle>
+          <DialogTitle className="text-white text-xl">Share Your Creation</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-            <div className="aspect-video bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center text-white">
+        <div className="space-y-5">
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+            <div className="aspect-video bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
               <div className="text-center p-6">
-                <div className="text-3xl font-bold mb-2">
+                <div className="text-4xl font-bold mb-2">
                   {type === 'REEL' ? '🎬' : '📖'}
                 </div>
-                <div className="font-semibold">
+                <div className="font-bold text-lg">
                   {type === 'REEL' ? 'Viral Reel Script' : 'Kids Story Pack'}
                 </div>
                 <div className="text-sm mt-2 opacity-90">Generated with CreatorStudio AI</div>
@@ -127,14 +127,13 @@ export default function ShareButton({ type, title, preview }) {
           </div>
 
           {/* Social Media Share Buttons */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-700">Share on social media</p>
-            <div className="flex gap-2 justify-center">
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-slate-300">Share on social media</p>
+            <div className="flex gap-3 justify-center">
               <Button 
                 onClick={handleTwitterShare} 
                 size="icon" 
-                variant="outline"
-                className="rounded-full w-12 h-12 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-500"
+                className="rounded-full w-12 h-12 bg-slate-800 border border-slate-700 hover:bg-sky-500/20 hover:border-sky-400 text-slate-300 hover:text-sky-400 transition-all duration-200"
                 data-testid="share-twitter"
               >
                 <Twitter className="w-5 h-5" />
@@ -142,8 +141,7 @@ export default function ShareButton({ type, title, preview }) {
               <Button 
                 onClick={handleFacebookShare} 
                 size="icon" 
-                variant="outline"
-                className="rounded-full w-12 h-12 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                className="rounded-full w-12 h-12 bg-slate-800 border border-slate-700 hover:bg-blue-500/20 hover:border-blue-400 text-slate-300 hover:text-blue-400 transition-all duration-200"
                 data-testid="share-facebook"
               >
                 <Facebook className="w-5 h-5" />
@@ -151,8 +149,7 @@ export default function ShareButton({ type, title, preview }) {
               <Button 
                 onClick={handleLinkedInShare} 
                 size="icon" 
-                variant="outline"
-                className="rounded-full w-12 h-12 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700"
+                className="rounded-full w-12 h-12 bg-slate-800 border border-slate-700 hover:bg-blue-600/20 hover:border-blue-500 text-slate-300 hover:text-blue-500 transition-all duration-200"
                 data-testid="share-linkedin"
               >
                 <Linkedin className="w-5 h-5" />
@@ -160,8 +157,7 @@ export default function ShareButton({ type, title, preview }) {
               <Button 
                 onClick={handleWhatsAppShare} 
                 size="icon" 
-                variant="outline"
-                className="rounded-full w-12 h-12 hover:bg-green-50 hover:border-green-400 hover:text-green-600"
+                className="rounded-full w-12 h-12 bg-slate-800 border border-slate-700 hover:bg-green-500/20 hover:border-green-400 text-slate-300 hover:text-green-400 transition-all duration-200"
                 data-testid="share-whatsapp"
               >
                 <MessageCircle className="w-5 h-5" />
@@ -169,18 +165,18 @@ export default function ShareButton({ type, title, preview }) {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button onClick={handleDownloadShare} className="flex-1" data-testid="download-share-img">
+          <div className="flex gap-3">
+            <Button onClick={handleDownloadShare} className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium" data-testid="download-share-img">
               <Download className="w-4 h-4 mr-2" />
               Download Card
             </Button>
-            <Button onClick={handleCopyLink} variant="outline" className="flex-1" data-testid="copy-share-link">
+            <Button onClick={handleCopyLink} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium" data-testid="copy-share-link">
               <Copy className="w-4 h-4 mr-2" />
               Copy Link
             </Button>
           </div>
 
-          <p className="text-xs text-slate-500 text-center">
+          <p className="text-xs text-slate-400 text-center">
             Showcase your AI-powered creation! ✨
           </p>
         </div>
