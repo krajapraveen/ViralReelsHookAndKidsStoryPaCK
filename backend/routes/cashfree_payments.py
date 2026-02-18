@@ -40,10 +40,12 @@ try:
     from cashfree_pg.models.order_meta import OrderMeta
     
     if CASHFREE_APP_ID and CASHFREE_SECRET_KEY:
+        # Initialize Cashfree with environment
+        env = Cashfree.PRODUCTION if CASHFREE_ENVIRONMENT == "PRODUCTION" else Cashfree.SANDBOX
         Cashfree.XClientId = CASHFREE_APP_ID
         Cashfree.XClientSecret = CASHFREE_SECRET_KEY
-        Cashfree.XEnvironment = Cashfree.PRODUCTION if CASHFREE_ENVIRONMENT == "PRODUCTION" else Cashfree.SANDBOX
-        cashfree_client = Cashfree()
+        Cashfree.XEnvironment = env
+        cashfree_client = Cashfree
         logger.info(f"Cashfree client initialized in {CASHFREE_ENVIRONMENT} mode")
 except ImportError as e:
     logger.warning(f"Cashfree SDK not available: {e}")
