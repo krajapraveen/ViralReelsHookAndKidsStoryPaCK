@@ -416,9 +416,9 @@ async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_cur
         pdf_path = f"/tmp/printable_book_{book_id}.pdf"
         
         if not os.path.exists(pdf_path):
-            # Regenerate Disney-style PDF if missing
-            logger.info(f"Regenerating Disney-style PDF for book {book_id}")
-            await generate_pdf_simple(book, pdf_path)
+            # Regenerate PDF using ReportLab if missing
+            logger.info(f"Regenerating PDF for book {book_id}")
+            generate_colorful_pdf(book, pdf_path)
         
         if os.path.exists(pdf_path):
             # Sanitize filename
