@@ -111,16 +111,19 @@ export default function Billing() {
 
   const getIntervalLabel = (interval) => {
     switch(interval) {
+      case 'week': return '/week';
       case 'month': return '/month';
       case 'quarter': return '/quarter';
       case 'year': return '/year';
-      default: return '/month';
+      default: return '';
     }
   };
 
   const getBorderColor = (product) => {
     if (product.id === 'yearly') return 'border-amber-400 ring-2 ring-amber-400/30';
     if (product.id === 'quarterly') return 'border-indigo-400';
+    if (product.id === 'monthly') return 'border-purple-400';
+    if (product.id === 'weekly') return 'border-blue-400';
     return 'border-slate-700';
   };
 
