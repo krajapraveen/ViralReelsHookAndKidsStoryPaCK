@@ -183,19 +183,40 @@ Full QA reports:
    - File: `/app/frontend/src/pages/StoryGenerator.js`
 
 ### Payment Integration:
-5. **Cashfree Payment Gateway** ✅
-   - Integrated alongside existing Razorpay (both available)
-   - Production mode with provided API keys
+5. **Cashfree Payment Gateway** ✅ (COMPREHENSIVE QA COMPLETE - Feb 18, 2026)
+   - **Replaced Razorpay with Cashfree** as sole payment provider
+   - SANDBOX mode fully tested with all 7 products
    - Health check endpoint: `/api/cashfree/health`
    - File: `/app/backend/routes/cashfree_payments.py`
+   - **Bugs Fixed During QA:**
+     - SDK initialization error (changed to instance method)
+     - CSP blocking Cashfree SDK (added to whitelist)
+   - **Security Implemented:**
+     - Rate limiting (5/minute on create-order)
+     - Idempotency checks (verify + webhook)
+     - Webhook signature verification
+   - **Test Report:** `/app/test_reports/CASHFREE_COMPREHENSIVE_QA_REPORT.md`
 
 6. **Admin Credentials Fixed** ✅
    - Admin user: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
    - 999,999 credits assigned
    - Role: ADMIN
 
+### Products Tested (Feb 18, 2026):
+| Product | Price | Credits | Status |
+|---------|-------|---------|--------|
+| Weekly Subscription | ₹199 | 50 | ✅ PASS |
+| Monthly Subscription | ₹699 | 200 | ✅ PASS |
+| Quarterly Subscription | ₹1999 | 500 | ✅ PASS |
+| Yearly Subscription | ₹5999 | 2500 | ✅ PASS |
+| Starter Pack | ₹499 | 100 | ✅ PASS |
+| Creator Pack | ₹999 | 300 | ✅ PASS |
+| Pro Pack | ₹2499 | 1000 | ✅ PASS |
+
 ## Remaining Items (P2/P3)
 - Advanced ML threat detection upgrade (placeholder `is_prohibited` function)
 - Direct Image-to-Video API (currently using text description workaround)
 - Video Remix direct integration (currently using workaround)
-- Razorpay production setup & subscription webhooks
+- Invoice/receipt generation for payments
+- Payment history page enhancement
+- **Image Not Displaying in Story Generator** - User-reported bug (not yet investigated)
