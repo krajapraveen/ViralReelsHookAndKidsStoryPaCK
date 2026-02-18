@@ -22,7 +22,8 @@ from shared import (
     LLM_AVAILABLE, EMERGENT_LLM_KEY, FILE_EXPIRY_MINUTES
 )
 from ml_threat_detection import threat_intel
-from security import log_security_event
+from security import log_security_event, limiter
+from fastapi import Request
 
 genstudio_router = APIRouter(prefix="/genstudio", tags=["GenStudio"])
 
