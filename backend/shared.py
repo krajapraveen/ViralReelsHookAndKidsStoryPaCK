@@ -210,7 +210,7 @@ async def deduct_credits(user_id: str, amount: int, description: str) -> int:
     
     return new_balance
 
-async def add_credits(user_id: str, amount: int, description: str, tx_type: str = "PURCHASE") -> int:
+async def add_credits(user_id: str, amount: int, description: str, tx_type: str = "PURCHASE", order_id: str = None) -> int:
     """Add credits to user and log transaction"""
     result = await db.users.find_one_and_update(
         {"id": user_id},
@@ -221,14 +221,19 @@ async def add_credits(user_id: str, amount: int, description: str, tx_type: str 
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
     
-    await db.credit_ledger.insert_one({
+    ledger_entry = {
         "id": str(uuid.uuid4()),
         "userId": user_id,
         "amount": amount,
         "type": tx_type,
         "description": description,
         "createdAt": datetime.now(timezone.utc).isoformat()
-    })
+    }
+    
+    if order_id:
+        ledger_entry["orderId"] = order_id
+    
+    await db.credit_ledger.insert_one(ledger_entry)
     
     return result.get("credits", 0)
 
