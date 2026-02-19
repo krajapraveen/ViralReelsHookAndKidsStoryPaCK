@@ -393,6 +393,19 @@ async def get_generations(
     }
 
 
+@router.get("/story-image/{story_id}/{filename}")
+async def get_story_image(story_id: str, filename: str):
+    """Serve generated story images"""
+    from fastapi.responses import FileResponse
+    import os
+    
+    filepath = f"/tmp/{filename}"
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Image not found or expired")
+    
+    return FileResponse(filepath, media_type="image/png")
+
+
 @router.get("/{generation_id}")
 async def get_generation(generation_id: str, user: dict = Depends(get_current_user)):
     """Get a specific generation by ID"""
