@@ -81,6 +81,16 @@ class CashfreeVerifyRequest(BaseModel):
     cf_order_id: Optional[str] = None
 
 
+class CashfreeRefundRequest(BaseModel):
+    reason: str = Field(default="Customer requested refund", max_length=500)
+    refund_amount: Optional[float] = None  # If None, full refund
+
+
+class RefundStatus(BaseModel):
+    order_id: str
+    cf_order_id: Optional[str] = None
+
+
 @router.get("/products")
 async def get_cashfree_products():
     """Get available products for Cashfree"""
