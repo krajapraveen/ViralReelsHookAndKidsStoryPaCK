@@ -71,7 +71,9 @@ function App() {
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
         <Route path="/app/reels" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
+        <Route path="/app/reel-generator" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/stories" element={isAuthenticated ? <StoryGenerator /> : <Navigate to="/login" />} />
+      <Route path="/app/story-generator" element={isAuthenticated ? <StoryGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/history" element={isAuthenticated ? <History /> : <Navigate to="/login" />} />
       <Route path="/app/billing" element={isAuthenticated ? <Billing /> : <Navigate to="/login" />} />
       <Route path="/app/admin" element={isAuthenticated ? <AdminDashboard /> : <Navigate to="/login" />} />
