@@ -78,50 +78,76 @@ async def get_my_data(user: dict = Depends(get_current_user)):
 
 @router.get("/export")
 async def export_user_data(user: dict = Depends(get_current_user)):
-    """Export all user data for GDPR compliance"""
+    """Export all user data for GDPR compliance - sanitized for security"""
     try:
         user_id = user["id"]
+        user_email = user.get("email", "")
         
-        # Get user profile (exclude password)
+        # Get user profile (exclude password and internal IDs)
         profile = await db.users.find_one(
             {"id": user_id},
-            {"_id": 0, "password": 0}
+            {"_id": 0, "password": 0, "id": 0, "verificationToken": 0, 
+             "verificationTokenExpiry": 0, "passwordResetToken": 0, 
+             "passwordResetExpiry": 0}
         )
         
-        # Get all user data
-        generations = await db.generations.find(
-            {"userId": user_id},
-            {"_id": 0}
-        ).to_list(length=1000)
+        # Sanitize profile - only include user-facing data
+        sanitized_profile = {
+            "name": profile.get("name", ""),
+            "email": profile.get("email", ""),
+            "createdAt": profile.get("createdAt", ""),
+            "creditsBalance": profile.get("credits", 0),
+            "accountType": "Premium" if profile.get("role") == "ADMIN" else "Standard",
+            "authMethod": "Google" if profile.get("authProvider") == "google" else "Email"
+        }
         
-        credit_ledger = await db.credit_ledger.find(
+        # Get generations (exclude internal IDs)
+        generations_raw = await db.generations.find(
             {"userId": user_id},
-            {"_id": 0}
-        ).to_list(length=1000)
+            {"_id": 0, "userId": 0}
+        ).sort("createdAt", -1).to_list(length=500)
         
-        orders = await db.orders.find(
+        # Sanitize generations
+        generations = [{
+            "type": g.get("type", ""),
+            "topic": g.get("topic", g.get("settings", {}).get("topic", "")),
+            "createdAt": g.get("createdAt", ""),
+            "creditsUsed": g.get("creditsUsed", 0)
+        } for g in generations_raw]
+        
+        # Get credit history (exclude internal IDs)
+        credit_history_raw = await db.credit_ledger.find(
             {"userId": user_id},
-            {"_id": 0}
-        ).to_list(length=500)
+            {"_id": 0, "userId": 0, "id": 0}
+        ).sort("createdAt", -1).to_list(length=200)
         
-        genstudio_jobs = await db.genstudio_jobs.find(
+        # Sanitize credit history
+        credit_history = [{
+            "amount": c.get("amount", 0),
+            "type": c.get("type", ""),
+            "description": c.get("description", ""),
+            "date": c.get("createdAt", "")
+        } for c in credit_history_raw]
+        
+        # Get orders (exclude gateway IDs and sensitive payment info)
+        orders_raw = await db.orders.find(
             {"userId": user_id},
-            {"_id": 0}
-        ).to_list(length=500)
+            {"_id": 0, "userId": 0}
+        ).sort("createdAt", -1).to_list(length=100)
         
-        feature_requests = await db.feature_requests.find(
-            {"userId": user_id},
-            {"_id": 0}
-        ).to_list(length=100)
+        # Sanitize payment history
+        payment_history = [{
+            "productName": o.get("productName", ""),
+            "amount": f"₹{o.get('amount', 0) / 100:.2f}",
+            "status": o.get("status", ""),
+            "date": o.get("createdAt", o.get("paidAt", "")),
+            "credits": o.get("credits", 0)
+        } for o in orders_raw]
         
-        feedback = await db.feedback.find(
-            {"userId": user_id},
-            {"_id": 0}
-        ).to_list(length=100)
-        
+        # Get consent settings
         consent = await db.privacy_consent.find_one(
             {"userId": user_id},
-            {"_id": 0}
+            {"_id": 0, "userId": 0}
         )
         
         # Log the export action
@@ -130,37 +156,49 @@ async def export_user_data(user: dict = Depends(get_current_user)):
             "userId": user_id,
             "action": "DATA_EXPORT",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "details": "User requested data export"
+            "details": "User requested GDPR data export",
+            "dataCategories": ["profile", "generations", "credits", "payments", "preferences"]
         })
         
         return {
             "success": True,
             "data": {
-                "exportedAt": datetime.now(timezone.utc).isoformat(),
-                "profile": profile,
-                "generations": {
-                    "count": len(generations),
-                    "items": generations[:100]  # Limit to 100 for response size
+                "exportInfo": {
+                    "exportedAt": datetime.now(timezone.utc).isoformat(),
+                    "exportedFor": user_email,
+                    "dataCategories": [
+                        "Personal Profile",
+                        "Content Generations",
+                        "Credit Transactions",
+                        "Payment History",
+                        "Privacy Preferences"
+                    ],
+                    "note": "This export contains your personal data stored in CreatorStudio AI. For security, internal system IDs and payment gateway details have been excluded."
                 },
-                "creditHistory": {
-                    "count": len(credit_ledger),
-                    "items": credit_ledger[:100]
+                "profile": sanitized_profile,
+                "contentGenerated": {
+                    "totalCount": len(generations),
+                    "items": generations[:100]  # Limit for response size
+                },
+                "creditTransactions": {
+                    "totalCount": len(credit_history),
+                    "items": credit_history[:100]
                 },
                 "paymentHistory": {
-                    "count": len(orders),
-                    "items": orders
+                    "totalCount": len(payment_history),
+                    "items": payment_history
                 },
-                "genstudioJobs": {
-                    "count": len(genstudio_jobs),
-                    "items": genstudio_jobs[:50]
+                "privacyPreferences": {
+                    "marketingEmails": consent.get("marketing", True) if consent else True,
+                    "usageAnalytics": consent.get("analytics", True) if consent else True,
+                    "thirdPartySharing": consent.get("thirdParty", False) if consent else False,
+                    "lastUpdated": consent.get("updatedAt", "") if consent else ""
                 },
-                "featureRequests": feature_requests,
-                "feedback": feedback,
-                "privacyConsent": consent or {},
                 "dataRetentionPolicy": {
-                    "generations": "90 days after creation",
-                    "payments": "7 years (legal requirement)",
-                    "profile": "Until account deletion"
+                    "contentGenerations": "90 days after creation (unless saved)",
+                    "paymentRecords": "7 years (legal compliance requirement)",
+                    "profileData": "Retained until account deletion",
+                    "usageLogs": "12 months"
                 }
             }
         }
