@@ -68,8 +68,41 @@ async def generate_reel_content_inline(data: dict) -> dict:
     return json.loads(response_text.strip())
 
 
-async def generate_story_content_inline(data: dict) -> dict:
-    """Generate story content using LLM"""
+async def generate_story_image(prompt: str, story_id: str, scene_index: int) -> str:
+    """Generate an image for a story scene using Gemini Nano Banana"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import base64
+        
+        # Enhance prompt for kid-friendly imagery
+        full_prompt = f"Children's book illustration, colorful, whimsical, kid-friendly: {prompt}. Pixar-style 3D animation, soft lighting, friendly characters, vibrant colors."
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"story-img-{story_id}-{scene_index}",
+            system_message="You are an AI image generator specializing in children's book illustrations."
+        ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+        
+        msg = UserMessage(text=full_prompt)
+        text_response, images = await chat.send_message_multimodal_response(msg)
+        
+        if images and len(images) > 0:
+            # Save image to temp file
+            image_bytes = base64.b64decode(images[0]['data'])
+            filename = f"story_{story_id}_scene_{scene_index}.png"
+            filepath = f"/tmp/{filename}"
+            with open(filepath, "wb") as f:
+                f.write(image_bytes)
+            return f"/api/generate/story-image/{story_id}/{filename}"
+        
+        return None
+    except Exception as e:
+        logger.warning(f"Story image generation failed: {e}")
+        return None
+
+
+async def generate_story_content_inline(data: dict, generate_images: bool = True) -> dict:
+    """Generate story content using LLM with optional image generation"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     
     unique_id = str(uuid.uuid4())[:8]
@@ -100,7 +133,25 @@ async def generate_story_content_inline(data: dict) -> dict:
     if response_text.endswith("```"):
         response_text = response_text[:-3]
     
-    return json.loads(response_text.strip())
+    result = json.loads(response_text.strip())
+    
+    # Generate cover image for the story
+    if generate_images and result.get("scenes"):
+        # Generate a cover image based on the story title and synopsis
+        cover_prompt = f"{result.get('title', 'Story')}: {result.get('synopsis', '')}. Main characters: {', '.join([c.get('name', '') for c in result.get('characters', [])])}"
+        cover_image_url = await generate_story_image(cover_prompt, unique_id, 0)
+        if cover_image_url:
+            result["coverImageUrl"] = cover_image_url
+        
+        # Generate image for the first scene
+        first_scene = result["scenes"][0]
+        visual_desc = first_scene.get("visualDescription") or first_scene.get("visual_description") or first_scene.get("sceneTitle", "")
+        if visual_desc:
+            scene_image_url = await generate_story_image(visual_desc, unique_id, 1)
+            if scene_image_url:
+                first_scene["imageUrl"] = scene_image_url
+    
+    return result
 
 
 @router.post("/reel")
