@@ -77,4 +77,19 @@ export const paymentAPI = {
   getPaymentHistory: (page = 0, size = 20) => api.get(`/api/payments/history?page=${page}&size=${size}`),
 };
 
+// Wallet & Job Pipeline API
+export const walletAPI = {
+  getWallet: () => api.get('/api/wallet/me'),
+  getPricing: () => api.get('/api/wallet/pricing'),
+  createJob: (data, idempotencyKey = null) => {
+    const headers = idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {};
+    return api.post('/api/wallet/jobs', data, { headers });
+  },
+  getJob: (jobId) => api.get(`/api/wallet/jobs/${jobId}`),
+  getJobResult: (jobId) => api.get(`/api/wallet/jobs/${jobId}/result`),
+  listJobs: (params = {}) => api.get('/api/wallet/jobs', { params }),
+  cancelJob: (jobId) => api.post(`/api/wallet/jobs/${jobId}/cancel`),
+  getLedger: (limit = 50, skip = 0) => api.get(`/api/wallet/ledger?limit=${limit}&skip=${skip}`),
+};
+
 export default api;
