@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://creator-qa-pay.preview.emergentagent.com
+**Platform URL:** https://wallet-credits-hub.preview.emergentagent.com
 
 ---
 

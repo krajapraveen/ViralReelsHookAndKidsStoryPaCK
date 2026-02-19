@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://creator-qa-pay.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://wallet-credits-hub.preview.emergentagent.com')
 
 class TestAuthEndpoints:
     """Authentication endpoint tests"""

@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://creator-qa-pay.preview.emergentagent.com  
+**Base URL:** https://wallet-credits-hub.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---
