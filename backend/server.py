@@ -180,6 +180,7 @@ api_router.include_router(story_tools_router)
 api_router.include_router(creator_tools_router)
 api_router.include_router(convert_router)
 api_router.include_router(cashfree_router)
+api_router.include_router(privacy_router)
 
 # Include API router in app
 app.include_router(api_router)
