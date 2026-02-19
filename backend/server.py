@@ -272,13 +272,20 @@ async def startup():
         await db.generations.create_index("id", unique=True)
         await db.feedback.create_index("id", unique=True)
         await db.orders.create_index("userId")
+        await db.orders.create_index("order_id", unique=True)  # For payment lookups
+        await db.orders.create_index([("gateway", 1), ("status", 1)])  # For admin queries
         await db.credit_ledger.create_index("userId")
+        await db.credit_ledger.create_index([("userId", 1), ("orderId", 1)])  # For refund verification
         await db.printable_books.create_index("expiresAt")
         await db.genstudio_jobs.create_index("userId")
         await db.genstudio_jobs.create_index("expiresAt")
         await db.style_profiles.create_index("userId")
         await db.twinfinder_analyses.create_index("userId")
         await db.consistency_tracker.create_index("userId")
+        await db.webhook_logs.create_index("order_id")  # For webhook deduplication
+        await db.webhook_logs.create_index([("gateway", 1), ("event", 1), ("received_at", -1)])
+        await db.refund_logs.create_index("orderId")  # For refund tracking
+        await db.payment_logs.create_index([("userId", 1), ("timestamp", -1)])
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
