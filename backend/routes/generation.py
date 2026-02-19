@@ -359,36 +359,55 @@ async def get_generation(generation_id: str, user: dict = Depends(get_current_us
 @router.post("/demo/reel")
 async def demo_reel(data: GenerateReelRequest):
     """Demo reel generation without authentication (limited)"""
-    # Content moderation for demo
-    content_to_check = f"{data.topic} {data.niche}"
-    moderation_result = threat_intel.moderate_content(content_to_check)
-    
-    if not moderation_result["allowed"]:
-        raise HTTPException(status_code=400, detail="Content not allowed for demo")
-    
-    # Return mock data for demo
-    return {
-        "success": True,
-        "isDemo": True,
-        "result": {
-            "hooks": [
-                f"Stop! This {data.niche} secret will change everything",
-                f"I wish I knew this {data.topic} hack sooner",
-                f"The {data.niche} method nobody talks about",
-                f"Why {data.topic} is the next big thing",
-                f"3 seconds to understand {data.topic}"
-            ],
-            "best_hook": f"Stop! This {data.niche} secret will change everything",
-            "script": {
-                "scenes": [
-                    {"time": "0-3s", "on_screen_text": "The hook", "voiceover": "Hook intro", "broll": ["attention-grabbing visual"]}
+    try:
+        # Content moderation for demo
+        content_to_check = f"{data.topic} {data.niche}"
+        moderation_result = threat_intel.moderate_content(content_to_check)
+        
+        if not moderation_result["allowed"]:
+            raise HTTPException(status_code=400, detail="Content not allowed for demo")
+        
+        # Validate topic
+        if not data.topic or len(data.topic.strip()) < 3:
+            raise HTTPException(status_code=400, detail="Topic must be at least 3 characters")
+        
+        if len(data.topic) > 500:
+            raise HTTPException(status_code=400, detail="Topic must be less than 500 characters")
+        
+        topic = data.topic.strip()
+        niche = data.niche or "General"
+        
+        # Return generated demo data
+        return {
+            "success": True,
+            "isDemo": True,
+            "result": {
+                "hooks": [
+                    f"Stop! This {niche} secret will change everything about {topic}",
+                    f"I wish I knew this {topic} hack sooner - it changed my life",
+                    f"The {niche} method nobody talks about for {topic}",
+                    f"Why {topic} is the next big thing in {niche}",
+                    f"3 seconds to understand {topic} like a pro"
                 ],
-                "cta": "Follow for more tips!"
+                "best_hook": f"Stop! This {niche} secret will change everything about {topic}",
+                "script": {
+                    "scenes": [
+                        {"time": "0-3s", "on_screen_text": "The hook", "voiceover": f"What if I told you there's a secret about {topic}...", "broll": ["attention-grabbing visual"]},
+                        {"time": "3-10s", "on_screen_text": "The problem", "voiceover": f"Most people struggle with {topic} because they don't know this...", "broll": ["relatable struggle shot"]},
+                        {"time": "10-25s", "on_screen_text": "The solution", "voiceover": f"Here's the {niche} approach that actually works...", "broll": ["demonstration visuals"]},
+                        {"time": "25-30s", "on_screen_text": "CTA", "voiceover": "Follow for more tips!", "broll": ["engaging outro"]}
+                    ],
+                    "cta": "Follow for more tips!"
+                },
+                "caption_short": f"Game-changing {topic} tip! 🔥 #{niche.lower().replace(' ', '')}",
+                "caption_long": f"This {topic} insight in {niche} will transform your approach. Most people don't realize how simple it can be once you understand the fundamentals. Save this for later! 💡",
+                "hashtags": [f"#{niche.lower().replace(' ', '')}", "#viral", "#trending", f"#{topic.split()[0].lower() if topic.split() else 'tips'}", "#reels"],
+                "posting_tips": ["Post between 6-9 PM for best engagement", "Use trending audio to boost reach", "Engage with comments in first hour", "Share to your story"]
             },
-            "caption_short": f"Game-changing {data.topic} tip! 🔥",
-            "caption_long": f"This {data.topic} insight in {data.niche} will transform your approach...",
-            "hashtags": [f"#{data.niche.lower().replace(' ', '')}", "#viral", "#trending"],
-            "posting_tips": ["Post between 6-9 PM", "Use trending audio", "Engage with comments in first hour"]
-        },
-        "message": "Sign up for full access with 100 free credits!"
-    }
+            "message": "Sign up for full access with 100 free credits!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Demo reel generation error: {e}")
+        raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
