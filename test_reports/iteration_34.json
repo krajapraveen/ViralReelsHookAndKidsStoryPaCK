@@ -1,0 +1,113 @@
+{
+  "summary": "Comprehensive testing of Wallet Credit Pipeline and Story Generator Image Display. All 19 backend API tests passed (2 skipped). Story Generator images (coverImageUrl and scene.imageUrl) displaying correctly. Wallet endpoints fully functional with HOLD/CAPTURE/RELEASE pattern.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_wallet_and_story_images.py",
+    "/app/test_reports/pytest/pytest_wallet_story_images.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Wallet credit reservation pattern (HOLD/CAPTURE/RELEASE) implemented correctly with atomic operations",
+    "Story image generation using Gemini gemini-3-pro-image-preview model for cover and first scene",
+    "Images stored in /tmp and served via /api/generate/story-image/{story_id}/{filename}",
+    "Idempotency protection working with Idempotency-Key header for duplicate request prevention",
+    "Credit ledger tracks all transactions with proper status (ACTIVE, CAPTURED, RELEASED)",
+    "Job cancellation properly releases reserved credits back to available balance"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_wallet_and_story_images.py"
+  ],
+  "success_rate": {
+    "backend": "100% - 19/19 tests passed (2 skipped)",
+    "frontend": "100% - Story Generator with images verified"
+  },
+  "test_credentials": {
+    "demo_user": {"email": "demo@example.com", "password": "Password123!"},
+    "admin_user": {"email": "admin@creatorstudio.ai", "password": "Cr3@t0rStud!o#2026"}
+  },
+  "seed_data_creation": "None - used existing demo and admin users",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Wallet credit pipeline fully functional with job creation, cancellation, and ledger tracking. Story Generator generates AI images for cover (coverImageUrl) and first scene (scene.imageUrl) using Gemini. Images served via /api/generate/story-image/ endpoint.",
+  "features_tested": {
+    "WALLET_GET_ME": {
+      "status": "PASS",
+      "endpoint": "/api/wallet/me",
+      "details": "Returns userId, balanceCredits, reservedCredits, availableCredits. Available = Balance - Reserved"
+    },
+    "WALLET_GET_PRICING": {
+      "status": "PASS",
+      "endpoint": "/api/wallet/pricing",
+      "details": "Returns all 7 job types: TEXT_TO_IMAGE (10), TEXT_TO_VIDEO (25+), IMAGE_TO_VIDEO (20+), VIDEO_REMIX (15), STORY_GENERATION (10), REEL_GENERATION (10), STYLE_PROFILE_CREATE (20)"
+    },
+    "JOB_CREATION": {
+      "status": "PASS",
+      "endpoint": "POST /api/wallet/jobs",
+      "details": "Creates job with QUEUED status, reserves credits atomically"
+    },
+    "IDEMPOTENCY_PROTECTION": {
+      "status": "PASS",
+      "endpoint": "POST /api/wallet/jobs",
+      "details": "Duplicate request with same Idempotency-Key returns existing job with duplicate:true"
+    },
+    "JOB_STATUS": {
+      "status": "PASS",
+      "endpoint": "GET /api/wallet/jobs/{id}",
+      "details": "Returns jobId, status, jobType, costCredits, createdAt, outputUrl"
+    },
+    "JOB_CANCEL": {
+      "status": "PASS",
+      "endpoint": "POST /api/wallet/jobs/{id}/cancel",
+      "details": "Releases reserved credits, sets status to CANCELLED"
+    },
+    "CREDIT_LEDGER": {
+      "status": "PASS",
+      "endpoint": "GET /api/wallet/ledger",
+      "details": "Shows HOLD/RELEASE entries with summary totals"
+    },
+    "LEDGER_HOLD_ENTRY": {
+      "status": "PASS",
+      "details": "HOLD entry created when job is created, status=ACTIVE"
+    },
+    "LEDGER_RELEASE_ENTRY": {
+      "status": "PASS",
+      "details": "RELEASE entry created when job is cancelled, includes reason"
+    },
+    "JOB_LISTING": {
+      "status": "PASS",
+      "endpoint": "GET /api/wallet/jobs",
+      "details": "Lists jobs with filtering by status and job_type"
+    },
+    "STORY_COVER_IMAGE": {
+      "status": "PASS",
+      "details": "coverImageUrl present in story result, displays correctly with data-testid='story-cover-image'"
+    },
+    "STORY_SCENE_IMAGE": {
+      "status": "PASS",
+      "details": "First scene has imageUrl, displays with data-testid='scene-image-0'"
+    },
+    "STORY_IMAGE_ENDPOINT": {
+      "status": "PASS",
+      "endpoint": "GET /api/generate/story-image/{story_id}/{filename}",
+      "details": "Serves generated images from /tmp directory"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": [],
+    "note": "Real Gemini AI used for text and image generation"
+  },
+  "screenshots_taken": [
+    "story_generator_ui.png - Story Generator form",
+    "story_result_full.png - Generated story with cover image",
+    "story_scenes.png - Story scenes display"
+  ]
+}
