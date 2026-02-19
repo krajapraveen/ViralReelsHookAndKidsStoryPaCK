@@ -422,6 +422,26 @@ export default function StoryGenerator() {
                 </div>
               )}
               
+              {/* Cover Image - AI Generated */}
+              {result.coverImageUrl && (
+                <div className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 rounded-xl p-4" data-testid="story-cover-image">
+                  <h4 className="font-bold text-lg text-white mb-3 flex items-center gap-2">
+                    <span className="text-xl">🎨</span> Story Cover Image
+                  </h4>
+                  <div className="relative rounded-xl overflow-hidden">
+                    <img 
+                      src={`${process.env.REACT_APP_BACKEND_URL}${result.coverImageUrl}`}
+                      alt={result.title || 'Story Cover'}
+                      className="w-full h-auto max-h-96 object-cover rounded-xl shadow-lg"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<div class="text-slate-400 text-center py-8">Image loading...</div>';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              
               {/* Story Title & Synopsis */}
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-5">
                 <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">{result.title}</h3>
@@ -463,16 +483,31 @@ export default function StoryGenerator() {
                     {result.scenes.map((scene, idx) => (
                       <div key={idx} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded-lg">Scene {scene.scene_number || idx + 1}</span>
-                          <span className="font-semibold text-slate-200">{scene.title}</span>
+                          <span className="bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded-lg">Scene {scene.scene_number || scene.sceneNumber || idx + 1}</span>
+                          <span className="font-semibold text-slate-200">{scene.title || scene.sceneTitle}</span>
                         </div>
                         {scene.setting && <p className="text-xs text-slate-400 mb-2">📍 {scene.setting}</p>}
                         
+                        {/* Scene Image - AI Generated */}
+                        {scene.imageUrl && (
+                          <div className="mb-3">
+                            <img 
+                              src={`${process.env.REACT_APP_BACKEND_URL}${scene.imageUrl}`}
+                              alt={`Scene ${idx + 1}`}
+                              className="w-full h-48 object-cover rounded-lg shadow-md"
+                              data-testid={`scene-image-${idx}`}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+                        
                         {/* Visual Description */}
-                        {scene.visual_description && (
+                        {(scene.visual_description || scene.visualDescription) && (
                           <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 mb-2">
                             <p className="text-xs font-medium text-blue-300 mb-1">🎨 Visual Description:</p>
-                            <p className="text-sm text-blue-200">{scene.visual_description}</p>
+                            <p className="text-sm text-blue-200">{scene.visual_description || scene.visualDescription}</p>
                           </div>
                         )}
                         
@@ -485,14 +520,16 @@ export default function StoryGenerator() {
                         )}
                         
                         {/* Dialogue */}
-                        {scene.dialogue && scene.dialogue.length > 0 && (
+                        {((scene.dialogue && scene.dialogue.length > 0) || scene.characterDialogue) && (
                           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 mb-2">
                             <p className="text-xs font-medium text-emerald-300 mb-1">💬 Dialogue:</p>
-                            {scene.dialogue.map((d, dIdx) => (
+                            {scene.dialogue ? scene.dialogue.map((d, dIdx) => (
                               <p key={dIdx} className="text-sm text-emerald-200">
                                 <span className="font-semibold">{d.speaker}:</span> "{d.line}"
                               </p>
-                            ))}
+                            )) : (
+                              <p className="text-sm text-emerald-200">{scene.characterDialogue}</p>
+                            )}
                           </div>
                         )}
                         
