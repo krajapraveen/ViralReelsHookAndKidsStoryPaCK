@@ -227,10 +227,20 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
                       <SelectTrigger className="bg-slate-800/50 border-slate-600 text-white focus:ring-indigo-500/20 rounded-xl h-11">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600">
+                      <SelectContent className="bg-slate-800 border-slate-600 max-h-[200px]">
                         <SelectItem value="English" className="text-white hover:bg-indigo-500/20">English</SelectItem>
-                        <SelectItem value="Telugu" className="text-white hover:bg-indigo-500/20">Telugu</SelectItem>
+                        <SelectItem value="Spanish" className="text-white hover:bg-indigo-500/20">Spanish</SelectItem>
+                        <SelectItem value="French" className="text-white hover:bg-indigo-500/20">French</SelectItem>
+                        <SelectItem value="German" className="text-white hover:bg-indigo-500/20">German</SelectItem>
+                        <SelectItem value="Hindi" className="text-white hover:bg-indigo-500/20">Hindi</SelectItem>
                         <SelectItem value="Hinglish" className="text-white hover:bg-indigo-500/20">Hinglish</SelectItem>
+                        <SelectItem value="Telugu" className="text-white hover:bg-indigo-500/20">Telugu</SelectItem>
+                        <SelectItem value="Tamil" className="text-white hover:bg-indigo-500/20">Tamil</SelectItem>
+                        <SelectItem value="Japanese" className="text-white hover:bg-indigo-500/20">Japanese</SelectItem>
+                        <SelectItem value="Korean" className="text-white hover:bg-indigo-500/20">Korean</SelectItem>
+                        <SelectItem value="Chinese" className="text-white hover:bg-indigo-500/20">Chinese</SelectItem>
+                        <SelectItem value="Arabic" className="text-white hover:bg-indigo-500/20">Arabic</SelectItem>
+                        <SelectItem value="Portuguese" className="text-white hover:bg-indigo-500/20">Portuguese</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
