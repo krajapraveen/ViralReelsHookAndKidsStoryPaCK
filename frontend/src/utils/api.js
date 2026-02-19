@@ -38,6 +38,14 @@ export const authAPI = {
   register: (data) => api.post('/api/auth/register', data),
   login: (data) => api.post('/api/auth/login', data),
   getCurrentUser: () => api.get('/api/auth/me'),
+  verifyEmail: (data) => api.post('/api/auth/verify-email', data),
+  resendVerification: () => api.post('/api/auth/resend-verification'),
+  forgotPassword: (data) => api.post('/api/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/api/auth/reset-password', data),
+  changePassword: (data) => api.put('/api/auth/password', data),
+  updateProfile: (data) => api.put('/api/auth/profile', data),
+  exportData: () => api.get('/api/auth/export-data'),
+  deleteAccount: () => api.delete('/api/auth/account'),
 };
 
 export const creditAPI = {
