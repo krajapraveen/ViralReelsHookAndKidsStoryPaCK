@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { 
-  ArrowLeft, Coins, Image, Video, Clock, Download,
-  Filter, RefreshCw, Trash2, Eye, ChevronLeft, ChevronRight
+  ArrowLeft, Image, Video, Clock, Download,
+  Filter, RefreshCw, Eye, ChevronLeft, ChevronRight,
+  Wallet, CheckCircle, XCircle, Loader2, AlertCircle
 } from 'lucide-react';
 import {
   Select,
@@ -13,37 +14,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import api from '../utils/api';
+import api, { walletAPI } from '../utils/api';
 
 export default function GenStudioHistory() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   const [typeFilter, setTypeFilter] = useState('all');
-  const [credits, setCredits] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [wallet, setWallet] = useState({ balanceCredits: 0, reservedCredits: 0, availableCredits: 0 });
+  const limit = 12;
 
   useEffect(() => {
     fetchHistory();
-  }, [page, typeFilter]);
+  }, [page, typeFilter, statusFilter]);
+
+  // Poll for active jobs
+  useEffect(() => {
+    const hasActiveJobs = jobs.some(j => ['QUEUED', 'RUNNING'].includes(j.status));
+    let interval;
+    if (hasActiveJobs) {
+      interval = setInterval(fetchHistory, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [jobs]);
 
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const [historyRes, creditsRes] = await Promise.all([
-        api.get('/api/genstudio/history', {
-          params: { 
-            page, 
-            limit: 12,
-            type_filter: typeFilter !== 'all' ? typeFilter : undefined
-          }
-        }),
-        api.get('/api/credits/balance')
+      
+      const params = { limit, skip: page * limit };
+      if (typeFilter !== 'all') params.job_type = typeFilter;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      
+      const [jobsRes, walletRes] = await Promise.all([
+        walletAPI.listJobs(params),
+        walletAPI.getWallet()
       ]);
       
-      setJobs(historyRes.data.jobs);
-      setTotalPages(historyRes.data.totalPages);
-      setCredits(creditsRes.data.balance);
+      setJobs(jobsRes.data.jobs);
+      setTotal(jobsRes.data.total);
+      setWallet(walletRes.data);
     } catch (error) {
       toast.error('Failed to load history');
     } finally {
@@ -82,33 +94,91 @@ export default function GenStudioHistory() {
     }
   };
 
+  const handleCancelJob = async (jobId) => {
+    try {
+      await walletAPI.cancelJob(jobId);
+      toast.success('Job cancelled. Credits released.');
+      fetchHistory();
+    } catch (error) {
+      toast.error('Failed to cancel job');
+    }
+  };
+
   const getTypeIcon = (type) => {
     switch (type) {
-      case 'text_to_image': return <Image className="w-4 h-4" />;
-      case 'text_to_video': return <Video className="w-4 h-4" />;
-      case 'image_to_video': return <Video className="w-4 h-4" />;
-      case 'video_remix': return <RefreshCw className="w-4 h-4" />;
-      default: return <Image className="w-4 h-4" />;
+      case 'TEXT_TO_IMAGE': return <Image className="w-4 h-4 text-purple-400" />;
+      case 'TEXT_TO_VIDEO': return <Video className="w-4 h-4 text-blue-400" />;
+      case 'IMAGE_TO_VIDEO': return <Video className="w-4 h-4 text-green-400" />;
+      case 'VIDEO_REMIX': return <RefreshCw className="w-4 h-4 text-red-400" />;
+      case 'STORY_GENERATION': return <Image className="w-4 h-4 text-amber-400" />;
+      case 'REEL_GENERATION': return <Video className="w-4 h-4 text-pink-400" />;
+      default: return <Image className="w-4 h-4 text-slate-400" />;
     }
   };
 
   const getTypeLabel = (type) => {
-    return type.replace(/_/g, ' → ').replace(/\b\w/g, l => l.toUpperCase());
+    const labels = {
+      'TEXT_TO_IMAGE': 'Text → Image',
+      'TEXT_TO_VIDEO': 'Text → Video',
+      'IMAGE_TO_VIDEO': 'Image → Video',
+      'VIDEO_REMIX': 'Video Remix',
+      'STORY_GENERATION': 'Story',
+      'REEL_GENERATION': 'Reel',
+      'STYLE_PROFILE_CREATE': 'Style Profile'
+    };
+    return labels[type] || type;
   };
 
-  const getStatusColor = (status) => {
+  const getStatusBadge = (status) => {
     switch (status) {
-      case 'completed': return 'text-green-400 bg-green-400/10';
-      case 'processing': return 'text-yellow-400 bg-yellow-400/10';
-      case 'failed': return 'text-red-400 bg-red-400/10';
-      default: return 'text-slate-400 bg-slate-400/10';
+      case 'SUCCEEDED':
+        return (
+          <span className="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
+            <CheckCircle className="w-3 h-3" /> Completed
+          </span>
+        );
+      case 'FAILED':
+        return (
+          <span className="flex items-center gap-1 text-xs text-red-400 bg-red-400/10 px-2 py-1 rounded-full">
+            <XCircle className="w-3 h-3" /> Failed
+          </span>
+        );
+      case 'RUNNING':
+        return (
+          <span className="flex items-center gap-1 text-xs text-blue-400 bg-blue-400/10 px-2 py-1 rounded-full">
+            <Loader2 className="w-3 h-3 animate-spin" /> Processing
+          </span>
+        );
+      case 'QUEUED':
+        return (
+          <span className="flex items-center gap-1 text-xs text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-full">
+            <Clock className="w-3 h-3" /> Queued
+          </span>
+        );
+      case 'CANCELLED':
+        return (
+          <span className="flex items-center gap-1 text-xs text-slate-400 bg-slate-400/10 px-2 py-1 rounded-full">
+            <AlertCircle className="w-3 h-3" /> Cancelled
+          </span>
+        );
+      default:
+        return (
+          <span className="text-xs text-slate-400 bg-slate-400/10 px-2 py-1 rounded-full">{status}</span>
+        );
     }
   };
 
-  const isExpired = (expiresAt) => {
-    if (!expiresAt) return true;
-    return new Date(expiresAt) < new Date();
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
+
+  const totalPages = Math.ceil(total / limit);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950/20 to-slate-950">
@@ -127,9 +197,17 @@ export default function GenStudioHistory() {
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2">
-                <Coins className="w-4 h-4 text-yellow-500" />
-                <span className="font-bold text-white">{credits}</span>
+              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2" data-testid="wallet-balance">
+                <Wallet className="w-4 h-4 text-purple-400" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-white text-sm">{wallet.availableCredits}</span>
+                  <span className="text-xs text-slate-500">available</span>
+                </div>
+                {wallet.reservedCredits > 0 && (
+                  <div className="border-l border-slate-600 pl-2 ml-2">
+                    <span className="text-xs text-yellow-400">{wallet.reservedCredits} held</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -138,41 +216,58 @@ export default function GenStudioHistory() {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Filters */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-slate-400" />
-              <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-[180px] bg-slate-800 border-slate-700 text-white">
+              <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(0); }}>
+                <SelectTrigger className="w-[160px] bg-slate-800 border-slate-700 text-white">
                   <SelectValue placeholder="Filter by type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="text_to_image">Text → Image</SelectItem>
-                  <SelectItem value="text_to_video">Text → Video</SelectItem>
-                  <SelectItem value="image_to_video">Image → Video</SelectItem>
-                  <SelectItem value="video_remix">Video Remix</SelectItem>
+                  <SelectItem value="TEXT_TO_IMAGE">Text → Image</SelectItem>
+                  <SelectItem value="TEXT_TO_VIDEO">Text → Video</SelectItem>
+                  <SelectItem value="IMAGE_TO_VIDEO">Image → Video</SelectItem>
+                  <SelectItem value="VIDEO_REMIX">Video Remix</SelectItem>
+                  <SelectItem value="STORY_GENERATION">Story</SelectItem>
+                  <SelectItem value="REEL_GENERATION">Reel</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
+              <SelectTrigger className="w-[140px] bg-slate-800 border-slate-700 text-white">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="SUCCEEDED">Completed</SelectItem>
+                <SelectItem value="RUNNING">Processing</SelectItem>
+                <SelectItem value="QUEUED">Queued</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchHistory}
-            className="border-slate-700 text-slate-300"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-400">{total} jobs</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchHistory}
+              className="border-slate-700 text-slate-300"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
-        {/* Notice */}
+        {/* Security Notice */}
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
           <div className="flex items-center gap-2 text-yellow-400 text-sm">
             <Clock className="w-4 h-4" />
-            <span>⚠️ SECURITY: Files auto-deleted 3 minutes after generation. Download immediately!</span>
+            <span>SECURITY: Files auto-deleted 3 minutes after generation. Download immediately!</span>
           </div>
         </div>
 
@@ -194,66 +289,88 @@ export default function GenStudioHistory() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {jobs.map((job) => (
-              <div key={job.id} className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden group">
+              <div key={job.id} className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden group hover:border-slate-700 transition-colors">
                 {/* Preview */}
-                <div className="aspect-square bg-slate-800 relative">
-                  {job.outputUrls?.[0] && !isExpired(job.expiresAt) ? (
-                    <img 
-                      src={`${process.env.REACT_APP_BACKEND_URL}${job.outputUrls[0]}`}
-                      alt="Generated"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.parentElement.querySelector('.placeholder')?.classList.remove('hidden');
-                      }}
-                    />
-                  ) : (
-                    <div className="placeholder w-full h-full flex items-center justify-center">
-                      {isExpired(job.expiresAt) ? (
-                        <div className="text-center text-slate-500">
-                          <Clock className="w-8 h-8 mx-auto mb-2" />
-                          <p className="text-xs">Expired</p>
-                        </div>
-                      ) : (
-                        getTypeIcon(job.type)
-                      )}
+                <div className="aspect-video bg-slate-800 relative flex items-center justify-center">
+                  {job.status === 'SUCCEEDED' && job.outputUrls?.[0] ? (
+                    job.jobType?.includes('VIDEO') || job.outputUrls[0]?.includes('.mp4') ? (
+                      <video 
+                        src={`${process.env.REACT_APP_BACKEND_URL}${job.outputUrls[0]}`}
+                        className="w-full h-full object-cover"
+                        muted
+                        onMouseOver={(e) => e.target.play()}
+                        onMouseOut={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                      />
+                    ) : (
+                      <img 
+                        src={`${process.env.REACT_APP_BACKEND_URL}${job.outputUrls[0]}`}
+                        alt="Generated"
+                        className="w-full h-full object-cover"
+                      />
+                    )
+                  ) : job.status === 'RUNNING' || job.status === 'QUEUED' ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                      <span className="text-xs text-slate-400">{job.progress || 0}%</span>
                     </div>
-                  )}
-                  
-                  {/* Overlay on hover */}
-                  {!isExpired(job.expiresAt) && job.outputUrls?.[0] && (
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleDownload(job.outputUrls[0], `genstudio-${job.id}.png`)}
-                        className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
-                      >
-                        <Download className="w-5 h-5 text-white" />
-                      </button>
+                  ) : job.status === 'FAILED' ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <XCircle className="w-8 h-8 text-red-400" />
+                      <span className="text-xs text-red-400">Failed</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      {getTypeIcon(job.jobType)}
+                      <span className="text-xs text-slate-500">No preview</span>
                     </div>
                   )}
                 </div>
                 
                 {/* Info */}
-                <div className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      {getTypeIcon(job.type)}
-                      <span className="text-xs">{getTypeLabel(job.type)}</span>
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {getTypeIcon(job.jobType)}
+                      <span className="text-sm font-medium text-white">{getTypeLabel(job.jobType)}</span>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(job.status)}`}>
-                      {job.status}
-                    </span>
+                    {getStatusBadge(job.status)}
                   </div>
                   
-                  <p className="text-xs text-slate-500 truncate" title={job.inputJson?.prompt}>
-                    {job.inputJson?.prompt?.substring(0, 50)}...
-                  </p>
-                  
-                  <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>{formatDate(job.createdAt)}</span>
                     <span>{job.costCredits} credits</span>
-                    <span>{new Date(job.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    {job.status === 'SUCCEEDED' && job.outputUrls?.[0] && (
+                      <Button 
+                        size="sm" 
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                        onClick={() => handleDownload(job.outputUrls[0], `genstudio-${job.id}.${job.outputUrls[0].includes('.mp4') ? 'mp4' : 'png'}`)}
+                      >
+                        <Download className="w-3 h-3 mr-1" />
+                        Download
+                      </Button>
+                    )}
+                    {job.status === 'QUEUED' && (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                        onClick={() => handleCancelJob(job.id)}
+                      >
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Cancel
+                      </Button>
+                    )}
+                    {job.status === 'FAILED' && (
+                      <div className="flex-1 text-xs text-red-400 truncate" title={job.errorMessage}>
+                        {job.errorMessage || 'Generation failed'}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -263,27 +380,29 @@ export default function GenStudioHistory() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
+          <div className="flex items-center justify-center gap-4 mt-8">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="border-slate-700"
+              onClick={() => setPage(Math.max(0, page - 1))}
+              disabled={page === 0}
+              className="border-slate-700 text-slate-300"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Previous
             </Button>
-            <span className="text-slate-400 text-sm px-4">
-              Page {page} of {totalPages}
+            <span className="text-sm text-slate-400">
+              Page {page + 1} of {totalPages}
             </span>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="border-slate-700"
+              onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+              disabled={page >= totalPages - 1}
+              className="border-slate-700 text-slate-300"
             >
-              <ChevronRight className="w-4 h-4" />
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
         )}
