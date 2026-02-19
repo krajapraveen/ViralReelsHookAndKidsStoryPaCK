@@ -442,7 +442,34 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
         "createdAt": job["createdAt"],
         "startedAt": job.get("startedAt"),
         "completedAt": job.get("completedAt"),
-        "progress": job.get("progress", 0)
+        "progress": job.get("progress", 0),
+        "progressMessage": job.get("progressMessage", ""),
+        "resultJson": job.get("resultJson")
+    }
+
+
+@router.get("/jobs/{job_id}/result")
+async def get_job_result(job_id: str, user: dict = Depends(get_current_user)):
+    """Get job result JSON (for story/reel generation)"""
+    job = await db.genstudio_jobs.find_one({
+        "id": job_id,
+        "userId": user["id"]
+    }, {"_id": 0})
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job["status"] != "SUCCEEDED":
+        raise HTTPException(status_code=400, detail=f"Job not completed. Status: {job['status']}")
+    
+    result_json = job.get("resultJson")
+    if not result_json:
+        raise HTTPException(status_code=404, detail="No result data available")
+    
+    return {
+        "jobId": job_id,
+        "status": job["status"],
+        "result": result_json
     }
 
 
