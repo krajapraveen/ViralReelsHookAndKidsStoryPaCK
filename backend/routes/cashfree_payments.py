@@ -373,7 +373,7 @@ async def cashfree_webhook(request: Request):
                 
                 if order and order["status"] != "PAID":
                     # Add credits with order_id for tracking
-                    new_balance = await add_credits(
+                    await add_credits(
                         user_id=order["userId"],
                         amount=order["credits"],
                         description=f"Cashfree payment - {order.get('productName', '')}",
