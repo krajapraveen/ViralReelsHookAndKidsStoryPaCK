@@ -253,7 +253,8 @@ async def verify_cashfree_payment(request: Request, data: CashfreeVerifyRequest,
                 user_id=user["id"],
                 amount=credits_to_add,
                 description=f"Purchased {credits_to_add} credits via Cashfree - {order.get('productName', '')}",
-                tx_type="PURCHASE"
+                tx_type="PURCHASE",
+                order_id=data.order_id
             )
             
             # Update order status
