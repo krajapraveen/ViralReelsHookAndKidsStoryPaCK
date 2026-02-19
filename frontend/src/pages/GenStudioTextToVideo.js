@@ -304,9 +304,9 @@ export default function TextToVideo() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="4">4 seconds (Fast) - {pricing.TEXT_TO_VIDEO?.baseCredits || 25 + 20} credits</SelectItem>
-                      <SelectItem value="8">8 seconds (Medium) - {pricing.TEXT_TO_VIDEO?.baseCredits || 25 + 40} credits</SelectItem>
-                      <SelectItem value="12">12 seconds (Long) - {pricing.TEXT_TO_VIDEO?.baseCredits || 25 + 60} credits</SelectItem>
+                      <SelectItem value="4">4 seconds (Fast) - {(pricing.TEXT_TO_VIDEO?.baseCredits || 25) + 4 * (pricing.TEXT_TO_VIDEO?.perSecondCredits || 5)} credits</SelectItem>
+                      <SelectItem value="8">8 seconds (Medium) - {(pricing.TEXT_TO_VIDEO?.baseCredits || 25) + 8 * (pricing.TEXT_TO_VIDEO?.perSecondCredits || 5)} credits</SelectItem>
+                      <SelectItem value="12">12 seconds (Long) - {(pricing.TEXT_TO_VIDEO?.baseCredits || 25) + 12 * (pricing.TEXT_TO_VIDEO?.perSecondCredits || 5)} credits</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
