@@ -5,33 +5,73 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { authAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 
 export default function Login({ setAuth }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [sendingReset, setSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!email.trim()) {
+      toast.error('Please enter your email');
+      return;
+    }
+    if (!password) {
+      toast.error('Please enter your password');
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ email: email.trim().toLowerCase(), password });
       localStorage.setItem('token', response.data.token);
       setAuth(true);
       toast.success('Login successful!');
       navigate('/app', { replace: true });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Login failed');
+      toast.error(error.response?.data?.detail || error.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    
+    if (!forgotEmail.trim()) {
+      toast.error('Please enter your email');
+      return;
+    }
+    
+    setSendingReset(true);
+    
+    try {
+      const response = await authAPI.forgotPassword({ email: forgotEmail.trim().toLowerCase() });
+      if (response.data.success) {
+        setResetSent(true);
+        toast.success('Password reset email sent!');
+      }
+    } catch (error) {
+      // Still show success to prevent email enumeration
+      setResetSent(true);
+      toast.success('If an account exists with this email, you will receive a reset link.');
+    } finally {
+      setSendingReset(false);
+    }
+  };
+
   const handleGoogleSignIn = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     const redirectUrl = window.location.origin + '/auth/callback';
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
@@ -39,69 +79,102 @@ export default function Login({ setAuth }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-8 shadow-2xl">
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 mb-4">
               <Sparkles className="w-8 h-8 text-indigo-500" />
               <span className="text-2xl font-bold text-white">CreatorStudio AI</span>
             </div>
             <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-            <p className="text-slate-300">Login to continue creating</p>
+            <p className="text-slate-400">Login to continue creating</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6" data-testid="login-form">
+          <form onSubmit={handleSubmit} className="space-y-5" data-testid="login-form">
             <div>
-              <Label htmlFor="email" className="text-white text-sm font-medium">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="mt-2 bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
-                placeholder="you@example.com"
-                data-testid="login-email-input"
-              />
+              <Label htmlFor="email" className="text-slate-300 text-sm font-medium mb-2 block">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                  placeholder="you@example.com"
+                  data-testid="login-email-input"
+                />
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="password" className="text-white text-sm font-medium">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="mt-2 bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
-                placeholder="••••••••"
-                data-testid="login-password-input"
-              />
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="password" className="text-slate-300 text-sm font-medium">Password</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotEmail(email);
+                    setShowForgotPassword(true);
+                    setResetSent(false);
+                  }}
+                  className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="pl-10 pr-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                  placeholder="••••••••"
+                  data-testid="login-password-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-500 hover:bg-indigo-600 text-white rounded-full py-6 text-lg"
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl py-6 text-lg shadow-lg shadow-indigo-500/20"
               data-testid="login-submit-btn"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Logging in...
+                </>
+              ) : (
+                'Login'
+              )}
             </Button>
           </form>
 
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/20"></div>
+                <div className="w-full border-t border-slate-700"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white/10 text-slate-300">Or continue with</span>
+                <span className="px-3 bg-slate-900/50 text-slate-400">Or continue with</span>
               </div>
             </div>
 
             <Button
               type="button"
               onClick={handleGoogleSignIn}
-              className="w-full mt-4 bg-white hover:bg-gray-100 text-gray-900 rounded-full py-6 text-lg flex items-center justify-center gap-3"
+              className="w-full mt-4 bg-white hover:bg-gray-100 text-gray-900 rounded-xl py-6 text-lg flex items-center justify-center gap-3"
               data-testid="google-signin-btn"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -115,15 +188,83 @@ export default function Login({ setAuth }) {
           </div>
 
           <div className="mt-6 text-center">
-            <p className="text-slate-300">
+            <p className="text-slate-400">
               Don't have an account?{' '}
-              <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
+              <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
                 Sign up
               </Link>
             </p>
           </div>
         </div>
+        
+        {/* Back to Home */}
+        <div className="text-center mt-6">
+          <Link to="/" className="text-slate-500 hover:text-slate-300 transition-colors inline-flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </div>
       </div>
+      
+      {/* Forgot Password Modal */}
+      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
+        <DialogContent className="bg-slate-900 border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Lock className="w-5 h-5 text-indigo-400" />
+              Reset Password
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {resetSent 
+                ? "We've sent a password reset link to your email. Please check your inbox."
+                : "Enter your email address and we'll send you a link to reset your password."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          {!resetSent ? (
+            <form onSubmit={handleForgotPassword} className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="forgot-email" className="text-slate-300 mb-2 block">Email Address</Label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500"
+                  required
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowForgotPassword(false)} className="border-slate-700 text-slate-300 hover:bg-slate-800">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={sendingReset} className="bg-indigo-500 hover:bg-indigo-600">
+                  {sendingReset ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div className="py-6 text-center">
+              <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-green-400" />
+              </div>
+              <p className="text-slate-300 mb-4">Check your email for the reset link</p>
+              <Button onClick={() => setShowForgotPassword(false)} className="bg-indigo-500 hover:bg-indigo-600">
+                Back to Login
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
