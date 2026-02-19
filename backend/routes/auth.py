@@ -3,11 +3,13 @@ Authentication Routes - Register, Login, Profile Management
 CreatorStudio AI
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 import os
 import httpx
 import sys
+import secrets
+import re
 
 # Ensure backend directory is in path for absolute imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,34 +20,214 @@ from shared import (
 )
 from models.schemas import UserCreate, UserLogin, GoogleCallback, ProfileUpdate, PasswordChange
 from security import limiter, validate_password_strength
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+# Request/Response Models
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    newPassword: str = Field(min_length=8, max_length=128)
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+# Helper Functions
+def validate_name(name: str) -> tuple:
+    """Validate full name"""
+    if not name or not name.strip():
+        return False, "Name is required"
+    
+    name = name.strip()
+    if len(name) < 2:
+        return False, "Name must be at least 2 characters"
+    if len(name) > 50:
+        return False, "Name must be less than 50 characters"
+    
+    # Allow letters, spaces, hyphens, apostrophes (common in names)
+    if not re.match(r"^[a-zA-Z\s\-']+$", name):
+        return False, "Name can only contain letters, spaces, hyphens, and apostrophes"
+    
+    return True, name
+
+
+def validate_email_format(email: str) -> tuple:
+    """Validate email format"""
+    if not email or not email.strip():
+        return False, "Email is required"
+    
+    email = email.strip().lower()
+    
+    # Basic email pattern
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email):
+        return False, "Invalid email format"
+    
+    return True, email
+
+
+def generate_verification_token() -> str:
+    """Generate a secure verification token"""
+    return secrets.token_urlsafe(32)
+
+
+async def send_verification_email(email: str, token: str, name: str):
+    """Send verification email via SendGrid"""
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        
+        api_key = os.environ.get("SENDGRID_API_KEY")
+        if not api_key:
+            logger.warning("SendGrid API key not configured")
+            return False
+        
+        frontend_url = os.environ.get("FRONTEND_URL", "https://creator-qa-pay.preview.emergentagent.com")
+        verify_url = f"{frontend_url}/verify-email?token={token}"
+        
+        message = Mail(
+            from_email="noreply@visionary-suite.com",
+            to_emails=email,
+            subject="Verify Your CreatorStudio AI Account",
+            html_content=f"""
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #818cf8; margin: 0;">CreatorStudio AI</h1>
+                </div>
+                <div style="background: #1e293b; padding: 30px; border-radius: 12px;">
+                    <h2 style="color: #f1f5f9; margin-top: 0;">Welcome, {name}!</h2>
+                    <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
+                        Thank you for signing up for CreatorStudio AI. Please verify your email address to complete your registration and start creating amazing content.
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{verify_url}" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
+                            Verify Email Address
+                        </a>
+                    </div>
+                    <p style="color: #64748b; font-size: 14px;">
+                        This link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.
+                    </p>
+                </div>
+                <p style="color: #475569; font-size: 12px; text-align: center; margin-top: 30px;">
+                    © 2026 Visionary Suite. All rights reserved.
+                </p>
+            </div>
+            """
+        )
+        
+        sg = SendGridAPIClient(api_key)
+        sg.send(message)
+        logger.info(f"Verification email sent to {email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send verification email: {e}")
+        return False
+
+
+async def send_password_reset_email(email: str, token: str, name: str):
+    """Send password reset email via SendGrid"""
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        
+        api_key = os.environ.get("SENDGRID_API_KEY")
+        if not api_key:
+            logger.warning("SendGrid API key not configured")
+            return False
+        
+        frontend_url = os.environ.get("FRONTEND_URL", "https://creator-qa-pay.preview.emergentagent.com")
+        reset_url = f"{frontend_url}/reset-password?token={token}"
+        
+        message = Mail(
+            from_email="noreply@visionary-suite.com",
+            to_emails=email,
+            subject="Reset Your CreatorStudio AI Password",
+            html_content=f"""
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #818cf8; margin: 0;">CreatorStudio AI</h1>
+                </div>
+                <div style="background: #1e293b; padding: 30px; border-radius: 12px;">
+                    <h2 style="color: #f1f5f9; margin-top: 0;">Password Reset Request</h2>
+                    <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
+                        Hi {name}, we received a request to reset your password. Click the button below to create a new password.
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{reset_url}" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
+                            Reset Password
+                        </a>
+                    </div>
+                    <p style="color: #64748b; font-size: 14px;">
+                        This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.
+                    </p>
+                </div>
+                <p style="color: #475569; font-size: 12px; text-align: center; margin-top: 30px;">
+                    © 2026 Visionary Suite. All rights reserved.
+                </p>
+            </div>
+            """
+        )
+        
+        sg = SendGridAPIClient(api_key)
+        sg.send(message)
+        logger.info(f"Password reset email sent to {email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+        return False
 
 
 @router.post("/register")
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserCreate, background_tasks: BackgroundTasks):
-    """Register a new user with validation"""
+    """Register a new user with validation and email verification"""
     try:
+        # Validate name
+        name_valid, name_result = validate_name(data.name)
+        if not name_valid:
+            raise HTTPException(status_code=400, detail=name_result)
+        clean_name = name_result
+        
+        # Validate email
+        email_valid, email_result = validate_email_format(data.email)
+        if not email_valid:
+            raise HTTPException(status_code=400, detail=email_result)
+        clean_email = email_result
+        
         # Validate password strength
         is_valid, error_message = validate_password_strength(data.password)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error_message)
         
-        # Check if user exists
-        existing = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
+        # Check if user exists (case-insensitive)
+        existing = await db.users.find_one({"email": clean_email}, {"_id": 0})
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Generate verification token
+        verification_token = generate_verification_token()
+        token_expiry = datetime.now(timezone.utc) + timedelta(hours=24)
         
         # Create user
         user_id = str(uuid.uuid4())
         user = {
             "id": user_id,
-            "email": data.email.lower(),
-            "name": data.name,
+            "email": clean_email,
+            "name": clean_name,
             "password": hash_password(data.password),
             "role": "user",
             "credits": 100,
+            "emailVerified": False,
+            "verificationToken": verification_token,
+            "verificationTokenExpiry": token_expiry.isoformat(),
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "lastLogin": datetime.now(timezone.utc).isoformat()
         }
@@ -55,6 +237,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
         if user_count == 0:
             user["role"] = "ADMIN"
             user["credits"] = 10000
+            user["emailVerified"] = True  # Admin auto-verified
         
         await db.users.insert_one(user)
         
@@ -68,9 +251,12 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
+        # Send verification email in background
+        background_tasks.add_task(send_verification_email, clean_email, verification_token, clean_name)
+        
         token = create_token(user_id, user["role"])
         
-        logger.info(f"New user registered: {data.email}")
+        logger.info(f"New user registered: {clean_email}")
         
         return {
             "token": token,
@@ -79,8 +265,10 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
                 "email": user["email"],
                 "name": user["name"],
                 "role": user["role"],
-                "credits": user["credits"]
-            }
+                "credits": user["credits"],
+                "emailVerified": user["emailVerified"]
+            },
+            "message": "Registration successful! Please check your email to verify your account."
         }
     except HTTPException:
         raise
