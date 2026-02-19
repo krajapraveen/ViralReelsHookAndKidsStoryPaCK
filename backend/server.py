@@ -254,7 +254,7 @@ async def cleanup_expired_downloads():
                         if file_age > (FILE_EXPIRY_MINUTES * 60):  # 3 minutes in seconds
                             os.remove(filepath)
                             logger.info(f"SECURITY: Force-deleted old file: {filepath}")
-                    except Exception as e:
+                    except Exception:
                         pass
             
         except Exception as e:
