@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
 import { 
   Sparkles, Image, ArrowLeft, Coins, Loader2, Download,
-  Wand2, Settings, Clock, Check, AlertTriangle, RefreshCw
+  Wand2, Settings, Clock, Check, AlertTriangle, RefreshCw,
+  Wallet, XCircle, AlertCircle
 } from 'lucide-react';
 import {
   Select,
@@ -14,11 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import api from '../utils/api';
+import api, { walletAPI } from '../utils/api';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function TextToImage() {
   const [searchParams] = useSearchParams();
-  const [credits, setCredits] = useState(0);
+  const [wallet, setWallet] = useState({ balanceCredits: 0, reservedCredits: 0, availableCredits: 0 });
+  const [pricing, setPricing] = useState({});
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState('1:1');
@@ -26,6 +29,10 @@ export default function TextToImage() {
   const [addWatermark, setAddWatermark] = useState(true);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [templates, setTemplates] = useState([]);
+  
+  // Job state
+  const [currentJob, setCurrentJob] = useState(null);
+  const [jobStatus, setJobStatus] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState({ step: 0, message: '' });
   const [result, setResult] = useState(null);
@@ -39,24 +46,69 @@ export default function TextToImage() {
     }
   }, [searchParams]);
 
+  // Poll for job status
+  useEffect(() => {
+    let interval;
+    if (currentJob && ['QUEUED', 'RUNNING'].includes(jobStatus)) {
+      interval = setInterval(pollJobStatus, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [currentJob, jobStatus]);
+
   const fetchData = async () => {
     try {
-      const [creditsRes, templatesRes] = await Promise.all([
-        api.get('/api/credits/balance'),
+      const [walletRes, pricingRes, templatesRes] = await Promise.all([
+        walletAPI.getWallet(),
+        walletAPI.getPricing(),
         api.get('/api/genstudio/templates')
       ]);
-      setCredits(creditsRes.data.balance);
+      setWallet(walletRes.data);
+      setPricing(pricingRes.data.pricing);
       setTemplates(templatesRes.data.templates);
     } catch (error) {
       toast.error('Failed to load data');
     }
   };
 
+  const pollJobStatus = useCallback(async () => {
+    if (!currentJob) return;
+    
+    try {
+      const response = await walletAPI.getJob(currentJob);
+      const job = response.data;
+      setJobStatus(job.status);
+      setProgress({
+        step: job.progress || 0,
+        message: job.progressMessage || `Status: ${job.status}`
+      });
+      
+      if (job.status === 'SUCCEEDED') {
+        setResult({
+          jobId: job.jobId,
+          outputUrls: job.outputUrls,
+          creditsUsed: job.costCredits
+        });
+        setGenerating(false);
+        // Refresh wallet
+        const walletRes = await walletAPI.getWallet();
+        setWallet(walletRes.data);
+        toast.success('Image generated successfully!');
+      } else if (job.status === 'FAILED') {
+        setGenerating(false);
+        toast.error(job.errorMessage || 'Generation failed');
+        // Refresh wallet (credits should be released)
+        const walletRes = await walletAPI.getWallet();
+        setWallet(walletRes.data);
+      }
+    } catch (error) {
+      console.error('Polling error:', error);
+    }
+  }, [currentJob]);
+
   const handleTemplateSelect = (templateId) => {
     setSelectedTemplate(templateId);
     const template = templates.find(t => t.id === templateId);
     if (template) {
-      // Extract placeholder for user input
       const match = template.prompt.match(/\{(\w+)\}/);
       if (match) {
         setPrompt(`[Enter your ${match[1]} here]`);
@@ -64,6 +116,9 @@ export default function TextToImage() {
       toast.info(`Template: ${template.name}`, { description: 'Modify the prompt below' });
     }
   };
+
+  const cost = pricing.TEXT_TO_IMAGE?.baseCredits || 10;
+  const canAfford = wallet.availableCredits >= cost;
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -76,39 +131,66 @@ export default function TextToImage() {
       return;
     }
 
-    if (credits < 10) {
-      toast.error('Need 10 credits for image generation');
+    if (!canAfford) {
+      toast.error(`Need ${cost} credits. You have ${wallet.availableCredits} available.`);
+      navigate('/app/billing');
       return;
     }
 
     setGenerating(true);
-    setProgress({ step: 1, message: 'Preparing your request...' });
+    setProgress({ step: 5, message: 'Creating job...' });
     setResult(null);
+    setCurrentJob(null);
+    setJobStatus(null);
 
     try {
-      setProgress({ step: 2, message: 'Generating image with AI...' });
-      
-      const response = await api.post('/api/genstudio/text-to-image', {
-        prompt: prompt.trim(),
-        negative_prompt: negativePrompt.trim() || null,
-        aspect_ratio: aspectRatio,
-        template_id: selectedTemplate || null,
-        add_watermark: addWatermark,
-        consent_confirmed: consentConfirmed
-      });
+      // Create job using the new pipeline
+      const idempotencyKey = uuidv4();
+      const response = await walletAPI.createJob({
+        jobType: 'TEXT_TO_IMAGE',
+        inputData: {
+          prompt: prompt.trim(),
+          negative_prompt: negativePrompt.trim() || null,
+          aspect_ratio: aspectRatio,
+          template_id: selectedTemplate || null,
+          add_watermark: addWatermark
+        }
+      }, idempotencyKey);
 
-      setProgress({ step: 3, message: 'Image generated!' });
-      setCredits(response.data.remainingCredits);
-      setResult(response.data);
-      toast.success('Image generated successfully!');
-
+      if (response.data.success) {
+        setCurrentJob(response.data.jobId);
+        setJobStatus('QUEUED');
+        setProgress({ step: 10, message: 'Job queued. Waiting for processing...' });
+        
+        // Update wallet (credits reserved)
+        const walletRes = await walletAPI.getWallet();
+        setWallet(walletRes.data);
+        
+        toast.info('Job created! Processing...', { description: `Cost: ${response.data.costCredits} credits` });
+      }
     } catch (error) {
       console.error('Generation error:', error);
       const message = error.response?.data?.detail || 'Generation failed';
       toast.error(message);
-    } finally {
       setGenerating(false);
       setProgress({ step: 0, message: '' });
+    }
+  };
+
+  const handleCancelJob = async () => {
+    if (!currentJob || !['QUEUED', 'PENDING'].includes(jobStatus)) return;
+    
+    try {
+      await walletAPI.cancelJob(currentJob);
+      setGenerating(false);
+      setCurrentJob(null);
+      setJobStatus(null);
+      // Refresh wallet
+      const walletRes = await walletAPI.getWallet();
+      setWallet(walletRes.data);
+      toast.info('Job cancelled. Credits released.');
+    } catch (error) {
+      toast.error('Failed to cancel job');
     }
   };
 
@@ -165,10 +247,18 @@ export default function TextToImage() {
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2">
-                <Coins className="w-4 h-4 text-yellow-500" />
-                <span className="font-bold text-white">{credits}</span>
-                <span className="text-slate-400 text-sm">credits</span>
+              {/* Wallet Display */}
+              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2" data-testid="wallet-balance">
+                <Wallet className="w-4 h-4 text-purple-400" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-white text-sm">{wallet.availableCredits}</span>
+                  <span className="text-xs text-slate-500">available</span>
+                </div>
+                {wallet.reservedCredits > 0 && (
+                  <div className="border-l border-slate-600 pl-2 ml-2">
+                    <span className="text-xs text-yellow-400">{wallet.reservedCredits} held</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -176,6 +266,20 @@ export default function TextToImage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Insufficient Credits Warning */}
+        {!canAfford && (
+          <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <div>
+              <p className="text-sm font-medium text-red-300">Insufficient Credits</p>
+              <p className="text-xs text-red-400">Need {cost} credits, you have {wallet.availableCredits} available.</p>
+            </div>
+            <Link to="/app/billing" className="ml-auto">
+              <Button size="sm" className="bg-red-600 hover:bg-red-700">Buy Credits</Button>
+            </Link>
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Left: Input Panel */}
           <div className="space-y-6">
@@ -211,6 +315,7 @@ export default function TextToImage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 className="min-h-[120px] bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                data-testid="prompt-input"
               />
               <p className="text-xs text-slate-500 mt-2">{prompt.length}/2000 characters</p>
             </div>
@@ -272,6 +377,7 @@ export default function TextToImage() {
                   checked={consentConfirmed}
                   onChange={(e) => setConsentConfirmed(e.target.checked)}
                   className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-purple-500"
+                  data-testid="consent-checkbox"
                 />
                 <div>
                   <p className="text-sm font-medium text-yellow-400 flex items-center gap-2">
@@ -288,35 +394,48 @@ export default function TextToImage() {
             {/* Generate Button */}
             <Button
               onClick={handleGenerate}
-              disabled={generating || !consentConfirmed || !prompt.trim()}
-              className="w-full h-14 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-lg font-semibold"
+              disabled={generating || !consentConfirmed || !prompt.trim() || !canAfford}
+              className="w-full h-14 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-lg font-semibold disabled:opacity-50"
+              data-testid="generate-btn"
             >
               {generating ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {progress.message}
+                  {progress.message || 'Processing...'}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
-                  Generate Image (10 credits)
+                  Generate Image ({cost} credits)
                 </span>
               )}
             </Button>
 
-            {/* Progress Bar */}
+            {/* Progress/Job Status */}
             {generating && (
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
                 <div className="flex justify-between text-sm text-slate-400 mb-2">
-                  <span>{progress.message}</span>
-                  <span>{Math.min(progress.step * 33, 100)}%</span>
+                  <span className="flex items-center gap-2">
+                    {jobStatus === 'QUEUED' && <Clock className="w-4 h-4 text-yellow-400" />}
+                    {jobStatus === 'RUNNING' && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
+                    {progress.message}
+                  </span>
+                  <span>{progress.step}%</span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(progress.step * 33, 100)}%` }}
+                    style={{ width: `${progress.step}%` }}
                   />
                 </div>
+                {jobStatus === 'QUEUED' && (
+                  <div className="mt-3 flex justify-end">
+                    <Button variant="ghost" size="sm" onClick={handleCancelJob} className="text-red-400 hover:text-red-300">
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Cancel Job
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -333,6 +452,7 @@ export default function TextToImage() {
                       src={`${process.env.REACT_APP_BACKEND_URL}${result.outputUrls[0]}`}
                       alt="Generated"
                       className="w-full h-full object-contain"
+                      data-testid="generated-image"
                     />
                   </div>
                   
@@ -347,13 +467,14 @@ export default function TextToImage() {
                       <Button 
                         onClick={() => handleDownload(result.outputUrls[0], `genstudio-${result.jobId}.png`)}
                         className="flex-1 bg-green-600 hover:bg-green-700"
+                        data-testid="download-btn"
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Download Image
                       </Button>
                       <Button 
                         variant="outline"
-                        onClick={() => { setResult(null); setPrompt(''); }}
+                        onClick={() => { setResult(null); setPrompt(''); setCurrentJob(null); setJobStatus(null); }}
                         className="border-slate-600 text-slate-300"
                       >
                         <RefreshCw className="w-4 h-4 mr-2" />
@@ -362,7 +483,7 @@ export default function TextToImage() {
                     </div>
                     
                     <p className="text-xs text-slate-500 text-center">
-                      Credits used: {result.creditsUsed} • Remaining: {result.remainingCredits}
+                      Credits used: {result.creditsUsed} • Available: {wallet.availableCredits}
                     </p>
                   </div>
                 </div>
