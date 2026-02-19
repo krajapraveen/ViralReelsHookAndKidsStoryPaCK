@@ -6,7 +6,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Sparkles, Copy, Download, Loader2, Lock, LogIn, ArrowRight } from 'lucide-react';
+import { Sparkles, Copy, Download, Loader2, Lock, X, LogIn, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
 const DEMO_KEY = 'creatorstudio_demo_used';
