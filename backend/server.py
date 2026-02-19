@@ -290,6 +290,10 @@ async def startup():
         await db.webhook_logs.create_index([("gateway", 1), ("event", 1), ("received_at", -1)])
         await db.refund_logs.create_index("orderId")  # For refund tracking
         await db.payment_logs.create_index([("userId", 1), ("timestamp", -1)])
+        # Wallet & Job Pipeline indexes
+        await db.idempotency_keys.create_index([("userId", 1), ("idempotencyKey", 1)], unique=True)
+        await db.idempotency_keys.create_index("expiresAt")
+        await db.credit_ledger.create_index([("refId", 1), ("entryType", 1)])  # For job lookups
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
