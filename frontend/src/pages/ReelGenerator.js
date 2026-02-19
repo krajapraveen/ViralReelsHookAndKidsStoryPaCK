@@ -345,13 +345,58 @@ export default function ReelGenerator() {
 
                 <div>
                   <Label htmlFor="audience" className="text-slate-300 font-medium text-sm mb-2 block">Audience</Label>
-                  <Input
-                    id="audience"
-                    value={formData.audience}
-                    onChange={(e) => setFormData({...formData, audience: e.target.value})}
-                    placeholder="E.g., Young professionals"
-                    className="bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500"
-                  />
+                  <Select value={formData.audience} onValueChange={(value) => setFormData({...formData, audience: value})}>
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700 max-h-[300px]">
+                      {/* General */}
+                      <SelectItem value="General" className="text-white focus:bg-indigo-600">General Audience</SelectItem>
+                      {/* Age Groups */}
+                      <SelectItem value="Gen Z (13-24)" className="text-white focus:bg-indigo-600">Gen Z (13-24)</SelectItem>
+                      <SelectItem value="Millennials (25-40)" className="text-white focus:bg-indigo-600">Millennials (25-40)</SelectItem>
+                      <SelectItem value="Gen X (41-56)" className="text-white focus:bg-indigo-600">Gen X (41-56)</SelectItem>
+                      <SelectItem value="Baby Boomers (57-75)" className="text-white focus:bg-indigo-600">Baby Boomers (57-75)</SelectItem>
+                      {/* Professional */}
+                      <SelectItem value="Young Professionals" className="text-white focus:bg-indigo-600">Young Professionals</SelectItem>
+                      <SelectItem value="Entrepreneurs" className="text-white focus:bg-indigo-600">Entrepreneurs</SelectItem>
+                      <SelectItem value="Business Executives" className="text-white focus:bg-indigo-600">Business Executives</SelectItem>
+                      <SelectItem value="Freelancers" className="text-white focus:bg-indigo-600">Freelancers</SelectItem>
+                      <SelectItem value="Remote Workers" className="text-white focus:bg-indigo-600">Remote Workers</SelectItem>
+                      <SelectItem value="Small Business Owners" className="text-white focus:bg-indigo-600">Small Business Owners</SelectItem>
+                      {/* Students */}
+                      <SelectItem value="College Students" className="text-white focus:bg-indigo-600">College Students</SelectItem>
+                      <SelectItem value="High School Students" className="text-white focus:bg-indigo-600">High School Students</SelectItem>
+                      <SelectItem value="Graduate Students" className="text-white focus:bg-indigo-600">Graduate Students</SelectItem>
+                      {/* Lifestyle */}
+                      <SelectItem value="Parents" className="text-white focus:bg-indigo-600">Parents</SelectItem>
+                      <SelectItem value="New Parents" className="text-white focus:bg-indigo-600">New Parents</SelectItem>
+                      <SelectItem value="Stay-at-Home Parents" className="text-white focus:bg-indigo-600">Stay-at-Home Parents</SelectItem>
+                      <SelectItem value="Fitness Enthusiasts" className="text-white focus:bg-indigo-600">Fitness Enthusiasts</SelectItem>
+                      <SelectItem value="Health Conscious" className="text-white focus:bg-indigo-600">Health Conscious</SelectItem>
+                      <SelectItem value="Travelers" className="text-white focus:bg-indigo-600">Travelers</SelectItem>
+                      <SelectItem value="Foodies" className="text-white focus:bg-indigo-600">Foodies</SelectItem>
+                      <SelectItem value="Gamers" className="text-white focus:bg-indigo-600">Gamers</SelectItem>
+                      {/* Interest-Based */}
+                      <SelectItem value="Tech Enthusiasts" className="text-white focus:bg-indigo-600">Tech Enthusiasts</SelectItem>
+                      <SelectItem value="Fashion Lovers" className="text-white focus:bg-indigo-600">Fashion Lovers</SelectItem>
+                      <SelectItem value="Beauty Enthusiasts" className="text-white focus:bg-indigo-600">Beauty Enthusiasts</SelectItem>
+                      <SelectItem value="Music Fans" className="text-white focus:bg-indigo-600">Music Fans</SelectItem>
+                      <SelectItem value="Sports Fans" className="text-white focus:bg-indigo-600">Sports Fans</SelectItem>
+                      <SelectItem value="Book Lovers" className="text-white focus:bg-indigo-600">Book Lovers</SelectItem>
+                      <SelectItem value="DIY Enthusiasts" className="text-white focus:bg-indigo-600">DIY Enthusiasts</SelectItem>
+                      <SelectItem value="Pet Owners" className="text-white focus:bg-indigo-600">Pet Owners</SelectItem>
+                      {/* Financial */}
+                      <SelectItem value="Investors" className="text-white focus:bg-indigo-600">Investors</SelectItem>
+                      <SelectItem value="Crypto Enthusiasts" className="text-white focus:bg-indigo-600">Crypto Enthusiasts</SelectItem>
+                      <SelectItem value="Budget Conscious" className="text-white focus:bg-indigo-600">Budget Conscious</SelectItem>
+                      <SelectItem value="Luxury Consumers" className="text-white focus:bg-indigo-600">Luxury Consumers</SelectItem>
+                      {/* Regional */}
+                      <SelectItem value="Urban Dwellers" className="text-white focus:bg-indigo-600">Urban Dwellers</SelectItem>
+                      <SelectItem value="Suburban Families" className="text-white focus:bg-indigo-600">Suburban Families</SelectItem>
+                      <SelectItem value="Rural Communities" className="text-white focus:bg-indigo-600">Rural Communities</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
