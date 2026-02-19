@@ -22,6 +22,8 @@ import CopyrightInfo from './pages/CopyrightInfo';
 import CreatorTools from './pages/CreatorTools';
 import ContentVault from './pages/ContentVault';
 import PaymentHistory from './pages/PaymentHistory';
+import VerifyEmail from './pages/VerifyEmail';
+import ResetPassword from './pages/ResetPassword';
 // GenStudio Pages
 import GenStudioDashboard from './pages/GenStudioDashboard';
 import GenStudioTextToImage from './pages/GenStudioTextToImage';
