@@ -5,29 +5,53 @@ import { toast } from 'sonner';
 import { 
   Sparkles, Image, Video, Palette, Scissors, Clock, 
   ArrowLeft, Coins, History, Zap, Star, TrendingUp,
-  ChevronRight, Play, Download
+  ChevronRight, Play, Download, Wallet, AlertCircle,
+  CheckCircle, XCircle, Loader2, RefreshCw
 } from 'lucide-react';
-import api from '../utils/api';
+import api, { walletAPI } from '../utils/api';
 
 export default function GenStudioDashboard() {
-  const [credits, setCredits] = useState(0);
+  const [wallet, setWallet] = useState({ balanceCredits: 0, reservedCredits: 0, availableCredits: 0 });
+  const [pricing, setPricing] = useState({});
   const [dashboardData, setDashboardData] = useState(null);
+  const [activeJobs, setActiveJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDashboard();
+    fetchData();
+    // Poll for active jobs
+    const interval = setInterval(fetchActiveJobs, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchDashboard = async () => {
+  const fetchData = async () => {
     try {
-      const response = await api.get('/api/genstudio/dashboard');
-      setDashboardData(response.data);
-      setCredits(response.data.credits);
+      const [walletRes, pricingRes, dashboardRes] = await Promise.all([
+        walletAPI.getWallet(),
+        walletAPI.getPricing(),
+        api.get('/api/genstudio/dashboard')
+      ]);
+      setWallet(walletRes.data);
+      setPricing(pricingRes.data.pricing);
+      setDashboardData(dashboardRes.data);
+      await fetchActiveJobs();
     } catch (error) {
       toast.error('Failed to load GenStudio dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchActiveJobs = async () => {
+    try {
+      const response = await walletAPI.listJobs({ limit: 10 });
+      const active = response.data.jobs.filter(j => 
+        ['QUEUED', 'RUNNING'].includes(j.status)
+      );
+      setActiveJobs(active);
+    } catch (error) {
+      console.error('Failed to fetch active jobs');
     }
   };
 
@@ -38,7 +62,7 @@ export default function GenStudioDashboard() {
       description: 'Generate stunning images from text prompts',
       icon: Image,
       color: 'from-purple-500 to-pink-500',
-      cost: 10,
+      costKey: 'TEXT_TO_IMAGE',
       path: '/app/gen-studio/text-to-image'
     },
     {
@@ -47,7 +71,7 @@ export default function GenStudioDashboard() {
       description: 'Create videos from text with Sora 2',
       icon: Video,
       color: 'from-blue-500 to-cyan-500',
-      cost: 10,
+      costKey: 'TEXT_TO_VIDEO',
       path: '/app/gen-studio/text-to-video'
     },
     {
@@ -56,7 +80,7 @@ export default function GenStudioDashboard() {
       description: 'Animate your images with AI motion',
       icon: Play,
       color: 'from-green-500 to-emerald-500',
-      cost: 10,
+      costKey: 'IMAGE_TO_VIDEO',
       path: '/app/gen-studio/image-to-video'
     },
     {
@@ -65,7 +89,7 @@ export default function GenStudioDashboard() {
       description: 'Create consistent brand aesthetics',
       icon: Palette,
       color: 'from-orange-500 to-amber-500',
-      cost: 20,
+      costKey: 'STYLE_PROFILE_CREATE',
       path: '/app/gen-studio/style-profiles'
     },
     {
@@ -74,10 +98,20 @@ export default function GenStudioDashboard() {
       description: 'Remix videos with new styles & prompts',
       icon: Scissors,
       color: 'from-red-500 to-rose-500',
-      cost: 12,
+      costKey: 'VIDEO_REMIX',
       path: '/app/gen-studio/video-remix'
     }
   ];
+
+  const getJobStatusIcon = (status) => {
+    switch (status) {
+      case 'QUEUED': return <Clock className="w-4 h-4 text-yellow-400" />;
+      case 'RUNNING': return <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />;
+      case 'SUCCEEDED': return <CheckCircle className="w-4 h-4 text-green-400" />;
+      case 'FAILED': return <XCircle className="w-4 h-4 text-red-400" />;
+      default: return <AlertCircle className="w-4 h-4 text-slate-400" />;
+    }
+  };
 
   if (loading) {
     return (
@@ -113,10 +147,18 @@ export default function GenStudioDashboard() {
                 <History className="w-4 h-4" />
                 History
               </Link>
-              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2">
-                <Coins className="w-4 h-4 text-yellow-500" />
-                <span className="font-bold text-white">{credits}</span>
-                <span className="text-slate-400 text-sm">credits</span>
+              {/* Wallet Display */}
+              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2" data-testid="wallet-balance">
+                <Wallet className="w-4 h-4 text-purple-400" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-white text-sm">{wallet.availableCredits}</span>
+                  <span className="text-xs text-slate-500">available</span>
+                </div>
+                {wallet.reservedCredits > 0 && (
+                  <div className="border-l border-slate-600 pl-2 ml-2">
+                    <span className="text-xs text-yellow-400">{wallet.reservedCredits} reserved</span>
+                  </div>
+                )}
               </div>
               <Link to="/app/billing">
                 <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
@@ -129,6 +171,40 @@ export default function GenStudioDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Active Jobs Alert */}
+        {activeJobs.length > 0 && (
+          <div className="mb-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-blue-300 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Active Jobs ({activeJobs.length})
+              </h3>
+              <Button variant="ghost" size="sm" onClick={fetchActiveJobs} className="text-blue-300">
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="grid gap-2">
+              {activeJobs.map(job => (
+                <div key={job.id} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-4 py-2">
+                  <div className="flex items-center gap-3">
+                    {getJobStatusIcon(job.status)}
+                    <div>
+                      <p className="text-sm text-white">{job.jobType.replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-slate-400">{job.status} - {job.progress || 0}%</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">{job.costCredits} credits</span>
+                    <Link to={`/app/gen-studio/history`}>
+                      <Button variant="ghost" size="sm" className="text-slate-400">View</Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-white mb-4">
@@ -145,11 +221,11 @@ export default function GenStudioDashboard() {
           <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-purple-400" />
+                <Wallet className="w-5 h-5 text-purple-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{dashboardData?.stats?.totalGenerations || 0}</p>
-                <p className="text-xs text-slate-400">Total Generations</p>
+                <p className="text-2xl font-bold text-white">{wallet.balanceCredits}</p>
+                <p className="text-xs text-slate-400">Total Credits</p>
               </div>
             </div>
           </div>
@@ -194,33 +270,44 @@ export default function GenStudioDashboard() {
           AI Generation Tools
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {tools.map((tool) => (
-            <div 
-              key={tool.id}
-              className={`relative bg-slate-900/50 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 ${tool.comingSoon ? 'opacity-60' : 'cursor-pointer hover:scale-[1.02]'}`}
-              onClick={() => !tool.comingSoon && navigate(tool.path)}
-            >
-              {tool.comingSoon && (
-                <div className="absolute top-4 right-4 bg-yellow-500/20 text-yellow-400 text-xs font-medium px-2 py-1 rounded-full">
-                  Coming Soon
-                </div>
-              )}
-              <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${tool.color} flex items-center justify-center mb-4`}>
-                <tool.icon className="w-7 h-7 text-white" />
-              </div>
-              <h4 className="text-lg font-bold text-white mb-2">{tool.name}</h4>
-              <p className="text-sm text-slate-400 mb-4">{tool.description}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500 flex items-center gap-1">
-                  <Coins className="w-4 h-4 text-yellow-500" />
-                  {tool.cost} credits
-                </span>
-                {!tool.comingSoon && (
-                  <ChevronRight className="w-5 h-5 text-slate-400" />
+          {tools.map((tool) => {
+            const cost = pricing[tool.costKey]?.baseCredits || 10;
+            const canAfford = wallet.availableCredits >= cost;
+            
+            return (
+              <div 
+                key={tool.id}
+                className={`relative bg-slate-900/50 border rounded-2xl p-6 transition-all duration-300 ${
+                  canAfford 
+                    ? 'border-slate-800 hover:border-slate-700 cursor-pointer hover:scale-[1.02]' 
+                    : 'border-red-500/30 opacity-70'
+                }`}
+                onClick={() => canAfford && navigate(tool.path)}
+                data-testid={`tool-${tool.id}`}
+              >
+                {!canAfford && (
+                  <div className="absolute top-4 right-4 bg-red-500/20 text-red-400 text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Low Credits
+                  </div>
                 )}
+                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${tool.color} flex items-center justify-center mb-4`}>
+                  <tool.icon className="w-7 h-7 text-white" />
+                </div>
+                <h4 className="text-lg font-bold text-white mb-2">{tool.name}</h4>
+                <p className="text-sm text-slate-400 mb-4">{tool.description}</p>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm flex items-center gap-1 ${canAfford ? 'text-slate-500' : 'text-red-400'}`}>
+                    <Coins className="w-4 h-4 text-yellow-500" />
+                    {cost} credits
+                  </span>
+                  {canAfford && (
+                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Quick Templates */}
@@ -259,8 +346,8 @@ export default function GenStudioDashboard() {
                     )}
                   </div>
                   <div className="p-3">
-                    <p className="text-xs text-slate-400 truncate">{job.type.replace('_', ' → ')}</p>
-                    <p className={`text-xs font-medium ${job.status === 'completed' ? 'text-green-400' : job.status === 'failed' ? 'text-red-400' : 'text-yellow-400'}`}>
+                    <p className="text-xs text-slate-400 truncate">{job.type?.replace('_', ' → ') || job.jobType?.replace('_', ' → ')}</p>
+                    <p className={`text-xs font-medium ${job.status === 'completed' || job.status === 'SUCCEEDED' ? 'text-green-400' : job.status === 'failed' || job.status === 'FAILED' ? 'text-red-400' : 'text-yellow-400'}`}>
                       {job.status}
                     </p>
                   </div>
