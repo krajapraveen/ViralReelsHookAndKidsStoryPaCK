@@ -429,3 +429,352 @@ async def cashfree_health():
         "configured": cashfree_client is not None,
         "environment": CASHFREE_ENVIRONMENT.lower()
     }
+
+
+# =============================================================================
+# REFUND ENDPOINTS (Admin Only)
+# =============================================================================
+
+@router.post("/refund/{order_id}")
+@limiter.limit("10/minute")
+async def create_cashfree_refund(
+    order_id: str,
+    request: Request,
+    data: CashfreeRefundRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Process a refund for a Cashfree payment (Admin Only)
+    
+    - Full refund if refund_amount is not specified
+    - Partial refund if refund_amount is specified
+    - Revokes credits if they were granted
+    """
+    if not cashfree_client:
+        raise HTTPException(status_code=500, detail="Cashfree payment gateway not configured")
+    
+    try:
+        # Find the order
+        order = await db.orders.find_one({
+            "order_id": order_id,
+            "gateway": "cashfree"
+        }, {"_id": 0})
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        if order["status"] == "REFUNDED":
+            raise HTTPException(status_code=400, detail="Order already refunded")
+        
+        if order["status"] != "PAID":
+            raise HTTPException(status_code=400, detail=f"Cannot refund order with status: {order['status']}")
+        
+        # Calculate refund amount (convert from paise to rupees)
+        order_amount_rupees = order["amount"] / 100
+        refund_amount = data.refund_amount if data.refund_amount else order_amount_rupees
+        
+        if refund_amount > order_amount_rupees:
+            raise HTTPException(status_code=400, detail=f"Refund amount ({refund_amount}) exceeds order amount ({order_amount_rupees})")
+        
+        # Generate unique refund ID
+        refund_id = f"refund_{order_id}_{int(datetime.now().timestamp() * 1000)}"
+        
+        # Create refund via Cashfree API
+        from cashfree_pg.models.create_refund_request import CreateRefundRequest
+        
+        refund_request = CreateRefundRequest(
+            refund_amount=refund_amount,
+            refund_id=refund_id,
+            refund_note=data.reason[:100]  # Cashfree limits note length
+        )
+        
+        api_version = "2023-08-01"
+        response = cashfree_client.PGOrderCreateRefund(api_version, order_id, refund_request, None)
+        
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to create refund with Cashfree")
+        
+        # Determine if credits should be revoked
+        credits_to_revoke = order.get("credits", 0)
+        is_partial_refund = refund_amount < order_amount_rupees
+        
+        if is_partial_refund:
+            # Calculate proportional credits to revoke
+            credits_to_revoke = int(credits_to_revoke * (refund_amount / order_amount_rupees))
+        
+        # Revoke credits from user if they were granted
+        user_id = order.get("userId")
+        credits_revoked = 0
+        if user_id and credits_to_revoke > 0:
+            try:
+                user = await db.users.find_one({"id": user_id}, {"_id": 0})
+                if user:
+                    current_credits = user.get("credits", 0)
+                    new_credits = max(0, current_credits - credits_to_revoke)
+                    credits_revoked = current_credits - new_credits
+                    
+                    await db.users.update_one(
+                        {"id": user_id},
+                        {"$set": {"credits": new_credits}}
+                    )
+                    
+                    # Log credit revocation
+                    await db.credit_ledger.insert_one({
+                        "id": str(uuid.uuid4()),
+                        "userId": user_id,
+                        "amount": -credits_revoked,
+                        "type": "REFUND_REVOCATION",
+                        "description": f"Credits revoked due to refund - Order {order_id}",
+                        "orderId": order_id,
+                        "refundId": refund_id,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    })
+            except Exception as e:
+                logger.error(f"Failed to revoke credits for refund {refund_id}: {e}")
+        
+        # Update order status
+        refund_status = "REFUNDED" if not is_partial_refund else "PARTIALLY_REFUNDED"
+        await db.orders.update_one(
+            {"order_id": order_id},
+            {
+                "$set": {
+                    "status": refund_status,
+                    "refundedAt": datetime.now(timezone.utc).isoformat(),
+                    "refundId": response.data.refund_id,
+                    "refundAmount": refund_amount,
+                    "refundReason": data.reason,
+                    "refundedBy": admin.get("email", admin.get("id")),
+                    "creditsRevoked": credits_revoked
+                }
+            }
+        )
+        
+        # Log the refund
+        await db.refund_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "orderId": order_id,
+            "refundId": response.data.refund_id,
+            "cfRefundId": response.data.cf_refund_id if hasattr(response.data, 'cf_refund_id') else None,
+            "userId": user_id,
+            "userEmail": order.get("userEmail", ""),
+            "amount": refund_amount,
+            "currency": order.get("currency", "INR"),
+            "reason": data.reason,
+            "status": response.data.refund_status if hasattr(response.data, 'refund_status') else "PENDING",
+            "creditsRevoked": credits_revoked,
+            "processedBy": admin.get("email", admin.get("id")),
+            "gateway": "cashfree",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Cashfree refund created: {refund_id} for order {order_id} by admin {admin.get('email')}")
+        
+        return {
+            "success": True,
+            "message": f"Refund of ₹{refund_amount} processed successfully",
+            "refundId": response.data.refund_id,
+            "refundAmount": refund_amount,
+            "creditsRevoked": credits_revoked,
+            "status": refund_status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Cashfree refund error: {error_msg}")
+        
+        await log_exception(
+            functionality="cashfree_refund",
+            error_type="REFUND_FAILED",
+            error_message=error_msg,
+            user_id=admin.get("id"),
+            user_email=admin.get("email"),
+            stack_trace=traceback.format_exc(),
+            severity="CRITICAL"
+        )
+        
+        raise HTTPException(status_code=500, detail=f"Refund failed: {error_msg}")
+
+
+@router.get("/refund/{order_id}/status")
+async def get_refund_status(
+    order_id: str,
+    admin: dict = Depends(get_admin_user)
+):
+    """Get refund status for an order (Admin Only)"""
+    if not cashfree_client:
+        raise HTTPException(status_code=500, detail="Cashfree payment gateway not configured")
+    
+    try:
+        # Get order from database
+        order = await db.orders.find_one({
+            "order_id": order_id,
+            "gateway": "cashfree"
+        }, {"_id": 0})
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        # Get all refunds from Cashfree
+        api_version = "2023-08-01"
+        response = cashfree_client.PGOrderFetchRefunds(api_version, order_id, None)
+        
+        refunds = []
+        if response.data:
+            for refund in response.data:
+                refunds.append({
+                    "refundId": refund.refund_id if hasattr(refund, 'refund_id') else None,
+                    "cfRefundId": refund.cf_refund_id if hasattr(refund, 'cf_refund_id') else None,
+                    "amount": refund.refund_amount if hasattr(refund, 'refund_amount') else None,
+                    "status": refund.refund_status if hasattr(refund, 'refund_status') else None,
+                    "processedAt": refund.processed_at if hasattr(refund, 'processed_at') else None
+                })
+        
+        # Get local refund logs
+        local_refunds = await db.refund_logs.find(
+            {"orderId": order_id},
+            {"_id": 0}
+        ).to_list(length=10)
+        
+        return {
+            "orderId": order_id,
+            "orderStatus": order.get("status"),
+            "orderAmount": order.get("amount", 0) / 100,
+            "cashfreeRefunds": refunds,
+            "localRefundLogs": local_refunds
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get refund status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get refund status: {str(e)}")
+
+
+@router.get("/orders/pending-delivery")
+async def get_orders_pending_delivery(
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Get orders that are PAID but credits may not have been delivered (Admin Only)
+    This helps identify "Paid but not delivered" cases for manual review
+    """
+    try:
+        # Find orders that are PAID but might need review
+        paid_orders = await db.orders.find(
+            {
+                "gateway": "cashfree",
+                "status": "PAID"
+            },
+            {"_id": 0}
+        ).sort("paidAt", -1).limit(100).to_list(length=100)
+        
+        # Check credit ledger for each order to verify delivery
+        orders_needing_review = []
+        for order in paid_orders:
+            order_id = order.get("order_id")
+            user_id = order.get("userId")
+            
+            # Check if credits were logged for this order
+            credit_entry = await db.credit_ledger.find_one({
+                "userId": user_id,
+                "orderId": order_id,
+                "type": "PURCHASE"
+            }, {"_id": 0})
+            
+            if not credit_entry:
+                orders_needing_review.append({
+                    **order,
+                    "issue": "NO_CREDIT_LEDGER_ENTRY",
+                    "recommendation": "Verify user credits and manually add if missing, or refund"
+                })
+        
+        return {
+            "totalPaidOrders": len(paid_orders),
+            "ordersNeedingReview": len(orders_needing_review),
+            "orders": orders_needing_review
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get pending delivery orders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/orders/{order_id}/retry-delivery")
+@limiter.limit("5/minute")
+async def retry_credit_delivery(
+    order_id: str,
+    request: Request,
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Retry credit delivery for a PAID order that didn't receive credits (Admin Only)
+    """
+    try:
+        order = await db.orders.find_one({
+            "order_id": order_id,
+            "gateway": "cashfree",
+            "status": "PAID"
+        }, {"_id": 0})
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Paid order not found")
+        
+        user_id = order.get("userId")
+        credits_to_add = order.get("credits", 0)
+        
+        if not user_id or credits_to_add <= 0:
+            raise HTTPException(status_code=400, detail="Invalid order data")
+        
+        # Check if credits were already delivered
+        existing_entry = await db.credit_ledger.find_one({
+            "userId": user_id,
+            "orderId": order_id,
+            "type": "PURCHASE"
+        }, {"_id": 0})
+        
+        if existing_entry:
+            raise HTTPException(status_code=400, detail="Credits already delivered for this order")
+        
+        # Add credits
+        new_balance = await add_credits(
+            user_id=user_id,
+            amount=credits_to_add,
+            description=f"Manual credit delivery (retry) - {order.get('productName', '')}",
+            tx_type="PURCHASE"
+        )
+        
+        # Update order to mark delivery as completed
+        await db.orders.update_one(
+            {"order_id": order_id},
+            {
+                "$set": {
+                    "deliveryRetried": True,
+                    "deliveryRetriedAt": datetime.now(timezone.utc).isoformat(),
+                    "deliveryRetriedBy": admin.get("email", admin.get("id"))
+                }
+            }
+        )
+        
+        # Log the manual delivery
+        await db.credit_ledger.update_one(
+            {"userId": user_id, "orderId": order_id, "type": "PURCHASE"},
+            {"$set": {"manualDelivery": True, "deliveredBy": admin.get("email")}}
+        )
+        
+        logger.info(f"Manual credit delivery: {credits_to_add} credits for order {order_id} by admin {admin.get('email')}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully delivered {credits_to_add} credits",
+            "creditsAdded": credits_to_add,
+            "newBalance": new_balance,
+            "orderId": order_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retry credit delivery: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
