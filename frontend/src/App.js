@@ -65,6 +65,8 @@ function App() {
         <Route path="/login" element={<Login setAuth={setIsAuthenticated} />} />
         <Route path="/signup" element={<Signup setAuth={setIsAuthenticated} />} />
         <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
