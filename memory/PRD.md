@@ -3,12 +3,72 @@
 ## Original Problem Statement
 Build a full-stack application named "CreatorStudio AI" for generating viral reels and kids story videos, with expanded capabilities including:
 - GenStudio AI generation suite (Text-to-Image, Text-to-Video, etc.)
+- Credit-gated async job pipeline for all generation features
 - Security hardening and content moderation
 - Admin dashboard with payment and exception monitoring
 - Creator Pro Tools (15+ AI-powered features)
 - TwinFinder face lookalike finder
 
 ## Production Deployment Status: READY ✅
+
+## Credit-Gated Job Pipeline (Feb 19, 2026) - IMPLEMENTED ✅
+
+### Core Architecture
+```
+User Opens Generator Page
+       ↓
+Frontend calls GET /api/wallet/me
+       ↓
+Backend returns: balanceCredits, reservedCredits, availableCredits
+       ↓
+UI shows: "You have X credits" + enables/disables buttons based on cost
+       ↓
+User clicks "Generate"
+       ↓
+Frontend submits POST /api/wallet/jobs with Idempotency-Key
+       ↓
+Backend validates input → Checks balance → Reserves credits (HOLD)
+       ↓
+Creates Job (status: QUEUED) → Returns jobId immediately
+       ↓
+Background Worker picks job → Calls AI provider → Stores result
+       ↓
+On SUCCESS: CAPTURE credits (hold → spend)
+On FAILURE: RELEASE credits (refund to wallet)
+```
+
+### Data Model
+- **wallets**: Virtual balance from users.credits field
+- **genstudio_jobs**: id, userId, jobType, status, costCredits, inputJson, outputUrl
+- **credit_ledger**: Auditable log of TOPUP, HOLD, CAPTURE, RELEASE transactions
+- **idempotency_keys**: Prevents duplicate job creation
+
+### Pricing Configuration
+| Job Type | Base Credits | Per Second |
+|----------|-------------|-----------|
+| TEXT_TO_IMAGE | 10 | - |
+| TEXT_TO_VIDEO | 25 | +5/second |
+| IMAGE_TO_VIDEO | 20 | +4/second |
+| VIDEO_REMIX | 15 | - |
+| STORY_GENERATION | 10 | - |
+| REEL_GENERATION | 10 | - |
+| STYLE_PROFILE_CREATE | 20 | - |
+
+### API Endpoints
+- `GET /api/wallet/me` - Balance, reserved, available credits
+- `GET /api/wallet/pricing` - Credit costs per job type
+- `POST /api/wallet/jobs` - Create job with credit reservation
+- `GET /api/wallet/jobs/{id}` - Job status + output URLs
+- `GET /api/wallet/jobs` - List jobs with filters
+- `POST /api/wallet/jobs/{id}/cancel` - Cancel + release credits
+- `GET /api/wallet/ledger` - Transaction history
+
+### Frontend Integration (All GenStudio Pages)
+- GenStudioDashboard.js - Wallet display, active jobs alert, tool cards
+- GenStudioTextToImage.js - Job pipeline with polling
+- GenStudioTextToVideo.js - Dynamic pricing based on duration
+- GenStudioImageToVideo.js - Image upload + job pipeline
+- GenStudioHistory.js - Filters by type/status, download/cancel actions
 
 ### Critical Deployment Fixes Applied (Feb 18, 2026)
 
