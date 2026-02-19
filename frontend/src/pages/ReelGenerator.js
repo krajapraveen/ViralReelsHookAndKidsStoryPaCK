@@ -272,10 +272,56 @@ export default function ReelGenerator() {
                     <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectContent className="bg-slate-800 border-slate-700 max-h-[300px]">
+                      {/* Major World Languages */}
                       <SelectItem value="English" className="text-white focus:bg-indigo-600">English</SelectItem>
-                      <SelectItem value="Telugu" className="text-white focus:bg-indigo-600">Telugu</SelectItem>
+                      <SelectItem value="Spanish" className="text-white focus:bg-indigo-600">Spanish (Español)</SelectItem>
+                      <SelectItem value="French" className="text-white focus:bg-indigo-600">French (Français)</SelectItem>
+                      <SelectItem value="German" className="text-white focus:bg-indigo-600">German (Deutsch)</SelectItem>
+                      <SelectItem value="Italian" className="text-white focus:bg-indigo-600">Italian (Italiano)</SelectItem>
+                      <SelectItem value="Portuguese" className="text-white focus:bg-indigo-600">Portuguese (Português)</SelectItem>
+                      <SelectItem value="Russian" className="text-white focus:bg-indigo-600">Russian (Русский)</SelectItem>
+                      <SelectItem value="Japanese" className="text-white focus:bg-indigo-600">Japanese (日本語)</SelectItem>
+                      <SelectItem value="Korean" className="text-white focus:bg-indigo-600">Korean (한국어)</SelectItem>
+                      <SelectItem value="Chinese" className="text-white focus:bg-indigo-600">Chinese (中文)</SelectItem>
+                      <SelectItem value="Arabic" className="text-white focus:bg-indigo-600">Arabic (العربية)</SelectItem>
+                      <SelectItem value="Hindi" className="text-white focus:bg-indigo-600">Hindi (हिंदी)</SelectItem>
                       <SelectItem value="Hinglish" className="text-white focus:bg-indigo-600">Hinglish</SelectItem>
+                      {/* Indian Languages */}
+                      <SelectItem value="Telugu" className="text-white focus:bg-indigo-600">Telugu (తెలుగు)</SelectItem>
+                      <SelectItem value="Tamil" className="text-white focus:bg-indigo-600">Tamil (தமிழ்)</SelectItem>
+                      <SelectItem value="Kannada" className="text-white focus:bg-indigo-600">Kannada (ಕನ್ನಡ)</SelectItem>
+                      <SelectItem value="Malayalam" className="text-white focus:bg-indigo-600">Malayalam (മലയാളം)</SelectItem>
+                      <SelectItem value="Marathi" className="text-white focus:bg-indigo-600">Marathi (मराठी)</SelectItem>
+                      <SelectItem value="Bengali" className="text-white focus:bg-indigo-600">Bengali (বাংলা)</SelectItem>
+                      <SelectItem value="Gujarati" className="text-white focus:bg-indigo-600">Gujarati (ગુજરાતી)</SelectItem>
+                      <SelectItem value="Punjabi" className="text-white focus:bg-indigo-600">Punjabi (ਪੰਜਾਬੀ)</SelectItem>
+                      {/* European Languages */}
+                      <SelectItem value="Dutch" className="text-white focus:bg-indigo-600">Dutch (Nederlands)</SelectItem>
+                      <SelectItem value="Polish" className="text-white focus:bg-indigo-600">Polish (Polski)</SelectItem>
+                      <SelectItem value="Swedish" className="text-white focus:bg-indigo-600">Swedish (Svenska)</SelectItem>
+                      <SelectItem value="Norwegian" className="text-white focus:bg-indigo-600">Norwegian (Norsk)</SelectItem>
+                      <SelectItem value="Danish" className="text-white focus:bg-indigo-600">Danish (Dansk)</SelectItem>
+                      <SelectItem value="Finnish" className="text-white focus:bg-indigo-600">Finnish (Suomi)</SelectItem>
+                      <SelectItem value="Greek" className="text-white focus:bg-indigo-600">Greek (Ελληνικά)</SelectItem>
+                      <SelectItem value="Turkish" className="text-white focus:bg-indigo-600">Turkish (Türkçe)</SelectItem>
+                      <SelectItem value="Czech" className="text-white focus:bg-indigo-600">Czech (Čeština)</SelectItem>
+                      <SelectItem value="Hungarian" className="text-white focus:bg-indigo-600">Hungarian (Magyar)</SelectItem>
+                      <SelectItem value="Romanian" className="text-white focus:bg-indigo-600">Romanian (Română)</SelectItem>
+                      <SelectItem value="Ukrainian" className="text-white focus:bg-indigo-600">Ukrainian (Українська)</SelectItem>
+                      {/* Asian Languages */}
+                      <SelectItem value="Thai" className="text-white focus:bg-indigo-600">Thai (ไทย)</SelectItem>
+                      <SelectItem value="Vietnamese" className="text-white focus:bg-indigo-600">Vietnamese (Tiếng Việt)</SelectItem>
+                      <SelectItem value="Indonesian" className="text-white focus:bg-indigo-600">Indonesian (Bahasa)</SelectItem>
+                      <SelectItem value="Malay" className="text-white focus:bg-indigo-600">Malay (Bahasa Melayu)</SelectItem>
+                      <SelectItem value="Filipino" className="text-white focus:bg-indigo-600">Filipino (Tagalog)</SelectItem>
+                      {/* Middle Eastern */}
+                      <SelectItem value="Persian" className="text-white focus:bg-indigo-600">Persian (فارسی)</SelectItem>
+                      <SelectItem value="Hebrew" className="text-white focus:bg-indigo-600">Hebrew (עברית)</SelectItem>
+                      <SelectItem value="Urdu" className="text-white focus:bg-indigo-600">Urdu (اردو)</SelectItem>
+                      {/* African */}
+                      <SelectItem value="Swahili" className="text-white focus:bg-indigo-600">Swahili (Kiswahili)</SelectItem>
+                      <SelectItem value="Afrikaans" className="text-white focus:bg-indigo-600">Afrikaans</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
