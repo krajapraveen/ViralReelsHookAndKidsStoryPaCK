@@ -256,6 +256,9 @@ export default function PrivacySettings() {
                 <div className="text-sm text-slate-500">
                   Download all your data in JSON format (GDPR Article 20)
                 </div>
+                <div className="text-xs text-slate-600 mt-1">
+                  Your export may contain personal information. Internal IDs and payment gateway details are excluded for security.
+                </div>
               </div>
               <Button 
                 variant="outline" 
