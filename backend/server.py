@@ -348,7 +348,37 @@ async def startup():
     # Start background cleanup task
     asyncio.create_task(cleanup_expired_downloads())
     
+    # Start job worker
+    asyncio.create_task(job_worker_loop())
+    
     logger.info("CreatorStudio API ready!")
+
+
+async def job_worker_loop():
+    """Background job worker - processes QUEUED jobs"""
+    from routes.job_worker import process_job
+    
+    logger.info("Job Worker started as background task")
+    
+    POLL_INTERVAL = 3
+    MAX_CONCURRENT = 2
+    
+    while True:
+        try:
+            queued_jobs = await db.genstudio_jobs.find(
+                {"status": "QUEUED"},
+                {"_id": 0}
+            ).sort("createdAt", 1).limit(MAX_CONCURRENT).to_list(MAX_CONCURRENT)
+            
+            if queued_jobs:
+                logger.info(f"Job Worker: Processing {len(queued_jobs)} queued jobs")
+                tasks = [process_job(job) for job in queued_jobs]
+                await asyncio.gather(*tasks, return_exceptions=True)
+                
+        except Exception as e:
+            logger.error(f"Job Worker error: {e}")
+        
+        await asyncio.sleep(POLL_INTERVAL)
 
 
 @app.on_event("shutdown")
