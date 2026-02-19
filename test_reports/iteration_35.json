@@ -1,0 +1,79 @@
+{
+  "summary": "Frontend testing of GenStudio credit-gated async job pipeline. All GenStudio pages working correctly with wallet integration, dynamic pricing, job pipeline, and history filters.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_35.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed Text→Video duration dropdown credit calculation (JS operator precedence bug)",
+    "All GenStudio pages properly display wallet balance with available/reserved credits",
+    "Dynamic pricing works correctly: TEXT_TO_VIDEO (25 + 5/sec), IMAGE_TO_VIDEO (20 + 4/sec)",
+    "History page filters work for type and status filtering",
+    "Job pipeline uses walletAPI for HOLD/CAPTURE/RELEASE pattern"
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/GenStudioTextToVideo.js"
+  ],
+  "success_rate": {
+    "backend": "100% - Wallet APIs verified via curl",
+    "frontend": "100% - All GenStudio pages tested"
+  },
+  "test_credentials": {
+    "demo_user": {"email": "demo@example.com", "password": "Password123!"}
+  },
+  "seed_data_creation": "None - used existing demo user with 100 credits",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GenStudio wallet integration complete. All pages use walletAPI for wallet display and job operations. History page supports filtering by job type and status.",
+  "features_tested": {
+    "GENSTUDIO_DASHBOARD": {
+      "status": "PASS",
+      "details": "Wallet display (100 available), AI tools with credit costs, History link, active jobs polling"
+    },
+    "TEXT_TO_IMAGE_PAGE": {
+      "status": "PASS",
+      "details": "Wallet display, prompt input, templates, aspect ratio, consent checkbox, generate button shows 10 credits"
+    },
+    "TEXT_TO_VIDEO_PAGE": {
+      "status": "PASS",
+      "details": "Wallet display, dynamic pricing based on duration (45/65/85 credits), estimated cost box with formula breakdown"
+    },
+    "IMAGE_TO_VIDEO_PAGE": {
+      "status": "PASS",
+      "details": "Wallet display, image upload area, motion description, duration selector, estimated cost (36 credits for 4s)"
+    },
+    "HISTORY_PAGE": {
+      "status": "PASS",
+      "details": "Wallet display, type filter (6 options), status filter (4 options), download buttons, security notice"
+    },
+    "WALLET_API": {
+      "status": "PASS",
+      "details": "GET /api/wallet/me returns balance/reserved/available, GET /api/wallet/pricing returns all 7 job types"
+    },
+    "JOB_PIPELINE": {
+      "status": "PASS",
+      "details": "Jobs list shows SUCCEEDED/CANCELLED status, ledger shows HOLD/CAPTURE/RELEASE entries"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": [],
+    "note": "Real AI generation with Gemini"
+  },
+  "bug_fixes_applied": [
+    {
+      "file": "/app/frontend/src/pages/GenStudioTextToVideo.js",
+      "issue": "Duration dropdown showed incorrect credit values due to JS operator precedence",
+      "fix": "Added parentheses to ensure correct calculation: (baseCredits || 25) + duration * (perSecondCredits || 5)"
+    }
+  ]
+}
