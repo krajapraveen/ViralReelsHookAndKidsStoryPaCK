@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
 import { 
-  Sparkles, Video, ArrowLeft, Coins, Loader2, Download,
-  Settings, Clock, AlertTriangle, RefreshCw, Play
+  Sparkles, Video, ArrowLeft, Loader2, Download,
+  Settings, Clock, AlertTriangle, RefreshCw, Play,
+  Wallet, XCircle, AlertCircle
 } from 'lucide-react';
 import {
   Select,
@@ -14,31 +15,94 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import api from '../utils/api';
+import api, { walletAPI } from '../utils/api';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function TextToVideo() {
-  const [credits, setCredits] = useState(0);
+  const [wallet, setWallet] = useState({ balanceCredits: 0, reservedCredits: 0, availableCredits: 0 });
+  const [pricing, setPricing] = useState({});
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [duration, setDuration] = useState(4);
   const [addWatermark, setAddWatermark] = useState(true);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
+  
+  // Job state
+  const [currentJob, setCurrentJob] = useState(null);
+  const [jobStatus, setJobStatus] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState({ step: 0, message: '' });
   const [result, setResult] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchCredits();
+    fetchData();
   }, []);
 
-  const fetchCredits = async () => {
+  // Poll for job status
+  useEffect(() => {
+    let interval;
+    if (currentJob && ['QUEUED', 'RUNNING'].includes(jobStatus)) {
+      interval = setInterval(pollJobStatus, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [currentJob, jobStatus]);
+
+  const fetchData = async () => {
     try {
-      const response = await api.get('/api/credits/balance');
-      setCredits(response.data.balance);
+      const [walletRes, pricingRes] = await Promise.all([
+        walletAPI.getWallet(),
+        walletAPI.getPricing()
+      ]);
+      setWallet(walletRes.data);
+      setPricing(pricingRes.data.pricing);
     } catch (error) {
-      toast.error('Failed to load credits');
+      toast.error('Failed to load data');
     }
   };
+
+  const pollJobStatus = useCallback(async () => {
+    if (!currentJob) return;
+    
+    try {
+      const response = await walletAPI.getJob(currentJob);
+      const job = response.data;
+      setJobStatus(job.status);
+      setProgress({
+        step: job.progress || 0,
+        message: job.progressMessage || `Status: ${job.status}`
+      });
+      
+      if (job.status === 'SUCCEEDED') {
+        setResult({
+          jobId: job.jobId,
+          outputUrls: job.outputUrls,
+          creditsUsed: job.costCredits
+        });
+        setGenerating(false);
+        const walletRes = await walletAPI.getWallet();
+        setWallet(walletRes.data);
+        toast.success('Video generated successfully!');
+      } else if (job.status === 'FAILED') {
+        setGenerating(false);
+        toast.error(job.errorMessage || 'Video generation failed');
+        const walletRes = await walletAPI.getWallet();
+        setWallet(walletRes.data);
+      }
+    } catch (error) {
+      console.error('Polling error:', error);
+    }
+  }, [currentJob]);
+
+  // Calculate cost based on duration
+  const calculateCost = () => {
+    const baseCost = pricing.TEXT_TO_VIDEO?.baseCredits || 25;
+    const perSecond = pricing.TEXT_TO_VIDEO?.perSecond || 5;
+    return baseCost + (duration * perSecond);
+  };
+
+  const cost = calculateCost();
+  const canAfford = wallet.availableCredits >= cost;
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -51,70 +115,62 @@ export default function TextToVideo() {
       return;
     }
 
-    if (credits < 10) {
-      toast.error('Need 10 credits for video generation');
+    if (!canAfford) {
+      toast.error(`Need ${cost} credits. You have ${wallet.availableCredits} available.`);
+      navigate('/app/billing');
       return;
     }
 
     setGenerating(true);
-    setProgress({ step: 1, message: 'Starting video generation...' });
+    setProgress({ step: 5, message: 'Creating job...' });
     setResult(null);
+    setCurrentJob(null);
+    setJobStatus(null);
 
     try {
-      const response = await api.post('/api/genstudio/text-to-video', {
-        prompt: prompt.trim(),
-        aspect_ratio: aspectRatio,
-        duration: duration,
-        add_watermark: addWatermark,
-        consent_confirmed: consentConfirmed
-      });
-
-      const jobId = response.data.jobId;
-      setCredits(response.data.remainingCredits);
-      setProgress({ step: 2, message: 'Video generating with Sora 2 AI... (1-3 min)' });
-      
-      // Poll for job completion
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusRes = await api.get(`/api/genstudio/job/${jobId}`);
-          const job = statusRes.data;
-          
-          if (job.status === 'completed') {
-            clearInterval(pollInterval);
-            setProgress({ step: 3, message: 'Video generated!' });
-            setResult({
-              ...response.data,
-              status: 'completed',
-              outputUrls: job.outputUrls
-            });
-            toast.success('Video generated successfully!');
-            setGenerating(false);
-          } else if (job.status === 'failed') {
-            clearInterval(pollInterval);
-            toast.error(job.error || 'Video generation failed');
-            setGenerating(false);
-            // Refund should happen on backend
-          }
-        } catch (pollError) {
-          console.error('Polling error:', pollError);
+      const idempotencyKey = uuidv4();
+      const response = await walletAPI.createJob({
+        jobType: 'TEXT_TO_VIDEO',
+        inputData: {
+          prompt: prompt.trim(),
+          aspect_ratio: aspectRatio,
+          duration: duration,
+          add_watermark: addWatermark
         }
-      }, 5000); // Poll every 5 seconds
-      
-      // Timeout after 10 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        if (generating) {
-          toast.error('Video generation timed out. Check history for status.');
-          setGenerating(false);
-        }
-      }, 600000);
+      }, idempotencyKey);
 
+      if (response.data.success) {
+        setCurrentJob(response.data.jobId);
+        setJobStatus('QUEUED');
+        setProgress({ step: 10, message: 'Job queued. Video generation takes 2-5 minutes...' });
+        
+        const walletRes = await walletAPI.getWallet();
+        setWallet(walletRes.data);
+        
+        toast.info('Job created! Processing...', { description: `Cost: ${response.data.costCredits} credits` });
+      }
     } catch (error) {
       console.error('Generation error:', error);
       const message = error.response?.data?.detail || 'Generation failed';
       toast.error(message);
       setGenerating(false);
       setProgress({ step: 0, message: '' });
+    }
+  };
+
+  const handleCancelJob = async () => {
+    if (!currentJob || !['QUEUED'].includes(jobStatus)) return;
+    
+    try {
+      await walletAPI.cancelJob(currentJob);
+      setGenerating(false);
+      setCurrentJob(null);
+      setJobStatus(null);
+      const walletRes = await walletAPI.getWallet();
+      setWallet(walletRes.data);
+      toast.info('Job cancelled. Credits released.');
+    } catch (error) {
+      toast.error('Failed to cancel job');
     }
   };
 
@@ -171,10 +227,17 @@ export default function TextToVideo() {
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2">
-                <Coins className="w-4 h-4 text-yellow-500" />
-                <span className="font-bold text-white">{credits}</span>
-                <span className="text-slate-400 text-sm">credits</span>
+              <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2" data-testid="wallet-balance">
+                <Wallet className="w-4 h-4 text-blue-400" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-white text-sm">{wallet.availableCredits}</span>
+                  <span className="text-xs text-slate-500">available</span>
+                </div>
+                {wallet.reservedCredits > 0 && (
+                  <div className="border-l border-slate-600 pl-2 ml-2">
+                    <span className="text-xs text-yellow-400">{wallet.reservedCredits} held</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -182,6 +245,20 @@ export default function TextToVideo() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Insufficient Credits Warning */}
+        {!canAfford && (
+          <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <div>
+              <p className="text-sm font-medium text-red-300">Insufficient Credits</p>
+              <p className="text-xs text-red-400">Need {cost} credits for {duration}s video, you have {wallet.availableCredits} available.</p>
+            </div>
+            <Link to="/app/billing" className="ml-auto">
+              <Button size="sm" className="bg-red-600 hover:bg-red-700">Buy Credits</Button>
+            </Link>
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Left: Input Panel */}
           <div className="space-y-6">
@@ -193,6 +270,7 @@ export default function TextToVideo() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 className="min-h-[150px] bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                data-testid="prompt-input"
               />
               <p className="text-xs text-slate-500 mt-2">{prompt.length}/2000 characters</p>
             </div>
@@ -226,9 +304,9 @@ export default function TextToVideo() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="4">4 seconds (Fast)</SelectItem>
-                      <SelectItem value="8">8 seconds (Medium)</SelectItem>
-                      <SelectItem value="12">12 seconds (Long)</SelectItem>
+                      <SelectItem value="4">4 seconds (Fast) - {pricing.TEXT_TO_VIDEO?.baseCredits || 25 + 20} credits</SelectItem>
+                      <SelectItem value="8">8 seconds (Medium) - {pricing.TEXT_TO_VIDEO?.baseCredits || 25 + 40} credits</SelectItem>
+                      <SelectItem value="12">12 seconds (Long) - {pricing.TEXT_TO_VIDEO?.baseCredits || 25 + 60} credits</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -248,6 +326,20 @@ export default function TextToVideo() {
               </div>
             </div>
 
+            {/* Cost Display */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-300">Estimated Cost</p>
+                  <p className="text-xs text-blue-400">Base: 25 credits + {duration * 5} ({duration}s × 5)</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-white">{cost}</p>
+                  <p className="text-xs text-slate-400">credits</p>
+                </div>
+              </div>
+            </div>
+
             {/* Consent Checkbox */}
             <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
               <label className="flex items-start gap-3 cursor-pointer">
@@ -256,6 +348,7 @@ export default function TextToVideo() {
                   checked={consentConfirmed}
                   onChange={(e) => setConsentConfirmed(e.target.checked)}
                   className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500"
+                  data-testid="consent-checkbox"
                 />
                 <div>
                   <p className="text-sm font-medium text-yellow-400 flex items-center gap-2">
@@ -272,38 +365,51 @@ export default function TextToVideo() {
             {/* Generate Button */}
             <Button
               onClick={handleGenerate}
-              disabled={generating || !consentConfirmed || !prompt.trim()}
-              className="w-full h-14 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-lg font-semibold"
+              disabled={generating || !consentConfirmed || !prompt.trim() || !canAfford}
+              className="w-full h-14 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-lg font-semibold disabled:opacity-50"
+              data-testid="generate-btn"
             >
               {generating ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {progress.message}
+                  {progress.message || 'Processing...'}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
-                  Generate Video (10 credits)
+                  Generate Video ({cost} credits)
                 </span>
               )}
             </Button>
 
-            {/* Progress Bar */}
+            {/* Progress/Job Status */}
             {generating && (
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
                 <div className="flex justify-between text-sm text-slate-400 mb-2">
-                  <span>{progress.message}</span>
-                  <span>{Math.min(progress.step * 33, 100)}%</span>
+                  <span className="flex items-center gap-2">
+                    {jobStatus === 'QUEUED' && <Clock className="w-4 h-4 text-yellow-400" />}
+                    {jobStatus === 'RUNNING' && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
+                    {progress.message}
+                  </span>
+                  <span>{progress.step}%</span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(progress.step * 33, 100)}%` }}
+                    style={{ width: `${progress.step}%` }}
                   />
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
                   Video generation typically takes 2-5 minutes depending on duration.
                 </p>
+                {jobStatus === 'QUEUED' && (
+                  <div className="mt-3 flex justify-end">
+                    <Button variant="ghost" size="sm" onClick={handleCancelJob} className="text-red-400 hover:text-red-300">
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Cancel Job
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -320,6 +426,7 @@ export default function TextToVideo() {
                       src={`${process.env.REACT_APP_BACKEND_URL}${result.outputUrls[0]}`}
                       controls
                       className="w-full h-full object-contain"
+                      data-testid="generated-video"
                     />
                   </div>
                   
@@ -327,20 +434,21 @@ export default function TextToVideo() {
                     {/* Expiry Notice */}
                     <div className="flex items-center gap-2 text-yellow-400 text-sm bg-yellow-500/10 rounded-lg px-3 py-2">
                       <Clock className="w-4 h-4" />
-                      <span>⚠️ SECURITY: Download within 3 MINUTES before auto-deletion!</span>
+                      <span>SECURITY: Download within 3 MINUTES before auto-deletion!</span>
                     </div>
                     
                     <div className="flex gap-2">
                       <Button 
                         onClick={() => handleDownload(result.outputUrls[0], `genstudio-video-${result.jobId}.mp4`)}
                         className="flex-1 bg-green-600 hover:bg-green-700"
+                        data-testid="download-btn"
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Download Video
                       </Button>
                       <Button 
                         variant="outline"
-                        onClick={() => { setResult(null); setPrompt(''); }}
+                        onClick={() => { setResult(null); setPrompt(''); setCurrentJob(null); setJobStatus(null); }}
                         className="border-slate-600 text-slate-300"
                       >
                         <RefreshCw className="w-4 h-4 mr-2" />
@@ -349,7 +457,7 @@ export default function TextToVideo() {
                     </div>
                     
                     <p className="text-xs text-slate-500 text-center">
-                      Credits used: {result.creditsUsed} • Remaining: {result.remainingCredits}
+                      Credits used: {result.creditsUsed} • Available: {wallet.availableCredits}
                     </p>
                   </div>
                 </div>
@@ -368,7 +476,7 @@ export default function TextToVideo() {
 
             {/* Tips */}
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-white mb-3">💡 Tips for Better Results</h3>
+              <h3 className="text-sm font-semibold text-white mb-3">Tips for Better Results</h3>
               <ul className="text-xs text-slate-400 space-y-2">
                 <li>• Describe camera motion: "dolly shot", "tracking shot", "aerial view"</li>
                 <li>• Include lighting details: "golden hour", "neon lights", "dramatic shadows"</li>
