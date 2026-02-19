@@ -499,26 +499,239 @@ async def update_profile(data: ProfileUpdate, user: dict = Depends(get_current_u
 
 @router.put("/password")
 async def change_password(data: PasswordChange, user: dict = Depends(get_current_user)):
-    """Change user password"""
-    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0})
-    
-    if user_data.get("authProvider") == "google":
-        raise HTTPException(status_code=400, detail="Cannot change password for Google sign-in accounts")
-    
-    if not verify_password(data.currentPassword, user_data.get("password", "")):
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
-    
-    # Validate new password
-    password_check = validate_password_strength(data.newPassword)
-    if not password_check["valid"]:
-        raise HTTPException(status_code=400, detail=password_check["message"])
-    
-    await db.users.update_one(
-        {"id": user["id"]},
-        {"$set": {"password": hash_password(data.newPassword)}}
-    )
-    
-    return {"message": "Password changed successfully"}
+    """Change user password with advanced validation"""
+    try:
+        user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+        
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if user_data.get("authProvider") == "google":
+            raise HTTPException(status_code=400, detail="Cannot change password for Google sign-in accounts")
+        
+        # Verify current password
+        if not user_data.get("password"):
+            raise HTTPException(status_code=400, detail="No password set for this account")
+        
+        if not verify_password(data.currentPassword, user_data.get("password", "")):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        
+        # Validate new password strength
+        is_valid, error_message = validate_password_strength(data.newPassword)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_message)
+        
+        # Ensure new password is different from current
+        if verify_password(data.newPassword, user_data.get("password", "")):
+            raise HTTPException(status_code=400, detail="New password must be different from current password")
+        
+        # Update password
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "password": hash_password(data.newPassword),
+                    "passwordChangedAt": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        logger.info(f"Password changed for user {user['id']}")
+        
+        return {"success": True, "message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password change error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to change password")
+
+
+@router.post("/verify-email")
+async def verify_email(data: VerifyEmailRequest):
+    """Verify user email with token"""
+    try:
+        # Find user with this token
+        user = await db.users.find_one({
+            "verificationToken": data.token
+        }, {"_id": 0})
+        
+        if not user:
+            raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+        
+        # Check if token expired
+        expiry = user.get("verificationTokenExpiry")
+        if expiry:
+            expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expiry_dt:
+                raise HTTPException(status_code=400, detail="Verification token has expired. Please request a new one.")
+        
+        # Check if already verified
+        if user.get("emailVerified"):
+            return {"success": True, "message": "Email already verified", "alreadyVerified": True}
+        
+        # Mark email as verified
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "emailVerified": True,
+                    "emailVerifiedAt": datetime.now(timezone.utc).isoformat()
+                },
+                "$unset": {
+                    "verificationToken": "",
+                    "verificationTokenExpiry": ""
+                }
+            }
+        )
+        
+        logger.info(f"Email verified for user {user['id']}")
+        
+        return {
+            "success": True,
+            "message": "Email verified successfully! You can now login.",
+            "email": user["email"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email verification error: {e}")
+        raise HTTPException(status_code=500, detail="Verification failed")
+
+
+@router.post("/resend-verification")
+@limiter.limit("3/minute")
+async def resend_verification(request: Request, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    """Resend email verification"""
+    try:
+        if user.get("emailVerified"):
+            return {"success": True, "message": "Email already verified"}
+        
+        # Generate new token
+        new_token = generate_verification_token()
+        token_expiry = datetime.now(timezone.utc) + timedelta(hours=24)
+        
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "verificationToken": new_token,
+                    "verificationTokenExpiry": token_expiry.isoformat()
+                }
+            }
+        )
+        
+        # Send email
+        background_tasks.add_task(
+            send_verification_email, 
+            user["email"], 
+            new_token, 
+            user.get("name", "User")
+        )
+        
+        return {"success": True, "message": "Verification email sent"}
+    except Exception as e:
+        logger.error(f"Resend verification error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send verification email")
+
+
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(request: Request, data: ForgotPasswordRequest, background_tasks: BackgroundTasks):
+    """Request password reset"""
+    try:
+        email = data.email.lower().strip()
+        
+        # Find user (don't reveal if user exists)
+        user = await db.users.find_one({"email": email}, {"_id": 0})
+        
+        # Always return success to prevent email enumeration
+        if not user:
+            logger.info(f"Password reset requested for non-existent email: {email}")
+            return {"success": True, "message": "If an account exists with this email, you will receive a password reset link."}
+        
+        # Check if Google user
+        if user.get("authProvider") == "google":
+            return {"success": True, "message": "This account uses Google Sign-In. Please use the Google login option."}
+        
+        # Generate reset token
+        reset_token = generate_verification_token()
+        token_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+        
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "passwordResetToken": reset_token,
+                    "passwordResetExpiry": token_expiry.isoformat()
+                }
+            }
+        )
+        
+        # Send reset email
+        background_tasks.add_task(
+            send_password_reset_email,
+            email,
+            reset_token,
+            user.get("name", "User")
+        )
+        
+        logger.info(f"Password reset requested for {email}")
+        
+        return {"success": True, "message": "If an account exists with this email, you will receive a password reset link."}
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}")
+        # Don't reveal error details
+        return {"success": True, "message": "If an account exists with this email, you will receive a password reset link."}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(request: Request, data: ResetPasswordRequest):
+    """Reset password with token"""
+    try:
+        # Find user with this token
+        user = await db.users.find_one({
+            "passwordResetToken": data.token
+        }, {"_id": 0})
+        
+        if not user:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        
+        # Check if token expired
+        expiry = user.get("passwordResetExpiry")
+        if expiry:
+            expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expiry_dt:
+                raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
+        
+        # Validate new password
+        is_valid, error_message = validate_password_strength(data.newPassword)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_message)
+        
+        # Update password and clear token
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$set": {
+                    "password": hash_password(data.newPassword),
+                    "passwordChangedAt": datetime.now(timezone.utc).isoformat()
+                },
+                "$unset": {
+                    "passwordResetToken": "",
+                    "passwordResetExpiry": ""
+                }
+            }
+        )
+        
+        logger.info(f"Password reset completed for user {user['id']}")
+        
+        return {"success": True, "message": "Password reset successfully. You can now login with your new password."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        raise HTTPException(status_code=500, detail="Password reset failed")
 
 
 @router.get("/export-data")
