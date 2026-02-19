@@ -219,7 +219,48 @@ Full QA reports:
 - Video Remix direct integration (currently using workaround)
 - Invoice/receipt generation for payments
 - Payment history page enhancement
-- **Image Not Displaying in Story Generator** - User-reported bug (not yet investigated)
+
+## Feature Implementation (Feb 19, 2026 - Session 4)
+
+### ✅ Completed:
+
+1. **Story Generator Image Display** (P0 - USER BUG FIX)
+   - Integrated AI image generation into story generation flow
+   - Cover image generated from story title + synopsis
+   - First scene image generated from visual description
+   - Frontend updated to display `coverImageUrl` and `scene.imageUrl`
+   - New endpoint: `GET /api/generate/story-image/{story_id}/{filename}`
+   - File: `/app/backend/routes/generation.py` - `generate_story_image()` function
+
+2. **Credit-Gated Async Job Pipeline** (P0 - PRODUCTION ARCHITECTURE)
+   - **Wallet System**: `/app/backend/routes/wallet.py` fully implemented
+   - **Endpoints**:
+     - `GET /api/wallet/me` - User's wallet balance (balance, reserved, available)
+     - `GET /api/wallet/pricing` - Credit costs for all job types
+     - `POST /api/wallet/jobs` - Create job with credit reservation
+     - `GET /api/wallet/jobs/{id}` - Get job status
+     - `GET /api/wallet/jobs` - List user's jobs
+     - `POST /api/wallet/jobs/{id}/cancel` - Cancel job, release credits
+     - `GET /api/wallet/ledger` - Full transaction history
+   - **Credit Reservation Pattern**:
+     - HOLD: Credits reserved when job created
+     - CAPTURE: Credits deducted when job succeeds
+     - RELEASE: Credits returned when job fails/cancelled
+   - **Idempotency Protection**: Duplicate requests return existing job
+   - **DB Collections**: `genstudio_jobs`, `credit_ledger`, `idempotency_keys`
+   - **Pricing Config**:
+     - TEXT_TO_IMAGE: 10 credits
+     - TEXT_TO_VIDEO: 25 + 5/second
+     - IMAGE_TO_VIDEO: 20 + 4/second
+     - VIDEO_REMIX: 15 credits
+     - STORY_GENERATION: 10 credits
+     - REEL_GENERATION: 10 credits
+     - STYLE_PROFILE_CREATE: 20 credits
+
+### Test Results (Feb 19, 2026):
+- **Backend**: 100% pass rate (19/19 tests)
+- **Frontend**: 100% verified
+- **Test Report**: `/app/test_reports/iteration_34.json`
 
 ## Production Readiness Fixes (Feb 19, 2026)
 
@@ -235,7 +276,7 @@ Full QA reports:
 
 2. **CORS Restriction** (Security Fix)
    - Changed from `CORS_ORIGINS="*"` to specific domains
-   - Allowed: `creator-qa-pay.preview.emergentagent.com`, `creatorstudio.ai`, `www.creatorstudio.ai`
+   - Allowed: `wallet-credits-hub.preview.emergentagent.com`, `creatorstudio.ai`, `www.creatorstudio.ai`
 
 3. **Database Naming** (Production-Ready)
    - Changed from `test_database` to `creatorstudio_production`
@@ -247,6 +288,9 @@ Full QA reports:
    - Added `order_id` index on `webhook_logs`
    - Added `gateway + event + received_at` compound index on `webhook_logs`
    - Added `orderId` index on `refund_logs`
+   - Added `(userId, idempotencyKey)` unique index on `idempotency_keys`
+   - Added `expiresAt` index on `idempotency_keys`
+   - Added `(refId, entryType)` index on `credit_ledger`
 
 ### ⏳ Pending (Requires User Action):
 
