@@ -268,13 +268,26 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
 
                   <div>
                     <Label className="text-white text-sm font-medium mb-2 block">Target Audience</Label>
-                    <Input
-                      value={formData.audience}
-                      onChange={(e) => setFormData({...formData, audience: e.target.value})}
-                      placeholder="E.g., Young professionals"
-                      className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl h-11"
+                    <Select 
+                      value={formData.audience} 
+                      onValueChange={(value) => setFormData({...formData, audience: value})}
                       disabled={loading || demoUsed}
-                    />
+                    >
+                      <SelectTrigger className="bg-slate-800/50 border-slate-600 text-white focus:ring-indigo-500/20 rounded-xl h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-600 max-h-[200px]">
+                        <SelectItem value="General" className="text-white hover:bg-indigo-500/20">General Audience</SelectItem>
+                        <SelectItem value="Gen Z (13-24)" className="text-white hover:bg-indigo-500/20">Gen Z (13-24)</SelectItem>
+                        <SelectItem value="Millennials (25-40)" className="text-white hover:bg-indigo-500/20">Millennials (25-40)</SelectItem>
+                        <SelectItem value="Young Professionals" className="text-white hover:bg-indigo-500/20">Young Professionals</SelectItem>
+                        <SelectItem value="Entrepreneurs" className="text-white hover:bg-indigo-500/20">Entrepreneurs</SelectItem>
+                        <SelectItem value="Parents" className="text-white hover:bg-indigo-500/20">Parents</SelectItem>
+                        <SelectItem value="College Students" className="text-white hover:bg-indigo-500/20">College Students</SelectItem>
+                        <SelectItem value="Fitness Enthusiasts" className="text-white hover:bg-indigo-500/20">Fitness Enthusiasts</SelectItem>
+                        <SelectItem value="Tech Enthusiasts" className="text-white hover:bg-indigo-500/20">Tech Enthusiasts</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
