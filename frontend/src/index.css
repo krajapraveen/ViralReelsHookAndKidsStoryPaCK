@@ -313,3 +313,212 @@ button[data-state] svg.lucide-x,
   color: rgba(255, 255, 255, 1) !important;
   background-color: rgba(255, 255, 255, 0.1) !important;
 }
+
+
+/* ============================================
+   PROFESSIONAL FORM STYLING
+   ============================================ */
+
+/* Consistent input styling */
+.form-input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  @apply w-full rounded-lg border border-slate-600/50 bg-slate-800/50 px-4 py-3 text-slate-100 placeholder:text-slate-400;
+  @apply focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none;
+  @apply transition-all duration-200;
+}
+
+/* Form labels */
+.form-label,
+label {
+  @apply block text-sm font-medium text-slate-300 mb-2;
+}
+
+/* Form groups spacing */
+.form-group {
+  @apply space-y-2 mb-4;
+}
+
+/* Professional button styles */
+.btn-primary {
+  @apply bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-lg;
+  @apply shadow-lg shadow-indigo-600/25 hover:shadow-indigo-600/40;
+  @apply transition-all duration-200 hover:-translate-y-0.5;
+}
+
+.btn-secondary {
+  @apply bg-orange-500 hover:bg-orange-600 text-white font-medium px-6 py-3 rounded-lg;
+  @apply shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40;
+  @apply transition-all duration-200 hover:-translate-y-0.5;
+}
+
+.btn-outline {
+  @apply border-2 border-indigo-500 text-indigo-400 hover:bg-indigo-500/10 font-medium px-6 py-3 rounded-lg;
+  @apply transition-all duration-200;
+}
+
+.btn-ghost {
+  @apply text-slate-400 hover:text-slate-200 hover:bg-slate-800 font-medium px-4 py-2 rounded-lg;
+  @apply transition-all duration-200;
+}
+
+/* Professional card styling */
+.card-professional {
+  @apply bg-slate-800/50 border border-slate-700/50 rounded-xl p-6;
+  @apply backdrop-blur-sm;
+  @apply transition-all duration-200 hover:border-slate-600/50;
+}
+
+.card-feature {
+  @apply bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/50 rounded-2xl p-6;
+  @apply backdrop-blur-sm;
+  @apply transition-all duration-300 hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/10;
+}
+
+/* Page backgrounds - consistent dark slate */
+.page-container {
+  @apply min-h-screen bg-slate-950;
+}
+
+.page-content {
+  @apply bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950;
+}
+
+/* Section backgrounds */
+.section-dark {
+  @apply bg-slate-900/50;
+}
+
+.section-darker {
+  @apply bg-slate-950;
+}
+
+/* Text utilities */
+.text-gradient-primary {
+  @apply bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent;
+}
+
+.text-gradient-secondary {
+  @apply bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent;
+}
+
+/* Toggle and checkbox styling */
+input[type="checkbox"],
+input[type="radio"] {
+  @apply w-5 h-5 rounded border-slate-600 bg-slate-800 text-indigo-600;
+  @apply focus:ring-2 focus:ring-indigo-500/20 focus:ring-offset-0;
+  @apply transition-all duration-200;
+}
+
+/* Select dropdown styling */
+select {
+  @apply appearance-none cursor-pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
+}
+
+/* Range/Slider styling */
+input[type="range"] {
+  @apply w-full h-2 rounded-full bg-slate-700 cursor-pointer;
+  @apply appearance-none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  @apply w-5 h-5 rounded-full bg-indigo-500 cursor-pointer;
+  @apply appearance-none border-2 border-white shadow-lg;
+  @apply transition-all duration-200 hover:scale-110;
+}
+
+input[type="range"]::-moz-range-thumb {
+  @apply w-5 h-5 rounded-full bg-indigo-500 cursor-pointer;
+  @apply border-2 border-white shadow-lg;
+}
+
+/* Table styling */
+table {
+  @apply w-full border-collapse;
+}
+
+th {
+  @apply text-left text-sm font-semibold text-slate-300 px-4 py-3 bg-slate-800/50 border-b border-slate-700;
+}
+
+td {
+  @apply px-4 py-3 text-slate-300 border-b border-slate-800;
+}
+
+tr:hover td {
+  @apply bg-slate-800/30;
+}
+
+/* Badge styling */
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+  @apply bg-indigo-500/20 text-indigo-300 border border-indigo-500/30;
+}
+
+.badge-success {
+  @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+}
+
+.badge-warning {
+  @apply bg-amber-500/20 text-amber-300 border border-amber-500/30;
+}
+
+.badge-danger {
+  @apply bg-red-500/20 text-red-300 border border-red-500/30;
+}
+
+/* Consistent spacing utilities */
+.section-padding {
+  @apply py-16 md:py-24;
+}
+
+.container-padding {
+  @apply px-4 sm:px-6 lg:px-8;
+}
+
+/* Professional shadows */
+.shadow-professional {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+}
+
+.shadow-glow-indigo {
+  box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.4);
+}
+
+.shadow-glow-orange {
+  box-shadow: 0 0 40px -10px rgba(249, 115, 22, 0.4);
+}
+
+/* Animation utilities */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Glassmorphism */
+.glass {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+}
+
+.glass-dark {
+  @apply bg-black/40 backdrop-blur-xl border border-white/10;
+}
