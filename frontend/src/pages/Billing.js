@@ -99,7 +99,7 @@ export default function Billing() {
       const script = document.createElement('script');
       script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
       script.onload = () => {
-        resolve(window.Cashfree({ mode: "sandbox" }));
+        resolve(window.Cashfree({ mode: "production" }));
       };
       script.onerror = () => {
         toast.error('Failed to load payment gateway');
