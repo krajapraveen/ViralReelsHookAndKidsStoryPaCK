@@ -158,6 +158,10 @@ async def generate_story_content_inline(data: dict, generate_images: bool = True
 async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_current_user)):
     """Generate a viral reel script - costs 10 credits"""
     try:
+        # Validate topic is not empty
+        if not data.topic or not data.topic.strip():
+            raise HTTPException(status_code=422, detail="Topic is required and cannot be empty")
+        
         # ML-based content moderation
         content_to_check = f"{data.topic} {data.niche} {data.tone}"
         moderation_result = threat_intel.moderate_content(content_to_check, user.get("id"))
