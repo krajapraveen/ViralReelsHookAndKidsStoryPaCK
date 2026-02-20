@@ -100,6 +100,42 @@ Created `/app/backend/utils/copyright_checker.py`:
 
 ---
 
+## Key Files Reference
+
+### E2E Tests
+- `/app/frontend/tests/e2e/` - All Playwright test specs
+- `/app/frontend/playwright.config.ts` - Test configuration
+
+### Load Tests
+- `/app/backend/tests/load/k6-smoke.js` - General load testing
+- `/app/backend/tests/load/k6-payments.js` - Payment flow testing
+
+### Infrastructure
+- `/app/backend/utils/worker_scaling.py` - Horizontal scaling config
+- `/app/backend/utils/cdn_config.py` - CDN configuration
+- `/app/backend/utils/copyright_checker.py` - Copyright audit
+- `/app/backend/utils/pdf_themes.py` - Premium PDF themes
+- `/app/backend/utils/threat_detection.py` - Security/rate limiting
+
+### Test Reports
+- `/app/test_reports/iteration_42.json` - Latest full QA report
+
+---
+
+## Cashfree Sandbox Credentials
+- **App ID**: TEST109947494c1ad7cf7b10784f590994749901
+- **Secret Key**: cfsk_ma_test_f9a613ed1437f4479a4cce91c6cc07fe_279396a6
+- **Webhook Secret**: zumui81ktbc9hxj7uhpk
+- **Environment**: SANDBOX
+
+---
+
+## Test User Credentials
+- **Demo User**: demo@example.com / Password123!
+- **Admin User**: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
+
+---
+
 ## Previous Updates
 
 ### User-Facing Documentation (COMPLETE ✅)
