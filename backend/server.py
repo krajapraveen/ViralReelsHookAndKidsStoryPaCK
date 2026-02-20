@@ -64,6 +64,9 @@ from routes.story_series import router as story_series_router
 from routes.challenge_generator import router as challenge_router
 from routes.tone_switcher import router as tone_switcher_router
 from routes.regional_pricing import router as regional_pricing_router
+from routes.analytics import router as analytics_router
+from routes.subscriptions import router as subscriptions_router
+from routes.user_manual import router as user_manual_router
 
 # Create FastAPI app
 app = FastAPI(
