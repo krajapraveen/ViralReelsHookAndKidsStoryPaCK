@@ -337,23 +337,23 @@ async def startup():
             "email": "admin@creatorstudio.ai",
             "password": hash_password("Cr3@t0rStud!o#2026"),
             "role": "ADMIN",
-            "credits": 999999,
+            "credits": 999999999,  # Unlimited credits for admin
             "plan": "admin",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
-        logger.info("Admin user created")
+        logger.info("Admin user created with unlimited credits")
     else:
         # Update admin credentials and credits - ensure password and role are correct
         await db.users.update_one(
             {"email": "admin@creatorstudio.ai"},
             {"$set": {
-                "credits": 999999,
+                "credits": 999999999,  # Unlimited credits for admin
                 "plan": "admin",
                 "role": "ADMIN",
                 "password": hash_password("Cr3@t0rStud!o#2026")
             }}
         )
-        logger.info("Admin user credentials updated")
+        logger.info("Admin user credentials updated with unlimited credits")
     
     # Create demo user if not exists
     demo = await db.users.find_one({"email": "demo@example.com"})
@@ -365,18 +365,18 @@ async def startup():
             "email": "demo@example.com",
             "password": hash_password("Password123!"),
             "role": "USER",
-            "credits": 100,
-            "plan": "free",
+            "credits": 999999999,  # Unlimited credits for demo user
+            "plan": "demo",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
-        logger.info("Demo user created")
+        logger.info("Demo user created with unlimited credits")
     else:
         # Update demo user password and credits
         await db.users.update_one(
             {"email": "demo@example.com"},
             {"$set": {
-                "credits": 100, 
-                "plan": "free",
+                "credits": 999999999,  # Unlimited credits for demo user
+                "plan": "demo",
                 "password": hash_password("Password123!")
             }}
         )
