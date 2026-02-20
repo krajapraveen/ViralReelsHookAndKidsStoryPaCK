@@ -357,30 +357,25 @@ class TestCashfreePaymentAPI:
 class TestDashboardRoutes:
     """Test Dashboard links and navigation"""
     
-    def get_auth_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
-        return response.json().get("token")
-    
-    def get_headers(self):
-        return {"Authorization": f"Bearer {self.get_auth_token()}"}
-    
-    def test_credits_balance(self):
+    def test_credits_balance_with_fresh_token(self):
         """Test credit balance endpoint"""
-        headers = self.get_headers()
+        # Login and get token directly
+        login_response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
+        token = login_response.json().get("token")
+        headers = {"Authorization": f"Bearer {token}"}
+        
         response = requests.get(f"{BASE_URL}/api/credits/balance", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "credits" in data
         print(f"SUCCESS: Credit balance: {data['credits']}")
-    
-    def test_recent_generations(self):
-        """Test recent generations endpoint"""
-        headers = self.get_headers()
-        response = requests.get(f"{BASE_URL}/api/generate/", headers=headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert "generations" in data
-        print(f"SUCCESS: Recent generations: {len(data['generations'])}")
+        
+        # Also test recent generations with same token
+        response2 = requests.get(f"{BASE_URL}/api/generate/", headers=headers)
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert "generations" in data2
+        print(f"SUCCESS: Recent generations: {len(data2['generations'])}")
 
 
 class TestGenStudioTextToImage:
