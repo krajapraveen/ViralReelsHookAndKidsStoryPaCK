@@ -167,9 +167,17 @@ async def get_admin_overview(admin: dict = Depends(get_admin_user)):
 @router.get("/admin/threat-stats")
 async def get_threat_stats(admin: dict = Depends(get_admin_user)):
     """Get threat detection statistics"""
-    from utils.threat_detection import get_threat_stats, threat_store
+    # Import directly to avoid utils package initialization issues
+    import importlib.util
+    import os
+    spec = importlib.util.spec_from_file_location(
+        "threat_detection", 
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "threat_detection.py")
+    )
+    threat_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(threat_module)
     
-    stats = get_threat_stats()
+    stats = threat_module.get_threat_stats()
     
     # Get recent security events from logs
     recent_events = await db.security_events.find(
