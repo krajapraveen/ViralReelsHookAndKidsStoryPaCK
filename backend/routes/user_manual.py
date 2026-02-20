@@ -261,6 +261,68 @@ USER_MANUAL = {
                     "description": "Find what's trending in your niche"
                 }
             ]
+        },
+        
+        "twinfinder": {
+            "title": "TwinFinder - Face Lookalike",
+            "description": "Find your celebrity twin using AI face analysis.",
+            "icon": "users",
+            "creditCost": "5 credits per scan",
+            "howToUse": [
+                "1. Navigate to TwinFinder",
+                "2. Upload a clear photo of your face",
+                "3. Ensure good lighting and face visibility",
+                "4. Click 'Find My Twin'",
+                "5. View your top celebrity matches",
+                "6. Share results on social media"
+            ],
+            "tips": [
+                "Use a front-facing photo with good lighting",
+                "Remove glasses for better accuracy",
+                "Results include similarity percentage"
+            ]
+        },
+        
+        "style_profiles": {
+            "title": "Style Profiles",
+            "description": "Create and manage visual style profiles for consistent AI generations.",
+            "icon": "palette",
+            "creditCost": "20 credits to create",
+            "howToUse": [
+                "1. Navigate to GenStudio → Style Profiles",
+                "2. Click 'Create New Profile'",
+                "3. Upload reference images that represent your style",
+                "4. Add tags and description",
+                "5. Save the profile",
+                "6. Use it in Text-to-Image generations"
+            ],
+            "features": [
+                "Store multiple reference images",
+                "Tag-based organization",
+                "Apply to any generation",
+                "Share with team members"
+            ]
+        },
+        
+        "content_vault": {
+            "title": "Content Vault",
+            "description": "Store, organize, and manage all your generated content.",
+            "icon": "archive",
+            "creditCost": "Free (included)",
+            "howToUse": [
+                "1. Navigate to Content Vault from dashboard",
+                "2. View all your past generations",
+                "3. Filter by type, date, or status",
+                "4. Download or re-download any content",
+                "5. Organize with folders and tags",
+                "6. Delete content you no longer need"
+            ],
+            "features": [
+                "Unlimited storage for generated content",
+                "Search and filter capabilities",
+                "Batch download option",
+                "3-day file retention for large files"
+            ]
         }
     },
     
