@@ -289,3 +289,140 @@ async def get_performance_metrics(admin: dict = Depends(get_admin_user)):
             "ledger": await db.credit_ledger.count_documents({})
         }
     }
+
+
+# =============================================================================
+# WORKER SCALING ENDPOINTS
+# =============================================================================
+
+@router.get("/admin/worker-status")
+async def get_worker_status(admin: dict = Depends(get_admin_user)):
+    """Get current worker scaling status"""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "worker_scaling",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "worker_scaling.py")
+        )
+        worker_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(worker_module)
+        
+        status = await worker_module.get_scaling_status(db)
+        return status
+    except Exception as e:
+        return {
+            "current_workers": 2,
+            "min_workers": 2,
+            "max_workers": 10,
+            "queue_depth": await db.jobs.count_documents({"status": "PENDING"}),
+            "processing": await db.jobs.count_documents({"status": "PROCESSING"}),
+            "error": str(e)
+        }
+
+
+@router.post("/admin/scale-workers")
+async def scale_workers(
+    direction: str = "auto",
+    admin: dict = Depends(get_admin_user)
+):
+    """Manually scale workers up or down"""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "worker_scaling",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "worker_scaling.py")
+        )
+        worker_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(worker_module)
+        
+        if direction == "auto":
+            # Check which direction to scale
+            status = await worker_module.get_scaling_status(db)
+            if status["should_scale_up"]:
+                direction = "up"
+            elif status["should_scale_down"]:
+                direction = "down"
+            else:
+                return {"action": "no_change", "reason": "Queue depth within normal range"}
+        
+        result = await worker_module.scale_workers(direction)
+        return result
+    except Exception as e:
+        return {"action": "error", "error": str(e)}
+
+
+# =============================================================================
+# COPYRIGHT AUDIT ENDPOINTS
+# =============================================================================
+
+@router.get("/admin/copyright-audit")
+async def get_copyright_audit(admin: dict = Depends(get_admin_user)):
+    """Get latest copyright audit result"""
+    latest = await db.copyright_audits.find_one(
+        {},
+        {"_id": 0},
+        sort=[("started_at", -1)]
+    )
+    
+    if not latest:
+        return {"message": "No audits found. Run an audit first."}
+    
+    return latest
+
+
+@router.post("/admin/run-copyright-audit")
+async def run_copyright_audit(admin: dict = Depends(get_admin_user)):
+    """Run a new copyright compliance audit"""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "copyright_checker",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "copyright_checker.py")
+        )
+        checker_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(checker_module)
+        
+        result = await checker_module.run_copyright_audit(db)
+        report = checker_module.generate_compliance_report(result)
+        
+        return {
+            "audit": result,
+            "report": report
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "error": str(e)
+        }
+
+
+# =============================================================================
+# CDN STATUS ENDPOINT
+# =============================================================================
+
+@router.get("/admin/cdn-status")
+async def get_cdn_status(admin: dict = Depends(get_admin_user)):
+    """Get CDN configuration status"""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "cdn_config",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "cdn_config.py")
+        )
+        cdn_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cdn_module)
+        
+        return {
+            "enabled": cdn_module.CDN_CONFIG["enabled"],
+            "provider": cdn_module.CDN_CONFIG["provider"],
+            "base_url": cdn_module.CDN_CONFIG["base_url"],
+            "signed_urls_enabled": cdn_module.CDN_CONFIG["signed_urls"]["enabled"],
+            "cache_settings": cdn_module.CDN_CONFIG["cache_control"],
+            "optimization": cdn_module.CDN_CONFIG["optimization"]
+        }
+    except Exception as e:
+        return {
+            "enabled": False,
+            "error": str(e)
+        }
+
