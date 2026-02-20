@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-02-20T21:15:08.208797",
+  "config": {
+    "base_url": "https://studio-qa-check.preview.emergentagent.com",
+    "concurrent_users": 200,
+    "duration_seconds": 120
+  },
+  "summary": {
+    "total_requests": 1430,
+    "successful_requests": 1430,
+    "failed_requests": 17,
+    "success_rate": 100.0,
+    "requests_per_second": 11.732554897734985
+  },
+  "response_times": {
+    "average_ms": 202.91686374824363,
+    "p50_ms": 89.13135528564453,
+    "p95_ms": 263.3540630340576,
+    "p99_ms": 3225.5053520202637
+  },
+  "logins": {
+    "total": 200,
+    "successful": 20,
+    "success_rate": 10.0
+  },
+  "errors": {
+    "login_429": 180,
+    "timeout": 17
+  },
+  "passed": true
+}
