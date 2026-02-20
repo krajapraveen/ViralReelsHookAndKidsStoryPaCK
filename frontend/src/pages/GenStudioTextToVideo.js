@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import api, { walletAPI } from '../utils/api';
+import sseManager from '../utils/sse';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function TextToVideo() {
