@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { 
   Sparkles, ArrowLeft, Coins, LogOut, Receipt, CreditCard,
   Calendar, CheckCircle, XCircle, Clock, Download, Filter,
-  ChevronLeft, ChevronRight, IndianRupee, DollarSign
+  ChevronLeft, ChevronRight, IndianRupee, DollarSign, FileText
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -16,6 +16,7 @@ export default function PaymentHistory() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [stats, setStats] = useState({ total: 0, successful: 0, totalAmount: 0 });
+  const [downloadingInvoice, setDownloadingInvoice] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,6 +43,38 @@ export default function PaymentHistory() {
       toast.error('Failed to load payment history');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadInvoice = async (orderId) => {
+    try {
+      setDownloadingInvoice(orderId);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/cashfree/invoice/${orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to download invoice');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice_${orderId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Invoice downloaded successfully');
+    } catch (error) {
+      toast.error(error.message || 'Failed to download invoice');
+    } finally {
+      setDownloadingInvoice(null);
     }
   };
 
