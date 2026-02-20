@@ -42,13 +42,35 @@ export default function ImageToVideo() {
     fetchData();
   }, []);
 
-  // Poll for job status
+  // SSE-based job status polling
   useEffect(() => {
-    let interval;
+    let cleanup;
     if (currentJob && ['QUEUED', 'RUNNING'].includes(jobStatus)) {
-      interval = setInterval(pollJobStatus, 3000);
+      cleanup = sseManager.subscribeToJob(currentJob, (job) => {
+        const status = job.status?.toUpperCase() || job.status;
+        setJobStatus(status);
+        setProgress({
+          step: job.progress || (status === 'RUNNING' ? 50 : 20),
+          message: job.progressMessage || `Status: ${status}`
+        });
+        
+        if (status === 'SUCCEEDED' || job.status === 'completed') {
+          setResult({
+            jobId: job.id || job.jobId,
+            outputUrls: job.outputUrls,
+            creditsUsed: job.costCredits || job.creditsUsed
+          });
+          setGenerating(false);
+          walletAPI.getWallet().then(res => setWallet(res.data));
+          toast.success('Video generated successfully!');
+        } else if (status === 'FAILED' || job.status === 'failed') {
+          setGenerating(false);
+          toast.error(job.errorMessage || job.error || 'Video generation failed');
+          walletAPI.getWallet().then(res => setWallet(res.data));
+        }
+      });
     }
-    return () => clearInterval(interval);
+    return () => cleanup && cleanup();
   }, [currentJob, jobStatus]);
 
   const fetchData = async () => {
