@@ -104,6 +104,10 @@ function App() {
       <Route path="/app/twinfinder" element={isAuthenticated ? <TwinFinder /> : <Navigate to="/login" />} />
       {/* Coloring Book Route */}
       <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBook /> : <Navigate to="/login" />} />
+      {/* New Standalone Apps */}
+      <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
+      <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
+      <Route path="/app/tone-switcher" element={isAuthenticated ? <ToneSwitcher /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
