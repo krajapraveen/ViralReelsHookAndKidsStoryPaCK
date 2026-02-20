@@ -217,7 +217,7 @@ TEEN_STORIES = [
 async def seed_teen_stories():
     """Add teen story templates to the database"""
     mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-    db_name = os.environ.get('DB_NAME', 'test_database')
+    db_name = os.environ.get('DB_NAME', 'creatorstudio')
     
     client = AsyncIOMotorClient(mongo_url)
     db = client[db_name]
