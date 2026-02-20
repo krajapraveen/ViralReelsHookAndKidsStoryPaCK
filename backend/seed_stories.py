@@ -229,8 +229,10 @@ def create_story_templates():
 
 async def seed_database():
     """Seed the database with story templates"""
-    client = AsyncIOMotorClient("mongodb://localhost:27017")
-    db = client["test_database"]
+    mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+    db_name = os.environ.get('DB_NAME', 'creatorstudio')
+    client = AsyncIOMotorClient(mongo_url)
+    db = client[db_name]
     
     # Clear existing templates
     await db.story_templates.delete_many({})
