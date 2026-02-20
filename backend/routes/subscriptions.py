@@ -119,34 +119,56 @@ async def create_subscription(user_id: str, plan_id: str, payment_id: str, auto_
     return subscription
 
 
-async def process_renewal(subscription_id: str):
-    """Process subscription renewal"""
+async def process_renewal(subscription_id: str, payment_id: str = None):
+    """Process subscription renewal with proper state management"""
     subscription = await db.subscriptions.find_one(
         {"id": subscription_id},
         {"_id": 0}
     )
     
     if not subscription:
+        logger.warning(f"Subscription {subscription_id} not found for renewal")
         return None
+    
+    # Check if already renewed recently (idempotency)
+    last_renewal = subscription.get("lastRenewalAt")
+    if last_renewal:
+        last_renewal_time = datetime.fromisoformat(last_renewal.replace("Z", "+00:00"))
+        if (datetime.now(timezone.utc) - last_renewal_time).total_seconds() < 60:
+            logger.info(f"Subscription {subscription_id} already renewed recently, skipping")
+            return subscription
     
     plan = SUBSCRIPTION_PLANS.get(subscription["planId"])
     if not plan:
+        logger.error(f"Invalid plan {subscription['planId']} for subscription {subscription_id}")
         return None
     
     now = datetime.now(timezone.utc)
     
     # Extend subscription
-    new_end_date = datetime.fromisoformat(subscription["endDate"].replace("Z", "+00:00"))
-    new_end_date = new_end_date + timedelta(days=plan["duration_days"])
+    try:
+        current_end = datetime.fromisoformat(subscription["endDate"].replace("Z", "+00:00"))
+        # If subscription is expired, start from now
+        if current_end < now:
+            new_end_date = now + timedelta(days=plan["duration_days"])
+        else:
+            new_end_date = current_end + timedelta(days=plan["duration_days"])
+    except (ValueError, KeyError):
+        new_end_date = now + timedelta(days=plan["duration_days"])
     
-    await db.subscriptions.update_one(
+    # Update subscription atomically
+    result = await db.subscriptions.update_one(
         {"id": subscription_id},
         {
             "$set": {
+                "status": "ACTIVE",
                 "endDate": new_end_date.isoformat(),
-                "updatedAt": now.isoformat()
+                "updatedAt": now.isoformat(),
+                "lastRenewalAt": now.isoformat(),
+                "lastPaymentId": payment_id,
+                "paymentStatus": "SUCCESS"
             },
-            "$inc": {"renewalCount": 1}
+            "$inc": {"renewalCount": 1, "creditsGranted": plan["credits"]}
         }
     )
     
