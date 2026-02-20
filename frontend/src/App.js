@@ -99,6 +99,8 @@ function App() {
       {/* Creator Pro & TwinFinder Routes */}
       <Route path="/app/creator-pro" element={isAuthenticated ? <CreatorProTools /> : <Navigate to="/login" />} />
       <Route path="/app/twinfinder" element={isAuthenticated ? <TwinFinder /> : <Navigate to="/login" />} />
+      {/* Coloring Book Route */}
+      <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBook /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
