@@ -84,9 +84,9 @@ export default function CreatorTools() {
     
     setLoading(true);
     try {
-      const response = await api.post(`/api/creator-tools/calendar/generate?niche=${calendarNiche}&days=${calendarDays}&include_full_scripts=${includeScripts}`);
+      const response = await api.post(`/api/creator-tools/content-calendar?niche=${calendarNiche}&days=${calendarDays}&include_full_scripts=${includeScripts}`);
       setCalendarResult(response.data);
-      setCredits(response.data.remainingCredits);
+      fetchCredits(); // Refresh credits
       toast.success('Calendar generated!');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to generate calendar');
@@ -101,16 +101,16 @@ export default function CreatorTools() {
       toast.error('Please enter a topic');
       return;
     }
-    if (credits < 2) {
-      toast.error('Need 2 credits for carousel');
+    if (credits < 3) {
+      toast.error('Need 3 credits for carousel');
       return;
     }
     
     setLoading(true);
     try {
-      const response = await api.post(`/api/creator-tools/carousel/generate?topic=${encodeURIComponent(carouselTopic)}&niche=${carouselNiche}&slides=${carouselSlides}`);
+      const response = await api.post(`/api/creator-tools/carousel?topic=${encodeURIComponent(carouselTopic)}&niche=${carouselNiche}&slides=${carouselSlides}`);
       setCarouselResult(response.data);
-      setCredits(response.data.remainingCredits);
+      fetchCredits(); // Refresh credits
       toast.success('Carousel generated!');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to generate carousel');
