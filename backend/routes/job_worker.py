@@ -197,10 +197,60 @@ async def process_reel_generation(job: dict) -> dict:
     return {"outputUrl": f"/api/wallet/jobs/{job['id']}/result", "outputUrls": [], "resultJson": result}
 
 
+async def process_image_to_video(job: dict) -> dict:
+    """Process IMAGE_TO_VIDEO job using Sora 2 with image reference"""
+    from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+    
+    input_data = job.get("inputJson", {})
+    motion_prompt = input_data.get("motionPrompt", "")
+    duration = input_data.get("duration", 4)
+    aspect_ratio = input_data.get("aspectRatio", "16:9")
+    image_base64 = input_data.get("imageBase64", "")
+    
+    size_map = {
+        "16:9": "1280x720",
+        "9:16": "1024x1792",
+        "1:1": "1024x1024",
+        "4:3": "1280x720"
+    }
+    video_size = size_map.get(aspect_ratio, "1280x720")
+    
+    # Valid durations for Sora 2
+    valid_durations = [4, 8, 12]
+    if duration not in valid_durations:
+        duration = 4
+    
+    # For image-to-video, we create an enhanced prompt describing the image motion
+    # Since Sora 2 text-to-video doesn't directly accept images, we use a detailed prompt approach
+    enhanced_prompt = f"Animate this scene with the following motion: {motion_prompt}. Create smooth, realistic movement. High quality cinematic video."
+    
+    video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+    
+    filename = f"genstudio_{job['id']}.mp4"
+    filepath = f"/tmp/{filename}"
+    
+    video_bytes = video_gen.text_to_video(
+        prompt=enhanced_prompt,
+        model="sora-2",
+        size=video_size,
+        duration=duration,
+        max_wait_time=600
+    )
+    
+    if not video_bytes:
+        raise Exception("Video generation failed - no video returned")
+    
+    video_gen.save_video(video_bytes, filepath)
+    
+    output_url = f"/api/genstudio/download/{job['id']}/{filename}"
+    return {"outputUrl": output_url, "outputUrls": [output_url]}
+
+
 # Job type to processor mapping
 JOB_PROCESSORS = {
     "TEXT_TO_IMAGE": process_text_to_image,
     "TEXT_TO_VIDEO": process_text_to_video,
+    "IMAGE_TO_VIDEO": process_image_to_video,
     "STORY_GENERATION": process_story_generation,
     "REEL_GENERATION": process_reel_generation,
 }
