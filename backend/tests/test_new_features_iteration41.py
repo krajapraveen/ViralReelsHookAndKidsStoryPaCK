@@ -357,15 +357,17 @@ class TestCashfreePaymentAPI:
 class TestDashboardRoutes:
     """Test Dashboard links and navigation"""
     
-    @pytest.fixture(autouse=True)
-    def setup(self):
+    def get_auth_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
-        self.token = response.json().get("token")
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        return response.json().get("token")
+    
+    def get_headers(self):
+        return {"Authorization": f"Bearer {self.get_auth_token()}"}
     
     def test_credits_balance(self):
         """Test credit balance endpoint"""
-        response = requests.get(f"{BASE_URL}/api/credits/balance", headers=self.headers)
+        headers = self.get_headers()
+        response = requests.get(f"{BASE_URL}/api/credits/balance", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "credits" in data
@@ -373,7 +375,8 @@ class TestDashboardRoutes:
     
     def test_recent_generations(self):
         """Test recent generations endpoint"""
-        response = requests.get(f"{BASE_URL}/api/generate/?page=0&size=5", headers=self.headers)
+        headers = self.get_headers()
+        response = requests.get(f"{BASE_URL}/api/generate/?page=0&size=5", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "generations" in data
