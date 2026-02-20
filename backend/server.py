@@ -343,15 +343,17 @@ async def startup():
         })
         logger.info("Admin user created")
     else:
-        # Update admin credentials and credits
+        # Update admin credentials and credits - ensure password and role are correct
         await db.users.update_one(
             {"email": "admin@creatorstudio.ai"},
             {"$set": {
                 "credits": 999999,
                 "plan": "admin",
+                "role": "ADMIN",
                 "password": hash_password("Cr3@t0rStud!o#2026")
             }}
         )
+        logger.info("Admin user credentials updated")
     
     # Create demo user if not exists
     demo = await db.users.find_one({"email": "demo@example.com"})
