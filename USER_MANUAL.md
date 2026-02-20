@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://wallet-events.preview.emergentagent.com
+**Platform URL:** https://studio-hardening-2.preview.emergentagent.com
 
 ---
 

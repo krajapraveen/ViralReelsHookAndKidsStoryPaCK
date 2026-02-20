@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://wallet-events.preview.emergentagent.com
+**Base URL:** https://studio-hardening-2.preview.emergentagent.com
 
 ---
 
