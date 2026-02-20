@@ -306,6 +306,17 @@ async def startup():
         await db.idempotency_keys.create_index([("userId", 1), ("idempotencyKey", 1)], unique=True)
         await db.idempotency_keys.create_index("expiresAt")
         await db.credit_ledger.create_index([("refId", 1), ("entryType", 1)])  # For job lookups
+        
+        # New Apps indexes (Story Series, Challenge Generator, Tone Switcher)
+        await db.story_series.create_index("userId")
+        await db.story_series.create_index([("userId", 1), ("createdAt", -1)])
+        await db.content_challenges.create_index("userId")
+        await db.content_challenges.create_index([("userId", 1), ("createdAt", -1)])
+        await db.tone_rewrites.create_index("userId")
+        await db.tone_rewrites.create_index([("userId", 1), ("createdAt", -1)])
+        await db.coloring_book_exports.create_index("userId")
+        await db.coloring_book_exports.create_index([("userId", 1), ("createdAt", -1)])
+        
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
