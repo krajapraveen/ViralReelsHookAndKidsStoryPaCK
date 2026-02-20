@@ -3,7 +3,7 @@ import time
 import json
 
 # Test the story generation we just started
-base_url = "https://wallet-credits-hub.preview.emergentagent.com"
+base_url = "https://wallet-events.preview.emergentagent.com"
 token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBjcmVhdG9yc3R1ZGlvLmFpIiwiaWF0IjoxNzcxMDg2Mjc3LCJleHAiOjE3NzExNzI2Nzd9.hi5TyWzP5gG-q3q5uk3eL2GSRXDMxPabQimZWjC_RxQ"
 generation_id = "436d6b6f-43c3-4741-8072-496c9ea63a8d"
 

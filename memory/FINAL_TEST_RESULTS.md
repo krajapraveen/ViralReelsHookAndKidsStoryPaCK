@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://wallet-credits-hub.preview.emergentagent.com
+**Website:** https://wallet-events.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai
