@@ -376,7 +376,7 @@ class TestDashboardRoutes:
     def test_recent_generations(self):
         """Test recent generations endpoint"""
         headers = self.get_headers()
-        response = requests.get(f"{BASE_URL}/api/generate/?page=0&size=5", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/generate/", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "generations" in data
