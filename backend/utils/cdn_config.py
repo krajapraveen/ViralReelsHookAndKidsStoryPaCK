@@ -1,6 +1,7 @@
 """
 CDN & Static File Configuration
 Handles static file serving and CDN integration
+Supports: Cloudflare, CloudFront, Bunny, Emergent CDN
 """
 import os
 from typing import Dict, Optional
@@ -12,36 +13,59 @@ import hmac
 # CDN CONFIGURATION
 # =============================================================================
 
+CDN_PROVIDER = os.environ.get("CDN_PROVIDER", "emergent")
+
 CDN_CONFIG = {
     "enabled": os.environ.get("CDN_ENABLED", "false").lower() == "true",
-    "provider": os.environ.get("CDN_PROVIDER", "cloudflare"),  # cloudflare, cloudfront, bunny
+    "provider": CDN_PROVIDER,
+    
+    # Emergent CDN Configuration
+    "emergent": {
+        "enabled": CDN_PROVIDER == "emergent",
+        "auto_optimize": True,
+        "edge_caching": True,
+        "compression": "auto",  # auto, gzip, br
+        "image_optimization": True,
+        "lazy_loading": True,
+    },
     
     # Base URLs
-    "base_url": os.environ.get("CDN_BASE_URL", ""),
+    "base_url": os.environ.get("CDN_BASE_URL", os.environ.get("REACT_APP_BACKEND_URL", "")),
     "fallback_url": os.environ.get("REACT_APP_BACKEND_URL", ""),
     
-    # Cache settings
+    # Cache settings (in seconds)
     "cache_control": {
-        "images": "public, max-age=31536000, immutable",  # 1 year
-        "videos": "public, max-age=2592000",  # 30 days
-        "pdfs": "public, max-age=604800",  # 7 days
-        "generated": "public, max-age=86400",  # 1 day for user-generated
-        "api": "no-cache, no-store, must-revalidate",
+        "images": "public, max-age=31536000, immutable",  # 1 year for static images
+        "videos": "public, max-age=2592000",  # 30 days for videos
+        "pdfs": "public, max-age=604800",  # 7 days for PDFs
+        "generated": "public, max-age=86400",  # 1 day for user-generated content
+        "api": "no-cache, no-store, must-revalidate",  # No cache for API
+        "static": "public, max-age=31536000, immutable",  # 1 year for static assets
+        "html": "no-cache",  # Always revalidate HTML
     },
     
     # Signed URL settings
     "signed_urls": {
         "enabled": os.environ.get("CDN_SIGNED_URLS", "false").lower() == "true",
         "secret": os.environ.get("CDN_SIGNING_SECRET", ""),
-        "expiry_seconds": 3600,  # 1 hour
+        "expiry_seconds": 3600,  # 1 hour default
     },
     
-    # Optimization
+    # Optimization settings
     "optimization": {
-        "auto_webp": True,
+        "auto_webp": True,  # Convert images to WebP
+        "auto_avif": False,  # AVIF support (experimental)
         "lazy_loading": True,
-        "compression": "gzip",
-        "minify": True,
+        "compression": "gzip",  # gzip, br (brotli)
+        "minify_js": True,
+        "minify_css": True,
+        "preload_critical": True,
+    },
+    
+    # Security
+    "security": {
+        "hotlink_protection": True,
+        "allowed_referrers": ["creatorstudio.ai", "*.emergentagent.com"],
     }
 }
 
