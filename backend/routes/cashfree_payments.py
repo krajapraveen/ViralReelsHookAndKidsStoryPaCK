@@ -24,6 +24,19 @@ from shared import (
 )
 from pydantic import BaseModel, Field
 
+# Import payment monitoring
+try:
+    from utils.payment_monitoring import (
+        track_payment_attempt,
+        track_webhook_event,
+        track_refund,
+        get_payment_health_status
+    )
+    MONITORING_ENABLED = True
+except ImportError:
+    MONITORING_ENABLED = False
+    logger.warning("Payment monitoring module not available")
+
 router = APIRouter(prefix="/cashfree", tags=["Cashfree Payments"])
 
 # Rate limiting for payment endpoints
