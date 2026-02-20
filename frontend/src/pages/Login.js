@@ -89,9 +89,12 @@ export default function Login({ setAuth }) {
             <p className="text-slate-400">Login to continue creating</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5" data-testid="login-form">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-300 text-sm font-medium block">Email</Label>
+          <form onSubmit={handleSubmit} className="space-y-6" data-testid="login-form">
+            {/* Email Field */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="email" className="text-slate-300 text-sm font-medium">Email</Label>
+              </div>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                 <Input
@@ -100,15 +103,16 @@ export default function Login({ setAuth }) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
+                  className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-12 w-full rounded-lg"
                   placeholder="you@example.com"
                   data-testid="login-email-input"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+            {/* Password Field */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
                 <Label htmlFor="password" className="text-slate-300 text-sm font-medium">Password</Label>
                 <button
                   type="button"
@@ -130,7 +134,7 @@ export default function Login({ setAuth }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="pl-10 pr-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
+                  className="pl-10 pr-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-12 w-full rounded-lg"
                   placeholder="••••••••"
                   data-testid="login-password-input"
                 />
