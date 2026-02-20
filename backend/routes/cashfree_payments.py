@@ -790,3 +790,163 @@ async def retry_credit_delivery(
     except Exception as e:
         logger.error(f"Failed to retry credit delivery: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# INVOICE GENERATION ENDPOINT
+# =============================================================================
+
+@router.get("/invoice/{order_id}")
+async def generate_invoice(order_id: str, user: dict = Depends(get_current_user)):
+    """
+    Generate and download invoice/receipt PDF for a completed payment
+    """
+    from fastapi.responses import Response
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.colors import HexColor
+    import io
+    
+    try:
+        # Get order - user can only access their own orders
+        order = await db.orders.find_one({
+            "order_id": order_id,
+            "userId": user["id"],
+            "gateway": "cashfree"
+        }, {"_id": 0})
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        if order["status"] != "PAID":
+            raise HTTPException(status_code=400, detail="Invoice only available for completed payments")
+        
+        # Get user details
+        user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+        
+        # Generate PDF
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        
+        # Colors
+        primary_color = HexColor("#7c3aed")  # Purple
+        text_color = HexColor("#1e293b")
+        gray_color = HexColor("#64748b")
+        
+        # Header
+        c.setFillColor(primary_color)
+        c.rect(0, height - 100, width, 100, fill=True, stroke=False)
+        
+        c.setFillColor(HexColor("#ffffff"))
+        c.setFont("Helvetica-Bold", 28)
+        c.drawString(50, height - 60, "CreatorStudio AI")
+        c.setFont("Helvetica", 12)
+        c.drawString(50, height - 80, "Invoice / Receipt")
+        
+        # Invoice Details
+        c.setFillColor(text_color)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, height - 140, "Invoice Details")
+        
+        c.setFont("Helvetica", 11)
+        c.setFillColor(gray_color)
+        
+        y_pos = height - 165
+        details = [
+            ("Invoice Number:", order_id),
+            ("Date:", order.get("paidAt", order.get("createdAt", "N/A"))[:10] if order.get("paidAt") or order.get("createdAt") else "N/A"),
+            ("Status:", order["status"]),
+            ("Payment Method:", "Cashfree Payment Gateway"),
+        ]
+        
+        for label, value in details:
+            c.setFillColor(gray_color)
+            c.drawString(50, y_pos, label)
+            c.setFillColor(text_color)
+            c.drawString(180, y_pos, str(value))
+            y_pos -= 20
+        
+        # Customer Details
+        y_pos -= 30
+        c.setFillColor(text_color)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, y_pos, "Customer Details")
+        
+        y_pos -= 25
+        c.setFont("Helvetica", 11)
+        customer_details = [
+            ("Name:", user_data.get("name", "N/A")),
+            ("Email:", user_data.get("email", "N/A")),
+        ]
+        
+        for label, value in customer_details:
+            c.setFillColor(gray_color)
+            c.drawString(50, y_pos, label)
+            c.setFillColor(text_color)
+            c.drawString(180, y_pos, str(value))
+            y_pos -= 20
+        
+        # Purchase Details
+        y_pos -= 30
+        c.setFillColor(text_color)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, y_pos, "Purchase Details")
+        
+        y_pos -= 25
+        
+        # Table header
+        c.setFillColor(primary_color)
+        c.rect(50, y_pos - 5, width - 100, 25, fill=True, stroke=False)
+        c.setFillColor(HexColor("#ffffff"))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(60, y_pos + 2, "Item")
+        c.drawString(350, y_pos + 2, "Credits")
+        c.drawString(450, y_pos + 2, "Amount")
+        
+        # Table row
+        y_pos -= 30
+        c.setFillColor(text_color)
+        c.setFont("Helvetica", 10)
+        c.drawString(60, y_pos, order.get("productName", "Credit Pack"))
+        c.drawString(350, y_pos, str(order.get("credits", 0)))
+        
+        # Amount in INR
+        amount_inr = order.get("amount", 0) / 100
+        c.drawString(450, y_pos, f"₹{amount_inr:.2f}")
+        
+        # Total
+        y_pos -= 40
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(350, y_pos, "Total:")
+        c.setFillColor(primary_color)
+        c.drawString(450, y_pos, f"₹{amount_inr:.2f}")
+        
+        # Footer
+        c.setFillColor(gray_color)
+        c.setFont("Helvetica", 9)
+        c.drawString(50, 80, "Thank you for your purchase!")
+        c.drawString(50, 65, "For support, contact: support@creatorstudio.ai")
+        c.drawString(50, 50, f"Generated on: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        
+        c.save()
+        
+        # Return PDF
+        buffer.seek(0)
+        pdf_bytes = buffer.getvalue()
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=invoice_{order_id}.pdf",
+                "Content-Type": "application/pdf"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Invoice generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Invoice generation failed: {str(e)}")
