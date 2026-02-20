@@ -47,13 +47,35 @@ export default function TextToImage() {
     }
   }, [searchParams]);
 
-  // Poll for job status
+  // Poll for job status - Using SSE utility for smarter polling
   useEffect(() => {
-    let interval;
+    let cleanup;
     if (currentJob && ['QUEUED', 'RUNNING'].includes(jobStatus)) {
-      interval = setInterval(pollJobStatus, 2000);
+      cleanup = sseManager.subscribeToJob(currentJob, (job) => {
+        setJobStatus(job.status);
+        setProgress({
+          step: job.progress || 0,
+          message: job.progressMessage || `Status: ${job.status}`
+        });
+        
+        if (job.status === 'SUCCEEDED') {
+          setResult({
+            jobId: job.jobId,
+            outputUrls: job.outputUrls,
+            creditsUsed: job.costCredits
+          });
+          setGenerating(false);
+          // Refresh wallet
+          walletAPI.getWallet().then(res => setWallet(res.data));
+          toast.success('Image generated successfully!');
+        } else if (job.status === 'FAILED') {
+          setGenerating(false);
+          toast.error(job.errorMessage || 'Generation failed');
+          walletAPI.getWallet().then(res => setWallet(res.data));
+        }
+      });
     }
-    return () => clearInterval(interval);
+    return () => cleanup && cleanup();
   }, [currentJob, jobStatus]);
 
   const fetchData = async () => {
