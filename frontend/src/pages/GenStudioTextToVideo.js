@@ -40,13 +40,34 @@ export default function TextToVideo() {
     fetchData();
   }, []);
 
-  // Poll for job status
+  // SSE-based job status polling
   useEffect(() => {
-    let interval;
+    let cleanup;
     if (currentJob && ['QUEUED', 'RUNNING'].includes(jobStatus)) {
-      interval = setInterval(pollJobStatus, 3000);
+      cleanup = sseManager.subscribeToJob(currentJob, (job) => {
+        setJobStatus(job.status);
+        setProgress({
+          step: job.progress || 0,
+          message: job.progressMessage || `Status: ${job.status}`
+        });
+        
+        if (job.status === 'SUCCEEDED') {
+          setResult({
+            jobId: job.id || job.jobId,
+            outputUrls: job.outputUrls,
+            creditsUsed: job.costCredits
+          });
+          setGenerating(false);
+          walletAPI.getWallet().then(res => setWallet(res.data));
+          toast.success('Video generated successfully!');
+        } else if (job.status === 'FAILED') {
+          setGenerating(false);
+          toast.error(job.errorMessage || 'Video generation failed');
+          walletAPI.getWallet().then(res => setWallet(res.data));
+        }
+      });
     }
-    return () => clearInterval(interval);
+    return () => cleanup && cleanup();
   }, [currentJob, jobStatus]);
 
   const fetchData = async () => {
