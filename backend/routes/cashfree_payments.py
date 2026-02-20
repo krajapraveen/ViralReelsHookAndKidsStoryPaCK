@@ -98,6 +98,7 @@ async def get_cashfree_products():
         "products": PRODUCTS,
         "gateway": "cashfree",
         "configured": cashfree_client is not None
+    }
 
 
 @router.get("/plans")
@@ -107,7 +108,6 @@ async def get_cashfree_plans():
         "products": PRODUCTS,
         "gateway": "cashfree",
         "configured": cashfree_client is not None
-    }
     }
 
 
