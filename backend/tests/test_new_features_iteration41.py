@@ -494,13 +494,6 @@ class TestToneSwitcher:
 class TestColoringBook:
     """Test Coloring Book API endpoints"""
     
-    def get_auth_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
-        return response.json().get("token")
-    
-    def get_headers(self):
-        return {"Authorization": f"Bearer {self.get_auth_token()}"}
-    
     def test_coloring_book_pricing(self):
         """Test coloring book pricing"""
         response = requests.get(f"{BASE_URL}/api/coloring-book/pricing")
@@ -510,9 +503,13 @@ class TestColoringBook:
         assert "creditPricing" in data or "pricing" in data
         print(f"SUCCESS: Coloring book pricing retrieved")
     
-    def test_coloring_book_export_history(self):
+    def test_coloring_book_export_history_with_fresh_token(self):
         """Test coloring book export history"""
-        headers = self.get_headers()
+        # Login and get fresh token
+        login_response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
+        token = login_response.json().get("token")
+        headers = {"Authorization": f"Bearer {token}"}
+        
         response = requests.get(f"{BASE_URL}/api/coloring-book/export-history", headers=headers)
         assert response.status_code == 200
         data = response.json()
