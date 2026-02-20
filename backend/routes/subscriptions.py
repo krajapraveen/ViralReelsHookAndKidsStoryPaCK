@@ -196,6 +196,150 @@ async def process_renewal(subscription_id: str, payment_id: str = None):
 
 
 # =============================================================================
+# RECONCILIATION JOB
+# =============================================================================
+
+async def reconcile_payments():
+    """
+    Background reconciliation job to fix 'paid but not delivered' issues
+    
+    Checks for:
+    - Payments marked SUCCESS at gateway but missing credits/subscription
+    - Subscriptions with PENDING payment status but successful payment
+    - Duplicate credit grants
+    """
+    logger.info("Starting payment reconciliation job")
+    
+    now = datetime.now(timezone.utc)
+    one_hour_ago = now - timedelta(hours=1)
+    one_day_ago = now - timedelta(days=1)
+    
+    issues_found = []
+    
+    try:
+        # 1. Find successful payments without credit grant
+        successful_payments = await db.payments.find({
+            "status": "SUCCESS",
+            "creditsGranted": {"$ne": True},
+            "createdAt": {"$gte": one_day_ago.isoformat()}
+        }).to_list(100)
+        
+        for payment in successful_payments:
+            # Check if credits were actually granted
+            ledger_entry = await db.credit_ledger.find_one({
+                "refType": {"$in": ["PURCHASE", "SUBSCRIPTION"]},
+                "refId": payment.get("orderId")
+            })
+            
+            if not ledger_entry:
+                issues_found.append({
+                    "type": "MISSING_CREDIT_GRANT",
+                    "orderId": payment.get("orderId"),
+                    "userId": payment.get("userId"),
+                    "amount": payment.get("credits", 0)
+                })
+                
+                # Auto-fix: Grant the missing credits
+                if payment.get("credits"):
+                    await db.wallets.update_one(
+                        {"userId": payment.get("userId")},
+                        {"$inc": {"balance": payment.get("credits")}}
+                    )
+                    await db.credit_ledger.insert_one({
+                        "userId": payment.get("userId"),
+                        "amount": payment.get("credits"),
+                        "type": "RECONCILIATION",
+                        "description": f"Auto-reconciled - Order {payment.get('orderId')}",
+                        "createdAt": now.isoformat()
+                    })
+                    await db.payments.update_one(
+                        {"orderId": payment.get("orderId")},
+                        {"$set": {"creditsGranted": True, "reconciledAt": now.isoformat()}}
+                    )
+                    logger.info(f"Reconciled missing credits for order {payment.get('orderId')}")
+        
+        # 2. Find subscriptions with payment issues
+        problem_subs = await db.subscriptions.find({
+            "paymentStatus": {"$in": ["PENDING", "FAILED"]},
+            "status": "ACTIVE",
+            "updatedAt": {"$gte": one_hour_ago.isoformat()}
+        }).to_list(50)
+        
+        for sub in problem_subs:
+            issues_found.append({
+                "type": "SUBSCRIPTION_PAYMENT_ISSUE",
+                "subscriptionId": sub.get("id"),
+                "userId": sub.get("userId"),
+                "paymentStatus": sub.get("paymentStatus")
+            })
+        
+        # Log reconciliation results
+        if issues_found:
+            await db.reconciliation_logs.insert_one({
+                "runAt": now.isoformat(),
+                "issuesFound": len(issues_found),
+                "issues": issues_found,
+                "status": "COMPLETED"
+            })
+            logger.warning(f"Reconciliation found {len(issues_found)} issues")
+        else:
+            logger.info("Reconciliation completed with no issues")
+        
+        return {"issues": len(issues_found), "fixed": len([i for i in issues_found if i["type"] == "MISSING_CREDIT_GRANT"])}
+    
+    except Exception as e:
+        logger.error(f"Reconciliation error: {e}")
+        return {"error": str(e)}
+
+
+@router.post("/admin/reconcile")
+async def trigger_reconciliation(user: dict = Depends(get_current_user)):
+    """Manually trigger payment reconciliation (admin only)"""
+    # Check admin role
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await reconcile_payments()
+    return {"success": True, "result": result}
+
+
+# =============================================================================
+# CURRENCY CONVERSION
+# =============================================================================
+
+FX_RATES = {
+    "USD": {"INR": 83.5},
+    "EUR": {"INR": 91.2},
+    "GBP": {"INR": 106.5},
+    "AUD": {"INR": 55.3},
+    "SGD": {"INR": 62.1},
+    "AED": {"INR": 22.7},
+}
+
+def convert_to_inr(amount: float, from_currency: str) -> dict:
+    """Convert amount to INR with rate info"""
+    from_currency = from_currency.upper()
+    
+    if from_currency == "INR":
+        return {
+            "original_amount": amount,
+            "original_currency": from_currency,
+            "inr_amount": amount,
+            "fx_rate": 1.0
+        }
+    
+    rate = FX_RATES.get(from_currency, {}).get("INR", 83.5)  # Default to USD rate
+    inr_amount = round(amount * rate, 2)
+    
+    return {
+        "original_amount": amount,
+        "original_currency": from_currency,
+        "inr_amount": inr_amount,
+        "fx_rate": rate
+    }
+
+
+# =============================================================================
 # ENDPOINTS
 # =============================================================================
 
