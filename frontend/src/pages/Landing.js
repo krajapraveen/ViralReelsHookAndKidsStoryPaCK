@@ -78,6 +78,11 @@ export default function Landing() {
                   Reviews
                 </Button>
               </Link>
+              <Link to="/user-manual" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start" data-testid="mobile-nav-help">
+                  Help
+                </Button>
+              </Link>
               <Link to="/contact" onClick={() => setMobileMenuOpen(false)}>
                 <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start" data-testid="mobile-nav-contact">
                   Contact
