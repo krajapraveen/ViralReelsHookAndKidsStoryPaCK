@@ -255,6 +255,26 @@ export default function PaymentHistory() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
                           {payment.status || 'Unknown'}
                         </span>
+                        {/* Invoice Download Button */}
+                        {(payment.status === 'PAID' || payment.status === 'SUCCESS' || payment.status === 'COMPLETED') && payment.orderId && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadInvoice(payment.orderId)}
+                            disabled={downloadingInvoice === payment.orderId}
+                            className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                            data-testid={`invoice-${payment.orderId}`}
+                          >
+                            {downloadingInvoice === payment.orderId ? (
+                              <Clock className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <FileText className="w-4 h-4 mr-1" />
+                                Invoice
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
