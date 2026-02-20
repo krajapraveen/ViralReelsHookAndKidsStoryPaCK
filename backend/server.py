@@ -191,6 +191,10 @@ api_router.include_router(privacy_router)
 api_router.include_router(wallet_router)
 api_router.include_router(sse_router)
 api_router.include_router(coloring_book_router)
+api_router.include_router(story_series_router)
+api_router.include_router(challenge_router)
+api_router.include_router(tone_switcher_router)
+api_router.include_router(regional_pricing_router)
 
 # Include API router in app
 app.include_router(api_router)
