@@ -2,17 +2,178 @@
 
 ## Original Problem Statement
 Build a full-stack application named "CreatorStudio AI" for generating viral reels and kids story videos, with expanded capabilities including:
-- GenStudio AI generation suite (Text-to-Image, Text-to-Video, etc.)
+- GenStudio AI generation suite (Text-to-Image, Text-to-Video, Image-to-Video)
 - Credit-gated async job pipeline for all generation features
 - Security hardening and content moderation
 - Admin dashboard with payment and exception monitoring
 - Creator Pro Tools (15+ AI-powered features)
 - TwinFinder face lookalike finder
-- Kids Story Coloring Page Generator (NEW - Feb 20, 2026)
+- Kids Story Coloring Page Generator
+- **3 NEW Standalone Apps**: Story Series, Challenge Generator, Tone Switcher (Feb 20, 2026)
 
 ## Production Deployment Status: READY ✅
 
-## New Feature: Kids Coloring Book Generator (Feb 20, 2026) ✅
+---
+
+## MAJOR UPDATE: Platform Upgrades & 3 New Apps (Feb 20, 2026) ✅
+
+### Part 1: Platform Upgrades
+
+#### 1. SSE Migration (COMPLETE ✅)
+All GenStudio pages migrated to SSE-backed smart polling:
+- Text-to-Image
+- Text-to-Video  
+- Image-to-Video
+- Job status updates now use `/app/frontend/src/utils/sse.js`
+- Adaptive polling: 2s active, up to 10s idle
+
+#### 2. Premium Storybook PDF Themes (COMPLETE ✅)
+Copyright-safe PDF themes created in `/app/backend/utils/pdf_themes.py`:
+- **Classic**: Timeless elegant design with serif fonts
+- **Pastel Dreams**: Soft, gentle colors for young readers
+- **Storybook Deluxe**: Premium illustrated storybook style
+- **Adventure Quest**: Bold and exciting
+- **Forest Tales**: Natural, earthy tones
+- Includes: Custom borders, SVG stickers (all original designs)
+
+#### 3. Production Threat Detection (COMPLETE ✅)
+Real security module in `/app/backend/utils/threat_detection.py`:
+- Rate limiting per endpoint type (auth, generation, export, payment)
+- Abuse pattern detection (rapid auth failures, suspicious headers)
+- IP blocking/throttling
+- Security event logging (privacy-safe, no raw IPs)
+- Background cleanup task
+
+#### 4. Direct Image-to-Video Integration (COMPLETE ✅)
+- Added IMAGE_TO_VIDEO processor to job worker
+- Uses Sora 2 API with enhanced motion prompts
+- Integrated with async job pipeline
+- SSE progress updates
+- Provider adapter interface pattern
+
+#### 5. Regional Pricing (COMPLETE ✅)
+API: `/api/pricing/*`
+- Geo-detection for currency (INR/USD)
+- Subscription plans: Weekly, Monthly, Quarterly
+- Top-up credits
+- Feature cost breakdown
+
+---
+
+### Part 2: 3 New Standalone Apps (All Template-Based, Zero AI Cost)
+
+#### App A: Story Series Mode (`/app/story-series`) ✅
+**Route**: `/app/story-series`  
+**Backend**: `/app/backend/routes/story_series.py`  
+**Frontend**: `/app/frontend/src/pages/StorySeries.js`
+
+**Features**:
+- Turn stories into 3/5/7 episode series
+- Template-based episode generation (no AI cost)
+- Scene beats, cliffhangers, next episode hooks
+- Character Bible add-on
+- 5 themes: Adventure, Friendship, Mystery, Fantasy, Comedy
+
+**Pricing** (Credits):
+| Bundle | Cost |
+|--------|------|
+| 3 Episodes | 8 |
+| 5 Episodes | 12 |
+| 7 Episodes | 18 |
+| Character Bible | +5 |
+
+---
+
+#### App B: Challenge Generator (`/app/challenge-generator`) ✅
+**Route**: `/app/challenge-generator`  
+**Backend**: `/app/backend/routes/challenge_generator.py`  
+**Frontend**: `/app/frontend/src/pages/ChallengeGenerator.js`
+
+**Features**:
+- 7-day or 30-day content challenges
+- Day-by-day content plan with hooks, CTAs, hashtags
+- 5 niches: Luxury, Fitness, Kids Stories, Motivation, Business
+- Platform specs for Instagram, YouTube, TikTok
+- Goal strategies: Followers, Leads, Sales, Engagement
+- CSV export for content calendars
+
+**Pricing** (Credits):
+| Challenge | Cost |
+|-----------|------|
+| 7-Day | 6 |
+| 30-Day | 15 |
+| Caption Pack | +3 |
+| Hashtag Bundle | +2 |
+
+---
+
+#### App C: Tone Switcher (`/app/tone-switcher`) ✅
+**Route**: `/app/tone-switcher`  
+**Backend**: `/app/backend/routes/tone_switcher.py`  
+**Frontend**: `/app/frontend/src/pages/ToneSwitcher.js`
+
+**Features**:
+- AI-free emotional tone rewriter
+- 5 tones: Funny, Aggressive/Bold, Calm & Peaceful, Luxury/Premium, Motivational
+- Deterministic transformations: phrase banks, synonym maps, punctuation rules
+- Intensity slider (0-100%)
+- Length preference: shorter/same/longer
+- Free preview mode
+- Batch variations (1/5/10)
+
+**Pricing** (Credits):
+| Variations | Cost |
+|------------|------|
+| Single | 1 |
+| 5 Pack | 3 |
+| 10 Pack | 5 |
+
+---
+
+### Part 3: Regional Pricing Implementation
+
+**API Endpoints**:
+- `GET /api/pricing/plans` - Subscription plans with geo-detection
+- `GET /api/pricing/topups` - Credit top-up options
+- `GET /api/pricing/feature-costs` - All feature costs
+- `GET /api/pricing/compare` - Compare regional pricing
+- `GET /api/pricing/user-region` - Detected user region
+
+**India (INR)**:
+| Plan | Price | Credits/Actions |
+|------|-------|-----------------|
+| Weekly | ₹99 | 30 credits |
+| Monthly | ₹299 | 100 credits |
+| Quarterly | ₹699 | 350 credits |
+
+**USA (USD)**:
+| Plan | Price | Credits/Actions |
+|------|-------|-----------------|
+| Weekly | $4.99 | 30 credits |
+| Monthly | $9.99 | 100 credits |
+| Quarterly | $24.99 | 350 credits |
+
+---
+
+### Part 4: Database Indexes Added
+```javascript
+// New collections indexed:
+- story_series: userId, (userId, createdAt)
+- content_challenges: userId, (userId, createdAt)
+- tone_rewrites: userId, (userId, createdAt)
+- coloring_book_exports: userId, (userId, createdAt)
+```
+
+---
+
+## Test Results (Feb 20, 2026)
+- **Backend**: 100% pass rate (35+ endpoints tested)
+- **Frontend**: 100% verified (all pages loading)
+- **Test Report**: `/app/test_reports/iteration_40.json`
+
+---
+
+## Kids Coloring Book Generator (Feb 20, 2026) ✅
 
 ### Overview
 A standalone module for creating personalized, printable story coloring books. Key design principles:
