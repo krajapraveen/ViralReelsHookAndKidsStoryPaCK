@@ -255,11 +255,9 @@ async def run_copyright_audit(db) -> Dict[str, Any]:
         results["completed_at"] = datetime.now(timezone.utc).isoformat()
         results["status"] = "PASS" if results["compliance_score"] >= 80 else "NEEDS_REVIEW" if results["compliance_score"] >= 50 else "FAIL"
         
-        # Store audit result
-        await db.copyright_audits.insert_one({
-            **results,
-            "_id": None
-        })
+        # Store audit result (without setting _id to let MongoDB auto-generate)
+        audit_doc = {k: v for k, v in results.items() if k != "_id"}
+        await db.copyright_audits.insert_one(audit_doc)
         
         return results
     
