@@ -331,9 +331,10 @@ class TestCashfreePaymentAPI:
             "productId": "starter",
             "currency": "INR"
         }
+        headers = self.get_headers()
         response = requests.post(f"{BASE_URL}/api/cashfree/create-order", 
                                  json=order_data, 
-                                 headers=self.headers)
+                                 headers=headers)
         
         # Should succeed in sandbox
         assert response.status_code == 200
