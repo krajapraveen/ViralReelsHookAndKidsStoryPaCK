@@ -156,7 +156,17 @@ async def run_copyright_audit(db) -> Dict[str, Any]:
     
     try:
         # 1. Check PDF Themes
-        from utils.pdf_themes import THEMES, SVG_STICKERS
+        import importlib.util
+        import os as os_module
+        spec = importlib.util.spec_from_file_location(
+            "pdf_themes",
+            os_module.path.join(os_module.path.dirname(os_module.path.abspath(__file__)), "pdf_themes.py")
+        )
+        pdf_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pdf_module)
+        
+        THEMES = pdf_module.THEMES
+        SVG_STICKERS = pdf_module.SVG_STICKERS
         
         results["components_checked"].append("pdf_themes")
         for theme_id, theme in THEMES.items():
