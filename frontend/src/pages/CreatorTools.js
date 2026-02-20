@@ -184,28 +184,28 @@ export default function CreatorTools() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-6 lg:grid-cols-6 mb-8 bg-white border border-slate-200 shadow-sm" data-testid="creator-tools-tabs">
-            <TabsTrigger value="calendar" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-calendar">
+          <TabsList className="grid grid-cols-6 lg:grid-cols-6 mb-8 bg-slate-800/50 border border-slate-700" data-testid="creator-tools-tabs">
+            <TabsTrigger value="calendar" className="flex items-center gap-2 text-slate-400 data-[state=active]:text-purple-400 data-[state=active]:bg-purple-500/20" data-testid="tab-calendar">
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">Calendar</span>
             </TabsTrigger>
-            <TabsTrigger value="carousel" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-carousel">
+            <TabsTrigger value="carousel" className="flex items-center gap-2 text-slate-400 data-[state=active]:text-purple-400 data-[state=active]:bg-purple-500/20" data-testid="tab-carousel">
               <LayoutGrid className="w-4 h-4" />
               <span className="hidden sm:inline">Carousel</span>
             </TabsTrigger>
-            <TabsTrigger value="hashtags" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-hashtags">
+            <TabsTrigger value="hashtags" className="flex items-center gap-2 text-slate-400 data-[state=active]:text-purple-400 data-[state=active]:bg-purple-500/20" data-testid="tab-hashtags">
               <Hash className="w-4 h-4" />
               <span className="hidden sm:inline">Hashtags</span>
             </TabsTrigger>
-            <TabsTrigger value="thumbnails" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-thumbnails">
+            <TabsTrigger value="thumbnails" className="flex items-center gap-2 text-slate-400 data-[state=active]:text-purple-400 data-[state=active]:bg-purple-500/20" data-testid="tab-thumbnails">
               <Type className="w-4 h-4" />
               <span className="hidden sm:inline">Thumbnails</span>
             </TabsTrigger>
-            <TabsTrigger value="trending" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-trending">
+            <TabsTrigger value="trending" className="flex items-center gap-2 text-slate-400 data-[state=active]:text-purple-400 data-[state=active]:bg-purple-500/20" data-testid="tab-trending">
               <TrendingUp className="w-4 h-4" />
               <span className="hidden sm:inline">Trending</span>
             </TabsTrigger>
-            <TabsTrigger value="convert" className="flex items-center gap-2 data-[state=active]:text-purple-700" data-testid="tab-convert">
+            <TabsTrigger value="convert" className="flex items-center gap-2 text-slate-400 data-[state=active]:text-purple-400 data-[state=active]:bg-purple-500/20" data-testid="tab-convert">
               <RefreshCw className="w-4 h-4" />
               <span className="hidden sm:inline">Convert</span>
             </TabsTrigger>
@@ -214,38 +214,38 @@ export default function CreatorTools() {
           {/* 30-Day Calendar Tab */}
           <TabsContent value="calendar">
             <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
-                  <Calendar className="w-6 h-6 text-purple-600" />
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                  <Calendar className="w-6 h-6 text-purple-400" />
                   30-Day Content Calendar
                 </h2>
-                <p className="text-slate-500 mb-6">Generate a full month of content ideas</p>
+                <p className="text-slate-400 mb-6">Generate a full month of content ideas</p>
                 
                 <div className="space-y-4">
                   <div>
-                    <Label>Select Niche</Label>
+                    <Label className="text-slate-300">Select Niche</Label>
                     <Select value={calendarNiche} onValueChange={setCalendarNiche}>
-                      <SelectTrigger data-testid="calendar-niche-select">
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white" data-testid="calendar-niche-select">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-slate-800 border-slate-700">
                         {niches.map(n => (
-                          <SelectItem key={n} value={n}>{n.charAt(0).toUpperCase() + n.slice(1)}</SelectItem>
+                          <SelectItem key={n} value={n} className="text-white hover:bg-slate-700">{n.charAt(0).toUpperCase() + n.slice(1)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   
                   <div>
-                    <Label>Number of Days</Label>
+                    <Label className="text-slate-300">Number of Days</Label>
                     <Select value={calendarDays.toString()} onValueChange={(v) => setCalendarDays(parseInt(v))}>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="7">7 days</SelectItem>
-                        <SelectItem value="14">14 days</SelectItem>
-                        <SelectItem value="30">30 days</SelectItem>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="7" className="text-white hover:bg-slate-700">7 days</SelectItem>
+                        <SelectItem value="14" className="text-white hover:bg-slate-700">14 days</SelectItem>
+                        <SelectItem value="30" className="text-white hover:bg-slate-700">30 days</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
