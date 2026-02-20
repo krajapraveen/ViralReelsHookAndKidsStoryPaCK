@@ -112,8 +112,8 @@ async def generate_content_calendar(
     include_full_scripts: bool = False,
     user: dict = Depends(get_current_user)
 ):
-    """Generate a content calendar (5 credits)"""
-    cost = 5
+    """Generate a content calendar (10 credits, 25 with scripts)"""
+    cost = 25 if include_full_scripts else 10
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
