@@ -371,10 +371,16 @@ async def startup():
         })
         logger.info("Demo user created")
     else:
+        # Update demo user password and credits
         await db.users.update_one(
             {"email": "demo@example.com"},
-            {"$set": {"credits": 100, "plan": "free"}}
+            {"$set": {
+                "credits": 100, 
+                "plan": "free",
+                "password": hash_password("Password123!")
+            }}
         )
+        logger.info("Demo user credentials updated")
     
     # Start background cleanup task
     asyncio.create_task(cleanup_expired_downloads())
