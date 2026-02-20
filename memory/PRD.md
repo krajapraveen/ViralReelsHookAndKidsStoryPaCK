@@ -8,8 +8,79 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 - Admin dashboard with payment and exception monitoring
 - Creator Pro Tools (15+ AI-powered features)
 - TwinFinder face lookalike finder
+- Kids Story Coloring Page Generator (NEW - Feb 20, 2026)
 
 ## Production Deployment Status: READY ✅
+
+## New Feature: Kids Coloring Book Generator (Feb 20, 2026) ✅
+
+### Overview
+A standalone module for creating personalized, printable story coloring books. Key design principles:
+- **Zero Server Cost**: All image processing and PDF generation happens client-side
+- **Privacy-First**: Images never uploaded to server
+- **Credit-Gated**: Monetized via existing credit system
+
+### Architecture
+```
+User selects story from DB
+       ↓
+Frontend loads story scenes
+       ↓
+User chooses mode:
+  - DIY Mode: Empty frames with prompts
+  - Photo Mode: Upload images → Canvas/WebWorker processing
+       ↓
+User configures export settings (page count, activity pages, etc.)
+       ↓
+Frontend generates PDF using jsPDF (client-side)
+       ↓
+Backend logs export and deducts credits (POST /api/coloring-book/export)
+```
+
+### Pricing (Credits)
+| Feature | Cost |
+|---------|------|
+| Base Export (10 pages) | 5 credits |
+| Activity Pages add-on | +2 credits |
+| Personalized Cover | +1 credit |
+| Extra pages (>10) | +0.5/page |
+
+### Regional Pricing (Subscriptions)
+| Plan | India (INR) | USA (USD) |
+|------|-------------|-----------|
+| Weekly | ₹99 | $4.99 |
+| Monthly | ₹299 | $9.99 |
+| Quarterly | ₹699 | $24.99 |
+| Single Book | ₹149 | $4.99 |
+
+### API Endpoints
+- `GET /api/coloring-book/pricing` - Get pricing info
+- `GET /api/coloring-book/stories` - User's available stories
+- `GET /api/coloring-book/stories/{id}` - Get story details
+- `POST /api/coloring-book/calculate-cost` - Calculate export cost
+- `POST /api/coloring-book/export` - Log export & charge credits
+- `GET /api/coloring-book/export-history` - User's export history
+- `GET /api/coloring-book/templates` - Activity page templates
+- `GET /api/coloring-book/svg-assets` - SVG shapes for DIY mode
+
+### Frontend Route
+- `/app/coloring-book` - Main coloring book generator page
+
+## SSE/Real-time Updates (Feb 20, 2026) ✅
+
+### Overview
+Replaced polling with smart SSE-backed polling for real-time job status updates.
+
+### Implementation
+- Backend SSE endpoints: `/api/sse/jobs`, `/api/sse/wallet`
+- Frontend utility: `/app/frontend/src/utils/sse.js`
+- Smart polling fallback (since native EventSource doesn't support auth headers)
+- Adaptive polling intervals (2s when active, up to 10s when idle)
+
+### Updated Pages
+- GenStudioDashboard.js - Uses SSE for active jobs
+- GenStudioTextToImage.js - Uses SSE for job status
+- (Other GenStudio pages can be migrated similarly)
 
 ## Credit-Gated Job Pipeline (Feb 19, 2026) - IMPLEMENTED ✅
 
