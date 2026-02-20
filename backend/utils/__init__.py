@@ -1,3 +1,3 @@
 # Utils package
-from .auth import hash_password, verify_password, create_token, get_current_user, get_admin_user
-from .database import get_db
+# Note: Individual utility modules should be imported directly where needed
+# to avoid circular import issues
