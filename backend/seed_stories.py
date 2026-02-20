@@ -3,6 +3,7 @@ Script to seed pre-created story templates into MongoDB
 Run once to populate the database with 300+ story templates
 """
 import asyncio
+import os
 from motor.motor_asyncio import AsyncIOMotorClient
 import random
 import uuid
