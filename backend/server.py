@@ -185,6 +185,8 @@ api_router.include_router(convert_router)
 api_router.include_router(cashfree_router)
 api_router.include_router(privacy_router)
 api_router.include_router(wallet_router)
+api_router.include_router(sse_router)
+api_router.include_router(coloring_book_router)
 
 # Include API router in app
 app.include_router(api_router)
