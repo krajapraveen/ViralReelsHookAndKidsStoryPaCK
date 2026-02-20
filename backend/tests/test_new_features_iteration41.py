@@ -384,7 +384,7 @@ class TestDashboardRoutes:
 
 
 class TestGenStudioTextToImage:
-    """Test GenStudio Text-to-Image generation"""
+    """Test GenStudio endpoints"""
     
     def get_auth_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
@@ -393,20 +393,24 @@ class TestGenStudioTextToImage:
     def get_headers(self):
         return {"Authorization": f"Bearer {self.get_auth_token()}"}
     
-    def test_genstudio_jobs_requires_auth(self):
-        """Test GenStudio jobs requires auth"""
-        response = requests.get(f"{BASE_URL}/api/genstudio/jobs")
-        assert response.status_code == 401
-        print("SUCCESS: GenStudio jobs requires auth")
-    
-    def test_genstudio_jobs_listing(self):
-        """Test GenStudio job listing with auth"""
+    def test_genstudio_dashboard(self):
+        """Test GenStudio dashboard listing"""
         headers = self.get_headers()
-        response = requests.get(f"{BASE_URL}/api/genstudio/jobs", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/genstudio/dashboard", headers=headers)
         assert response.status_code == 200
         data = response.json()
-        assert "jobs" in data
-        print(f"SUCCESS: GenStudio jobs: {len(data['jobs'])}")
+        assert "credits" in data
+        assert "recentJobs" in data
+        print(f"SUCCESS: GenStudio dashboard - Credits: {data['credits']}, Jobs: {len(data['recentJobs'])}")
+    
+    def test_genstudio_templates(self):
+        """Test GenStudio templates"""
+        headers = self.get_headers()
+        response = requests.get(f"{BASE_URL}/api/genstudio/templates", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "templates" in data
+        print(f"SUCCESS: GenStudio templates: {len(data['templates'])}")
 
 
 class TestStorySeries:
