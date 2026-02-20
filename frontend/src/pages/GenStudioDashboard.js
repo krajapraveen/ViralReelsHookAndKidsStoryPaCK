@@ -9,6 +9,7 @@ import {
   CheckCircle, XCircle, Loader2, RefreshCw
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
+import sseManager from '../utils/sse';
 
 export default function GenStudioDashboard() {
   const [wallet, setWallet] = useState({ balanceCredits: 0, reservedCredits: 0, availableCredits: 0 });
