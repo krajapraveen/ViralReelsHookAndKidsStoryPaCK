@@ -150,7 +150,7 @@ export default function Dashboard() {
 
         {/* Coloring Book Highlight */}
         <Link to="/app/coloring-book">
-          <div className="bg-gradient-to-r from-rose-500 via-fuchsia-500 to-violet-500 rounded-2xl p-5 sm:p-6 mb-8 sm:mb-12 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-fuchsia-500/20" data-testid="quick-action-coloring-book">
+          <div className="bg-gradient-to-r from-rose-500 via-fuchsia-500 to-violet-500 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-fuchsia-500/20" data-testid="quick-action-coloring-book">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="bg-white/20 rounded-xl p-2 sm:p-3">
@@ -167,6 +167,45 @@ export default function Dashboard() {
             </div>
           </div>
         </Link>
+
+        {/* 3 New Standalone Apps */}
+        <div className="grid md:grid-cols-3 gap-4 mb-8 sm:mb-12">
+          {/* Story Series */}
+          <Link to="/app/story-series">
+            <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-story-series">
+              <div className="flex items-center gap-3 mb-2">
+                <Film className="w-6 h-6" />
+                <h3 className="font-bold">Story Series</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">Turn stories into 3-7 episode series with scene beats & cliffhangers</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">NEW</span>
+            </div>
+          </Link>
+
+          {/* Challenge Generator */}
+          <Link to="/app/challenge-generator">
+            <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-challenge">
+              <div className="flex items-center gap-3 mb-2">
+                <Calendar className="w-6 h-6" />
+                <h3 className="font-bold">Challenge Generator</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">7/30-day content challenges with hooks, CTAs & hashtags</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">NEW</span>
+            </div>
+          </Link>
+
+          {/* Tone Switcher */}
+          <Link to="/app/tone-switcher">
+            <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-tone">
+              <div className="flex items-center gap-3 mb-2">
+                <Type className="w-6 h-6" />
+                <h3 className="font-bold">Tone Switcher</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">AI-free text rewriter: Funny, Aggressive, Calm, Luxury, Motivational</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">NEW</span>
+            </div>
+          </Link>
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-8 sm:mb-12">
           <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 sm:p-6">
