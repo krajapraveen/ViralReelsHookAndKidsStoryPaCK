@@ -98,6 +98,16 @@ async def get_cashfree_products():
         "products": PRODUCTS,
         "gateway": "cashfree",
         "configured": cashfree_client is not None
+
+
+@router.get("/plans")
+async def get_cashfree_plans():
+    """Alias for /products - Get available products for Cashfree"""
+    return {
+        "products": PRODUCTS,
+        "gateway": "cashfree",
+        "configured": cashfree_client is not None
+    }
     }
 
 
