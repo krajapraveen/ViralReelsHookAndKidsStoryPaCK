@@ -198,6 +198,9 @@ api_router.include_router(story_series_router)
 api_router.include_router(challenge_router)
 api_router.include_router(tone_switcher_router)
 api_router.include_router(regional_pricing_router)
+api_router.include_router(analytics_router)
+api_router.include_router(subscriptions_router)
+api_router.include_router(user_manual_router)
 
 # Include API router in app
 app.include_router(api_router)
