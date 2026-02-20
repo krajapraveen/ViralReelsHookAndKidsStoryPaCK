@@ -391,6 +391,8 @@ async def cashfree_webhook(request: Request):
         
         # Verify signature if secret is configured
         webhook_secret = os.environ.get("CASHFREE_WEBHOOK_SECRET")
+        signature_valid = True
+        
         if webhook_secret and signature:
             signed_payload = f"{timestamp}.{body_str}"
             expected_signature = base64.b64encode(
@@ -402,7 +404,19 @@ async def cashfree_webhook(request: Request):
             ).decode('utf-8')
             
             if not hmac.compare_digest(expected_signature, signature):
+                signature_valid = False
                 logger.warning("Invalid Cashfree webhook signature")
+                
+                # Track signature failure for monitoring
+                if MONITORING_ENABLED:
+                    webhook_data = json.loads(body_str) if body_str else {}
+                    await track_webhook_event(
+                        order_id=webhook_data.get("data", {}).get("order", {}).get("order_id", "unknown"),
+                        event_type=webhook_data.get("type", "unknown"),
+                        signature_valid=False,
+                        payload={"error": "signature_mismatch"}
+                    )
+                
                 raise HTTPException(status_code=403, detail="Invalid signature")
         
         # Parse webhook data
@@ -410,6 +424,16 @@ async def cashfree_webhook(request: Request):
         event_type = webhook_data.get("type", "")
         
         logger.info(f"Received Cashfree webhook: {event_type}")
+        
+        # Track webhook event for monitoring
+        if MONITORING_ENABLED:
+            order_data = webhook_data.get("data", {}).get("order", {})
+            await track_webhook_event(
+                order_id=order_data.get("order_id", "unknown"),
+                event_type=event_type,
+                signature_valid=signature_valid,
+                payload={"status": "received"}
+            )
         
         # Handle payment events
         if event_type == "PAYMENT_SUCCESS_WEBHOOK":
@@ -441,17 +465,39 @@ async def cashfree_webhook(request: Request):
                         }
                     )
                     
+                    # Track successful payment
+                    if MONITORING_ENABLED:
+                        await track_payment_attempt(
+                            order_id=order_id,
+                            status="SUCCESS",
+                            amount=order.get("amount", 0),
+                            user_id=order["userId"]
+                        )
+                    
                     logger.info(f"Cashfree webhook: Payment success for order {order_id}")
         
         elif event_type == "PAYMENT_FAILED_WEBHOOK":
             order_data = webhook_data.get("data", {}).get("order", {})
             order_id = order_data.get("order_id")
+            failure_reason = webhook_data.get("data", {}).get("payment", {}).get("payment_message", "Payment failed")
             
             if order_id:
+                order = await db.orders.find_one({"order_id": order_id, "gateway": "cashfree"}, {"_id": 0})
+                
                 await db.orders.update_one(
                     {"order_id": order_id, "gateway": "cashfree"},
-                    {"$set": {"status": "FAILED", "failureReason": "Payment failed"}}
+                    {"$set": {"status": "FAILED", "failureReason": failure_reason}}
                 )
+                
+                # Track failed payment for monitoring
+                if MONITORING_ENABLED and order:
+                    await track_payment_attempt(
+                        order_id=order_id,
+                        status="FAILED",
+                        amount=order.get("amount", 0),
+                        user_id=order.get("userId", ""),
+                        error_message=failure_reason
+                    )
         
         # Log webhook
         await db.webhook_logs.insert_one({
@@ -459,6 +505,7 @@ async def cashfree_webhook(request: Request):
             "gateway": "cashfree",
             "event": event_type,
             "payload": webhook_data,
+            "signature_valid": signature_valid,
             "received_at": datetime.now(timezone.utc).isoformat()
         })
         
