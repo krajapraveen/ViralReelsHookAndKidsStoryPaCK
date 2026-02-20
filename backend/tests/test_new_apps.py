@@ -493,9 +493,10 @@ class TestDashboardApps(TestSetup):
         assert response.status_code == 200
         
         data = response.json()
-        assert "user" in data
-        assert "id" in data["user"]
-        assert "email" in data["user"]
+        # User data is returned directly (not nested)
+        assert "id" in data
+        assert "email" in data
+        assert data["email"] == "demo@example.com"
 
 
 if __name__ == "__main__":
