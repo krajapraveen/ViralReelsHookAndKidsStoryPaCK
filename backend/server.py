@@ -380,7 +380,19 @@ async def startup():
                 "password": hash_password("Password123!")
             }}
         )
-        logger.info("Demo user credentials updated")
+        logger.info("Demo user credentials updated with unlimited credits")
+    
+    # Give 100 free credits to all existing users who have less than 100 credits
+    # This is a one-time bonus for production go-live
+    result = await db.users.update_many(
+        {
+            "email": {"$nin": ["admin@creatorstudio.ai", "demo@example.com"]},
+            "credits": {"$lt": 100}
+        },
+        {"$set": {"credits": 100}}
+    )
+    if result.modified_count > 0:
+        logger.info(f"Granted 100 credits to {result.modified_count} existing users")
     
     # Start background cleanup task
     asyncio.create_task(cleanup_expired_downloads())
