@@ -9,7 +9,7 @@ const loginSuccess = new Counter("login_success");
 const loginFailure = new Counter("login_failure");
 
 // Configuration
-const BASE = __ENV.BASE_URL || "https://studio-hardening-2.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://studio-qa-check.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

@@ -16,7 +16,7 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
-    baseURL: process.env.BASE_URL || "https://studio-hardening-2.preview.emergentagent.com",
+    baseURL: process.env.BASE_URL || "https://studio-qa-check.preview.emergentagent.com",
     actionTimeout: 30000,
     navigationTimeout: 30000,
   },

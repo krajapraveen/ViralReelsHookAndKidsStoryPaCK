@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://studio-hardening-2.preview.emergentagent.com/  
+**URL Tested:** https://studio-qa-check.preview.emergentagent.com/  
 **Environment:** Desktop Chrome + Mobile Responsive (375px)
 
 ---

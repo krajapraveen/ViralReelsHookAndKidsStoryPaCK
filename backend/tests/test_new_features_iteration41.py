@@ -13,7 +13,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://studio-hardening-2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://studio-qa-check.preview.emergentagent.com')
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}

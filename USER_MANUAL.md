@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://studio-hardening-2.preview.emergentagent.com
+**Platform URL:** https://studio-qa-check.preview.emergentagent.com
 
 ---
 
