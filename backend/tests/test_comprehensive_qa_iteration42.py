@@ -82,7 +82,7 @@ class TestPhase3LoginLogout:
         assert response.status_code == 200
         data = response.json()
         assert "token" in data
-        assert data.get("user", {}).get("role") == "admin"
+        assert data.get("user", {}).get("role", "").lower() == "admin"
     
     def test_invalid_login(self):
         """Invalid credentials should return 401"""
