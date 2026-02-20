@@ -58,6 +58,8 @@ from routes.convert_tools import router as convert_router
 from routes.cashfree_payments import router as cashfree_router
 from routes.privacy import router as privacy_router
 from routes.wallet import router as wallet_router
+from routes.sse import router as sse_router
+from routes.coloring_book import router as coloring_book_router
 
 # Create FastAPI app
 app = FastAPI(
