@@ -90,7 +90,10 @@ async def send_verification_email(email: str, token: str, name: str):
             logger.warning("SendGrid API key not configured")
             return False
         
-        frontend_url = os.environ.get("FRONTEND_URL", "https://studio-qa-check.preview.emergentagent.com")
+        frontend_url = os.environ.get("FRONTEND_URL")
+        if not frontend_url:
+            logger.error("FRONTEND_URL not configured")
+            return False
         verify_url = f"{frontend_url}/verify-email?token={token}"
         
         message = Mail(
@@ -143,7 +146,10 @@ async def send_password_reset_email(email: str, token: str, name: str):
             logger.warning("SendGrid API key not configured")
             return False
         
-        frontend_url = os.environ.get("FRONTEND_URL", "https://studio-qa-check.preview.emergentagent.com")
+        frontend_url = os.environ.get("FRONTEND_URL")
+        if not frontend_url:
+            logger.error("FRONTEND_URL not configured")
+            return False
         reset_url = f"{frontend_url}/reset-password?token={token}"
         
         message = Mail(
