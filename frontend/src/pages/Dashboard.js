@@ -243,6 +243,14 @@ export default function Dashboard() {
 
         {/* Privacy & Settings Quick Link */}
         <div className="mb-8 sm:mb-12 flex gap-4 sm:gap-6 flex-wrap">
+          <Link to="/app/subscription" className="inline-flex items-center gap-2 text-yellow-400 hover:text-yellow-300 transition-colors font-medium">
+            <Crown className="w-4 h-4" />
+            <span className="text-sm">Subscription</span>
+          </Link>
+          <Link to="/app/analytics" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors font-medium">
+            <BarChart3 className="w-4 h-4" />
+            <span className="text-sm">Analytics</span>
+          </Link>
           <Link to="/app/content-vault" className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors font-medium">
             <Library className="w-4 h-4" />
             <span className="text-sm">Content Vault</span>
@@ -250,6 +258,10 @@ export default function Dashboard() {
           <Link to="/app/payment-history" className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
             <Receipt className="w-4 h-4" />
             <span className="text-sm">Payment History</span>
+          </Link>
+          <Link to="/user-manual" className="inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors font-medium">
+            <HelpCircle className="w-4 h-4" />
+            <span className="text-sm">Help & Guides</span>
           </Link>
           <Link to="/app/privacy" className="inline-flex items-center gap-2 text-slate-400 hover:text-indigo-400 transition-colors">
             <Lock className="w-4 h-4" />
