@@ -86,7 +86,10 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
     
     # Calculate satisfaction from feedback
     feedback_count = await db.feedback.count_documents({})
-    feedback_with_rating = await db.feedback.find({"rating": {"$exists": True}}, {"_id": 0, "rating": 1, "message": 1, "createdAt": 1}).to_list(100)
+    feedback_with_rating = await db.feedback.find(
+        {"rating": {"$exists": True}}, 
+        {"_id": 0, "rating": 1, "message": 1, "createdAt": 1}
+    ).limit(100).to_list(100)
     avg_rating = sum([f.get("rating", 0) for f in feedback_with_rating]) / len(feedback_with_rating) if feedback_with_rating else 0
     satisfaction_percentage = int((avg_rating / 5) * 100) if avg_rating > 0 else 0
     
