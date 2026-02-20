@@ -393,21 +393,20 @@ class TestGenStudioTextToImage:
     def get_headers(self):
         return {"Authorization": f"Bearer {self.get_auth_token()}"}
     
-    def test_text_to_image_requires_auth(self):
-        """Test text-to-image requires auth"""
-        response = requests.post(f"{BASE_URL}/api/gen-studio/text-to-image/generate")
-        # Could be 401 or 422 (missing body) - both indicate auth is checked
-        assert response.status_code in [401, 422]
-        print("SUCCESS: Text-to-image requires auth or proper request")
+    def test_genstudio_jobs_requires_auth(self):
+        """Test GenStudio jobs requires auth"""
+        response = requests.get(f"{BASE_URL}/api/genstudio/jobs")
+        assert response.status_code == 401
+        print("SUCCESS: GenStudio jobs requires auth")
     
-    def test_genstudio_history(self):
-        """Test GenStudio history listing"""
+    def test_genstudio_jobs_listing(self):
+        """Test GenStudio job listing with auth"""
         headers = self.get_headers()
-        response = requests.get(f"{BASE_URL}/api/gen-studio/history", headers=headers)
+        response = requests.get(f"{BASE_URL}/api/genstudio/jobs", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "jobs" in data
-        print(f"SUCCESS: GenStudio history: {len(data['jobs'])} jobs")
+        print(f"SUCCESS: GenStudio jobs: {len(data['jobs'])}")
 
 
 class TestStorySeries:
