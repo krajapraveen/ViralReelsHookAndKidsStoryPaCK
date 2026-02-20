@@ -52,20 +52,19 @@ export default function CreatorTools() {
 
   const fetchCredits = async () => {
     try {
-      const response = await api.get('/api/credits/balance');
-      setCredits(response.data.balance);
+      const response = await api.get('/api/wallet/me');
+      setCredits(response.data.balanceCredits || response.data.balance || 0);
     } catch (error) {
       console.error('Failed to fetch credits');
     }
   };
 
   const fetchTrending = async () => {
-    try {
-      const response = await api.get('/api/content/trending');
-      setTrendingTopics(response.data.topics || []);
-    } catch (error) {
-      console.error('Failed to fetch trending');
-    }
+    // Trending topics are generated locally for now
+    setTrendingTopics([
+      "AI automation", "Sustainable living", "Side hustles", "Mental health",
+      "Productivity hacks", "Home workouts", "Budget travel", "Plant-based recipes"
+    ]);
   };
 
   const copyToClipboard = (text, id) => {
