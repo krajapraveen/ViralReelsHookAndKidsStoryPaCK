@@ -458,13 +458,6 @@ class TestChallengeGenerator:
 class TestToneSwitcher:
     """Test Tone Switcher API endpoints"""
     
-    def get_auth_token(self):
-        response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
-        return response.json().get("token")
-    
-    def get_headers(self):
-        return {"Authorization": f"Bearer {self.get_auth_token()}"}
-    
     def test_tone_switcher_pricing(self):
         """Test tone switcher pricing"""
         response = requests.get(f"{BASE_URL}/api/tone-switcher/pricing")
@@ -482,9 +475,13 @@ class TestToneSwitcher:
         assert len(data["tones"]) >= 5
         print(f"SUCCESS: Available tones: {len(data['tones'])}")
     
-    def test_tone_switcher_preview(self):
+    def test_tone_switcher_preview_with_fresh_token(self):
         """Test free preview feature (requires auth)"""
-        headers = self.get_headers()
+        # Login and get fresh token
+        login_response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
+        token = login_response.json().get("token")
+        headers = {"Authorization": f"Bearer {token}"}
+        
         response = requests.post(f"{BASE_URL}/api/tone-switcher/preview", 
                                  json={"text": "Hello world", "targetTone": "funny", "intensity": 50},
                                  headers=headers)
