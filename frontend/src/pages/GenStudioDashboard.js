@@ -21,9 +21,39 @@ export default function GenStudioDashboard() {
 
   useEffect(() => {
     fetchData();
-    // Poll for active jobs
-    const interval = setInterval(fetchActiveJobs, 5000);
-    return () => clearInterval(interval);
+    // Use SSE-backed smart polling for active jobs
+    const cleanup = sseManager.connectToJobUpdates((update) => {
+      if (update.type === 'job_update') {
+        setActiveJobs(prev => {
+          const existing = prev.findIndex(j => j.id === update.jobId);
+          if (['QUEUED', 'RUNNING'].includes(update.status)) {
+            const newJob = {
+              id: update.jobId,
+              jobType: update.jobType,
+              status: update.status,
+              progress: update.progress,
+              costCredits: update.costCredits
+            };
+            if (existing >= 0) {
+              const updated = [...prev];
+              updated[existing] = newJob;
+              return updated;
+            }
+            return [newJob, ...prev];
+          } else {
+            // Remove completed jobs from active list
+            return prev.filter(j => j.id !== update.jobId);
+          }
+        });
+        
+        // Refresh wallet on job completion
+        if (['SUCCEEDED', 'FAILED'].includes(update.status)) {
+          walletAPI.getWallet().then(res => setWallet(res.data));
+        }
+      }
+    });
+    
+    return () => cleanup && cleanup();
   }, []);
 
   const fetchData = async () => {
