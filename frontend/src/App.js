@@ -39,6 +39,10 @@ import ColoringBook from './pages/ColoringBook';
 import StorySeries from './pages/StorySeries';
 import ChallengeGenerator from './pages/ChallengeGenerator';
 import ToneSwitcher from './pages/ToneSwitcher';
+import UserManual from './pages/UserManual';
+import AdminMonitoring from './pages/AdminMonitoring';
+import SubscriptionManagement from './pages/SubscriptionManagement';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import './App.css';
@@ -108,6 +112,14 @@ function App() {
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/tone-switcher" element={isAuthenticated ? <ToneSwitcher /> : <Navigate to="/login" />} />
+      {/* User Manual - Available to all */}
+      <Route path="/user-manual" element={<UserManual />} />
+      <Route path="/help" element={<UserManual />} />
+      {/* User Dashboard Routes */}
+      <Route path="/app/subscription" element={isAuthenticated ? <SubscriptionManagement /> : <Navigate to="/login" />} />
+      <Route path="/app/analytics" element={isAuthenticated ? <AnalyticsDashboard /> : <Navigate to="/login" />} />
+      {/* Admin Routes */}
+      <Route path="/app/admin/monitoring" element={isAuthenticated ? <AdminMonitoring /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
