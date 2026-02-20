@@ -153,28 +153,28 @@ export default function CreatorTools() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900">
+              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Wand2 className="w-6 h-6 text-purple-600" />
-              <span className="text-xl font-bold text-slate-900">Creator Tools</span>
+              <Wand2 className="w-6 h-6 text-purple-400" />
+              <span className="text-xl font-bold text-white">Creator Tools</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-2">
-              <Coins className="w-4 h-4 text-purple-600" />
-              <span className="font-semibold text-purple-700">{credits} Credits</span>
+            <div className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2">
+              <Coins className="w-4 h-4 text-purple-400" />
+              <span className="font-semibold text-purple-300">{credits} Credits</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-600 hover:text-slate-900" data-testid="creator-tools-logout">
+            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-400 hover:text-white" data-testid="creator-tools-logout">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
