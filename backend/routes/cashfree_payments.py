@@ -104,6 +104,32 @@ class RefundStatus(BaseModel):
     cf_order_id: Optional[str] = None
 
 
+@router.get("/monitoring/health")
+async def get_payment_monitoring_health(user: dict = Depends(get_admin_user)):
+    """Get payment system health status (Admin only)"""
+    if not MONITORING_ENABLED:
+        return {
+            "status": "MONITORING_DISABLED",
+            "message": "Payment monitoring module not available"
+        }
+    
+    try:
+        health = await get_payment_health_status()
+        return {
+            "success": True,
+            "gateway": "cashfree",
+            "environment": CASHFREE_ENVIRONMENT,
+            **health
+        }
+    except Exception as e:
+        logger.error(f"Error fetching payment health: {e}")
+        return {
+            "success": False,
+            "status": "ERROR",
+            "message": str(e)
+        }
+
+
 @router.get("/products")
 async def get_cashfree_products():
     """Get available products for Cashfree"""
