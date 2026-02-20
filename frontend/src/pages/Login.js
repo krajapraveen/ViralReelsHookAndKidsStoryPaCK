@@ -90,8 +90,8 @@ export default function Login({ setAuth }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5" data-testid="login-form">
-            <div>
-              <Label htmlFor="email" className="text-slate-300 text-sm font-medium mb-2 block">Email</Label>
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-slate-300 text-sm font-medium block">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                 <Input
@@ -100,15 +100,15 @@ export default function Login({ setAuth }) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                  className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
                   placeholder="you@example.com"
                   data-testid="login-email-input"
                 />
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-slate-300 text-sm font-medium">Password</Label>
                 <button
                   type="button"
@@ -130,7 +130,7 @@ export default function Login({ setAuth }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="pl-10 pr-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                  className="pl-10 pr-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
                   placeholder="••••••••"
                   data-testid="login-password-input"
                 />
