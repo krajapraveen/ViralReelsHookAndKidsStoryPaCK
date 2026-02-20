@@ -66,12 +66,12 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
     # Recent activity
     recent_users_list = await db.users.find(
         {},
-        {"_id": 0, "password": 0, "id": 1, "name": 1, "email": 1, "createdAt": 1, "credits": 1, "plan": 1}
+        {"_id": 0, "password": 0}
     ).sort("createdAt", -1).limit(10).to_list(length=10)
     
     recent_gens = await db.generations.find(
         {},
-        {"_id": 0, "id": 1, "userId": 1, "type": 1, "status": 1, "createdAt": 1, "creditsUsed": 1}
+        {"_id": 0}
     ).sort("createdAt", -1).limit(10).to_list(length=10)
     
     # Exception summary
