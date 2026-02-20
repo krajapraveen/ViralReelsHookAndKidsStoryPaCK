@@ -32,6 +32,11 @@ export default function Landing() {
                 Reviews
               </Button>
             </Link>
+            <Link to="/user-manual">
+              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-help-btn">
+                Help
+              </Button>
+            </Link>
             <Link to="/contact">
               <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-contact-btn">
                 Contact
