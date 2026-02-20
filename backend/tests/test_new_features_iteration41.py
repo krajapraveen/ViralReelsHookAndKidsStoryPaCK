@@ -491,7 +491,7 @@ class TestToneSwitcher:
         """Test free preview feature (requires auth)"""
         headers = self.get_headers()
         response = requests.post(f"{BASE_URL}/api/tone-switcher/preview", 
-                                 json={"text": "Hello world", "tone": "funny", "intensity": 50},
+                                 json={"text": "Hello world", "targetTone": "funny", "intensity": 50},
                                  headers=headers)
         assert response.status_code == 200
         data = response.json()
