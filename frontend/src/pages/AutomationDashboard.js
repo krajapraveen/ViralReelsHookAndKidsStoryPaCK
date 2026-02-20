@@ -21,17 +21,19 @@ export default function AutomationDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  const API_BASE = process.env.REACT_APP_BACKEND_URL || '';
+
   const fetchStatus = async () => {
     try {
-      // Fetch automation status
-      const statusResp = await fetch('http://localhost:9090/status');
+      // Fetch automation status from backend API
+      const statusResp = await fetch(`${API_BASE}/api/automation/status`);
       if (statusResp.ok) {
         const data = await statusResp.json();
         setStatus(data);
       }
       
       // Fetch latest health report
-      const reportResp = await fetch('/app/automation/reports/health_report.json');
+      const reportResp = await fetch(`${API_BASE}/api/automation/health-report`);
       if (reportResp.ok) {
         const data = await reportResp.json();
         setHealthReport(data);
@@ -46,7 +48,7 @@ export default function AutomationDashboard() {
   const triggerAction = async (action) => {
     setTriggering(action);
     try {
-      const resp = await fetch(`http://localhost:9090/trigger/${action}`);
+      const resp = await fetch(`${API_BASE}/api/automation/trigger/${action}`, { method: 'POST' });
       if (resp.ok) {
         toast.success(`${action} triggered successfully!`);
         setTimeout(fetchStatus, 3000);
