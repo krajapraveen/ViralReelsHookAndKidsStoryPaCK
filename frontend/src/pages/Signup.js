@@ -44,37 +44,37 @@ export default function Signup({ setAuth }) {
             <p className="text-slate-300">100 free credits on signup</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6" data-testid="signup-form">
-            <div>
-              <Label htmlFor="name" className="text-white text-sm font-medium">Full Name</Label>
+          <form onSubmit={handleSubmit} className="space-y-5" data-testid="signup-form">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-slate-300 text-sm font-medium block">Full Name</Label>
               <Input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="mt-2 bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
                 placeholder="John Doe"
                 data-testid="signup-name-input"
               />
             </div>
 
-            <div>
-              <Label htmlFor="email" className="text-white text-sm font-medium">Email</Label>
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-slate-300 text-sm font-medium block">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="mt-2 bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
                 placeholder="you@example.com"
                 data-testid="signup-email-input"
               />
             </div>
 
-            <div>
-              <Label htmlFor="password" className="text-white text-sm font-medium">Password</Label>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-slate-300 text-sm font-medium block">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -82,7 +82,7 @@ export default function Signup({ setAuth }) {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="mt-2 bg-white border-slate-300 text-slate-900 placeholder:text-slate-500"
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
                 placeholder="••••••••"
                 data-testid="signup-password-input"
               />
@@ -91,7 +91,7 @@ export default function Signup({ setAuth }) {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-500 hover:bg-indigo-600 text-white rounded-full py-6 text-lg"
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl py-6 text-lg shadow-lg shadow-indigo-500/20"
               data-testid="signup-submit-btn"
             >
               {loading ? 'Creating account...' : 'Create Account'}
