@@ -280,27 +280,27 @@ export default function CreatorTools() {
                 </div>
               </div>
               
-              <div className="bg-white rounded-xl border border-slate-200 p-6 max-h-[600px] overflow-y-auto">
-                <h3 className="text-lg font-bold mb-4">Your Content Calendar</h3>
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 max-h-[600px] overflow-y-auto backdrop-blur-sm">
+                <h3 className="text-lg font-bold text-white mb-4">Your Content Calendar</h3>
                 {!calendarResult ? (
-                  <div className="text-center py-12 text-slate-500">
-                    <Calendar className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <div className="text-center py-12 text-slate-400">
+                    <Calendar className="w-12 h-12 mx-auto mb-4 text-slate-600" />
                     <p>Your calendar will appear here</p>
                   </div>
                 ) : (
                   <div className="space-y-3" data-testid="calendar-result">
-                    {calendarResult.calendar.map((day) => (
-                      <div key={day.day} className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                    {calendarResult.calendar.map((day, index) => (
+                      <div key={index} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-purple-600">Day {day.day}</span>
-                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">{day.content_type}</span>
+                          <span className="font-bold text-purple-400">{day.date} ({day.dayOfWeek})</span>
+                          <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded border border-purple-500/30">{day.contentType}</span>
                         </div>
-                        <p className="text-sm font-medium mb-2">{day.hook}</p>
-                        <div className="flex items-center justify-between text-xs text-slate-500">
-                          <span>📱 {day.format}</span>
-                          <span>⏰ {day.best_time}</span>
-                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(day.hook, `day-${day.day}`)}>
-                            {copied === `day-${day.day}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <p className="text-sm font-medium text-white mb-2">{day.suggestedTopic}</p>
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>📱 {day.niche}</span>
+                          <span>⏰ {day.bestPostingTime}</span>
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(day.suggestedTopic, `day-${index}`)} className="text-slate-400 hover:text-white">
+                            {copied === `day-${index}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                           </Button>
                         </div>
                       </div>
@@ -314,28 +314,29 @@ export default function CreatorTools() {
           {/* Carousel Tab */}
           <TabsContent value="carousel">
             <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                  <LayoutGrid className="w-6 h-6 text-blue-500" />
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                  <LayoutGrid className="w-6 h-6 text-blue-400" />
                   Carousel Generator
                 </h2>
-                <p className="text-slate-500 mb-6">Create engaging carousel posts</p>
+                <p className="text-slate-400 mb-6">Create engaging carousel posts</p>
                 
                 <div className="space-y-4">
                   <div>
-                    <Label>Topic</Label>
+                    <Label className="text-slate-300">Topic</Label>
                     <Input 
                       placeholder="e.g., 5 Morning Habits for Success"
                       value={carouselTopic}
                       onChange={(e) => setCarouselTopic(e.target.value)}
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                       data-testid="carousel-topic-input"
                     />
                   </div>
                   
                   <div>
-                    <Label>Niche</Label>
+                    <Label className="text-slate-300">Niche</Label>
                     <Select value={carouselNiche} onValueChange={setCarouselNiche}>
-                      <SelectTrigger data-testid="carousel-niche-select">
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white" data-testid="carousel-niche-select">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
