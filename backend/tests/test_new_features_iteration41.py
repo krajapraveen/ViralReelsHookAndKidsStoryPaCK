@@ -284,11 +284,12 @@ class TestAdminMonitoringAPI:
 class TestCashfreePaymentAPI:
     """Test Cashfree Payment Gateway endpoints"""
     
-    @pytest.fixture(autouse=True)
-    def setup(self):
+    def get_auth_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
-        self.token = response.json().get("token")
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        return response.json().get("token")
+    
+    def get_headers(self):
+        return {"Authorization": f"Bearer {self.get_auth_token()}"}
     
     def test_cashfree_health(self):
         """Test Cashfree gateway health"""
