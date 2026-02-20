@@ -1,0 +1,35 @@
+{
+  "demoUser": {
+    "email": "demo@example.com",
+    "password": "Password123!",
+    "name": "Demo User",
+    "role": "user"
+  },
+  "adminUser": {
+    "email": "admin@creatorstudio.ai",
+    "password": "Cr3@t0rStud!o#2026",
+    "name": "Admin User",
+    "role": "admin"
+  },
+  "testUsers": [
+    {
+      "email": "test1@example.com",
+      "password": "TestUser123!",
+      "name": "Test User 1"
+    },
+    {
+      "email": "test2@example.com",
+      "password": "TestUser123!",
+      "name": "Test User 2"
+    }
+  ],
+  "invalidCredentials": {
+    "email": "invalid@example.com",
+    "password": "wrongpassword"
+  },
+  "cashfreeSandbox": {
+    "appId": "TEST109947494c1ad7cf7b10784f590994749901",
+    "secretKey": "cfsk_ma_test_f9a613ed1437f4479a4cce91c6cc07fe_279396a6",
+    "webhookSecret": "zumui81ktbc9hxj7uhpk"
+  }
+}
