@@ -44,37 +44,46 @@ export default function Signup({ setAuth }) {
             <p className="text-slate-300">100 free credits on signup</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5" data-testid="signup-form">
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-slate-300 text-sm font-medium block">Full Name</Label>
+          <form onSubmit={handleSubmit} className="space-y-6" data-testid="signup-form">
+            {/* Full Name Field */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="name" className="text-slate-300 text-sm font-medium">Full Name</Label>
+              </div>
               <Input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-12 w-full rounded-lg"
                 placeholder="John Doe"
                 data-testid="signup-name-input"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-300 text-sm font-medium block">Email</Label>
+            {/* Email Field */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="email" className="text-slate-300 text-sm font-medium">Email</Label>
+              </div>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-12 w-full rounded-lg"
                 placeholder="you@example.com"
                 data-testid="signup-email-input"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-300 text-sm font-medium block">Password</Label>
+            {/* Password Field */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="password" className="text-slate-300 text-sm font-medium">Password</Label>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -82,7 +91,7 @@ export default function Signup({ setAuth }) {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 w-full"
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-12 w-full rounded-lg"
                 placeholder="••••••••"
                 data-testid="signup-password-input"
               />
