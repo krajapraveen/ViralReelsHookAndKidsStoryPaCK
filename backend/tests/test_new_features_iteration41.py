@@ -499,15 +499,25 @@ class TestToneSwitcher:
 class TestColoringBook:
     """Test Coloring Book API endpoints"""
     
-    @pytest.fixture(autouse=True)
-    def setup(self):
+    def get_auth_token(self):
         response = requests.post(f"{BASE_URL}/api/auth/login", json=DEMO_USER)
-        self.token = response.json().get("token")
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        return response.json().get("token")
     
-    def test_coloring_book_exports(self):
-        """Test coloring book exports list"""
-        response = requests.get(f"{BASE_URL}/api/coloring-book/exports", headers=self.headers)
+    def get_headers(self):
+        return {"Authorization": f"Bearer {self.get_auth_token()}"}
+    
+    def test_coloring_book_pricing(self):
+        """Test coloring book pricing"""
+        response = requests.get(f"{BASE_URL}/api/coloring-book/pricing")
+        assert response.status_code == 200
+        data = response.json()
+        assert "pricing" in data
+        print(f"SUCCESS: Coloring book pricing: {data['pricing']}")
+    
+    def test_coloring_book_export_history(self):
+        """Test coloring book export history"""
+        headers = self.get_headers()
+        response = requests.get(f"{BASE_URL}/api/coloring-book/export-history", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "exports" in data
