@@ -49,6 +49,12 @@ async def get_products():
     return {"products": PRODUCTS, "gateway": "cashfree"}
 
 
+@router.get("/plans")
+async def get_plans():
+    """Alias for /products - Get available products"""
+    return {"products": PRODUCTS, "gateway": "cashfree"}
+
+
 @router.get("/currencies")
 async def get_currencies():
     """Get supported currencies"""
