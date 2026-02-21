@@ -448,6 +448,11 @@ def sanitize_mongo_query(query_value: str) -> str:
 __all__ = [
     'limiter',
     'rate_limit_exceeded_handler',
+    'rate_limiter',
+    'create_rate_limit_dependency',
+    'rate_limit_generation',
+    'rate_limit_auth',
+    'rate_limit_export',
     'sanitize_input',
     'sanitize_filename',
     'detect_dangerous_content',
