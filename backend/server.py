@@ -77,9 +77,13 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
-# Add rate limiter
+# Add rate limiter - must add middleware for decorator-based limits to work
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add SlowAPI middleware - CRITICAL for rate limiting to work
+from slowapi.middleware import SlowAPIMiddleware
+app.add_middleware(SlowAPIMiddleware)
 
 # ==================== MIDDLEWARE ====================
 
