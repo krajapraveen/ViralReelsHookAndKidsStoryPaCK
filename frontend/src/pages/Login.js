@@ -199,10 +199,10 @@ export default function Login({ setAuth }) {
                   Forgot password?
                 </button>
               </div>
-              <div className="relative flex items-center">
-                <div className="absolute left-0 w-12 h-12 flex items-center justify-center pointer-events-none">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
                   <Lock className="w-5 h-5 text-slate-400" aria-hidden="true" />
-                </div>
+                </span>
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -212,7 +212,8 @@ export default function Login({ setAuth }) {
                   aria-label="Password"
                   aria-describedby={errors.password ? "password-error" : undefined}
                   aria-invalid={!!errors.password}
-                  className={`${inputBaseStyles} pl-12 pr-12 ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : ''}`}
+                  style={{ paddingLeft: '48px', paddingRight: '48px' }}
+                  className={`${inputBaseStyles} ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : ''}`}
                   placeholder="Enter your password"
                   data-testid="login-password-input"
                   autoComplete="current-password"
@@ -220,7 +221,7 @@ export default function Login({ setAuth }) {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-0 w-12 h-12 flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors focus:outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors focus:outline-none"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   data-testid="toggle-password-visibility"
                 >
