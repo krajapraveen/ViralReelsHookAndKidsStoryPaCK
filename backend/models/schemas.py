@@ -51,11 +51,11 @@ class GenerateReelRequest(BaseModel):
 
 
 class GenerateStoryRequest(BaseModel):
-    genre: str = "Adventure"
-    customGenre: Optional[str] = None
-    ageGroup: str = "4-6"
-    theme: str = "Friendship"
-    sceneCount: int = 8
+    genre: str = Field(default="Adventure", max_length=100)
+    customGenre: Optional[str] = Field(default=None, max_length=100)
+    ageGroup: str = Field(default="4-6", max_length=20)
+    theme: str = Field(default="Friendship", max_length=100)
+    sceneCount: int = Field(default=8, ge=3, le=15, description="Number of scenes (3-15)")
 
 
 # ==================== FEEDBACK MODELS ====================
