@@ -93,11 +93,7 @@ def create_rate_limit_dependency(max_requests: int, window_seconds: int):
         endpoint = request.url.path
         key = f"{client_ip}:{endpoint}"
         
-        logger.info(f"Rate limit check: {client_ip} on {endpoint} (key: {key})")
-        
         is_allowed, retry_after = rate_limiter.is_allowed(key, max_requests, window_seconds)
-        
-        logger.info(f"Rate limit result: allowed={is_allowed}, retry_after={retry_after}, requests_count={len(rate_limiter.requests.get(key, []))}")
         
         if not is_allowed:
             logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint}")
