@@ -372,6 +372,308 @@ async def generate_text_to_video(
 
 
 # =============================================================================
+# IMAGE-TO-VIDEO
+# =============================================================================
+class ImageToVideoRequest(BaseModel):
+    motion_prompt: str = Field(..., min_length=3, max_length=1000)
+    duration: int = Field(default=4, ge=2, le=10)
+    add_watermark: bool = True
+    consent_confirmed: bool = False
+
+async def process_image_to_video(job_id: str, image_path: str, data: dict, user_id: str):
+    """Background task for image-to-video generation"""
+    try:
+        logger.info(f"Starting image-to-video generation for job {job_id}")
+        
+        # Use Sora 2 for image animation
+        from emergentintegrations.llm.sora2 import sora2_generate_video
+        
+        prompt = f"Animate this image with the following motion: {data['motion_prompt']}"
+        duration = data.get('duration', 4)
+        
+        result = await sora2_generate_video(
+            api_key=EMERGENT_LLM_KEY,
+            prompt=prompt,
+            duration=duration,
+            aspect_ratio="16:9",
+            image_path=image_path
+        )
+        
+        # Save video to temp location
+        filename = f"genstudio_{job_id}_animated.mp4"
+        filepath = f"/tmp/{filename}"
+        
+        if result.get("video_path"):
+            import shutil
+            shutil.copy(result["video_path"], filepath)
+        elif result.get("video_data"):
+            with open(filepath, "wb") as f:
+                f.write(result["video_data"])
+        
+        output_url = f"/api/genstudio/download/{job_id}/{filename}"
+        output_urls = [output_url]
+        
+        await db.genstudio_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "completed",
+                "outputUrls": output_urls,
+                "completedAt": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        logger.info(f"Image-to-video generation completed: {job_id}")
+        
+    except Exception as e:
+        logger.error(f"Image-to-video generation failed for job {job_id}: {e}")
+        await db.genstudio_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
+
+@genstudio_router.post("/image-to-video")
+@limiter.limit("10/minute")
+async def generate_image_to_video(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    image: UploadFile = File(...),
+    motion_prompt: str = Form(...),
+    duration: int = Form(default=4),
+    add_watermark: bool = Form(default=True),
+    consent_confirmed: bool = Form(default=False),
+    user: dict = Depends(get_current_user)
+):
+    """Generate animated video from static image - costs 10 credits (async)"""
+    if not consent_confirmed:
+        raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
+    
+    # Validate file type
+    allowed_types = ["image/png", "image/jpeg", "image/webp"]
+    if image.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only PNG, JPEG, and WebP images are allowed")
+    
+    # Validate file size (max 10MB)
+    contents = await image.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image size must be under 10MB")
+    
+    # Validate motion prompt
+    if len(motion_prompt) < 3 or len(motion_prompt) > 1000:
+        raise HTTPException(status_code=400, detail="Motion description must be 3-1000 characters")
+    
+    # ML Content moderation
+    moderation_result = threat_intel.moderate_content(motion_prompt, user.get("id"))
+    if not moderation_result["allowed"]:
+        violations = moderation_result.get("violations", [])
+        violation_msg = violations[0].get("message") if violations else "Content policy violation"
+        raise HTTPException(status_code=400, detail=f"Content blocked: {violation_msg}")
+    
+    cost = GENSTUDIO_COSTS["image_to_video"]
+    
+    if user.get("credits", 0) < cost:
+        if not user.get("subscription"):
+            raise HTTPException(status_code=402, detail="You've used all your free credits! Please subscribe to continue.")
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    job_id = str(uuid.uuid4())
+    
+    # Save uploaded image
+    image_filename = f"genstudio_{job_id}_input.{image.filename.split('.')[-1]}"
+    image_path = f"/tmp/{image_filename}"
+    with open(image_path, "wb") as f:
+        f.write(contents)
+    
+    await db.genstudio_jobs.insert_one({
+        "id": job_id,
+        "userId": user["id"],
+        "type": "image_to_video",
+        "status": "processing",
+        "inputJson": {
+            "motion_prompt": motion_prompt,
+            "duration": duration,
+            "add_watermark": add_watermark,
+            "image_filename": image_filename
+        },
+        "costCredits": cost,
+        "outputUrls": [],
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
+    })
+    
+    # Deduct credits upfront
+    new_balance = await deduct_credits(user["id"], cost, f"GenStudio: Image to Video ({duration}s)")
+    
+    # Start background generation
+    background_tasks.add_task(process_image_to_video, job_id, image_path, {
+        "motion_prompt": motion_prompt,
+        "duration": duration,
+        "add_watermark": add_watermark
+    }, user["id"])
+    
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "processing",
+        "creditsUsed": cost,
+        "remainingCredits": new_balance,
+        "pollUrl": f"/api/genstudio/job/{job_id}",
+        "expiresIn": f"{FILE_EXPIRY_MINUTES} minutes",
+        "message": f"Animation started! Poll the job status. Download within {FILE_EXPIRY_MINUTES} minutes."
+    }
+
+
+# =============================================================================
+# VIDEO REMIX
+# =============================================================================
+class VideoRemixRequest(BaseModel):
+    remix_prompt: str = Field(..., min_length=3, max_length=1000)
+    template_style: str = Field(default="dynamic")
+    add_watermark: bool = True
+    consent_confirmed: bool = False
+
+async def process_video_remix(job_id: str, video_path: str, data: dict, user_id: str):
+    """Background task for video remix generation"""
+    try:
+        logger.info(f"Starting video remix for job {job_id}")
+        
+        # Use Sora 2 for video remix
+        from emergentintegrations.llm.sora2 import sora2_generate_video
+        
+        prompt = f"Remix this video with: {data['remix_prompt']}. Style: {data.get('template_style', 'dynamic')}"
+        
+        result = await sora2_generate_video(
+            api_key=EMERGENT_LLM_KEY,
+            prompt=prompt,
+            duration=8,
+            aspect_ratio="16:9",
+            video_path=video_path
+        )
+        
+        # Save remixed video to temp location
+        filename = f"genstudio_{job_id}_remixed.mp4"
+        filepath = f"/tmp/{filename}"
+        
+        if result.get("video_path"):
+            import shutil
+            shutil.copy(result["video_path"], filepath)
+        elif result.get("video_data"):
+            with open(filepath, "wb") as f:
+                f.write(result["video_data"])
+        
+        output_url = f"/api/genstudio/download/{job_id}/{filename}"
+        output_urls = [output_url]
+        
+        await db.genstudio_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "completed",
+                "outputUrls": output_urls,
+                "completedAt": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        logger.info(f"Video remix completed: {job_id}")
+        
+    except Exception as e:
+        logger.error(f"Video remix failed for job {job_id}: {e}")
+        await db.genstudio_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
+
+@genstudio_router.post("/video-remix")
+@limiter.limit("5/minute")
+async def generate_video_remix(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    video: UploadFile = File(...),
+    remix_prompt: str = Form(...),
+    template_style: str = Form(default="dynamic"),
+    add_watermark: bool = Form(default=True),
+    consent_confirmed: bool = Form(default=False),
+    user: dict = Depends(get_current_user)
+):
+    """Remix an uploaded video with new styles - costs 12 credits (async)"""
+    if not consent_confirmed:
+        raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
+    
+    # Validate file type
+    allowed_types = ["video/mp4", "video/webm", "video/quicktime"]
+    if video.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only MP4, WebM, and MOV videos are allowed")
+    
+    # Validate file size (max 50MB)
+    contents = await video.read()
+    if len(contents) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Video size must be under 50MB")
+    
+    # Validate remix prompt
+    if len(remix_prompt) < 3 or len(remix_prompt) > 1000:
+        raise HTTPException(status_code=400, detail="Remix instructions must be 3-1000 characters")
+    
+    # ML Content moderation
+    moderation_result = threat_intel.moderate_content(remix_prompt, user.get("id"))
+    if not moderation_result["allowed"]:
+        violations = moderation_result.get("violations", [])
+        violation_msg = violations[0].get("message") if violations else "Content policy violation"
+        raise HTTPException(status_code=400, detail=f"Content blocked: {violation_msg}")
+    
+    cost = GENSTUDIO_COSTS["video_remix"]
+    
+    if user.get("credits", 0) < cost:
+        if not user.get("subscription"):
+            raise HTTPException(status_code=402, detail="You've used all your free credits! Please subscribe to continue.")
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    
+    job_id = str(uuid.uuid4())
+    
+    # Save uploaded video
+    ext = video.filename.split('.')[-1] if '.' in video.filename else 'mp4'
+    video_filename = f"genstudio_{job_id}_input.{ext}"
+    video_path = f"/tmp/{video_filename}"
+    with open(video_path, "wb") as f:
+        f.write(contents)
+    
+    await db.genstudio_jobs.insert_one({
+        "id": job_id,
+        "userId": user["id"],
+        "type": "video_remix",
+        "status": "processing",
+        "inputJson": {
+            "remix_prompt": remix_prompt,
+            "template_style": template_style,
+            "add_watermark": add_watermark,
+            "video_filename": video_filename
+        },
+        "costCredits": cost,
+        "outputUrls": [],
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
+    })
+    
+    # Deduct credits upfront
+    new_balance = await deduct_credits(user["id"], cost, f"GenStudio: Video Remix ({template_style})")
+    
+    # Start background generation
+    background_tasks.add_task(process_video_remix, job_id, video_path, {
+        "remix_prompt": remix_prompt,
+        "template_style": template_style,
+        "add_watermark": add_watermark
+    }, user["id"])
+    
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "processing",
+        "creditsUsed": cost,
+        "remainingCredits": new_balance,
+        "pollUrl": f"/api/genstudio/job/{job_id}",
+        "expiresIn": f"{FILE_EXPIRY_MINUTES} minutes",
+        "message": f"Video remix started! Poll the job status. Download within {FILE_EXPIRY_MINUTES} minutes."
+    }
+
+
+# =============================================================================
 # JOB STATUS & DOWNLOAD
 # =============================================================================
 @genstudio_router.get("/job/{job_id}")
