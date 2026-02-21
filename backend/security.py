@@ -83,12 +83,21 @@ def create_rate_limit_dependency(max_requests: int, window_seconds: int):
     Usage: @router.post("/endpoint", dependencies=[Depends(create_rate_limit_dependency(10, 60))])
     """
     async def rate_limit_check(request: Request):
-        # Get client IP
-        client_ip = get_remote_address(request)
+        # Get client IP - check X-Forwarded-For header for proxy/k8s environments
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            client_ip = forwarded_for.split(",")[0].strip()
+        else:
+            client_ip = get_remote_address(request)
+        
         endpoint = request.url.path
         key = f"{client_ip}:{endpoint}"
         
+        logger.info(f"Rate limit check: {client_ip} on {endpoint} (key: {key})")
+        
         is_allowed, retry_after = rate_limiter.is_allowed(key, max_requests, window_seconds)
+        
+        logger.info(f"Rate limit result: allowed={is_allowed}, retry_after={retry_after}, requests_count={len(rate_limiter.requests.get(key, []))}")
         
         if not is_allowed:
             logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint}")
