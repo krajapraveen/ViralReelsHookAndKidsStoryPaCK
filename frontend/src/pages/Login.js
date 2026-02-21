@@ -131,7 +131,7 @@ export default function Login({ setAuth }) {
     placeholder:text-slate-400
     focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none
     transition-all duration-200
-    text-base leading-none
+    text-base
   `.replace(/\s+/g, ' ').trim();
 
   return (
@@ -153,10 +153,10 @@ export default function Login({ setAuth }) {
               <Label htmlFor="email" className="text-slate-300 text-sm font-medium block">
                 Email
               </Label>
-              <div className="relative flex items-center">
-                <div className="absolute left-0 w-12 h-12 flex items-center justify-center pointer-events-none">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
                   <Mail className="w-5 h-5 text-slate-400" aria-hidden="true" />
-                </div>
+                </span>
                 <input
                   id="email"
                   type="email"
@@ -166,7 +166,8 @@ export default function Login({ setAuth }) {
                   aria-label="Email address"
                   aria-describedby={errors.email ? "email-error" : undefined}
                   aria-invalid={!!errors.email}
-                  className={`${inputBaseStyles} pl-12 pr-4 ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : ''}`}
+                  style={{ paddingLeft: '48px', paddingRight: '16px' }}
+                  className={`${inputBaseStyles} ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : ''}`}
                   placeholder="you@example.com"
                   data-testid="login-email-input"
                   autoComplete="email"
