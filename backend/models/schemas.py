@@ -42,12 +42,12 @@ class UserResponse(BaseModel):
 
 # ==================== GENERATION MODELS ====================
 class GenerateReelRequest(BaseModel):
-    topic: str
-    niche: str = "General"
-    language: str = "English"
-    tone: str = "Bold"
-    duration: str = "30s"
-    goal: str = "Followers"
+    topic: str = Field(..., min_length=3, max_length=2000, description="Topic for reel generation")
+    niche: str = Field(default="General", max_length=100)
+    language: str = Field(default="English", max_length=50)
+    tone: str = Field(default="Bold", max_length=50)
+    duration: str = Field(default="30s", max_length=20)
+    goal: str = Field(default="Followers", max_length=50)
 
 
 class GenerateStoryRequest(BaseModel):
