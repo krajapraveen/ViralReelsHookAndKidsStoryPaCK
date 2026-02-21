@@ -155,8 +155,7 @@ async def generate_story_content_inline(data: dict, generate_images: bool = True
     return result
 
 
-@router.post("/reel")
-@limiter.limit("10/minute")
+@router.post("/reel", dependencies=[Depends(rate_limit_generation)])
 async def generate_reel(request: Request, data: GenerateReelRequest, user: dict = Depends(get_current_user)):
     """Generate a viral reel script - costs 10 credits"""
     try:
