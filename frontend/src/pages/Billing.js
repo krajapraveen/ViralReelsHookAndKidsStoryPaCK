@@ -34,7 +34,8 @@ export default function Billing() {
       }));
       
       setProducts(productsArray);
-      setCredits(creditsRes?.data?.balance || 0);
+      // Fix: The API returns 'credits' not 'balance'
+      setCredits(creditsRes?.data?.credits || creditsRes?.data?.balance || 0);
     } catch (error) {
       console.error('Billing fetch error:', error);
       toast.error('Failed to load billing data');
