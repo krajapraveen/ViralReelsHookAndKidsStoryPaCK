@@ -92,7 +92,7 @@ export default function Billing() {
   const loadCashfreeCheckout = () => {
     return new Promise((resolve) => {
       if (window.Cashfree) {
-        resolve(window.Cashfree({ mode: "sandbox" }));
+        resolve(window.Cashfree({ mode: "production" }));
         return;
       }
       
