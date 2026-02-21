@@ -42,8 +42,11 @@ export default function CreatorTools() {
 
   // Trending state
   const [trendingTopics, setTrendingTopics] = useState([]);
+  const [trendingNiche, setTrendingNiche] = useState('general');
+  const [trendingLoading, setTrendingLoading] = useState(false);
 
   const niches = ['luxury', 'relationship', 'health', 'motivation', 'parenting', 'business', 'travel', 'food'];
+  const trendingNiches = ['general', 'fitness', 'business', 'travel', 'food', 'tech'];
 
   useEffect(() => {
     fetchCredits();
