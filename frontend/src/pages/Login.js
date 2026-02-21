@@ -355,51 +355,80 @@ export default function Login({ setAuth }) {
         </div>
       </div>
       
-      {/* Forgot Password Modal */}
-      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
-        <DialogContent className="bg-slate-900 border-slate-800">
+      {/* Forgot Password Modal - Enhanced */}
+      <Dialog open={showForgotPassword} onOpenChange={handleModalClose}>
+        <DialogContent 
+          className="bg-slate-900 border-slate-700 sm:max-w-md"
+          aria-describedby="reset-password-description"
+        >
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Lock className="w-5 h-5 text-indigo-400" />
+            <DialogTitle className="text-white flex items-center gap-2 text-lg">
+              <Lock className="w-5 h-5 text-indigo-400" aria-hidden="true" />
               Reset Password
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription id="reset-password-description" className="text-slate-400 text-sm">
               {resetSent 
-                ? "We've sent a password reset link to your email. Please check your inbox."
+                ? "If an account exists for that email, we sent a reset link."
                 : "Enter your email address and we'll send you a link to reset your password."
               }
             </DialogDescription>
           </DialogHeader>
           
           {!resetSent ? (
-            <form onSubmit={handleForgotPassword} className="space-y-4 py-4">
+            <form onSubmit={handleForgotPassword} className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="forgot-email" className="text-slate-300 block">Email Address</Label>
-                <input
-                  id="forgot-email"
-                  type="email"
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className={`${inputBaseStyles} px-4`}
-                  required
-                  data-testid="forgot-email-input"
-                />
+                <Label 
+                  htmlFor="forgot-email" 
+                  className="text-slate-300 text-sm font-medium block"
+                >
+                  Email Address
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+                    <Mail className="w-5 h-5 text-slate-400" aria-hidden="true" />
+                  </span>
+                  <input
+                    ref={forgotEmailInputRef}
+                    id="forgot-email"
+                    type="email"
+                    value={forgotEmail}
+                    onChange={handleForgotEmailChange}
+                    onBlur={() => {
+                      if (forgotEmail.trim()) {
+                        setForgotEmailError(validateForgotEmail(forgotEmail));
+                      }
+                    }}
+                    placeholder="you@example.com"
+                    style={{ paddingLeft: '48px', paddingRight: '16px' }}
+                    className={`${inputBaseStyles} ${forgotEmailError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : ''}`}
+                    aria-label="Email address for password reset"
+                    aria-describedby={forgotEmailError ? "forgot-email-error" : undefined}
+                    aria-invalid={!!forgotEmailError}
+                    maxLength={254}
+                    data-testid="forgot-email-input"
+                    autoComplete="email"
+                  />
+                </div>
+                {forgotEmailError && (
+                  <p id="forgot-email-error" className="text-red-400 text-sm" role="alert">
+                    {forgotEmailError}
+                  </p>
+                )}
               </div>
-              <DialogFooter className="gap-2 pt-2">
+              <DialogFooter className="gap-2 pt-4 flex-col-reverse sm:flex-row">
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => setShowForgotPassword(false)} 
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                  onClick={() => handleModalClose(false)} 
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800 w-full sm:w-auto"
                   data-testid="forgot-password-cancel"
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={sendingReset} 
-                  className="bg-indigo-500 hover:bg-indigo-600"
+                  disabled={sendingReset || !isForgotEmailValid} 
+                  className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                   data-testid="forgot-password-submit"
                 >
                   {sendingReset ? (
@@ -416,11 +445,17 @@ export default function Login({ setAuth }) {
           ) : (
             <div className="py-6 text-center">
               <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-8 h-8 text-green-400" />
+                <CheckCircle2 className="w-8 h-8 text-green-400" />
               </div>
-              <p className="text-slate-300 mb-4">Check your email for the reset link</p>
+              <h3 className="text-white font-medium text-lg mb-2">Check Your Email</h3>
+              <p className="text-slate-400 text-sm mb-6">
+                If an account exists for <span className="text-slate-300">{forgotEmail}</span>, you'll receive a password reset link shortly.
+              </p>
+              <p className="text-slate-500 text-xs mb-4">
+                Didn't receive the email? Check your spam folder or try again.
+              </p>
               <Button 
-                onClick={() => setShowForgotPassword(false)} 
+                onClick={() => handleModalClose(false)} 
                 className="bg-indigo-500 hover:bg-indigo-600"
                 data-testid="back-to-login-btn"
               >
