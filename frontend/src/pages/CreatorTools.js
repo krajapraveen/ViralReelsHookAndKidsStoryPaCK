@@ -50,7 +50,7 @@ export default function CreatorTools() {
 
   useEffect(() => {
     fetchCredits();
-    fetchTrending();
+    fetchTrending(trendingNiche);
   }, []);
 
   const fetchCredits = async () => {
