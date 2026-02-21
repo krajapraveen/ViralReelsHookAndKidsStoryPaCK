@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { authAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 
 export default function Login({ setAuth }) {
@@ -14,15 +14,42 @@ export default function Login({ setAuth }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotEmailError, setForgotEmailError] = useState('');
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '' });
+  const forgotEmailInputRef = useRef(null);
+  const forgotPasswordLinkRef = useRef(null);
   const navigate = useNavigate();
+
+  // Focus email input when modal opens
+  useEffect(() => {
+    if (showForgotPassword && forgotEmailInputRef.current && !resetSent) {
+      setTimeout(() => {
+        forgotEmailInputRef.current?.focus();
+      }, 100);
+    }
+  }, [showForgotPassword, resetSent]);
 
   // Email validation regex
   const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+  };
+
+  // Validate forgot email field
+  const validateForgotEmail = (value) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return 'Email is required';
+    }
+    if (trimmed.length > 254) {
+      return 'Email is too long';
+    }
+    if (!isValidEmail(trimmed)) {
+      return 'Enter a valid email address';
+    }
+    return '';
   };
 
   // Validate email field
