@@ -23,7 +23,18 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # RATE LIMITING
 # =============================================================================
-limiter = Limiter(key_func=get_remote_address)
+# Use in-memory storage for rate limiting
+from limits.storage import MemoryStorage
+
+# Create memory storage instance
+memory_storage = MemoryStorage()
+
+# Initialize limiter with explicit storage
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri="memory://",
+    default_limits=["200 per day", "100 per hour"]
+)
 
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Handle rate limit exceeded errors"""
