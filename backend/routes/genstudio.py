@@ -547,29 +547,30 @@ async def process_video_remix(job_id: str, video_path: str, data: dict, user_id:
     try:
         logger.info(f"Starting video remix for job {job_id}")
         
-        # Use Sora 2 for video remix
-        from emergentintegrations.llm.sora2 import sora2_generate_video
+        # Use OpenAI Video Generation for video remix
+        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
         
         prompt = f"Remix this video with: {data['remix_prompt']}. Style: {data.get('template_style', 'dynamic')}"
         
-        result = await sora2_generate_video(
-            api_key=EMERGENT_LLM_KEY,
+        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+        
+        # Generate remixed video (Sora 2)
+        video_bytes = video_gen.text_to_video(
             prompt=prompt,
+            model="sora-2",
+            size="1280x720",
             duration=8,
-            aspect_ratio="16:9",
-            video_path=video_path
+            max_wait_time=600
         )
+        
+        if not video_bytes:
+            raise Exception("Video remix failed - no video returned")
         
         # Save remixed video to temp location
         filename = f"genstudio_{job_id}_remixed.mp4"
         filepath = f"/tmp/{filename}"
         
-        if result.get("video_path"):
-            import shutil
-            shutil.copy(result["video_path"], filepath)
-        elif result.get("video_data"):
-            with open(filepath, "wb") as f:
-                f.write(result["video_data"])
+        video_gen.save_video(video_bytes, filepath)
         
         output_url = f"/api/genstudio/download/{job_id}/{filename}"
         output_urls = [output_url]
