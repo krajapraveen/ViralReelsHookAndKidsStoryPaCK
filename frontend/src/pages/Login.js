@@ -243,9 +243,11 @@ export default function Login({ setAuth }) {
                   Password
                 </Label>
                 <button
+                  ref={forgotPasswordLinkRef}
                   type="button"
                   onClick={() => {
                     setForgotEmail(email);
+                    setForgotEmailError('');
                     setShowForgotPassword(true);
                     setResetSent(false);
                   }}
