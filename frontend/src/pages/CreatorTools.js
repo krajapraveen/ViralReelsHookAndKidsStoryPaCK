@@ -594,37 +594,95 @@ export default function CreatorTools() {
 
           {/* Trending Tab */}
           <TabsContent value="trending">
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                <TrendingUp className="w-6 h-6 text-pink-500" />
-                Weekly Trending Topics
-              </h2>
-              <p className="text-slate-500 mb-6">Stay updated with what's trending this week</p>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6 text-pink-400" />
+                    Weekly Trending Topics
+                  </h2>
+                  <p className="text-slate-400">Stay updated with what's trending this week</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Select value={trendingNiche} onValueChange={(v) => { setTrendingNiche(v); fetchTrending(v); }}>
+                    <SelectTrigger className="w-40 bg-slate-800 border-slate-700 text-white" data-testid="trending-niche-select">
+                      <SelectValue placeholder="Select niche" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      {trendingNiches.map(n => (
+                        <SelectItem key={n} value={n} className="text-white hover:bg-slate-700">{n.charAt(0).toUpperCase() + n.slice(1)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fetchTrending(trendingNiche)}
+                    disabled={trendingLoading}
+                    className="border-pink-500/30 text-pink-400 hover:bg-pink-500/20"
+                    data-testid="refresh-trending-btn"
+                  >
+                    {trendingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
               
-              {trendingTopics.length === 0 ? (
-                <div className="text-center py-12 text-slate-500">
-                  <TrendingUp className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-                  <p>No trending topics available yet</p>
-                  <p className="text-sm mt-2">Check back soon for weekly updates!</p>
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-4 py-2 mb-6 inline-flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span className="text-emerald-400 font-medium">FREE - No credits required</span>
+              </div>
+              
+              {trendingLoading ? (
+                <div className="text-center py-12">
+                  <Loader2 className="w-12 h-12 mx-auto mb-4 text-pink-400 animate-spin" />
+                  <p className="text-slate-400">Loading trending topics...</p>
+                </div>
+              ) : trendingTopics.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <TrendingUp className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                  <p>No trending topics available</p>
+                  <p className="text-sm mt-2">Try selecting a different niche!</p>
                 </div>
               ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="trending-result">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" data-testid="trending-result">
                   {trendingTopics.map((topic) => (
-                    <div key={topic.id} className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-lg p-4 border border-pink-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded capitalize">{topic.niche}</span>
+                    <div key={topic.id} className="bg-gradient-to-br from-pink-500/10 to-purple-500/10 rounded-lg p-4 border border-pink-500/20 hover:border-pink-500/40 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs bg-pink-500/20 text-pink-300 px-2 py-1 rounded capitalize border border-pink-500/30">{topic.niche}</span>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          topic.engagement === 'Very High' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                          topic.engagement === 'High' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                          'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                        }`}>{topic.engagement}</span>
                       </div>
-                      <h3 className="font-bold mb-2">{topic.title}</h3>
-                      <p className="text-sm text-slate-600 mb-3">{topic.description}</p>
-                      <div className="bg-white rounded p-2 text-sm">
-                        <span className="font-medium text-purple-600">Hook: </span>
-                        {topic.hook_preview}
+                      <h3 className="font-bold text-white mb-2">{topic.title}</h3>
+                      <div className="bg-slate-800/50 rounded p-2 text-sm border border-slate-700">
+                        <span className="font-medium text-purple-400">Hook: </span>
+                        <span className="text-slate-300">{topic.hook_preview}</span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-2">💡 {topic.suggested_angle}</p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => copyToClipboard(`${topic.title}\n\n${topic.hook_preview}`, `trending-${topic.id}`)}
+                        className="w-full mt-3 text-slate-400 hover:text-white hover:bg-slate-700/50"
+                      >
+                        {copied === `trending-${topic.id}` ? <Check className="w-3 h-3 mr-2" /> : <Copy className="w-3 h-3 mr-2" />}
+                        Copy Topic & Hook
+                      </Button>
                     </div>
                   ))}
                 </div>
               )}
+              
+              <div className="mt-6 bg-slate-700/30 rounded-lg p-4 border border-slate-600">
+                <h4 className="text-sm font-medium text-slate-300 mb-2">💡 Pro Tips</h4>
+                <ul className="text-sm text-slate-400 space-y-1">
+                  <li>• Jump on trending topics within 24-48 hours for maximum reach</li>
+                  <li>• Add your unique perspective to stand out from the crowd</li>
+                  <li>• Use the hook as your opening line in videos</li>
+                  <li>• High engagement topics = more algorithm boost</li>
+                </ul>
+              </div>
             </div>
           </TabsContent>
 
