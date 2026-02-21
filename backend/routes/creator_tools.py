@@ -234,3 +234,95 @@ async def generate_carousel(
             "End with a clear call-to-action"
         ]
     }
+
+
+# =============================================================================
+# TRENDING TOPICS
+# =============================================================================
+@router.get("/trending")
+async def get_trending_topics(
+    niche: str = "general",
+    limit: int = 8,
+    user: dict = Depends(get_current_user)
+):
+    """Get weekly trending topics for content creation - FREE"""
+    
+    # Trending topics data by niche
+    TRENDING_DATA = {
+        "fitness": [
+            {"topic": "Morning Workout Routines", "hook": "5 AM club secrets that actually work", "engagement": "High"},
+            {"topic": "Protein Myths Debunked", "hook": "Stop believing these protein lies", "engagement": "Very High"},
+            {"topic": "Home Gym Essentials", "hook": "Build a killer gym for under $500", "engagement": "High"},
+            {"topic": "Recovery Days", "hook": "Why rest days make you stronger", "engagement": "Medium"},
+            {"topic": "Meal Prep Hacks", "hook": "Prep a week of meals in 2 hours", "engagement": "Very High"},
+            {"topic": "Cardio vs Weights", "hook": "The truth nobody tells you", "engagement": "High"},
+            {"topic": "Sleep & Gains", "hook": "How sleep affects your muscles", "engagement": "Medium"},
+            {"topic": "Beginner Mistakes", "hook": "Avoid these gym newbie errors", "engagement": "Very High"}
+        ],
+        "business": [
+            {"topic": "AI Tools for Entrepreneurs", "hook": "10 AI tools that 10x productivity", "engagement": "Very High"},
+            {"topic": "Side Hustle Ideas 2026", "hook": "Start earning $5K/month from home", "engagement": "Very High"},
+            {"topic": "Personal Branding", "hook": "Build a brand that attracts clients", "engagement": "High"},
+            {"topic": "Remote Team Management", "hook": "Lead teams across timezones", "engagement": "Medium"},
+            {"topic": "Pricing Strategies", "hook": "Stop undercharging for your work", "engagement": "High"},
+            {"topic": "Email Marketing Secrets", "hook": "Get 50% open rates consistently", "engagement": "High"},
+            {"topic": "Content Repurposing", "hook": "1 piece of content → 10 posts", "engagement": "Very High"},
+            {"topic": "Networking Tips", "hook": "Connect with anyone on LinkedIn", "engagement": "Medium"}
+        ],
+        "travel": [
+            {"topic": "Budget Travel Hacks", "hook": "Travel Europe for $50/day", "engagement": "Very High"},
+            {"topic": "Hidden Gems 2026", "hook": "Places tourists haven't discovered", "engagement": "High"},
+            {"topic": "Solo Travel Safety", "hook": "Stay safe while exploring alone", "engagement": "High"},
+            {"topic": "Travel Photography", "hook": "Phone photos that look professional", "engagement": "Medium"},
+            {"topic": "Packing Light", "hook": "2 weeks in a carry-on bag", "engagement": "High"},
+            {"topic": "Flight Deals", "hook": "Find $200 international flights", "engagement": "Very High"},
+            {"topic": "Digital Nomad Life", "hook": "Work from anywhere guide", "engagement": "High"},
+            {"topic": "Local Experiences", "hook": "Skip tourist traps, live like locals", "engagement": "Medium"}
+        ],
+        "food": [
+            {"topic": "5-Minute Meals", "hook": "Healthy dinners faster than delivery", "engagement": "Very High"},
+            {"topic": "Meal Prep Sunday", "hook": "Prep your entire week in 2 hours", "engagement": "High"},
+            {"topic": "Air Fryer Recipes", "hook": "Crispy everything without the oil", "engagement": "Very High"},
+            {"topic": "Budget Cooking", "hook": "Feed a family for $50/week", "engagement": "High"},
+            {"topic": "Viral TikTok Recipes", "hook": "Recipes that actually work", "engagement": "High"},
+            {"topic": "Healthy Snacks", "hook": "Guilt-free snacks you'll love", "engagement": "Medium"},
+            {"topic": "One-Pot Wonders", "hook": "Less dishes, more flavor", "engagement": "High"},
+            {"topic": "Food Photography", "hook": "Make your food look Instagram-worthy", "engagement": "Medium"}
+        ],
+        "tech": [
+            {"topic": "AI Tools Revolution", "hook": "Tools that are replacing jobs", "engagement": "Very High"},
+            {"topic": "Coding in 2026", "hook": "Languages worth learning now", "engagement": "High"},
+            {"topic": "Cybersecurity Basics", "hook": "Protect yourself online", "engagement": "High"},
+            {"topic": "No-Code Apps", "hook": "Build apps without coding", "engagement": "Very High"},
+            {"topic": "Tech Career Tips", "hook": "Land your dream tech job", "engagement": "High"},
+            {"topic": "Productivity Apps", "hook": "Apps that save 10 hours/week", "engagement": "High"},
+            {"topic": "Web3 Explained", "hook": "Blockchain made simple", "engagement": "Medium"},
+            {"topic": "Automation Hacks", "hook": "Automate your boring tasks", "engagement": "Very High"}
+        ],
+        "general": [
+            {"topic": "Productivity Hacks", "hook": "Do more in less time", "engagement": "Very High"},
+            {"topic": "Morning Routines", "hook": "How successful people start their day", "engagement": "High"},
+            {"topic": "Money Saving Tips", "hook": "Save $500/month with these tricks", "engagement": "Very High"},
+            {"topic": "Self Improvement", "hook": "Small changes, big results", "engagement": "High"},
+            {"topic": "Mental Health", "hook": "Daily habits for better mental health", "engagement": "High"},
+            {"topic": "Life Hacks", "hook": "Simple tricks that change everything", "engagement": "Very High"},
+            {"topic": "Goal Setting", "hook": "Actually achieve your goals this year", "engagement": "Medium"},
+            {"topic": "Time Management", "hook": "Master your calendar", "engagement": "High"}
+        ]
+    }
+    
+    # Get topics for the requested niche (default to general if not found)
+    topics = TRENDING_DATA.get(niche.lower(), TRENDING_DATA["general"])[:limit]
+    
+    return {
+        "success": True,
+        "niche": niche,
+        "weekOf": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "topics": topics,
+        "tips": [
+            "Jump on trending topics within 24-48 hours for maximum reach",
+            "Add your unique perspective to stand out",
+            "Use the hook as your opening line",
+            "High engagement topics = more algorithm boost"
+        ]
+    }
