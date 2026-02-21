@@ -2,7 +2,7 @@
 Generation Routes - Reel and Story Generation with ML Threat Detection
 CreatorStudio AI Content Generation
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from datetime import datetime, timezone
 from typing import Optional
 import uuid
@@ -11,6 +11,7 @@ import httpx
 import traceback
 import os
 import sys
+import html
 
 # Ensure backend directory is in path for absolute imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,7 +24,7 @@ from shared import (
 )
 from models.schemas import GenerateReelRequest, GenerateStoryRequest
 from ml_threat_detection import threat_intel
-from security import log_security_event
+from security import log_security_event, limiter
 
 router = APIRouter(prefix="/generate", tags=["Generation"])
 
