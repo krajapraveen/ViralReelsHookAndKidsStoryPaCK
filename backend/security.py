@@ -23,18 +23,92 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # RATE LIMITING
 # =============================================================================
-# Use in-memory storage for rate limiting
-from limits.storage import MemoryStorage
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from collections import defaultdict
+import time
 
-# Create memory storage instance
-memory_storage = MemoryStorage()
-
-# Initialize limiter with explicit storage
+# Initialize slowapi limiter for backwards compatibility
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri="memory://",
     default_limits=["200 per day", "100 per hour"]
 )
+
+# Custom in-memory rate limiter that actually works
+class InMemoryRateLimiter:
+    """A simple, working rate limiter using in-memory storage"""
+    def __init__(self):
+        self.requests = defaultdict(list)  # key -> list of timestamps
+    
+    def is_allowed(self, key: str, max_requests: int, window_seconds: int) -> tuple[bool, int]:
+        """
+        Check if a request is allowed under the rate limit.
+        Returns (is_allowed, retry_after_seconds)
+        """
+        now = time.time()
+        window_start = now - window_seconds
+        
+        # Clean old requests
+        self.requests[key] = [ts for ts in self.requests[key] if ts > window_start]
+        
+        # Check if under limit
+        if len(self.requests[key]) < max_requests:
+            self.requests[key].append(now)
+            return True, 0
+        else:
+            # Calculate retry after
+            oldest = min(self.requests[key]) if self.requests[key] else now
+            retry_after = int(window_seconds - (now - oldest)) + 1
+            return False, max(1, retry_after)
+    
+    def cleanup(self, max_age_seconds: int = 3600):
+        """Remove old entries to prevent memory leak"""
+        now = time.time()
+        cutoff = now - max_age_seconds
+        keys_to_delete = []
+        for key, timestamps in self.requests.items():
+            self.requests[key] = [ts for ts in timestamps if ts > cutoff]
+            if not self.requests[key]:
+                keys_to_delete.append(key)
+        for key in keys_to_delete:
+            del self.requests[key]
+
+# Global rate limiter instance
+rate_limiter = InMemoryRateLimiter()
+
+def create_rate_limit_dependency(max_requests: int, window_seconds: int):
+    """
+    Factory function to create rate limit dependencies for specific endpoints.
+    Usage: @router.post("/endpoint", dependencies=[Depends(create_rate_limit_dependency(10, 60))])
+    """
+    async def rate_limit_check(request: Request):
+        # Get client IP
+        client_ip = get_remote_address(request)
+        endpoint = request.url.path
+        key = f"{client_ip}:{endpoint}"
+        
+        is_allowed, retry_after = rate_limiter.is_allowed(key, max_requests, window_seconds)
+        
+        if not is_allowed:
+            logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint}")
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Too many requests",
+                    "detail": f"Rate limit exceeded. Try again in {retry_after} seconds.",
+                    "retry_after": retry_after
+                },
+                headers={"Retry-After": str(retry_after)}
+            )
+        return True
+    
+    return rate_limit_check
+
+# Pre-configured rate limiters for common use cases
+rate_limit_generation = create_rate_limit_dependency(10, 60)  # 10 per minute
+rate_limit_auth = create_rate_limit_dependency(5, 60)         # 5 per minute
+rate_limit_export = create_rate_limit_dependency(20, 60)      # 20 per minute
 
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Handle rate limit exceeded errors"""
