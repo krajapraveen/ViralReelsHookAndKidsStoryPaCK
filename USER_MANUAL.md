@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://login-qa-audit.preview.emergentagent.com
+**Platform URL:** https://qa-audit-dash.preview.emergentagent.com
 
 ---
 

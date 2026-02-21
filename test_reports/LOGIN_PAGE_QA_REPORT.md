@@ -2,7 +2,7 @@
 
 **Date:** February 21, 2026  
 **Auditor:** Senior QA Lead + Frontend Engineer  
-**Target URL:** https://login-qa-audit.preview.emergentagent.com/login  
+**Target URL:** https://qa-audit-dash.preview.emergentagent.com/login  
 **Production URL:** https://visionary-suite.com/login  
 
 ---
