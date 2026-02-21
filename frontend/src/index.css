@@ -522,3 +522,31 @@ tr:hover td {
 .glass-dark {
   @apply bg-black/40 backdrop-blur-xl border border-white/10;
 }
+
+/* Login/Auth Form Input Styling - Dark Theme */
+.auth-input,
+.auth-form input[type="text"],
+.auth-form input[type="email"],
+.auth-form input[type="password"] {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(71, 85, 105, 0.5) !important;
+}
+
+.auth-input::placeholder,
+.auth-form input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Dark form autofill fix - for login/signup forms */
+.auth-form input:-webkit-autofill,
+.auth-form input:-webkit-autofill:hover,
+.auth-form input:-webkit-autofill:focus,
+.auth-form input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0px 1000px rgba(30, 41, 59, 0.9) inset !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+  background-color: rgba(30, 41, 59, 0.9) !important;
+  caret-color: #f1f5f9 !important;
+  border-color: rgba(71, 85, 105, 0.5) !important;
+  transition: background-color 9999s ease-in-out 0s !important;
+}
