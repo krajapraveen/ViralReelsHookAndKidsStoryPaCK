@@ -62,12 +62,29 @@ export default function CreatorTools() {
     }
   };
 
-  const fetchTrending = async () => {
-    // Trending topics are generated locally for now
-    setTrendingTopics([
-      "AI automation", "Sustainable living", "Side hustles", "Mental health",
-      "Productivity hacks", "Home workouts", "Budget travel", "Plant-based recipes"
-    ]);
+  const fetchTrending = async (niche = 'general') => {
+    setTrendingLoading(true);
+    try {
+      const response = await api.get(`/api/creator-tools/trending?niche=${niche}&limit=8`);
+      if (response.data.success && response.data.topics) {
+        // Map backend response to frontend expected format
+        const mappedTopics = response.data.topics.map((t, index) => ({
+          id: index + 1,
+          title: t.topic,
+          description: `Explore trending content about ${t.topic.toLowerCase()}`,
+          hook_preview: t.hook,
+          niche: response.data.niche,
+          suggested_angle: `Engagement level: ${t.engagement}`,
+          engagement: t.engagement
+        }));
+        setTrendingTopics(mappedTopics);
+      }
+    } catch (error) {
+      console.error('Failed to fetch trending topics:', error);
+      toast.error('Failed to load trending topics');
+    } finally {
+      setTrendingLoading(false);
+    }
   };
 
   const copyToClipboard = (text, id) => {
