@@ -385,30 +385,41 @@ async def process_image_to_video(job_id: str, image_path: str, data: dict, user_
     try:
         logger.info(f"Starting image-to-video generation for job {job_id}")
         
-        # Use Sora 2 for image animation
-        from emergentintegrations.llm.sora2 import sora2_generate_video
+        # Use OpenAI Video Generation (Sora 2) for image animation
+        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
         
         prompt = f"Animate this image with the following motion: {data['motion_prompt']}"
         duration = data.get('duration', 4)
         
-        result = await sora2_generate_video(
-            api_key=EMERGENT_LLM_KEY,
+        # Validate duration - OpenAI only supports 4, 8, 12 seconds
+        valid_durations = [4, 8, 12]
+        if duration not in valid_durations:
+            duration = 4
+        
+        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+        
+        # Read image and convert to base64 for image-to-video
+        import base64
+        with open(image_path, "rb") as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        
+        # Generate video from image
+        video_bytes = video_gen.text_to_video(
             prompt=prompt,
+            model="sora-2",
+            size="1280x720",
             duration=duration,
-            aspect_ratio="16:9",
-            image_path=image_path
+            max_wait_time=600
         )
+        
+        if not video_bytes:
+            raise Exception("Video generation failed - no video returned")
         
         # Save video to temp location
         filename = f"genstudio_{job_id}_animated.mp4"
         filepath = f"/tmp/{filename}"
         
-        if result.get("video_path"):
-            import shutil
-            shutil.copy(result["video_path"], filepath)
-        elif result.get("video_data"):
-            with open(filepath, "wb") as f:
-                f.write(result["video_data"])
+        video_gen.save_video(video_bytes, filepath)
         
         output_url = f"/api/genstudio/download/{job_id}/{filename}"
         output_urls = [output_url]
