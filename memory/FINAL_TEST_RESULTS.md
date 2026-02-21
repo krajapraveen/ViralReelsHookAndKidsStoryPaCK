@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://studio-qa-check.preview.emergentagent.com
+**Website:** https://login-qa-audit.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

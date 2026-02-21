@@ -20,7 +20,7 @@ from datetime import datetime
 # Production URL from env
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://studio-qa-check.preview.emergentagent.com"
+    BASE_URL = "https://login-qa-audit.preview.emergentagent.com"
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}
