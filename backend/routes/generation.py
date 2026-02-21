@@ -156,12 +156,19 @@ async def generate_story_content_inline(data: dict, generate_images: bool = True
 
 
 @router.post("/reel")
-async def generate_reel(data: GenerateReelRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def generate_reel(request: Request, data: GenerateReelRequest, user: dict = Depends(get_current_user)):
     """Generate a viral reel script - costs 10 credits"""
     try:
+        # Sanitize input to prevent XSS
+        sanitized_topic = html.escape(data.topic.strip())
+        
         # Validate topic is not empty
-        if not data.topic or not data.topic.strip():
+        if not sanitized_topic:
             raise HTTPException(status_code=422, detail="Topic is required and cannot be empty")
+        
+        # Update data with sanitized topic
+        data.topic = sanitized_topic
         
         # ML-based content moderation
         content_to_check = f"{data.topic} {data.niche} {data.tone}"
