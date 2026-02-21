@@ -124,8 +124,13 @@ export default function Login({ setAuth }) {
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     
-    if (!forgotEmail.trim()) {
-      toast.error('Please enter your email');
+    // Prevent double submission
+    if (sendingReset) return;
+    
+    // Validate email
+    const emailError = validateForgotEmail(forgotEmail);
+    if (emailError) {
+      setForgotEmailError(emailError);
       return;
     }
     
@@ -135,21 +140,45 @@ export default function Login({ setAuth }) {
       const response = await authAPI.forgotPassword({ email: forgotEmail.trim().toLowerCase() });
       if (response.data.success) {
         setResetSent(true);
-        toast.success('Password reset email sent!');
+        // Don't show specific toast - show generic success in modal
       }
     } catch (error) {
       // Still show success to prevent email enumeration
       setResetSent(true);
-      toast.success('If an account exists with this email, you will receive a reset link.');
     } finally {
       setSendingReset(false);
     }
+  };
+
+  const handleForgotEmailChange = (e) => {
+    const value = e.target.value;
+    setForgotEmail(value);
+    // Clear error when user starts typing
+    if (forgotEmailError) {
+      setForgotEmailError('');
+    }
+  };
+
+  const handleModalClose = (open) => {
+    if (!open) {
+      // Reset modal state when closing
+      setForgotEmailError('');
+      setResetSent(false);
+      // Return focus to the forgot password link
+      setTimeout(() => {
+        forgotPasswordLinkRef.current?.focus();
+      }, 100);
+    }
+    setShowForgotPassword(open);
   };
 
   const handleGoogleSignIn = () => {
     const redirectUrl = window.location.origin + '/auth/callback';
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
+
+  // Check if email is valid for enabling submit button
+  const isForgotEmailValid = forgotEmail.trim() && isValidEmail(forgotEmail.trim());
 
   // Custom input styles for dark theme with proper alignment
   const inputBaseStyles = `
