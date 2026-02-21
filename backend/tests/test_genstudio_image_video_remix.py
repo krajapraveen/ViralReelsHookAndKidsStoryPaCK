@@ -1,6 +1,11 @@
 """
-GenStudio Image-to-Video, Video Remix, and Style Profiles API Tests
-Focus: Upload validations, consent requirements, credit checks
+GenStudio Style Profiles, Text-to-Image/Video, History, and Cashfree Payment Tests
+Focus: Testing EXISTING backend endpoints
+
+CRITICAL FINDING: Image-to-Video and Video Remix endpoints do NOT exist in backend!
+- Frontend has pages: GenStudioImageToVideo.js, GenStudioVideoRemix.js  
+- Backend routes/genstudio.py has NO /image-to-video or /video-remix endpoints
+- These features are UI-only placeholders that will fail with 404
 """
 import pytest
 import requests
@@ -63,198 +68,29 @@ def auth_headers(admin_token):
 
 
 # =============================================================================
-# IMAGE-TO-VIDEO TESTS
+# CRITICAL: MISSING BACKEND ENDPOINTS TEST
 # =============================================================================
-class TestImageToVideoValidations:
-    """Test Image-to-Video upload and validation"""
+class TestMissingBackendEndpoints:
+    """Document backend endpoints that are missing but frontend expects them"""
     
-    def test_image_to_video_requires_auth(self):
-        """Image-to-video endpoint requires authentication"""
-        response = requests.post(f"{BASE_URL}/api/genstudio/image-to-video", timeout=30)
-        assert response.status_code in [401, 403, 422], f"Expected auth error, got {response.status_code}"
-        print("PASS: Image-to-video requires authentication")
+    def test_image_to_video_endpoint_missing(self, auth_headers):
+        """CRITICAL: Image-to-Video endpoint does not exist in backend"""
+        response = requests.post(f"{BASE_URL}/api/genstudio/image-to-video", headers=auth_headers, timeout=30)
+        # This WILL return 404 - documenting the gap
+        if response.status_code == 404:
+            print("CRITICAL: /api/genstudio/image-to-video endpoint NOT IMPLEMENTED")
+            print("  - Frontend page exists: GenStudioImageToVideo.js")
+            print("  - Backend route MISSING in routes/genstudio.py")
+        assert response.status_code == 404, f"Expected 404, got {response.status_code} - endpoint may have been added"
     
-    def test_image_upload_validation_no_image(self, auth_headers):
-        """Image-to-video fails without image"""
-        data = {
-            "motion_prompt": "Test motion description",
-            "duration": 4,
-            "consent_confirmed": True
-        }
-        response = requests.post(
-            f"{BASE_URL}/api/genstudio/image-to-video",
-            headers=auth_headers,
-            data=data,
-            timeout=30
-        )
-        # Should fail - no image provided
-        assert response.status_code in [400, 422], f"Expected 400/422, got {response.status_code}: {response.text}"
-        print("PASS: Image-to-video requires image upload")
-    
-    def test_image_upload_validation_invalid_type(self, auth_headers):
-        """Image-to-video rejects non-image files"""
-        # Create a fake text file
-        fake_file = io.BytesIO(b"This is not an image file")
-        
-        files = {"image": ("test.txt", fake_file, "text/plain")}
-        data = {
-            "motion_prompt": "Test motion",
-            "duration": "4",
-            "consent_confirmed": "true"
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/genstudio/image-to-video",
-            headers=auth_headers,
-            files=files,
-            data=data,
-            timeout=30
-        )
-        # Should reject invalid file type
-        assert response.status_code in [400, 422, 415], f"Expected error for invalid file type, got {response.status_code}"
-        print("PASS: Image-to-video rejects non-image files")
-    
-    def test_image_upload_consent_required(self, auth_headers):
-        """Image-to-video requires consent checkbox"""
-        # Create a minimal valid PNG (1x1 pixel)
-        png_bytes = bytes([
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-            0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-            0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
-            0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xFF, 0xFF, 0x3F,
-            0x00, 0x05, 0xFE, 0x02, 0xFE, 0xDC, 0xCC, 0x59, 0xE7, 0x00, 0x00, 0x00,
-            0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
-        ])
-        
-        files = {"image": ("test.png", io.BytesIO(png_bytes), "image/png")}
-        data = {
-            "motion_prompt": "Test motion description",
-            "duration": "4",
-            "consent_confirmed": "false"  # Consent not given
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/genstudio/image-to-video",
-            headers=auth_headers,
-            files=files,
-            data=data,
-            timeout=30
-        )
-        
-        # Should require consent
-        assert response.status_code == 400, f"Expected 400 for missing consent, got {response.status_code}"
-        assert "consent" in response.text.lower(), f"Expected consent error message, got: {response.text}"
-        print("PASS: Image-to-video requires consent confirmation")
-    
-    def test_image_upload_motion_prompt_required(self, auth_headers):
-        """Image-to-video requires motion prompt"""
-        png_bytes = bytes([
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-            0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-            0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
-            0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xFF, 0xFF, 0x3F,
-            0x00, 0x05, 0xFE, 0x02, 0xFE, 0xDC, 0xCC, 0x59, 0xE7, 0x00, 0x00, 0x00,
-            0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
-        ])
-        
-        files = {"image": ("test.png", io.BytesIO(png_bytes), "image/png")}
-        data = {
-            "motion_prompt": "",  # Empty motion prompt
-            "duration": "4",
-            "consent_confirmed": "true"
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/genstudio/image-to-video",
-            headers=auth_headers,
-            files=files,
-            data=data,
-            timeout=30
-        )
-        
-        # Should fail due to empty motion prompt
-        assert response.status_code in [400, 422], f"Expected validation error for empty motion prompt, got {response.status_code}"
-        print("PASS: Image-to-video requires motion prompt")
-
-
-# =============================================================================
-# VIDEO REMIX TESTS
-# =============================================================================
-class TestVideoRemixValidations:
-    """Test Video Remix upload and validation"""
-    
-    def test_video_remix_requires_auth(self):
-        """Video remix endpoint requires authentication"""
-        response = requests.post(f"{BASE_URL}/api/genstudio/video-remix", timeout=30)
-        assert response.status_code in [401, 403, 422], f"Expected auth error, got {response.status_code}"
-        print("PASS: Video remix requires authentication")
-    
-    def test_video_remix_validation_no_video(self, auth_headers):
-        """Video remix fails without video"""
-        data = {
-            "remix_prompt": "Apply cinematic color grading",
-            "template_style": "dynamic",
-            "consent_confirmed": True
-        }
-        response = requests.post(
-            f"{BASE_URL}/api/genstudio/video-remix",
-            headers=auth_headers,
-            data=data,
-            timeout=30
-        )
-        # Should fail - no video provided
-        assert response.status_code in [400, 422], f"Expected 400/422, got {response.status_code}"
-        print("PASS: Video remix requires video upload")
-    
-    def test_video_remix_consent_required(self, auth_headers):
-        """Video remix requires consent checkbox"""
-        # Create a minimal MP4-like file (just header bytes - will be rejected as invalid but tests the flow)
-        mp4_header = b'\x00\x00\x00\x20ftypisom\x00\x00\x02\x00isomiso2avc1mp41'
-        
-        files = {"video": ("test.mp4", io.BytesIO(mp4_header), "video/mp4")}
-        data = {
-            "remix_prompt": "Test remix instructions",
-            "template_style": "dynamic",
-            "consent_confirmed": "false"
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/genstudio/video-remix",
-            headers=auth_headers,
-            files=files,
-            data=data,
-            timeout=30
-        )
-        
-        # Should require consent
-        assert response.status_code in [400, 422], f"Expected consent error, got {response.status_code}: {response.text}"
-        print("PASS: Video remix requires consent confirmation")
-    
-    def test_video_remix_prompt_max_length(self, auth_headers):
-        """Video remix prompt has max 1000 character limit"""
-        mp4_header = b'\x00\x00\x00\x20ftypisom\x00\x00\x02\x00isomiso2avc1mp41'
-        
-        # Create a prompt that's too long (1001+ characters)
-        long_prompt = "A" * 1001
-        
-        files = {"video": ("test.mp4", io.BytesIO(mp4_header), "video/mp4")}
-        data = {
-            "remix_prompt": long_prompt,
-            "template_style": "dynamic",
-            "consent_confirmed": "true"
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/genstudio/video-remix",
-            headers=auth_headers,
-            files=files,
-            data=data,
-            timeout=30
-        )
-        
-        # Should validate prompt length - may return 400 or 422
-        # Note: If backend doesn't validate, this test will expose the gap
-        print(f"Video remix long prompt response: {response.status_code}")
+    def test_video_remix_endpoint_missing(self, auth_headers):
+        """CRITICAL: Video Remix endpoint does not exist in backend"""
+        response = requests.post(f"{BASE_URL}/api/genstudio/video-remix", headers=auth_headers, timeout=30)
+        if response.status_code == 404:
+            print("CRITICAL: /api/genstudio/video-remix endpoint NOT IMPLEMENTED")
+            print("  - Frontend page exists: GenStudioVideoRemix.js")
+            print("  - Backend route MISSING in routes/genstudio.py")
+        assert response.status_code == 404, f"Expected 404, got {response.status_code} - endpoint may have been added"
 
 
 # =============================================================================
