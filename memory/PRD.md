@@ -23,8 +23,46 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 - **FULL SITE-WIDE A-to-Z QA AUDIT** (Feb 21, 2026) ✅
 - **IMAGE-TO-VIDEO & VIDEO REMIX BACKEND IMPLEMENTATION** (Feb 21, 2026) ✅
 - **CREATOR TOOLS & CASHFREE FINAL VERIFICATION** (Feb 21, 2026) ✅
+- **CRITICAL BUG FIXES - Trending Tab, Rate Limiting, Credits UI** (Feb 21, 2026) ✅
 
 ## Production Deployment Status: 🚀 PRODUCTION READY - GO LIVE ✅
+
+---
+
+## CRITICAL BUG FIXES (Feb 21, 2026) ✅
+
+### 1. Trending Tab Fix (P0) ✅
+- **Issue**: Creator Tools > Trending tab showed empty cards with just "Hook:" labels
+- **Root Cause**: Frontend `fetchTrending()` was using hardcoded local data instead of calling backend API
+- **Fix**: Updated `/app/frontend/src/pages/CreatorTools.js`:
+  - `fetchTrending()` now calls `GET /api/creator-tools/trending?niche={niche}&limit=8`
+  - Added niche dropdown filter with 6 options: General, Fitness, Business, Travel, Food, Tech
+  - Added engagement level badges (Very High/High/Medium)
+  - Added "Copy Topic & Hook" buttons for each card
+  - Added refresh button
+
+### 2. Rate Limiting Fix (P1) ✅
+- **Issue**: `@limiter.limit("10/minute")` decorator on Reel Generator was not being enforced
+- **Root Cause**: SlowAPI limiter wasn't working correctly with FastAPI middleware
+- **Fix**: Implemented custom dependency-based rate limiter in `/app/backend/security.py`:
+  - `InMemoryRateLimiter` class with proper timestamp tracking
+  - `create_rate_limit_dependency(max_requests, window_seconds)` factory function
+  - Pre-configured limiters: `rate_limit_generation` (10/min), `rate_limit_auth` (5/min), `rate_limit_export` (20/min)
+  - Updated `/app/backend/routes/generation.py` to use `dependencies=[Depends(rate_limit_generation)]`
+- **Verified**: After 10 requests in 60 seconds, returns HTTP 429 "Too Many Requests"
+
+### 3. Credits UI Bug Fix (P2) ✅
+- **Issue**: Billing page showed "0 Credits" instead of actual balance (999,999,999)
+- **Root Cause**: Code used `creditsRes?.data?.balance` but API returns `credits`
+- **Fix**: Updated `/app/frontend/src/pages/Billing.js`:
+  - Changed to `creditsRes?.data?.credits || creditsRes?.data?.balance || 0`
+- **Verified**: Billing page now shows correct credit balance
+
+### 4. Carousel Credit Cost Fix (Minor)
+- **Issue**: UI showed "2 credits" but backend charges 3 credits
+- **Fix**: Updated `/app/frontend/src/pages/CreatorTools.js` to show "3 credits"
+
+### Test Report: `/app/test_reports/iteration_54.json`
 
 ---
 
@@ -34,10 +72,10 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 | Tab | Cost | API Status |
 |-----|------|------------|
 | Calendar | 10 credits | ✅ Working |
-| Carousel | 2 credits | ✅ Working |
+| Carousel | 3 credits | ✅ Working |
 | Hashtags | FREE | ✅ Working |
 | Thumbnails | FREE | ✅ Working |
-| Trending | FREE | ✅ Working |
+| Trending | FREE | ✅ Working (FIXED) |
 | Convert | Varies | ✅ Working |
 
 ### Cashfree PRODUCTION Mode:
