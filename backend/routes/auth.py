@@ -83,7 +83,7 @@ async def send_verification_email(email: str, token: str, name: str):
     """Send verification email via SendGrid"""
     try:
         from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import Mail
+        from sendgrid.helpers.mail import Mail, Email
         
         api_key = os.environ.get("SENDGRID_API_KEY")
         if not api_key:
@@ -96,8 +96,14 @@ async def send_verification_email(email: str, token: str, name: str):
             return False
         verify_url = f"{frontend_url}/verify-email?token={token}"
         
+        # Use verified sender identity
+        from_email = Email(
+            email=os.environ.get("SENDGRID_FROM_EMAIL", "krajapraveen@visionary-suite.com"),
+            name="CreatorStudio AI"
+        )
+        
         message = Mail(
-            from_email="noreply@visionary-suite.com",
+            from_email=from_email,
             to_emails=email,
             subject="Verify Your CreatorStudio AI Account",
             html_content=f"""
