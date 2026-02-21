@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://qa-audit-dash.preview.emergentagent.com  
+**Base URL:** https://qa-trending.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---

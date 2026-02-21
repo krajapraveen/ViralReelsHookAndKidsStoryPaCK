@@ -15,7 +15,7 @@ import psycopg2
 import redis
 
 # Configuration
-API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://qa-audit-dash.preview.emergentagent.com')
+API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://qa-trending.preview.emergentagent.com')
 LOG_FILE = '/app/automation/logs/health_monitor.log'
 REPORT_FILE = '/app/automation/reports/health_report.json'
 

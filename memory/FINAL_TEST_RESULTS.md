@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://qa-audit-dash.preview.emergentagent.com
+**Website:** https://qa-trending.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

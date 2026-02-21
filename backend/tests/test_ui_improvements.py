@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://qa-audit-dash.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://qa-trending.preview.emergentagent.com')
 
 class TestAdminCredentials:
     """Test admin login with new credentials"""
