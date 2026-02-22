@@ -1135,7 +1135,62 @@ export default function ComicStudio() {
                     <FileText className="w-4 h-4 mr-2" />
                     PDF No Watermark (+2 cr)
                   </Button>
+                  <Button
+                    onClick={() => exportToZip(false)}
+                    disabled={exporting}
+                    data-testid="export-zip-btn"
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Layers className="w-4 h-4 mr-2" />}
+                    Export ZIP ({getExportCost() + 2} cr)
+                  </Button>
+                  <Button
+                    onClick={shareComic}
+                    disabled={isSharing || exporting}
+                    data-testid="share-comic-btn"
+                    className="bg-pink-600 hover:bg-pink-700"
+                  >
+                    {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
+                    Share Comic
+                  </Button>
                 </div>
+                
+                {/* Share Preview */}
+                {shareUrl && (
+                  <div className="mt-4 p-3 bg-slate-700/50 rounded-lg">
+                    <p className="text-sm text-slate-300 mb-2">Share Preview:</p>
+                    <img 
+                      src={shareUrl} 
+                      alt="Share preview" 
+                      className="w-full rounded-lg border border-slate-600"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-slate-600 text-slate-300"
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = shareUrl;
+                          link.download = 'comic_share.png';
+                          link.click();
+                        }}
+                      >
+                        <Download className="w-3 h-3 mr-1" />
+                        Download
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-slate-600 text-slate-300"
+                        onClick={() => setShareUrl(null)}
+                      >
+                        <X className="w-3 h-3 mr-1" />
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
