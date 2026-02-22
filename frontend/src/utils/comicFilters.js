@@ -97,14 +97,20 @@ export const applyComicColorCanvas = (imageData, options = {}) => {
 };
 
 /**
- * Apply edge detection for comic outline effect
+ * Apply edge detection for comic outline effect - softer edges
  */
-export const applyEdgeDetection = (ctx, width, height, threshold = 30) => {
+export const applyEdgeDetection = (ctx, width, height, threshold = 50) => {
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
   const output = new Uint8ClampedArray(data.length);
 
-  // Sobel operator
+  // Initialize with white
+  for (let i = 0; i < output.length; i += 4) {
+    output[i] = output[i + 1] = output[i + 2] = 255;
+    output[i + 3] = 255;
+  }
+
+  // Sobel operator for softer edge detection
   const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
   const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
 
@@ -124,11 +130,15 @@ export const applyEdgeDetection = (ctx, width, height, threshold = 30) => {
 
       const magnitude = Math.sqrt(gx * gx + gy * gy);
       const idx = (y * width + x) * 4;
-      const edge = magnitude > threshold ? 0 : 255;
-
-      output[idx] = edge;
-      output[idx + 1] = edge;
-      output[idx + 2] = edge;
+      
+      // Softer edge transition
+      if (magnitude > threshold) {
+        const edgeStrength = Math.min(255, (magnitude - threshold) * 2);
+        const edge = 255 - edgeStrength;
+        output[idx] = edge;
+        output[idx + 1] = edge;
+        output[idx + 2] = edge;
+      }
       output[idx + 3] = 255;
     }
   }
