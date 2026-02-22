@@ -246,6 +246,164 @@ export const processImage = async (image, style, genreOptions = {}) => {
 };
 
 /**
+ * Apply cartoon shader effect using Canvas
+ */
+export const applyCartoonEffect = (imageData, options = {}) => {
+  const { levels = 6, edgeThreshold = 50 } = options;
+  const data = imageData.data;
+  
+  // Color quantization for cartoon look
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = Math.floor(data[i] / (256 / levels)) * (256 / levels);
+    data[i + 1] = Math.floor(data[i + 1] / (256 / levels)) * (256 / levels);
+    data[i + 2] = Math.floor(data[i + 2] / (256 / levels)) * (256 / levels);
+  }
+  
+  return imageData;
+};
+
+/**
+ * Apply pencil sketch effect
+ */
+export const applySketchEffect = (ctx, width, height) => {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const output = new Uint8ClampedArray(data.length);
+  
+  // Convert to grayscale first
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    data[i] = data[i + 1] = data[i + 2] = gray;
+  }
+  
+  // Apply Laplacian-like edge detection for sketch effect
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = (y * width + x) * 4;
+      
+      // Simple edge detection
+      const center = data[idx];
+      const left = data[idx - 4];
+      const right = data[idx + 4];
+      const top = data[idx - width * 4];
+      const bottom = data[idx + width * 4];
+      
+      const edge = Math.abs(4 * center - left - right - top - bottom);
+      const sketch = 255 - Math.min(255, edge * 2);
+      
+      output[idx] = sketch;
+      output[idx + 1] = sketch;
+      output[idx + 2] = sketch;
+      output[idx + 3] = 255;
+    }
+  }
+  
+  return new ImageData(output, width, height);
+};
+
+/**
+ * Apply pop art effect
+ */
+export const applyPopArtEffect = (imageData, options = {}) => {
+  const data = imageData.data;
+  const colors = [
+    [255, 0, 255],   // Magenta
+    [0, 255, 255],   // Cyan
+    [255, 255, 0],   // Yellow
+    [255, 0, 0],     // Red
+    [0, 255, 0],     // Green
+    [0, 0, 255]      // Blue
+  ];
+  
+  for (let i = 0; i < data.length; i += 4) {
+    const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+    const colorIndex = Math.floor((brightness / 256) * colors.length);
+    const color = colors[Math.min(colorIndex, colors.length - 1)];
+    
+    data[i] = color[0];
+    data[i + 1] = color[1];
+    data[i + 2] = color[2];
+  }
+  
+  return imageData;
+};
+
+/**
+ * Process image with selected style (ENHANCED with new styles)
+ */
+export const processImageEnhanced = async (image, style, genreOptions = {}) => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = image.width || image.naturalWidth;
+  canvas.height = image.height || image.naturalHeight;
+
+  ctx.drawImage(image, 0, 0);
+
+  let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  switch (style) {
+    case 'comic_color':
+      imageData = applyComicColorCanvas(imageData, genreOptions);
+      ctx.putImageData(imageData, 0, 0);
+      
+      // Add edge overlay
+      const edgeData = applyEdgeDetection(ctx, canvas.width, canvas.height, 40);
+      const edgeCanvas = document.createElement('canvas');
+      edgeCanvas.width = canvas.width;
+      edgeCanvas.height = canvas.height;
+      const edgeCtx = edgeCanvas.getContext('2d');
+      edgeCtx.putImageData(edgeData, 0, 0);
+      
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(edgeCanvas, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+
+    case 'comic_bw':
+      imageData = applyComicBW(imageData, { threshold: 140 });
+      ctx.putImageData(imageData, 0, 0);
+      break;
+
+    case 'manga_bw':
+      const halftoneCanvas = applyMangaStyle(ctx, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(halftoneCanvas, 0, 0);
+      break;
+
+    case 'cartoon':
+      imageData = applyCartoonEffect(imageData, { levels: 8 });
+      ctx.putImageData(imageData, 0, 0);
+      // Add soft edges
+      const cartoonEdges = applyEdgeDetection(ctx, canvas.width, canvas.height, 60);
+      const cartoonEdgeCanvas = document.createElement('canvas');
+      cartoonEdgeCanvas.width = canvas.width;
+      cartoonEdgeCanvas.height = canvas.height;
+      cartoonEdgeCanvas.getContext('2d').putImageData(cartoonEdges, 0, 0);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(cartoonEdgeCanvas, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+
+    case 'sketch':
+      const sketchData = applySketchEffect(ctx, canvas.width, canvas.height);
+      ctx.putImageData(sketchData, 0, 0);
+      break;
+
+    case 'pop_art':
+      imageData = applyPopArtEffect(imageData);
+      ctx.putImageData(imageData, 0, 0);
+      break;
+
+    default:
+      // No processing
+      break;
+  }
+
+  return canvas;
+};
+
+/**
  * Advanced processing using OpenCV.js (optional, higher quality)
  */
 export const processImageOpenCV = async (image, style, options = {}) => {
@@ -294,6 +452,26 @@ export const processImageOpenCV = async (image, style, options = {}) => {
         cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 2);
         cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
         break;
+        
+      case 'cartoon':
+        // Bilateral filter for cartoon effect
+        const temp1 = new cv.Mat();
+        cv.bilateralFilter(src, temp1, 9, 150, 150, cv.BORDER_DEFAULT);
+        cv.bilateralFilter(temp1, dst, 9, 150, 150, cv.BORDER_DEFAULT);
+        temp1.delete();
+        break;
+        
+      case 'sketch':
+        // Pencil sketch using edge detection
+        const graySketch = new cv.Mat();
+        const blurred = new cv.Mat();
+        cv.cvtColor(src, graySketch, cv.COLOR_RGBA2GRAY);
+        cv.GaussianBlur(graySketch, blurred, new cv.Size(21, 21), 0);
+        cv.divide(graySketch, blurred, dst, 256);
+        cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
+        graySketch.delete();
+        blurred.delete();
+        break;
 
       default:
         src.copyTo(dst);
@@ -307,7 +485,7 @@ export const processImageOpenCV = async (image, style, options = {}) => {
     return canvas;
   } catch (error) {
     console.warn('OpenCV processing failed, falling back to Canvas:', error);
-    return processImage(image, style, options);
+    return processImageEnhanced(image, style, options);
   }
 };
 
