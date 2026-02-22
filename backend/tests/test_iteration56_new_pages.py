@@ -184,24 +184,28 @@ class TestGenerationHistory:
         response = requests.get(f"{BASE_URL}/api/generate/?page=0&size=20", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
-        assert "content" in data
-        print(f"Generation history: {len(data.get('content', []))} items")
+        # API returns 'generations' not 'content'
+        assert "generations" in data or "content" in data
+        generations = data.get("generations", data.get("content", []))
+        print(f"Generation history: {len(generations)} items")
     
     def test_generation_filter_by_type_reel(self, auth_headers):
         """Test GET /api/generate/ with type=REEL filter"""
         response = requests.get(f"{BASE_URL}/api/generate/?type=REEL&page=0&size=10", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
-        assert "content" in data
-        print(f"REEL generations: {len(data.get('content', []))} items")
+        assert "generations" in data or "content" in data
+        generations = data.get("generations", data.get("content", []))
+        print(f"REEL generations: {len(generations)} items")
     
     def test_generation_filter_by_type_story(self, auth_headers):
         """Test GET /api/generate/ with type=STORY filter"""
         response = requests.get(f"{BASE_URL}/api/generate/?type=STORY&page=0&size=10", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
-        assert "content" in data
-        print(f"STORY generations: {len(data.get('content', []))} items")
+        assert "generations" in data or "content" in data
+        generations = data.get("generations", data.get("content", []))
+        print(f"STORY generations: {len(generations)} items")
 
 
 class TestBilling:
