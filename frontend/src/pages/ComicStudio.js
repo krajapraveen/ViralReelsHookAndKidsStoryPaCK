@@ -94,6 +94,25 @@ export default function ComicStudio() {
   const [genreAssets, setGenreAssets] = useState(null);
   const [sfxList, setSfxList] = useState([]);
   
+  // NEW: Sticker placement state
+  const [stickers, setStickers] = useState([]);
+  const [selectedSticker, setSelectedSticker] = useState(null);
+  const [customSfx, setCustomSfx] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  // NEW: Multi-page comic state
+  const [comicPages, setComicPages] = useState([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  
+  // NEW: Sharing state
+  const [shareUrl, setShareUrl] = useState(null);
+  const [isSharing, setIsSharing] = useState(false);
+  
+  // NEW: OpenCV loading state
+  const [opencvLoaded, setOpencvLoaded] = useState(false);
+  const [loadingOpenCV, setLoadingOpenCV] = useState(false);
+  
   // Canvas ref
   const canvasRef = useRef(null);
   const previewRef = useRef(null);
