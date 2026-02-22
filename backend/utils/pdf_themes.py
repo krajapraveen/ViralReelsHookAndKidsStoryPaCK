@@ -307,6 +307,213 @@ def create_moral_page(canvas, theme, moral_text):
     canvas.drawCentredString(width/2, height/2, moral_text[:80])
 
 # =============================================================================
+# PREMIUM PDF GENERATION
+# =============================================================================
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
+from reportlab.lib.units import inch, cm
+from io import BytesIO
+import base64
+
+
+def generate_premium_storybook_pdf(story_data: dict, theme_name: str = "storybook_deluxe", 
+                                   child_name: str = None, dedication: str = None) -> bytes:
+    """
+    Generate a premium storybook PDF with illustrations and decorations
+    
+    Args:
+        story_data: Dict containing title, scenes, moral, etc.
+        theme_name: Name of theme to use
+        child_name: Optional child's name for personalization
+        dedication: Optional dedication message
+    
+    Returns:
+        PDF bytes
+    """
+    from reportlab.lib.pagesizes import letter
+    
+    buffer = BytesIO()
+    theme = THEMES.get(theme_name, THEMES["storybook_deluxe"])
+    
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        topMargin=0.75*inch,
+        bottomMargin=0.75*inch,
+        leftMargin=0.75*inch,
+        rightMargin=0.75*inch
+    )
+    
+    story = []
+    
+    # Styles
+    title_style = get_title_style(theme)
+    chapter_style = get_chapter_style(theme)
+    body_style = get_body_style(theme)
+    moral_style = get_moral_style(theme)
+    
+    # Cover Page
+    story.append(Spacer(1, 2*inch))
+    
+    # Main title
+    title = story_data.get("title", "My Story")
+    story.append(Paragraph(title, title_style))
+    story.append(Spacer(1, 0.5*inch))
+    
+    # Personalization
+    if child_name:
+        personal_style = ParagraphStyle(
+            'Personal',
+            fontName=theme["font_family"],
+            fontSize=16,
+            textColor=theme["secondary_color"],
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph(f"A Special Story for {child_name}", personal_style))
+        story.append(Spacer(1, 0.3*inch))
+    
+    # Decorative element
+    story.append(Spacer(1, 1*inch))
+    
+    # Age group and genre
+    age_group = story_data.get("ageGroup", "")
+    if age_group:
+        meta_style = ParagraphStyle(
+            'Meta',
+            fontName=theme["font_family"],
+            fontSize=12,
+            textColor=theme["text_color"],
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph(f"For ages {age_group}", meta_style))
+    
+    story.append(PageBreak())
+    
+    # Dedication page (if provided)
+    if dedication:
+        story.append(Spacer(1, 2*inch))
+        dedication_style = ParagraphStyle(
+            'Dedication',
+            fontName=theme["font_family"],
+            fontSize=14,
+            textColor=theme["secondary_color"],
+            alignment=TA_CENTER,
+            fontStyle='italic'
+        )
+        story.append(Paragraph(dedication, dedication_style))
+        story.append(PageBreak())
+    
+    # Story scenes
+    scenes = story_data.get("scenes", [])
+    for i, scene in enumerate(scenes):
+        # Scene number
+        scene_num_style = ParagraphStyle(
+            'SceneNum',
+            fontName=theme["title_font"],
+            fontSize=14,
+            textColor=theme["accent_color"],
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph(f"Scene {i + 1}", scene_num_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Scene title if exists
+        scene_title = scene.get("title", "")
+        if scene_title:
+            story.append(Paragraph(scene_title, chapter_style))
+        
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Scene content
+        content = scene.get("content", scene.get("narration", ""))
+        if content:
+            # Split into paragraphs
+            paragraphs = content.split("\n\n")
+            for para in paragraphs:
+                if para.strip():
+                    story.append(Paragraph(para.strip(), body_style))
+                    story.append(Spacer(1, 0.15*inch))
+        
+        # Visual description (for coloring book tie-in)
+        visual = scene.get("visualDescription", "")
+        if visual:
+            visual_style = ParagraphStyle(
+                'Visual',
+                fontName=theme["font_family"],
+                fontSize=10,
+                textColor=theme["border_color"],
+                alignment=TA_LEFT,
+                fontStyle='italic'
+            )
+            story.append(Spacer(1, 0.2*inch))
+            story.append(Paragraph(f"Picture: {visual}", visual_style))
+        
+        # Page break between scenes (except last)
+        if i < len(scenes) - 1:
+            story.append(PageBreak())
+    
+    # Moral/Lesson page
+    moral = story_data.get("moral", "")
+    if moral:
+        story.append(PageBreak())
+        story.append(Spacer(1, 1.5*inch))
+        
+        lesson_title_style = ParagraphStyle(
+            'LessonTitle',
+            fontName=theme["title_font"],
+            fontSize=20,
+            textColor=theme["accent_color"],
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph("The Lesson We Learned", lesson_title_style))
+        story.append(Spacer(1, 0.5*inch))
+        story.append(Paragraph(moral, moral_style))
+    
+    # The End page
+    story.append(PageBreak())
+    story.append(Spacer(1, 3*inch))
+    
+    end_style = ParagraphStyle(
+        'TheEnd',
+        fontName=theme["title_font"],
+        fontSize=36,
+        textColor=theme["primary_color"],
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("The End", end_style))
+    
+    if child_name:
+        story.append(Spacer(1, 0.5*inch))
+        special_style = ParagraphStyle(
+            'Special',
+            fontName=theme["font_family"],
+            fontSize=14,
+            textColor=theme["secondary_color"],
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph(f"Created specially for {child_name}", special_style))
+    
+    # Build PDF
+    doc.build(story)
+    
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def get_available_themes() -> dict:
+    """Return list of available themes with previews"""
+    return {
+        name: {
+            "name": theme["name"],
+            "description": theme["description"],
+            "primary_color": str(theme["primary_color"]),
+            "accent_color": str(theme["accent_color"])
+        }
+        for name, theme in THEMES.items()
+    }
+
+
+# =============================================================================
 # EXPORTS
 # =============================================================================
 
@@ -324,5 +531,7 @@ __all__ = [
     'draw_classic_border',
     'draw_rounded_border',
     'draw_decorative_border',
-    'draw_nature_border'
+    'draw_nature_border',
+    'generate_premium_storybook_pdf',
+    'get_available_themes'
 ]
