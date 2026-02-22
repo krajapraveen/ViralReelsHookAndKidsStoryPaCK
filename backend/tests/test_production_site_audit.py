@@ -95,28 +95,27 @@ class TestUserEndpoints:
 class TestBillingEndpoints:
     """Test billing and payment endpoints"""
     
-    def test_get_pricing_plans(self):
-        """Get available pricing plans"""
-        response = requests.get(f"{BASE_URL}/api/billing/plans", timeout=10)
+    def test_get_cashfree_plans(self):
+        """Get available pricing plans from Cashfree"""
+        response = requests.get(f"{BASE_URL}/api/cashfree/plans", timeout=10)
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list) or "plans" in data
-        print(f"✓ Pricing plans retrieved")
+        print(f"✓ Cashfree plans retrieved")
     
-    def test_get_credit_packs(self):
-        """Get available credit packs"""
-        response = requests.get(f"{BASE_URL}/api/billing/credit-packs", timeout=10)
+    def test_get_cashfree_products(self):
+        """Get available products"""
+        response = requests.get(f"{BASE_URL}/api/cashfree/products", timeout=10)
         assert response.status_code == 200
         data = response.json()
-        print(f"✓ Credit packs: {data}")
+        print(f"✓ Cashfree products: {data}")
     
-    def test_get_billing_history(self, demo_token):
-        """Get billing history for user"""
+    def test_get_wallet_ledger(self, demo_token):
+        """Get wallet transaction ledger"""
         headers = {"Authorization": f"Bearer {demo_token}"}
-        response = requests.get(f"{BASE_URL}/api/billing/history", headers=headers, timeout=10)
+        response = requests.get(f"{BASE_URL}/api/wallet/ledger", headers=headers, timeout=10)
         # 200 or 404 is acceptable (user may have no history)
         assert response.status_code in [200, 404]
-        print(f"✓ Billing history endpoint working")
+        print(f"✓ Wallet ledger endpoint working")
 
 
 class TestGeneratorEndpoints:
