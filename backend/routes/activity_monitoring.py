@@ -38,7 +38,7 @@ async def broadcast_to_admins(message: dict):
     for ws in connected_admins:
         try:
             await ws.send_json(message)
-        except:
+        except Exception:
             disconnected.append(ws)
     for ws in disconnected:
         connected_admins.remove(ws)
