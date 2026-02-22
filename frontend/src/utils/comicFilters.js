@@ -253,6 +253,30 @@ export const processImage = async (image, style, genreOptions = {}) => {
       ctx.drawImage(halftoneCanvas, 0, 0);
       break;
 
+    case 'cartoon':
+      imageData = applyCartoonEffect(imageData, { levels: 8 });
+      ctx.putImageData(imageData, 0, 0);
+      // Add soft edges
+      const cartoonEdges = applyEdgeDetection(ctx, canvas.width, canvas.height, 60);
+      const cartoonEdgeCanvas = document.createElement('canvas');
+      cartoonEdgeCanvas.width = canvas.width;
+      cartoonEdgeCanvas.height = canvas.height;
+      cartoonEdgeCanvas.getContext('2d').putImageData(cartoonEdges, 0, 0);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(cartoonEdgeCanvas, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+
+    case 'sketch':
+      const sketchData = applySketchEffect(ctx, canvas.width, canvas.height);
+      ctx.putImageData(sketchData, 0, 0);
+      break;
+
+    case 'pop_art':
+      imageData = applyPopArtEffect(imageData);
+      ctx.putImageData(imageData, 0, 0);
+      break;
+
     default:
       // No processing
       break;
