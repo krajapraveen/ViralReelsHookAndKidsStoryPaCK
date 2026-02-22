@@ -600,3 +600,256 @@ async def get_layouts():
             for layout_id, config in LAYOUTS.items()
         ]
     }
+
+
+# Admin routes for CMS
+class GenreCreateRequest(BaseModel):
+    id: str
+    name: str
+    description: str
+    colorGrading: dict = {}
+    sfx: List[str] = []
+    bubbleStyle: str = "bold"
+    frameStyle: str = "angular"
+
+
+class TemplateCreateRequest(BaseModel):
+    genre: str
+    title: str
+    premise: str
+    panels: List[dict]
+    ending: str
+
+
+@router.get("/admin/genres")
+async def admin_get_genres(user: dict = Depends(get_current_user)):
+    """Admin: Get all genres with full config"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    return {
+        "genres": [
+            {"id": genre_id, **config}
+            for genre_id, config in GENRES.items()
+        ]
+    }
+
+
+@router.post("/admin/genres")
+async def admin_create_genre(
+    request: GenreCreateRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Admin: Create a new genre"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if request.id in GENRES:
+        raise HTTPException(status_code=400, detail="Genre ID already exists")
+    
+    # Add to GENRES dict (in production, this would be stored in DB)
+    GENRES[request.id] = {
+        "name": request.name,
+        "description": request.description,
+        "colorGrading": request.colorGrading,
+        "overlays": [],
+        "sfx": request.sfx,
+        "bubbleStyle": request.bubbleStyle,
+        "frameStyle": request.frameStyle
+    }
+    
+    # Initialize assets for the new genre
+    GENRE_ASSETS[request.id] = {
+        "stickers": [],
+        "frames": [],
+        "bubbles": []
+    }
+    
+    # Initialize templates
+    STORY_TEMPLATES[request.id] = []
+    
+    # Log admin action
+    await db.admin_logs.insert_one({
+        "userId": user["id"],
+        "action": "create_genre",
+        "genreId": request.id,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    return {"success": True, "genre": {"id": request.id, **GENRES[request.id]}}
+
+
+@router.put("/admin/genres/{genre_id}")
+async def admin_update_genre(
+    genre_id: str,
+    request: GenreCreateRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Admin: Update an existing genre"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if genre_id not in GENRES:
+        raise HTTPException(status_code=404, detail="Genre not found")
+    
+    GENRES[genre_id].update({
+        "name": request.name,
+        "description": request.description,
+        "colorGrading": request.colorGrading,
+        "sfx": request.sfx,
+        "bubbleStyle": request.bubbleStyle,
+        "frameStyle": request.frameStyle
+    })
+    
+    await db.admin_logs.insert_one({
+        "userId": user["id"],
+        "action": "update_genre",
+        "genreId": genre_id,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    return {"success": True, "genre": {"id": genre_id, **GENRES[genre_id]}}
+
+
+@router.delete("/admin/genres/{genre_id}")
+async def admin_delete_genre(
+    genre_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Admin: Delete a genre"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if genre_id not in GENRES:
+        raise HTTPException(status_code=404, detail="Genre not found")
+    
+    # Prevent deletion of built-in genres
+    builtin_genres = ["superhero", "romance", "comedy", "scifi", "fantasy", "mystery", "horror", "kids"]
+    if genre_id in builtin_genres:
+        raise HTTPException(status_code=400, detail="Cannot delete built-in genres")
+    
+    del GENRES[genre_id]
+    if genre_id in GENRE_ASSETS:
+        del GENRE_ASSETS[genre_id]
+    if genre_id in STORY_TEMPLATES:
+        del STORY_TEMPLATES[genre_id]
+    
+    await db.admin_logs.insert_one({
+        "userId": user["id"],
+        "action": "delete_genre",
+        "genreId": genre_id,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    return {"success": True, "deleted": genre_id}
+
+
+@router.get("/admin/templates/{genre_id}")
+async def admin_get_templates(
+    genre_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Admin: Get all templates for a genre"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if genre_id not in STORY_TEMPLATES:
+        raise HTTPException(status_code=404, detail="Genre not found")
+    
+    return {
+        "genre": genre_id,
+        "templates": STORY_TEMPLATES[genre_id]
+    }
+
+
+@router.post("/admin/templates")
+async def admin_create_template(
+    request: TemplateCreateRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Admin: Create a new story template"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if request.genre not in STORY_TEMPLATES:
+        raise HTTPException(status_code=404, detail="Genre not found")
+    
+    new_template = {
+        "title": request.title,
+        "premise": request.premise,
+        "panels": request.panels,
+        "ending": request.ending
+    }
+    
+    STORY_TEMPLATES[request.genre].append(new_template)
+    
+    await db.admin_logs.insert_one({
+        "userId": user["id"],
+        "action": "create_template",
+        "genre": request.genre,
+        "templateTitle": request.title,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    return {"success": True, "template": new_template}
+
+
+@router.delete("/admin/templates/{genre_id}/{template_index}")
+async def admin_delete_template(
+    genre_id: str,
+    template_index: int,
+    user: dict = Depends(get_current_user)
+):
+    """Admin: Delete a story template"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if genre_id not in STORY_TEMPLATES:
+        raise HTTPException(status_code=404, detail="Genre not found")
+    
+    templates = STORY_TEMPLATES[genre_id]
+    if template_index < 0 or template_index >= len(templates):
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    deleted = templates.pop(template_index)
+    
+    await db.admin_logs.insert_one({
+        "userId": user["id"],
+        "action": "delete_template",
+        "genre": genre_id,
+        "templateTitle": deleted.get("title"),
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    return {"success": True, "deleted": deleted.get("title")}
+
+
+@router.get("/admin/stats")
+async def admin_get_comic_stats(user: dict = Depends(get_current_user)):
+    """Admin: Get comic studio usage statistics"""
+    if not user.get("isAdmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get export stats
+    pipeline = [
+        {"$group": {
+            "_id": "$genre",
+            "totalExports": {"$sum": 1},
+            "totalCredits": {"$sum": "$creditsCost"},
+            "avgPanels": {"$avg": "$panelCount"}
+        }},
+        {"$sort": {"totalExports": -1}}
+    ]
+    
+    export_stats = await db.comic_exports.aggregate(pipeline).to_list(100)
+    
+    # Get total counts
+    total_exports = await db.comic_exports.count_documents({})
+    
+    return {
+        "totalExports": total_exports,
+        "genreStats": export_stats,
+        "availableGenres": len(GENRES),
+        "totalTemplates": sum(len(t) for t in STORY_TEMPLATES.values())
+    }
+
