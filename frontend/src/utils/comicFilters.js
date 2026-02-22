@@ -87,15 +87,6 @@ export const applyComicColorCanvas = (imageData, options = {}) => {
   return imageData;
 };
 
-    // Clamp values
-    data[i] = Math.max(0, Math.min(255, r));
-    data[i + 1] = Math.max(0, Math.min(255, g));
-    data[i + 2] = Math.max(0, Math.min(255, b));
-  }
-
-  return imageData;
-};
-
 /**
  * Apply edge detection for comic outline effect - softer edges
  */
