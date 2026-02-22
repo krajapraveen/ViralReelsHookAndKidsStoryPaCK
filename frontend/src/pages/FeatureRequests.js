@@ -79,27 +79,27 @@ export default function FeatureRequests() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
             </Link>
             <div className="flex items-center gap-2">
               <Lightbulb className="w-6 h-6 text-yellow-500" />
-              <span className="text-xl font-bold">Feature Requests</span>
+              <span className="text-xl font-bold text-white">Feature Requests</span>
             </div>
           </div>
           <Button onClick={() => setShowForm(!showForm)} className="bg-purple-600 hover:bg-purple-700">
@@ -112,37 +112,37 @@ export default function FeatureRequests() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Submit Form */}
         {showForm && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 mb-8">
-            <h2 className="text-lg font-semibold mb-4">Submit a Feature Request</h2>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 mb-8 backdrop-blur-sm">
+            <h2 className="text-lg font-semibold mb-4 text-white">Submit a Feature Request</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Feature Title</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Feature Title</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="e.g., Add TikTok video format export"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder:text-slate-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Describe the feature in detail and why it would be helpful..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder:text-slate-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Category</label>
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
                 >
                   {categories.map((cat) => (
                     <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -154,7 +154,7 @@ export default function FeatureRequests() {
                   <Send className="w-4 h-4 mr-2" />
                   {submitting ? 'Submitting...' : 'Submit Request'}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)} className="border-slate-600 text-slate-300 hover:bg-slate-700">
                   Cancel
                 </Button>
               </div>
@@ -163,8 +163,8 @@ export default function FeatureRequests() {
         )}
 
         {/* Info Banner */}
-        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 mb-6">
-          <p className="text-sm text-purple-800">
+        <div className="bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/30 rounded-xl p-4 mb-6">
+          <p className="text-sm text-purple-300">
             <strong>💡 Help us build better!</strong> Vote for features you want to see, or submit your own ideas. 
             The most popular requests will be prioritized for development.
           </p>
@@ -173,7 +173,7 @@ export default function FeatureRequests() {
         {/* Feature Requests List */}
         <div className="space-y-4">
           {requests.map((request) => (
-            <div key={request.id} className="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow">
+            <div key={request.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition-colors backdrop-blur-sm">
               <div className="flex gap-4">
                 {/* Vote Button */}
                 <div className="flex flex-col items-center">
@@ -181,8 +181,8 @@ export default function FeatureRequests() {
                     onClick={() => handleVote(request.id, request.hasVoted)}
                     className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center transition-colors ${
                       request.hasVoted 
-                        ? 'bg-green-100 text-green-600 border-2 border-green-300' 
-                        : 'bg-slate-100 text-slate-500 hover:bg-purple-100 hover:text-purple-600'
+                        ? 'bg-green-500/20 text-green-400 border-2 border-green-500/30' 
+                        : 'bg-slate-700 text-slate-400 hover:bg-purple-500/20 hover:text-purple-400'
                     }`}
                   >
                     {request.hasVoted ? (
@@ -191,7 +191,7 @@ export default function FeatureRequests() {
                       <ThumbsUp className="w-5 h-5" />
                     )}
                   </button>
-                  <span className={`text-lg font-bold mt-1 ${request.hasVoted ? 'text-green-600' : 'text-slate-700'}`}>
+                  <span className={`text-lg font-bold mt-1 ${request.hasVoted ? 'text-green-400' : 'text-slate-300'}`}>
                     {request.voteCount}
                   </span>
                   <span className="text-xs text-slate-500">votes</span>
@@ -200,14 +200,14 @@ export default function FeatureRequests() {
                 {/* Content */}
                 <div className="flex-1">
                   <div className="flex items-start justify-between">
-                    <h3 className="font-semibold text-lg text-slate-900">{request.title}</h3>
+                    <h3 className="font-semibold text-lg text-white">{request.title}</h3>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusColors[request.status]}`}>
                       {request.status.replace('_', ' ')}
                     </span>
                   </div>
-                  <p className="text-slate-600 mt-1">{request.description}</p>
+                  <p className="text-slate-400 mt-1">{request.description}</p>
                   <div className="flex items-center gap-3 mt-3">
-                    <span className="px-2 py-1 bg-slate-100 rounded text-xs text-slate-600">
+                    <span className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300">
                       {request.categoryLabel}
                     </span>
                     {request.authorName && (
@@ -215,19 +215,19 @@ export default function FeatureRequests() {
                         by {request.authorName}
                       </span>
                     )}
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-500">
                       {new Date(request.createdAt).toLocaleDateString()}
                     </span>
                     {request.isOwner && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                      <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs border border-purple-500/30">
                         Your request
                       </span>
                     )}
                   </div>
                   {request.adminResponse && (
-                    <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                      <span className="text-xs font-medium text-purple-700">Admin Response:</span>
-                      <p className="text-sm text-purple-800 mt-1">{request.adminResponse}</p>
+                    <div className="mt-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                      <span className="text-xs font-medium text-purple-400">Admin Response:</span>
+                      <p className="text-sm text-purple-300 mt-1">{request.adminResponse}</p>
                     </div>
                   )}
                 </div>
@@ -236,9 +236,9 @@ export default function FeatureRequests() {
           ))}
 
           {requests.length === 0 && (
-            <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
-              <Lightbulb className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-              <h3 className="text-lg font-medium text-slate-700">No feature requests yet</h3>
+            <div className="text-center py-12 bg-slate-800/50 border border-slate-700 rounded-xl backdrop-blur-sm">
+              <Lightbulb className="w-12 h-12 mx-auto text-slate-600 mb-4" />
+              <h3 className="text-lg font-medium text-slate-300">No feature requests yet</h3>
               <p className="text-slate-500 mt-1">Be the first to suggest a feature!</p>
               <Button onClick={() => setShowForm(true)} className="mt-4 bg-purple-600 hover:bg-purple-700">
                 <Plus className="w-4 h-4 mr-2" />

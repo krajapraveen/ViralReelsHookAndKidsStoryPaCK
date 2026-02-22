@@ -439,52 +439,40 @@ export default function CreatorTools() {
                 ) : (
                   <div className="space-y-4" data-testid="carousel-result">
                     {carouselResult.carousel.slides.map((slide) => (
-                      <div key={slide.slide_number} className={`rounded-lg p-4 border ${
-                        slide.type === 'hook' ? 'bg-blue-500/10 border-blue-500/30' : 
+                      <div key={slide.slideNumber} className={`rounded-lg p-4 border ${
+                        slide.type === 'cover' ? 'bg-blue-500/10 border-blue-500/30' : 
                         slide.type === 'cta' ? 'bg-green-500/10 border-green-500/30' : 
                         'bg-slate-700/30 border-slate-600'
                       }`}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-white">Slide {slide.slide_number}</span>
+                          <span className="font-bold text-white">Slide {slide.slideNumber}</span>
                           <span className={`text-xs uppercase px-2 py-1 rounded ${
-                            slide.type === 'hook' ? 'bg-blue-500/20 text-blue-300' : 
+                            slide.type === 'cover' ? 'bg-blue-500/20 text-blue-300' : 
                             slide.type === 'cta' ? 'bg-green-500/20 text-green-300' : 
                             'bg-slate-600 text-slate-300'
                           }`}>{slide.type}</span>
                         </div>
-                        <p className="font-medium text-white">{slide.text}</p>
-                        {slide.subtext && <p className="text-sm text-slate-400 mt-1">{slide.subtext}</p>}
-                        {slide.design_tip && <p className="text-xs text-slate-500 mt-2 bg-slate-800/50 p-2 rounded">💡 {slide.design_tip}</p>}
-                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(slide.text, `slide-${slide.slide_number}`)} className="mt-2 text-slate-400 hover:text-white">
-                          {copied === `slide-${slide.slide_number}` ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                        <p className="font-medium text-white">{slide.headline}</p>
+                        {slide.subheadline && <p className="text-sm text-slate-400 mt-1">{slide.subheadline}</p>}
+                        {slide.body && <p className="text-sm text-slate-300 mt-1">{slide.body}</p>}
+                        {slide.cta && <p className="text-sm text-green-400 mt-1 font-medium">{slide.cta}</p>}
+                        {slide.designTip && <p className="text-xs text-slate-500 mt-2 bg-slate-800/50 p-2 rounded">💡 {slide.designTip}</p>}
+                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(slide.headline + (slide.body ? '\n' + slide.body : ''), `slide-${slide.slideNumber}`)} className="mt-2 text-slate-400 hover:text-white">
+                          {copied === `slide-${slide.slideNumber}` ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
                           Copy
                         </Button>
                       </div>
                     ))}
                     
-                    {carouselResult.carousel.caption && (
+                    {/* Tips Section */}
+                    {carouselResult.tips && carouselResult.tips.length > 0 && (
                       <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 mt-4">
-                        <h4 className="font-bold text-white mb-2">Caption</h4>
-                        <p className="text-sm text-slate-300 whitespace-pre-wrap">{carouselResult.carousel.caption.long}</p>
-                        <Button variant="ghost" size="sm" className="mt-2 text-purple-400 hover:text-purple-300" onClick={() => copyToClipboard(carouselResult.carousel.caption.long, 'caption')}>
-                          {copied === 'caption' ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
-                          Copy Caption
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {carouselResult.carousel.hashtags && carouselResult.carousel.hashtags.length > 0 && (
-                      <div className="bg-slate-700/30 border border-slate-600 rounded-lg p-4">
-                        <h4 className="font-bold text-white mb-2">Hashtags</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {carouselResult.carousel.hashtags.map((tag, i) => (
-                            <span key={i} className="text-sm bg-slate-800 text-slate-300 px-2 py-1 rounded">{tag}</span>
+                        <h4 className="font-bold text-white mb-2">Pro Tips</h4>
+                        <ul className="text-sm text-slate-300 space-y-1">
+                          {carouselResult.tips.map((tip, i) => (
+                            <li key={i}>• {tip}</li>
                           ))}
-                        </div>
-                        <Button variant="ghost" size="sm" className="mt-2 text-slate-400 hover:text-white" onClick={() => copyToClipboard(carouselResult.carousel.hashtags.join(' '), 'hashtags')}>
-                          {copied === 'hashtags' ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
-                          Copy Hashtags
-                        </Button>
+                        </ul>
                       </div>
                     )}
                   </div>
@@ -546,22 +534,22 @@ export default function CreatorTools() {
                   </div>
                 ) : (
                   <div className="space-y-4" data-testid="hashtag-result">
-                    {Object.entries(hashtagResult.hashtags).map(([category, tags]) => (
-                      <div key={category} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-bold text-white capitalize">{category.replace('_', ' ')}</h4>
-                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(tags.join(' '), category)} className="text-slate-400 hover:text-white">
-                            {copied === category ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {tags.map((tag, i) => (
-                            <span key={i} className="text-sm bg-slate-800 text-slate-300 border border-slate-600 px-2 py-1 rounded">{tag}</span>
-                          ))}
-                        </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-white capitalize">{hashtagResult.niche} Hashtags</h4>
+                        <span className="text-sm text-green-400 bg-green-500/20 px-2 py-1 rounded border border-green-500/30">{hashtagResult.count} tags</span>
                       </div>
-                    ))}
-                    <p className="text-sm text-slate-400 text-center mt-4">💡 {hashtagResult.tip}</p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {hashtagResult.hashtags.map((tag, i) => (
+                          <span key={i} className="text-sm bg-slate-800 text-slate-300 border border-slate-600 px-2 py-1 rounded hover:bg-slate-700 cursor-pointer transition-colors" onClick={() => copyToClipboard(tag, `tag-${i}`)}>{tag}</span>
+                        ))}
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(hashtagResult.hashtags.join(' '), 'all-hashtags')} className="text-slate-400 hover:text-white">
+                        {copied === 'all-hashtags' ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                        Copy All Hashtags
+                      </Button>
+                    </div>
+                    <p className="text-sm text-slate-400 text-center mt-4 bg-slate-700/30 rounded-lg p-3 border border-slate-600">💡 {hashtagResult.tip}</p>
                   </div>
                 )}
               </div>
