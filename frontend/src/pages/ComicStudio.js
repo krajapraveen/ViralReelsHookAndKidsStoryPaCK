@@ -21,10 +21,11 @@ import {
   Plus, ChevronLeft, ChevronRight, Settings, Wand2, Share2, Layers
 } from 'lucide-react';
 import api, { creditAPI } from '../utils/api';
-import { processImage, createPanelLayout, addWatermark } from '../utils/comicFilters';
+import { processImage, createPanelLayout, addWatermark, loadOpenCV, processImageOpenCV } from '../utils/comicFilters';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
+import JSZip from 'jszip';
 import HelpGuide from '../components/HelpGuide';
 
 // Genre icons
