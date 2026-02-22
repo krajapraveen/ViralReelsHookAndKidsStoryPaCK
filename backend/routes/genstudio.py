@@ -251,67 +251,125 @@ async def generate_text_to_image(request: Request, data: TextToImageRequest, use
 
 
 # =============================================================================
-# TEXT TO VIDEO (Async with polling)
+# TEXT TO VIDEO (Async with polling and AUTOMATIC RETRY)
 # =============================================================================
+async def _generate_video_internal(job_id: str, data: dict):
+    """Internal video generation function - can be retried"""
+    from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+    
+    size_map = {
+        "16:9": "1280x720",
+        "9:16": "1024x1792",
+        "1:1": "1024x1024",
+        "4:3": "1280x720"
+    }
+    video_size = size_map.get(data.get("aspect_ratio", "16:9"), "1280x720")
+    
+    valid_durations = [4, 8, 12]
+    duration = data.get("duration", 4)
+    if duration not in valid_durations:
+        duration = 4
+    
+    video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+    
+    filename = f"genstudio_{job_id}.mp4"
+    filepath = f"/tmp/{filename}"
+    
+    full_prompt = data.get("prompt", "")
+    if data.get("add_watermark"):
+        full_prompt += ". Include subtle 'GenStudio' watermark."
+    
+    video_bytes = video_gen.text_to_video(
+        prompt=full_prompt,
+        model="sora-2",
+        size=video_size,
+        duration=duration,
+        max_wait_time=600
+    )
+    
+    if not video_bytes:
+        raise Exception("Video generation failed - no video returned")
+    
+    video_gen.save_video(video_bytes, filepath)
+    
+    return [f"/api/genstudio/download/{job_id}/{filename}"]
+
+
 async def process_text_to_video(job_id: str, data: dict, user_id: str):
-    """Background task for video generation"""
+    """Background task for video generation WITH AUTOMATIC RETRY"""
+    max_retries = 3
+    attempt = 0
+    last_error = None
+    
+    while attempt <= max_retries:
+        try:
+            if attempt > 0:
+                # Update status to show retry
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": f"retrying (attempt {attempt + 1})",
+                        "retryAttempt": attempt,
+                        "lastError": str(last_error)[:200] if last_error else None
+                    }}
+                )
+                logger.info(f"Retrying video generation for job {job_id}, attempt {attempt + 1}")
+                # Exponential backoff
+                await asyncio.sleep(min(5 * (2 ** attempt), 60))
+            
+            output_urls = await _generate_video_internal(job_id, data)
+            
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "outputUrls": output_urls,
+                    "completedAt": datetime.now(timezone.utc).isoformat(),
+                    "totalAttempts": attempt + 1,
+                    "retrySuccess": attempt > 0
+                }}
+            )
+            
+            if attempt > 0:
+                logger.info(f"Video generation succeeded after {attempt + 1} attempts: {job_id}")
+            else:
+                logger.info(f"Video generation completed: {job_id}")
+            return
+            
+        except Exception as e:
+            last_error = e
+            error_category = categorize_error(e)
+            
+            # Don't retry content policy violations
+            if error_category == "content_safety":
+                logger.warning(f"Video generation blocked (content policy): {job_id}")
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {"status": "failed", "error": str(e), "errorCategory": error_category}}
+                )
+                return
+            
+            logger.warning(f"Video generation attempt {attempt + 1} failed for {job_id}: {e}")
+            attempt += 1
+    
+    # All retries exhausted
+    logger.error(f"Video generation failed after {max_retries + 1} attempts for job {job_id}: {last_error}")
+    await db.genstudio_jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "status": "failed",
+            "error": str(last_error),
+            "totalAttempts": max_retries + 1,
+            "errorCategory": categorize_error(last_error) if last_error else "unknown"
+        }}
+    )
+    
+    # Notify admin about repeated failures
     try:
-        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
-        
-        size_map = {
-            "16:9": "1280x720",
-            "9:16": "1024x1792",
-            "1:1": "1024x1024",
-            "4:3": "1280x720"
-        }
-        video_size = size_map.get(data.get("aspect_ratio", "16:9"), "1280x720")
-        
-        valid_durations = [4, 8, 12]
-        duration = data.get("duration", 4)
-        if duration not in valid_durations:
-            duration = 4
-        
-        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
-        
-        filename = f"genstudio_{job_id}.mp4"
-        filepath = f"/tmp/{filename}"
-        
-        full_prompt = data.get("prompt", "")
-        if data.get("add_watermark"):
-            full_prompt += ". Include subtle 'GenStudio' watermark."
-        
-        video_bytes = video_gen.text_to_video(
-            prompt=full_prompt,
-            model="sora-2",
-            size=video_size,
-            duration=duration,
-            max_wait_time=600
-        )
-        
-        if not video_bytes:
-            raise Exception("Video generation failed - no video returned")
-        
-        video_gen.save_video(video_bytes, filepath)
-        
-        output_urls = [f"/api/genstudio/download/{job_id}/{filename}"]
-        
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "status": "completed",
-                "outputUrls": output_urls,
-                "completedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        logger.info(f"Video generation completed: {job_id}")
-        
-    except Exception as e:
-        logger.error(f"Video generation failed for job {job_id}: {e}")
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "failed", "error": str(e)}}
-        )
+        from routes.push_notifications import notify_generation_failure
+        await notify_generation_failure(job_id, "text_to_video", str(last_error), user_id)
+    except Exception:
+        pass
 
 
 @genstudio_router.post("/text-to-video")
