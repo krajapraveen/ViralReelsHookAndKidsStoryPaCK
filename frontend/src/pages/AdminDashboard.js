@@ -233,6 +233,9 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="admin" />
     </div>
   );
 }
