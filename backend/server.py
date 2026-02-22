@@ -218,6 +218,7 @@ api_router.include_router(reel_export_router)
 api_router.include_router(cashfree_webhook_router)
 api_router.include_router(security_router)
 api_router.include_router(ab_testing_router)
+api_router.include_router(push_notifications_router)
 
 # Include API router in app
 app.include_router(api_router)
