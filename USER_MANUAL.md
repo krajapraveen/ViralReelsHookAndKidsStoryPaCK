@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://qa-deployment-check-1.preview.emergentagent.com
+**Platform URL:** https://creator-qa.preview.emergentagent.com
 
 ---
 

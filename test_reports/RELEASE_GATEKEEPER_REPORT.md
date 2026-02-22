@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://qa-deployment-check-1.preview.emergentagent.com  
+**Base URL:** https://creator-qa.preview.emergentagent.com  
 **Testing Type:** Full Stack (QA + Security + Performance)
 
 ---
