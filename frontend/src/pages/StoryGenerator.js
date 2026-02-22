@@ -12,6 +12,7 @@ import StoryProgressBar from '../components/StoryProgressBar';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
 import ShareButton from '../components/ShareButton';
+import HelpGuide from '../components/HelpGuide';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
@@ -1006,6 +1007,9 @@ export default function StoryGenerator() {
           </div>
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="story-generator" />
     </div>
   );
 }
