@@ -19,12 +19,12 @@ from shared import db, logger, get_admin_user
 # Import threat detection module
 try:
     from utils.threat_detection import (
-        threat_store, get_threat_stats, check_rate_limit,
-        is_ip_blocked, is_ip_throttled, hash_ip, log_threat_event
+        threat_store, get_threat_stats
     )
     THREAT_DETECTION_AVAILABLE = True
 except ImportError:
     THREAT_DETECTION_AVAILABLE = False
+    threat_store = None
     logger.warning("Threat detection module not available")
 
 router = APIRouter(prefix="/security", tags=["Security Monitoring"])
