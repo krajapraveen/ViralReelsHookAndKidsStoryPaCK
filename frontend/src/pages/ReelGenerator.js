@@ -414,6 +414,7 @@ export default function ReelGenerator() {
                 disabled={loading}
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-500/25"
                 data-testid="reel-generate-btn"
+                data-tour="reel-generate-btn"
               >
                 {loading ? (
                   <>
