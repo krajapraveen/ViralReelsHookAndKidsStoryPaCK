@@ -144,9 +144,7 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int) -> 
     
     # All retries exhausted - return None (graceful degradation)
     logger.error(f"Story image generation failed after {max_retries + 1} attempts for scene {scene_index}: {last_error}")
-    return None:
-        logger.warning(f"Story image generation failed: {e}")
-        return None
+    return None
 
 
 async def generate_story_content_inline(data: dict, generate_images: bool = True) -> dict:
