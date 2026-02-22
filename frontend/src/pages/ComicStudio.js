@@ -215,9 +215,13 @@ export default function ComicStudio() {
       const genreConfig = genres.find(g => g.id === genre);
       const colorGrading = genreConfig?.colorGrading || {};
 
+      // Try OpenCV for advanced styles, fallback to enhanced Canvas
+      const useOpenCV = ['cartoon', 'sketch'].includes(style) && opencvLoaded;
+      const processFn = useOpenCV ? processImageOpenCV : processImageEnhanced;
+
       const processedPanels = await Promise.all(
         uploadedImages.map(async (imgData, index) => {
-          const processedCanvas = await processImage(imgData.image, style, colorGrading);
+          const processedCanvas = await processFn(imgData.image, style, colorGrading);
           return {
             id: imgData.id,
             index,
@@ -227,7 +231,8 @@ export default function ComicStudio() {
             caption: '',
             sfx: null,
             bubblePosition: { x: 50, y: 20 },
-            sfxPosition: { x: 80, y: 80 }
+            sfxPosition: { x: 80, y: 80 },
+            stickers: []
           };
         })
       );
@@ -239,6 +244,197 @@ export default function ComicStudio() {
       toast.error('Failed to process images');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  // Load OpenCV.js for advanced filters
+  const loadOpenCVLib = async () => {
+    if (opencvLoaded || loadingOpenCV) return;
+    
+    setLoadingOpenCV(true);
+    try {
+      await loadOpenCV();
+      setOpencvLoaded(true);
+      toast.success('Advanced filters enabled!');
+    } catch (error) {
+      console.error('Failed to load OpenCV:', error);
+      toast.error('Could not load advanced filters');
+    } finally {
+      setLoadingOpenCV(false);
+    }
+  };
+
+  // Add custom SFX to panel
+  const addCustomSfxToPanel = (panelId) => {
+    if (!customSfx.trim()) {
+      toast.error('Enter SFX text first');
+      return;
+    }
+    
+    setPanels(prev => prev.map(p => 
+      p.id === panelId ? { 
+        ...p, 
+        sfx: customSfx.trim(),
+        stickers: [...(p.stickers || []), {
+          id: Date.now(),
+          type: 'sfx',
+          text: customSfx.trim(),
+          x: 80,
+          y: 20,
+          size: 40,
+          color: '#ff0000',
+          rotation: -10
+        }]
+      } : p
+    ));
+    setCustomSfx('');
+    toast.success('SFX added!');
+  };
+
+  // Add sticker to panel
+  const addStickerToPanel = (panelId, stickerType, stickerData) => {
+    setPanels(prev => prev.map(p => 
+      p.id === panelId ? { 
+        ...p, 
+        stickers: [...(p.stickers || []), {
+          id: Date.now(),
+          type: stickerType,
+          ...stickerData,
+          x: 50 + Math.random() * 30 - 15,
+          y: 50 + Math.random() * 30 - 15
+        }]
+      } : p
+    ));
+  };
+
+  // Remove sticker from panel
+  const removeStickerFromPanel = (panelId, stickerId) => {
+    setPanels(prev => prev.map(p => 
+      p.id === panelId ? { 
+        ...p, 
+        stickers: (p.stickers || []).filter(s => s.id !== stickerId)
+      } : p
+    ));
+  };
+
+  // Export to ZIP (multi-page)
+  const exportToZip = async (removeWatermark = false) => {
+    if (panels.length === 0) {
+      toast.error('No panels to export');
+      return;
+    }
+
+    const totalCost = getExportCost() + (removeWatermark ? 2 : 0) + 2; // +2 for ZIP
+    if (credits < totalCost) {
+      toast.error(`Insufficient credits. Need ${totalCost}, have ${credits}`);
+      return;
+    }
+
+    setExporting(true);
+    try {
+      // Log export and debit credits
+      await api.post('/api/comic/export', {
+        export_type: 'ZIP',
+        panel_count: panels.length,
+        genre,
+        has_watermark: !removeWatermark,
+        story_mode: storyMode
+      });
+
+      const zip = new JSZip();
+      
+      // Add comic page
+      const comicCanvas = await generateComicCanvas(!removeWatermark);
+      const comicBlob = await new Promise(resolve => comicCanvas.toBlob(resolve, 'image/png'));
+      zip.file('comic_page.png', comicBlob);
+      
+      // Add individual panels
+      const panelsFolder = zip.folder('panels');
+      for (let i = 0; i < panels.length; i++) {
+        const panel = panels[i];
+        if (panel.processedImage) {
+          const panelBlob = await new Promise(resolve => 
+            panel.processedImage.toBlob(resolve, 'image/png')
+          );
+          panelsFolder.file(`panel_${i + 1}.png`, panelBlob);
+        }
+      }
+      
+      // Add metadata
+      const metadata = {
+        title: storyData?.title || 'My Comic',
+        genre,
+        style,
+        layout,
+        panelCount: panels.length,
+        createdAt: new Date().toISOString(),
+        panels: panels.map((p, i) => ({
+          index: i + 1,
+          bubbleText: p.bubbleText,
+          caption: p.caption,
+          sfx: p.sfx
+        }))
+      };
+      zip.file('metadata.json', JSON.stringify(metadata, null, 2));
+      
+      // Generate and download
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `comic_${genre}_${Date.now()}.zip`);
+
+      await loadCredits();
+      toast.success('Comic book ZIP exported!');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error(error.response?.data?.detail?.error || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Share comic (generate shareable preview)
+  const shareComic = async () => {
+    if (panels.length === 0) {
+      toast.error('Process images first');
+      return;
+    }
+
+    setIsSharing(true);
+    try {
+      // Generate the comic canvas
+      const comicCanvas = await generateComicCanvas(true);
+      
+      // Generate share thumbnail
+      const thumbnail = generateShareThumbnail(comicCanvas, {
+        title: storyData?.title || 'My Comic',
+        width: 1200,
+        height: 630
+      });
+      
+      // Convert to blob and create object URL
+      const blob = await new Promise(resolve => thumbnail.toBlob(resolve, 'image/png'));
+      const url = URL.createObjectURL(blob);
+      setShareUrl(url);
+      
+      // Try native share if available
+      if (navigator.share) {
+        const file = new File([blob], 'comic_preview.png', { type: 'image/png' });
+        await navigator.share({
+          title: storyData?.title || 'My Comic',
+          text: 'Check out my comic created with CreatorStudio AI!',
+          files: [file]
+        });
+        toast.success('Shared successfully!');
+      } else {
+        // Copy to clipboard or show share modal
+        toast.success('Share preview generated! Right-click to save.');
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+      if (error.name !== 'AbortError') {
+        toast.error('Failed to share');
+      }
+    } finally {
+      setIsSharing(false);
     }
   };
 
