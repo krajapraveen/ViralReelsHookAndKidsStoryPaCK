@@ -624,7 +624,7 @@ class TemplateCreateRequest(BaseModel):
 @router.get("/admin/genres")
 async def admin_get_genres(user: dict = Depends(get_current_user)):
     """Admin: Get all genres with full config"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     return {
@@ -641,7 +641,7 @@ async def admin_create_genre(
     user: dict = Depends(get_current_user)
 ):
     """Admin: Create a new genre"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     if request.id in GENRES:
@@ -686,7 +686,7 @@ async def admin_update_genre(
     user: dict = Depends(get_current_user)
 ):
     """Admin: Update an existing genre"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     if genre_id not in GENRES:
@@ -717,7 +717,7 @@ async def admin_delete_genre(
     user: dict = Depends(get_current_user)
 ):
     """Admin: Delete a genre"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     if genre_id not in GENRES:
@@ -750,7 +750,7 @@ async def admin_get_templates(
     user: dict = Depends(get_current_user)
 ):
     """Admin: Get all templates for a genre"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     if genre_id not in STORY_TEMPLATES:
@@ -768,7 +768,7 @@ async def admin_create_template(
     user: dict = Depends(get_current_user)
 ):
     """Admin: Create a new story template"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     if request.genre not in STORY_TEMPLATES:
@@ -801,7 +801,7 @@ async def admin_delete_template(
     user: dict = Depends(get_current_user)
 ):
     """Admin: Delete a story template"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     if genre_id not in STORY_TEMPLATES:
@@ -827,7 +827,7 @@ async def admin_delete_template(
 @router.get("/admin/stats")
 async def admin_get_comic_stats(user: dict = Depends(get_current_user)):
     """Admin: Get comic studio usage statistics"""
-    if not user.get("isAdmin"):
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     # Get export stats
