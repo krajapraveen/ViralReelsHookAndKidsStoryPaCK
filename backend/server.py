@@ -206,6 +206,7 @@ api_router.include_router(regional_pricing_router)
 api_router.include_router(analytics_router)
 api_router.include_router(subscriptions_router)
 api_router.include_router(user_manual_router)
+api_router.include_router(feature_requests_router)
 
 # Include API router in app
 app.include_router(api_router)
