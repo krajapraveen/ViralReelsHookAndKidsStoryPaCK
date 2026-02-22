@@ -165,39 +165,59 @@ async def generate_text_to_image(request: Request, data: TextToImageRequest, use
         "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=FILE_EXPIRY_MINUTES)).isoformat()
     })
     
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
-        prompt = data.prompt
-        if data.template_id:
-            template = next((t for t in GENSTUDIO_TEMPLATES if t["id"] == data.template_id), None)
-            if template:
-                prompt = template["prompt"].replace("{subject}", data.prompt).replace("{product}", data.prompt).replace("{scene}", data.prompt).replace("{theme}", data.prompt).replace("{location}", data.prompt).replace("{dish}", data.prompt)
-        
-        full_prompt = prompt
-        if data.negative_prompt:
-            full_prompt = f"{prompt}. Avoid: {data.negative_prompt}"
-        
-        aspect_instructions = {
-            "1:1": "square format, 1:1 aspect ratio",
-            "16:9": "widescreen format, 16:9 aspect ratio, landscape",
-            "9:16": "vertical format, 9:16 aspect ratio, portrait, mobile-friendly",
-            "4:3": "standard format, 4:3 aspect ratio"
-        }
-        full_prompt += f". {aspect_instructions.get(data.aspect_ratio, '')}"
-        
-        if data.add_watermark or user.get("plan") == "free":
-            full_prompt += ". Add subtle 'GenStudio' watermark in corner."
-        
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"genstudio-{job_id}",
-            system_message="You are an AI image generator. Generate high-quality images based on the user's prompt."
-        ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-        
-        msg = UserMessage(text=full_prompt)
-        text_response, images = await chat.send_message_multimodal_response(msg)
-        
+    # =========================================================================
+    # AUTOMATIC RETRY LOGIC FOR TEXT-TO-IMAGE
+    # =========================================================================
+    max_retries = 3
+    attempt = 0
+    last_error = None
+    
+    while attempt <= max_retries:
+        try:
+            if attempt > 0:
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": f"retrying (attempt {attempt + 1})",
+                        "retryAttempt": attempt,
+                        "lastError": str(last_error)[:200] if last_error else None
+                    }}
+                )
+                logger.info(f"Retrying image generation for job {job_id}, attempt {attempt + 1}")
+                await asyncio.sleep(min(3 * (2 ** attempt), 30))
+            
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            prompt = data.prompt
+            if data.template_id:
+                template = next((t for t in GENSTUDIO_TEMPLATES if t["id"] == data.template_id), None)
+                if template:
+                    prompt = template["prompt"].replace("{subject}", data.prompt).replace("{product}", data.prompt).replace("{scene}", data.prompt).replace("{theme}", data.prompt).replace("{location}", data.prompt).replace("{dish}", data.prompt)
+            
+            full_prompt = prompt
+            if data.negative_prompt:
+                full_prompt = f"{prompt}. Avoid: {data.negative_prompt}"
+            
+            aspect_instructions = {
+                "1:1": "square format, 1:1 aspect ratio",
+                "16:9": "widescreen format, 16:9 aspect ratio, landscape",
+                "9:16": "vertical format, 9:16 aspect ratio, portrait, mobile-friendly",
+                "4:3": "standard format, 4:3 aspect ratio"
+            }
+            full_prompt += f". {aspect_instructions.get(data.aspect_ratio, '')}"
+            
+            if data.add_watermark or user.get("plan") == "free":
+                full_prompt += ". Add subtle 'GenStudio' watermark in corner."
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"genstudio-{job_id}",
+                system_message="You are an AI image generator. Generate high-quality images based on the user's prompt."
+            ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+            
+            msg = UserMessage(text=full_prompt)
+            text_response, images = await chat.send_message_multimodal_response(msg)
+            
         if not images or len(images) == 0:
             raise Exception("No image was generated")
         
