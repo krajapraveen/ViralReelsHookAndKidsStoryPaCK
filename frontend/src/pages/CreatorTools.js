@@ -860,6 +860,9 @@ export default function CreatorTools() {
           </TabsContent>
         </Tabs>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="creator-tools" activeTab={activeTab} />
     </div>
   );
 }
