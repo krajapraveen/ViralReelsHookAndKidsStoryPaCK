@@ -1,0 +1,30 @@
+{
+  "testUser": {
+    "email": "demo@example.com",
+    "password": "Password123!",
+    "name": "Demo User"
+  },
+  "adminUser": {
+    "email": "admin@creatorstudio.ai",
+    "password": "Cr3@t0rStud!o#2026",
+    "name": "Admin"
+  },
+  "reelTopics": [
+    "Morning routines for entrepreneurs",
+    "5 productivity hacks",
+    "How to stay motivated",
+    "Quick workout tips",
+    "Healthy meal prep ideas"
+  ],
+  "storyThemes": [
+    "Friendship and kindness",
+    "Being brave",
+    "Helping others",
+    "Learning new things"
+  ],
+  "carouselTopics": [
+    "10 Tips for Success",
+    "5 Money Habits",
+    "Daily Routine Ideas"
+  ]
+}
