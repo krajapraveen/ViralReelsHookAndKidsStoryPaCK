@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://creator-qa.preview.emergentagent.com
+**Website:** https://image-to-comic.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://creator-qa.preview.emergentagent.com/login  
+**URL Tested:** https://image-to-comic.preview.emergentagent.com/login  
 **Environment:** Desktop Chrome (1920x800) + Mobile (375x812)
 
 ---

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://creator-qa.preview.emergentagent.com
+**Platform URL:** https://image-to-comic.preview.emergentagent.com
 
 ---
 
