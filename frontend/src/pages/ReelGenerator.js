@@ -589,6 +589,9 @@ export default function ReelGenerator() {
           </div>
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="reel-generator" />
     </div>
   );
 }
