@@ -416,7 +416,7 @@ async def get_security_system_health():
     try:
         await db.security_events.find_one({})
         status["database"] = "OPERATIONAL"
-    except:
+    except Exception:
         status["database"] = "ERROR"
     
     # Overall status
