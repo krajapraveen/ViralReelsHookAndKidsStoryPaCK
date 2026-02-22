@@ -150,22 +150,25 @@ export const applyComicBW = (imageData, options = {}) => {
 };
 
 /**
- * Apply manga style with halftone dots
+ * Apply manga style with halftone dots - cleaner smaller dots
  */
 export const applyMangaStyle = (ctx, width, height, options = {}) => {
-  const { dotSize = 4, threshold = 128 } = options;
+  const { dotSize = 2, threshold = 128 } = options; // Smaller dots
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
 
-  // First convert to grayscale
+  // First convert to grayscale with slight contrast boost
   for (let i = 0; i < data.length; i += 4) {
-    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    // Light contrast enhancement
+    gray = ((gray / 255 - 0.5) * 1.2 + 0.5) * 255;
+    gray = Math.max(0, Math.min(255, gray));
     data[i] = data[i + 1] = data[i + 2] = gray;
   }
 
   ctx.putImageData(imageData, 0, 0);
 
-  // Create halftone overlay
+  // Create halftone overlay with smaller, cleaner dots
   const halftoneCanvas = document.createElement('canvas');
   halftoneCanvas.width = width;
   halftoneCanvas.height = height;
@@ -175,15 +178,18 @@ export const applyMangaStyle = (ctx, width, height, options = {}) => {
   hCtx.fillStyle = '#fff';
   hCtx.fillRect(0, 0, width, height);
 
-  for (let y = 0; y < height; y += dotSize * 2) {
-    for (let x = 0; x < width; x += dotSize * 2) {
-      const idx = (y * width + x) * 4;
+  const spacing = dotSize * 2.5;
+  for (let y = 0; y < height; y += spacing) {
+    for (let x = 0; x < width; x += spacing) {
+      const safeY = Math.min(Math.floor(y), height - 1);
+      const safeX = Math.min(Math.floor(x), width - 1);
+      const idx = (safeY * width + safeX) * 4;
       const brightness = data[idx] / 255;
-      const radius = (1 - brightness) * dotSize;
+      const radius = (1 - brightness) * dotSize * 0.85;
 
-      if (radius > 0.5) {
+      if (radius > 0.25) {
         hCtx.beginPath();
-        hCtx.arc(x + dotSize, y + dotSize, radius, 0, Math.PI * 2);
+        hCtx.arc(x + dotSize, y + dotSize, Math.max(0.2, radius), 0, Math.PI * 2);
         hCtx.fillStyle = '#000';
         hCtx.fill();
       }
