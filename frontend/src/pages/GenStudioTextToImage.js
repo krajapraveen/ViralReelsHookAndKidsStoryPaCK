@@ -536,6 +536,9 @@ export default function TextToImage() {
           </div>
         </div>
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="genstudio-text-to-image" />
     </div>
   );
 }
