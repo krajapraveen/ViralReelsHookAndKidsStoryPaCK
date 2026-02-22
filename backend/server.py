@@ -68,6 +68,10 @@ from routes.analytics import router as analytics_router
 from routes.subscriptions import router as subscriptions_router
 from routes.user_manual import router as user_manual_router
 from routes.feature_requests import router as feature_requests_router
+from routes.activity_monitoring import router as activity_router
+from routes.reel_export import router as reel_export_router
+from routes.cashfree_webhook_handler import router as cashfree_webhook_router
+from routes.security_monitoring import router as security_router
 
 # Create FastAPI app
 app = FastAPI(
