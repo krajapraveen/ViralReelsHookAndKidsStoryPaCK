@@ -67,6 +67,7 @@ from routes.regional_pricing import router as regional_pricing_router
 from routes.analytics import router as analytics_router
 from routes.subscriptions import router as subscriptions_router
 from routes.user_manual import router as user_manual_router
+from routes.feature_requests import router as feature_requests_router
 
 # Create FastAPI app
 app = FastAPI(
