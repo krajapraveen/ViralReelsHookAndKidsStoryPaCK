@@ -2,9 +2,9 @@
 A/B Testing Framework for Pricing and Features
 Enables controlled experiments with different pricing, UI variants, and features
 """
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, Any
 from datetime import datetime, timezone, timedelta
 import uuid
 import hashlib
