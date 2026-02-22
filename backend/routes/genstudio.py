@@ -705,56 +705,106 @@ class VideoRemixRequest(BaseModel):
     add_watermark: bool = True
     consent_confirmed: bool = False
 
+async def _generate_video_remix_internal(job_id: str, video_path: str, data: dict):
+    """Internal video remix generation - can be retried"""
+    from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+    
+    prompt = f"Remix this video with: {data['remix_prompt']}. Style: {data.get('template_style', 'dynamic')}"
+    
+    video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+    
+    video_bytes = video_gen.text_to_video(
+        prompt=prompt,
+        model="sora-2",
+        size="1280x720",
+        duration=8,
+        max_wait_time=600
+    )
+    
+    if not video_bytes:
+        raise Exception("Video remix failed - no video returned")
+    
+    filename = f"genstudio_{job_id}_remixed.mp4"
+    filepath = f"/tmp/{filename}"
+    
+    video_gen.save_video(video_bytes, filepath)
+    
+    return [f"/api/genstudio/download/{job_id}/{filename}"]
+
+
 async def process_video_remix(job_id: str, video_path: str, data: dict, user_id: str):
-    """Background task for video remix generation"""
+    """Background task for video remix generation WITH AUTOMATIC RETRY"""
+    max_retries = 3
+    attempt = 0
+    last_error = None
+    
+    while attempt <= max_retries:
+        try:
+            if attempt > 0:
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": f"retrying (attempt {attempt + 1})",
+                        "retryAttempt": attempt,
+                        "lastError": str(last_error)[:200] if last_error else None
+                    }}
+                )
+                logger.info(f"Retrying video remix for job {job_id}, attempt {attempt + 1}")
+                await asyncio.sleep(min(5 * (2 ** attempt), 60))
+            
+            logger.info(f"Starting video remix for job {job_id}")
+            
+            output_urls = await _generate_video_remix_internal(job_id, video_path, data)
+            
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "outputUrls": output_urls,
+                    "completedAt": datetime.now(timezone.utc).isoformat(),
+                    "totalAttempts": attempt + 1,
+                    "retrySuccess": attempt > 0
+                }}
+            )
+            
+            if attempt > 0:
+                logger.info(f"Video remix succeeded after {attempt + 1} attempts: {job_id}")
+            else:
+                logger.info(f"Video remix completed: {job_id}")
+            return
+            
+        except Exception as e:
+            last_error = e
+            error_category = categorize_error(e)
+            
+            if error_category == "content_safety":
+                logger.warning(f"Video remix blocked (content policy): {job_id}")
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {"status": "failed", "error": str(e), "errorCategory": error_category}}
+                )
+                return
+            
+            logger.warning(f"Video remix attempt {attempt + 1} failed for {job_id}: {e}")
+            attempt += 1
+    
+    # All retries exhausted
+    logger.error(f"Video remix failed after {max_retries + 1} attempts for job {job_id}: {last_error}")
+    await db.genstudio_jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "status": "failed",
+            "error": str(last_error),
+            "totalAttempts": max_retries + 1,
+            "errorCategory": categorize_error(last_error) if last_error else "unknown"
+        }}
+    )
+    
     try:
-        logger.info(f"Starting video remix for job {job_id}")
-        
-        # Use OpenAI Video Generation for video remix
-        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
-        
-        prompt = f"Remix this video with: {data['remix_prompt']}. Style: {data.get('template_style', 'dynamic')}"
-        
-        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
-        
-        # Generate remixed video (Sora 2)
-        video_bytes = video_gen.text_to_video(
-            prompt=prompt,
-            model="sora-2",
-            size="1280x720",
-            duration=8,
-            max_wait_time=600
-        )
-        
-        if not video_bytes:
-            raise Exception("Video remix failed - no video returned")
-        
-        # Save remixed video to temp location
-        filename = f"genstudio_{job_id}_remixed.mp4"
-        filepath = f"/tmp/{filename}"
-        
-        video_gen.save_video(video_bytes, filepath)
-        
-        output_url = f"/api/genstudio/download/{job_id}/{filename}"
-        output_urls = [output_url]
-        
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "status": "completed",
-                "outputUrls": output_urls,
-                "completedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        logger.info(f"Video remix completed: {job_id}")
-        
-    except Exception as e:
-        logger.error(f"Video remix failed for job {job_id}: {e}")
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "failed", "error": str(e)}}
-        )
+        from routes.push_notifications import notify_generation_failure
+        await notify_generation_failure(job_id, "video_remix", str(last_error), user_id)
+    except Exception:
+        pass
 
 @genstudio_router.post("/video-remix")
 @limiter.limit("5/minute")
