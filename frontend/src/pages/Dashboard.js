@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { creditAPI, authAPI, generationAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Sparkles, Video, BookOpen, Clock, LogOut, CreditCard, History as HistoryIcon, Coins, Shield, Lightbulb, Lock, User, Copyright, Wand2, Library, Receipt, Palette, Film, Calendar, Type, Crown, BarChart3, HelpCircle } from 'lucide-react';
+import HelpGuide from '../components/HelpGuide';
 
 export default function Dashboard() {
   const [credits, setCredits] = useState(0);
@@ -320,6 +321,9 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="dashboard" />
     </div>
   );
 }
