@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { Lightbulb, ThumbsUp, ArrowLeft, Plus, Send, Check } from 'lucide-react';
+import HelpGuide from '../components/HelpGuide';
 
 export default function FeatureRequests() {
   const [requests, setRequests] = useState([]);
@@ -248,6 +249,9 @@ export default function FeatureRequests() {
           )}
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="feature-requests" />
     </div>
   );
 }
