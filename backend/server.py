@@ -341,7 +341,8 @@ async def startup():
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
     
-    # Create admin user if not exists
+    # Create admin user if not exists (ONE-TIME SEED ONLY)
+    # SECURITY FIX: Do NOT reset admin password on every restart
     admin = await db.users.find_one({"email": "admin@creatorstudio.ai"})
     if not admin:
         admin_id = str(uuid.uuid4())
@@ -357,19 +358,20 @@ async def startup():
         })
         logger.info("Admin user created with unlimited credits")
     else:
-        # Update admin credentials and credits - ensure password and role are correct
+        # Only update credits and role, NOT password (security fix)
         await db.users.update_one(
             {"email": "admin@creatorstudio.ai"},
             {"$set": {
                 "credits": 999999999,  # Unlimited credits for admin
                 "plan": "admin",
-                "role": "ADMIN",
-                "password": hash_password("Cr3@t0rStud!o#2026")
+                "role": "ADMIN"
+                # NOTE: Password is NOT reset - preserves manually changed passwords
             }}
         )
-        logger.info("Admin user credentials updated with unlimited credits")
+        logger.info("Admin user credits verified (password preserved)")
     
-    # Create demo user if not exists
+    # Create demo user if not exists (ONE-TIME SEED ONLY)
+    # SECURITY FIX: Do NOT reset demo password on every restart
     demo = await db.users.find_one({"email": "demo@example.com"})
     if not demo:
         demo_id = str(uuid.uuid4())
@@ -385,16 +387,16 @@ async def startup():
         })
         logger.info("Demo user created with unlimited credits")
     else:
-        # Update demo user password and credits
+        # Only update credits and plan, NOT password (security fix)
         await db.users.update_one(
             {"email": "demo@example.com"},
             {"$set": {
                 "credits": 999999999,  # Unlimited credits for demo user
-                "plan": "demo",
-                "password": hash_password("Password123!")
+                "plan": "demo"
+                # NOTE: Password is NOT reset - preserves manually changed passwords
             }}
         )
-        logger.info("Demo user credentials updated with unlimited credits")
+        logger.info("Demo user credits verified (password preserved)")
     
     # Give 100 free credits to all existing users who have less than 100 credits
     # This is a one-time bonus for production go-live
