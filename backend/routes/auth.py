@@ -509,6 +509,10 @@ async def update_profile(data: ProfileUpdate, user: dict = Depends(get_current_u
     if data.name:
         update_data["name"] = data.name
     
+    # Handle tour completion status
+    if hasattr(data, 'tourCompleted') and data.tourCompleted is not None:
+        update_data["tourCompleted"] = data.tourCompleted
+    
     if update_data:
         await db.users.update_one({"id": user["id"]}, {"$set": update_data})
     
