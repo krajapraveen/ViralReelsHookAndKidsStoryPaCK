@@ -415,6 +415,28 @@ export default function Profile() {
           </div>
         )}
 
+        {/* App Tour */}
+        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Play className="w-5 h-5 text-green-400" />
+            App Tour
+          </h3>
+          <p className="text-sm text-slate-400 mb-4">
+            Need a refresher on how to use CreatorStudio? Replay the interactive tour to learn about all features.
+          </p>
+          <Button 
+            onClick={() => {
+              restartTour();
+              toast.success('Tour started! Follow along to learn the features.');
+            }}
+            className="bg-green-600 hover:bg-green-700"
+            data-testid="replay-tour-btn"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Replay App Tour
+          </Button>
+        </div>
+
         {/* Notification Preferences */}
         <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
           <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
