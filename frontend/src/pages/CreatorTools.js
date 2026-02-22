@@ -571,26 +571,27 @@ export default function CreatorTools() {
           {/* Thumbnails Tab */}
           <TabsContent value="thumbnails">
             <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                  <Type className="w-6 h-6 text-orange-500" />
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                  <Type className="w-6 h-6 text-orange-400" />
                   Thumbnail Text Generator
                 </h2>
-                <p className="text-slate-500 mb-6">Generate attention-grabbing thumbnail text - FREE</p>
+                <p className="text-slate-400 mb-6">Generate attention-grabbing thumbnail text - FREE</p>
                 
                 <div className="space-y-4">
                   <div>
-                    <Label>Topic/Subject</Label>
+                    <Label className="text-slate-300">Topic/Subject</Label>
                     <Input 
                       placeholder="e.g., productivity, weight loss, money"
                       value={thumbnailTopic}
                       onChange={(e) => setThumbnailTopic(e.target.value)}
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                       data-testid="thumbnail-topic-input"
                     />
                   </div>
                   
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-orange-700">
+                  <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-orange-400">
                       <Sparkles className="w-4 h-4" />
                       <span className="font-medium">FREE - No credits required</span>
                     </div>
@@ -608,28 +609,28 @@ export default function CreatorTools() {
                 </div>
               </div>
               
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h3 className="text-lg font-bold mb-4">Thumbnail Options</h3>
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+                <h3 className="text-lg font-bold text-white mb-4">Thumbnail Options</h3>
                 {!thumbnailResult ? (
-                  <div className="text-center py-12 text-slate-500">
-                    <Type className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <div className="text-center py-12 text-slate-400">
+                    <Type className="w-12 h-12 mx-auto mb-4 text-slate-600" />
                     <p>Enter a topic and generate thumbnail text</p>
                   </div>
                 ) : (
                   <div className="space-y-4" data-testid="thumbnail-result">
                     {Object.entries(thumbnailResult.thumbnails).map(([style, texts]) => (
-                      <div key={style} className={`rounded-lg p-4 ${
-                        style === 'emotional' ? 'bg-red-50 border border-red-200' :
-                        style === 'curiosity' ? 'bg-yellow-50 border border-yellow-200' :
-                        style === 'action' ? 'bg-blue-50 border border-blue-200' :
-                        'bg-purple-50 border border-purple-200'
+                      <div key={style} className={`rounded-lg p-4 border ${
+                        style === 'emotional' ? 'bg-red-500/10 border-red-500/30' :
+                        style === 'curiosity' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                        style === 'action' ? 'bg-blue-500/10 border-blue-500/30' :
+                        'bg-purple-500/10 border-purple-500/30'
                       }`}>
-                        <h4 className="font-bold capitalize mb-2">{style}</h4>
+                        <h4 className="font-bold text-white capitalize mb-2">{style}</h4>
                         <div className="space-y-2">
                           {texts.map((text, i) => (
-                            <div key={i} className="flex items-center justify-between bg-white rounded px-3 py-2">
-                              <span className="font-medium">{text}</span>
-                              <Button variant="ghost" size="sm" onClick={() => copyToClipboard(text, `${style}-${i}`)}>
+                            <div key={i} className="flex items-center justify-between bg-slate-800/50 rounded px-3 py-2">
+                              <span className="font-medium text-white">{text}</span>
+                              <Button variant="ghost" size="sm" onClick={() => copyToClipboard(text, `${style}-${i}`)} className="text-slate-400 hover:text-white">
                                 {copied === `${style}-${i}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                               </Button>
                             </div>
