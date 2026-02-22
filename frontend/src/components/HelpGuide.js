@@ -187,6 +187,25 @@ const HELP_CONTENT = {
       'Great for thumbnail animations'
     ]
   },
+  'comic-studio': {
+    title: 'Comic Studio',
+    description: 'Turn your photos into comic-style panels with speech bubbles and SFX.',
+    credits: '8-10 credits per export',
+    steps: [
+      'Upload 1-6 images (photos)',
+      'Choose genre, style, and layout',
+      'Click "Convert to Comic Style"',
+      'Add speech bubbles and SFX',
+      'Export as PNG or PDF'
+    ],
+    tips: [
+      'Images are processed on YOUR device - privacy first!',
+      'Use Story Mode for auto-generated captions (+1 credit)',
+      'Remove watermark costs +2 credits',
+      'Try different genres for unique visual styles',
+      'Manga B&W style adds cool halftone dots'
+    ]
+  },
   'analytics': {
     title: 'Analytics Dashboard',
     description: 'Track your content performance and usage statistics.',
