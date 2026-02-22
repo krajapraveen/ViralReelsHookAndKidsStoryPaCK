@@ -98,7 +98,7 @@ export default function AdminMonitoring() {
       <div className="border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex gap-6">
-            {['overview', 'security', 'usage', 'performance'].map((tab) => (
+            {['overview', 'live', 'security', 'usage', 'performance'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -109,7 +109,7 @@ export default function AdminMonitoring() {
                 }`}
                 data-testid={`tab-${tab}`}
               >
-                {tab}
+                {tab === 'live' ? 'Live Activity' : tab}
               </button>
             ))}
           </div>
