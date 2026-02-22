@@ -21,7 +21,7 @@ import {
   Plus, ChevronLeft, ChevronRight, Settings, Wand2, Share2, Layers
 } from 'lucide-react';
 import api, { creditAPI } from '../utils/api';
-import { processImage, processImageEnhanced, createPanelLayout, addWatermark, loadOpenCV, processImageOpenCV, drawStickers, generateShareThumbnail } from '../utils/comicFilters';
+import { processImage, createPanelLayout, addWatermark, loadOpenCV, processImageOpenCV, drawStickers, generateShareThumbnail } from '../utils/comicFilters';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
