@@ -43,6 +43,7 @@ import UserManual from './pages/UserManual';
 import AdminMonitoring from './pages/AdminMonitoring';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
+import ComicStudio from './pages/ComicStudio';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import AppTour, { TourProvider } from './components/AppTour';
