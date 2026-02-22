@@ -218,56 +218,92 @@ async def generate_text_to_image(request: Request, data: TextToImageRequest, use
             msg = UserMessage(text=full_prompt)
             text_response, images = await chat.send_message_multimodal_response(msg)
             
-        if not images or len(images) == 0:
-            raise Exception("No image was generated")
-        
-        output_urls = []
-        for i, img in enumerate(images):
-            image_bytes = base64.b64decode(img['data'])
-            filename = f"genstudio_{job_id}_{i}.png"
-            filepath = f"/tmp/{filename}"
-            with open(filepath, "wb") as f:
-                f.write(image_bytes)
-            output_urls.append(f"/api/genstudio/download/{job_id}/{filename}")
-        
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
+            if not images or len(images) == 0:
+                raise Exception("No image was generated")
+            
+            output_urls = []
+            for i, img in enumerate(images):
+                image_bytes = base64.b64decode(img['data'])
+                filename = f"genstudio_{job_id}_{i}.png"
+                filepath = f"/tmp/{filename}"
+                with open(filepath, "wb") as f:
+                    f.write(image_bytes)
+                output_urls.append(f"/api/genstudio/download/{job_id}/{filename}")
+            
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "outputUrls": output_urls,
+                    "completedAt": datetime.now(timezone.utc).isoformat(),
+                    "totalAttempts": attempt + 1,
+                    "retrySuccess": attempt > 0
+                }}
+            )
+            
+            new_balance = await deduct_credits(user["id"], cost, "GenStudio: Text to Image")
+            
+            if attempt > 0:
+                logger.info(f"Image generation succeeded after {attempt + 1} attempts: {job_id}")
+            
+            return {
+                "success": True,
+                "jobId": job_id,
                 "status": "completed",
                 "outputUrls": output_urls,
-                "completedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        new_balance = await deduct_credits(user["id"], cost, "GenStudio: Text to Image")
-        
-        return {
-            "success": True,
-            "jobId": job_id,
-            "status": "completed",
-            "outputUrls": output_urls,
-            "creditsUsed": cost,
-            "remainingCredits": new_balance,
-            "expiresIn": f"{FILE_EXPIRY_MINUTES} minutes",
-            "message": f"Image generated! Download within {FILE_EXPIRY_MINUTES} minutes before it expires."
-        }
-        
-    except Exception as e:
-        logger.error(f"GenStudio text-to-image error: {e}")
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "failed", "error": str(e)}}
-        )
-        await log_exception(
-            functionality="genstudio_text_to_image",
-            error_type="GENERATION_FAILED",
-            error_message=str(e),
-            user_id=user["id"],
-            user_email=user.get("email"),
-            stack_trace=traceback.format_exc(),
-            severity="ERROR"
-        )
-        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
+                "creditsUsed": cost,
+                "remainingCredits": new_balance,
+                "expiresIn": f"{FILE_EXPIRY_MINUTES} minutes",
+                "message": f"Image generated! Download within {FILE_EXPIRY_MINUTES} minutes before it expires.",
+                "retried": attempt > 0,
+                "totalAttempts": attempt + 1
+            }
+            
+        except Exception as e:
+            last_error = e
+            error_category = categorize_error(e)
+            
+            # Don't retry content policy violations
+            if error_category == "content_safety":
+                logger.warning(f"Image generation blocked (content policy): {job_id}")
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {"status": "failed", "error": str(e), "errorCategory": error_category}}
+                )
+                raise HTTPException(status_code=400, detail=f"Content blocked: {str(e)}")
+            
+            logger.warning(f"Image generation attempt {attempt + 1} failed for {job_id}: {e}")
+            attempt += 1
+    
+    # All retries exhausted
+    logger.error(f"GenStudio text-to-image error after {max_retries + 1} attempts: {last_error}")
+    await db.genstudio_jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "status": "failed",
+            "error": str(last_error),
+            "totalAttempts": max_retries + 1,
+            "errorCategory": categorize_error(last_error) if last_error else "unknown"
+        }}
+    )
+    await log_exception(
+        functionality="genstudio_text_to_image",
+        error_type="GENERATION_FAILED_AFTER_RETRIES",
+        error_message=str(last_error),
+        user_id=user["id"],
+        user_email=user.get("email"),
+        stack_trace=traceback.format_exc(),
+        severity="ERROR"
+    )
+    
+    # Notify admin about repeated failures
+    try:
+        from routes.push_notifications import notify_generation_failure
+        await notify_generation_failure(job_id, "text_to_image", str(last_error), user["id"])
+    except Exception:
+        pass
+    
+    raise HTTPException(status_code=500, detail=f"Image generation failed after {max_retries + 1} attempts: {str(last_error)}")
 
 
 # =============================================================================
