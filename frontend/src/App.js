@@ -65,7 +65,7 @@ function App() {
   }
 
   return (
-    <>
+    <TourProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
@@ -129,10 +129,7 @@ function App() {
       
       {/* Feedback Widget - Collect user suggestions */}
       <FeedbackWidget />
-      
-      {/* Interactive App Tour for new users */}
-      {isAuthenticated && <TourProvider><></></TourProvider>}
-    </>
+    </TourProvider>
   );
 }
 
