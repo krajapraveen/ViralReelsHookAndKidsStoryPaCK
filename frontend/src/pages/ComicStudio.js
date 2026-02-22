@@ -801,7 +801,30 @@ export default function ComicStudio() {
 
             {/* Style Selection */}
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-              <Label className="text-white font-medium mb-3 block">Style</Label>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-white font-medium">Style</Label>
+                {['cartoon', 'sketch'].includes(style) && !opencvLoaded && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={loadOpenCVLib}
+                    disabled={loadingOpenCV}
+                    className="text-xs border-yellow-500 text-yellow-400 hover:bg-yellow-500/20"
+                  >
+                    {loadingOpenCV ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Zap className="w-3 h-3 mr-1" />
+                    )}
+                    Enable HD
+                  </Button>
+                )}
+                {opencvLoaded && (
+                  <span className="text-xs text-green-400 flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> HD Enabled
+                  </span>
+                )}
+              </div>
               <Select value={style} onValueChange={setStyle}>
                 <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                   <SelectValue />
@@ -810,10 +833,14 @@ export default function ComicStudio() {
                   {STYLES.map(s => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} - {s.description}
+                      {['cartoon', 'sketch', 'pop_art'].includes(s.id) && ' ✨'}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {['cartoon', 'sketch', 'pop_art'].includes(style) && (
+                <p className="text-xs text-purple-400 mt-2">✨ New advanced filter!</p>
+              )}
             </div>
 
             {/* Layout Selection */}
