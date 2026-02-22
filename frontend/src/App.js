@@ -94,7 +94,6 @@ function App() {
       <Route path="/app/profile" element={isAuthenticated ? <Profile /> : <Navigate to="/login" />} />
       <Route path="/app/copyright" element={isAuthenticated ? <CopyrightInfo /> : <Navigate to="/login" />} />
       <Route path="/app/creator-tools" element={isAuthenticated ? <CreatorTools /> : <Navigate to="/login" />} />
-      <Route path="/app/comic-studio" element={isAuthenticated ? <ComicStudio /> : <Navigate to="/login" />} />
       <Route path="/app/content-vault" element={isAuthenticated ? <ContentVault /> : <Navigate to="/login" />} />
       <Route path="/app/payment-history" element={isAuthenticated ? <PaymentHistory /> : <Navigate to="/login" />} />
       {/* GenStudio Routes */}
