@@ -24,6 +24,7 @@ from shared import (
 from ml_threat_detection import threat_intel
 from security import log_security_event, limiter
 from fastapi import Request
+from utils.retry_mechanism import with_retry, categorize_error
 
 genstudio_router = APIRouter(prefix="/genstudio", tags=["GenStudio"])
 
