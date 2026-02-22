@@ -213,15 +213,19 @@ export default function ComicStudio() {
     setProcessing(true);
     try {
       const genreConfig = genres.find(g => g.id === genre);
-      const colorGrading = genreConfig?.colorGrading || {};
-
-      // Try OpenCV for advanced styles, fallback to enhanced Canvas
-      const useOpenCV = ['cartoon', 'sketch'].includes(style) && opencvLoaded;
-      const processFn = useOpenCV ? processImageOpenCV : processImageEnhanced;
+      // Use lighter processing for better looking comics
+      const colorGrading = {
+        contrast: 1.15,
+        saturation: 1.2,
+        brightness: 1.05,
+        posterize: 12, // More color levels = smoother
+        ...genreConfig?.colorGrading
+      };
 
       const processedPanels = await Promise.all(
         uploadedImages.map(async (imgData, index) => {
-          const processedCanvas = await processFn(imgData.image, style, colorGrading);
+          // Use the basic processImage function which is more stable
+          const processedCanvas = await processImage(imgData.image, style, colorGrading);
           return {
             id: imgData.id,
             index,
@@ -230,20 +234,63 @@ export default function ComicStudio() {
             bubbleText: '',
             caption: '',
             sfx: null,
-            bubblePosition: { x: 50, y: 20 },
-            sfxPosition: { x: 80, y: 80 },
+            bubblePosition: { x: 50, y: 15 },
+            sfxPosition: { x: 85, y: 85 },
             stickers: []
           };
         })
       );
 
       setPanels(processedPanels);
-      toast.success('Images processed! Click on panels to add text.');
+      
+      // Auto-generate story if story mode is on
+      if (storyMode) {
+        await autoGenerateStory(processedPanels);
+      }
+      
+      toast.success('Comic created! You can edit bubbles below or export directly.');
+      
+      // Auto-preview the comic
+      setTimeout(() => {
+        previewComic();
+      }, 500);
+      
     } catch (error) {
       console.error('Processing error:', error);
       toast.error('Failed to process images');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  // Auto-generate story for panels
+  const autoGenerateStory = async (processedPanels) => {
+    try {
+      const panelCount = processedPanels.length;
+      
+      const res = await api.post('/api/comic/generate-story', {
+        genre,
+        tone: 'normal',
+        character_name: characterName || 'Hero',
+        panel_count: panelCount
+      });
+
+      setStoryData(res.data);
+      
+      // Auto-populate panels with story data
+      if (res.data.panels) {
+        setPanels(prev => prev.map((panel, index) => ({
+          ...panel,
+          bubbleText: res.data.panels[index]?.dialogue || '',
+          caption: res.data.panels[index]?.caption || '',
+          sfx: res.data.panels[index]?.sfx || null
+        })));
+      }
+      
+      toast.success('Story generated! Check your panels.');
+    } catch (error) {
+      console.error('Story generation failed:', error);
+      // Don't show error - just continue without auto story
     }
   };
 
