@@ -39,11 +39,14 @@ const GENRE_ICONS = {
   kids: '🌈'
 };
 
-// Style options
+// Style options - now includes advanced OpenCV filters
 const STYLES = [
   { id: 'comic_color', name: 'Comic Color', description: 'Vibrant comic book colors' },
   { id: 'comic_bw', name: 'Comic B&W', description: 'Classic black & white' },
-  { id: 'manga_bw', name: 'Manga B&W', description: 'Japanese manga style with halftone' }
+  { id: 'manga_bw', name: 'Manga B&W', description: 'Japanese manga style with halftone' },
+  { id: 'cartoon', name: 'Cartoon Shader', description: 'Smooth cartoon effect (OpenCV)' },
+  { id: 'sketch', name: 'Pencil Sketch', description: 'Hand-drawn sketch effect (OpenCV)' },
+  { id: 'pop_art', name: 'Pop Art', description: 'Bold Warhol-style colors' }
 ];
 
 // Layout options
