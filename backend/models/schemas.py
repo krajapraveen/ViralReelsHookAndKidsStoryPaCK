@@ -24,6 +24,7 @@ class GoogleCallback(BaseModel):
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
+    tourCompleted: Optional[bool] = None
 
 
 class PasswordChange(BaseModel):
