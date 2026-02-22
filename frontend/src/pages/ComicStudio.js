@@ -636,7 +636,7 @@ export default function ComicStudio() {
             </div>
 
             {/* Story Mode */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-testid="story-mode-section">
               <div className="flex items-center justify-between mb-3">
                 <Label className="text-white font-medium">Story Mode</Label>
                 <span className="text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded">+1 credit</span>
@@ -644,6 +644,7 @@ export default function ComicStudio() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setStoryMode(!storyMode)}
+                  data-testid="story-mode-toggle"
                   className={`px-4 py-2 rounded-lg border transition-all ${
                     storyMode
                       ? 'bg-purple-600 border-purple-500 text-white'
@@ -657,6 +658,7 @@ export default function ComicStudio() {
                     value={characterName}
                     onChange={(e) => setCharacterName(e.target.value)}
                     placeholder="Character name"
+                    data-testid="character-name-input"
                     className="bg-slate-700 border-slate-600 text-white flex-1"
                   />
                 )}
@@ -665,6 +667,7 @@ export default function ComicStudio() {
                 <Button
                   onClick={generateStory}
                   disabled={loading}
+                  data-testid="generate-story-btn"
                   className="w-full mt-3 bg-purple-600 hover:bg-purple-700"
                 >
                   {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
@@ -702,7 +705,7 @@ export default function ComicStudio() {
           {/* Middle Panel - Image Upload & Editor */}
           <div className="lg:col-span-2 space-y-6">
             {/* Image Upload */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-testid="upload-section">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-medium">Upload Images ({uploadedImages.length}/6)</h3>
                 <span className="text-xs text-slate-400">Max {selectedLayoutPanels} for selected layout</span>
@@ -716,8 +719,9 @@ export default function ComicStudio() {
                   onChange={handleImageUpload}
                   className="hidden"
                   id="image-upload"
+                  data-testid="image-upload-input"
                 />
-                <label htmlFor="image-upload" className="cursor-pointer">
+                <label htmlFor="image-upload" className="cursor-pointer" data-testid="upload-label">
                   <Upload className="w-10 h-10 mx-auto mb-3 text-slate-400" />
                   <p className="text-slate-300 mb-1">Drag & drop or click to upload</p>
                   <p className="text-xs text-slate-500">JPG, PNG, WebP • Max 10MB each</p>
@@ -851,10 +855,11 @@ export default function ComicStudio() {
             )}
 
             {/* Preview Area */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-testid="preview-section">
               <h3 className="text-white font-medium mb-4">Preview</h3>
               <div
                 ref={previewRef}
+                data-testid="preview-canvas"
                 className="bg-white rounded-lg min-h-[400px] flex items-center justify-center overflow-auto"
               >
                 {panels.length === 0 ? (
