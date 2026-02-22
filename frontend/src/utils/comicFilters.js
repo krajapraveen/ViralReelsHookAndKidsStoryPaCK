@@ -602,3 +602,159 @@ export const addWatermark = (canvas, text = 'CreatorStudio AI') => {
   ctx.restore();
   return canvas;
 };
+
+/**
+ * Draw stickers on canvas
+ */
+export const drawStickers = (canvas, stickers) => {
+  const ctx = canvas.getContext('2d');
+  
+  stickers.forEach(sticker => {
+    ctx.save();
+    
+    const x = sticker.x * canvas.width / 100;
+    const y = sticker.y * canvas.height / 100;
+    const size = sticker.size || 50;
+    
+    if (sticker.type === 'sfx') {
+      // Draw SFX text with comic style
+      ctx.translate(x, y);
+      ctx.rotate((sticker.rotation || 0) * Math.PI / 180);
+      
+      // Outer stroke
+      ctx.font = `bold ${size}px Impact, sans-serif`;
+      ctx.strokeStyle = sticker.strokeColor || '#000';
+      ctx.lineWidth = 4;
+      ctx.strokeText(sticker.text, 0, 0);
+      
+      // Fill
+      ctx.fillStyle = sticker.color || '#ff0000';
+      ctx.fillText(sticker.text, 0, 0);
+    } else if (sticker.type === 'bubble') {
+      // Draw speech bubble
+      ctx.translate(x, y);
+      
+      const bubbleWidth = Math.max(100, sticker.text.length * 8);
+      const bubbleHeight = 50;
+      
+      // Bubble shape
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      if (sticker.bubbleType === 'thought') {
+        ctx.ellipse(0, 0, bubbleWidth / 2, bubbleHeight / 2, 0, 0, Math.PI * 2);
+      } else if (sticker.bubbleType === 'shout') {
+        // Spiky bubble
+        const spikes = 12;
+        for (let i = 0; i < spikes; i++) {
+          const angle = (i / spikes) * Math.PI * 2;
+          const r = i % 2 === 0 ? bubbleWidth / 2 : bubbleWidth / 2.5;
+          ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r * 0.6);
+        }
+        ctx.closePath();
+      } else {
+        // Regular speech bubble
+        ctx.ellipse(0, 0, bubbleWidth / 2, bubbleHeight / 2, 0, 0, Math.PI * 2);
+      }
+      
+      ctx.fill();
+      ctx.stroke();
+      
+      // Tail
+      ctx.beginPath();
+      ctx.moveTo(-10, bubbleHeight / 2 - 5);
+      ctx.lineTo(-20, bubbleHeight / 2 + 20);
+      ctx.lineTo(10, bubbleHeight / 2 - 5);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.stroke();
+      
+      // Text
+      ctx.fillStyle = '#000';
+      ctx.font = '14px Comic Sans MS, cursive';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sticker.text, 0, 0);
+    }
+    
+    ctx.restore();
+  });
+  
+  return canvas;
+};
+
+/**
+ * Generate social share thumbnail
+ */
+export const generateShareThumbnail = (canvas, options = {}) => {
+  const { width = 600, height = 315, title = 'My Comic' } = options;
+  
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = width;
+  thumbCanvas.height = height;
+  const ctx = thumbCanvas.getContext('2d');
+  
+  // Background gradient
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#667eea');
+  gradient.addColorStop(1, '#764ba2');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw comic preview
+  const previewSize = Math.min(width * 0.4, height * 0.8);
+  const previewX = width - previewSize - 20;
+  const previewY = (height - previewSize) / 2;
+  
+  // Add border/frame
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(previewX - 5, previewY - 5, previewSize + 10, previewSize + 10);
+  
+  // Draw scaled comic
+  ctx.drawImage(canvas, previewX, previewY, previewSize, previewSize);
+  
+  // Add title
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 32px Impact, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, 30, height / 2 - 20);
+  
+  // Add subtitle
+  ctx.font = '18px Arial, sans-serif';
+  ctx.fillText('Created with CreatorStudio AI', 30, height / 2 + 20);
+  
+  // Add logo/badge
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(60, height - 50, 25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#764ba2';
+  ctx.font = 'bold 20px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('🎨', 60, height - 43);
+  
+  return thumbCanvas;
+};
+
+/**
+ * Create multi-page comic structure
+ */
+export const createComicBook = (pages, options = {}) => {
+  const { title = 'My Comic Book', author = 'Anonymous' } = options;
+  
+  return {
+    title,
+    author,
+    createdAt: new Date().toISOString(),
+    pageCount: pages.length,
+    pages: pages.map((page, index) => ({
+      pageNumber: index + 1,
+      canvas: page.canvas,
+      panels: page.panels,
+      stickers: page.stickers || []
+    }))
+  };
+};
+
