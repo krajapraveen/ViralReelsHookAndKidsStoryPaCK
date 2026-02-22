@@ -1,0 +1,426 @@
+/**
+ * Comic Image Processing Utilities
+ * Client-side image filters using Canvas API and OpenCV.js
+ */
+
+// Check if OpenCV.js is loaded
+let opencvReady = false;
+
+// Load OpenCV.js dynamically
+export const loadOpenCV = () => {
+  return new Promise((resolve, reject) => {
+    if (opencvReady) {
+      resolve(window.cv);
+      return;
+    }
+
+    if (window.cv && window.cv.Mat) {
+      opencvReady = true;
+      resolve(window.cv);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://docs.opencv.org/4.x/opencv.js';
+    script.async = true;
+    script.onload = () => {
+      // Wait for OpenCV to initialize
+      const checkReady = setInterval(() => {
+        if (window.cv && window.cv.Mat) {
+          clearInterval(checkReady);
+          opencvReady = true;
+          resolve(window.cv);
+        }
+      }, 100);
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        clearInterval(checkReady);
+        reject(new Error('OpenCV.js load timeout'));
+      }, 30000);
+    };
+    script.onerror = () => reject(new Error('Failed to load OpenCV.js'));
+    document.head.appendChild(script);
+  });
+};
+
+/**
+ * Apply comic color style using Canvas API (fast, no OpenCV needed)
+ */
+export const applyComicColorCanvas = (imageData, options = {}) => {
+  const { contrast = 1.2, saturation = 1.1, brightness = 1.0, posterize = 8 } = options;
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
+
+    // Brightness
+    r = r * brightness;
+    g = g * brightness;
+    b = b * brightness;
+
+    // Contrast
+    r = ((r / 255 - 0.5) * contrast + 0.5) * 255;
+    g = ((g / 255 - 0.5) * contrast + 0.5) * 255;
+    b = ((b / 255 - 0.5) * contrast + 0.5) * 255;
+
+    // Saturation
+    const gray = 0.2989 * r + 0.587 * g + 0.114 * b;
+    r = gray + saturation * (r - gray);
+    g = gray + saturation * (g - gray);
+    b = gray + saturation * (b - gray);
+
+    // Posterize (color quantization)
+    const levels = posterize;
+    r = Math.floor(r / (256 / levels)) * (256 / levels);
+    g = Math.floor(g / (256 / levels)) * (256 / levels);
+    b = Math.floor(b / (256 / levels)) * (256 / levels);
+
+    // Clamp values
+    data[i] = Math.max(0, Math.min(255, r));
+    data[i + 1] = Math.max(0, Math.min(255, g));
+    data[i + 2] = Math.max(0, Math.min(255, b));
+  }
+
+  return imageData;
+};
+
+/**
+ * Apply edge detection for comic outline effect
+ */
+export const applyEdgeDetection = (ctx, width, height, threshold = 30) => {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const output = new Uint8ClampedArray(data.length);
+
+  // Sobel operator
+  const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+  const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      let gx = 0, gy = 0;
+
+      for (let ky = -1; ky <= 1; ky++) {
+        for (let kx = -1; kx <= 1; kx++) {
+          const idx = ((y + ky) * width + (x + kx)) * 4;
+          const gray = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+          const ki = (ky + 1) * 3 + (kx + 1);
+          gx += gray * sobelX[ki];
+          gy += gray * sobelY[ki];
+        }
+      }
+
+      const magnitude = Math.sqrt(gx * gx + gy * gy);
+      const idx = (y * width + x) * 4;
+      const edge = magnitude > threshold ? 0 : 255;
+
+      output[idx] = edge;
+      output[idx + 1] = edge;
+      output[idx + 2] = edge;
+      output[idx + 3] = 255;
+    }
+  }
+
+  return new ImageData(output, width, height);
+};
+
+/**
+ * Apply comic B&W style
+ */
+export const applyComicBW = (imageData, options = {}) => {
+  const { threshold = 128, lineThickness = 1 } = options;
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    // Convert to grayscale
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    
+    // Apply threshold
+    const bw = gray > threshold ? 255 : 0;
+
+    data[i] = bw;
+    data[i + 1] = bw;
+    data[i + 2] = bw;
+  }
+
+  return imageData;
+};
+
+/**
+ * Apply manga style with halftone dots
+ */
+export const applyMangaStyle = (ctx, width, height, options = {}) => {
+  const { dotSize = 4, threshold = 128 } = options;
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  // First convert to grayscale
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    data[i] = data[i + 1] = data[i + 2] = gray;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  // Create halftone overlay
+  const halftoneCanvas = document.createElement('canvas');
+  halftoneCanvas.width = width;
+  halftoneCanvas.height = height;
+  const hCtx = halftoneCanvas.getContext('2d');
+
+  // Draw halftone pattern
+  hCtx.fillStyle = '#fff';
+  hCtx.fillRect(0, 0, width, height);
+
+  for (let y = 0; y < height; y += dotSize * 2) {
+    for (let x = 0; x < width; x += dotSize * 2) {
+      const idx = (y * width + x) * 4;
+      const brightness = data[idx] / 255;
+      const radius = (1 - brightness) * dotSize;
+
+      if (radius > 0.5) {
+        hCtx.beginPath();
+        hCtx.arc(x + dotSize, y + dotSize, radius, 0, Math.PI * 2);
+        hCtx.fillStyle = '#000';
+        hCtx.fill();
+      }
+    }
+  }
+
+  return halftoneCanvas;
+};
+
+/**
+ * Process image with selected style
+ */
+export const processImage = async (image, style, genreOptions = {}) => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = image.width || image.naturalWidth;
+  canvas.height = image.height || image.naturalHeight;
+
+  ctx.drawImage(image, 0, 0);
+
+  let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  switch (style) {
+    case 'comic_color':
+      imageData = applyComicColorCanvas(imageData, genreOptions);
+      ctx.putImageData(imageData, 0, 0);
+      
+      // Add edge overlay
+      const edgeData = applyEdgeDetection(ctx, canvas.width, canvas.height, 40);
+      const edgeCanvas = document.createElement('canvas');
+      edgeCanvas.width = canvas.width;
+      edgeCanvas.height = canvas.height;
+      const edgeCtx = edgeCanvas.getContext('2d');
+      edgeCtx.putImageData(edgeData, 0, 0);
+      
+      // Blend edges with color
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(edgeCanvas, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+
+    case 'comic_bw':
+      imageData = applyComicBW(imageData, { threshold: 140 });
+      ctx.putImageData(imageData, 0, 0);
+      break;
+
+    case 'manga_bw':
+      const halftoneCanvas = applyMangaStyle(ctx, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(halftoneCanvas, 0, 0);
+      break;
+
+    default:
+      // No processing
+      break;
+  }
+
+  return canvas;
+};
+
+/**
+ * Advanced processing using OpenCV.js (optional, higher quality)
+ */
+export const processImageOpenCV = async (image, style, options = {}) => {
+  try {
+    const cv = await loadOpenCV();
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width || image.naturalWidth;
+    canvas.height = image.height || image.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+
+    const src = cv.imread(canvas);
+    const dst = new cv.Mat();
+
+    switch (style) {
+      case 'comic_color':
+        // Bilateral filter for smoothing while preserving edges
+        cv.bilateralFilter(src, dst, 9, 75, 75, cv.BORDER_DEFAULT);
+        
+        // Edge detection
+        const gray = new cv.Mat();
+        const edges = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        cv.Canny(gray, edges, 100, 200);
+        cv.bitwise_not(edges, edges);
+        
+        // Combine
+        const colorEdges = new cv.Mat();
+        cv.cvtColor(edges, colorEdges, cv.COLOR_GRAY2RGBA);
+        cv.multiply(dst, colorEdges, dst, 1/255);
+        
+        gray.delete();
+        edges.delete();
+        colorEdges.delete();
+        break;
+
+      case 'comic_bw':
+        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
+        cv.threshold(dst, dst, 127, 255, cv.THRESH_BINARY);
+        cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
+        break;
+
+      case 'manga_bw':
+        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
+        cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 2);
+        cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA);
+        break;
+
+      default:
+        src.copyTo(dst);
+    }
+
+    cv.imshow(canvas, dst);
+    
+    src.delete();
+    dst.delete();
+
+    return canvas;
+  } catch (error) {
+    console.warn('OpenCV processing failed, falling back to Canvas:', error);
+    return processImage(image, style, options);
+  }
+};
+
+/**
+ * Create panel layout canvas
+ */
+export const createPanelLayout = (panels, layout, options = {}) => {
+  const { 
+    width = 800, 
+    height = 1200, 
+    gutterSize = 10,
+    borderWidth = 3,
+    borderColor = '#000',
+    backgroundColor = '#fff'
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = backgroundColor;
+  ctx.fillRect(0, 0, width, height);
+
+  // Layout configurations
+  const layouts = {
+    '1': { rows: 1, cols: 1 },
+    '2h': { rows: 1, cols: 2 },
+    '2v': { rows: 2, cols: 1 },
+    '4': { rows: 2, cols: 2 },
+    '6': { rows: 3, cols: 2 }
+  };
+
+  const config = layouts[layout] || layouts['4'];
+  const panelWidth = (width - gutterSize * (config.cols + 1)) / config.cols;
+  const panelHeight = (height - gutterSize * (config.rows + 1)) / config.rows;
+
+  const panelPositions = [];
+
+  for (let row = 0; row < config.rows; row++) {
+    for (let col = 0; col < config.cols; col++) {
+      const panelIndex = row * config.cols + col;
+      if (panelIndex >= panels.length) break;
+
+      const x = gutterSize + col * (panelWidth + gutterSize);
+      const y = gutterSize + row * (panelHeight + gutterSize);
+
+      panelPositions.push({ x, y, width: panelWidth, height: panelHeight, index: panelIndex });
+
+      // Draw panel border
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = borderWidth;
+      ctx.strokeRect(x, y, panelWidth, panelHeight);
+
+      // Draw panel image if available
+      const panel = panels[panelIndex];
+      if (panel && panel.processedImage) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x + borderWidth/2, y + borderWidth/2, panelWidth - borderWidth, panelHeight - borderWidth);
+        ctx.clip();
+        
+        // Cover fit
+        const img = panel.processedImage;
+        const imgAspect = img.width / img.height;
+        const panelAspect = panelWidth / panelHeight;
+        
+        let drawWidth, drawHeight, drawX, drawY;
+        
+        if (imgAspect > panelAspect) {
+          drawHeight = panelHeight - borderWidth;
+          drawWidth = drawHeight * imgAspect;
+          drawX = x + (panelWidth - drawWidth) / 2;
+          drawY = y + borderWidth/2;
+        } else {
+          drawWidth = panelWidth - borderWidth;
+          drawHeight = drawWidth / imgAspect;
+          drawX = x + borderWidth/2;
+          drawY = y + (panelHeight - drawHeight) / 2;
+        }
+        
+        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+        ctx.restore();
+      }
+    }
+  }
+
+  return { canvas, panelPositions };
+};
+
+/**
+ * Add watermark to canvas
+ */
+export const addWatermark = (canvas, text = 'CreatorStudio AI') => {
+  const ctx = canvas.getContext('2d');
+  
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.font = 'bold 24px Arial';
+  ctx.fillStyle = '#666';
+  ctx.textAlign = 'center';
+  
+  // Diagonal watermark pattern
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(-Math.PI / 6);
+  
+  for (let y = -canvas.height; y < canvas.height; y += 100) {
+    for (let x = -canvas.width; x < canvas.width; x += 300) {
+      ctx.fillText(text, x, y);
+    }
+  }
+  
+  ctx.restore();
+  return canvas;
+};
