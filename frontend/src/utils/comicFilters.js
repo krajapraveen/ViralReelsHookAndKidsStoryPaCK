@@ -48,7 +48,7 @@ export const loadOpenCV = () => {
  * Apply comic color style using Canvas API (fast, no OpenCV needed)
  */
 export const applyComicColorCanvas = (imageData, options = {}) => {
-  const { contrast = 1.2, saturation = 1.1, brightness = 1.0, posterize = 8 } = options;
+  const { contrast = 1.15, saturation = 1.2, brightness = 1.05, posterize = 12 } = options;
   const data = imageData.data;
 
   for (let i = 0; i < data.length; i += 4) {
@@ -61,22 +61,31 @@ export const applyComicColorCanvas = (imageData, options = {}) => {
     g = g * brightness;
     b = b * brightness;
 
-    // Contrast
+    // Contrast (softer)
     r = ((r / 255 - 0.5) * contrast + 0.5) * 255;
     g = ((g / 255 - 0.5) * contrast + 0.5) * 255;
     b = ((b / 255 - 0.5) * contrast + 0.5) * 255;
 
-    // Saturation
+    // Saturation boost for vibrant colors
     const gray = 0.2989 * r + 0.587 * g + 0.114 * b;
     r = gray + saturation * (r - gray);
     g = gray + saturation * (g - gray);
     b = gray + saturation * (b - gray);
 
-    // Posterize (color quantization)
+    // Posterize with more levels for smoother look
     const levels = posterize;
-    r = Math.floor(r / (256 / levels)) * (256 / levels);
-    g = Math.floor(g / (256 / levels)) * (256 / levels);
-    b = Math.floor(b / (256 / levels)) * (256 / levels);
+    r = Math.round(r / (256 / levels)) * (256 / levels);
+    g = Math.round(g / (256 / levels)) * (256 / levels);
+    b = Math.round(b / (256 / levels)) * (256 / levels);
+
+    // Clamp values
+    data[i] = Math.max(0, Math.min(255, r));
+    data[i + 1] = Math.max(0, Math.min(255, g));
+    data[i + 2] = Math.max(0, Math.min(255, b));
+  }
+
+  return imageData;
+};
 
     // Clamp values
     data[i] = Math.max(0, Math.min(255, r));
