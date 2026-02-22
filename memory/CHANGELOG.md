@@ -1,5 +1,51 @@
 # CreatorStudio AI - Changelog
 
+## [Feb 22, 2026] - Comic Studio Enhanced ✨ LATEST
+
+### Added
+- **3 New Advanced Style Filters**
+  - Cartoon Shader (OpenCV.js) - Smooth cartoon effect
+  - Pencil Sketch (OpenCV.js) - Hand-drawn sketch effect
+  - Pop Art - Bold Warhol-style colors
+
+- **Custom SFX Input** - Enter any custom SFX text for panels
+
+- **Multi-Page Export (ZIP)**
+  - Export comic page + individual panels
+  - Includes metadata.json with all panel info
+  - +2 credits on top of base export cost
+
+- **Social Sharing**
+  - Generate shareable preview thumbnails (1200x630)
+  - Native Web Share API integration
+  - Download preview image option
+
+- **Admin CMS for Genre/Template Management**
+  - CRUD operations for genres
+  - Create/delete story templates
+  - Usage statistics dashboard
+  - Admin-only routes protected by role check
+
+- **OpenCV.js HD Mode**
+  - Optional advanced filter processing
+  - Dynamic loading (only when needed)
+  - Fallback to Canvas API if loading fails
+
+- **Cypress E2E Tests** (`/app/frontend/cypress/e2e/comic-studio.cy.js`)
+- **K6 Load Tests** (`/app/backend/tests/load_tests/comic_studio_test.js`)
+
+### Fixed
+- **Image Upload Error** - Fixed "Image is not a constructor" by renaming lucide-react import
+- **Credits Display** - Changed `creditAPI.getCredits()` to `creditAPI.getBalance()`
+- **Admin Route Auth** - Updated to check `role` field instead of `isAdmin`
+
+### Test Results
+- Backend: 31/31 tests passed (100%)
+- Frontend: All UI elements working (100%)
+- Report: `/app/test_reports/iteration_62.json`
+
+---
+
 ## [Feb 22, 2026] - Comic Studio MVP
 
 ### Added
