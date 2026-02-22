@@ -432,3 +432,215 @@ function ThreatMetric({ label, value, color }) {
     </div>
   );
 }
+
+// Live Activity Tab Component
+function LiveActivityTab() {
+  const [liveData, setLiveData] = useState(null);
+  const [activityStats, setActivityStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  useEffect(() => {
+    fetchLiveActivity();
+    
+    // Auto-refresh every 5 seconds
+    let interval;
+    if (autoRefresh) {
+      interval = setInterval(fetchLiveActivity, 5000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh]);
+
+  const fetchLiveActivity = async () => {
+    try {
+      const [liveRes, statsRes] = await Promise.all([
+        api.get('/api/activity/admin/live'),
+        api.get('/api/activity/admin/stats?period=today')
+      ]);
+      setLiveData(liveRes.data);
+      setActivityStats(statsRes.data);
+    } catch (error) {
+      console.error('Failed to fetch live activity:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Live Status Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`}></div>
+          <span className="text-white font-medium">
+            {autoRefresh ? 'Live Updates Enabled' : 'Updates Paused'}
+          </span>
+        </div>
+        <Button
+          onClick={() => setAutoRefresh(!autoRefresh)}
+          variant="outline"
+          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          data-testid="toggle-live-updates"
+        >
+          {autoRefresh ? 'Pause' : 'Resume'} Live Updates
+        </Button>
+      </div>
+
+      {/* Active Sessions */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-green-400" />
+            Active Sessions ({liveData?.activeUsersCount || 0})
+          </h3>
+        </div>
+        
+        {liveData?.activeSessions?.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full" data-testid="active-sessions-table">
+              <thead>
+                <tr className="text-left text-xs text-slate-400 border-b border-slate-800">
+                  <th className="pb-3">User</th>
+                  <th className="pb-3">Plan</th>
+                  <th className="pb-3">Current Page</th>
+                  <th className="pb-3">Activity</th>
+                  <th className="pb-3">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {liveData.activeSessions.map((session) => (
+                  <tr key={session.userId} className="border-b border-slate-800/50">
+                    <td className="py-3">
+                      <div>
+                        <p className="text-white text-sm">{session.userName}</p>
+                        <p className="text-xs text-slate-500">{session.userId.slice(0, 8)}...</p>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        session.plan === 'admin' ? 'bg-purple-500/20 text-purple-400' :
+                        session.plan === 'demo' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-slate-700 text-slate-300'
+                      }`}>
+                        {session.plan}
+                      </span>
+                    </td>
+                    <td className="py-3 text-slate-300 text-sm">{session.currentPage}</td>
+                    <td className="py-3 text-slate-400 text-sm">{session.activityCount} actions</td>
+                    <td className="py-3 text-slate-400 text-sm">
+                      {Math.floor(session.sessionDuration / 60)}m {Math.floor(session.sessionDuration % 60)}s
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-slate-400">
+            <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>No active sessions right now</p>
+          </div>
+        )}
+      </div>
+
+      {/* Today's Activity Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-6">
+          <p className="text-sm text-slate-400">Unique Users Today</p>
+          <p className="text-3xl font-bold text-white mt-2">{activityStats?.uniqueUsers || 0}</p>
+        </div>
+        <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-6">
+          <p className="text-sm text-slate-400">Total Sessions</p>
+          <p className="text-3xl font-bold text-white mt-2">{activityStats?.totalSessions || 0}</p>
+        </div>
+        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-6">
+          <p className="text-sm text-slate-400">Avg Session Duration</p>
+          <p className="text-3xl font-bold text-white mt-2">
+            {activityStats?.avgSessionDuration ? `${Math.floor(activityStats.avgSessionDuration / 60)}m` : '0m'}
+          </p>
+        </div>
+        <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/30 rounded-xl p-6">
+          <p className="text-sm text-slate-400">Active Right Now</p>
+          <p className="text-3xl font-bold text-white mt-2">{activityStats?.activeNow || 0}</p>
+        </div>
+      </div>
+
+      {/* Top Pages */}
+      {activityStats?.topPages?.length > 0 && (
+        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-blue-400" />
+            Top Pages Today
+          </h3>
+          <div className="space-y-3">
+            {activityStats.topPages.map((page, index) => (
+              <div key={page.page} className="flex items-center gap-4">
+                <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs text-slate-400">
+                  {index + 1}
+                </span>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-white text-sm">{page.page || 'Unknown'}</span>
+                    <span className="text-slate-400 text-sm">{page.views} views</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full"
+                      style={{ width: `${(page.views / (activityStats.topPages[0]?.views || 1)) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Activities */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-purple-400" />
+          Recent Activities
+        </h3>
+        {liveData?.recentActivities?.length > 0 ? (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {liveData.recentActivities.slice(0, 20).map((activity) => (
+              <div key={activity.id} className="flex items-center gap-3 py-2 border-b border-slate-800/50">
+                <div className={`w-2 h-2 rounded-full ${
+                  activity.eventType === 'page_view' ? 'bg-blue-500' :
+                  activity.eventType === 'action' ? 'bg-green-500' :
+                  'bg-slate-500'
+                }`}></div>
+                <div className="flex-1">
+                  <p className="text-sm text-white">{activity.eventType}</p>
+                  <p className="text-xs text-slate-500">
+                    {activity.data?.page || activity.data?.action || 'Unknown'}
+                  </p>
+                </div>
+                <span className="text-xs text-slate-500">
+                  {new Date(activity.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-slate-400">
+            <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>No recent activities</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
