@@ -496,30 +496,30 @@ export default function CreatorTools() {
           {/* Hashtags Tab */}
           <TabsContent value="hashtags">
             <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                  <Hash className="w-6 h-6 text-green-500" />
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                  <Hash className="w-6 h-6 text-green-400" />
                   Hashtag Bank
                 </h2>
-                <p className="text-slate-500 mb-6">Curated hashtags by niche - FREE</p>
+                <p className="text-slate-400 mb-6">Curated hashtags by niche - FREE</p>
                 
                 <div className="space-y-4">
                   <div>
-                    <Label>Select Niche</Label>
+                    <Label className="text-slate-300">Select Niche</Label>
                     <Select value={hashtagNiche} onValueChange={setHashtagNiche}>
-                      <SelectTrigger data-testid="hashtag-niche-select">
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white" data-testid="hashtag-niche-select">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-slate-800 border-slate-700">
                         {niches.map(n => (
-                          <SelectItem key={n} value={n}>{n.charAt(0).toUpperCase() + n.slice(1)}</SelectItem>
+                          <SelectItem key={n} value={n} className="text-white hover:bg-slate-700">{n.charAt(0).toUpperCase() + n.slice(1)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-green-700">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-green-400">
                       <Sparkles className="w-4 h-4" />
                       <span className="font-medium">FREE - No credits required</span>
                     </div>
@@ -537,31 +537,31 @@ export default function CreatorTools() {
                 </div>
               </div>
               
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h3 className="text-lg font-bold mb-4">Hashtag Results</h3>
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+                <h3 className="text-lg font-bold text-white mb-4">Hashtag Results</h3>
                 {!hashtagResult ? (
-                  <div className="text-center py-12 text-slate-500">
-                    <Hash className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <div className="text-center py-12 text-slate-400">
+                    <Hash className="w-12 h-12 mx-auto mb-4 text-slate-600" />
                     <p>Select a niche and click Get Hashtags</p>
                   </div>
                 ) : (
                   <div className="space-y-4" data-testid="hashtag-result">
                     {Object.entries(hashtagResult.hashtags).map(([category, tags]) => (
-                      <div key={category} className="bg-slate-50 rounded-lg p-4">
+                      <div key={category} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-bold capitalize">{category.replace('_', ' ')}</h4>
-                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(tags.join(' '), category)}>
+                          <h4 className="font-bold text-white capitalize">{category.replace('_', ' ')}</h4>
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(tags.join(' '), category)} className="text-slate-400 hover:text-white">
                             {copied === category ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                           </Button>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {tags.map((tag, i) => (
-                            <span key={i} className="text-sm bg-white border px-2 py-1 rounded">{tag}</span>
+                            <span key={i} className="text-sm bg-slate-800 text-slate-300 border border-slate-600 px-2 py-1 rounded">{tag}</span>
                           ))}
                         </div>
                       </div>
                     ))}
-                    <p className="text-sm text-slate-500 text-center mt-4">💡 {hashtagResult.tip}</p>
+                    <p className="text-sm text-slate-400 text-center mt-4">💡 {hashtagResult.tip}</p>
                   </div>
                 )}
               </div>
