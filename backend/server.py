@@ -211,6 +211,10 @@ api_router.include_router(analytics_router)
 api_router.include_router(subscriptions_router)
 api_router.include_router(user_manual_router)
 api_router.include_router(feature_requests_router)
+api_router.include_router(activity_router)
+api_router.include_router(reel_export_router)
+api_router.include_router(cashfree_webhook_router)
+api_router.include_router(security_router)
 
 # Include API router in app
 app.include_router(api_router)
