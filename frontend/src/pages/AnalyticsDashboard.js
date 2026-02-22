@@ -7,6 +7,7 @@ import {
   CreditCard, Download, RefreshCw
 } from 'lucide-react';
 import api from '../utils/api';
+import HelpGuide from '../components/HelpGuide';
 
 export default function AnalyticsDashboard() {
   const [stats, setStats] = useState(null);
