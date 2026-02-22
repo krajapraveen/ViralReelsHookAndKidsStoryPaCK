@@ -144,6 +144,9 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="analytics" />
     </div>
   );
 }
