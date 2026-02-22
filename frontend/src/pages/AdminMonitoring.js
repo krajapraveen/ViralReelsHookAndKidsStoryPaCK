@@ -191,6 +191,10 @@ export default function AdminMonitoring() {
           </div>
         )}
 
+        {activeTab === 'live' && (
+          <LiveActivityTab />
+        )}
+
         {activeTab === 'security' && (
           <div className="space-y-6">
             {/* Threat Status */}
