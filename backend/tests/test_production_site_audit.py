@@ -65,29 +65,31 @@ class TestUserEndpoints:
     """Test user-related endpoints"""
     
     def test_get_current_user(self, demo_token):
-        """Get current user profile"""
+        """Get current user profile - /api/auth/me"""
         headers = {"Authorization": f"Bearer {demo_token}"}
-        response = requests.get(f"{BASE_URL}/api/users/me", headers=headers, timeout=10)
+        response = requests.get(f"{BASE_URL}/api/auth/me", headers=headers, timeout=10)
         assert response.status_code == 200
         data = response.json()
         assert "email" in data
         print(f"✓ User profile retrieved: {data.get('email')}")
     
     def test_get_user_balance(self, demo_token):
-        """Get user credit balance"""
+        """Get user credit balance - /api/wallet/me"""
         headers = {"Authorization": f"Bearer {demo_token}"}
-        response = requests.get(f"{BASE_URL}/api/users/balance", headers=headers, timeout=10)
+        response = requests.get(f"{BASE_URL}/api/wallet/me", headers=headers, timeout=10)
         assert response.status_code == 200
         data = response.json()
-        assert "credits" in data or "balance" in data
-        print(f"✓ User balance: {data}")
+        assert "balanceCredits" in data or "availableCredits" in data
+        print(f"✓ User balance: {data.get('availableCredits')} credits")
     
-    def test_get_user_history(self, demo_token):
-        """Get user generation history"""
+    def test_get_wallet_pricing(self, demo_token):
+        """Get wallet pricing info - /api/wallet/pricing"""
         headers = {"Authorization": f"Bearer {demo_token}"}
-        response = requests.get(f"{BASE_URL}/api/history", headers=headers, timeout=10)
+        response = requests.get(f"{BASE_URL}/api/wallet/pricing", headers=headers, timeout=10)
         assert response.status_code == 200
-        print(f"✓ History endpoint working")
+        data = response.json()
+        assert "pricing" in data
+        print(f"✓ Wallet pricing available")
 
 
 class TestBillingEndpoints:
