@@ -15,10 +15,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Upload, Image, Sparkles, Download, Trash2,
+  ArrowLeft, Upload, Image as ImageIcon, Sparkles, Download, Trash2,
   Type, MessageSquare, Zap, Palette, Grid, LayoutGrid,
   RefreshCw, Eye, FileText, Loader2, Coins, X, Move,
-  Plus, ChevronLeft, ChevronRight, Settings, Wand2
+  Plus, ChevronLeft, ChevronRight, Settings, Wand2, Share2, Layers
 } from 'lucide-react';
 import api, { creditAPI } from '../utils/api';
 import { processImage, createPanelLayout, addWatermark } from '../utils/comicFilters';
