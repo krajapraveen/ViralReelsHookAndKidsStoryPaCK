@@ -33,10 +33,16 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 
 ---
 
-## COMIC STUDIO ENHANCED (Feb 22, 2026) ✅ LATEST
+## COMIC STUDIO ENHANCED v2 (Feb 22, 2026) ✅ LATEST
 
 ### Feature Overview
-Turn photos into comic-style panels with speech bubbles, SFX, and story generation - all processed client-side for privacy. Now with advanced OpenCV filters, multi-page export, and social sharing!
+Turn photos into comic-style panels with speech bubbles, SFX, and **automatic story generation** - all processed client-side for privacy. Now with advanced OpenCV filters, multi-page export, and social sharing!
+
+### Key Improvements in v2
+- **Auto Story Generation**: Story Mode is ON by default - story automatically generated when images are processed
+- **Better Image Processing**: Improved filters with softer edges and smaller halftone dots
+- **Auto Preview**: Comic is automatically previewed after processing
+- **All 6 Styles Work**: Fixed bug where 3 new styles weren't applying filters
 
 ### Architecture
 | Component | Location | Description |
@@ -56,7 +62,7 @@ Turn photos into comic-style panels with speech bubbles, SFX, and story generati
 | Image Upload | ✅ | 1-6 images, drag & drop, 10MB limit per image |
 | Client-Side Processing | ✅ | Canvas API + OpenCV.js: posterize, edge detection, halftone, cartoon, sketch |
 | Speech Bubbles | ✅ | None, Speech, Thought, Shout styles |
-| Story Mode | ✅ | Template-based story generation (+1 credit) |
+| Story Mode | ✅ | **ON by default** - Template-based story auto-generation (+1 credit) |
 | SFX Library | ✅ | Genre-specific SFX (BAM!, POW!, etc.) |
 | Custom SFX Input | ✅ NEW | Enter custom SFX text for panels |
 | Export PNG/PDF | ✅ | 8-10 credits base + 2 for watermark removal |
