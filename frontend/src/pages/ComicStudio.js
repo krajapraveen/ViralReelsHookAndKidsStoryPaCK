@@ -518,13 +518,13 @@ export default function ComicStudio() {
   const selectedLayoutPanels = LAYOUTS.find(l => l.id === layout)?.panels || 4;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950" data-testid="comic-studio-page">
       {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white" data-testid="back-to-dashboard">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
@@ -535,7 +535,7 @@ export default function ComicStudio() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2">
+            <div className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2" data-testid="credits-display">
               <Coins className="w-4 h-4 text-purple-400" />
               <span className="font-semibold text-purple-300">{credits}</span>
             </div>
@@ -558,13 +558,14 @@ export default function ComicStudio() {
           {/* Left Panel - Settings */}
           <div className="lg:col-span-1 space-y-6">
             {/* Genre Selection */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-testid="genre-selection">
               <Label className="text-white font-medium mb-3 block">Genre</Label>
               <div className="grid grid-cols-4 gap-2">
                 {genres.map(g => (
                   <button
                     key={g.id}
                     onClick={() => setGenre(g.id)}
+                    data-testid={`genre-${g.id}`}
                     className={`p-3 rounded-lg border text-center transition-all ${
                       genre === g.id
                         ? 'bg-purple-600 border-purple-500 text-white'
@@ -597,13 +598,14 @@ export default function ComicStudio() {
             </div>
 
             {/* Layout Selection */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-testid="layout-selection">
               <Label className="text-white font-medium mb-3 block">Layout</Label>
               <div className="grid grid-cols-5 gap-2">
                 {LAYOUTS.map(l => (
                   <button
                     key={l.id}
                     onClick={() => setLayout(l.id)}
+                    data-testid={`layout-${l.id}`}
                     className={`p-2 rounded-lg border text-center transition-all ${
                       layout === l.id
                         ? 'bg-blue-600 border-blue-500 text-white'
@@ -746,6 +748,7 @@ export default function ComicStudio() {
               <Button
                 onClick={processImages}
                 disabled={uploadedImages.length === 0 || processing}
+                data-testid="convert-to-comic-btn"
                 className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
               >
                 {processing ? (
@@ -867,12 +870,13 @@ export default function ComicStudio() {
 
             {/* Export Buttons */}
             {panels.length > 0 && (
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-testid="export-section">
                 <h3 className="text-white font-medium mb-4">Export</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     onClick={() => exportToPNG(false)}
                     disabled={exporting}
+                    data-testid="export-png-btn"
                     className="bg-blue-600 hover:bg-blue-700"
                   >
                     {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
@@ -881,6 +885,7 @@ export default function ComicStudio() {
                   <Button
                     onClick={() => exportToPDF(false)}
                     disabled={exporting}
+                    data-testid="export-pdf-btn"
                     className="bg-green-600 hover:bg-green-700"
                   >
                     {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
@@ -890,6 +895,7 @@ export default function ComicStudio() {
                     onClick={() => exportToPNG(true)}
                     disabled={exporting}
                     variant="outline"
+                    data-testid="export-png-no-watermark-btn"
                     className="border-purple-500 text-purple-400 hover:bg-purple-500/20"
                   >
                     <Download className="w-4 h-4 mr-2" />
@@ -899,6 +905,7 @@ export default function ComicStudio() {
                     onClick={() => exportToPDF(true)}
                     disabled={exporting}
                     variant="outline"
+                    data-testid="export-pdf-no-watermark-btn"
                     className="border-purple-500 text-purple-400 hover:bg-purple-500/20"
                   >
                     <FileText className="w-4 h-4 mr-2" />
