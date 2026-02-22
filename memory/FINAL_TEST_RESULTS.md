@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://qa-trending.preview.emergentagent.com
+**Website:** https://qa-deployment-check-1.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai
