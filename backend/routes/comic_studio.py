@@ -9,8 +9,7 @@ from typing import Optional, List
 from datetime import datetime
 import random
 
-from routes.auth import get_current_user
-from db import db
+from shared import db, get_current_user
 
 router = APIRouter(prefix="/api/comic", tags=["comic"])
 
