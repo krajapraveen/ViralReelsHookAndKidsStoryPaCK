@@ -24,6 +24,7 @@ export default function Profile() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [stats, setStats] = useState({ totalGenerations: 0, creditsUsed: 0 });
   const navigate = useNavigate();
+  const { restartTour } = useAppTour();
 
   const [formData, setFormData] = useState({
     name: '',
