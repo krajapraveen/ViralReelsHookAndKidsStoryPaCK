@@ -864,7 +864,7 @@ export default function ComicStudio() {
               >
                 {panels.length === 0 ? (
                   <div className="text-center text-slate-400 p-8">
-                    <Image className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <p>Upload and process images to see preview</p>
                   </div>
                 ) : (
