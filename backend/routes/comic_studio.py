@@ -11,7 +11,7 @@ import random
 
 from shared import db, get_current_user
 
-router = APIRouter(prefix="/api/comic", tags=["comic"])
+router = APIRouter(prefix="/comic", tags=["comic"])
 
 # Genre configurations
 GENRES = {
