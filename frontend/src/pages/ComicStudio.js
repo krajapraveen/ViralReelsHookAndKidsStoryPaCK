@@ -133,7 +133,7 @@ export default function ComicStudio() {
 
   const loadCredits = async () => {
     try {
-      const res = await creditAPI.getCredits();
+      const res = await creditAPI.getBalance();
       setCredits(res.data.credits);
     } catch (error) {
       console.error('Failed to load credits:', error);
