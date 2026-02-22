@@ -34,70 +34,117 @@ STORY_COST = 10
 
 
 async def generate_reel_content_inline(data: dict) -> dict:
-    """Generate reel content using LLM"""
+    """Generate reel content using LLM with automatic retry"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import asyncio
     
     unique_id = str(uuid.uuid4())[:8]
+    max_retries = 3
+    attempt = 0
+    last_error = None
     
-    prompt = REEL_USER_PROMPT_TEMPLATE.format(
-        language=data.get("language", "English"),
-        niche=data.get("niche", "General"),
-        tone=data.get("tone", "Bold"),
-        duration=data.get("duration", "30s"),
-        goal=data.get("goal", "Engagement"),
-        topic=data.get("topic", ""),
-        uniqueId=unique_id
-    )
+    while attempt <= max_retries:
+        try:
+            if attempt > 0:
+                logger.info(f"Retrying reel generation, attempt {attempt + 1}")
+                await asyncio.sleep(min(3 * (2 ** attempt), 30))
+            
+            prompt = REEL_USER_PROMPT_TEMPLATE.format(
+                language=data.get("language", "English"),
+                niche=data.get("niche", "General"),
+                tone=data.get("tone", "Bold"),
+                duration=data.get("duration", "30s"),
+                goal=data.get("goal", "Engagement"),
+                topic=data.get("topic", ""),
+                uniqueId=unique_id
+            )
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"reel-{unique_id}-{attempt}",
+                system_message=REEL_SYSTEM_PROMPT
+            ).with_model("gemini", "gemini-3-flash-preview")
+            
+            response = await chat.send_message(UserMessage(text=prompt))
+            
+            # Parse JSON response
+            response_text = response.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            
+            result = json.loads(response_text.strip())
+            
+            if attempt > 0:
+                logger.info(f"Reel generation succeeded after {attempt + 1} attempts")
+            
+            return result
+            
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Reel generation attempt {attempt + 1} failed: {e}")
+            attempt += 1
     
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"reel-{unique_id}",
-        system_message=REEL_SYSTEM_PROMPT
-    ).with_model("gemini", "gemini-3-flash-preview")
-    
-    response = await chat.send_message(UserMessage(text=prompt))
-    
-    # Parse JSON response
-    response_text = response.strip()
-    if response_text.startswith("```json"):
-        response_text = response_text[7:]
-    if response_text.startswith("```"):
-        response_text = response_text[3:]
-    if response_text.endswith("```"):
-        response_text = response_text[:-3]
-    
-    return json.loads(response_text.strip())
+    # All retries exhausted
+    logger.error(f"Reel generation failed after {max_retries + 1} attempts: {last_error}")
+    raise last_error
 
 
 async def generate_story_image(prompt: str, story_id: str, scene_index: int) -> str:
-    """Generate an image for a story scene using Gemini Nano Banana"""
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        import base64
-        
-        # Enhance prompt for kid-friendly imagery
-        full_prompt = f"Children's book illustration, colorful, whimsical, kid-friendly: {prompt}. Pixar-style 3D animation, soft lighting, friendly characters, vibrant colors."
-        
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"story-img-{story_id}-{scene_index}",
-            system_message="You are an AI image generator specializing in children's book illustrations."
-        ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-        
-        msg = UserMessage(text=full_prompt)
-        text_response, images = await chat.send_message_multimodal_response(msg)
-        
-        if images and len(images) > 0:
-            # Save image to temp file
-            image_bytes = base64.b64decode(images[0]['data'])
-            filename = f"story_{story_id}_scene_{scene_index}.png"
-            filepath = f"/tmp/{filename}"
-            with open(filepath, "wb") as f:
-                f.write(image_bytes)
-            return f"/api/generate/story-image/{story_id}/{filename}"
-        
-        return None
-    except Exception as e:
+    """Generate an image for a story scene using Gemini Nano Banana with automatic retry"""
+    import base64
+    import asyncio
+    
+    max_retries = 3
+    attempt = 0
+    last_error = None
+    
+    while attempt <= max_retries:
+        try:
+            if attempt > 0:
+                logger.info(f"Retrying story image generation for scene {scene_index}, attempt {attempt + 1}")
+                await asyncio.sleep(min(3 * (2 ** attempt), 30))
+            
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            # Enhance prompt for kid-friendly imagery
+            full_prompt = f"Children's book illustration, colorful, whimsical, kid-friendly: {prompt}. Pixar-style 3D animation, soft lighting, friendly characters, vibrant colors."
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"story-img-{story_id}-{scene_index}-{attempt}",
+                system_message="You are an AI image generator specializing in children's book illustrations."
+            ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+            
+            msg = UserMessage(text=full_prompt)
+            text_response, images = await chat.send_message_multimodal_response(msg)
+            
+            if images and len(images) > 0:
+                # Save image to temp file
+                image_bytes = base64.b64decode(images[0]['data'])
+                filename = f"story_{story_id}_scene_{scene_index}.png"
+                filepath = f"/tmp/{filename}"
+                with open(filepath, "wb") as f:
+                    f.write(image_bytes)
+                
+                if attempt > 0:
+                    logger.info(f"Story image generation succeeded after {attempt + 1} attempts")
+                
+                return f"/api/generate/story-image/{story_id}/{filename}"
+            
+            raise Exception("No image was generated")
+            
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Story image generation attempt {attempt + 1} failed: {e}")
+            attempt += 1
+    
+    # All retries exhausted - return None (graceful degradation)
+    logger.error(f"Story image generation failed after {max_retries + 1} attempts for scene {scene_index}: {last_error}")
+    return None:
         logger.warning(f"Story image generation failed: {e}")
         return None
 
