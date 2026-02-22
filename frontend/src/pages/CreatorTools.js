@@ -12,6 +12,7 @@ import {
   Coins, Download, Copy, Check, LogOut, Wand2, Video, MessageSquare
 } from 'lucide-react';
 import api from '../utils/api';
+import HelpGuide from '../components/HelpGuide';
 
 export default function CreatorTools() {
   const [credits, setCredits] = useState(0);
