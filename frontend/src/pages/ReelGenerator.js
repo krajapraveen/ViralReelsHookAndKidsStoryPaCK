@@ -214,6 +214,7 @@ export default function ReelGenerator() {
                   rows={3}
                   className="bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500/20 resize-none"
                   data-testid="reel-topic-input"
+                  data-tour="reel-topic-input"
                 />
               </div>
 
@@ -221,7 +222,7 @@ export default function ReelGenerator() {
                 <div>
                   <Label htmlFor="niche" className="text-slate-300 font-medium text-sm mb-2 block">Niche</Label>
                   <Select value={formData.niche} onValueChange={(value) => setFormData({...formData, niche: value})}>
-                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20" data-testid="reel-niche-select">
+                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20" data-testid="reel-niche-select" data-tour="reel-niche-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
