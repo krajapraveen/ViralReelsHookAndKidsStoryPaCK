@@ -13,6 +13,7 @@ import ShareButton from '../components/ShareButton';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
 import ReelProgressBar from '../components/ReelProgressBar';
+import HelpGuide from '../components/HelpGuide';
 
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(0);
