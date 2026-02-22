@@ -148,56 +148,78 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int) -> 
 
 
 async def generate_story_content_inline(data: dict, generate_images: bool = True) -> dict:
-    """Generate story content using LLM with optional image generation"""
+    """Generate story content using LLM with optional image generation and automatic retry"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import asyncio
     
     unique_id = str(uuid.uuid4())[:8]
+    max_retries = 3
+    attempt = 0
+    last_error = None
     
-    prompt = STORY_USER_PROMPT_TEMPLATE.format(
-        genre=data.get("genre", "Adventure"),
-        ageGroup=data.get("ageGroup", "4-6"),
-        theme=data.get("theme", "Friendship"),
-        scenes=data.get("sceneCount", 8),
-        customElements=data.get("customGenre", ""),
-        uniqueId=unique_id
-    )
+    while attempt <= max_retries:
+        try:
+            if attempt > 0:
+                logger.info(f"Retrying story content generation, attempt {attempt + 1}")
+                await asyncio.sleep(min(3 * (2 ** attempt), 30))
+            
+            prompt = STORY_USER_PROMPT_TEMPLATE.format(
+                genre=data.get("genre", "Adventure"),
+                ageGroup=data.get("ageGroup", "4-6"),
+                theme=data.get("theme", "Friendship"),
+                scenes=data.get("sceneCount", 8),
+                customElements=data.get("customGenre", ""),
+                uniqueId=unique_id
+            )
+            
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"story-{unique_id}-{attempt}",
+                system_message=STORY_SYSTEM_PROMPT
+            ).with_model("gemini", "gemini-3-flash-preview")
+            
+            response = await chat.send_message(UserMessage(text=prompt))
+            
+            # Parse JSON response
+            response_text = response.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            
+            result = json.loads(response_text.strip())
+            
+            if attempt > 0:
+                logger.info(f"Story content generation succeeded after {attempt + 1} attempts")
+            
+            # Generate cover image for the story (with built-in retry in generate_story_image)
+            if generate_images and result.get("scenes"):
+                # Generate a cover image based on the story title and synopsis
+                cover_prompt = f"{result.get('title', 'Story')}: {result.get('synopsis', '')}. Main characters: {', '.join([c.get('name', '') for c in result.get('characters', [])])}"
+                cover_image_url = await generate_story_image(cover_prompt, unique_id, 0)
+                if cover_image_url:
+                    result["coverImageUrl"] = cover_image_url
+                
+                # Generate image for the first scene
+                first_scene = result["scenes"][0]
+                visual_desc = first_scene.get("visualDescription") or first_scene.get("visual_description") or first_scene.get("sceneTitle", "")
+                if visual_desc:
+                    scene_image_url = await generate_story_image(visual_desc, unique_id, 1)
+                    if scene_image_url:
+                        first_scene["imageUrl"] = scene_image_url
+            
+            return result
+            
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Story content generation attempt {attempt + 1} failed: {e}")
+            attempt += 1
     
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"story-{unique_id}",
-        system_message=STORY_SYSTEM_PROMPT
-    ).with_model("gemini", "gemini-3-flash-preview")
-    
-    response = await chat.send_message(UserMessage(text=prompt))
-    
-    # Parse JSON response
-    response_text = response.strip()
-    if response_text.startswith("```json"):
-        response_text = response_text[7:]
-    if response_text.startswith("```"):
-        response_text = response_text[3:]
-    if response_text.endswith("```"):
-        response_text = response_text[:-3]
-    
-    result = json.loads(response_text.strip())
-    
-    # Generate cover image for the story
-    if generate_images and result.get("scenes"):
-        # Generate a cover image based on the story title and synopsis
-        cover_prompt = f"{result.get('title', 'Story')}: {result.get('synopsis', '')}. Main characters: {', '.join([c.get('name', '') for c in result.get('characters', [])])}"
-        cover_image_url = await generate_story_image(cover_prompt, unique_id, 0)
-        if cover_image_url:
-            result["coverImageUrl"] = cover_image_url
-        
-        # Generate image for the first scene
-        first_scene = result["scenes"][0]
-        visual_desc = first_scene.get("visualDescription") or first_scene.get("visual_description") or first_scene.get("sceneTitle", "")
-        if visual_desc:
-            scene_image_url = await generate_story_image(visual_desc, unique_id, 1)
-            if scene_image_url:
-                first_scene["imageUrl"] = scene_image_url
-    
-    return result
+    # All retries exhausted
+    logger.error(f"Story content generation failed after {max_retries + 1} attempts: {last_error}")
+    raise last_error
 
 
 @router.post("/reel", dependencies=[Depends(rate_limit_generation)])
