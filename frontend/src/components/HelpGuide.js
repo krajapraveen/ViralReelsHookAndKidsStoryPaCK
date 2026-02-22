@@ -123,6 +123,118 @@ const HELP_CONTENT = {
       'Contact support for refund requests'
     ]
   },
+  'genstudio': {
+    title: 'GenStudio AI',
+    description: 'AI-powered image and video generation studio.',
+    credits: 'Text-to-Image: 5 credits | Image-to-Video: 15 credits | Video Remix: 20 credits',
+    steps: [
+      'Choose a generation type from the menu',
+      'Enter your prompt or upload media',
+      'Adjust quality and style settings',
+      'Click "Generate" and wait for results'
+    ],
+    tips: [
+      'Be descriptive in prompts for better results',
+      'Use style profiles for consistent branding',
+      'HD quality uses 2x credits but looks amazing'
+    ]
+  },
+  'genstudio-text-to-image': {
+    title: 'Text to Image',
+    description: 'Generate stunning images from text descriptions.',
+    credits: '5 credits per image (10 for HD)',
+    steps: [
+      'Enter a detailed prompt describing your image',
+      'Select style (realistic, anime, artistic, etc.)',
+      'Choose image size and quality',
+      'Click "Generate" to create your image'
+    ],
+    tips: [
+      'Include details like lighting, colors, and mood',
+      'Mention art style for specific aesthetics',
+      'Generate multiple to find the perfect one'
+    ]
+  },
+  'genstudio-text-to-video': {
+    title: 'Text to Video',
+    description: 'Create videos from text prompts using AI.',
+    credits: '15-25 credits per video',
+    steps: [
+      'Describe the video scene in detail',
+      'Choose video duration and style',
+      'Select motion intensity',
+      'Generate and download your video'
+    ],
+    tips: [
+      'Keep prompts focused on a single scene',
+      'Shorter videos (3-5s) have better quality',
+      'Use for social media intros and B-roll'
+    ]
+  },
+  'genstudio-image-to-video': {
+    title: 'Image to Video',
+    description: 'Animate your images into stunning videos.',
+    credits: '15 credits per animation',
+    steps: [
+      'Upload a source image',
+      'Describe the motion you want',
+      'Choose animation duration',
+      'Generate and preview your video'
+    ],
+    tips: [
+      'Works best with high-quality source images',
+      'Simple motions (zoom, pan) work reliably',
+      'Great for thumbnail animations'
+    ]
+  },
+  'analytics': {
+    title: 'Analytics Dashboard',
+    description: 'Track your content performance and usage statistics.',
+    credits: 'FREE',
+    steps: [
+      'View your generation history',
+      'Track credits usage over time',
+      'Analyze content performance',
+      'Export reports as needed'
+    ],
+    tips: [
+      'Check weekly trends for insights',
+      'Monitor credit usage to plan ahead',
+      'Use data to optimize content strategy'
+    ]
+  },
+  'admin': {
+    title: 'Admin Dashboard',
+    description: 'Manage users, content, and system settings.',
+    credits: 'Admin Only',
+    steps: [
+      'View user statistics and activity',
+      'Manage user accounts and credits',
+      'Monitor system health',
+      'Configure platform settings'
+    ],
+    tips: [
+      'Check daily active users regularly',
+      'Monitor for unusual activity',
+      'Keep system notifications enabled'
+    ]
+  },
+  'admin-monitoring': {
+    title: 'System Monitoring',
+    description: 'Real-time monitoring of system health and user activity.',
+    credits: 'Admin Only',
+    steps: [
+      'View real-time activity stream',
+      'Monitor API response times',
+      'Check error rates and alerts',
+      'Track resource utilization'
+    ],
+    tips: [
+      'Set up alerts for critical metrics',
+      'Review logs during peak hours',
+      'Archive data regularly'
+    ]
+  },
   'default': {
     title: 'Help Guide',
     description: 'Get help with CreatorStudio AI features.',
