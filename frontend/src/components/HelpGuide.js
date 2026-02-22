@@ -152,7 +152,7 @@ export default function HelpGuide({ pageId = 'default', activeTab = null }) {
       {/* Floating Help Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-40 w-12 h-12 bg-purple-600 hover:bg-purple-500 text-white rounded-full shadow-lg shadow-purple-500/30 flex items-center justify-center transition-all hover:scale-110"
+        className="fixed bottom-40 right-6 z-50 w-12 h-12 bg-purple-600 hover:bg-purple-500 text-white rounded-full shadow-lg shadow-purple-500/30 flex items-center justify-center transition-all hover:scale-110"
         data-testid="help-guide-btn"
         aria-label="Open help guide"
       >
@@ -166,7 +166,7 @@ export default function HelpGuide({ pageId = 'default', activeTab = null }) {
       {/* Help Panel */}
       {isOpen && (
         <div 
-          className="fixed bottom-20 right-6 z-40 w-80 max-h-[70vh] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-200"
+          className="fixed bottom-56 right-6 z-50 w-80 max-h-[60vh] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-200"
           data-testid="help-guide-panel"
         >
           {/* Header */}
