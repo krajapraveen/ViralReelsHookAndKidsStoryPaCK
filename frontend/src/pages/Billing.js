@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { Coins, Sparkles, Check, Star, Zap, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { paymentAPI, creditAPI } from '../utils/api';
+import HelpGuide from '../components/HelpGuide';
 
 export default function Billing() {
   const [products, setProducts] = useState([]);
@@ -215,6 +216,9 @@ export default function Billing() {
           </div>
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="billing" />
     </div>
   );
 }
