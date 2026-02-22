@@ -9,8 +9,9 @@ import { toast } from 'sonner';
 import { 
   Sparkles, ArrowLeft, User, Mail, Shield, Bell, 
   CreditCard, Clock, Save, Trash2, Download,
-  Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2
+  Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Play
 } from 'lucide-react';
+import { useAppTour } from '../components/AppTour';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
