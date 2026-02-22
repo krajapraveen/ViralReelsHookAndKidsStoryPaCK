@@ -385,6 +385,9 @@ export default function AdminMonitoring() {
           </div>
         )}
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="admin-monitoring" />
     </div>
   );
 }
