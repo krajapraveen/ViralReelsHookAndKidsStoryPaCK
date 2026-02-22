@@ -401,38 +401,89 @@ export default function CreatorTools() {
                 </div>
               </div>
               
-              <div className="bg-white rounded-xl border border-slate-200 p-6 max-h-[600px] overflow-y-auto">
-                <h3 className="text-lg font-bold mb-4">Your Carousel</h3>
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 max-h-[600px] overflow-y-auto backdrop-blur-sm">
+                <h3 className="text-lg font-bold text-white mb-4">Your Carousel Preview</h3>
                 {!carouselResult ? (
-                  <div className="text-center py-12 text-slate-500">
-                    <LayoutGrid className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-                    <p>Your carousel will appear here</p>
+                  <div className="space-y-3">
+                    {/* Preview placeholder slides */}
+                    {Array.from({ length: carouselSlides }).map((_, index) => (
+                      <div key={index} className={`rounded-lg p-4 border ${
+                        index === 0 ? 'bg-blue-500/10 border-blue-500/30' : 
+                        index === carouselSlides - 1 ? 'bg-green-500/10 border-green-500/30' : 
+                        'bg-slate-700/30 border-slate-600'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-slate-300">Slide {index + 1}</span>
+                          <span className={`text-xs uppercase px-2 py-1 rounded ${
+                            index === 0 ? 'bg-blue-500/20 text-blue-300' : 
+                            index === carouselSlides - 1 ? 'bg-green-500/20 text-green-300' : 
+                            'bg-slate-600 text-slate-300'
+                          }`}>
+                            {index === 0 ? 'COVER' : index === carouselSlides - 1 ? 'CTA' : 'CONTENT'}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 italic text-sm">
+                          {index === 0 
+                            ? 'Hook headline will appear here...' 
+                            : index === carouselSlides - 1 
+                              ? 'Call-to-action will appear here...' 
+                              : 'Content slide text will appear here...'}
+                        </p>
+                      </div>
+                    ))}
+                    <div className="text-center py-4 text-slate-400">
+                      <LayoutGrid className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                      <p className="text-sm">Enter a topic and click "Generate Carousel"</p>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4" data-testid="carousel-result">
                     {carouselResult.carousel.slides.map((slide) => (
                       <div key={slide.slide_number} className={`rounded-lg p-4 border ${
-                        slide.type === 'hook' ? 'bg-blue-50 border-blue-200' : 
-                        slide.type === 'cta' ? 'bg-green-50 border-green-200' : 
-                        'bg-slate-50 border-slate-200'
+                        slide.type === 'hook' ? 'bg-blue-500/10 border-blue-500/30' : 
+                        slide.type === 'cta' ? 'bg-green-500/10 border-green-500/30' : 
+                        'bg-slate-700/30 border-slate-600'
                       }`}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold">Slide {slide.slide_number}</span>
-                          <span className="text-xs uppercase px-2 py-1 rounded bg-white">{slide.type}</span>
+                          <span className="font-bold text-white">Slide {slide.slide_number}</span>
+                          <span className={`text-xs uppercase px-2 py-1 rounded ${
+                            slide.type === 'hook' ? 'bg-blue-500/20 text-blue-300' : 
+                            slide.type === 'cta' ? 'bg-green-500/20 text-green-300' : 
+                            'bg-slate-600 text-slate-300'
+                          }`}>{slide.type}</span>
                         </div>
-                        <p className="font-medium">{slide.text}</p>
-                        {slide.subtext && <p className="text-sm text-slate-600 mt-1">{slide.subtext}</p>}
-                        {slide.design_tip && <p className="text-xs text-slate-500 mt-2">💡 {slide.design_tip}</p>}
+                        <p className="font-medium text-white">{slide.text}</p>
+                        {slide.subtext && <p className="text-sm text-slate-400 mt-1">{slide.subtext}</p>}
+                        {slide.design_tip && <p className="text-xs text-slate-500 mt-2 bg-slate-800/50 p-2 rounded">💡 {slide.design_tip}</p>}
+                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(slide.text, `slide-${slide.slide_number}`)} className="mt-2 text-slate-400 hover:text-white">
+                          {copied === `slide-${slide.slide_number}` ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                          Copy
+                        </Button>
                       </div>
                     ))}
                     
                     {carouselResult.carousel.caption && (
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mt-4">
-                        <h4 className="font-bold mb-2">Caption</h4>
-                        <p className="text-sm whitespace-pre-wrap">{carouselResult.carousel.caption.long}</p>
-                        <Button variant="ghost" size="sm" className="mt-2" onClick={() => copyToClipboard(carouselResult.carousel.caption.long, 'caption')}>
+                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 mt-4">
+                        <h4 className="font-bold text-white mb-2">Caption</h4>
+                        <p className="text-sm text-slate-300 whitespace-pre-wrap">{carouselResult.carousel.caption.long}</p>
+                        <Button variant="ghost" size="sm" className="mt-2 text-purple-400 hover:text-purple-300" onClick={() => copyToClipboard(carouselResult.carousel.caption.long, 'caption')}>
                           {copied === 'caption' ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
                           Copy Caption
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {carouselResult.carousel.hashtags && carouselResult.carousel.hashtags.length > 0 && (
+                      <div className="bg-slate-700/30 border border-slate-600 rounded-lg p-4">
+                        <h4 className="font-bold text-white mb-2">Hashtags</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {carouselResult.carousel.hashtags.map((tag, i) => (
+                            <span key={i} className="text-sm bg-slate-800 text-slate-300 px-2 py-1 rounded">{tag}</span>
+                          ))}
+                        </div>
+                        <Button variant="ghost" size="sm" className="mt-2 text-slate-400 hover:text-white" onClick={() => copyToClipboard(carouselResult.carousel.hashtags.join(' '), 'hashtags')}>
+                          {copied === 'hashtags' ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                          Copy Hashtags
                         </Button>
                       </div>
                     )}
