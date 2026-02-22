@@ -90,7 +90,6 @@ async def get_security_overview(admin: dict = Depends(get_admin_user)):
     """Get comprehensive security overview"""
     now = datetime.now(timezone.utc)
     day_ago = now - timedelta(days=1)
-    week_ago = now - timedelta(days=7)
     
     # Get threat stats
     threat_stats = get_threat_stats() if THREAT_DETECTION_AVAILABLE else {}
