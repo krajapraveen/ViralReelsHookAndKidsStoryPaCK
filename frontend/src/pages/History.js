@@ -24,7 +24,8 @@ export default function History() {
     try {
       const typeParam = filter === 'ALL' ? null : filter;
       const response = await generationAPI.getGenerations(typeParam, 0, 50);
-      setGenerations(response.data.content || []);
+      // API returns 'generations' not 'content'
+      setGenerations(response.data.generations || response.data.content || []);
     } catch (error) {
       toast.error('Failed to load history');
     } finally {
