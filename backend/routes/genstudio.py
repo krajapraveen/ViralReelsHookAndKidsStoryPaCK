@@ -495,67 +495,115 @@ class ImageToVideoRequest(BaseModel):
     add_watermark: bool = True
     consent_confirmed: bool = False
 
+async def _generate_image_to_video_internal(job_id: str, image_path: str, data: dict):
+    """Internal image-to-video generation - can be retried"""
+    from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
+    import base64
+    
+    prompt = f"Animate this image with the following motion: {data['motion_prompt']}"
+    duration = data.get('duration', 4)
+    
+    valid_durations = [4, 8, 12]
+    if duration not in valid_durations:
+        duration = 4
+    
+    video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
+    
+    with open(image_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode('utf-8')
+    
+    video_bytes = video_gen.text_to_video(
+        prompt=prompt,
+        model="sora-2",
+        size="1280x720",
+        duration=duration,
+        max_wait_time=600
+    )
+    
+    if not video_bytes:
+        raise Exception("Video generation failed - no video returned")
+    
+    filename = f"genstudio_{job_id}_animated.mp4"
+    filepath = f"/tmp/{filename}"
+    
+    video_gen.save_video(video_bytes, filepath)
+    
+    return [f"/api/genstudio/download/{job_id}/{filename}"]
+
+
 async def process_image_to_video(job_id: str, image_path: str, data: dict, user_id: str):
-    """Background task for image-to-video generation"""
+    """Background task for image-to-video generation WITH AUTOMATIC RETRY"""
+    max_retries = 3
+    attempt = 0
+    last_error = None
+    
+    while attempt <= max_retries:
+        try:
+            if attempt > 0:
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": f"retrying (attempt {attempt + 1})",
+                        "retryAttempt": attempt,
+                        "lastError": str(last_error)[:200] if last_error else None
+                    }}
+                )
+                logger.info(f"Retrying image-to-video generation for job {job_id}, attempt {attempt + 1}")
+                await asyncio.sleep(min(5 * (2 ** attempt), 60))
+            
+            logger.info(f"Starting image-to-video generation for job {job_id}")
+            
+            output_urls = await _generate_image_to_video_internal(job_id, image_path, data)
+            
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "completed",
+                    "outputUrls": output_urls,
+                    "completedAt": datetime.now(timezone.utc).isoformat(),
+                    "totalAttempts": attempt + 1,
+                    "retrySuccess": attempt > 0
+                }}
+            )
+            
+            if attempt > 0:
+                logger.info(f"Image-to-video generation succeeded after {attempt + 1} attempts: {job_id}")
+            else:
+                logger.info(f"Image-to-video generation completed: {job_id}")
+            return
+            
+        except Exception as e:
+            last_error = e
+            error_category = categorize_error(e)
+            
+            if error_category == "content_safety":
+                logger.warning(f"Image-to-video generation blocked (content policy): {job_id}")
+                await db.genstudio_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {"status": "failed", "error": str(e), "errorCategory": error_category}}
+                )
+                return
+            
+            logger.warning(f"Image-to-video generation attempt {attempt + 1} failed for {job_id}: {e}")
+            attempt += 1
+    
+    # All retries exhausted
+    logger.error(f"Image-to-video generation failed after {max_retries + 1} attempts for job {job_id}: {last_error}")
+    await db.genstudio_jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "status": "failed",
+            "error": str(last_error),
+            "totalAttempts": max_retries + 1,
+            "errorCategory": categorize_error(last_error) if last_error else "unknown"
+        }}
+    )
+    
     try:
-        logger.info(f"Starting image-to-video generation for job {job_id}")
-        
-        # Use OpenAI Video Generation (Sora 2) for image animation
-        from emergentintegrations.llm.openai.video_generation import OpenAIVideoGeneration
-        
-        prompt = f"Animate this image with the following motion: {data['motion_prompt']}"
-        duration = data.get('duration', 4)
-        
-        # Validate duration - OpenAI only supports 4, 8, 12 seconds
-        valid_durations = [4, 8, 12]
-        if duration not in valid_durations:
-            duration = 4
-        
-        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_LLM_KEY)
-        
-        # Read image and convert to base64 for image-to-video
-        import base64
-        with open(image_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode('utf-8')
-        
-        # Generate video from image
-        video_bytes = video_gen.text_to_video(
-            prompt=prompt,
-            model="sora-2",
-            size="1280x720",
-            duration=duration,
-            max_wait_time=600
-        )
-        
-        if not video_bytes:
-            raise Exception("Video generation failed - no video returned")
-        
-        # Save video to temp location
-        filename = f"genstudio_{job_id}_animated.mp4"
-        filepath = f"/tmp/{filename}"
-        
-        video_gen.save_video(video_bytes, filepath)
-        
-        output_url = f"/api/genstudio/download/{job_id}/{filename}"
-        output_urls = [output_url]
-        
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "status": "completed",
-                "outputUrls": output_urls,
-                "completedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        logger.info(f"Image-to-video generation completed: {job_id}")
-        
-    except Exception as e:
-        logger.error(f"Image-to-video generation failed for job {job_id}: {e}")
-        await db.genstudio_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "failed", "error": str(e)}}
-        )
+        from routes.push_notifications import notify_generation_failure
+        await notify_generation_failure(job_id, "image_to_video", str(last_error), user_id)
+    except Exception:
+        pass
 
 @genstudio_router.post("/image-to-video")
 @limiter.limit("10/minute")
