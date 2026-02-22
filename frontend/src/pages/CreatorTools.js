@@ -205,7 +205,7 @@ export default function CreatorTools() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-6 lg:grid-cols-6 mb-8 bg-slate-800/50 border border-slate-700" data-testid="creator-tools-tabs">
+          <TabsList className="grid grid-cols-6 lg:grid-cols-6 mb-8 bg-slate-800/50 border border-slate-700" data-testid="creator-tools-tabs" data-tour="creator-tools-tabs">
             <TabsTrigger value="calendar" className="flex items-center gap-2 text-slate-400 data-[state=active]:text-purple-400 data-[state=active]:bg-purple-500/20" data-testid="tab-calendar">
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">Calendar</span>
