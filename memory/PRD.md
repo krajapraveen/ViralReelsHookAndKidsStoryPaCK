@@ -65,7 +65,30 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 - Checkout iframe: Loads
 - ⚠️ Domain whitelist: Required for production (add to merchant dashboard)
 
-### Test Report: `/app/COMPREHENSIVE_QA_REPORT.md`, `/app/test_reports/iteration_55.json`
+### Test Reports: 
+- `/app/FINAL_QA_REPORT_V2.md` - Complete test matrix
+- `/app/COMPREHENSIVE_QA_REPORT.md` 
+- `/app/test_reports/iteration_55.json`
+- `/app/test_reports/iteration_56.json`
+
+---
+
+## ADDITIONAL PAGES VERIFIED (Feb 22, 2026) ✅
+
+| Page | URL | Status |
+|------|-----|--------|
+| Challenge Generator | /app/challenge-generator | ✅ PASS |
+| Tone Switcher | /app/tone-switcher | ✅ PASS |
+| Generation History | /app/history | ✅ FIXED & PASS |
+| Feature Requests | /app/feature-requests | ✅ FIXED & PASS |
+| Subscription | /app/subscription | ✅ PASS |
+| Pricing (Multi-Currency) | /pricing | ✅ PASS |
+
+### Multi-Currency Support Verified
+- INR: ₹199, ₹699, ₹1999, ₹5999
+- USD: $3, $9, $24, $72
+- EUR: €3, €8, €22, €66
+- GBP: £2, £7, £19, £57
 
 ---
 
