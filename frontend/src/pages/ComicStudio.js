@@ -79,7 +79,7 @@ export default function ComicStudio() {
   const [style, setStyle] = useState('comic_color');
   const [layout, setLayout] = useState('4');
   const [bubbleStyle, setBubbleStyle] = useState('speech');
-  const [storyMode, setStoryMode] = useState(false);
+  const [storyMode, setStoryMode] = useState(true); // Auto-generate story by default
   
   // Images & panels
   const [uploadedImages, setUploadedImages] = useState([]);
