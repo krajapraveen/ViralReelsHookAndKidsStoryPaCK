@@ -69,12 +69,12 @@ export default function FeatureRequests() {
   };
 
   const statusColors = {
-    PENDING: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    UNDER_REVIEW: 'bg-blue-100 text-blue-700 border-blue-200',
-    PLANNED: 'bg-purple-100 text-purple-700 border-purple-200',
-    IN_PROGRESS: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-    COMPLETED: 'bg-green-100 text-green-700 border-green-200',
-    DECLINED: 'bg-red-100 text-red-700 border-red-200',
+    PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    UNDER_REVIEW: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    PLANNED: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    IN_PROGRESS: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+    COMPLETED: 'bg-green-500/20 text-green-400 border-green-500/30',
+    DECLINED: 'bg-red-500/20 text-red-400 border-red-500/30',
   };
 
   if (loading) {
