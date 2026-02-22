@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
 import sseManager from '../utils/sse';
+import HelpGuide from '../components/HelpGuide';
 
 export default function GenStudioDashboard() {
   const [wallet, setWallet] = useState({ balanceCredits: 0, reservedCredits: 0, availableCredits: 0 });
@@ -390,7 +391,7 @@ export default function GenStudioDashboard() {
 
         {/* Safety Notice */}
         <div className="mt-12 bg-slate-900/30 border border-slate-800 rounded-xl p-6">
-          <h4 className="text-sm font-semibold text-white mb-2">⚠️ Content Policy</h4>
+          <h4 className="text-sm font-semibold text-white mb-2">Content Policy</h4>
           <p className="text-xs text-slate-400">
             GenStudio does not support face swapping, identity cloning, or deepfakes. 
             All generated content must comply with our <Link to="/app/copyright" className="text-purple-400 hover:underline">content policy</Link>. 
@@ -398,6 +399,9 @@ export default function GenStudioDashboard() {
           </p>
         </div>
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="genstudio" />
     </div>
   );
 }
