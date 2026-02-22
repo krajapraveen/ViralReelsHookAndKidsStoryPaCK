@@ -1,236 +1,86 @@
-import React, { useState, useEffect } from 'react';
-import Joyride, { STATUS, ACTIONS, EVENTS } from 'react-joyride';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Button } from './ui/button';
 import api from '../utils/api';
+
+// Tour context
+const TourContext = createContext(null);
 
 // Tour steps configuration
 const TOUR_STEPS = [
-  // Dashboard Introduction
   {
-    target: 'body',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Welcome to CreatorStudio AI! 🎉</h3>
-        <p className="text-sm text-gray-600">
-          Let's take a quick tour to help you get started with creating viral content.
-          This will only take about 2 minutes.
-        </p>
-      </div>
-    ),
-    placement: 'center',
-    disableBeacon: true,
-    page: '/app'
+    id: 'welcome',
+    title: 'Welcome to CreatorStudio AI!',
+    content: "Let's take a quick tour to help you get started with creating viral content. This will only take about 2 minutes.",
+    target: null,
+    page: '/app',
+    position: 'center'
   },
   {
+    id: 'credits',
+    title: 'Your Credits',
+    content: 'This shows your available credits. New users get 100 free credits to start! Different features cost different amounts of credits.',
     target: '[data-tour="credits-display"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Your Credits 💰</h3>
-        <p className="text-sm text-gray-600">
-          This shows your available credits. New users get 100 free credits to start!
-          Different features cost different amounts of credits.
-        </p>
-      </div>
-    ),
-    placement: 'bottom',
-    page: '/app'
+    page: '/app',
+    position: 'bottom'
   },
   {
+    id: 'reel-generator',
+    title: 'Reel Generator',
+    content: 'Create viral reel scripts with hooks, captions, and hashtags in seconds. Perfect for Instagram, TikTok, and YouTube Shorts!',
     target: '[data-tour="reel-generator-card"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Reel Generator 🎬</h3>
-        <p className="text-sm text-gray-600">
-          Create viral reel scripts with hooks, captions, and hashtags in seconds.
-          Perfect for Instagram, TikTok, and YouTube Shorts!
-        </p>
-      </div>
-    ),
-    placement: 'right',
-    page: '/app'
+    page: '/app',
+    position: 'right'
   },
   {
+    id: 'story-generator',
+    title: 'Kids Story Generator',
+    content: 'Generate complete kids story video packs with scenes, voiceover scripts, and image prompts. Great for YouTube kids channels!',
     target: '[data-tour="story-generator-card"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Kids Story Generator 📖</h3>
-        <p className="text-sm text-gray-600">
-          Generate complete kids story video packs with scenes, voiceover scripts,
-          and image prompts. Great for YouTube kids channels!
-        </p>
-      </div>
-    ),
-    placement: 'left',
-    page: '/app'
+    page: '/app',
+    position: 'left'
   },
   {
+    id: 'genstudio',
+    title: 'GenStudio AI',
+    content: 'Our AI generation suite! Create images from text, convert images to videos, and remix existing videos with AI.',
     target: '[data-tour="genstudio-card"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">GenStudio AI 🎨</h3>
-        <p className="text-sm text-gray-600">
-          Our AI generation suite! Create images from text, convert images to videos,
-          and remix existing videos with AI.
-        </p>
-      </div>
-    ),
-    placement: 'right',
-    page: '/app'
+    page: '/app',
+    position: 'bottom'
   },
   {
+    id: 'creator-tools',
+    title: 'Creator Tools',
+    content: 'Access 30-day content calendars, carousel generators, hashtag banks, trending topics, and more! Some tools are FREE!',
     target: '[data-tour="creator-tools-card"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Creator Tools 🛠️</h3>
-        <p className="text-sm text-gray-600">
-          Access 30-day content calendars, carousel generators, hashtag banks,
-          trending topics, and more! Some tools are FREE!
-        </p>
-      </div>
-    ),
-    placement: 'left',
-    page: '/app'
-  },
-  // Reel Generator Page
-  {
-    target: '[data-tour="reel-topic-input"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Enter Your Topic 📝</h3>
-        <p className="text-sm text-gray-600">
-          Start by entering what you want to create content about.
-          Be specific for better results! Example: "Morning routines for entrepreneurs"
-        </p>
-      </div>
-    ),
-    placement: 'bottom',
-    page: '/app/reels'
+    page: '/app',
+    position: 'bottom'
   },
   {
-    target: '[data-tour="reel-niche-select"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Choose Your Niche 🎯</h3>
-        <p className="text-sm text-gray-600">
-          Select the niche that best fits your content.
-          This helps our AI generate more relevant hooks and scripts.
-        </p>
-      </div>
-    ),
-    placement: 'bottom',
-    page: '/app/reels'
-  },
-  {
-    target: '[data-tour="reel-generate-btn"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Generate Your Reel! 🚀</h3>
-        <p className="text-sm text-gray-600">
-          Click here to generate your viral reel script.
-          You'll get 5 hooks, a full script, captions, hashtags, and B-roll ideas!
-        </p>
-      </div>
-    ),
-    placement: 'top',
-    page: '/app/reels'
-  },
-  // Creator Tools
-  {
-    target: '[data-tour="creator-tools-tabs"]',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">Multiple Tools Available 🧰</h3>
-        <p className="text-sm text-gray-600">
-          Switch between different tools using these tabs.
-          Hashtags and Trending are FREE - no credits needed!
-        </p>
-      </div>
-    ),
-    placement: 'bottom',
-    page: '/app/creator-tools'
-  },
-  // Final step
-  {
-    target: 'body',
-    content: (
-      <div className="text-left">
-        <h3 className="text-lg font-bold mb-2">You're All Set! 🎉</h3>
-        <p className="text-sm text-gray-600">
-          That's the basics! Look for the purple <span className="text-purple-500 font-bold">?</span> button
-          on any page for contextual help. Ready to create amazing content?
-        </p>
-        <p className="text-xs text-gray-500 mt-2">
-          You can replay this tour anytime from your Profile settings.
-        </p>
-      </div>
-    ),
-    placement: 'center',
-    page: '/app/creator-tools'
+    id: 'complete',
+    title: "You're All Set!",
+    content: 'That\'s the basics! Look for the purple ? button on any page for contextual help. Ready to create amazing content?',
+    target: null,
+    page: '/app',
+    position: 'center'
   }
 ];
 
-// Custom tooltip component for dark theme
-const CustomTooltip = ({
-  continuous,
-  index,
-  step,
-  backProps,
-  closeProps,
-  primaryProps,
-  skipProps,
-  tooltipProps,
-  isLastStep
-}) => (
-  <div
-    {...tooltipProps}
-    className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 max-w-sm"
-  >
-    <div className="text-white mb-4">
-      {step.content}
-    </div>
-    <div className="flex items-center justify-between">
-      <div>
-        {!isLastStep && (
-          <button
-            {...skipProps}
-            className="text-slate-400 hover:text-white text-sm transition-colors"
-          >
-            Skip Tour
-          </button>
-        )}
-      </div>
-      <div className="flex gap-2">
-        {index > 0 && (
-          <button
-            {...backProps}
-            className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-          >
-            Back
-          </button>
-        )}
-        <button
-          {...primaryProps}
-          className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-        >
-          {isLastStep ? 'Finish' : 'Next'}
-        </button>
-      </div>
-    </div>
-    <div className="mt-3 flex justify-center gap-1">
-      {TOUR_STEPS.map((_, i) => (
-        <div
-          key={i}
-          className={`w-2 h-2 rounded-full ${i === index ? 'bg-purple-500' : 'bg-slate-600'}`}
-        />
-      ))}
-    </div>
-  </div>
-);
+// Custom hook for tour
+export function useAppTour() {
+  const context = useContext(TourContext);
+  if (!context) {
+    return { restartTour: () => {}, isActive: false };
+  }
+  return context;
+}
 
-export default function AppTour({ children }) {
-  const [runTour, setRunTour] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [tourCompleted, setTourCompleted] = useState(true); // Default to true to prevent flash
+// Tour Provider Component
+export function TourProvider({ children }) {
+  const [isActive, setIsActive] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [hasCompleted, setHasCompleted] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -241,126 +91,213 @@ export default function AppTour({ children }) {
   const checkTourStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        setTourCompleted(true);
-        return;
-      }
+      if (!token) return;
 
-      // Check if user has completed the tour
       const response = await api.get('/api/auth/me');
       const user = response.data;
       
-      // If tour not completed and user is on dashboard, start tour
       if (!user.tourCompleted && location.pathname === '/app') {
-        setTourCompleted(false);
-        setTimeout(() => setRunTour(true), 1000); // Delay for page load
-      } else {
-        setTourCompleted(user.tourCompleted || false);
+        setHasCompleted(false);
+        setTimeout(() => startTour(), 1500);
       }
     } catch (error) {
-      setTourCompleted(true); // Don't show tour on error
+      console.error('Tour status check failed:', error);
     }
   };
 
-  const handleJoyrideCallback = async (data) => {
-    const { action, index, status, type } = data;
-
-    // Handle step navigation
-    if (type === EVENTS.STEP_AFTER) {
-      const nextIndex = index + (action === ACTIONS.PREV ? -1 : 1);
-      const nextStep = TOUR_STEPS[nextIndex];
-      
-      // Navigate to the correct page if needed
-      if (nextStep && nextStep.page && location.pathname !== nextStep.page) {
-        navigate(nextStep.page);
-        setTimeout(() => setStepIndex(nextIndex), 500);
-      } else {
-        setStepIndex(nextIndex);
-      }
-    }
-
-    // Handle tour completion or skip
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
-      setRunTour(false);
-      setTourCompleted(true);
-      
-      // Save tour completion status
-      try {
-        await api.put('/api/auth/profile', { tourCompleted: true });
-      } catch (error) {
-        console.error('Failed to save tour status:', error);
-      }
-    }
-  };
-
-  // Function to restart tour (can be called from Profile settings)
-  const restartTour = () => {
-    setStepIndex(0);
+  const startTour = () => {
+    setCurrentStep(0);
+    setIsActive(true);
     navigate('/app');
-    setTimeout(() => setRunTour(true), 500);
   };
 
-  // Expose restart function globally
-  useEffect(() => {
-    window.restartAppTour = restartTour;
-    return () => {
-      delete window.restartAppTour;
-    };
-  }, []);
+  const restartTour = () => {
+    startTour();
+  };
+
+  const nextStep = () => {
+    if (currentStep < TOUR_STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      completeTour();
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const skipTour = () => {
+    completeTour();
+  };
+
+  const completeTour = async () => {
+    setIsActive(false);
+    setHasCompleted(true);
+    
+    try {
+      await api.put('/api/auth/profile', { tourCompleted: true });
+    } catch (error) {
+      console.error('Failed to save tour status:', error);
+    }
+  };
+
+  const value = {
+    isActive,
+    currentStep,
+    restartTour,
+    nextStep,
+    prevStep,
+    skipTour,
+    completeTour
+  };
 
   return (
-    <>
+    <TourContext.Provider value={value}>
       {children}
-      <Joyride
-        steps={TOUR_STEPS}
-        run={runTour}
-        stepIndex={stepIndex}
-        continuous
-        scrollToFirstStep
-        showProgress
-        showSkipButton
-        disableOverlayClose
-        spotlightClicks
-        callback={handleJoyrideCallback}
-        tooltipComponent={CustomTooltip}
-        styles={{
-          options: {
-            zIndex: 10000,
-            arrowColor: '#1e293b',
-            backgroundColor: '#1e293b',
-            overlayColor: 'rgba(0, 0, 0, 0.7)',
-            primaryColor: '#9333ea',
-            textColor: '#fff',
-          },
-          spotlight: {
-            borderRadius: 8,
-          },
-          overlay: {
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          }
-        }}
-        floaterProps={{
-          disableAnimation: false,
-        }}
-        locale={{
-          back: 'Back',
-          close: 'Close',
-          last: 'Finish',
-          next: 'Next',
-          skip: 'Skip Tour'
-        }}
-      />
-    </>
+      {isActive && <TourOverlay />}
+    </TourContext.Provider>
   );
 }
 
-// Hook to manually trigger tour
-export const useAppTour = () => {
-  const restartTour = () => {
-    if (window.restartAppTour) {
-      window.restartAppTour();
-    }
-  };
+// Tour Overlay Component
+function TourOverlay() {
+  const { currentStep, nextStep, prevStep, skipTour } = useAppTour();
+  const step = TOUR_STEPS[currentStep];
+  const [position, setPosition] = useState({ top: '50%', left: '50%' });
+  const [targetRect, setTargetRect] = useState(null);
 
-  return { restartTour };
-};
+  useEffect(() => {
+    if (step.target) {
+      const element = document.querySelector(step.target);
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        setTargetRect(rect);
+        
+        // Calculate tooltip position based on step.position
+        let top, left;
+        switch (step.position) {
+          case 'top':
+            top = rect.top - 10;
+            left = rect.left + rect.width / 2;
+            break;
+          case 'bottom':
+            top = rect.bottom + 20;
+            left = rect.left + rect.width / 2;
+            break;
+          case 'left':
+            top = rect.top + rect.height / 2;
+            left = rect.left - 10;
+            break;
+          case 'right':
+            top = rect.top + rect.height / 2;
+            left = rect.right + 20;
+            break;
+          default:
+            top = window.innerHeight / 2;
+            left = window.innerWidth / 2;
+        }
+        setPosition({ top: `${top}px`, left: `${left}px` });
+      }
+    } else {
+      setPosition({ top: '50%', left: '50%' });
+      setTargetRect(null);
+    }
+  }, [step, currentStep]);
+
+  const isLastStep = currentStep === TOUR_STEPS.length - 1;
+  const isFirstStep = currentStep === 0;
+  const isCentered = step.position === 'center' || !step.target;
+
+  return (
+    <div className="fixed inset-0 z-[9999]">
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/70" onClick={skipTour} />
+      
+      {/* Spotlight */}
+      {targetRect && (
+        <div
+          className="absolute bg-transparent border-4 border-purple-500 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] pointer-events-none"
+          style={{
+            top: targetRect.top - 8,
+            left: targetRect.left - 8,
+            width: targetRect.width + 16,
+            height: targetRect.height + 16,
+          }}
+        />
+      )}
+      
+      {/* Tooltip */}
+      <div
+        className={`absolute z-10 w-96 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 ${
+          isCentered ? 'transform -translate-x-1/2 -translate-y-1/2' : ''
+        }`}
+        style={isCentered ? { top: '50%', left: '50%' } : position}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            <h3 className="font-bold text-white text-lg">{step.title}</h3>
+          </div>
+          <button
+            onClick={skipTour}
+            className="text-slate-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        {/* Content */}
+        <p className="text-slate-300 mb-4">{step.content}</p>
+        
+        {/* Progress */}
+        <div className="flex justify-center gap-1 mb-4">
+          {TOUR_STEPS.map((_, i) => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full ${
+                i === currentStep ? 'bg-purple-500' : 'bg-slate-600'
+              }`}
+            />
+          ))}
+        </div>
+        
+        {/* Actions */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={skipTour}
+            className="text-slate-400 hover:text-white text-sm transition-colors"
+          >
+            Skip Tour
+          </button>
+          <div className="flex gap-2">
+            {!isFirstStep && (
+              <Button
+                onClick={prevStep}
+                variant="outline"
+                size="sm"
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Back
+              </Button>
+            )}
+            <Button
+              onClick={nextStep}
+              size="sm"
+              className="bg-purple-600 hover:bg-purple-500"
+            >
+              {isLastStep ? 'Finish' : 'Next'}
+              {!isLastStep && <ChevronRight className="w-4 h-4 ml-1" />}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default TourProvider;
