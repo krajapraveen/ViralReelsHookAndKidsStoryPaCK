@@ -1046,7 +1046,7 @@ export default function ComicStudio() {
                     </div>
                     <div>
                       <Label className="text-slate-300 text-sm mb-2 block">Add SFX</Label>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 mb-3">
                         {sfxList.map(sfx => (
                           <button
                             key={sfx}
@@ -1067,7 +1067,49 @@ export default function ComicStudio() {
                           Clear
                         </button>
                       </div>
+                      
+                      {/* Custom SFX Input */}
+                      <div className="flex gap-2">
+                        <Input
+                          value={customSfx}
+                          onChange={(e) => setCustomSfx(e.target.value.toUpperCase())}
+                          placeholder="Custom SFX (e.g., WHOOSH!)"
+                          className="bg-slate-800 border-slate-600 text-white flex-1"
+                          data-testid="custom-sfx-input"
+                        />
+                        <Button
+                          onClick={() => addCustomSfxToPanel(selectedPanel)}
+                          size="sm"
+                          className="bg-red-600 hover:bg-red-700"
+                          data-testid="add-custom-sfx-btn"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
+                    
+                    {/* Stickers on this panel */}
+                    {(panels.find(p => p.id === selectedPanel)?.stickers || []).length > 0 && (
+                      <div>
+                        <Label className="text-slate-300 text-sm mb-2 block">Active Stickers</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {(panels.find(p => p.id === selectedPanel)?.stickers || []).map(sticker => (
+                            <div 
+                              key={sticker.id} 
+                              className="flex items-center gap-1 bg-slate-600 px-2 py-1 rounded text-xs text-white"
+                            >
+                              <span>{sticker.text || sticker.type}</span>
+                              <button
+                                onClick={() => removeStickerFromPanel(selectedPanel, sticker.id)}
+                                className="text-red-400 hover:text-red-300"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
