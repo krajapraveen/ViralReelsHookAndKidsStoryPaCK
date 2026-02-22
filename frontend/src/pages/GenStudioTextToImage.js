@@ -18,6 +18,7 @@ import {
 import api, { walletAPI } from '../utils/api';
 import sseManager from '../utils/sse';
 import { v4 as uuidv4 } from 'uuid';
+import HelpGuide from '../components/HelpGuide';
 
 export default function TextToImage() {
   const [searchParams] = useSearchParams();
