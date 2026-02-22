@@ -498,7 +498,8 @@ async def get_me(user: dict = Depends(get_current_user)):
         "credits": user.get("credits", 0),
         "createdAt": user.get("createdAt"),
         "subscription": user.get("subscription"),
-        "plan": user.get("plan", "free")
+        "plan": user.get("plan", "free"),
+        "tourCompleted": user.get("tourCompleted", False)
     }
 
 
