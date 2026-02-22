@@ -4,12 +4,10 @@ Tracks user sessions, actions, and provides live dashboard data
 """
 from fastapi import APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from datetime import datetime, timezone, timedelta
-from collections import defaultdict
 import uuid
 import asyncio
-import json
 import sys
 import os
 

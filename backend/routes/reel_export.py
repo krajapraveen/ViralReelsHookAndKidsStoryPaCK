@@ -4,12 +4,11 @@ Creates nicely formatted PDF documents with script, hooks, and captions
 """
 from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime, timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.units import inch
 import uuid

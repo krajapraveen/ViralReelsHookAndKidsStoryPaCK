@@ -4,17 +4,16 @@ Enables controlled experiments with different pricing, UI variants, and features
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-from typing import Optional, Any
+from typing import Optional
 from datetime import datetime, timezone, timedelta
 import uuid
 import hashlib
-import random
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared import db, logger, get_current_user, get_admin_user
+from shared import db, get_current_user, get_admin_user
 
 router = APIRouter(prefix="/experiments", tags=["A/B Testing"])
 

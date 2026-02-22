@@ -2,9 +2,9 @@
 Production Security Monitoring Routes
 Real-time threat detection, security events, and incident response
 """
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 import uuid

@@ -4,14 +4,12 @@ Comprehensive handling for all payment webhook scenarios
 """
 from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any
 import uuid
 import json
 import hmac
 import hashlib
 import base64
 import asyncio
-import logging
 import os
 import sys
 
