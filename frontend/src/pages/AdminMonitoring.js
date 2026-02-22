@@ -7,6 +7,7 @@ import {
   Database, Cpu, Globe, ChevronDown, ChevronUp, Filter
 } from 'lucide-react';
 import api from '../utils/api';
+import HelpGuide from '../components/HelpGuide';
 
 export default function AdminMonitoring() {
   const [overview, setOverview] = useState(null);
