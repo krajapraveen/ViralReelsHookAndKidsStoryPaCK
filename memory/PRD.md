@@ -31,6 +31,67 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 
 ---
 
+## PUSH NOTIFICATIONS & AUTO-RETRY MECHANISM (Feb 22, 2026) ✅ NEW
+
+### 1. Real-time Push Notifications for Admins
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Security Threat Alerts | ✅ | Critical severity, all channels (push, email, SMS) |
+| High-Value Conversion Alerts | ✅ | Orders > ₹1000, push + email |
+| Failed Payment Alerts | ✅ | Medium severity, push only |
+| Generation Failure Alerts | ✅ | After 3+ failures per user, push only |
+| System Alerts | ✅ | High severity, push + email |
+
+**Notification Preferences:** Admins can configure:
+- Enable/disable each notification type
+- Quiet hours (notifications paused except critical)
+- Channel preferences (push, email, SMS)
+
+**API Endpoints:**
+- `GET /api/notifications/list` - List notifications
+- `GET /api/notifications/preferences` - Get preferences
+- `PUT /api/notifications/preferences` - Update preferences
+- `POST /api/notifications/test` - Send test notification
+- `POST /api/notifications/mark-read/{id}` - Mark as read
+- `GET /api/notifications/poll` - Poll for new notifications
+
+### 2. Automatic Retry Mechanism for All Generations
+
+| Generation Type | Max Retries | Initial Delay | Backoff |
+|-----------------|-------------|---------------|---------|
+| Text-to-Image | 3 | 3s | 2x |
+| Text-to-Video | 3 | 5s | 2x |
+| Image-to-Video | 3 | 5s | 2x |
+| Video Remix | 3 | 5s | 2x |
+| Reel Script | 3 | 3s | 2x |
+| Story Content | 3 | 3s | 2x |
+| Story Images | 3 | 3s | 2x |
+
+**Error Category Handling:**
+- Network errors: 5 retries, 1s initial delay
+- Rate limit errors: 3 retries, 30s initial delay
+- Content policy violations: 0 retries (blocked immediately)
+- AI generation errors: 3 retries, 5s initial delay
+
+**Job Status Updates:**
+- Users see "retrying (attempt 2)" in their UI
+- `totalAttempts` and `retrySuccess` fields added to job records
+- Admin notification sent after multiple failures
+
+### New Files:
+- `/app/backend/routes/push_notifications.py` - Complete notification service
+- `/app/backend/utils/retry_mechanism.py` - Retry utilities
+
+### Modified Files:
+- `/app/backend/routes/genstudio.py` - Added retry to all generation functions
+- `/app/backend/routes/generation.py` - Added retry to reel/story generation
+- `/app/backend/server.py` - Added push notifications router
+
+### Test Report: `/app/test_reports/iteration_58.json`
+
+---
+
 ## 13 FEATURE MEGA IMPLEMENTATION (Feb 22, 2026) ✅ NEW
 
 ### Features Implemented:
