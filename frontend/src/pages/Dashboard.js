@@ -64,7 +64,7 @@ export default function Dashboard() {
               </Button>
             </Link>
             
-            <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2" data-testid="credit-balance">
+            <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2" data-testid="credit-balance" data-tour="credits-display">
               <Coins className="w-4 h-4 text-indigo-400" />
               <span className="font-semibold text-indigo-300 text-sm sm:text-base">{credits}</span>
             </div>
@@ -85,7 +85,7 @@ export default function Dashboard() {
 
         <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
           <Link to="/app/reels">
-            <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-indigo-500/20" data-testid="quick-action-reel">
+            <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-indigo-500/20" data-testid="quick-action-reel" data-tour="reel-generator-card">
               <Video className="w-10 h-10 sm:w-12 sm:h-12 mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold mb-2">Generate Reel Script</h2>
               <p className="text-indigo-200 mb-4 text-sm sm:text-base">Create viral reel scripts in 5-10 seconds</p>
@@ -97,7 +97,7 @@ export default function Dashboard() {
           </Link>
 
           <Link to="/app/stories">
-            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-story">
+            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-story" data-tour="story-generator-card">
               <BookOpen className="w-10 h-10 sm:w-12 sm:h-12 mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold mb-2">Create Kids Story Pack</h2>
               <p className="text-purple-200 mb-4 text-sm sm:text-base">Complete video production packages</p>
