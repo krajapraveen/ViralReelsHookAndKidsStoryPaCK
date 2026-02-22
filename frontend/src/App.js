@@ -45,6 +45,7 @@ import SubscriptionManagement from './pages/SubscriptionManagement';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
+import AppTour from './components/AppTour';
 import './App.css';
 
 function App() {
@@ -128,6 +129,9 @@ function App() {
       
       {/* Feedback Widget - Collect user suggestions */}
       <FeedbackWidget />
+      
+      {/* Interactive App Tour for new users */}
+      {isAuthenticated && <AppTour />}
     </>
   );
 }
