@@ -41,6 +41,11 @@ export default function ComixAI() {
   const [storyPanelCount, setStoryPanelCount] = useState('6');
   const [storyGenre, setStoryGenre] = useState('adventure');
   const [autoDialogue, setAutoDialogue] = useState(true);
+  const [characterImages, setCharacterImages] = useState([]);
+  const [characterPreviews, setCharacterPreviews] = useState([]);
+  
+  // Pricing state
+  const [pricing, setPricing] = useState({ generate: 10, download: 15, download_story: 20 });
   
   // Results state
   const [currentJob, setCurrentJob] = useState(null);
