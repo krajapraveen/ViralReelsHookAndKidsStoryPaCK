@@ -127,6 +127,14 @@ async def security_headers_middleware(request: Request, call_next):
     """Add comprehensive security headers to all responses"""
     response = await call_next(request)
     
+    # Skip strict security headers for static files (images, downloads)
+    path = request.url.path
+    if path.startswith("/api/static/"):
+        # Allow downloads and image display for static files
+        response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+    
     # Basic Security Headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
