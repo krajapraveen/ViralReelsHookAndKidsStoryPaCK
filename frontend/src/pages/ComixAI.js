@@ -677,16 +677,55 @@ export default function ComixAI() {
                       placeholder="Describe your story idea... e.g., 'A young wizard discovers a magical book that can bring drawings to life'"
                       value={storyPrompt}
                       onChange={(e) => setStoryPrompt(e.target.value)}
-                      className="bg-slate-700 border-slate-600 min-h-32"
+                      className="bg-slate-700 border-slate-600 min-h-32 text-white"
                       data-testid="story-prompt-input"
                     />
+                  </div>
+
+                  {/* Character Images Upload */}
+                  <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                    <label className="block text-sm text-slate-300 mb-2 font-medium">
+                      <Upload className="w-4 h-4 inline mr-2" />
+                      Character Images (Optional - Max 5)
+                    </label>
+                    <p className="text-xs text-slate-400 mb-3">Upload photos of characters. The AI will use them as main characters throughout your comic story.</p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {characterPreviews.map((preview, i) => (
+                        <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-purple-500">
+                          <img src={preview} alt={`Character ${i+1}`} className="w-full h-full object-cover" />
+                          <button 
+                            onClick={() => removeCharacterImage(i)}
+                            className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5"
+                          >
+                            <Trash2 className="w-3 h-3 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                      {characterImages.length < 5 && (
+                        <label className="w-16 h-16 border-2 border-dashed border-slate-500 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 transition-colors">
+                          <Upload className="w-5 h-5 text-slate-400" />
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple 
+                            className="hidden" 
+                            onChange={handleCharacterImagesChange}
+                            data-testid="character-images-input"
+                          />
+                        </label>
+                      )}
+                    </div>
+                    {characterImages.length > 0 && (
+                      <p className="text-xs text-purple-300">{characterImages.length} character(s) will appear in all panels</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-slate-400 mb-2">Style</label>
                       <Select value={storyStyle} onValueChange={setStoryStyle}>
-                        <SelectTrigger className="bg-slate-700 border-slate-600">
+                        <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
@@ -699,7 +738,7 @@ export default function ComixAI() {
                     <div>
                       <label className="block text-sm text-slate-400 mb-2">Panels</label>
                       <Select value={storyPanelCount} onValueChange={setStoryPanelCount}>
-                        <SelectTrigger className="bg-slate-700 border-slate-600">
+                        <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
@@ -714,7 +753,7 @@ export default function ComixAI() {
                   <div>
                     <label className="block text-sm text-slate-400 mb-2">Genre</label>
                     <Select value={storyGenre} onValueChange={setStoryGenre}>
-                      <SelectTrigger className="bg-slate-700 border-slate-600">
+                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700">
@@ -736,7 +775,7 @@ export default function ComixAI() {
                   <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                     <p className="text-purple-300 text-sm">
                       <Sparkles className="w-4 h-4 inline mr-2" />
-                      Story Mode: <strong>{creditCosts.story_mode} credits</strong> - Includes {storyPanelCount} panels with full story arc
+                      Generate: <strong>{pricing.generate} credits</strong> | Download: <strong>{pricing.download_story} credits</strong>
                     </p>
                   </div>
 
