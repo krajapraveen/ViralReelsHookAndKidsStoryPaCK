@@ -550,3 +550,416 @@ tr:hover td {
   border-color: rgba(71, 85, 105, 0.5) !important;
   transition: background-color 9999s ease-in-out 0s !important;
 }
+
+/* ============================================
+   MOBILE RESPONSIVE STYLING
+   Professional Mobile View Optimizations
+   ============================================ */
+
+/* Mobile Base Adjustments */
+@media (max-width: 640px) {
+  /* Body and root adjustments */
+  body {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 1.75rem !important;
+    letter-spacing: -0.02em;
+  }
+  
+  h2 {
+    font-size: 1.5rem !important;
+  }
+  
+  h3 {
+    font-size: 1.25rem !important;
+  }
+  
+  h4, h5, h6 {
+    font-size: 1.125rem !important;
+  }
+
+  /* Form inputs - consistent height and alignment */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents iOS zoom */
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 10px;
+  }
+
+  /* Input with icons - fix alignment */
+  .relative input,
+  .relative textarea {
+    padding-left: 44px !important;
+  }
+
+  /* Icon positioning in inputs */
+  .relative > span:first-child,
+  .relative > .absolute:first-child {
+    left: 12px !important;
+    width: 20px;
+    height: 20px;
+  }
+
+  .relative > span:first-child svg,
+  .relative > .absolute:first-child svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  /* Password toggle button */
+  .relative > button.absolute {
+    right: 12px !important;
+    padding: 8px;
+  }
+
+  /* Buttons */
+  button, .btn, [role="button"] {
+    min-height: 48px;
+    font-size: 15px !important;
+    padding: 12px 20px;
+  }
+
+  /* Cards and containers */
+  .card-professional,
+  .card-feature {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  /* Dialog/Modal */
+  [role="dialog"],
+  .dialog-content {
+    margin: 16px;
+    padding: 20px;
+    border-radius: 16px;
+    max-width: calc(100vw - 32px) !important;
+  }
+
+  /* Tables - horizontal scroll */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  th, td {
+    padding: 12px 8px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Grid adjustments */
+  .grid {
+    gap: 12px;
+  }
+
+  /* Stack columns on mobile */
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4,
+  .md\\:grid-cols-2,
+  .md\\:grid-cols-3,
+  .md\\:grid-cols-4,
+  .lg\\:grid-cols-2,
+  .lg\\:grid-cols-3,
+  .lg\\:grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Flex wrap */
+  .flex {
+    flex-wrap: wrap;
+  }
+
+  /* Header adjustments */
+  header {
+    padding: 12px 16px;
+  }
+
+  header .flex {
+    gap: 8px;
+  }
+
+  /* Navigation */
+  nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tab lists */
+  [role="tablist"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+    gap: 4px;
+  }
+
+  [role="tab"] {
+    padding: 10px 16px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Page containers */
+  .max-w-7xl,
+  .max-w-6xl,
+  .max-w-5xl,
+  .max-w-4xl,
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Section padding */
+  .section-padding {
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+
+  /* Side panels and drawers */
+  .fixed.inset-0 > div,
+  [data-state="open"] > div {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Stats cards */
+  .stats-grid,
+  .grid.grid-cols-2.md\\:grid-cols-4,
+  .grid.grid-cols-2.md\\:grid-cols-6 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Badge sizing */
+  .badge {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  /* Spacing utilities */
+  .space-y-6 > * + * {
+    margin-top: 16px;
+  }
+
+  .space-y-4 > * + * {
+    margin-top: 12px;
+  }
+
+  .gap-6 {
+    gap: 16px;
+  }
+
+  .gap-4 {
+    gap: 12px;
+  }
+
+  /* Text utilities */
+  .text-4xl {
+    font-size: 1.75rem !important;
+  }
+
+  .text-3xl {
+    font-size: 1.5rem !important;
+  }
+
+  .text-2xl {
+    font-size: 1.25rem !important;
+  }
+
+  .text-xl {
+    font-size: 1.125rem !important;
+  }
+
+  .text-lg {
+    font-size: 1rem !important;
+  }
+
+  /* Label alignment */
+  label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  /* Select trigger text alignment */
+  [data-radix-select-trigger],
+  .select-trigger {
+    text-align: left;
+    justify-content: flex-start;
+  }
+
+  /* Textarea */
+  textarea {
+    min-height: 100px;
+    resize: vertical;
+  }
+
+  /* Credits display */
+  .credits-display {
+    font-size: 14px;
+  }
+
+  /* Action buttons row */
+  .action-buttons,
+  .flex.gap-2,
+  .flex.gap-3 {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .action-buttons button,
+  .action-buttons a {
+    width: 100%;
+  }
+
+  /* Toast positioning */
+  [data-sonner-toaster] {
+    bottom: 80px !important;
+    left: 16px !important;
+    right: 16px !important;
+  }
+
+  /* Fix overlapping chat widgets */
+  .fixed.bottom-4.right-4,
+  .chat-widget {
+    bottom: 100px !important;
+    right: 16px !important;
+  }
+}
+
+/* Small mobile (< 375px) */
+@media (max-width: 375px) {
+  body {
+    font-size: 13px;
+  }
+
+  h1 {
+    font-size: 1.5rem !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+  }
+
+  button, .btn {
+    padding: 10px 16px;
+    font-size: 14px !important;
+  }
+
+  [role="dialog"],
+  .dialog-content {
+    margin: 8px;
+    padding: 16px;
+  }
+}
+
+/* Tablet adjustments (641px - 1024px) */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .grid-cols-3,
+  .md\\:grid-cols-3 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .grid-cols-4,
+  .md\\:grid-cols-4,
+  .lg\\:grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Touch device improvements */
+@media (hover: none) and (pointer: coarse) {
+  button, a, [role="button"], input, select, textarea {
+    cursor: pointer;
+  }
+
+  /* Larger touch targets */
+  button, .btn, [role="button"] {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /* Remove hover effects that don't work on touch */
+  button:hover,
+  .btn:hover,
+  a:hover {
+    transform: none !important;
+  }
+}
+
+/* Landscape mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+  .min-h-screen {
+    min-height: auto;
+  }
+
+  header {
+    position: relative;
+  }
+
+  .fixed.bottom-4 {
+    position: absolute;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print,
+  header,
+  footer,
+  nav,
+  .chat-widget,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}
+
+/* Accessibility - Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  button, .btn {
+    border: 2px solid currentColor;
+  }
+
+  input, textarea, select {
+    border-width: 2px;
+  }
+
+  a {
+    text-decoration: underline;
+  }
+}
