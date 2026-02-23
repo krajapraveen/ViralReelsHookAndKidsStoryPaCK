@@ -705,9 +705,12 @@ Create a single frame image for this animation step."""
             {"$set": {
                 "status": "COMPLETED",
                 "progress": 100,
+                "progressMessage": "Complete!",
                 "resultUrl": result_url,
-                "frames": frames if frames else [result_url],
+                "frames": [f"/api/static/generated/{os.path.basename(f)}" for f in frames] if frames else [result_url],
                 "downloadUrl": result_url,
+                "downloaded": False,
+                "downloadCost": GIF_CREDITS["download"],
                 "shareUrl": f"/share/gif/{job_id}",
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
@@ -717,8 +720,96 @@ Create a single frame image for this animation step."""
         logger.error(f"GIF processing error: {e}")
         await db.gif_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "FAILED", "error": str(e)}}
+            {"$set": {"status": "FAILED", "error": str(e), "progress": 0}}
         )
+
+
+@router.post("/download/{job_id}")
+async def download_gif(job_id: str, user: dict = Depends(get_current_user)):
+    """Download GIF - requires additional credits"""
+    job = await db.gif_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.get("status") != "COMPLETED":
+        raise HTTPException(status_code=400, detail="GIF not ready for download")
+    
+    # Check if already downloaded (free re-download)
+    if job.get("downloaded"):
+        return {
+            "success": True,
+            "downloadUrl": job.get("resultUrl"),
+            "alreadyPurchased": True
+        }
+    
+    download_cost = GIF_CREDITS["download"]
+    current_credits = user.get("credits", 0)
+    
+    if current_credits < download_cost:
+        subscription = await db.subscriptions.find_one(
+            {"userId": user["id"], "status": "ACTIVE"},
+            {"_id": 0}
+        )
+        
+        if subscription:
+            return {
+                "success": False,
+                "error": "INSUFFICIENT_CREDITS",
+                "message": f"You need {download_cost} credits to download. Current balance: {current_credits}. Please top-up your credits.",
+                "creditsNeeded": download_cost,
+                "currentCredits": current_credits,
+                "hasSubscription": True
+            }
+        else:
+            return {
+                "success": False,
+                "error": "NO_SUBSCRIPTION",
+                "message": "Please subscribe to download content.",
+                "creditsNeeded": download_cost,
+                "currentCredits": current_credits,
+                "hasSubscription": False
+            }
+    
+    # Deduct credits
+    await deduct_credits(user["id"], download_cost, f"Download GIF: {job_id[:8]}")
+    
+    # Mark as downloaded
+    await db.gif_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"downloaded": True, "downloadedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {
+        "success": True,
+        "downloadUrl": job.get("resultUrl"),
+        "creditsDeducted": download_cost,
+        "message": "Download unlocked!"
+    }
+
+
+@router.get("/download-status/{job_id}")
+async def check_gif_download_status(job_id: str, user: dict = Depends(get_current_user)):
+    """Check if user can download GIF"""
+    job = await db.gif_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    download_cost = GIF_CREDITS["download"]
+    
+    return {
+        "canDownload": job.get("downloaded", False) or user.get("credits", 0) >= download_cost,
+        "alreadyDownloaded": job.get("downloaded", False),
+        "downloadCost": download_cost if not job.get("downloaded") else 0,
+        "userCredits": user.get("credits", 0)
+    }
 
 
 @router.post("/generate-batch")
