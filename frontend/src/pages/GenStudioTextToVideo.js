@@ -308,7 +308,7 @@ export default function TextToVideo() {
                 <div>
                   <label className="text-sm text-slate-400 mb-2 block">Aspect Ratio</label>
                   <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white" data-testid="video-aspect-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
