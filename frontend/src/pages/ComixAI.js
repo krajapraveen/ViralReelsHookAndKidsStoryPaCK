@@ -589,7 +589,7 @@ export default function ComixAI() {
                     <div>
                       <label className="block text-sm text-slate-400 mb-2">Style</label>
                       <Select value={panelStyle} onValueChange={setPanelStyle}>
-                        <SelectTrigger className="bg-slate-700 border-slate-600">
+                        <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
@@ -602,7 +602,7 @@ export default function ComixAI() {
                     <div>
                       <label className="block text-sm text-slate-400 mb-2">Panel Count</label>
                       <Select value={panelCount} onValueChange={setPanelCount}>
-                        <SelectTrigger className="bg-slate-700 border-slate-600">
+                        <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
@@ -619,7 +619,7 @@ export default function ComixAI() {
                     <div>
                       <label className="block text-sm text-slate-400 mb-2">Genre</label>
                       <Select value={genre} onValueChange={setGenre}>
-                        <SelectTrigger className="bg-slate-700 border-slate-600">
+                        <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
@@ -635,7 +635,7 @@ export default function ComixAI() {
                     <div>
                       <label className="block text-sm text-slate-400 mb-2">Mood</label>
                       <Select value={mood} onValueChange={setMood}>
-                        <SelectTrigger className="bg-slate-700 border-slate-600">
+                        <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
