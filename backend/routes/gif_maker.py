@@ -322,25 +322,46 @@ async def process_gif_generation(
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
-                from emergentintegrations.llm.gemini import GeminiImageGeneration
-                gemini = GeminiImageGeneration(api_key=EMERGENT_LLM_KEY)
+                from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
                 
-                # Generate main frame
+                # Encode photo to base64
+                photo_b64 = base64.b64encode(photo_content).decode('utf-8')
+                
+                # Update progress
                 await db.gif_jobs.update_one(
                     {"id": job_id},
                     {"$set": {"progress": 30, "progressMessage": "Generating frames..."}}
                 )
                 
-                result = await asyncio.to_thread(
-                    gemini.generate_image,
-                    prompt=prompt,
-                    aspect_ratio="1:1"
+                chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY, 
+                    session_id=f"gif-gen-{job_id}", 
+                    system_message="You are a kids-friendly cartoon animator. Create cute, safe, animated-style characters."
+                )
+                chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                
+                # Create message with image reference
+                msg = UserMessage(
+                    text=f"{prompt}. Transform the person in this photo into a cute {style_info['name']} character showing {emotion_info['name']} expression.",
+                    file_contents=[ImageContent(photo_b64)]
                 )
                 
-                if result and hasattr(result, 'url'):
-                    result_url = result.url
-                elif result and isinstance(result, dict) and result.get('url'):
-                    result_url = result['url']
+                text_response, images = await chat.send_message_multimodal_response(msg)
+                
+                if images and len(images) > 0:
+                    img_data = images[0]
+                    image_bytes = base64.b64decode(img_data['data'])
+                    
+                    import hashlib
+                    filename = f"gif_{hashlib.md5(job_id.encode()).hexdigest()[:16]}.png"
+                    filepath = f"/app/backend/static/generated/{filename}"
+                    
+                    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                    
+                    with open(filepath, 'wb') as f:
+                        f.write(image_bytes)
+                    
+                    result_url = f"/api/static/generated/{filename}"
                 
                 await db.gif_jobs.update_one(
                     {"id": job_id},
@@ -448,6 +469,9 @@ async def process_gif_batch(batch_id: str, photo_content: bytes, emotions: list,
         results = []
         style_info = GIF_STYLES[style]
         
+        # Encode photo to base64 once
+        photo_b64 = base64.b64encode(photo_content).decode('utf-8')
+        
         for i, emotion in enumerate(emotions):
             await db.gif_jobs.update_one(
                 {"id": batch_id},
@@ -463,21 +487,38 @@ async def process_gif_batch(batch_id: str, photo_content: bytes, emotions: list,
             
             if LLM_AVAILABLE and EMERGENT_LLM_KEY:
                 try:
-                    from emergentintegrations.llm.gemini import GeminiImageGeneration
-                    gemini = GeminiImageGeneration(api_key=EMERGENT_LLM_KEY)
+                    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+                    
+                    chat = LlmChat(
+                        api_key=EMERGENT_LLM_KEY, 
+                        session_id=f"gif-batch-{batch_id}-{i}", 
+                        system_message="You are a kids-friendly cartoon animator. Create cute, safe characters."
+                    )
+                    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
                     
                     prompt = f"Transform photo into {style_info['name']} character showing {emotion_info['name']}. {emotion_info['description']}. Kid-friendly, cute."
                     
-                    result = await asyncio.to_thread(
-                        gemini.generate_image,
-                        prompt=prompt,
-                        aspect_ratio="1:1"
+                    msg = UserMessage(
+                        text=prompt,
+                        file_contents=[ImageContent(photo_b64)]
                     )
                     
-                    if result and hasattr(result, 'url'):
-                        result_url = result.url
-                    elif result and isinstance(result, dict) and result.get('url'):
-                        result_url = result['url']
+                    text_response, images = await chat.send_message_multimodal_response(msg)
+                    
+                    if images and len(images) > 0:
+                        img_data = images[0]
+                        image_bytes = base64.b64decode(img_data['data'])
+                        
+                        import hashlib
+                        filename = f"gif_batch_{hashlib.md5(f'{batch_id}_{i}'.encode()).hexdigest()[:16]}.png"
+                        filepath = f"/app/backend/static/generated/{filename}"
+                        
+                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                        
+                        with open(filepath, 'wb') as f:
+                            f.write(image_bytes)
+                        
+                        result_url = f"/api/static/generated/{filename}"
                         
                 except Exception as e:
                     logger.error(f"Batch GIF error: {e}")
