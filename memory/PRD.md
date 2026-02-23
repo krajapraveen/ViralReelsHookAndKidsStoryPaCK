@@ -22,13 +22,48 @@ NEW FEATURE - Full story-to-comic-book generation:
 - **Output**: 10-50 page PDF comic book
 - **Styles**: 14 comic styles (classic, manga, cartoon, pixel, kids, noir, superhero, fantasy, scifi, watercolor, vintage, chibi, realistic, storybook)
 - **Panels**: Auto-detect OR customizable (2, 4, 6, 9 per page)
-- **Pricing**: 50-180 credits based on page count
+- **Pricing**: 10 credits to generate + 20 credits to download PDF
 - **Copyright-safe**: Blocks Marvel, DC, Disney, etc.
 - Backend: `/app/backend/routes/comic_storybook.py`
 - Frontend: `/app/frontend/src/pages/ComicStorybook.js`
 - Route: `/app/comic-storybook`
 
-#### 3. Comix AI Backend Implementation ✅ (February 23, 2026)
+#### 3. Updated Pricing Model ✅ (February 23, 2026)
+- **Comix AI & GIF Maker**: 10 credits to generate/view, 15 credits to download
+- **Comic Story Book PDF**: 10 credits base + 20 credits to download
+- Download credit check with subscription validation
+- Free re-downloads for previously purchased content
+
+#### 4. GIF Maker Animation ✅ (February 23, 2026)
+- Added Animation Intensity selector (Simple/Medium/Complex)
+- Simple: 4 frames, faster generation
+- Medium: 8 frames, balanced
+- Complex: 12 frames, detailed motion
+- Multiple frames combined into actual animated GIFs
+- Emotion-specific animation sequences (bounce, pulse, etc.)
+
+#### 5. Story Mode Character Upload ✅ (February 23, 2026)
+- Added character image upload in Comix AI Story Mode
+- Upload up to 5 character photos
+- Same characters appear consistently across all panels
+- Character reference passed to AI for consistency
+
+#### 6. UI/UX Improvements ✅ (February 23, 2026)
+- Fixed text visibility in select boxes (white text on dark backgrounds)
+- Added progress bars with percentage and status messages
+- Right-click protection: "Save as image" disabled, requires payment
+- Lock overlay on unpaid content
+- Button text now clearly visible
+
+#### 7. Download Payment Wall ✅ (February 23, 2026)
+- Viewing/generation: 10 credits
+- Download: 15 credits (Comix AI, GIF) / 20 credits (PDF)
+- Credit check before download
+- Subscription status check
+- Appropriate error messages for insufficient credits
+- Free re-download after purchase
+
+#### 8. Comix AI Backend Implementation ✅ (February 23, 2026)
 Updated backend to use correct emergentintegrations API:
 - Migrated from deprecated `GeminiImageGeneration` to `LlmChat` with `send_message_multimodal_response()`
 - Character generation: Transforms uploaded photos into comic characters
@@ -37,14 +72,15 @@ Updated backend to use correct emergentintegrations API:
 - Implemented static file serving at `/api/static/generated/`
 - All 3 generation modes use `gemini-3-pro-image-preview` model
 
-#### 4. GIF Maker Backend Implementation ✅ (February 23, 2026)
+#### 9. GIF Maker Backend Implementation ✅ (February 23, 2026)
 Updated GIF generation with same modern API:
 - Single photo → emotion-based cartoon transformation
 - Batch mode: Multiple emotions from one photo
 - Kids-safe content validation enforced
+- Animated GIF creation with multiple frames
 - Graceful fallback to placeholders when AI budget exceeded
 
-#### 5. Testing & Verification ✅ (February 23, 2026)
+#### 10. Testing & Verification ✅ (February 23, 2026)
 - Backend: 100% pass (15/15 tests)
 - Frontend: 100% pass (all UI elements working)
 - Content moderation verified (blocks Marvel, DC, Disney)
