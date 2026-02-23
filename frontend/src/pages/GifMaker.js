@@ -454,11 +454,26 @@ export default function GifMaker() {
                     placeholder="Text to add to the GIF..."
                     value={addText}
                     onChange={(e) => setAddText(e.target.value)}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-slate-700 border-slate-600 text-white"
                     data-testid="gif-text-input"
                   />
                 </div>
               )}
+
+              {/* Animation Intensity */}
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Animation Intensity</label>
+                <Select value={animationIntensity} onValueChange={setAnimationIntensity}>
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="simple" className="text-white">Simple (4 frames - Faster)</SelectItem>
+                    <SelectItem value="medium" className="text-white">Medium (8 frames - Balanced)</SelectItem>
+                    <SelectItem value="complex" className="text-white">Complex (12 frames - Detailed)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Generate Button */}
@@ -469,20 +484,17 @@ export default function GifMaker() {
               data-testid="generate-gif-btn"
             >
               {loading ? (
-                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Generating...</>
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> <span className="text-white">Generating...</span></>
               ) : (
-                <><Wand2 className="w-5 h-5 mr-2" /> Generate {batchMode ? `${selectedEmotions.length} GIFs` : 'GIF'}</>
+                <><Wand2 className="w-5 h-5 mr-2" /> <span className="text-white">Generate {batchMode ? `${selectedEmotions.length} GIFs` : 'GIF'} ({pricing.generate} credits)</span></>
               )}
             </Button>
 
             {/* Credit Info */}
             <div className="bg-pink-500/10 border border-pink-500/30 rounded-lg p-4">
               <p className="text-pink-300 text-sm">
-                {batchMode ? (
-                  <>Batch: {selectedEmotions.length <= 5 ? creditCosts.batch_5 : creditCosts.batch_10} credits for {selectedEmotions.length} GIFs</>
-                ) : (
-                  <>Cost: {creditCosts[quality] || creditCosts.basic} credits</>
-                )}
+                <Sparkles className="w-4 h-4 inline mr-2" />
+                Generate: <strong>{pricing.generate} credits</strong> | Download: <strong>{pricing.download} credits</strong>
               </p>
             </div>
           </div>
