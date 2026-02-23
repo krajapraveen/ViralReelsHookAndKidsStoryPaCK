@@ -15,9 +15,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import (
     db, logger, get_admin_user, get_current_user,
-    SENDGRID_API_KEY, SENDGRID_AVAILABLE, ADMIN_ALERT_EMAIL, SENDER_EMAIL
+    SENDGRID_API_KEY, SENDGRID_AVAILABLE, ADMIN_ALERT_EMAIL, SENDER_EMAIL,
+    hash_password
 )
-from security import limiter, hash_password
+from security import limiter
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
