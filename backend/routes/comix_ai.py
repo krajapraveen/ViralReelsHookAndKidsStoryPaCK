@@ -241,25 +241,46 @@ async def process_comic_character(job_id: str, photo_content: bytes, prompt: str
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
-                from emergentintegrations.llm.gemini import GeminiImageGeneration
+                from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
                 
                 # Encode photo to base64
                 photo_b64 = base64.b64encode(photo_content).decode('utf-8')
                 
-                # Generate comic version using Gemini
-                gemini = GeminiImageGeneration(api_key=EMERGENT_LLM_KEY)
+                # Create LlmChat instance with multimodal support
+                chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY, 
+                    session_id=f"comix-char-{job_id}", 
+                    system_message="You are a professional comic artist. Transform photos into comic-style characters faithfully."
+                )
+                chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
                 
-                # Use image editing with the photo as reference
-                result = await asyncio.to_thread(
-                    gemini.generate_image,
-                    prompt=f"{prompt}. Reference photo style transformation.",
-                    aspect_ratio="1:1"
+                # Create message with image reference
+                msg = UserMessage(
+                    text=f"{prompt}. Transform the person in this photo into a comic character while keeping their likeness.",
+                    file_contents=[ImageContent(photo_b64)]
                 )
                 
-                if result and hasattr(result, 'url'):
-                    result_url = result.url
-                elif result and isinstance(result, dict) and result.get('url'):
-                    result_url = result['url']
+                # Generate comic character
+                text_response, images = await chat.send_message_multimodal_response(msg)
+                
+                if images and len(images) > 0:
+                    # Save the image and get URL
+                    img_data = images[0]
+                    image_bytes = base64.b64decode(img_data['data'])
+                    
+                    # Save to file system and generate URL
+                    import hashlib
+                    filename = f"comic_char_{hashlib.md5(job_id.encode()).hexdigest()[:16]}.png"
+                    filepath = f"/app/backend/static/generated/{filename}"
+                    
+                    # Ensure directory exists
+                    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                    
+                    with open(filepath, 'wb') as f:
+                        f.write(image_bytes)
+                    
+                    # Generate accessible URL
+                    result_url = f"/api/static/generated/{filename}"
                     
             except Exception as e:
                 logger.error(f"Comic character generation error: {e}")
@@ -378,22 +399,36 @@ async def process_comic_panel(job_id: str, prompt: str, user_id: str, cost: int,
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
-                from emergentintegrations.llm.gemini import GeminiImageGeneration
-                gemini = GeminiImageGeneration(api_key=EMERGENT_LLM_KEY)
+                from emergentintegrations.llm.chat import LlmChat, UserMessage
                 
                 # Generate each panel
                 for i in range(panel_count):
-                    panel_prompt = f"{prompt} Panel {i+1} of {panel_count}."
-                    result = await asyncio.to_thread(
-                        gemini.generate_image,
-                        prompt=panel_prompt,
-                        aspect_ratio="1:1" if panel_count == 1 else "16:9"
-                    )
+                    panel_prompt = f"{prompt} Panel {i+1} of {panel_count}. Comic book panel illustration."
                     
-                    if result and hasattr(result, 'url'):
-                        result_urls.append(result.url)
-                    elif result and isinstance(result, dict) and result.get('url'):
-                        result_urls.append(result['url'])
+                    chat = LlmChat(
+                        api_key=EMERGENT_LLM_KEY, 
+                        session_id=f"comix-panel-{job_id}-{i}", 
+                        system_message="You are a professional comic book artist. Create vivid comic book panels."
+                    )
+                    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                    
+                    msg = UserMessage(text=panel_prompt)
+                    text_response, images = await chat.send_message_multimodal_response(msg)
+                    
+                    if images and len(images) > 0:
+                        img_data = images[0]
+                        image_bytes = base64.b64decode(img_data['data'])
+                        
+                        import hashlib
+                        filename = f"comic_panel_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:16]}.png"
+                        filepath = f"/app/backend/static/generated/{filename}"
+                        
+                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                        
+                        with open(filepath, 'wb') as f:
+                            f.write(image_bytes)
+                        
+                        result_urls.append(f"/api/static/generated/{filename}")
                         
             except Exception as e:
                 logger.error(f"Comic panel generation error: {e}")
@@ -491,58 +526,119 @@ async def process_comic_story(job_id: str, story_prompt: str, style: str, panel_
         style_info = COMIC_STYLES[style]
         panels = []
         
-        # Generate story outline
-        story_scenes = [
-            {"scene": "Opening", "description": f"Introduction to {story_prompt}"},
-            {"scene": "Rising Action", "description": "The adventure begins"},
-            {"scene": "Challenge", "description": "Our hero faces an obstacle"},
-            {"scene": "Climax", "description": "The most exciting moment"},
-            {"scene": "Resolution", "description": "The problem is solved"},
-            {"scene": "Ending", "description": "Happy conclusion"}
-        ]
+        # Step 1: Generate story outline using AI text generation
+        story_scenes = []
+        if LLM_AVAILABLE and EMERGENT_LLM_KEY:
+            try:
+                from emergentintegrations.llm.chat import LlmChat, UserMessage
+                
+                # Generate story outline with text model
+                story_chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY,
+                    session_id=f"comix-story-outline-{job_id}",
+                    system_message="You are a creative comic book writer. Create engaging, original, copyright-safe stories."
+                )
+                story_chat.with_model("gemini", "gemini-2.0-flash")
+                
+                outline_prompt = f"""Create a {panel_count}-panel comic story outline for: "{story_prompt}"
+Genre: {genre}
+Style: {style_info['name']}
+
+For each panel, provide:
+1. Scene title (2-3 words)
+2. Scene description (1-2 sentences describing what happens visually)
+3. Dialogue (1-2 short speech bubbles if applicable, or "No dialogue" if silent panel)
+
+Format as JSON array:
+[{{"scene": "Scene Title", "description": "Visual description", "dialogue": "Character dialogue or null"}}]
+
+Make the story original, engaging, and appropriate for all ages. NO copyrighted characters."""
+                
+                outline_msg = UserMessage(text=outline_prompt)
+                outline_response = await story_chat.send_message(outline_msg)
+                
+                # Parse the story outline
+                import re
+                json_match = re.search(r'\[.*\]', outline_response, re.DOTALL)
+                if json_match:
+                    story_scenes = json.loads(json_match.group())
+                    
+            except Exception as e:
+                logger.error(f"Story outline generation error: {e}")
         
-        # Generate each panel
+        # Fallback to default outline if AI generation failed
+        if not story_scenes:
+            story_scenes = [
+                {"scene": "Opening", "description": f"Introduction to {story_prompt}", "dialogue": "Our story begins..."},
+                {"scene": "Rising Action", "description": "The adventure begins with excitement", "dialogue": "Let's go!"},
+                {"scene": "Challenge", "description": "Our hero faces an obstacle", "dialogue": "This won't be easy..."},
+                {"scene": "Climax", "description": "The most exciting moment of confrontation", "dialogue": "Now or never!"},
+                {"scene": "Resolution", "description": "The problem is cleverly solved", "dialogue": "We did it!"},
+                {"scene": "Ending", "description": "Happy conclusion and celebration", "dialogue": "The End!"}
+            ][:panel_count]
+        
+        # Step 2: Generate each panel image
         for i in range(min(panel_count, len(story_scenes))):
             scene = story_scenes[i]
             
             # Update progress
-            progress = int((i / panel_count) * 100)
+            progress = int(((i + 1) / panel_count) * 90)  # Reserve 10% for finalization
             await db.comix_jobs.update_one(
                 {"id": job_id},
-                {"$set": {"progress": progress, "currentPanel": i + 1}}
+                {"$set": {"progress": progress, "currentPanel": i + 1, "progressMessage": f"Creating panel {i+1}..."}}
             )
             
             panel_data = {
                 "panelNumber": i + 1,
-                "scene": scene["scene"],
-                "description": scene["description"],
-                "dialogue": f"Scene {i+1}: {scene['scene']}" if auto_dialogue else None
+                "scene": scene.get("scene", f"Scene {i+1}"),
+                "description": scene.get("description", ""),
+                "dialogue": scene.get("dialogue") if auto_dialogue else None
             }
             
-            # Generate image
+            # Generate image for this panel
             if LLM_AVAILABLE and EMERGENT_LLM_KEY:
                 try:
-                    from emergentintegrations.llm.gemini import GeminiImageGeneration
-                    gemini = GeminiImageGeneration(api_key=EMERGENT_LLM_KEY)
+                    from emergentintegrations.llm.chat import LlmChat, UserMessage
                     
-                    prompt = f"Comic panel for '{story_prompt}'. Scene: {scene['scene']} - {scene['description']}. {style_info['prompt_modifier']}. {genre} genre."
-                    
-                    result = await asyncio.to_thread(
-                        gemini.generate_image,
-                        prompt=prompt,
-                        aspect_ratio="16:9"
+                    img_chat = LlmChat(
+                        api_key=EMERGENT_LLM_KEY,
+                        session_id=f"comix-story-panel-{job_id}-{i}",
+                        system_message="You are a professional comic book artist."
                     )
+                    img_chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
                     
-                    if result and hasattr(result, 'url'):
-                        panel_data["imageUrl"] = result.url
-                    elif result and isinstance(result, dict) and result.get('url'):
-                        panel_data["imageUrl"] = result['url']
+                    panel_prompt = f"""Create a comic book panel illustration:
+Story: {story_prompt}
+Scene: {scene.get('scene', '')} - {scene.get('description', '')}
+Style: {style_info['prompt_modifier']}
+Genre: {genre}
+Panel {i+1} of {panel_count}
+
+Make it visually dynamic and engaging, appropriate for all ages."""
+                    
+                    img_msg = UserMessage(text=panel_prompt)
+                    text_response, images = await img_chat.send_message_multimodal_response(img_msg)
+                    
+                    if images and len(images) > 0:
+                        img_data = images[0]
+                        image_bytes = base64.b64decode(img_data['data'])
+                        
+                        import hashlib
+                        filename = f"comic_story_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:16]}.png"
+                        filepath = f"/app/backend/static/generated/{filename}"
+                        
+                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                        
+                        with open(filepath, 'wb') as f:
+                            f.write(image_bytes)
+                        
+                        panel_data["imageUrl"] = f"/api/static/generated/{filename}"
                         
                 except Exception as e:
-                    logger.error(f"Panel generation error: {e}")
+                    logger.error(f"Panel {i+1} generation error: {e}")
             
             if not panel_data.get("imageUrl"):
-                panel_data["imageUrl"] = f"https://placehold.co/800x450/4a1d96/white?text={scene['scene']}"
+                panel_data["imageUrl"] = f"https://placehold.co/800x450/4a1d96/white?text={scene.get('scene', f'Panel+{i+1}')}"
             
             panels.append(panel_data)
         
