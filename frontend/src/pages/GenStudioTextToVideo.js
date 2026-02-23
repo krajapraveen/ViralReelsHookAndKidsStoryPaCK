@@ -322,7 +322,7 @@ export default function TextToVideo() {
                 <div>
                   <label className="text-sm text-slate-400 mb-2 block">Duration</label>
                   <Select value={duration.toString()} onValueChange={(v) => setDuration(parseInt(v))}>
-                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white" data-testid="video-duration-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
