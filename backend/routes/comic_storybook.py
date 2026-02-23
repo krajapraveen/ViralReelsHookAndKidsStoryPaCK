@@ -227,11 +227,12 @@ async def get_storybook_styles(user: dict = Depends(get_current_user)):
         "styles": STORYBOOK_STYLES,
         "layouts": PANEL_LAYOUTS,
         "pricing": {
-            "10_pages": 50,
-            "20_pages": 90,
-            "30_pages": 120,
-            "40_pages": 150,
-            "50_pages": 180
+            "generate": 10,  # Base generation cost
+            "per_page": 1,   # Additional per page
+            "download": DOWNLOAD_CREDITS,  # 20 credits to download PDF
+            "example_10_pages": calculate_credits(10),
+            "example_20_pages": calculate_credits(20),
+            "example_50_pages": calculate_credits(50)
         },
         "limits": {
             "min_pages": 10,
