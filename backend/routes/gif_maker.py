@@ -177,6 +177,285 @@ def is_content_safe(text: str) -> tuple:
     return True, "OK"
 
 
+def get_animation_frames(emotion: str, frame_count: int) -> list:
+    """Get frame descriptions for animation based on emotion"""
+    animation_sequences = {
+        "happy": [
+            "neutral face starting to smile",
+            "mouth curving into a smile, eyes bright",
+            "full smile, eyes crinkling with joy",
+            "smile at maximum, sparkles appear",
+            "slight bounce upward",
+            "back to normal position with smile",
+            "eyes sparkling more",
+            "gentle head tilt with smile",
+            "return to center, maintaining smile",
+            "subtle glow effect around face",
+            "another small bounce",
+            "final happy pose"
+        ],
+        "sad": [
+            "normal expression",
+            "eyebrows starting to furrow",
+            "eyes getting watery",
+            "small tear forming",
+            "tear rolling down cheek",
+            "wiping tear motion",
+            "looking down slightly",
+            "deep breath expression",
+            "slight recovery",
+            "still melancholy",
+            "another tear forming",
+            "final sad pose"
+        ],
+        "excited": [
+            "eyes widening",
+            "jumping up slightly",
+            "arms raising",
+            "at peak of jump with stars",
+            "coming back down",
+            "bouncing again",
+            "sparkles all around",
+            "another jump",
+            "landing with enthusiasm",
+            "fists pumping",
+            "big grin",
+            "final excited pose"
+        ],
+        "laughing": [
+            "starting to chuckle",
+            "mouth opening for laugh",
+            "eyes squinting with joy",
+            "full belly laugh, shaking",
+            "tears of joy forming",
+            "holding stomach",
+            "laughing harder",
+            "slight pause to breathe",
+            "continuing to laugh",
+            "wiping joy tears",
+            "still giggling",
+            "final laughing pose"
+        ],
+        "surprised": [
+            "normal expression",
+            "eyes starting to widen",
+            "mouth opening",
+            "eyes fully wide, gasping",
+            "jaw dropped",
+            "question marks appearing",
+            "hands coming up",
+            "stepped back slightly",
+            "still surprised",
+            "processing what happened",
+            "starting to recover",
+            "final surprised pose"
+        ],
+        "thinking": [
+            "neutral expression",
+            "eyebrows raising",
+            "hand coming to chin",
+            "looking up thoughtfully",
+            "thought bubble appearing",
+            "dots in thought bubble",
+            "more dots appearing",
+            "lightbulb starting",
+            "lightbulb glowing",
+            "eyes brightening with idea",
+            "smile forming",
+            "eureka moment"
+        ],
+        "dancing": [
+            "standing ready",
+            "moving to the left",
+            "arms swaying left",
+            "shifting weight right",
+            "arms swaying right",
+            "doing a spin",
+            "mid-spin",
+            "completing spin",
+            "jumping up",
+            "landing with style",
+            "hip bump",
+            "final dance pose"
+        ],
+        "waving": [
+            "hand starting to rise",
+            "hand at shoulder level",
+            "hand up, starting wave",
+            "hand moving right",
+            "hand moving left",
+            "continuing wave",
+            "enthusiastic wave",
+            "big smile while waving",
+            "slowing wave",
+            "hand coming down slightly",
+            "final wave",
+            "hand lowering"
+        ],
+        "jumping": [
+            "crouching to jump",
+            "pushing off ground",
+            "leaving ground",
+            "rising higher",
+            "at peak height",
+            "arms spread wide",
+            "starting to descend",
+            "coming down",
+            "about to land",
+            "landing impact",
+            "recovery pose",
+            "ready position again"
+        ],
+        "hearts": [
+            "loving expression forming",
+            "eyes becoming heart-shaped",
+            "small hearts appearing",
+            "more hearts floating up",
+            "hearts multiplying",
+            "swaying with love",
+            "clutching hands to heart",
+            "hearts everywhere",
+            "dreamy expression",
+            "sigh of contentment",
+            "more hearts",
+            "final loving pose"
+        ],
+        "thumbsup": [
+            "neutral pose",
+            "arm starting to raise",
+            "fist forming",
+            "thumb extending",
+            "thumb fully up",
+            "sparkle on thumb",
+            "confident smile",
+            "slight nod",
+            "another sparkle",
+            "maintaining pose",
+            "wink",
+            "final thumbs up"
+        ],
+        "celebrate": [
+            "excited expression",
+            "arms starting to raise",
+            "confetti appearing",
+            "hands in the air",
+            "party hat appearing",
+            "more confetti falling",
+            "jumping with joy",
+            "streamers everywhere",
+            "dancing celebration",
+            "cheering pose",
+            "confetti shower",
+            "final celebration"
+        ]
+    }
+    
+    frames = animation_sequences.get(emotion, animation_sequences["happy"])
+    
+    # Adjust frame count
+    if frame_count >= len(frames):
+        return frames
+    else:
+        # Sample evenly from available frames
+        step = len(frames) / frame_count
+        return [frames[int(i * step)] for i in range(frame_count)]
+
+
+async def create_animated_gif(job_id: str, frame_paths: list, emotion: str) -> str:
+    """Create an animated GIF from frame images"""
+    try:
+        from PIL import Image
+        import io
+        
+        if not frame_paths:
+            return None
+        
+        images = []
+        for path in frame_paths:
+            if os.path.exists(path):
+                img = Image.open(path)
+                # Resize to consistent size
+                img = img.resize((512, 512), Image.Resampling.LANCZOS)
+                images.append(img)
+        
+        if not images:
+            return None
+        
+        # Create GIF
+        import hashlib
+        gif_filename = f"animated_{hashlib.md5(job_id.encode()).hexdigest()[:16]}.gif"
+        gif_path = f"/app/backend/static/generated/{gif_filename}"
+        
+        # Duration based on emotion (milliseconds per frame)
+        duration_map = {
+            "dancing": 120, "jumping": 100, "excited": 100,
+            "thinking": 300, "sad": 250, "happy": 150,
+            "laughing": 120, "surprised": 150, "waving": 150,
+            "hearts": 200, "thumbsup": 200, "celebrate": 100
+        }
+        duration = duration_map.get(emotion, 150)
+        
+        # Save as animated GIF
+        images[0].save(
+            gif_path,
+            save_all=True,
+            append_images=images[1:],
+            duration=duration,
+            loop=0  # 0 = infinite loop
+        )
+        
+        return gif_path
+        
+    except Exception as e:
+        logger.error(f"Error creating animated GIF: {e}")
+        return None
+
+
+async def create_fallback_gif(job_id: str, photo_content: bytes, emotion: str) -> str:
+    """Create a simple animated GIF with bounce effect from photo"""
+    try:
+        from PIL import Image
+        import io
+        
+        # Open the photo
+        img = Image.open(io.BytesIO(photo_content))
+        img = img.resize((512, 512), Image.Resampling.LANCZOS)
+        
+        frames = []
+        
+        # Create bounce animation frames
+        offsets = [0, -5, -10, -15, -10, -5, 0, 5, 10, 5, 0]
+        
+        for offset in offsets:
+            frame = Image.new('RGBA', (512, 512), (255, 255, 255, 0))
+            # Paste with offset
+            paste_y = max(0, min(offset + 10, 20))
+            frame.paste(img.resize((490, 490), Image.Resampling.LANCZOS), (11, paste_y))
+            frames.append(frame)
+        
+        if not frames:
+            return None
+        
+        # Save as GIF
+        import hashlib
+        gif_filename = f"bounce_{hashlib.md5(job_id.encode()).hexdigest()[:16]}.gif"
+        gif_path = f"/app/backend/static/generated/{gif_filename}"
+        
+        frames[0].save(
+            gif_path,
+            save_all=True,
+            append_images=frames[1:],
+            duration=100,
+            loop=0
+        )
+        
+        return gif_path
+        
+    except Exception as e:
+        logger.error(f"Error creating fallback GIF: {e}")
+        return None
+
+
 @router.get("/emotions")
 async def get_available_emotions(user: dict = Depends(get_current_user)):
     """Get all available emotion presets"""
