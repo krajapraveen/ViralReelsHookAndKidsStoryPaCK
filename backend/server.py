@@ -4,6 +4,7 @@ Refactored from monolithic server.py to use modular routes
 """
 from fastapi import FastAPI, APIRouter, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
