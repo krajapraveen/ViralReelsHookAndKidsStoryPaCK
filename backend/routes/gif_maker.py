@@ -152,12 +152,11 @@ BACKGROUNDS = {
     "stars": "Stars Pattern"
 }
 
-# Credit costs
+# Credit costs - Updated pricing
 GIF_CREDITS = {
-    "basic": 2,
-    "hd": 4,
-    "action": 6,
-    "batch_5": 8,
+    "generate": 10,  # Cost to view/generate
+    "download": 15,  # Cost to download
+    "batch_multiplier": 0.8,  # 20% discount for batch
     "batch_10": 15
 }
 
