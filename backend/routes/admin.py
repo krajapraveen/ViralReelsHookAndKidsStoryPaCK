@@ -4,7 +4,8 @@ CreatorStudio AI Admin Panel
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, List
+from pydantic import BaseModel, Field
 import uuid
 import os
 import sys
@@ -16,9 +17,332 @@ from shared import (
     db, logger, get_admin_user, get_current_user,
     SENDGRID_API_KEY, SENDGRID_AVAILABLE, ADMIN_ALERT_EMAIL, SENDER_EMAIL
 )
-from security import limiter
+from security import limiter, hash_password
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+# =============================================================================
+# REQUEST MODELS
+# =============================================================================
+class ResetCreditsRequest(BaseModel):
+    user_id: str
+    credits: int = Field(ge=0, le=999999999)
+    reason: str = Field(min_length=5, max_length=500)
+
+
+class CreateUserRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: str
+    password: str = Field(min_length=8)
+    credits: int = Field(default=100, ge=0, le=999999999)
+    role: str = Field(default="user")
+
+
+class BulkResetCreditsRequest(BaseModel):
+    user_ids: List[str]
+    credits: int = Field(ge=0, le=999999999)
+    reason: str = Field(min_length=5, max_length=500)
+
+
+# =============================================================================
+# USER MANAGEMENT - RESET CREDITS
+# =============================================================================
+@router.post("/users/reset-credits")
+@limiter.limit("30/minute")
+async def reset_user_credits(
+    request: Request,
+    data: ResetCreditsRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """Reset credits for a specific user"""
+    try:
+        # Find user
+        user = await db.users.find_one({"id": data.user_id}, {"_id": 0, "email": 1, "name": 1, "credits": 1})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        old_credits = user.get("credits", 0)
+        
+        # Update credits
+        await db.users.update_one(
+            {"id": data.user_id},
+            {"$set": {"credits": data.credits, "credits_updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        # Log the credit change
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": data.user_id,
+            "amount": data.credits - old_credits,
+            "type": "ADMIN_RESET",
+            "description": f"Admin reset: {data.reason}",
+            "adminId": admin["id"],
+            "adminEmail": admin.get("email", ""),
+            "oldCredits": old_credits,
+            "newCredits": data.credits,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Audit log
+        await db.admin_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "admin_id": admin["id"],
+            "admin_email": admin.get("email", ""),
+            "action": "RESET_USER_CREDITS",
+            "details": {
+                "user_id": data.user_id,
+                "user_email": user.get("email"),
+                "old_credits": old_credits,
+                "new_credits": data.credits,
+                "reason": data.reason
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Admin {admin.get('email')} reset credits for {user.get('email')}: {old_credits} -> {data.credits}")
+        
+        return {
+            "success": True,
+            "message": f"Credits reset successfully",
+            "user_email": user.get("email"),
+            "old_credits": old_credits,
+            "new_credits": data.credits
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting credits: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset credits")
+
+
+@router.post("/users/bulk-reset-credits")
+@limiter.limit("10/minute")
+async def bulk_reset_credits(
+    request: Request,
+    data: BulkResetCreditsRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """Reset credits for multiple users at once"""
+    try:
+        results = []
+        
+        for user_id in data.user_ids:
+            user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "credits": 1})
+            if not user:
+                results.append({"user_id": user_id, "success": False, "error": "Not found"})
+                continue
+            
+            old_credits = user.get("credits", 0)
+            
+            await db.users.update_one(
+                {"id": user_id},
+                {"$set": {"credits": data.credits}}
+            )
+            
+            await db.credit_ledger.insert_one({
+                "id": str(uuid.uuid4()),
+                "userId": user_id,
+                "amount": data.credits - old_credits,
+                "type": "ADMIN_BULK_RESET",
+                "description": f"Bulk reset: {data.reason}",
+                "adminId": admin["id"],
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            })
+            
+            results.append({
+                "user_id": user_id,
+                "user_email": user.get("email"),
+                "success": True,
+                "old_credits": old_credits,
+                "new_credits": data.credits
+            })
+        
+        # Audit log
+        await db.admin_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "admin_id": admin["id"],
+            "admin_email": admin.get("email", ""),
+            "action": "BULK_RESET_CREDITS",
+            "details": {"user_count": len(data.user_ids), "credits": data.credits, "reason": data.reason},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {
+            "success": True,
+            "results": results,
+            "total_updated": len([r for r in results if r.get("success")])
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in bulk reset: {e}")
+        raise HTTPException(status_code=500, detail="Failed to bulk reset credits")
+
+
+@router.post("/users/create")
+@limiter.limit("10/minute")
+async def admin_create_user(
+    request: Request,
+    data: CreateUserRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """Admin create new user with specified credits"""
+    try:
+        # Check if email exists
+        existing = await db.users.find_one({"email": data.email.lower()})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create user
+        user_id = str(uuid.uuid4())
+        user = {
+            "id": user_id,
+            "email": data.email.lower(),
+            "name": data.name,
+            "password": hash_password(data.password),
+            "role": data.role,
+            "credits": data.credits,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdBy": admin["id"],
+            "createdByAdmin": True
+        }
+        
+        await db.users.insert_one(user)
+        
+        # Log initial credits
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": user_id,
+            "amount": data.credits,
+            "type": "ADMIN_GRANT",
+            "description": f"Initial credits granted by admin",
+            "adminId": admin["id"],
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Audit log
+        await db.admin_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "admin_id": admin["id"],
+            "admin_email": admin.get("email", ""),
+            "action": "CREATE_USER",
+            "details": {"user_id": user_id, "email": data.email, "credits": data.credits, "role": data.role},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Admin {admin.get('email')} created user {data.email} with {data.credits} credits")
+        
+        return {
+            "success": True,
+            "user": {
+                "id": user_id,
+                "email": data.email.lower(),
+                "name": data.name,
+                "role": data.role,
+                "credits": data.credits
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+
+@router.get("/users/list")
+@limiter.limit("60/minute")
+async def list_users(
+    request: Request,
+    page: int = 1,
+    size: int = 50,
+    search: Optional[str] = None,
+    role: Optional[str] = None,
+    admin: dict = Depends(get_admin_user)
+):
+    """List all users with pagination and filters"""
+    try:
+        query = {}
+        
+        if search:
+            query["$or"] = [
+                {"email": {"$regex": search, "$options": "i"}},
+                {"name": {"$regex": search, "$options": "i"}}
+            ]
+        
+        if role:
+            query["role"] = role
+        
+        skip = (page - 1) * size
+        total = await db.users.count_documents(query)
+        
+        users = await db.users.find(
+            query,
+            {"_id": 0, "password": 0}
+        ).sort("createdAt", -1).skip(skip).limit(size).to_list(size)
+        
+        return {
+            "users": users,
+            "pagination": {
+                "page": page,
+                "size": size,
+                "total": total,
+                "pages": (total + size - 1) // size
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing users: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list users")
+
+
+@router.get("/users/{user_id}")
+@limiter.limit("60/minute")
+async def get_user_details(
+    request: Request,
+    user_id: str,
+    admin: dict = Depends(get_admin_user)
+):
+    """Get detailed user information"""
+    try:
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get credit history
+        credit_history = await db.credit_ledger.find(
+            {"userId": user_id},
+            {"_id": 0}
+        ).sort("createdAt", -1).limit(20).to_list(20)
+        
+        # Get generation stats
+        generation_count = await db.generations.count_documents({"userId": user_id})
+        genstudio_count = await db.genstudio_jobs.count_documents({"userId": user_id})
+        
+        # Get login activity
+        login_count = await db.login_activity.count_documents({"user_id": user_id})
+        last_login = await db.login_activity.find_one(
+            {"user_id": user_id, "status": "SUCCESS"},
+            {"_id": 0, "timestamp": 1, "ip_address": 1, "country": 1}
+        )
+        
+        return {
+            "user": user,
+            "stats": {
+                "generations": generation_count,
+                "genstudio_jobs": genstudio_count,
+                "login_count": login_count,
+                "last_login": last_login
+            },
+            "credit_history": credit_history
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting user details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user details")
 
 
 # =============================================================================
