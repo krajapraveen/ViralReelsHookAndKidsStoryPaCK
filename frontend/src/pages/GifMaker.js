@@ -135,7 +135,7 @@ export default function GifMaker() {
       return;
     }
     
-    const cost = creditCosts[quality] || creditCosts.basic;
+    const cost = pricing.generate || 10;
     if (credits < cost) {
       toast.error(`Insufficient credits. Need ${cost} credits.`);
       return;
@@ -148,14 +148,14 @@ export default function GifMaker() {
       formData.append('emotion', selectedEmotion);
       formData.append('style', selectedStyle);
       formData.append('background', selectedBackground);
-      formData.append('quality', quality);
+      formData.append('animation_intensity', animationIntensity);
       if (addText) formData.append('add_text', addText);
       
       const response = await api.post('/api/gif-maker/generate', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      setCurrentJob({ id: response.data.jobId, status: 'QUEUED' });
+      setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
@@ -164,6 +164,35 @@ export default function GifMaker() {
     } catch (error) {
       setLoading(false);
       toast.error(error.response?.data?.detail || 'Failed to generate GIF');
+    }
+  };
+
+  // Handle download with credit check
+  const handleDownload = async (jobId) => {
+    try {
+      const response = await api.post(`/api/gif-maker/download/${jobId}`);
+      
+      if (response.data.success) {
+        toast.success(response.data.alreadyPurchased ? 'Re-downloading...' : `Downloaded! ${response.data.creditsDeducted} credits used`);
+        
+        // Trigger download
+        const url = response.data.downloadUrl?.startsWith('http') ? response.data.downloadUrl : `${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `gif_${jobId.slice(0, 8)}.gif`;
+        link.click();
+        
+        fetchCredits();
+        fetchHistory();
+      } else {
+        if (response.data.error === 'INSUFFICIENT_CREDITS') {
+          toast.error(response.data.message);
+        } else if (response.data.error === 'NO_SUBSCRIPTION') {
+          toast.error('Please subscribe to download. Go to Settings > Subscription');
+        }
+      }
+    } catch (error) {
+      toast.error('Download failed. Please try again.');
     }
   };
 
