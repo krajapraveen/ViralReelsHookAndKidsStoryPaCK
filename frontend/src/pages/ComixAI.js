@@ -487,49 +487,49 @@ export default function ComixAI() {
                   {loading ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
                   ) : (
-                    <><Wand2 className="w-4 h-4 mr-2" /> Generate Character</>
+                    <><Wand2 className="w-4 h-4 mr-2" /> <span className="text-white">Generate Character</span></>
                   )}
                 </Button>
               </div>
 
-              {/* Result Panel */}
+              {/* Result Panel for Character */}
               <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
                 <h3 className="text-xl font-bold text-white mb-4">Result</h3>
-                {currentJob ? (
+                {characterJob ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className={`px-3 py-1 rounded-full text-sm ${
-                        currentJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
-                        currentJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
+                        characterJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
+                        characterJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
                         'bg-yellow-500/20 text-yellow-400'
                       }`}>
-                        {currentJob.status}
+                        {characterJob.status}
                       </span>
-                      {currentJob.progressMessage && currentJob.status === 'PROCESSING' && (
-                        <span className="text-slate-400 text-sm">{currentJob.progressMessage}</span>
+                      {characterJob.progressMessage && characterJob.status === 'PROCESSING' && (
+                        <span className="text-slate-400 text-sm">{characterJob.progressMessage}</span>
                       )}
                     </div>
                     
                     {/* Progress Bar */}
-                    {currentJob.status === 'PROCESSING' && currentJob.progress !== undefined && (
+                    {characterJob.status === 'PROCESSING' && characterJob.progress !== undefined && (
                       <div className="space-y-2">
-                        <Progress value={currentJob.progress} className="h-2" />
-                        <p className="text-xs text-slate-400 text-center">{currentJob.progress}% complete</p>
+                        <Progress value={characterJob.progress} className="h-2" />
+                        <p className="text-xs text-slate-400 text-center">{characterJob.progress}% complete</p>
                       </div>
                     )}
                     
-                    {currentJob.resultUrl && (
+                    {characterJob.resultUrl && (
                       <div 
                         className="rounded-lg overflow-hidden border border-slate-600 relative"
                         onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
                       >
                         <img 
-                          src={currentJob.resultUrl.startsWith('http') ? currentJob.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${currentJob.resultUrl}`} 
+                          src={characterJob.resultUrl.startsWith('http') ? characterJob.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${characterJob.resultUrl}`} 
                           alt="Comic Character" 
                           className="w-full select-none pointer-events-none" 
                           draggable="false"
                         />
-                        {!currentJob.downloaded && (
+                        {!characterJob.downloaded && (
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                             <div className="bg-slate-800/90 rounded-lg p-3 text-center">
                               <Lock className="w-6 h-6 mx-auto mb-2 text-purple-400" />
@@ -540,24 +540,27 @@ export default function ComixAI() {
                       </div>
                     )}
                     
-                    {currentJob.panels && (
-                      <div 
-                        className="grid grid-cols-2 gap-4"
-                        onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
-                      >
-                        {currentJob.panels.map((panel, i) => (
-                          <div key={i} className="rounded-lg overflow-hidden border border-slate-600 relative">
-                            <img 
-                              src={panel.imageUrl?.startsWith('http') ? panel.imageUrl : `${process.env.REACT_APP_BACKEND_URL}${panel.imageUrl}`} 
-                              alt={`Panel ${i+1}`} 
-                              className="w-full select-none pointer-events-none"
-                              draggable="false"
-                            />
-                            {panel.dialogue && (
-                              <div className="p-2 bg-slate-700">
-                                <p className="text-sm text-slate-300">{panel.dialogue}</p>
-                              </div>
-                            )}
+                    {characterJob.status === 'COMPLETED' && characterJob.resultUrl && (
+                      <div className="flex gap-2">
+                        <Button 
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          onClick={() => handleDownload(characterJob.id, 'character')}
+                        >
+                          <Download className="w-4 h-4 mr-2" /> 
+                          <span className="text-white">Download ({characterJob.downloaded ? 'Free' : `${pricing.download} credits`})</span>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-400">
+                    <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                    <p>Your comic character will appear here</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
                           </div>
                         ))}
                       </div>
