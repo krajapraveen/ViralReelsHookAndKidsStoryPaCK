@@ -105,6 +105,24 @@ export default function ComixAI() {
     }
   };
 
+  // Handle character images for story mode
+  const handleCharacterImagesChange = (e) => {
+    const files = Array.from(e.target.files).slice(0, 5); // Max 5 images
+    const validFiles = files.filter(f => f.size <= 10 * 1024 * 1024);
+    
+    if (validFiles.length < files.length) {
+      toast.warning('Some images were too large (max 10MB each)');
+    }
+    
+    setCharacterImages(validFiles);
+    setCharacterPreviews(validFiles.map(f => URL.createObjectURL(f)));
+  };
+
+  const removeCharacterImage = (index) => {
+    setCharacterImages(prev => prev.filter((_, i) => i !== index));
+    setCharacterPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
   const pollJobStatus = useCallback(async (jobId) => {
     try {
       const response = await api.get(`/api/comix/job/${jobId}`);
