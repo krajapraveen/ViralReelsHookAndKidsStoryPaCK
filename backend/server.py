@@ -228,6 +228,15 @@ api_router.include_router(gif_maker_router)
 # Include API router in app
 app.include_router(api_router)
 
+# ==================== STATIC FILE SERVING ====================
+
+# Create static directory for generated images if it doesn't exist
+STATIC_DIR = ROOT_DIR / "static" / "generated"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+
+# Mount static files for serving generated images
+app.mount("/api/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
+
 # ==================== ROOT ENDPOINTS ====================
 
 @app.get("/")
