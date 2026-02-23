@@ -88,15 +88,17 @@ PANEL_LAYOUTS = {
     9: {"name": "Full Page", "grid": "3x3"}
 }
 
-# Credit costs
+# Credit costs - Updated pricing
 COMIC_CREDITS = {
-    "character_portrait": 8,
-    "character_fullbody": 12,
-    "panel_single": 5,
+    # Generation costs (viewing)
+    "character_portrait": 10,
+    "character_fullbody": 10,
+    "panel_single": 10,
     "panel_multi": 10,
-    "story_mode": 25,
-    "remove_watermark": 2,
-    "hd_export": 3
+    "story_mode": 10,
+    # Download costs
+    "download": 15,
+    "download_story": 20,
 }
 
 # Blocked content patterns
@@ -124,7 +126,12 @@ async def get_comic_styles(user: dict = Depends(get_current_user)):
     return {
         "styles": COMIC_STYLES,
         "layouts": PANEL_LAYOUTS,
-        "credits": COMIC_CREDITS
+        "credits": COMIC_CREDITS,
+        "pricing": {
+            "generate": 10,
+            "download": 15,
+            "download_story": 20
+        }
     }
 
 
