@@ -193,11 +193,11 @@ export default function ComixAI() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      setCurrentJob({ id: response.data.jobId, status: 'QUEUED' });
+      setCharacterJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
-      // Start polling
-      const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
+      // Start polling with job type
+      const interval = setInterval(() => pollJobStatus(response.data.jobId, 'character'), 2000);
       setPollingInterval(interval);
       
     } catch (error) {
@@ -212,7 +212,7 @@ export default function ComixAI() {
       return;
     }
     
-    const cost = panelCount === '1' ? creditCosts.panel_single : creditCosts.panel_multi;
+    const cost = pricing.generate || 10;
     if (credits < cost) {
       toast.error(`Insufficient credits. Need ${cost} credits.`);
       return;
