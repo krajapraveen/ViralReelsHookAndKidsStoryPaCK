@@ -45,7 +45,46 @@ Fixed all reported UI bugs in Comix AI and GIF Maker:
 
 ---
 
-### Previous Tasks Completed This Session
+#### Admin Login Activity Feature ✅ (February 23, 2026)
+Implemented comprehensive user login tracking for the Admin Panel:
+
+**Backend (`/app/backend/routes/login_activity.py`):**
+- GET `/api/admin/login-activity` - Paginated list with filters (user, status, country, IP, auth method, date range)
+- GET `/api/admin/login-activity/{id}` - Detailed activity record
+- GET `/api/admin/login-activity/export/csv` - CSV export
+- GET `/api/admin/login-activity/stats/summary` - Statistics (7d summary)
+- POST `/api/admin/login-activity/block-ip` - Block IP address
+- DELETE `/api/admin/login-activity/block-ip/{ip}` - Unblock IP
+- GET `/api/admin/login-activity/blocked-ips/list` - List blocked IPs
+- POST `/api/admin/login-activity/force-logout` - Force logout user
+
+**Features:**
+- IP Geolocation via ip-api.com (free, 45 req/min, 72h cache)
+- Risk Flags: New Country, New Device, Multiple Failed Attempts
+- Data Retention: 30 days
+- Session ID masking for privacy
+- Admin audit logging for all actions
+
+**Frontend (`/app/frontend/src/pages/AdminLoginActivity.js`):**
+- Stats cards: Total Logins, Successful, Failed, Success Rate, Unique Users, Risky Logins
+- Filters: Search, Status, Auth Method, Date range, Country, IP
+- Table: User, Login Time (IST), Status, IP, Location, Device, Browser, Auth, Risk, Actions
+- View Details side panel
+- Block IP modal with duration options
+- Force Logout modal
+- Export CSV functionality
+- Privacy notice (30 day retention)
+
+**Database Indexes:**
+- login_activity: (user_id, timestamp), (ip_address, timestamp), (status, timestamp), (timestamp)
+- ip_geo_cache: (ip) unique
+- blocked_ips: (ip_address, active)
+
+**Test Results: 100% Pass (22/22 backend tests, all frontend verified)**
+
+---
+
+### Previous Bug Fixes (Earlier This Session)
 
 #### 1. Download Fix ✅ (February 23, 2026)
 - Fixed `ERR_BLOCKED_BY_RESPONSE` error for static file downloads
