@@ -326,5 +326,5 @@ Kids-friendly GIF generator:
 ---
 
 Last Updated: February 23, 2026
-Version: 2.0.1
-Status: PRODUCTION READY - All UI Bugs Fixed
+Version: 2.1.0
+Status: PRODUCTION READY - Admin Login Activity Feature Added
