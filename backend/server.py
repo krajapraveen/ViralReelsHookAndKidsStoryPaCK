@@ -78,6 +78,7 @@ from routes.push_notifications import router as push_notifications_router
 from routes.comix_ai import router as comix_router
 from routes.gif_maker import router as gif_maker_router
 from routes.comic_storybook import router as comic_storybook_router
+from routes.login_activity import router as login_activity_router
 
 # Create FastAPI app
 app = FastAPI(
