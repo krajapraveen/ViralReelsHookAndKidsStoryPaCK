@@ -128,12 +128,20 @@ export default function ComixAI() {
   };
 
   // Track if toast has been shown for current job
-  const [toastShown, setToastShown] = useState(false);
+  const [toastShown, setToastShown] = useState({});
 
-  const pollJobStatus = useCallback(async (jobId) => {
+  const pollJobStatus = useCallback(async (jobId, jobType) => {
     try {
       const response = await api.get(`/api/comix/job/${jobId}`);
-      setCurrentJob(response.data);
+      
+      // Update the correct job state based on type
+      if (jobType === 'character') {
+        setCharacterJob(response.data);
+      } else if (jobType === 'panel') {
+        setPanelJob(response.data);
+      } else if (jobType === 'story') {
+        setStoryJob(response.data);
+      }
       
       if (response.data.status === 'COMPLETED' || response.data.status === 'FAILED') {
         if (pollingInterval) {
@@ -145,8 +153,8 @@ export default function ComixAI() {
         fetchHistory();
         
         // Only show toast once per job
-        if (!toastShown) {
-          setToastShown(true);
+        if (!toastShown[jobId]) {
+          setToastShown(prev => ({ ...prev, [jobId]: true }));
           if (response.data.status === 'COMPLETED') {
             toast.success('Comic generated successfully!');
           } else {
@@ -157,7 +165,7 @@ export default function ComixAI() {
     } catch (error) {
       console.error('Poll error:', error);
     }
-  }, [pollingInterval]);
+  }, [pollingInterval, toastShown]);
 
   const generateCharacter = async () => {
     if (!characterPhoto) {
@@ -165,13 +173,14 @@ export default function ComixAI() {
       return;
     }
     
-    const cost = characterType === 'portrait' ? creditCosts.character_portrait : creditCosts.character_fullbody;
+    const cost = pricing.generate || 10;
     if (credits < cost) {
       toast.error(`Insufficient credits. Need ${cost} credits.`);
       return;
     }
     
     setLoading(true);
+    setToastShown({});  // Reset toast state
     try {
       const formData = new FormData();
       formData.append('photo', characterPhoto);
