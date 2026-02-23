@@ -476,6 +476,7 @@ async def generate_comic_story(
     genre: str = Form("adventure"),
     target_audience: str = Form("all"),
     auto_dialogue: bool = Form(True),
+    character_images: List[UploadFile] = File(None),
     user: dict = Depends(get_current_user)
 ):
     """Generate a full comic story with multiple panels and auto-captions"""
@@ -492,6 +493,19 @@ async def generate_comic_story(
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
+    # Process character images if provided
+    character_data = []
+    if character_images:
+        for i, img in enumerate(character_images[:5]):  # Max 5 character images
+            if img and img.content_type and img.content_type.startswith("image/"):
+                img_content = await img.read()
+                if len(img_content) <= 10 * 1024 * 1024:  # 10MB limit per image
+                    character_data.append({
+                        "index": i,
+                        "base64": base64.b64encode(img_content).decode('utf-8'),
+                        "filename": img.filename
+                    })
+    
     job_id = str(uuid.uuid4())
     
     job_data = {
@@ -505,19 +519,25 @@ async def generate_comic_story(
         "genre": genre,
         "targetAudience": target_audience,
         "autoDialogue": auto_dialogue,
+        "hasCharacterImages": len(character_data) > 0,
+        "characterCount": len(character_data),
         "cost": cost,
+        "downloaded": False,
+        "progress": 0,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     
     await db.comix_jobs.insert_one(job_data)
     
-    background_tasks.add_task(process_comic_story, job_id, story_prompt, style, min(panel_count, 9), genre, auto_dialogue, user["id"], cost)
+    background_tasks.add_task(process_comic_story, job_id, story_prompt, style, min(panel_count, 9), genre, auto_dialogue, user["id"], cost, character_data)
     
     return {
         "success": True,
         "jobId": job_id,
         "status": "QUEUED",
         "estimatedCredits": cost,
+        "downloadCredits": COMIC_CREDITS["download_story"],
+        "characterImagesUsed": len(character_data),
         "message": "Generating your comic story..."
     }
 
