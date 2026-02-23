@@ -458,6 +458,16 @@ async def google_callback(request: Request, data: GoogleCallback):
                     "picture": picture if picture else existing.get("picture", "")
                 }}
             )
+            
+            # Log successful Google login
+            await log_login_activity(
+                request=request,
+                user_id=existing["id"],
+                identifier=email,
+                status="SUCCESS",
+                auth_method="google"
+            )
+            
             token = create_token(existing["id"], existing.get("role", "user"))
             logger.info(f"Existing user logged in: {email}")
             return {
