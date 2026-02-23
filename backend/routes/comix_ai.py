@@ -542,16 +542,17 @@ async def generate_comic_story(
     }
 
 
-async def process_comic_story(job_id: str, story_prompt: str, style: str, panel_count: int, genre: str, auto_dialogue: bool, user_id: str, cost: int):
-    """Background task to generate full comic story"""
+async def process_comic_story(job_id: str, story_prompt: str, style: str, panel_count: int, genre: str, auto_dialogue: bool, user_id: str, cost: int, character_data: list = None):
+    """Background task to generate full comic story with optional character images"""
     try:
         await db.comix_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "PROCESSING", "progress": 0}}
+            {"$set": {"status": "PROCESSING", "progress": 5, "progressMessage": "Analyzing story..."}}
         )
         
         style_info = COMIC_STYLES[style]
         panels = []
+        character_data = character_data or []
         
         # Step 1: Generate story outline using AI text generation
         story_scenes = []
@@ -567,9 +568,14 @@ async def process_comic_story(job_id: str, story_prompt: str, style: str, panel_
                 )
                 story_chat.with_model("gemini", "gemini-2.0-flash")
                 
+                # Include character info in prompt if images provided
+                character_prompt = ""
+                if character_data:
+                    character_prompt = f"\nIMPORTANT: The story features {len(character_data)} main character(s) from uploaded photos. The SAME character(s) must appear consistently in ALL panels as the protagonist(s)."
+                
                 outline_prompt = f"""Create a {panel_count}-panel comic story outline for: "{story_prompt}"
 Genre: {genre}
-Style: {style_info['name']}
+Style: {style_info['name']}{character_prompt}
 
 For each panel, provide:
 1. Scene title (2-3 words)
@@ -593,6 +599,11 @@ Make the story original, engaging, and appropriate for all ages. NO copyrighted 
             except Exception as e:
                 logger.error(f"Story outline generation error: {e}")
         
+        await db.comix_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"progress": 15, "progressMessage": "Story outline created..."}}
+        )
+        
         # Fallback to default outline if AI generation failed
         if not story_scenes:
             story_scenes = [
@@ -609,10 +620,10 @@ Make the story original, engaging, and appropriate for all ages. NO copyrighted 
             scene = story_scenes[i]
             
             # Update progress
-            progress = int(((i + 1) / panel_count) * 90)  # Reserve 10% for finalization
+            progress = 15 + int(((i + 1) / panel_count) * 75)  # 15-90%
             await db.comix_jobs.update_one(
                 {"id": job_id},
-                {"$set": {"progress": progress, "currentPanel": i + 1, "progressMessage": f"Creating panel {i+1}..."}}
+                {"$set": {"progress": progress, "currentPanel": i + 1, "progressMessage": f"Creating panel {i+1} of {panel_count}..."}}
             )
             
             panel_data = {
