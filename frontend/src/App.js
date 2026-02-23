@@ -123,6 +123,9 @@ function App() {
       <Route path="/app/analytics" element={isAuthenticated ? <AnalyticsDashboard /> : <Navigate to="/login" />} />
       {/* Admin Routes */}
       <Route path="/app/admin/monitoring" element={isAuthenticated ? <AdminMonitoring /> : <Navigate to="/login" />} />
+      {/* New Feature Routes */}
+      <Route path="/app/comix" element={isAuthenticated ? <ComixAI /> : <Navigate to="/login" />} />
+      <Route path="/app/gif-maker" element={isAuthenticated ? <GifMaker /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
