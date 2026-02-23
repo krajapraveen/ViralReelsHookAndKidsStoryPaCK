@@ -76,6 +76,9 @@ export default function ComixAI() {
       setStyles(response.data.styles || {});
       setLayouts(response.data.layouts || {});
       setCreditCosts(response.data.credits || {});
+      if (response.data.pricing) {
+        setPricing(response.data.pricing);
+      }
     } catch (error) {
       console.error('Failed to fetch styles');
     }
