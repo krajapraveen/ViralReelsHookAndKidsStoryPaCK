@@ -231,8 +231,9 @@ export default function ComixAI() {
       return;
     }
     
-    if (credits < creditCosts.story_mode) {
-      toast.error(`Insufficient credits. Need ${creditCosts.story_mode} credits.`);
+    const cost = pricing.generate || 10;
+    if (credits < cost) {
+      toast.error(`Insufficient credits. Need ${cost} credits.`);
       return;
     }
     
@@ -245,19 +246,55 @@ export default function ComixAI() {
       formData.append('genre', storyGenre);
       formData.append('auto_dialogue', autoDialogue.toString());
       
+      // Add character images if provided
+      characterImages.forEach((img, i) => {
+        formData.append('character_images', img);
+      });
+      
       const response = await api.post('/api/comix/generate-story', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      setCurrentJob({ id: response.data.jobId, status: 'QUEUED' });
-      toast.success('Story generation started!');
+      setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
+      toast.success(`Story generation started! ${characterImages.length > 0 ? `Using ${characterImages.length} character image(s)` : ''}`);
       
-      const interval = setInterval(() => pollJobStatus(response.data.jobId), 3000);
+      const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
       setPollingInterval(interval);
       
     } catch (error) {
       setLoading(false);
       toast.error(error.response?.data?.detail || 'Failed to generate story');
+    }
+  };
+
+  // Handle download with credit check
+  const handleDownload = async (jobId) => {
+    try {
+      const response = await api.post(`/api/comix/download/${jobId}`);
+      
+      if (response.data.success) {
+        toast.success(response.data.alreadyPurchased ? 'Re-downloading...' : `Downloaded! ${response.data.creditsDeducted} credits used`);
+        
+        // Trigger actual download for each URL
+        response.data.downloadUrls?.forEach((url, i) => {
+          const fullUrl = url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
+          const link = document.createElement('a');
+          link.href = fullUrl;
+          link.download = `comic_${jobId.slice(0, 8)}_${i + 1}.png`;
+          link.click();
+        });
+        
+        fetchCredits();
+      } else {
+        // Show appropriate error based on subscription status
+        if (response.data.error === 'INSUFFICIENT_CREDITS') {
+          toast.error(response.data.message);
+        } else if (response.data.error === 'NO_SUBSCRIPTION') {
+          toast.error('Please subscribe to download. Go to Settings > Subscription');
+        }
+      }
+    } catch (error) {
+      toast.error('Download failed. Please try again.');
     }
   };
 
