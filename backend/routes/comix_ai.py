@@ -636,25 +636,36 @@ Make the story original, engaging, and appropriate for all ages. NO copyrighted 
             # Generate image for this panel
             if LLM_AVAILABLE and EMERGENT_LLM_KEY:
                 try:
-                    from emergentintegrations.llm.chat import LlmChat, UserMessage
+                    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
                     
                     img_chat = LlmChat(
                         api_key=EMERGENT_LLM_KEY,
                         session_id=f"comix-story-panel-{job_id}-{i}",
-                        system_message="You are a professional comic book artist."
+                        system_message="You are a professional comic book artist. Maintain character consistency across panels."
                     )
                     img_chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                    
+                    # Build prompt with character reference if available
+                    character_ref = ""
+                    if character_data:
+                        character_ref = f"\nIMPORTANT: The main character(s) in this panel MUST look exactly like the person(s) in the reference photo(s). Keep their face, features, and appearance consistent."
                     
                     panel_prompt = f"""Create a comic book panel illustration:
 Story: {story_prompt}
 Scene: {scene.get('scene', '')} - {scene.get('description', '')}
 Style: {style_info['prompt_modifier']}
 Genre: {genre}
-Panel {i+1} of {panel_count}
+Panel {i+1} of {panel_count}{character_ref}
 
 Make it visually dynamic and engaging, appropriate for all ages."""
                     
-                    img_msg = UserMessage(text=panel_prompt)
+                    # Include character images if provided
+                    if character_data:
+                        file_contents = [ImageContent(char['base64']) for char in character_data]
+                        img_msg = UserMessage(text=panel_prompt, file_contents=file_contents)
+                    else:
+                        img_msg = UserMessage(text=panel_prompt)
+                    
                     text_response, images = await img_chat.send_message_multimodal_response(img_msg)
                     
                     if images and len(images) > 0:
@@ -680,7 +691,13 @@ Make it visually dynamic and engaging, appropriate for all ages."""
             
             panels.append(panel_data)
         
-        # Deduct credits
+        # Update progress to finalizing
+        await db.comix_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"progress": 95, "progressMessage": "Finalizing..."}}
+        )
+        
+        # Deduct credits for generation only
         await deduct_credits(user_id, cost, f"Comic story: {job_id[:8]}")
         
         # Update job with results
@@ -689,7 +706,10 @@ Make it visually dynamic and engaging, appropriate for all ages."""
             {"$set": {
                 "status": "COMPLETED",
                 "progress": 100,
+                "progressMessage": "Complete!",
                 "panels": panels,
+                "downloaded": False,
+                "downloadCredits": COMIC_CREDITS["download_story"],
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )
