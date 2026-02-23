@@ -8,9 +8,9 @@ import os
 import time
 
 # Use production preview URL
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://image-to-comic.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://qa-testing-preview.preview.emergentagent.com')
 if not BASE_URL:
-    BASE_URL = 'https://image-to-comic.preview.emergentagent.com'
+    BASE_URL = 'https://qa-testing-preview.preview.emergentagent.com'
 
 BASE_URL = BASE_URL.rstrip('/')
 

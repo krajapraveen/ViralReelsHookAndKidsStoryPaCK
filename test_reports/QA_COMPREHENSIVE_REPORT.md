@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://image-to-comic.preview.emergentagent.com
+**Base URL:** https://qa-testing-preview.preview.emergentagent.com
 
 ---
 

@@ -64,7 +64,7 @@ export const options = {
   },
 };
 
-const BASE_URL = __ENV.BASE_URL || 'https://image-to-comic.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://qa-testing-preview.preview.emergentagent.com';
 
 // Test user credentials
 const TEST_USER = {
