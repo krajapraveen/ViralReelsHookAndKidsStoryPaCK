@@ -429,7 +429,7 @@ export default function ComixAI() {
                 <div className="mb-4">
                   <label className="block text-sm text-slate-400 mb-2">Comic Style</label>
                   <Select value={characterStyle} onValueChange={setCharacterStyle}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600" data-testid="character-style-select">
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white" data-testid="character-style-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
@@ -446,12 +446,12 @@ export default function ComixAI() {
                 <div className="mb-4">
                   <label className="block text-sm text-slate-400 mb-2">Character Type</label>
                   <Select value={characterType} onValueChange={setCharacterType}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600" data-testid="character-type-select">
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white" data-testid="character-type-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="portrait" className="text-white hover:bg-slate-700">Portrait ({creditCosts.character_portrait} credits)</SelectItem>
-                      <SelectItem value="fullbody" className="text-white hover:bg-slate-700">Full Body ({creditCosts.character_fullbody} credits)</SelectItem>
+                      <SelectItem value="portrait" className="text-white hover:bg-slate-700">Portrait (10 credits)</SelectItem>
+                      <SelectItem value="fullbody" className="text-white hover:bg-slate-700">Full Body (10 credits)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
