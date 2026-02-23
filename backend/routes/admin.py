@@ -104,7 +104,7 @@ async def reset_user_credits(
         
         return {
             "success": True,
-            "message": f"Credits reset successfully",
+            "message": "Credits reset successfully",
             "user_email": user.get("email"),
             "old_credits": old_credits,
             "new_credits": data.credits
@@ -216,7 +216,7 @@ async def admin_create_user(
             "userId": user_id,
             "amount": data.credits,
             "type": "ADMIN_GRANT",
-            "description": f"Initial credits granted by admin",
+            "description": "Initial credits granted by admin",
             "adminId": admin["id"],
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
