@@ -475,22 +475,54 @@ export default function ComixAI() {
                       }`}>
                         {currentJob.status}
                       </span>
-                      {currentJob.progress !== undefined && currentJob.status === 'PROCESSING' && (
-                        <span className="text-slate-400">{currentJob.progress}%</span>
+                      {currentJob.progressMessage && currentJob.status === 'PROCESSING' && (
+                        <span className="text-slate-400 text-sm">{currentJob.progressMessage}</span>
                       )}
                     </div>
                     
+                    {/* Progress Bar */}
+                    {currentJob.status === 'PROCESSING' && currentJob.progress !== undefined && (
+                      <div className="space-y-2">
+                        <Progress value={currentJob.progress} className="h-2" />
+                        <p className="text-xs text-slate-400 text-center">{currentJob.progress}% complete</p>
+                      </div>
+                    )}
+                    
                     {currentJob.resultUrl && (
-                      <div className="rounded-lg overflow-hidden border border-slate-600">
-                        <img src={currentJob.resultUrl} alt="Comic Character" className="w-full" />
+                      <div 
+                        className="rounded-lg overflow-hidden border border-slate-600 relative"
+                        onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
+                      >
+                        <img 
+                          src={currentJob.resultUrl.startsWith('http') ? currentJob.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${currentJob.resultUrl}`} 
+                          alt="Comic Character" 
+                          className="w-full select-none pointer-events-none" 
+                          draggable="false"
+                        />
+                        {!currentJob.downloaded && (
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <div className="bg-slate-800/90 rounded-lg p-3 text-center">
+                              <Lock className="w-6 h-6 mx-auto mb-2 text-purple-400" />
+                              <p className="text-xs text-slate-300">Pay to download</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     
                     {currentJob.panels && (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div 
+                        className="grid grid-cols-2 gap-4"
+                        onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
+                      >
                         {currentJob.panels.map((panel, i) => (
-                          <div key={i} className="rounded-lg overflow-hidden border border-slate-600">
-                            <img src={panel.imageUrl} alt={`Panel ${i+1}`} className="w-full" />
+                          <div key={i} className="rounded-lg overflow-hidden border border-slate-600 relative">
+                            <img 
+                              src={panel.imageUrl?.startsWith('http') ? panel.imageUrl : `${process.env.REACT_APP_BACKEND_URL}${panel.imageUrl}`} 
+                              alt={`Panel ${i+1}`} 
+                              className="w-full select-none pointer-events-none"
+                              draggable="false"
+                            />
                             {panel.dialogue && (
                               <div className="p-2 bg-slate-700">
                                 <p className="text-sm text-slate-300">{panel.dialogue}</p>
@@ -501,10 +533,14 @@ export default function ComixAI() {
                       </div>
                     )}
                     
-                    {currentJob.status === 'COMPLETED' && currentJob.resultUrl && (
+                    {currentJob.status === 'COMPLETED' && (currentJob.resultUrl || currentJob.panels) && (
                       <div className="flex gap-2">
-                        <Button variant="outline" className="flex-1" onClick={() => window.open(currentJob.resultUrl, '_blank')}>
-                          <Download className="w-4 h-4 mr-2" /> Download
+                        <Button 
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          onClick={() => handleDownload(currentJob.id)}
+                        >
+                          <Download className="w-4 h-4 mr-2" /> 
+                          <span className="text-white">Download ({currentJob.downloaded ? 'Free' : `${pricing.download} credits`})</span>
                         </Button>
                       </div>
                     )}
