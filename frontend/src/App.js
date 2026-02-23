@@ -127,6 +127,7 @@ function App() {
       {/* Admin Routes */}
       <Route path="/app/admin/monitoring" element={isAuthenticated ? <AdminMonitoring /> : <Navigate to="/login" />} />
       <Route path="/app/admin/login-activity" element={isAuthenticated ? <AdminLoginActivity /> : <Navigate to="/login" />} />
+      <Route path="/app/admin/users" element={isAuthenticated ? <AdminUsersManagement /> : <Navigate to="/login" />} />
       {/* New Feature Routes */}
       <Route path="/app/comix" element={isAuthenticated ? <ComixAI /> : <Navigate to="/login" />} />
       <Route path="/app/gif-maker" element={isAuthenticated ? <GifMaker /> : <Navigate to="/login" />} />
