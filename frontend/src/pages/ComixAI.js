@@ -54,7 +54,6 @@ export default function ComixAI() {
   const [storyJob, setStoryJob] = useState(null);
   const [history, setHistory] = useState([]);
   const [pollingInterval, setPollingInterval] = useState(null);
-  const [activeTab, setActiveTab] = useState('character');
 
   useEffect(() => {
     fetchCredits();
