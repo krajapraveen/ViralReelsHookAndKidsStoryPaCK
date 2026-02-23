@@ -46,6 +46,14 @@ export default function CreatorTools() {
   const [trendingNiche, setTrendingNiche] = useState('general');
   const [trendingLoading, setTrendingLoading] = useState(false);
 
+  // Convert state
+  const [userReels, setUserReels] = useState([]);
+  const [userStories, setUserStories] = useState([]);
+  const [convertLoading, setConvertLoading] = useState(false);
+  const [convertResult, setConvertResult] = useState(null);
+  const [selectedReelId, setSelectedReelId] = useState('');
+  const [selectedStoryId, setSelectedStoryId] = useState('');
+
   const niches = ['luxury', 'relationship', 'health', 'motivation', 'parenting', 'business', 'travel', 'food'];
   const trendingNiches = ['general', 'fitness', 'business', 'travel', 'food', 'tech'];
 
