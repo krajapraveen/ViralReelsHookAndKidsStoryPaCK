@@ -763,6 +763,108 @@ async def get_comic_history(
     }
 
 
+@router.post("/download/{job_id}")
+async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
+    """Download comic content - requires additional credits"""
+    job = await db.comix_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.get("status") != "COMPLETED":
+        raise HTTPException(status_code=400, detail="Content not ready for download")
+    
+    # Check if already downloaded (free re-download)
+    if job.get("downloaded"):
+        return {
+            "success": True,
+            "downloadUrls": job.get("resultUrls") or [job.get("resultUrl")] or [p.get("imageUrl") for p in job.get("panels", [])],
+            "alreadyPurchased": True
+        }
+    
+    # Determine download cost
+    is_story = job.get("type") == "COMIC_STORY"
+    download_cost = COMIC_CREDITS["download_story"] if is_story else COMIC_CREDITS["download"]
+    
+    # Check user credits
+    current_credits = user.get("credits", 0)
+    if current_credits < download_cost:
+        # Check subscription status
+        subscription = await db.subscriptions.find_one(
+            {"userId": user["id"], "status": "ACTIVE"},
+            {"_id": 0}
+        )
+        
+        if subscription:
+            return {
+                "success": False,
+                "error": "INSUFFICIENT_CREDITS",
+                "message": f"You need {download_cost} credits to download. Current balance: {current_credits}. Please top-up your credits.",
+                "creditsNeeded": download_cost,
+                "currentCredits": current_credits,
+                "hasSubscription": True
+            }
+        else:
+            return {
+                "success": False,
+                "error": "NO_SUBSCRIPTION",
+                "message": "Please subscribe to download content. Subscription includes credits for downloads.",
+                "creditsNeeded": download_cost,
+                "currentCredits": current_credits,
+                "hasSubscription": False
+            }
+    
+    # Deduct credits for download
+    await deduct_credits(user["id"], download_cost, f"Download: {job_id[:8]}")
+    
+    # Mark as downloaded
+    await db.comix_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"downloaded": True, "downloadedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Get download URLs
+    download_urls = []
+    if job.get("resultUrls"):
+        download_urls = job["resultUrls"]
+    elif job.get("resultUrl"):
+        download_urls = [job["resultUrl"]]
+    elif job.get("panels"):
+        download_urls = [p.get("imageUrl") for p in job["panels"] if p.get("imageUrl")]
+    
+    return {
+        "success": True,
+        "downloadUrls": download_urls,
+        "creditsDeducted": download_cost,
+        "message": "Download unlocked!"
+    }
+
+
+@router.get("/download-status/{job_id}")
+async def check_download_status(job_id: str, user: dict = Depends(get_current_user)):
+    """Check if user can download content"""
+    job = await db.comix_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    is_story = job.get("type") == "COMIC_STORY"
+    download_cost = COMIC_CREDITS["download_story"] if is_story else COMIC_CREDITS["download"]
+    
+    return {
+        "canDownload": job.get("downloaded", False) or user.get("credits", 0) >= download_cost,
+        "alreadyDownloaded": job.get("downloaded", False),
+        "downloadCost": download_cost if not job.get("downloaded") else 0,
+        "userCredits": user.get("credits", 0)
+    }
+
+
 @router.delete("/job/{job_id}")
 async def delete_comic_job(job_id: str, user: dict = Depends(get_current_user)):
     """Delete a comic generation job"""
