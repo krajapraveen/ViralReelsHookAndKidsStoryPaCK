@@ -117,19 +117,20 @@ PANEL_LAYOUTS = {
     9: {"grid": "3x3", "description": "9 panels (detailed)"}
 }
 
-# Credit costs based on page count
+# Credit costs
+STORYBOOK_CREDITS = {
+    "generate": 10,  # Base cost to generate (per page)
+    "download": 20   # Cost to download PDF
+}
+
+# Credit costs based on page count (for generation view)
 def calculate_credits(page_count: int) -> int:
-    """Calculate credits based on page count"""
-    if page_count <= 10:
-        return 50
-    elif page_count <= 20:
-        return 90
-    elif page_count <= 30:
-        return 120
-    elif page_count <= 40:
-        return 150
-    else:
-        return 180
+    """Calculate credits based on page count for viewing"""
+    # 10 credits base + 1 credit per page
+    return 10 + page_count
+
+# Download always costs 20 credits
+DOWNLOAD_CREDITS = 20
 
 # Blocked content patterns
 BLOCKED_PATTERNS = [
