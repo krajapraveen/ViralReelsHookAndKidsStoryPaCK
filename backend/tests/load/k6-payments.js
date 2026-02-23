@@ -8,7 +8,7 @@ const cashfreeLatency = new Trend("cashfree_latency");
 const orderCreated = new Counter("orders_created");
 const webhookProcessed = new Counter("webhooks_processed");
 
-const BASE = __ENV.BASE_URL || "https://photo-to-comic-1.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://comix-ai-bugfix.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

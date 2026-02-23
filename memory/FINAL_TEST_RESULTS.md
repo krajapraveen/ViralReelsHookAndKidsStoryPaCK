@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://photo-to-comic-1.preview.emergentagent.com
+**Website:** https://comix-ai-bugfix.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai
