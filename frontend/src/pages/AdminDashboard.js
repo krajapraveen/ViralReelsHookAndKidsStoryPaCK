@@ -118,23 +118,29 @@ export default function AdminDashboard() {
               <span className="text-xl font-bold">Admin Analytics</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <Link to="/app/admin/users">
+              <Button variant="outline" size="sm" className="border-yellow-500/50 text-yellow-300 hover:bg-yellow-500/20">
+                <Coins className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">User Credits</span>
+              </Button>
+            </Link>
             <Link to="/app/admin/login-activity">
               <Button variant="outline" size="sm" className="border-blue-500/50 text-blue-300 hover:bg-blue-500/20">
                 <Users className="w-4 h-4 mr-2" />
-                Login Activity
+                <span className="hidden sm:inline">Login Activity</span>
               </Button>
             </Link>
             <Link to="/app/admin/monitoring">
               <Button variant="outline" size="sm" className="border-green-500/50 text-green-300 hover:bg-green-500/20">
                 <Activity className="w-4 h-4 mr-2" />
-                Monitoring
+                <span className="hidden sm:inline">Monitoring</span>
               </Button>
             </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm"
+              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm hidden sm:block"
             >
               <option value={7}>Last 7 days</option>
               <option value={30}>Last 30 days</option>
@@ -142,12 +148,10 @@ export default function AdminDashboard() {
               <option value={365}>Last year</option>
             </select>
             <Button onClick={fetchAnalytics} variant="outline" size="sm" className="border-slate-600">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
+              <RefreshCw className="w-4 h-4" />
             </Button>
             <Button onClick={handleLogout} variant="ghost" size="sm" className="text-slate-300 hover:text-white" data-testid="admin-logout-btn">
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
