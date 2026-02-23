@@ -280,7 +280,7 @@ export default function ComixAI() {
       setStoryJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success(`Story generation started! ${characterImages.length > 0 ? `Using ${characterImages.length} character image(s)` : ''}`);
       
-      const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
+      const interval = setInterval(() => pollJobStatus(response.data.jobId, 'story'), 2000);
       setPollingInterval(interval);
       
     } catch (error) {
@@ -290,12 +290,21 @@ export default function ComixAI() {
   };
 
   // Handle download with credit check
-  const handleDownload = async (jobId) => {
+  const handleDownload = async (jobId, jobType = 'character') => {
     try {
       const response = await api.post(`/api/comix/download/${jobId}`);
       
       if (response.data.success) {
         toast.success(response.data.alreadyPurchased ? 'Re-downloading...' : `Downloaded! ${response.data.creditsDeducted} credits used`);
+        
+        // Update downloaded status on job
+        if (jobType === 'character') {
+          setCharacterJob(prev => prev ? {...prev, downloaded: true} : null);
+        } else if (jobType === 'panel') {
+          setPanelJob(prev => prev ? {...prev, downloaded: true} : null);
+        } else if (jobType === 'story') {
+          setStoryJob(prev => prev ? {...prev, downloaded: true} : null);
+        }
         
         // Trigger actual download for each URL
         response.data.downloadUrls?.forEach((url, i) => {
