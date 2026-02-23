@@ -729,10 +729,8 @@ input, textarea, select {
   }
 
   /* Two-column layouts - Form + Output stacking */
-  .lg\\:grid-cols-\\[1fr_1fr\\],
-  .lg\\:grid-cols-\\[1fr_400px\\],
-  .lg\\:grid-cols-\\[400px_1fr\\],
-  .lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_minmax\\(0\\,1fr\\)\\] {
+  [class*="lg:grid-cols"],
+  [class*="md:grid-cols"] {
     grid-template-columns: 1fr !important;
   }
 
