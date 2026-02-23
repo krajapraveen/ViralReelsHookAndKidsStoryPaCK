@@ -223,7 +223,7 @@ async def generate_gif(
     style: str = Form("cartoon"),
     background: str = Form("transparent"),
     add_text: Optional[str] = Form(None),
-    quality: str = Form("basic"),  # basic, hd, action
+    animation_intensity: str = Form("medium"),  # simple, medium, complex
     user: dict = Depends(get_current_user)
 ):
     """Generate an animated GIF from uploaded photo"""
@@ -236,14 +236,20 @@ async def generate_gif(
     if style not in GIF_STYLES:
         raise HTTPException(status_code=400, detail=f"Invalid style. Choose from: {list(GIF_STYLES.keys())}")
     
+    # Validate animation intensity
+    intensity_map = {"simple": 4, "medium": 8, "complex": 12}
+    if animation_intensity not in intensity_map:
+        animation_intensity = "medium"
+    frame_count = intensity_map[animation_intensity]
+    
     # Check text safety
     if add_text:
         is_safe, message = is_content_safe(add_text)
         if not is_safe:
             raise HTTPException(status_code=400, detail=message)
     
-    # Calculate cost
-    cost = GIF_CREDITS.get(quality, GIF_CREDITS["basic"])
+    # Calculate cost - 10 credits for generation
+    cost = GIF_CREDITS["generate"]
     
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
@@ -270,8 +276,12 @@ async def generate_gif(
         "style": style,
         "background": background,
         "addText": add_text,
-        "quality": quality,
+        "animationIntensity": animation_intensity,
+        "frameCount": frame_count,
         "cost": cost,
+        "downloadCost": GIF_CREDITS["download"],
+        "downloaded": False,
+        "progress": 0,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "expiresAt": (datetime.now(timezone.utc) + timedelta(days=7 if user.get("subscription") else 1)).isoformat()
     }
@@ -281,7 +291,7 @@ async def generate_gif(
     # Process in background
     background_tasks.add_task(
         process_gif_generation, 
-        job_id, photo_content, emotion, style, background, add_text, quality, user["id"], cost
+        job_id, photo_content, emotion, style, background, add_text, animation_intensity, frame_count, user["id"], cost
     )
     
     return {
