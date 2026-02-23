@@ -184,7 +184,16 @@ async def get_available_emotions(user: dict = Depends(get_current_user)):
         "emotions": EMOTIONS,
         "styles": GIF_STYLES,
         "backgrounds": BACKGROUNDS,
-        "credits": GIF_CREDITS
+        "credits": GIF_CREDITS,
+        "animationIntensities": {
+            "simple": {"name": "Simple", "frames": 4, "description": "Quick bounce/pulse (faster)"},
+            "medium": {"name": "Medium", "frames": 8, "description": "Smooth animation"},
+            "complex": {"name": "Complex", "frames": 12, "description": "Detailed motion (slower)"}
+        },
+        "pricing": {
+            "generate": 10,
+            "download": 15
+        }
     }
 
 
@@ -194,16 +203,14 @@ async def get_gif_credits_info(user: dict = Depends(get_current_user)):
     return {
         "costs": GIF_CREDITS,
         "userCredits": user.get("credits", 0),
-        "freeUserLimits": {
-            "dailyLimit": 2,
-            "hasWatermark": True,
-            "resolution": "low"
+        "pricing": {
+            "generate": 10,
+            "download": 15
         },
-        "paidFeatures": {
-            "noWatermark": True,
-            "hdResolution": True,
-            "batchGeneration": True,
-            "permanentStorage": True
+        "animationOptions": {
+            "simple": "3-5 frames, faster generation",
+            "medium": "6-8 frames, balanced",
+            "complex": "10-12 frames, detailed motion"
         }
     }
 
