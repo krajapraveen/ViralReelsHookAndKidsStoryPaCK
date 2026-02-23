@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import (
     db, logger, get_current_user, deduct_credits,
-    LLM_AVAILABLE, EMERGENT_LLM_KEY, upload_to_storage
+    LLM_AVAILABLE, EMERGENT_LLM_KEY
 )
 
 router = APIRouter(prefix="/comix", tags=["Comix AI"])
