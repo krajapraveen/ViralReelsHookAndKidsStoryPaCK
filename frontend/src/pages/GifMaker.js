@@ -433,20 +433,6 @@ export default function GifMaker() {
                 </div>
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm text-slate-400 mb-2">Quality</label>
-                <Select value={quality} onValueChange={setQuality}>
-                  <SelectTrigger className="bg-slate-700 border-slate-600">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    <SelectItem value="basic" className="text-white">Basic ({creditCosts.basic} credits)</SelectItem>
-                    <SelectItem value="hd" className="text-white">HD ({creditCosts.hd} credits)</SelectItem>
-                    <SelectItem value="action" className="text-white">Action ({creditCosts.action} credits)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               {!batchMode && (
                 <div>
                   <label className="block text-sm text-slate-400 mb-2">Add Text (optional)</label>
