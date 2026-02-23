@@ -305,19 +305,61 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
 @limiter.limit("10/minute")
 async def login(request: Request, data: UserLogin):
     """Login with email and password"""
+    from routes.login_activity import log_login_activity, is_ip_blocked, extract_client_ip
+    
     try:
+        # Check if IP is blocked
+        client_ip, _ = extract_client_ip(request)
+        if await is_ip_blocked(client_ip):
+            await log_login_activity(
+                request=request,
+                user_id=None,
+                identifier=data.email.lower(),
+                status="FAILED",
+                auth_method="email_password",
+                failure_reason="IP address blocked"
+            )
+            raise HTTPException(status_code=403, detail="Access denied. Please contact support.")
+        
         user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
         
         if not user:
+            # Log failed attempt - user not found
+            await log_login_activity(
+                request=request,
+                user_id=None,
+                identifier=data.email.lower(),
+                status="FAILED",
+                auth_method="email_password",
+                failure_reason="User not found"
+            )
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         if not verify_password(data.password, user.get("password", "")):
+            # Log failed attempt - wrong password
+            await log_login_activity(
+                request=request,
+                user_id=user["id"],
+                identifier=data.email.lower(),
+                status="FAILED",
+                auth_method="email_password",
+                failure_reason="Invalid password"
+            )
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         # Update last login
         await db.users.update_one(
             {"id": user["id"]},
             {"$set": {"lastLogin": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        # Log successful login
+        await log_login_activity(
+            request=request,
+            user_id=user["id"],
+            identifier=data.email.lower(),
+            status="SUCCESS",
+            auth_method="email_password"
         )
         
         token = create_token(user["id"], user.get("role", "user"))
