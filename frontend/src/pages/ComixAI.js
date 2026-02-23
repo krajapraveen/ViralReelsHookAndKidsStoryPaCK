@@ -124,6 +124,9 @@ export default function ComixAI() {
     setCharacterPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Track if toast has been shown for current job
+  const [toastShown, setToastShown] = useState(false);
+
   const pollJobStatus = useCallback(async (jobId) => {
     try {
       const response = await api.get(`/api/comix/job/${jobId}`);
@@ -138,10 +141,14 @@ export default function ComixAI() {
         fetchCredits();
         fetchHistory();
         
-        if (response.data.status === 'COMPLETED') {
-          toast.success('Comic generated successfully!');
-        } else {
-          toast.error('Generation failed. Please try again.');
+        // Only show toast once per job
+        if (!toastShown) {
+          setToastShown(true);
+          if (response.data.status === 'COMPLETED') {
+            toast.success('Comic generated successfully!');
+          } else {
+            toast.error('Generation failed. Please try again.');
+          }
         }
       }
     } catch (error) {
