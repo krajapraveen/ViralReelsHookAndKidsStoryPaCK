@@ -378,14 +378,14 @@ export default function ComixAI() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full max-w-lg mx-auto grid-cols-3 mb-8 bg-slate-800/50">
-            <TabsTrigger value="character" className="data-[state=active]:bg-purple-600" data-testid="tab-character">
-              <Image className="w-4 h-4 mr-2" /> Character
+            <TabsTrigger value="character" className="data-[state=active]:bg-purple-600 text-white data-[state=inactive]:text-slate-300" data-testid="tab-character">
+              <Image className="w-4 h-4 mr-2" /> <span className="text-white">Character</span>
             </TabsTrigger>
-            <TabsTrigger value="panel" className="data-[state=active]:bg-purple-600" data-testid="tab-panel">
-              <Grid3X3 className="w-4 h-4 mr-2" /> Panels
+            <TabsTrigger value="panel" className="data-[state=active]:bg-purple-600 text-white data-[state=inactive]:text-slate-300" data-testid="tab-panel">
+              <Grid3X3 className="w-4 h-4 mr-2" /> <span className="text-white">Panels</span>
             </TabsTrigger>
-            <TabsTrigger value="story" className="data-[state=active]:bg-purple-600" data-testid="tab-story">
-              <BookOpen className="w-4 h-4 mr-2" /> Story Mode
+            <TabsTrigger value="story" className="data-[state=active]:bg-purple-600 text-white data-[state=inactive]:text-slate-300" data-testid="tab-story">
+              <BookOpen className="w-4 h-4 mr-2" /> <span className="text-white">Story Mode</span>
             </TabsTrigger>
           </TabsList>
 
