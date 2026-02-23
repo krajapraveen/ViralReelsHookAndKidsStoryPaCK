@@ -503,22 +503,54 @@ export default function GifMaker() {
                     }`}>
                       {currentJob.status}
                     </span>
-                    {currentJob.progress !== undefined && currentJob.status === 'PROCESSING' && (
-                      <span className="text-slate-400">{currentJob.progress}%</span>
+                    {currentJob.progressMessage && currentJob.status === 'PROCESSING' && (
+                      <span className="text-slate-400 text-sm">{currentJob.progressMessage}</span>
                     )}
                   </div>
                   
+                  {/* Progress Bar */}
+                  {currentJob.status === 'PROCESSING' && currentJob.progress !== undefined && (
+                    <div className="space-y-2">
+                      <Progress value={currentJob.progress} className="h-2" />
+                      <p className="text-xs text-slate-400 text-center">{currentJob.progress}% complete</p>
+                    </div>
+                  )}
+                  
                   {currentJob.resultUrl && (
-                    <div className="rounded-lg overflow-hidden border border-slate-600 bg-slate-700">
-                      <img src={currentJob.resultUrl} alt="Generated GIF" className="w-full max-w-sm mx-auto" />
+                    <div 
+                      className="rounded-lg overflow-hidden border border-slate-600 bg-slate-700 relative"
+                      onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
+                    >
+                      <img 
+                        src={currentJob.resultUrl?.startsWith('http') ? currentJob.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${currentJob.resultUrl}`} 
+                        alt="Generated GIF" 
+                        className="w-full max-w-sm mx-auto select-none pointer-events-none"
+                        draggable="false"
+                      />
+                      {!currentJob.downloaded && (
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <div className="bg-slate-800/90 rounded-lg p-3 text-center">
+                            <Lock className="w-6 h-6 mx-auto mb-2 text-pink-400" />
+                            <p className="text-xs text-slate-300">Pay to download</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   
                   {currentJob.results && currentJob.results.length > 0 && (
-                    <div className="grid grid-cols-3 gap-4">
+                    <div 
+                      className="grid grid-cols-3 gap-4"
+                      onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
+                    >
                       {currentJob.results.map((result, i) => (
                         <div key={i} className="rounded-lg overflow-hidden border border-slate-600 bg-slate-700">
-                          <img src={result.url} alt={result.emotion} className="w-full" />
+                          <img 
+                            src={result.url?.startsWith('http') ? result.url : `${process.env.REACT_APP_BACKEND_URL}${result.url}`} 
+                            alt={result.emotion} 
+                            className="w-full select-none pointer-events-none"
+                            draggable="false"
+                          />
                           <div className="p-2 text-center">
                             <span className="text-xl">{result.emoji}</span>
                           </div>
@@ -530,11 +562,11 @@ export default function GifMaker() {
                   {currentJob.status === 'COMPLETED' && (currentJob.resultUrl || currentJob.results) && (
                     <div className="flex gap-2">
                       <Button 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => window.open(currentJob.resultUrl || currentJob.results?.[0]?.url, '_blank')}
+                        className="flex-1 bg-pink-600 hover:bg-pink-700 text-white"
+                        onClick={() => handleDownload(currentJob.id)}
                       >
-                        <Download className="w-4 h-4 mr-2" /> Download
+                        <Download className="w-4 h-4 mr-2" /> 
+                        <span className="text-white">Download ({currentJob.downloaded ? 'Free' : `${pricing.download} credits`})</span>
                       </Button>
                       <Button 
                         variant="outline" 
@@ -544,7 +576,7 @@ export default function GifMaker() {
                           toast.success('Share link copied!');
                         }}
                       >
-                        <Share2 className="w-4 h-4 mr-2" /> Share
+                        <Share2 className="w-4 h-4 mr-2" /> <span className="text-white">Share</span>
                       </Button>
                     </div>
                   )}
