@@ -394,8 +394,10 @@ async def google_callback_options():
 
 
 @router.post("/google-callback")
-async def google_callback(data: GoogleCallback):
+async def google_callback(request: Request, data: GoogleCallback):
     """Handle Google OAuth callback via Emergent Auth"""
+    from routes.login_activity import log_login_activity
+    
     try:
         logger.info(f"Google callback received with sessionId: {data.sessionId[:8]}...")
         
