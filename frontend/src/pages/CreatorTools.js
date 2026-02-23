@@ -422,10 +422,15 @@ export default function CreatorTools() {
                           <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded border border-purple-500/30">{day.contentType}</span>
                         </div>
                         <p className="text-sm font-medium text-white mb-2">{day.suggestedTopic}</p>
+                        {day.inspirationalTip && (
+                          <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-lg p-3 mb-2 border border-purple-500/20">
+                            <p className="text-sm text-purple-200 italic">💡 {day.inspirationalTip}</p>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-xs text-slate-400">
                           <span>📱 {day.niche}</span>
                           <span>⏰ {day.bestPostingTime}</span>
-                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(day.suggestedTopic, `day-${index}`)} className="text-slate-400 hover:text-white">
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`${day.suggestedTopic}\n\n${day.inspirationalTip || ''}`, `day-${index}`)} className="text-slate-400 hover:text-white">
                             {copied === `day-${index}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                           </Button>
                         </div>
