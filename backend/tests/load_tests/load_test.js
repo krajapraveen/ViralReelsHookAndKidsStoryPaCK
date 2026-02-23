@@ -26,7 +26,7 @@ const carouselTime = new Trend('carousel_generation_time');
 const apiCalls = new Counter('api_calls');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://qa-testing-preview.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://photo-to-comic-1.preview.emergentagent.com';
 
 // Test scenarios configuration
 export const options = {

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://qa-testing-preview.preview.emergentagent.com
+**Platform URL:** https://photo-to-comic-1.preview.emergentagent.com
 
 ---
 

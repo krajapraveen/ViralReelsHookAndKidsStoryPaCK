@@ -12,7 +12,7 @@ export default defineConfig({
     ['list']
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'https://qa-testing-preview.preview.emergentagent.com',
+    baseURL: process.env.BASE_URL || 'https://photo-to-comic-1.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
