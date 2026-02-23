@@ -560,32 +560,6 @@ export default function ComixAI() {
               </div>
             </div>
           </TabsContent>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {currentJob.status === 'COMPLETED' && (currentJob.resultUrl || currentJob.panels) && (
-                      <div className="flex gap-2">
-                        <Button 
-                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
-                          onClick={() => handleDownload(currentJob.id)}
-                        >
-                          <Download className="w-4 h-4 mr-2" /> 
-                          <span className="text-white">Download ({currentJob.downloaded ? 'Free' : `${pricing.download} credits`})</span>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 text-slate-400">
-                    <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-600" />
-                    <p>Your comic creation will appear here</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
 
           {/* Panel Tab */}
           <TabsContent value="panel">
