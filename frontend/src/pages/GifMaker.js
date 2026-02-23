@@ -75,6 +75,9 @@ export default function GifMaker() {
       setStyles(response.data.styles || {});
       setBackgrounds(response.data.backgrounds || {});
       setCreditCosts(response.data.credits || {});
+      if (response.data.pricing) {
+        setPricing(response.data.pricing);
+      }
     } catch (error) {
       console.error('Failed to fetch emotions');
     }
