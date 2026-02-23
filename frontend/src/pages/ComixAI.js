@@ -698,27 +698,79 @@ export default function ComixAI() {
                     data-testid="generate-panel-btn"
                   >
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-                    Generate Panel{panelCount !== '1' ? 's' : ''}
+                    <span className="text-white">Generate Panel{panelCount !== '1' ? 's' : ''}</span>
                   </Button>
                 </div>
               </div>
 
-              {/* Result Panel - Same as character tab */}
+              {/* Result Panel for Panels Tab */}
               <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
                 <h3 className="text-xl font-bold text-white mb-4">Result</h3>
-                {currentJob && currentJob.resultUrls ? (
+                {panelJob ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {currentJob.resultUrls.map((url, i) => (
-                        <div key={i} className="rounded-lg overflow-hidden border border-slate-600">
-                          <img src={url} alt={`Panel ${i+1}`} className="w-full" />
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between">
+                      <span className={`px-3 py-1 rounded-full text-sm ${
+                        panelJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
+                        panelJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {panelJob.status}
+                      </span>
+                      {panelJob.progressMessage && panelJob.status === 'PROCESSING' && (
+                        <span className="text-slate-400 text-sm">{panelJob.progressMessage}</span>
+                      )}
                     </div>
-                  </div>
-                ) : currentJob?.resultUrl ? (
-                  <div className="rounded-lg overflow-hidden border border-slate-600">
-                    <img src={currentJob.resultUrl} alt="Comic Panel" className="w-full" />
+                    
+                    {panelJob.status === 'PROCESSING' && panelJob.progress !== undefined && (
+                      <div className="space-y-2">
+                        <Progress value={panelJob.progress} className="h-2" />
+                        <p className="text-xs text-slate-400 text-center">{panelJob.progress}% complete</p>
+                      </div>
+                    )}
+                    
+                    {panelJob.resultUrls && panelJob.resultUrls.length > 0 && (
+                      <div 
+                        className="grid grid-cols-2 gap-4"
+                        onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
+                      >
+                        {panelJob.resultUrls.map((url, i) => (
+                          <div key={i} className="rounded-lg overflow-hidden border border-slate-600 relative">
+                            <img 
+                              src={url?.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`}
+                              alt={`Panel ${i+1}`} 
+                              className="w-full select-none pointer-events-none"
+                              draggable="false"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {panelJob.resultUrl && !panelJob.resultUrls && (
+                      <div 
+                        className="rounded-lg overflow-hidden border border-slate-600 relative"
+                        onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
+                      >
+                        <img 
+                          src={panelJob.resultUrl?.startsWith('http') ? panelJob.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${panelJob.resultUrl}`}
+                          alt="Comic Panel" 
+                          className="w-full select-none pointer-events-none"
+                          draggable="false"
+                        />
+                      </div>
+                    )}
+                    
+                    {panelJob.status === 'COMPLETED' && (panelJob.resultUrl || panelJob.resultUrls) && (
+                      <div className="flex gap-2">
+                        <Button 
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          onClick={() => handleDownload(panelJob.id, 'panel')}
+                        >
+                          <Download className="w-4 h-4 mr-2" /> 
+                          <span className="text-white">Download ({panelJob.downloaded ? 'Free' : `${pricing.download} credits`})</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12 text-slate-400">
