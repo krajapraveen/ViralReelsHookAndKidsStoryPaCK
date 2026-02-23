@@ -241,6 +241,8 @@ Kids-friendly GIF generator:
 - `/app/test_reports/iteration_65.json` - Initial QA
 - `/app/test_reports/iteration_66.json` - Creator Tools
 - `/app/test_reports/iteration_67.json` - New Features
+- `/app/test_reports/iteration_68.json` - Backend/Frontend Testing
+- `/app/test_reports/iteration_69.json` - **UI Bug Fixes Verification (100% Pass)**
 
 ---
 
