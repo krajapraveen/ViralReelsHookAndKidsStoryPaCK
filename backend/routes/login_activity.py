@@ -210,7 +210,7 @@ async def detect_risk_flags(user_id: Optional[str], ip_address: str, country: st
     if country:
         previous_countries = await db.login_activity.distinct(
             "country",
-            {"user_id": user_id, "status": "SUCCESS", "country": {"$ne": None, "$ne": ""}}
+            {"user_id": user_id, "status": "SUCCESS", "country": {"$nin": [None, ""]}}
         )
         if previous_countries and country not in previous_countries:
             risk_flags.append("New Country")
