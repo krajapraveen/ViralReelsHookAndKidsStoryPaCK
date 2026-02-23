@@ -509,6 +509,15 @@ async def google_callback(request: Request, data: GoogleCallback):
                 "createdAt": datetime.now(timezone.utc).isoformat()
             })
             
+            # Log successful Google registration/login
+            await log_login_activity(
+                request=request,
+                user_id=user_id,
+                identifier=email,
+                status="SUCCESS",
+                auth_method="google"
+            )
+            
             token = create_token(user_id, "user")
             
             logger.info(f"New Google user registered: {email}")
