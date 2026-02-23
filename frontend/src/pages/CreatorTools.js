@@ -839,132 +839,292 @@ export default function CreatorTools() {
 
           {/* Convert Tab */}
           <TabsContent value="convert">
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
-              <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-                <RefreshCw className="w-6 h-6 text-indigo-400" />
-                Convert Content
-              </h2>
-              <p className="text-slate-400 mb-6">Repurpose your existing content into new formats</p>
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Reel to Carousel */}
-                <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-xl p-5 border border-indigo-500/30 hover:border-indigo-500/50 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-indigo-500/20 rounded-lg">
-                      <LayoutGrid className="w-5 h-5 text-indigo-400" />
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* Left: Conversion Options */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 backdrop-blur-sm">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                  <RefreshCw className="w-6 h-6 text-indigo-400" />
+                  Convert Content
+                </h2>
+                <p className="text-slate-400 mb-6">Repurpose your existing content into new formats</p>
+                
+                <div className="space-y-6">
+                  {/* Reel to Carousel */}
+                  <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-xl p-5 border border-indigo-500/30 hover:border-indigo-500/50 transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-indigo-500/20 rounded-lg">
+                        <LayoutGrid className="w-5 h-5 text-indigo-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">Reel → Carousel</h3>
+                        <span className="text-xs text-indigo-400 font-medium bg-indigo-500/20 px-2 py-0.5 rounded-full">5 credits</span>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-white">Reel → Carousel</h3>
-                      <span className="text-xs text-indigo-400 font-medium bg-indigo-500/20 px-2 py-0.5 rounded-full">5 credits</span>
+                    <p className="text-sm text-slate-400 mb-4">Convert your viral reel script into a 5-10 slide Instagram carousel with captions</p>
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedReelId} onValueChange={setSelectedReelId}>
+                        <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-reel-carousel-select">
+                          <SelectValue placeholder={userReels.length > 0 ? "Select a reel" : "Use most recent reel"} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent reel</SelectItem>
+                          {userReels.map(reel => (
+                            <SelectItem key={reel.id} value={reel.id} className="text-white hover:bg-slate-700">
+                              {reel.topic || 'Untitled Reel'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        className="bg-indigo-600 hover:bg-indigo-700" 
+                        size="sm" 
+                        onClick={convertReelToCarousel}
+                        disabled={convertLoading}
+                        data-testid="convert-reel-carousel-btn"
+                      >
+                        {convertLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Convert'}
+                      </Button>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-400 mb-4">Convert your viral reel script into a 5-10 slide Instagram carousel with captions</p>
-                  <div className="flex items-center gap-2">
-                    <Select defaultValue="">
-                      <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-reel-carousel-select">
-                        <SelectValue placeholder="Select a reel to convert" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent reel</SelectItem>
-                        <SelectItem value="history" className="text-white hover:bg-slate-700">Browse from history...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button className="bg-indigo-600 hover:bg-indigo-700" size="sm" data-testid="convert-reel-carousel-btn">
-                      Convert
-                    </Button>
+                  
+                  {/* Reel to YouTube */}
+                  <div className="bg-gradient-to-br from-red-500/10 to-orange-500/10 rounded-xl p-5 border border-red-500/30 hover:border-red-500/50 transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-red-500/20 rounded-lg">
+                        <Video className="w-5 h-5 text-red-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">Reel → YouTube</h3>
+                        <span className="text-xs text-red-400 font-medium bg-red-500/20 px-2 py-0.5 rounded-full">2 credits</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-400 mb-4">Expand your 60-second reel into a full 8-10 minute YouTube video script</p>
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedReelId} onValueChange={setSelectedReelId}>
+                        <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-reel-youtube-select">
+                          <SelectValue placeholder={userReels.length > 0 ? "Select a reel" : "Use most recent reel"} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent reel</SelectItem>
+                          {userReels.map(reel => (
+                            <SelectItem key={reel.id} value={reel.id} className="text-white hover:bg-slate-700">
+                              {reel.topic || 'Untitled Reel'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        className="bg-red-600 hover:bg-red-700" 
+                        size="sm" 
+                        onClick={convertReelToYoutube}
+                        disabled={convertLoading}
+                        data-testid="convert-reel-youtube-btn"
+                      >
+                        {convertLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Expand'}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Story to Reel */}
+                  <div className="bg-gradient-to-br from-pink-500/10 to-rose-500/10 rounded-xl p-5 border border-pink-500/30 hover:border-pink-500/50 transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-pink-500/20 rounded-lg">
+                        <BookOpen className="w-5 h-5 text-pink-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">Story → Reel</h3>
+                        <span className="text-xs text-pink-400 font-medium bg-pink-500/20 px-2 py-0.5 rounded-full">5 credits</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-400 mb-4">Convert your kids story into a short parenting reel about the moral/lesson</p>
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedStoryId} onValueChange={setSelectedStoryId}>
+                        <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-story-reel-select">
+                          <SelectValue placeholder={userStories.length > 0 ? "Select a story" : "Use most recent story"} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent story</SelectItem>
+                          {userStories.map(story => (
+                            <SelectItem key={story.id} value={story.id} className="text-white hover:bg-slate-700">
+                              {story.title || 'Untitled Story'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        className="bg-pink-600 hover:bg-pink-700" 
+                        size="sm" 
+                        onClick={convertStoryToReel}
+                        disabled={convertLoading}
+                        data-testid="convert-story-reel-btn"
+                      >
+                        {convertLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Convert'}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Story to Quote */}
+                  <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-xl p-5 border border-emerald-500/30 hover:border-emerald-500/50 transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-emerald-500/20 rounded-lg">
+                        <MessageSquare className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">Story → Quote</h3>
+                        <span className="text-xs text-emerald-400 font-medium bg-emerald-500/20 px-2 py-0.5 rounded-full">FREE</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-400 mb-4">Generate shareable moral quotes and wisdom from your kids story</p>
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedStoryId} onValueChange={setSelectedStoryId}>
+                        <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-story-quote-select">
+                          <SelectValue placeholder={userStories.length > 0 ? "Select a story" : "Use most recent story"} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent story</SelectItem>
+                          {userStories.map(story => (
+                            <SelectItem key={story.id} value={story.id} className="text-white hover:bg-slate-700">
+                              {story.title || 'Untitled Story'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        className="bg-emerald-600 hover:bg-emerald-700" 
+                        size="sm" 
+                        onClick={convertStoryToQuote}
+                        disabled={convertLoading}
+                        data-testid="convert-story-quote-btn"
+                      >
+                        {convertLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generate'}
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 
-                {/* Reel to YouTube */}
-                <div className="bg-gradient-to-br from-red-500/10 to-orange-500/10 rounded-xl p-5 border border-red-500/30 hover:border-red-500/50 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-red-500/20 rounded-lg">
-                      <Video className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white">Reel → YouTube</h3>
-                      <span className="text-xs text-red-400 font-medium bg-red-500/20 px-2 py-0.5 rounded-full">2 credits</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-slate-400 mb-4">Expand your 60-second reel into a full 8-10 minute YouTube video script</p>
-                  <div className="flex items-center gap-2">
-                    <Select defaultValue="">
-                      <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-reel-youtube-select">
-                        <SelectValue placeholder="Select a reel to expand" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent reel</SelectItem>
-                        <SelectItem value="history" className="text-white hover:bg-slate-700">Browse from history...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button className="bg-red-600 hover:bg-red-700" size="sm" data-testid="convert-reel-youtube-btn">
-                      Expand
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* Story to Reel */}
-                <div className="bg-gradient-to-br from-pink-500/10 to-rose-500/10 rounded-xl p-5 border border-pink-500/30 hover:border-pink-500/50 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-pink-500/20 rounded-lg">
-                      <BookOpen className="w-5 h-5 text-pink-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white">Story → Reel</h3>
-                      <span className="text-xs text-pink-400 font-medium bg-pink-500/20 px-2 py-0.5 rounded-full">5 credits</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-slate-400 mb-4">Convert your kids story into a short parenting reel about the moral/lesson</p>
-                  <div className="flex items-center gap-2">
-                    <Select defaultValue="">
-                      <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-story-reel-select">
-                        <SelectValue placeholder="Select a story to convert" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent story</SelectItem>
-                        <SelectItem value="history" className="text-white hover:bg-slate-700">Browse from history...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button className="bg-pink-600 hover:bg-pink-700" size="sm" data-testid="convert-story-reel-btn">
-                      Convert
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* Story to Quote */}
-                <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-xl p-5 border border-emerald-500/30 hover:border-emerald-500/50 transition-all">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-emerald-500/20 rounded-lg">
-                      <MessageSquare className="w-5 h-5 text-emerald-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white">Story → Quote</h3>
-                      <span className="text-xs text-emerald-400 font-medium bg-emerald-500/20 px-2 py-0.5 rounded-full">FREE</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-slate-400 mb-4">Generate shareable moral quotes and wisdom from your kids story</p>
-                  <div className="flex items-center gap-2">
-                    <Select defaultValue="">
-                      <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-story-quote-select">
-                        <SelectValue placeholder="Select a story" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="recent" className="text-white hover:bg-slate-700">Use most recent story</SelectItem>
-                        <SelectItem value="history" className="text-white hover:bg-slate-700">Browse from history...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button className="bg-emerald-600 hover:bg-emerald-700" size="sm" data-testid="convert-story-quote-btn">
-                      Generate
-                    </Button>
-                  </div>
+                {/* Coming Soon */}
+                <div className="mt-6 bg-slate-700/30 rounded-lg p-4 border border-dashed border-slate-600">
+                  <p className="text-sm text-slate-400 text-center">
+                    🚀 Coming Soon: Carousel → Thread, YouTube → Shorts, Story → Audiobook
+                  </p>
                 </div>
               </div>
               
-              {/* Coming Soon */}
-              <div className="mt-6 bg-slate-700/30 rounded-lg p-4 border border-dashed border-slate-600">
-                <p className="text-sm text-slate-400 text-center">
-                  🚀 Coming Soon: Carousel → Thread, YouTube → Shorts, Story → Audiobook
-                </p>
+              {/* Right: Conversion Results */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 max-h-[800px] overflow-y-auto backdrop-blur-sm">
+                <h3 className="text-lg font-bold text-white mb-4">Conversion Result</h3>
+                {!convertResult ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <RefreshCw className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                    <p>Select content and click a conversion button</p>
+                    <p className="text-sm mt-2">Results will appear here</p>
+                  </div>
+                ) : convertResult.type === 'carousel' ? (
+                  <div className="space-y-4" data-testid="convert-carousel-result">
+                    <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3">
+                      <p className="text-indigo-300 font-medium">{convertResult.data.message}</p>
+                    </div>
+                    {convertResult.data.carousel?.slides?.map((slide) => (
+                      <div key={slide.slideNumber} className={`rounded-lg p-4 border ${
+                        slide.type === 'cover' ? 'bg-blue-500/10 border-blue-500/30' : 
+                        slide.type === 'cta' ? 'bg-green-500/10 border-green-500/30' : 
+                        'bg-slate-700/30 border-slate-600'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-white">Slide {slide.slideNumber}</span>
+                          <span className={`text-xs uppercase px-2 py-1 rounded ${
+                            slide.type === 'cover' ? 'bg-blue-500/20 text-blue-300' : 
+                            slide.type === 'cta' ? 'bg-green-500/20 text-green-300' : 
+                            'bg-slate-600 text-slate-300'
+                          }`}>{slide.type}</span>
+                        </div>
+                        <p className="font-medium text-white">{slide.headline}</p>
+                        {slide.body && <p className="text-sm text-slate-300 mt-1">{slide.body}</p>}
+                        {slide.cta && <p className="text-sm text-green-400 mt-1 font-medium">{slide.cta}</p>}
+                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(slide.headline + (slide.body ? '\n' + slide.body : ''), `convert-slide-${slide.slideNumber}`)} className="mt-2 text-slate-400 hover:text-white">
+                          {copied === `convert-slide-${slide.slideNumber}` ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                          Copy
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : convertResult.type === 'youtube' ? (
+                  <div className="space-y-4" data-testid="convert-youtube-result">
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                      <p className="text-red-300 font-medium">{convertResult.data.message}</p>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                      <h4 className="font-bold text-white mb-2">{convertResult.data.youtubeScript?.title}</h4>
+                      <p className="text-sm text-slate-400 mb-3">{convertResult.data.youtubeScript?.description}</p>
+                      <span className="text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded">{convertResult.data.youtubeScript?.estimatedLength}</span>
+                    </div>
+                    {convertResult.data.youtubeScript?.sections?.map((section, i) => (
+                      <div key={i} className="bg-slate-700/30 rounded-lg p-3 border border-slate-600">
+                        <h5 className="font-medium text-white mb-1">{section.section}</h5>
+                        <p className="text-sm text-slate-300">{section.content}</p>
+                        {section.tips && <p className="text-xs text-slate-500 mt-2">💡 {section.tips}</p>}
+                      </div>
+                    ))}
+                    {convertResult.data.youtubeScript?.mainContent?.map((section, i) => (
+                      <div key={`main-${i}`} className="bg-slate-700/30 rounded-lg p-3 border border-slate-600">
+                        <h5 className="font-medium text-white mb-1">{section.section}</h5>
+                        <p className="text-sm text-slate-300">{section.expandedContent}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : convertResult.type === 'reel' ? (
+                  <div className="space-y-4" data-testid="convert-reel-result">
+                    <div className="bg-pink-500/10 border border-pink-500/30 rounded-lg p-3">
+                      <p className="text-pink-300 font-medium">{convertResult.data.message}</p>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                      <h4 className="font-bold text-white mb-2">{convertResult.data.reel?.title}</h4>
+                      <p className="text-sm text-pink-400 font-medium mb-2">Best Hook:</p>
+                      <p className="text-white bg-pink-500/10 rounded p-2 border border-pink-500/30">{convertResult.data.reel?.best_hook}</p>
+                    </div>
+                    <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600">
+                      <h5 className="font-medium text-white mb-2">All Hooks</h5>
+                      {convertResult.data.reel?.hooks?.map((hook, i) => (
+                        <div key={i} className="flex items-center justify-between py-1">
+                          <span className="text-sm text-slate-300">{hook}</span>
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(hook, `hook-${i}`)}>
+                            {copied === `hook-${i}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {convertResult.data.reel?.hashtags?.map((tag, i) => (
+                        <span key={i} className="text-sm bg-slate-800 text-slate-300 px-2 py-1 rounded cursor-pointer hover:bg-slate-700" onClick={() => copyToClipboard(tag, `reel-tag-${i}`)}>{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : convertResult.type === 'quotes' ? (
+                  <div className="space-y-4" data-testid="convert-quotes-result">
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
+                      <p className="text-emerald-300 font-medium">{convertResult.data.message}</p>
+                    </div>
+                    {convertResult.data.result?.quotes?.map((quote, i) => (
+                      <div key={i} className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-lg p-4 border border-emerald-500/30">
+                        <p className="text-lg text-white font-medium mb-2">{quote.quote}</p>
+                        <p className="text-sm text-emerald-400">{quote.source}</p>
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded capitalize">{quote.type}</span>
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`${quote.quote}\n${quote.source}`, `quote-${i}`)} className="text-slate-400 hover:text-white">
+                            {copied === `quote-${i}` ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                            Copy
+                          </Button>
+                        </div>
+                        {quote.designSuggestion && <p className="text-xs text-slate-500 mt-2">💡 {quote.designSuggestion}</p>}
+                      </div>
+                    ))}
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {convertResult.data.result?.hashtags?.map((tag, i) => (
+                        <span key={i} className="text-sm bg-slate-800 text-slate-300 px-2 py-1 rounded cursor-pointer hover:bg-slate-700" onClick={() => copyToClipboard(tag, `quote-tag-${i}`)}>{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </TabsContent>
