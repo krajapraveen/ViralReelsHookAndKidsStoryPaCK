@@ -48,10 +48,13 @@ export default function ComixAI() {
   // Pricing state
   const [pricing, setPricing] = useState({ generate: 10, download: 15, download_story: 20 });
   
-  // Results state
-  const [currentJob, setCurrentJob] = useState(null);
+  // Separate job states for each tab
+  const [characterJob, setCharacterJob] = useState(null);
+  const [panelJob, setPanelJob] = useState(null);
+  const [storyJob, setStoryJob] = useState(null);
   const [history, setHistory] = useState([]);
   const [pollingInterval, setPollingInterval] = useState(null);
+  const [activeTab, setActiveTab] = useState('character');
 
   useEffect(() => {
     fetchCredits();
