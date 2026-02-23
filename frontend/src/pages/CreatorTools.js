@@ -60,7 +60,21 @@ export default function CreatorTools() {
   useEffect(() => {
     fetchCredits();
     fetchTrending(trendingNiche);
+    fetchUserContent();
   }, []);
+
+  const fetchUserContent = async () => {
+    try {
+      const [reelsRes, storiesRes] = await Promise.all([
+        api.get('/api/convert/user-reels?limit=10'),
+        api.get('/api/convert/user-stories?limit=10')
+      ]);
+      setUserReels(reelsRes.data.reels || []);
+      setUserStories(storiesRes.data.stories || []);
+    } catch (error) {
+      console.error('Failed to fetch user content');
+    }
+  };
 
   const fetchCredits = async () => {
     try {
