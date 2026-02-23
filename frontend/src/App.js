@@ -45,6 +45,7 @@ import SubscriptionManagement from './pages/SubscriptionManagement';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import ComixAI from './pages/ComixAI';
 import GifMaker from './pages/GifMaker';
+import ComicStorybook from './pages/ComicStorybook';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import AppTour, { TourProvider } from './components/AppTour';
