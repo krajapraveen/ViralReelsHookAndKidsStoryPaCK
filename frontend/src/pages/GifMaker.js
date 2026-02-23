@@ -408,7 +408,7 @@ export default function GifMaker() {
                 <div>
                   <label className="block text-sm text-slate-400 mb-2">Style</label>
                   <Select value={selectedStyle} onValueChange={setSelectedStyle}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600" data-testid="gif-style-select">
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white" data-testid="gif-style-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
@@ -421,7 +421,7 @@ export default function GifMaker() {
                 <div>
                   <label className="block text-sm text-slate-400 mb-2">Background</label>
                   <Select value={selectedBackground} onValueChange={setSelectedBackground}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600">
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
