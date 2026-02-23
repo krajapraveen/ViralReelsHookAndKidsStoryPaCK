@@ -219,6 +219,7 @@ export default function ComixAI() {
     }
     
     setLoading(true);
+    setToastShown({});
     try {
       const formData = new FormData();
       formData.append('scene_description', sceneDescription);
@@ -233,10 +234,10 @@ export default function ComixAI() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      setCurrentJob({ id: response.data.jobId, status: 'QUEUED' });
+      setPanelJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Panel generation started!');
       
-      const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
+      const interval = setInterval(() => pollJobStatus(response.data.jobId, 'panel'), 2000);
       setPollingInterval(interval);
       
     } catch (error) {
@@ -258,6 +259,7 @@ export default function ComixAI() {
     }
     
     setLoading(true);
+    setToastShown({});
     try {
       const formData = new FormData();
       formData.append('story_prompt', storyPrompt);
@@ -275,7 +277,7 @@ export default function ComixAI() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
+      setStoryJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success(`Story generation started! ${characterImages.length > 0 ? `Using ${characterImages.length} character image(s)` : ''}`);
       
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
