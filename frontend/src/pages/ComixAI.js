@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload, Wand2, Image, BookOpen, Palette, Loader2, Download, Copy, Check, RefreshCw, Trash2, Settings, Key, Sparkles, Grid3X3, Layers } from 'lucide-react';
+import { ArrowLeft, Upload, Wand2, Image, BookOpen, Palette, Loader2, Download, Copy, Check, RefreshCw, Trash2, Settings, Key, Sparkles, Grid3X3, Layers, Lock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Checkbox } from '../components/ui/checkbox';
+import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
