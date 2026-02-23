@@ -74,7 +74,6 @@ from routes.cashfree_webhook_handler import router as cashfree_webhook_router
 from routes.security_monitoring import router as security_router
 from routes.ab_testing import router as ab_testing_router
 from routes.push_notifications import router as push_notifications_router
-from routes.comic_studio import router as comic_studio_router
 
 # Create FastAPI app
 app = FastAPI(
