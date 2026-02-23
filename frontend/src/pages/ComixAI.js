@@ -333,7 +333,10 @@ export default function ComixAI() {
       await api.delete(`/api/comix/job/${jobId}`);
       toast.success('Deleted');
       fetchHistory();
-      if (currentJob?.id === jobId) setCurrentJob(null);
+      // Clear the appropriate job state
+      if (characterJob?.id === jobId) setCharacterJob(null);
+      if (panelJob?.id === jobId) setPanelJob(null);
+      if (storyJob?.id === jobId) setStoryJob(null);
     } catch (error) {
       toast.error('Failed to delete');
     }
