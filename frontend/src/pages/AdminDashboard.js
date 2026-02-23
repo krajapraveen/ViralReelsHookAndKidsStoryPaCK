@@ -119,6 +119,12 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Link to="/app/admin/login-activity">
+              <Button variant="outline" size="sm" className="border-blue-500/50 text-blue-300 hover:bg-blue-500/20">
+                <Users className="w-4 h-4 mr-2" />
+                Login Activity
+              </Button>
+            </Link>
             <Link to="/app/admin/monitoring">
               <Button variant="outline" size="sm" className="border-green-500/50 text-green-300 hover:bg-green-500/20">
                 <Activity className="w-4 h-4 mr-2" />
