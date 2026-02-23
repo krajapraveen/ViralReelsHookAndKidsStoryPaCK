@@ -195,6 +195,89 @@ export default function CreatorTools() {
     }
   };
 
+  // Convert Functions
+  const convertReelToCarousel = async () => {
+    if (credits < 5) {
+      toast.error('Need 5 credits for this conversion');
+      return;
+    }
+    
+    setConvertLoading(true);
+    try {
+      const url = selectedReelId 
+        ? `/api/convert/reel-to-carousel?generation_id=${selectedReelId}`
+        : '/api/convert/reel-to-carousel?use_recent=true';
+      const response = await api.post(url);
+      setConvertResult({ type: 'carousel', data: response.data });
+      fetchCredits();
+      toast.success(response.data.message || 'Converted to carousel!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Conversion failed');
+    } finally {
+      setConvertLoading(false);
+    }
+  };
+
+  const convertReelToYoutube = async () => {
+    if (credits < 2) {
+      toast.error('Need 2 credits for this conversion');
+      return;
+    }
+    
+    setConvertLoading(true);
+    try {
+      const url = selectedReelId 
+        ? `/api/convert/reel-to-youtube?generation_id=${selectedReelId}`
+        : '/api/convert/reel-to-youtube?use_recent=true';
+      const response = await api.post(url);
+      setConvertResult({ type: 'youtube', data: response.data });
+      fetchCredits();
+      toast.success(response.data.message || 'Expanded to YouTube script!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Conversion failed');
+    } finally {
+      setConvertLoading(false);
+    }
+  };
+
+  const convertStoryToReel = async () => {
+    if (credits < 5) {
+      toast.error('Need 5 credits for this conversion');
+      return;
+    }
+    
+    setConvertLoading(true);
+    try {
+      const url = selectedStoryId 
+        ? `/api/convert/story-to-reel?generation_id=${selectedStoryId}`
+        : '/api/convert/story-to-reel?use_recent=true';
+      const response = await api.post(url);
+      setConvertResult({ type: 'reel', data: response.data });
+      fetchCredits();
+      toast.success(response.data.message || 'Converted to reel!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Conversion failed');
+    } finally {
+      setConvertLoading(false);
+    }
+  };
+
+  const convertStoryToQuote = async () => {
+    setConvertLoading(true);
+    try {
+      const url = selectedStoryId 
+        ? `/api/convert/story-to-quote?generation_id=${selectedStoryId}`
+        : '/api/convert/story-to-quote?use_recent=true';
+      const response = await api.post(url);
+      setConvertResult({ type: 'quotes', data: response.data });
+      toast.success(response.data.message || 'Quotes extracted!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Extraction failed');
+    } finally {
+      setConvertLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
