@@ -908,7 +908,7 @@ export default function ComixAI() {
                     data-testid="generate-story-btn"
                   >
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BookOpen className="w-4 h-4 mr-2" />}
-                    Generate Comic Story
+                    <span className="text-white">Generate Comic Story</span>
                   </Button>
                 </div>
               </div>
@@ -916,22 +916,63 @@ export default function ComixAI() {
               {/* Story Result */}
               <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 max-h-[800px] overflow-y-auto">
                 <h3 className="text-xl font-bold text-white mb-4">Your Comic Story</h3>
-                {currentJob?.panels ? (
+                {storyJob ? (
                   <div className="space-y-4">
-                    {currentJob.panels.map((panel, i) => (
-                      <div key={i} className="rounded-lg overflow-hidden border border-slate-600 bg-slate-700/50">
-                        <img src={panel.imageUrl} alt={`Panel ${i+1}`} className="w-full" />
-                        <div className="p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-purple-400 font-medium">{panel.scene}</span>
-                            <span className="text-slate-500 text-sm">Panel {panel.panelNumber}</span>
-                          </div>
-                          {panel.dialogue && (
-                            <p className="text-slate-300 text-sm bg-slate-800 rounded px-3 py-2">{panel.dialogue}</p>
-                          )}
-                        </div>
+                    <div className="flex items-center justify-between">
+                      <span className={`px-3 py-1 rounded-full text-sm ${
+                        storyJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
+                        storyJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {storyJob.status}
+                      </span>
+                      {storyJob.progressMessage && storyJob.status === 'PROCESSING' && (
+                        <span className="text-slate-400 text-sm">{storyJob.progressMessage}</span>
+                      )}
+                    </div>
+                    
+                    {storyJob.status === 'PROCESSING' && storyJob.progress !== undefined && (
+                      <div className="space-y-2">
+                        <Progress value={storyJob.progress} className="h-2" />
+                        <p className="text-xs text-slate-400 text-center">{storyJob.progress}% complete</p>
                       </div>
-                    ))}
+                    )}
+                    
+                    {storyJob.panels && storyJob.panels.length > 0 && (
+                      <div onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}>
+                        {storyJob.panels.map((panel, i) => (
+                          <div key={i} className="rounded-lg overflow-hidden border border-slate-600 bg-slate-700/50 mb-4">
+                            <img 
+                              src={panel.imageUrl?.startsWith('http') ? panel.imageUrl : `${process.env.REACT_APP_BACKEND_URL}${panel.imageUrl}`}
+                              alt={`Panel ${i+1}`} 
+                              className="w-full select-none pointer-events-none"
+                              draggable="false"
+                            />
+                            <div className="p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-purple-400 font-medium">{panel.scene}</span>
+                                <span className="text-slate-500 text-sm">Panel {panel.panelNumber}</span>
+                              </div>
+                              {panel.dialogue && (
+                                <p className="text-slate-300 text-sm bg-slate-800 rounded px-3 py-2">{panel.dialogue}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {storyJob.status === 'COMPLETED' && storyJob.panels && storyJob.panels.length > 0 && (
+                      <div className="flex gap-2 sticky bottom-0 bg-slate-800/90 p-3 rounded-lg">
+                        <Button 
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          onClick={() => handleDownload(storyJob.id, 'story')}
+                        >
+                          <Download className="w-4 h-4 mr-2" /> 
+                          <span className="text-white">Download Story ({storyJob.downloaded ? 'Free' : `${pricing.download_story} credits`})</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12 text-slate-400">
