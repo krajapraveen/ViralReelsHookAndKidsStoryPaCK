@@ -134,6 +134,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Login Activity</span>
               </Button>
             </Link>
+            <Link to="/app/admin/realtime-analytics">
+              <Button variant="outline" size="sm" className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20" data-testid="realtime-analytics-btn">
+                <Activity className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Live Analytics</span>
+              </Button>
+            </Link>
             <Link to="/app/admin/monitoring">
               <Button variant="outline" size="sm" className="border-green-500/50 text-green-300 hover:bg-green-500/20">
                 <Activity className="w-4 h-4 mr-2" />
