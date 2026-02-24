@@ -111,7 +111,7 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int) -> 
             from emergentintegrations.llm.chat import LlmChat, UserMessage
             
             # Enhance prompt for kid-friendly imagery
-            full_prompt = f"Children's book illustration, colorful, whimsical, kid-friendly: {prompt}. Pixar-style 3D animation, soft lighting, friendly characters, vibrant colors."
+            full_prompt = f"Children's book illustration, colorful, whimsical, kid-friendly: {prompt}. Modern 3D animation style, soft lighting, friendly characters, vibrant colors."
             
             chat = LlmChat(
                 api_key=EMERGENT_LLM_KEY,

@@ -47,7 +47,7 @@ export default function StoryGenerator() {
     setting: 'forest',
     scenes: 8,
     language: 'English',
-    style: 'Pixar-like 3D',
+    style: 'Animated 3D',
     length: '60s'
   });
 

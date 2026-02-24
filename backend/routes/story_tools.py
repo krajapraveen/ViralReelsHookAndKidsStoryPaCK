@@ -37,7 +37,7 @@ PAGE_THEMES = [
 
 
 def generate_colorful_pdf(story: Dict, output_path: str):
-    """Generate a colorful Disney-style PDF using ReportLab (production-safe)"""
+    """Generate a colorful storybook-style PDF using ReportLab (production-safe)"""
     doc = SimpleDocTemplate(
         output_path, 
         pagesize=A4,
