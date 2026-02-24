@@ -172,7 +172,7 @@ async def get_realtime_metrics() -> Dict[str, Any]:
 @router.get("/snapshot")
 async def get_analytics_snapshot(user: dict = Depends(get_current_user)):
     """Get current analytics snapshot"""
-    if user.get("role") != "admin":
+    if user.get("role", "").upper() != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
     
     try:
@@ -186,7 +186,7 @@ async def get_analytics_snapshot(user: dict = Depends(get_current_user)):
 @router.get("/live-stats")
 async def get_live_stats(user: dict = Depends(get_current_user)):
     """Get simplified live stats for dashboard widget"""
-    if user.get("role") != "admin":
+    if user.get("role", "").upper() != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
     
     now = datetime.now(timezone.utc)
@@ -233,7 +233,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @router.get("/generation-trends")
 async def get_generation_trends(user: dict = Depends(get_current_user)):
     """Get generation trends for the last 7 days"""
-    if user.get("role") != "admin":
+    if user.get("role", "").upper() != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
     
     now = datetime.now(timezone.utc)
@@ -261,7 +261,7 @@ async def get_generation_trends(user: dict = Depends(get_current_user)):
 @router.get("/revenue-breakdown")
 async def get_revenue_breakdown(user: dict = Depends(get_current_user)):
     """Get revenue breakdown by plan type"""
-    if user.get("role") != "admin":
+    if user.get("role", "").upper() != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
     
     now = datetime.now(timezone.utc)
