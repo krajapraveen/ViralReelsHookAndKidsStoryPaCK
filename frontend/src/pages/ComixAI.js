@@ -712,6 +712,19 @@ export default function ComixAI() {
                     </div>
                   )}
 
+                  {/* Negative Prompt */}
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-2">Negative Prompt (optional)</label>
+                    <Input
+                      placeholder="Exclude: blurry, distorted faces, extra limbs..."
+                      value={panelNegativePrompt}
+                      onChange={(e) => setPanelNegativePrompt(e.target.value)}
+                      className="bg-slate-700 border-slate-600"
+                      data-testid="panel-negative-prompt"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Describe what you DON'T want in the panels</p>
+                  </div>
+
                   <Button 
                     onClick={generatePanel}
                     disabled={loading || !sceneDescription.trim()}
