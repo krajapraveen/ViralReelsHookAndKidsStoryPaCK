@@ -776,21 +776,21 @@ async def export_analytics_pdf(
     pdf.set_text_color(102, 126, 234)
     pdf.cell(0, 15, "CreatorStudio AI Analytics Report", new_x="LMARGIN", new_y="NEXT", align="C")
     
-    pdf.set_font("Arial", "", 10)
+    pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(128, 128, 128)
-    pdf.cell(0, 10, f"Generated: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}", ln=True, align="C")
-    pdf.cell(0, 5, f"Period: Last {days} days", ln=True, align="C")
+    pdf.cell(0, 10, f"Generated: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(0, 5, f"Period: Last {days} days", new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.ln(10)
     
     # Live Metrics Section
-    pdf.set_font("Arial", "B", 14)
+    pdf.set_font("Helvetica", "B", 14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 10, "Live Metrics", ln=True)
+    pdf.cell(0, 10, "Live Metrics", new_x="LMARGIN", new_y="NEXT")
     pdf.set_draw_color(102, 126, 234)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(5)
     
-    pdf.set_font("Arial", "", 11)
+    pdf.set_font("Helvetica", "", 11)
     live = metrics.get("liveMetrics", {})
     metrics_data = [
         ("Active Users", live.get("activeUsers", 0)),
@@ -803,51 +803,51 @@ async def export_analytics_pdf(
     
     for label, value in metrics_data:
         pdf.cell(80, 8, label + ":", 0)
-        pdf.cell(0, 8, str(value), ln=True)
+        pdf.cell(0, 8, str(value), new_x="LMARGIN", new_y="NEXT")
     
     pdf.ln(10)
     
     # Performance Section
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Performance (Last 24 Hours)", ln=True)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, "Performance (Last 24 Hours)", new_x="LMARGIN", new_y="NEXT")
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(5)
     
-    pdf.set_font("Arial", "", 11)
+    pdf.set_font("Helvetica", "", 11)
     perf = metrics.get("performance", {})
     pdf.cell(80, 8, "Success Rate:", 0)
-    pdf.cell(0, 8, f"{perf.get('successRate', 0)}%", ln=True)
+    pdf.cell(0, 8, f"{perf.get('successRate', 0)}%", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(80, 8, "Total Jobs:", 0)
-    pdf.cell(0, 8, str(perf.get('totalJobs24h', 0)), ln=True)
+    pdf.cell(0, 8, str(perf.get('totalJobs24h', 0)), new_x="LMARGIN", new_y="NEXT")
     pdf.cell(80, 8, "Successful Jobs:", 0)
-    pdf.cell(0, 8, str(perf.get('successfulJobs24h', 0)), ln=True)
+    pdf.cell(0, 8, str(perf.get('successfulJobs24h', 0)), new_x="LMARGIN", new_y="NEXT")
     pdf.cell(80, 8, "Failed Jobs:", 0)
-    pdf.cell(0, 8, str(perf.get('failedJobs24h', 0)), ln=True)
+    pdf.cell(0, 8, str(perf.get('failedJobs24h', 0)), new_x="LMARGIN", new_y="NEXT")
     
     pdf.ln(10)
     
     # Revenue Section
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Revenue", ln=True)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, "Revenue", new_x="LMARGIN", new_y="NEXT")
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(5)
     
-    pdf.set_font("Arial", "", 11)
+    pdf.set_font("Helvetica", "", 11)
     rev = metrics.get("revenue", {})
     pdf.cell(80, 8, "Today's Revenue:", 0)
-    pdf.cell(0, 8, f"INR {rev.get('today', 0):,.2f}", ln=True)
+    pdf.cell(0, 8, f"INR {rev.get('today', 0):,.2f}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(80, 8, "Last 7 Days:", 0)
-    pdf.cell(0, 8, f"INR {rev.get('last7Days', 0):,.2f}", ln=True)
+    pdf.cell(0, 8, f"INR {rev.get('last7Days', 0):,.2f}", new_x="LMARGIN", new_y="NEXT")
     
     pdf.ln(10)
     
     # Generations by Type
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Generations by Type (24h)", ln=True)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, "Generations by Type (24h)", new_x="LMARGIN", new_y="NEXT")
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(5)
     
-    pdf.set_font("Arial", "", 11)
+    pdf.set_font("Helvetica", "", 11)
     for gen_type in metrics.get("generationsByType", [])[:10]:
         pdf.cell(80, 8, gen_type.get("type", "Unknown") + ":", 0)
         pdf.cell(0, 8, str(gen_type.get("count", 0)), ln=True)
