@@ -65,13 +65,19 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
+    "lint": "eslint src/",
     "cy:open": "cypress open",
     "cy:run": "cypress run",
     "cy:run:headed": "cypress run --headed",
     "test:e2e": "cypress run --spec 'cypress/e2e/**/*.cy.js'",
     "test:e2e:auth": "cypress run --spec 'cypress/e2e/auth.cy.js'",
     "test:e2e:dashboard": "cypress run --spec 'cypress/e2e/dashboard.cy.js'",
-    "test:e2e:generation": "cypress run --spec 'cypress/e2e/content-generation.cy.js'"
+    "test:e2e:generation": "cypress run --spec 'cypress/e2e/content-generation.cy.js'",
+    "test:e2e:fixes": "cypress run --spec 'cypress/e2e/22-fixes-verification.cy.js'",
+    "test:e2e:image-gen": "cypress run --spec 'cypress/e2e/image-generation-e2e.cy.js'",
+    "test:visual": "cypress run --spec 'cypress/e2e/visual-regression.cy.js'",
+    "test:all": "cypress run",
+    "test:ci": "cypress run --browser chrome --headless"
   },
   "browserslist": {
     "production": [

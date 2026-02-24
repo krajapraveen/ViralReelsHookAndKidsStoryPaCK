@@ -23,6 +23,14 @@ module.exports = defineConfig({
       adminEmail: 'admin@creatorstudio.ai',
       adminPassword: 'Cr3@t0rStud!o#2026',
     },
+    // Visual regression settings
+    screenshotsFolder: 'cypress/screenshots',
+    videosFolder: 'cypress/videos',
+    trashAssetsBeforeRuns: false,
+    // Percy integration (when enabled)
+    // percy: {
+    //   token: process.env.PERCY_TOKEN
+    // }
   },
   component: {
     devServer: {
