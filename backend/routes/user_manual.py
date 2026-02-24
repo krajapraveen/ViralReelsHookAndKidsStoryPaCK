@@ -263,26 +263,6 @@ USER_MANUAL = {
             ]
         },
         
-        "twinfinder": {
-            "title": "TwinFinder - Face Lookalike",
-            "description": "Find your celebrity twin using AI face analysis.",
-            "icon": "users",
-            "creditCost": "5 credits per scan",
-            "howToUse": [
-                "1. Navigate to TwinFinder",
-                "2. Upload a clear photo of your face",
-                "3. Ensure good lighting and face visibility",
-                "4. Click 'Find My Twin'",
-                "5. View your top celebrity matches",
-                "6. Share results on social media"
-            ],
-            "tips": [
-                "Use a front-facing photo with good lighting",
-                "Remove glasses for better accuracy",
-                "Results include similarity percentage"
-            ]
-        },
-        
         "style_profiles": {
             "title": "Style Profiles",
             "description": "Create and manage visual style profiles for consistent AI generations.",
@@ -322,6 +302,101 @@ USER_MANUAL = {
                 "Search and filter capabilities",
                 "Batch download option",
                 "3-day file retention for large files"
+            ]
+        },
+        
+        "comix_ai": {
+            "title": "Comix AI - Photo to Comic",
+            "description": "Transform photos into comic-style characters and create comic panels.",
+            "icon": "image",
+            "creditCost": "5-10 credits",
+            "howToUse": [
+                "1. Navigate to Comix AI",
+                "2. Choose creation mode:",
+                "   - Character Mode: Upload a photo to create a comic character",
+                "   - Panel Mode: Create comic panels with speech bubbles",
+                "   - Story Mode: Generate a full comic story",
+                "3. Upload your image or enter your prompt",
+                "4. Select style (American, Manga, European, etc.)",
+                "5. Add negative prompts to exclude unwanted elements (optional)",
+                "6. Click 'Generate' and wait for results",
+                "7. Download your comic creation"
+            ],
+            "tips": [
+                "Use clear, well-lit photos for best character results",
+                "Negative prompts help refine the output",
+                "Combine Character and Panel modes for full comics"
+            ],
+            "features": [
+                "Multiple comic styles",
+                "Speech bubble integration",
+                "Character consistency across panels",
+                "High-resolution output"
+            ]
+        },
+        
+        "gif_maker": {
+            "title": "GIF Maker",
+            "description": "Create animated GIFs from AI-generated content.",
+            "icon": "film",
+            "creditCost": "8-15 credits",
+            "howToUse": [
+                "1. Navigate to GIF Maker",
+                "2. Choose your GIF type:",
+                "   - Text to GIF: Enter a description for animation",
+                "   - Reaction GIF: Create expressive reaction GIFs",
+                "   - Meme GIF: Add text overlays to animated content",
+                "3. Configure settings:",
+                "   - Frame count (4-12 frames)",
+                "   - Animation speed",
+                "   - Loop type",
+                "4. Click 'Generate GIF'",
+                "5. Preview the animation",
+                "6. Download your GIF"
+            ],
+            "tips": [
+                "More frames = smoother animation but higher credit cost",
+                "Reaction GIFs are great for social media engagement",
+                "Use simple prompts for clearer animations"
+            ],
+            "features": [
+                "Multiple animation styles",
+                "Customizable frame rates",
+                "Text overlay support",
+                "Perfect looping"
+            ]
+        },
+        
+        "comic_storybook": {
+            "title": "Comic Story Book",
+            "description": "Create 20-page illustrated comic story books.",
+            "icon": "book",
+            "creditCost": "25-40 credits",
+            "howToUse": [
+                "1. Navigate to Comic Story Book",
+                "2. Enter your story details:",
+                "   - Title and main character",
+                "   - Story theme and genre",
+                "   - Target age group",
+                "3. Select comic style (Manga, Western, Cartoon, etc.)",
+                "4. Choose page count (10, 15, or 20 pages)",
+                "5. Add optional elements:",
+                "   - Custom character descriptions",
+                "   - Specific scene requests",
+                "6. Click 'Generate Story Book'",
+                "7. Wait for generation (2-5 minutes)",
+                "8. Download as PDF or images"
+            ],
+            "tips": [
+                "Detailed character descriptions improve consistency",
+                "Shorter books generate faster",
+                "Include moral/lesson for educational value"
+            ],
+            "features": [
+                "Full narrative with illustrations",
+                "Consistent character design",
+                "Professional PDF layout",
+                "Multiple art styles"
             ]
         }
     },
