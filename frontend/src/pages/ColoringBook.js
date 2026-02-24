@@ -664,6 +664,31 @@ export default function ColoringBookGenerator() {
                   <p className="text-xs text-slate-500">Upload & convert images</p>
                 </button>
               </div>
+              
+              {/* Instructional Text for Selected Mode */}
+              <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
+                {mode === 'placeholder' ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-purple-300">DIY Mode Instructions:</p>
+                    <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside">
+                      <li>Pages include empty frames with scene descriptions</li>
+                      <li>Kids draw their own illustrations based on the prompts</li>
+                      <li>Perfect for developing creativity and imagination</li>
+                      <li>No image upload required - just select story and export</li>
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-pink-300">Photo Mode Instructions:</p>
+                    <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside">
+                      <li>Upload photos for each scene from your device</li>
+                      <li>AI converts photos to black & white outline drawings</li>
+                      <li>Adjust outline strength for thicker or thinner lines</li>
+                      <li>Great for turning family photos into coloring pages</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Story Selection */}
