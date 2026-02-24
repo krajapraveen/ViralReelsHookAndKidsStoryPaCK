@@ -129,11 +129,13 @@ export default function ComicStorybook() {
     }
   };
 
-  // Track toast shown state
-  const [toastShown, setToastShown] = useState({});
+  // Track toast shown state using ref to prevent infinite loops
+  const toastShownRef = React.useRef({});
   const pollingRef = React.useRef(null);
+  const isPollingRef = React.useRef(false);
 
   const stopPolling = useCallback(() => {
+    isPollingRef.current = false;
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
@@ -145,28 +147,29 @@ export default function ComicStorybook() {
   }, [pollingInterval]);
 
   const pollJobStatus = useCallback(async (jobId) => {
+    // Prevent polling if already stopped
+    if (!isPollingRef.current) return;
+    
     try {
       const response = await api.get(`/api/comic-storybook/job/${jobId}`);
       setCurrentJob(response.data);
       
       if (response.data.status === 'COMPLETED' || response.data.status === 'FAILED') {
+        // Stop polling immediately
         stopPolling();
         setLoading(false);
         fetchCredits();
         fetchHistory();
         
-        // Only show toast once
-        setToastShown(prev => {
-          if (!prev[jobId]) {
-            if (response.data.status === 'COMPLETED') {
-              toast.success('Comic story book generated successfully!');
-            } else {
-              toast.error('Generation failed. Please try again.');
-            }
-            return { ...prev, [jobId]: true };
+        // Only show toast once using ref (not state)
+        if (!toastShownRef.current[jobId]) {
+          toastShownRef.current[jobId] = true;
+          if (response.data.status === 'COMPLETED') {
+            toast.success('Comic story book generated successfully!');
+          } else {
+            toast.error('Generation failed. Please try again.');
           }
-          return prev;
-        });
+        }
       }
     } catch (error) {
       console.error('Poll error:', error);

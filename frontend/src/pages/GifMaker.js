@@ -104,11 +104,13 @@ export default function GifMaker() {
     }
   };
 
-  // Track which jobs have shown toast
-  const [toastShown, setToastShown] = useState({});
+  // Track which jobs have shown toast using ref to prevent loops
+  const toastShownRef = React.useRef({});
   const pollingRef = React.useRef(null);
+  const isPollingRef = React.useRef(false);
 
   const stopGifPolling = useCallback(() => {
+    isPollingRef.current = false;
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
@@ -120,28 +122,29 @@ export default function GifMaker() {
   }, [pollingInterval]);
 
   const pollJobStatus = useCallback(async (jobId) => {
+    // Prevent polling if already stopped
+    if (!isPollingRef.current) return;
+    
     try {
       const response = await api.get(`/api/gif-maker/job/${jobId}`);
       setCurrentJob(response.data);
       
       if (response.data.status === 'COMPLETED' || response.data.status === 'FAILED') {
+        // Stop polling immediately
         stopGifPolling();
         setLoading(false);
         fetchCredits();
         fetchHistory();
         
-        // Only show toast once per job
-        setToastShown(prev => {
-          if (!prev[jobId]) {
-            if (response.data.status === 'COMPLETED') {
-              toast.success('GIF generated successfully!');
-            } else {
-              toast.error('Generation failed. Please try again.');
-            }
-            return { ...prev, [jobId]: true };
+        // Only show toast once per job using ref (not state)
+        if (!toastShownRef.current[jobId]) {
+          toastShownRef.current[jobId] = true;
+          if (response.data.status === 'COMPLETED') {
+            toast.success('GIF generated successfully!');
+          } else {
+            toast.error('Generation failed. Please try again.');
           }
-          return prev;
-        });
+        }
       }
     } catch (error) {
       console.error('Poll error:', error);

@@ -127,10 +127,12 @@ export default function ComixAI() {
   };
 
   // Track if toast has been shown for current job
-  const [toastShown, setToastShown] = useState({});
+  const toastShownRef = React.useRef({});
   const pollingIntervalRef = React.useRef(null);
+  const isPollingRef = React.useRef(false);
 
   const stopPolling = useCallback(() => {
+    isPollingRef.current = false;
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
@@ -142,6 +144,9 @@ export default function ComixAI() {
   }, [pollingInterval]);
 
   const pollJobStatus = useCallback(async (jobId, jobType) => {
+    // Prevent polling if already stopped
+    if (!isPollingRef.current) return;
+    
     try {
       const response = await api.get(`/api/comix/job/${jobId}`);
       
@@ -155,23 +160,21 @@ export default function ComixAI() {
       }
       
       if (response.data.status === 'COMPLETED' || response.data.status === 'FAILED') {
+        // Stop polling immediately
         stopPolling();
         setLoading(false);
         fetchCredits();
         fetchHistory();
         
-        // Only show toast once per job using a closure check
-        setToastShown(prev => {
-          if (!prev[jobId]) {
-            if (response.data.status === 'COMPLETED') {
-              toast.success('Comic generated successfully!');
-            } else {
-              toast.error('Generation failed. Please try again.');
-            }
-            return { ...prev, [jobId]: true };
+        // Only show toast once per job using ref (not state)
+        if (!toastShownRef.current[jobId]) {
+          toastShownRef.current[jobId] = true;
+          if (response.data.status === 'COMPLETED') {
+            toast.success('Comic generated successfully!');
+          } else {
+            toast.error('Generation failed. Please try again.');
           }
-          return prev;
-        });
+        }
       }
     } catch (error) {
       console.error('Poll error:', error);
