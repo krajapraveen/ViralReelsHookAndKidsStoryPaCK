@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://bugfix-preview-8.preview.emergentagent.com
+**Website:** https://backend-rebuild-8.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai
