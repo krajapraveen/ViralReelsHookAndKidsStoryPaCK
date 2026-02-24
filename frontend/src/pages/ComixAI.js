@@ -250,6 +250,7 @@ export default function ComixAI() {
       formData.append('mood', mood);
       formData.append('include_speech_bubbles', includeSpeech.toString());
       if (speechText) formData.append('speech_text', speechText);
+      if (panelNegativePrompt) formData.append('negative_prompt', panelNegativePrompt);
       
       const response = await api.post('/api/comix/generate-panel', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
