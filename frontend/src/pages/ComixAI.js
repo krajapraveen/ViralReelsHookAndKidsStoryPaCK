@@ -205,6 +205,7 @@ export default function ComixAI() {
       formData.append('character_type', characterType);
       formData.append('remove_background', removeBackground.toString());
       if (customPrompt) formData.append('custom_prompt', customPrompt);
+      if (characterNegativePrompt) formData.append('negative_prompt', characterNegativePrompt);
       
       const response = await api.post('/api/comix/generate-character', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
