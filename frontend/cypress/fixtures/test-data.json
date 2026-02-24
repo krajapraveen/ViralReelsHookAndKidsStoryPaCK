@@ -1,0 +1,35 @@
+{
+  "testUser": {
+    "email": "demo@example.com",
+    "password": "Password123!"
+  },
+  "adminUser": {
+    "email": "admin@creatorstudio.ai",
+    "password": "Cr3@t0rStud!o#2026"
+  },
+  "testImage": {
+    "name": "test-portrait.jpg",
+    "type": "image/jpeg",
+    "size": "50KB"
+  },
+  "comixAI": {
+    "styles": ["classic", "manga", "american", "european"],
+    "characterTypes": ["portrait", "fullbody"],
+    "panelCounts": ["1", "2", "4", "6"]
+  },
+  "gifMaker": {
+    "emotions": ["happy", "sad", "excited", "laughing", "surprised", "thinking"],
+    "styles": ["cartoon", "realistic", "anime"]
+  },
+  "creatorTools": {
+    "convertCosts": {
+      "reelToCarousel": 10,
+      "reelToYoutube": 10,
+      "storyToReel": 10
+    }
+  },
+  "expectedFeatures": {
+    "shouldExist": ["comix_ai", "gif_maker", "comic_storybook", "genstudio", "story_generator"],
+    "shouldNotExist": ["twinfinder"]
+  }
+}
