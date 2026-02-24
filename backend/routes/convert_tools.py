@@ -21,11 +21,11 @@ from shared import (
 
 router = APIRouter(prefix="/convert", tags=["Convert Tools"])
 
-# Conversion costs
+# Conversion costs - Updated to 10 credits for main conversions
 CONVERSION_COSTS = {
-    "reel_to_carousel": 5,
-    "reel_to_youtube": 2,
-    "story_to_reel": 5,
+    "reel_to_carousel": 10,
+    "reel_to_youtube": 10,
+    "story_to_reel": 10,
     "story_to_quote": 0,  # FREE
     "text_to_story": 10,
     "text_to_reel": 15
