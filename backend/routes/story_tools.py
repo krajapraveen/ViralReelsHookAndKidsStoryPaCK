@@ -387,7 +387,7 @@ async def generate_printable_book(
     personalization: Optional[Dict[str, Any]] = None,
     user: dict = Depends(get_current_user)
 ):
-    """Generate Disney-style colorful printable book from story (5 credits)"""
+    """Generate colorful storybook-style printable book from story (5 credits)"""
     try:
         # Get the story generation
         generation = await db.generations.find_one(
@@ -445,7 +445,7 @@ async def generate_printable_book(
             {"$set": {"status": "completed", "pdfPath": pdf_path}}
         )
         
-        logger.info(f"Disney-style PDF generated successfully: {pdf_path}")
+        logger.info(f"Colorful storybook PDF generated successfully: {pdf_path}")
         
         return {
             "success": True,
@@ -465,7 +465,7 @@ async def generate_printable_book(
 
 @router.get("/download-book/{book_id}")
 async def download_printable_book_pdf(book_id: str, user: dict = Depends(get_current_user)):
-    """Download Disney-style printable book PDF"""
+    """Download colorful storybook printable PDF"""
     try:
         book = await db.printable_books.find_one(
             {"id": book_id, "userId": user["id"]},
