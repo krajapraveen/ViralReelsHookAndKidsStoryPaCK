@@ -161,6 +161,8 @@ export default function GifMaker() {
     }
     
     setLoading(true);
+    stopGifPolling(); // Clear any existing polling
+    
     try {
       const formData = new FormData();
       formData.append('photo', photo);
@@ -178,6 +180,7 @@ export default function GifMaker() {
       toast.success('Generation started!');
       
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
+      pollingRef.current = interval;
       setPollingInterval(interval);
       
     } catch (error) {
