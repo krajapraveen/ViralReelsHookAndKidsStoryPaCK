@@ -850,16 +850,16 @@ async def export_analytics_pdf(
     pdf.set_font("Helvetica", "", 11)
     for gen_type in metrics.get("generationsByType", [])[:10]:
         pdf.cell(80, 8, gen_type.get("type", "Unknown") + ":", 0)
-        pdf.cell(0, 8, str(gen_type.get("count", 0)), ln=True)
+        pdf.cell(0, 8, str(gen_type.get("count", 0)), new_x="LMARGIN", new_y="NEXT")
     
     # Footer
     pdf.ln(20)
-    pdf.set_font("Arial", "I", 8)
+    pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(128, 128, 128)
-    pdf.cell(0, 10, "CreatorStudio AI - Confidential Analytics Report", ln=True, align="C")
+    pdf.cell(0, 10, "CreatorStudio AI - Confidential Analytics Report", new_x="LMARGIN", new_y="NEXT", align="C")
     
     # Output PDF
-    pdf_output = pdf.output(dest='S').encode('latin-1')
+    pdf_output = bytes(pdf.output())
     
     filename = f"creatorstudio_analytics_{now.strftime('%Y%m%d')}.pdf"
     
