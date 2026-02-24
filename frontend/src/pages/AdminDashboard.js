@@ -38,7 +38,10 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const [analyticsRes, featuresRes] = await Promise.all([
-        api.get(`/api/admin/analytics/dashboard?days=${dateRange}`),
+        api.get(`/api/admin/analytics/dashboard?days=${dateRange}`).catch(e => {
+          console.log('Analytics error:', e.response?.status);
+          return { data: { success: false } };
+        }),
         api.get('/api/feature-requests/analytics').catch(() => ({ data: { success: false } }))
       ]);
       
@@ -52,9 +55,9 @@ export default function AdminDashboard() {
       if (error.response?.status === 403) {
         toast.error('Admin access required');
         navigate('/app');
-      } else {
-        toast.error('Failed to load analytics data');
       }
+      // Silent fail for other errors - don't show toast
+      console.error('Dashboard data error:', error);
     } finally {
       setLoading(false);
     }
