@@ -76,6 +76,7 @@
     "test:e2e:fixes": "cypress run --spec 'cypress/e2e/22-fixes-verification.cy.js'",
     "test:e2e:image-gen": "cypress run --spec 'cypress/e2e/image-generation-e2e.cy.js'",
     "test:visual": "cypress run --spec 'cypress/e2e/visual-regression.cy.js'",
+    "test:mobile": "cypress run --spec 'cypress/e2e/mobile-verification.cy.js'",
     "test:all": "cypress run",
     "test:ci": "cypress run --browser chrome --headless"
   },
