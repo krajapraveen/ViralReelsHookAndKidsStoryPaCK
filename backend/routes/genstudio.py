@@ -40,14 +40,31 @@ GENSTUDIO_COSTS = {
 
 # Prompt Templates
 GENSTUDIO_TEMPLATES = [
+    # Marketing Templates
     {"id": "product_ad", "name": "Product Advertisement", "category": "marketing", "prompt": "Professional product photography of {product}, studio lighting, white background, commercial quality, 8k resolution"},
     {"id": "luxury_reel", "name": "Luxury Brand Reel", "category": "marketing", "prompt": "Cinematic shot of {subject}, luxury aesthetic, golden hour lighting, elegant composition, premium feel"},
+    {"id": "food_photo", "name": "Food Photography", "category": "marketing", "prompt": "Appetizing food photography of {dish}, professional styling, soft lighting, restaurant quality, mouth-watering presentation"},
+    {"id": "tech_product", "name": "Tech Product Shot", "category": "marketing", "prompt": "Sleek tech product render of {product}, minimalist background, professional lighting, Apple-style aesthetic"},
+    
+    # Creative Templates
     {"id": "kids_story", "name": "Kids Story Illustration", "category": "creative", "prompt": "Colorful children's book illustration of {scene}, whimsical style, soft pastel colors, friendly characters, storybook quality"},
+    {"id": "nature_scene", "name": "Nature Landscape", "category": "creative", "prompt": "Breathtaking landscape of {location}, golden hour, dramatic sky, professional photography, National Geographic style"},
+    {"id": "abstract_art", "name": "Abstract Art", "category": "creative", "prompt": "Abstract digital art inspired by {theme}, vibrant colors, fluid shapes, modern contemporary style, high resolution"},
+    {"id": "fantasy_scene", "name": "Fantasy Scene", "category": "creative", "prompt": "Magical fantasy scene of {description}, ethereal lighting, mystical atmosphere, detailed illustration, concept art style"},
+    
+    # Social Media Templates
     {"id": "motivation", "name": "Motivational Content", "category": "social", "prompt": "Inspirational image with {theme}, dramatic lighting, powerful composition, motivational atmosphere"},
     {"id": "social_post", "name": "Social Media Post", "category": "social", "prompt": "Eye-catching social media graphic featuring {subject}, vibrant colors, modern design, engagement-optimized"},
-    {"id": "nature_scene", "name": "Nature Landscape", "category": "creative", "prompt": "Breathtaking landscape of {location}, golden hour, dramatic sky, professional photography, National Geographic style"},
-    {"id": "food_photo", "name": "Food Photography", "category": "marketing", "prompt": "Appetizing food photography of {dish}, professional styling, soft lighting, restaurant quality, mouth-watering presentation"},
-    {"id": "tech_product", "name": "Tech Product Shot", "category": "marketing", "prompt": "Sleek tech product render of {product}, minimalist background, professional lighting, Apple-style aesthetic"}
+    {"id": "quote_graphic", "name": "Quote Graphic", "category": "social", "prompt": "Beautiful background for quote about {topic}, elegant typography-friendly design, calming colors, minimal aesthetic"},
+    {"id": "travel_photo", "name": "Travel Photography", "category": "social", "prompt": "Stunning travel photography of {destination}, golden hour, wanderlust vibes, adventure aesthetic, Instagram-worthy"},
+    
+    # Copyright-Free Sample Prompts
+    {"id": "sunset_beach", "name": "Sunset Beach", "category": "sample", "prompt": "Beautiful sunset over a tropical beach, golden and pink sky, calm ocean waves, palm tree silhouettes, peaceful atmosphere, ultra high definition"},
+    {"id": "mountain_vista", "name": "Mountain Vista", "category": "sample", "prompt": "Majestic mountain range at sunrise, snow-capped peaks, misty valleys, pine forest foreground, dramatic clouds, landscape photography"},
+    {"id": "city_skyline", "name": "City Skyline", "category": "sample", "prompt": "Modern city skyline at dusk, glowing skyscrapers, reflection on water, blue hour lighting, urban photography, architectural details"},
+    {"id": "flower_garden", "name": "Flower Garden", "category": "sample", "prompt": "Vibrant flower garden in full bloom, roses and tulips, morning dew droplets, soft sunlight, botanical garden photography"},
+    {"id": "cozy_cafe", "name": "Cozy Cafe", "category": "sample", "prompt": "Warm cozy cafe interior, wooden tables, hanging plants, soft ambient lighting, coffee cups, hygge aesthetic, lifestyle photography"},
+    {"id": "forest_path", "name": "Forest Path", "category": "sample", "prompt": "Enchanting forest path with sunbeams through trees, autumn leaves, mystical atmosphere, fairy tale woodland, nature photography"}
 ]
 
 
