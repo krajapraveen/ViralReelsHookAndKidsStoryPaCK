@@ -26,6 +26,7 @@ export default function ComixAI() {
   const [characterType, setCharacterType] = useState('portrait');
   const [customPrompt, setCustomPrompt] = useState('');
   const [removeBackground, setRemoveBackground] = useState(false);
+  const [characterNegativePrompt, setCharacterNegativePrompt] = useState('');
   
   // Panel generation state
   const [sceneDescription, setSceneDescription] = useState('');
@@ -35,6 +36,7 @@ export default function ComixAI() {
   const [mood, setMood] = useState('exciting');
   const [includeSpeech, setIncludeSpeech] = useState(true);
   const [speechText, setSpeechText] = useState('');
+  const [panelNegativePrompt, setPanelNegativePrompt] = useState('');
   
   // Story mode state
   const [storyPrompt, setStoryPrompt] = useState('');
@@ -44,6 +46,7 @@ export default function ComixAI() {
   const [autoDialogue, setAutoDialogue] = useState(true);
   const [characterImages, setCharacterImages] = useState([]);
   const [characterPreviews, setCharacterPreviews] = useState([]);
+  const [storyNegativePrompt, setStoryNegativePrompt] = useState('');
   
   // Pricing state
   const [pricing, setPricing] = useState({ generate: 10, download: 15, download_story: 20 });
