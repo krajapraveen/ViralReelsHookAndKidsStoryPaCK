@@ -772,9 +772,9 @@ async def export_analytics_pdf(
     pdf.set_auto_page_break(auto=True, margin=15)
     
     # Title
-    pdf.set_font("Arial", "B", 24)
+    pdf.set_font("Helvetica", "B", 24)
     pdf.set_text_color(102, 126, 234)
-    pdf.cell(0, 15, "CreatorStudio AI Analytics Report", ln=True, align="C")
+    pdf.cell(0, 15, "CreatorStudio AI Analytics Report", new_x="LMARGIN", new_y="NEXT", align="C")
     
     pdf.set_font("Arial", "", 10)
     pdf.set_text_color(128, 128, 128)
