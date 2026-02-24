@@ -210,8 +210,11 @@ export default function ComixAI() {
       setCharacterJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
-      // Start polling with job type
+      // Reset toast shown state for new job and start polling
+      toastShownRef.current = {};
+      isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId, 'character'), 2000);
+      pollingIntervalRef.current = interval;
       setPollingInterval(interval);
       
     } catch (error) {
@@ -251,7 +254,11 @@ export default function ComixAI() {
       setPanelJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Panel generation started!');
       
+      // Reset toast shown state for new job and start polling
+      toastShownRef.current = {};
+      isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId, 'panel'), 2000);
+      pollingIntervalRef.current = interval;
       setPollingInterval(interval);
       
     } catch (error) {
@@ -294,7 +301,11 @@ export default function ComixAI() {
       setStoryJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success(`Story generation started! ${characterImages.length > 0 ? `Using ${characterImages.length} character image(s)` : ''}`);
       
+      // Reset toast shown state for new job and start polling
+      toastShownRef.current = {};
+      isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId, 'story'), 2000);
+      pollingIntervalRef.current = interval;
       setPollingInterval(interval);
       
     } catch (error) {

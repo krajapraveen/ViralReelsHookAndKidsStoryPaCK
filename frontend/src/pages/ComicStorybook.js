@@ -209,7 +209,11 @@ export default function ComicStorybook() {
       setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Story book generation started!');
       
+      // Reset toast shown state for new job and start polling
+      toastShownRef.current = {};
+      isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 3000);
+      pollingRef.current = interval;
       setPollingInterval(interval);
       
     } catch (error) {

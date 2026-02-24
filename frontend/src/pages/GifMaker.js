@@ -182,6 +182,9 @@ export default function GifMaker() {
       setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
+      // Reset toast shown state for new job and start polling
+      toastShownRef.current = {};
+      isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
       pollingRef.current = interval;
       setPollingInterval(interval);
