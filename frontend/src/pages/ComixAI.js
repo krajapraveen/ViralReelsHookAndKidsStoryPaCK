@@ -928,6 +928,19 @@ export default function ComixAI() {
                     <label htmlFor="auto-dialogue" className="text-sm text-slate-300">Auto-generate dialogue</label>
                   </div>
 
+                  {/* Negative Prompt */}
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-2">Negative Prompt (optional)</label>
+                    <Input
+                      placeholder="Exclude: blurry, deformed, bad anatomy..."
+                      value={storyNegativePrompt}
+                      onChange={(e) => setStoryNegativePrompt(e.target.value)}
+                      className="bg-slate-700 border-slate-600"
+                      data-testid="story-negative-prompt"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Describe what you DON'T want in the story panels</p>
+                  </div>
+
                   <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                     <p className="text-purple-300 text-sm">
                       <Sparkles className="w-4 h-4 inline mr-2" />
