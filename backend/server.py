@@ -80,6 +80,7 @@ from routes.gif_maker import router as gif_maker_router
 from routes.comic_storybook import router as comic_storybook_router
 from routes.login_activity import router as login_activity_router
 from routes.content import router as content_router
+from routes.realtime_analytics import router as realtime_analytics_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -238,6 +239,7 @@ api_router.include_router(gif_maker_router)
 api_router.include_router(comic_storybook_router)
 api_router.include_router(login_activity_router)
 api_router.include_router(content_router)
+api_router.include_router(realtime_analytics_router)
 
 # Include API router in app
 app.include_router(api_router)
