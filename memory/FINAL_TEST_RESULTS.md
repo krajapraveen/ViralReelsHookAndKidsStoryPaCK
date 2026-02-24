@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://comix-ai-bugfix.preview.emergentagent.com
+**Website:** https://urgent-bugfix-1.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

@@ -10,7 +10,7 @@ import time
 import os
 from datetime import datetime
 
-API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://comix-ai-bugfix.preview.emergentagent.com')
+API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://urgent-bugfix-1.preview.emergentagent.com')
 LOG_FILE = '/app/automation/logs/api_validation.log'
 REPORT_FILE = '/app/automation/reports/api_validation_report.json'
 
