@@ -22,7 +22,7 @@ router = APIRouter(prefix="/content", tags=["Content Vault"])
 async def get_content_vault(niche: Optional[str] = None, user: dict = Depends(get_current_user)):
     """Get user's saved content vault"""
     query = {"userId": user["id"]}
-    if niche:
+    if niche and niche != "all":
         query["niche"] = niche
     
     # Get saved generations
@@ -43,6 +43,12 @@ async def get_content_vault(niche: Optional[str] = None, user: dict = Depends(ge
         {"_id": 0}
     ).to_list(length=100)
     
+    # Get user plan
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "plan": 1, "subscription": 1})
+    plan = "free"
+    if user_data:
+        plan = user_data.get("plan") or user_data.get("subscription", {}).get("plan") or "free"
+    
     # Stats
     stats = {
         "totalGenerations": len(generations),
@@ -52,7 +58,29 @@ async def get_content_vault(niche: Optional[str] = None, user: dict = Depends(ge
         "savedHooks": len(saved_hooks)
     }
     
+    # Sample themes and templates for content vault
+    themes = [
+        {"id": "luxury", "name": "Luxury Lifestyle", "description": "High-end aesthetics and premium content", "color": "amber"},
+        {"id": "motivation", "name": "Motivation & Growth", "description": "Inspiring and uplifting content", "color": "purple"},
+        {"id": "business", "name": "Business & Entrepreneurship", "description": "Professional and business-focused", "color": "blue"},
+        {"id": "health", "name": "Health & Wellness", "description": "Fitness, nutrition, and wellness", "color": "green"},
+        {"id": "relationship", "name": "Relationships", "description": "Love, dating, and connection", "color": "pink"},
+        {"id": "parenting", "name": "Parenting", "description": "Family and child-focused content", "color": "teal"}
+    ]
+    
+    # Sample hooks and templates
+    sample_hooks = [
+        {"id": "h1", "text": "Stop scrolling. This will change your life.", "niche": "motivation", "engagement": 95},
+        {"id": "h2", "text": "POV: You finally understood this concept", "niche": "business", "engagement": 88},
+        {"id": "h3", "text": "3 things I wish I knew before turning 30", "niche": "lifestyle", "engagement": 92},
+        {"id": "h4", "text": "Nobody talks about this enough...", "niche": "health", "engagement": 85},
+        {"id": "h5", "text": "This is your sign to start today", "niche": "motivation", "engagement": 90}
+    ]
+    
     return {
+        "plan": plan,
+        "themes": themes,
+        "sampleHooks": sample_hooks,
         "generations": generations,
         "savedPrompts": saved_prompts,
         "savedHooks": saved_hooks,
