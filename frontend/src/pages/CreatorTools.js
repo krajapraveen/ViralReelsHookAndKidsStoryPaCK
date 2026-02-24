@@ -857,7 +857,7 @@ export default function CreatorTools() {
                       </div>
                       <div>
                         <h3 className="font-bold text-white">Reel → Carousel</h3>
-                        <span className="text-xs text-indigo-400 font-medium bg-indigo-500/20 px-2 py-0.5 rounded-full">5 credits</span>
+                        <span className="text-xs text-indigo-400 font-medium bg-indigo-500/20 px-2 py-0.5 rounded-full">10 credits</span>
                       </div>
                     </div>
                     <p className="text-sm text-slate-400 mb-4">Convert your viral reel script into a 5-10 slide Instagram carousel with captions</p>
@@ -895,7 +895,7 @@ export default function CreatorTools() {
                       </div>
                       <div>
                         <h3 className="font-bold text-white">Reel → YouTube</h3>
-                        <span className="text-xs text-red-400 font-medium bg-red-500/20 px-2 py-0.5 rounded-full">2 credits</span>
+                        <span className="text-xs text-red-400 font-medium bg-red-500/20 px-2 py-0.5 rounded-full">10 credits</span>
                       </div>
                     </div>
                     <p className="text-sm text-slate-400 mb-4">Expand your 60-second reel into a full 8-10 minute YouTube video script</p>
@@ -933,7 +933,7 @@ export default function CreatorTools() {
                       </div>
                       <div>
                         <h3 className="font-bold text-white">Story → Reel</h3>
-                        <span className="text-xs text-pink-400 font-medium bg-pink-500/20 px-2 py-0.5 rounded-full">5 credits</span>
+                        <span className="text-xs text-pink-400 font-medium bg-pink-500/20 px-2 py-0.5 rounded-full">10 credits</span>
                       </div>
                     </div>
                     <p className="text-sm text-slate-400 mb-4">Convert your kids story into a short parenting reel about the moral/lesson</p>
