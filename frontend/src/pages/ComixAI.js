@@ -128,6 +128,18 @@ export default function ComixAI() {
 
   // Track if toast has been shown for current job
   const [toastShown, setToastShown] = useState({});
+  const pollingIntervalRef = React.useRef(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  }, [pollingInterval]);
 
   const pollJobStatus = useCallback(async (jobId, jobType) => {
     try {
@@ -143,28 +155,28 @@ export default function ComixAI() {
       }
       
       if (response.data.status === 'COMPLETED' || response.data.status === 'FAILED') {
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          setPollingInterval(null);
-        }
+        stopPolling();
         setLoading(false);
         fetchCredits();
         fetchHistory();
         
-        // Only show toast once per job
-        if (!toastShown[jobId]) {
-          setToastShown(prev => ({ ...prev, [jobId]: true }));
-          if (response.data.status === 'COMPLETED') {
-            toast.success('Comic generated successfully!');
-          } else {
-            toast.error('Generation failed. Please try again.');
+        // Only show toast once per job using a closure check
+        setToastShown(prev => {
+          if (!prev[jobId]) {
+            if (response.data.status === 'COMPLETED') {
+              toast.success('Comic generated successfully!');
+            } else {
+              toast.error('Generation failed. Please try again.');
+            }
+            return { ...prev, [jobId]: true };
           }
-        }
+          return prev;
+        });
       }
     } catch (error) {
       console.error('Poll error:', error);
     }
-  }, [pollingInterval, toastShown]);
+  }, [stopPolling]);
 
   const generateCharacter = async () => {
     if (!characterPhoto) {
