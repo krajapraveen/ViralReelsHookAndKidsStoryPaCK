@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { HelpCircle, X, ChevronRight, ExternalLink, Sparkles } from 'lucide-react';
+import { HelpCircle, X, ChevronRight, ExternalLink, Sparkles, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAppTour } from './AppTour';
+import { toast } from 'sonner';
 
 // Help content for each page/section
 const HELP_CONTENT = {
@@ -255,23 +257,30 @@ const HELP_CONTENT = {
 
 export default function HelpGuide({ pageId = 'default', activeTab = null }) {
   const [isOpen, setIsOpen] = useState(false);
+  const { restartTour } = useAppTour();
   
   const content = HELP_CONTENT[pageId] || HELP_CONTENT['default'];
   const tabContent = activeTab && content.tabs ? content.tabs[activeTab] : null;
 
+  const handleStartTour = () => {
+    setIsOpen(false);
+    restartTour();
+    toast.success('Quick Tour started! Follow along to learn the features.');
+  };
+
   return (
     <>
-      {/* Floating Help Button */}
+      {/* Floating Help Button - Made more prominent */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-40 right-6 z-50 w-12 h-12 bg-purple-600 hover:bg-purple-500 text-white rounded-full shadow-lg shadow-purple-500/30 flex items-center justify-center transition-all hover:scale-110"
+        className="fixed bottom-40 right-6 z-50 w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-full shadow-lg shadow-purple-500/40 flex items-center justify-center transition-all hover:scale-110 animate-pulse"
         data-testid="help-guide-btn"
         aria-label="Open help guide"
       >
         {isOpen ? (
-          <X className="w-5 h-5" />
+          <X className="w-6 h-6" />
         ) : (
-          <HelpCircle className="w-5 h-5" />
+          <HelpCircle className="w-6 h-6" />
         )}
       </button>
 
@@ -350,6 +359,16 @@ export default function HelpGuide({ pageId = 'default', activeTab = null }) {
                 </ul>
               </div>
             )}
+
+            {/* Quick Tour Button - Prominent at top */}
+            <button
+              onClick={handleStartTour}
+              className="w-full mb-4 flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-lg shadow-green-500/30 hover:scale-[1.02]"
+              data-testid="quick-tour-btn"
+            >
+              <Play className="w-5 h-5" />
+              <span>Start Quick Tour</span>
+            </button>
 
             {/* Full Manual Link */}
             <Link 
