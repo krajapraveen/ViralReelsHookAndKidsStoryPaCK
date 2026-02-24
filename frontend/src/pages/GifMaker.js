@@ -621,27 +621,47 @@ export default function GifMaker() {
               <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
                 <h3 className="text-lg font-bold text-white mb-4">Recent GIFs</h3>
                 <div className="grid grid-cols-3 gap-3">
-                  {history.slice(0, 9).map((job) => (
-                    <div key={job.id} className="relative group rounded-lg overflow-hidden border border-slate-600">
-                      {job.resultUrl ? (
-                        <img src={job.resultUrl} alt="GIF" className="w-full aspect-square object-cover" />
-                      ) : job.results?.[0]?.url ? (
-                        <img src={job.results[0].url} alt="GIF" className="w-full aspect-square object-cover" />
-                      ) : (
-                        <div className="w-full aspect-square bg-slate-700 flex items-center justify-center">
+                  {history.slice(0, 9).map((job) => {
+                    const getImageUrl = (url) => {
+                      if (!url) return null;
+                      if (url.startsWith('http')) return url;
+                      return `${process.env.REACT_APP_BACKEND_URL}${url}`;
+                    };
+                    
+                    const imageUrl = getImageUrl(job.resultUrl) || getImageUrl(job.results?.[0]?.url);
+                    
+                    return (
+                      <div key={job.id} className="relative group rounded-lg overflow-hidden border border-slate-600">
+                        {imageUrl ? (
+                          <img 
+                            src={imageUrl} 
+                            alt="GIF" 
+                            className="w-full aspect-square object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className={`w-full aspect-square bg-gradient-to-br from-pink-500/30 to-purple-500/30 ${imageUrl ? 'hidden' : 'flex'} items-center justify-center`}
+                        >
                           <span className="text-2xl">{emotionIcons[job.emotion] || '🎨'}</span>
+                          <span className="text-xs text-white ml-1">{job.emotion || 'happy'}</span>
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => window.open(job.resultUrl || job.results?.[0]?.url, '_blank')}>
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteJob(job.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          {imageUrl && (
+                            <Button size="sm" variant="ghost" onClick={() => window.open(imageUrl, '_blank')}>
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => deleteJob(job.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
