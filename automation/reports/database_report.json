@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-23T14:57:37.733569",
+  "timestamp": "2026-02-24T05:05:45.683039",
   "health": {
     "error": "connection to server at \"localhost\" (127.0.0.1), port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (::1), port 5432 failed: Cannot assign requested address\n\tIs the server running on that host and accepting TCP/IP connections?\n",
     "status": "unhealthy"
