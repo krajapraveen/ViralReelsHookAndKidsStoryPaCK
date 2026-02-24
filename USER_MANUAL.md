@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://urgent-bugfix-1.preview.emergentagent.com
+**Platform URL:** https://bugfix-preview-8.preview.emergentagent.com
 
 ---
 

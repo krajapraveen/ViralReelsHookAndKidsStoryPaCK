@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://urgent-bugfix-1.preview.emergentagent.com  
+**Base URL:** https://bugfix-preview-8.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---
