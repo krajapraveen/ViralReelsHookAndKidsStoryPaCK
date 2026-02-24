@@ -197,8 +197,8 @@ export default function CreatorTools() {
 
   // Convert Functions
   const convertReelToCarousel = async () => {
-    if (credits < 5) {
-      toast.error('Need 5 credits for this conversion');
+    if (credits < 10) {
+      toast.error('Need 10 credits for this conversion');
       return;
     }
     
@@ -219,8 +219,8 @@ export default function CreatorTools() {
   };
 
   const convertReelToYoutube = async () => {
-    if (credits < 2) {
-      toast.error('Need 2 credits for this conversion');
+    if (credits < 10) {
+      toast.error('Need 10 credits for this conversion');
       return;
     }
     
@@ -241,8 +241,8 @@ export default function CreatorTools() {
   };
 
   const convertStoryToReel = async () => {
-    if (credits < 5) {
-      toast.error('Need 5 credits for this conversion');
+    if (credits < 10) {
+      toast.error('Need 10 credits for this conversion');
       return;
     }
     
