@@ -539,15 +539,17 @@ tr:hover td {
 }
 
 /* ============================================
-   GLOBAL AUTOFILL FIX - ALL BROWSERS
-   Remove yellow/blue autofill backgrounds
+   GLOBAL AUTOFILL FIX - ALL BROWSERS & DEVICES
+   Remove yellow/blue autofill backgrounds completely
    ============================================ */
 
-/* Chrome/Edge/Opera - Dark Theme (Default) */
+/* Chrome/Edge/Opera/Safari - All platforms */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active,
+input:-webkit-autofill:valid,
+input:-webkit-autofill:first-line,
 textarea:-webkit-autofill,
 textarea:-webkit-autofill:hover,
 textarea:-webkit-autofill:focus,
@@ -560,34 +562,78 @@ select:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
   box-shadow: 0 0 0px 1000px #1e293b inset !important;
   background-color: #1e293b !important;
+  background-image: none !important;
   caret-color: #f1f5f9 !important;
-  transition: background-color 9999s ease-in-out 0s !important;
+  transition: background-color 9999s ease-in-out 0s, color 9999s ease-in-out 0s !important;
   border-color: rgba(71, 85, 105, 0.5) !important;
+  color: #f1f5f9 !important;
 }
 
 /* Firefox autofill */
 input:autofill,
+input:autofill:hover,
+input:autofill:focus,
 textarea:autofill,
 select:autofill {
   -webkit-text-fill-color: #f1f5f9 !important;
   box-shadow: 0 0 0px 1000px #1e293b inset !important;
   background-color: #1e293b !important;
+  color: #f1f5f9 !important;
 }
 
-/* Safari iOS specific */
+/* Safari iOS specific - Mobile fix */
 @supports (-webkit-touch-callout: none) {
   input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
   textarea:-webkit-autofill,
   select:-webkit-autofill {
     -webkit-text-fill-color: #f1f5f9 !important;
     -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
     background-clip: content-box !important;
+    background-color: #1e293b !important;
   }
+}
+
+/* Android Chrome Mobile specific */
+@media screen and (max-width: 767px) {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: #f1f5f9 !important;
+    -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
+    box-shadow: 0 0 0px 1000px #1e293b inset !important;
+    background-color: #1e293b !important;
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    transition: background-color 9999s ease-in-out 0s !important;
+  }
+  
+  /* Remove any lingering yellow on mobile */
+  input, textarea, select {
+    background-color: transparent;
+  }
+  
+  input:focus, textarea:focus, select:focus {
+    background-color: transparent;
+  }
+}
+
+/* Remove internal autofill styling */
+input:-internal-autofill-selected,
+input:-internal-autofill-previewed {
+  background-color: #1e293b !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+  appearance: none !important;
 }
 
 /* Remove weird yellow highlight for focus */
 input, textarea, select {
   background-clip: padding-box !important;
+  -webkit-appearance: none;
 }
 
 /* Light theme variant (for specific components if needed) */
@@ -601,9 +647,25 @@ input, textarea, select {
 
 /* Modal/Dialog autofill fix */
 [role="dialog"] input:-webkit-autofill,
-.dialog-content input:-webkit-autofill {
+.dialog-content input:-webkit-autofill,
+.modal input:-webkit-autofill {
   -webkit-text-fill-color: #f1f5f9 !important;
   -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
+}
+
+/* Login/Signup page specific autofill fix */
+.login-form input:-webkit-autofill,
+.signup-form input:-webkit-autofill,
+.auth-form input:-webkit-autofill,
+[data-testid="email-input"]:-webkit-autofill,
+[data-testid="password-input"]:-webkit-autofill,
+input[type="email"]:-webkit-autofill,
+input[type="password"]:-webkit-autofill,
+input[type="text"]:-webkit-autofill {
+  -webkit-text-fill-color: #f1f5f9 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
+  box-shadow: 0 0 0px 1000px #1e293b inset !important;
+  background-color: #1e293b !important;
 }
 
 /* ============================================
