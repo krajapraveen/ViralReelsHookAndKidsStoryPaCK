@@ -129,30 +129,49 @@ export default function ComicStorybook() {
     }
   };
 
+  // Track toast shown state
+  const [toastShown, setToastShown] = useState({});
+  const pollingRef = React.useRef(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  }, [pollingInterval]);
+
   const pollJobStatus = useCallback(async (jobId) => {
     try {
       const response = await api.get(`/api/comic-storybook/job/${jobId}`);
       setCurrentJob(response.data);
       
       if (response.data.status === 'COMPLETED' || response.data.status === 'FAILED') {
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          setPollingInterval(null);
-        }
+        stopPolling();
         setLoading(false);
         fetchCredits();
         fetchHistory();
         
-        if (response.data.status === 'COMPLETED') {
-          toast.success('Comic story book generated successfully!');
-        } else {
-          toast.error('Generation failed. Please try again.');
-        }
+        // Only show toast once
+        setToastShown(prev => {
+          if (!prev[jobId]) {
+            if (response.data.status === 'COMPLETED') {
+              toast.success('Comic story book generated successfully!');
+            } else {
+              toast.error('Generation failed. Please try again.');
+            }
+            return { ...prev, [jobId]: true };
+          }
+          return prev;
+        });
       }
     } catch (error) {
       console.error('Poll error:', error);
     }
-  }, [pollingInterval]);
+  }, [stopPolling]);
 
   const generateStorybook = async () => {
     if (!storyText.trim() && !storyFile) {
