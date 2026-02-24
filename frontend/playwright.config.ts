@@ -12,7 +12,7 @@ export default defineConfig({
     ['list']
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'https://backend-rebuild-8.preview.emergentagent.com',
+    baseURL: process.env.BASE_URL || 'https://qaleadtest.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

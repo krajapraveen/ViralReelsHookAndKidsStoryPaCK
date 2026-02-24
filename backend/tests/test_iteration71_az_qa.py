@@ -8,7 +8,7 @@ import os
 import time
 
 # Base URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://backend-rebuild-8.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://qaleadtest.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 ADMIN_CREDS = {"email": "admin@creatorstudio.ai", "password": "Cr3@t0rStud!o#2026"}

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://backend-rebuild-8.preview.emergentagent.com
+**Platform URL:** https://qaleadtest.preview.emergentagent.com
 
 ---
 

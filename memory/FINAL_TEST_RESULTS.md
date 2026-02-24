@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://backend-rebuild-8.preview.emergentagent.com
+**Website:** https://qaleadtest.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

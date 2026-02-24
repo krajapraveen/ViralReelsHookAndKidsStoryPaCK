@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://backend-rebuild-8.preview.emergentagent.com/login  
+**URL Tested:** https://qaleadtest.preview.emergentagent.com/login  
 **Environment:** Desktop Chrome (1920x800) + Mobile (375x812)
 
 ---
