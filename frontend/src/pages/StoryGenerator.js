@@ -394,13 +394,9 @@ export default function StoryGenerator() {
               {result && (
                 <div className="flex gap-2">
                   <ShareButton type="STORY" title={result.title || 'Kids Story Pack'} preview={result.synopsis || ''} />
-                  <Button variant="outline" size="sm" onClick={() => handleDownloadClick('pdf')} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="download-story-pdf">
-                    <Download className="w-4 h-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">PDF</span>
-                  </Button>
                   <Button variant="outline" size="sm" onClick={() => handleDownloadClick('json')} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="download-story-btn">
                     <Download className="w-4 h-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">JSON</span>
+                    <span className="hidden sm:inline">Download</span>
                   </Button>
                 </div>
               )}
