@@ -237,6 +237,60 @@ const HELP_CONTENT = {
       'Archive data regularly'
     ]
   },
+  'comix-ai': {
+    title: 'Comix AI - Photo to Comic',
+    description: 'Transform photos into comic-style characters and panels.',
+    credits: '5-10 credits per generation',
+    steps: [
+      'Choose mode: Character, Panel, or Story',
+      'Upload a photo or enter a prompt',
+      'Select comic style (Manga, American, European)',
+      'Add negative prompts to refine output',
+      'Click Generate and wait for results',
+      'Download your comic creation'
+    ],
+    tips: [
+      'Use clear, well-lit photos for best character results',
+      'Negative prompts help exclude unwanted elements',
+      'Combine Character + Panel modes for full comics'
+    ]
+  },
+  'gif-maker': {
+    title: 'GIF Maker',
+    description: 'Create animated GIFs from AI-generated content.',
+    credits: '8-15 credits per GIF',
+    steps: [
+      'Choose GIF type: Text, Reaction, or Meme',
+      'Enter a description or upload an image',
+      'Configure frame count and animation speed',
+      'Click Generate GIF',
+      'Preview and download your animation'
+    ],
+    tips: [
+      'More frames = smoother but costs more',
+      'Reaction GIFs are great for social media',
+      'Simple prompts create clearer animations'
+    ]
+  },
+  'comic-storybook': {
+    title: 'Comic Story Book',
+    description: 'Create 20-page illustrated comic story books.',
+    credits: '25-40 credits per book',
+    steps: [
+      'Enter story title and main character',
+      'Select theme, genre, and age group',
+      'Choose comic style and page count',
+      'Add custom character descriptions',
+      'Click Generate Story Book',
+      'Wait 2-5 minutes for generation',
+      'Download as PDF or images'
+    ],
+    tips: [
+      'Detailed character descriptions improve consistency',
+      'Shorter books (10 pages) generate faster',
+      'Include a moral for educational value'
+    ]
+  },
   'default': {
     title: 'Help Guide',
     description: 'Get help with CreatorStudio AI features.',
