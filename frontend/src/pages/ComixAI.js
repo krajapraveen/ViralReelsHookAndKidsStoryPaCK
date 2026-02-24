@@ -293,6 +293,7 @@ export default function ComixAI() {
       formData.append('panel_count', storyPanelCount);
       formData.append('genre', storyGenre);
       formData.append('auto_dialogue', autoDialogue.toString());
+      if (storyNegativePrompt) formData.append('negative_prompt', storyNegativePrompt);
       
       // Add character images if provided
       characterImages.forEach((img, i) => {
