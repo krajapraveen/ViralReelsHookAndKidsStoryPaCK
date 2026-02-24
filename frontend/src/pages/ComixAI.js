@@ -501,7 +501,7 @@ export default function ComixAI() {
                 </div>
 
                 {/* Custom Prompt */}
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-sm text-slate-400 mb-2">Custom Details (optional)</label>
                   <Input
                     placeholder="Add specific details like clothing, accessories..."
@@ -510,6 +510,19 @@ export default function ComixAI() {
                     className="bg-slate-700 border-slate-600"
                     data-testid="character-custom-prompt"
                   />
+                </div>
+
+                {/* Negative Prompt */}
+                <div className="mb-6">
+                  <label className="block text-sm text-slate-400 mb-2">Negative Prompt (optional)</label>
+                  <Input
+                    placeholder="Exclude elements like: blurry, low quality, text..."
+                    value={characterNegativePrompt}
+                    onChange={(e) => setCharacterNegativePrompt(e.target.value)}
+                    className="bg-slate-700 border-slate-600"
+                    data-testid="character-negative-prompt"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Describe what you DON'T want in the image</p>
                 </div>
 
                 <Button 
