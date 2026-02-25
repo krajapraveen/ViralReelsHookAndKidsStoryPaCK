@@ -530,22 +530,49 @@ export default function ComicStorybook() {
                 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className={`px-3 py-1 rounded-full text-sm ${
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                       currentJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
                       currentJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                      'bg-yellow-500/20 text-yellow-400'
+                      currentJob.status === 'QUEUED' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-yellow-500/20 text-yellow-400 animate-pulse'
                     }`}>
-                      {currentJob.status}
+                      {currentJob.status === 'PROCESSING' ? 'GENERATING...' : currentJob.status}
                     </span>
                     {currentJob.currentPage && (
-                      <span className="text-slate-400">Page {currentJob.currentPage} / {currentJob.pageCount || pageCount}</span>
+                      <span className="text-amber-400 font-medium">Page {currentJob.currentPage} / {currentJob.pageCount || pageCount}</span>
                     )}
                   </div>
                   
-                  <div>
-                    <Progress value={currentJob.progress || 0} className="h-3" />
-                    <p className="text-sm text-slate-400 mt-2">{currentJob.progressMessage || 'Processing...'}</p>
-                  </div>
+                  {/* Enhanced Progress Bar */}
+                  {(currentJob.status === 'PROCESSING' || currentJob.status === 'QUEUED') && (
+                    <div className="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-400">Progress</span>
+                        <span className="text-amber-400 font-bold">{currentJob.progress || 0}%</span>
+                      </div>
+                      <div className="relative h-4 bg-slate-700 rounded-full overflow-hidden">
+                        <div 
+                          className="absolute top-0 left-0 h-full bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-full transition-all duration-500"
+                          style={{ width: `${currentJob.progress || 0}%` }}
+                        />
+                      </div>
+                      
+                      {/* Step Indicators */}
+                      <div className="flex justify-between text-xs text-slate-500 mt-2">
+                        <span className={currentJob.progress >= 5 ? 'text-green-400' : ''}>Read</span>
+                        <span className={currentJob.progress >= 15 ? 'text-green-400' : ''}>Parse</span>
+                        <span className={currentJob.progress >= 50 ? 'text-green-400' : ''}>Illustrate</span>
+                        <span className={currentJob.progress >= 90 ? 'text-green-400' : ''}>Layout</span>
+                        <span className={currentJob.progress >= 95 ? 'text-green-400' : ''}>PDF</span>
+                        <span className={currentJob.progress >= 100 ? 'text-green-400' : ''}>Done</span>
+                      </div>
+                      
+                      <p className="text-sm text-slate-400 text-center mt-2 flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                        {currentJob.progressMessage || 'Processing...'}
+                      </p>
+                    </div>
+                  )}
                   
                   {currentJob.status === 'COMPLETED' && currentJob.pdfUrl && (
                     <div className="space-y-3">
