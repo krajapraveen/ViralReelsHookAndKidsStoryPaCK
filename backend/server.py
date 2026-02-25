@@ -85,7 +85,9 @@ from routes.realtime_analytics import router as realtime_analytics_router
 # Self-healing system imports
 from routes.self_healing_monitoring import router as self_healing_monitoring_router
 from routes.recovery_ui import router as recovery_ui_router
+from routes.priority_scaling import router as priority_scaling_router
 from services.self_healing_middleware import SelfHealingMiddleware
+from services.priority_scaling_service import initialize_priority_scaling, shutdown_priority_scaling
 
 # Create FastAPI app
 app = FastAPI(
