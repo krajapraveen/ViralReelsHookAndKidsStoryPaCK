@@ -458,15 +458,15 @@ const SelfHealingDashboard = () => {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Error Rate (5min)</p>
+                <p className="text-sm text-slate-500">Error Rate (5min)</p>
                 <p className={`text-2xl font-bold ${
-                  dashboard.metrics?.error_rate_5min > 5 ? 'text-red-500' :
-                  dashboard.metrics?.error_rate_5min > 1 ? 'text-yellow-500' : 'text-green-500'
+                  dashboard.metrics?.error_rate_5min > 5 ? 'text-red-600' :
+                  dashboard.metrics?.error_rate_5min > 1 ? 'text-amber-600' : 'text-emerald-600'
                 }`}>
                   {dashboard.metrics?.error_rate_5min?.toFixed(2)}%
                 </p>
               </div>
-              <Activity className="h-8 w-8 text-gray-300" />
+              <Activity className="h-8 w-8 text-slate-300" />
             </div>
           </CardContent>
         </Card>
