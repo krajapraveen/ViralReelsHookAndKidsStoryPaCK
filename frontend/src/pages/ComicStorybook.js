@@ -82,12 +82,21 @@ export default function ComicStorybook() {
     if (file) {
       if (!file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
         toast.error('Please upload a .txt or .md file');
+        e.target.value = '';
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
         toast.error('File too large. Max 5MB.');
+        e.target.value = '';
         return;
       }
+      
+      // CRITICAL: Clear previous state when new file uploaded
+      setCurrentJob(null);
+      setPreview(null);
+      stopPolling();
+      toastShownRef.current = {};
+      
       setStoryFile(file);
       setStoryFileName(file.name);
       
@@ -98,6 +107,20 @@ export default function ComicStorybook() {
       };
       reader.readAsText(file);
     }
+  };
+
+  // Clear file and reset state
+  const clearStoryFile = () => {
+    setStoryFile(null);
+    setStoryFileName('');
+    setStoryText('');
+    setCurrentJob(null);
+    setPreview(null);
+    stopPolling();
+    toastShownRef.current = {};
+    
+    const fileInput = document.getElementById('story-file-input');
+    if (fileInput) fileInput.value = '';
   };
 
   const parseStoryPreview = async () => {
