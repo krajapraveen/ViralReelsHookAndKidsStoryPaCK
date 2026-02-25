@@ -254,6 +254,7 @@ api_router.include_router(realtime_analytics_router)
 # Self-healing system routes
 api_router.include_router(self_healing_monitoring_router)
 api_router.include_router(recovery_ui_router)
+api_router.include_router(priority_scaling_router)
 
 # Include API router in app
 app.include_router(api_router)
