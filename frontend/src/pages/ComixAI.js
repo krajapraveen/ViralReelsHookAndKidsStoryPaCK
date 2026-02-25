@@ -1065,22 +1065,46 @@ export default function ComixAI() {
                 {storyJob ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className={`px-3 py-1 rounded-full text-sm ${
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         storyJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
                         storyJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                        'bg-yellow-500/20 text-yellow-400'
+                        storyJob.status === 'QUEUED' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-yellow-500/20 text-yellow-400 animate-pulse'
                       }`}>
-                        {storyJob.status}
+                        {storyJob.status === 'PROCESSING' ? 'GENERATING...' : storyJob.status}
                       </span>
-                      {storyJob.progressMessage && storyJob.status === 'PROCESSING' && (
-                        <span className="text-slate-400 text-sm">{storyJob.progressMessage}</span>
+                      {storyJob.progressMessage && (
+                        <span className="text-slate-400 text-sm flex items-center gap-2">
+                          {storyJob.status === 'PROCESSING' && (
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                          )}
+                          {storyJob.progressMessage}
+                        </span>
                       )}
                     </div>
                     
-                    {storyJob.status === 'PROCESSING' && storyJob.progress !== undefined && (
-                      <div className="space-y-2">
-                        <Progress value={storyJob.progress} className="h-2" />
-                        <p className="text-xs text-slate-400 text-center">{storyJob.progress}% complete</p>
+                    {/* Enhanced Progress Bar for Story */}
+                    {(storyJob.status === 'PROCESSING' || storyJob.status === 'QUEUED') && (
+                      <div className="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-400">Story Progress</span>
+                          <span className="text-purple-400 font-bold">{storyJob.progress || 0}%</span>
+                        </div>
+                        <div className="relative h-3 bg-slate-700 rounded-full overflow-hidden">
+                          <div 
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-full transition-all duration-500"
+                            style={{ width: `${storyJob.progress || 0}%` }}
+                          />
+                        </div>
+                        
+                        {/* Step Indicators */}
+                        <div className="flex justify-between text-xs text-slate-500 mt-2">
+                          <span className={storyJob.progress >= 5 ? 'text-green-400' : ''}>Plan</span>
+                          <span className={storyJob.progress >= 25 ? 'text-green-400' : ''}>Script</span>
+                          <span className={storyJob.progress >= 50 ? 'text-green-400' : ''}>Panels</span>
+                          <span className={storyJob.progress >= 85 ? 'text-green-400' : ''}>Finalize</span>
+                          <span className={storyJob.progress >= 100 ? 'text-green-400' : ''}>Done</span>
+                        </div>
                       </div>
                     )}
                     
