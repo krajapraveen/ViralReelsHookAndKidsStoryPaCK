@@ -1,0 +1,53 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - img [ref=e8]
+          - generic [ref=e10]: CreatorStudio AI
+        - heading "Welcome Back" [level=2] [ref=e11]
+        - paragraph [ref=e12]: Login to continue creating
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]: Email
+          - generic [ref=e16]:
+            - generic:
+              - img
+            - textbox "Email address" [ref=e17]:
+              - /placeholder: you@example.com
+              - text: demo@example.com
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - generic [ref=e20]: Password
+            - button "Forgot password?" [ref=e21] [cursor=pointer]
+          - generic [ref=e22]:
+            - generic:
+              - img
+            - textbox "Password" [ref=e23]:
+              - /placeholder: Enter your password
+              - text: Password123!
+            - button "Show password" [ref=e24] [cursor=pointer]:
+              - img [ref=e26]
+        - button "Login" [ref=e29] [cursor=pointer]
+      - generic [ref=e30]:
+        - generic [ref=e35]: Or continue with
+        - button "Sign in with Google" [ref=e36] [cursor=pointer]:
+          - img
+          - text: Sign in with Google
+      - paragraph [ref=e38]:
+        - text: Don't have an account?
+        - link "Sign up" [ref=e39] [cursor=pointer]:
+          - /url: /signup
+    - link "Back to Home" [ref=e41] [cursor=pointer]:
+      - /url: /
+      - img [ref=e42]
+      - text: Back to Home
+  - button [ref=e44] [cursor=pointer]:
+    - img [ref=e45]
+  - button "Share your feedback" [ref=e48] [cursor=pointer]:
+    - img [ref=e49]
+  - region "Notifications alt+T"
+```
