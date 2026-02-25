@@ -231,26 +231,33 @@ export default function ComixAI() {
       return;
     }
     
+    // CRITICAL: Clear previous results and stop polling
+    setCharacterJob(null);
+    stopPolling();
     setLoading(true);
-    setToastShown({});  // Reset toast state
+    toastShownRef.current = {};
+    
     try {
       const formData = new FormData();
-      formData.append('photo', characterPhoto);
+      formData.append('photo', characterPhoto, characterPhoto.name);
       formData.append('style', characterStyle);
       formData.append('character_type', characterType);
       formData.append('remove_background', removeBackground.toString());
+      formData.append('timestamp', Date.now().toString()); // Prevent caching
       if (customPrompt) formData.append('custom_prompt', customPrompt);
       if (characterNegativePrompt) formData.append('negative_prompt', characterNegativePrompt);
       
       const response = await api.post('/api/comix/generate-character', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Cache-Control': 'no-cache'
+        }
       });
       
       setCharacterJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
-      // Reset toast shown state for new job and start polling
-      toastShownRef.current = {};
+      // Start fresh polling
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId, 'character'), 2000);
       pollingIntervalRef.current = interval;
