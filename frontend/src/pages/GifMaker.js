@@ -395,7 +395,7 @@ export default function GifMaker() {
                 )}
               </div>
               <input
-                id="gif-photo-upload"
+                id="gif-photo-input"
                 type="file"
                 accept="image/*"
                 className="hidden"
