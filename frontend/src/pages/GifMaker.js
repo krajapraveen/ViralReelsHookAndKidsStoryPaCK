@@ -382,10 +382,23 @@ export default function GifMaker() {
               
               <div 
                 className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center hover:border-pink-500 transition-colors cursor-pointer"
-                onClick={() => document.getElementById('gif-photo-upload').click()}
+                onClick={() => document.getElementById('gif-photo-input').click()}
               >
                 {photoPreview ? (
-                  <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                  <div className="relative">
+                    <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearPhoto();
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 ) : (
                   <>
                     <Upload className="w-12 h-12 mx-auto text-slate-500 mb-4" />
