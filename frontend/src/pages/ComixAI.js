@@ -147,6 +147,14 @@ export default function ComixAI() {
       toast.warning('Some images were too large (max 10MB each)');
     }
     
+    // CRITICAL: Clear previous previews to prevent memory leaks
+    characterPreviews.forEach(url => URL.revokeObjectURL(url));
+    
+    // Clear previous story result
+    setStoryJob(null);
+    stopPolling();
+    toastShownRef.current = {};
+    
     setCharacterImages(validFiles);
     setCharacterPreviews(validFiles.map(f => URL.createObjectURL(f)));
   };
