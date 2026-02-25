@@ -819,22 +819,45 @@ export default function ComixAI() {
                 {panelJob ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className={`px-3 py-1 rounded-full text-sm ${
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         panelJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
                         panelJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                        'bg-yellow-500/20 text-yellow-400'
+                        panelJob.status === 'QUEUED' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-yellow-500/20 text-yellow-400 animate-pulse'
                       }`}>
-                        {panelJob.status}
+                        {panelJob.status === 'PROCESSING' ? 'GENERATING...' : panelJob.status}
                       </span>
-                      {panelJob.progressMessage && panelJob.status === 'PROCESSING' && (
-                        <span className="text-slate-400 text-sm">{panelJob.progressMessage}</span>
+                      {panelJob.progressMessage && (
+                        <span className="text-slate-400 text-sm flex items-center gap-2">
+                          {panelJob.status === 'PROCESSING' && (
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                          )}
+                          {panelJob.progressMessage}
+                        </span>
                       )}
                     </div>
                     
-                    {panelJob.status === 'PROCESSING' && panelJob.progress !== undefined && (
-                      <div className="space-y-2">
-                        <Progress value={panelJob.progress} className="h-2" />
-                        <p className="text-xs text-slate-400 text-center">{panelJob.progress}% complete</p>
+                    {/* Enhanced Progress Bar */}
+                    {(panelJob.status === 'PROCESSING' || panelJob.status === 'QUEUED') && (
+                      <div className="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-400">Progress</span>
+                          <span className="text-purple-400 font-bold">{panelJob.progress || 0}%</span>
+                        </div>
+                        <div className="relative h-3 bg-slate-700 rounded-full overflow-hidden">
+                          <div 
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500"
+                            style={{ width: `${panelJob.progress || 0}%` }}
+                          />
+                        </div>
+                        
+                        {/* Step Indicators */}
+                        <div className="flex justify-between text-xs text-slate-500 mt-2">
+                          <span className={panelJob.progress >= 5 ? 'text-green-400' : ''}>Scene</span>
+                          <span className={panelJob.progress >= 40 ? 'text-green-400' : ''}>Artwork</span>
+                          <span className={panelJob.progress >= 70 ? 'text-green-400' : ''}>Bubbles</span>
+                          <span className={panelJob.progress >= 100 ? 'text-green-400' : ''}>Done</span>
+                        </div>
                       </div>
                     )}
                     
