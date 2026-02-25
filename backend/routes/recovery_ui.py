@@ -66,7 +66,7 @@ async def get_job_recovery_status(
     """
     Get job status with recovery options
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     status = await JobSubmissionService.get_job_status(job_id, user_id)
     
@@ -145,7 +145,7 @@ async def retry_job(
     """
     Retry a failed job using retry token or job_id
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     if request.retry_token:
         # Use retry token
@@ -205,7 +205,7 @@ async def accept_fallback(
     """
     Accept fallback output for a failed job
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     job = await db.jobs.find_one({"job_id": job_id, "user_id": user_id})
     
@@ -245,7 +245,7 @@ async def recover_download(
     """
     Recover a failed download
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     correlation_id = generate_correlation_id()
     
     result = await DownloadRecoveryService.handle_download_failure(
@@ -266,7 +266,7 @@ async def regenerate_download_url(
     """
     Generate a new signed URL for download
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     new_url = SignedUrlService.generate_signed_url(path, user_id)
     
@@ -285,7 +285,7 @@ async def get_preview_fallback(
     """
     Get fallback options when preview fails
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     result = await PreviewRecoveryService.get_preview_fallback(
         content_id=request.content_id,
@@ -308,7 +308,7 @@ async def get_payment_recovery_status(
     """
     Get payment status with recovery information
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     payment = await db.payment_records.find_one({
         "order_id": order_id,
@@ -455,7 +455,7 @@ async def get_support_reference(
     """
     Get support reference information for customer support
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     if reference_type == "job":
         record = await db.jobs.find_one({"job_id": reference_id, "user_id": user_id})
