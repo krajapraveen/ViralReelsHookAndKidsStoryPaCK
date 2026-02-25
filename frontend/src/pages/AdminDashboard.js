@@ -146,6 +146,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Monitoring</span>
               </Button>
             </Link>
+            <Link to="/app/admin/self-healing">
+              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="self-healing-btn">
+                <Shield className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Self-Healing</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}
