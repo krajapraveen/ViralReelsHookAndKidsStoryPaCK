@@ -1,0 +1,116 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link "Dashboard" [ref=e8] [cursor=pointer]:
+            - /url: /app
+            - img [ref=e9]
+            - generic [ref=e11]: Dashboard
+          - generic [ref=e12]:
+            - img [ref=e13]
+            - heading "Comix AI" [level=1] [ref=e15]
+        - generic [ref=e18]: 999,999,999 Credits
+    - main [ref=e19]:
+      - generic [ref=e20]:
+        - heading "Transform Photos into Comic Art" [level=2] [ref=e21]
+        - paragraph [ref=e22]: Create stunning comic characters, panels, and full stories from your photos. Choose from 9 unique styles.
+      - generic [ref=e23]:
+        - tablist [ref=e24]:
+          - tab "Character" [selected] [ref=e25] [cursor=pointer]:
+            - img [ref=e26]
+            - generic [ref=e30]: Character
+          - tab "Panels" [ref=e31] [cursor=pointer]:
+            - img [ref=e32]
+            - generic [ref=e34]: Panels
+          - tab "Story Mode" [ref=e35] [cursor=pointer]:
+            - img [ref=e36]
+            - generic [ref=e38]: Story Mode
+        - tabpanel "Character" [ref=e39]:
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - heading "Photo to Comic Character" [level=3] [ref=e42]:
+                - img [ref=e43]
+                - text: Photo to Comic Character
+              - generic [ref=e46]:
+                - generic [ref=e47]: Upload Photo
+                - generic [ref=e49] [cursor=pointer]:
+                  - img [ref=e50]
+                  - paragraph [ref=e53]: Click to upload or drag and drop
+                  - paragraph [ref=e54]: PNG, JPG, WEBP up to 10MB
+              - generic [ref=e55]:
+                - generic [ref=e56]: Comic Style
+                - combobox [ref=e57] [cursor=pointer]:
+                  - generic: Classic Comic - Bold lines, vibrant colors, classic superhero style
+                  - img [ref=e58]
+              - generic [ref=e60]:
+                - generic [ref=e61]: Character Type
+                - combobox [ref=e62] [cursor=pointer]:
+                  - generic: Portrait (10 credits)
+                  - img [ref=e63]
+              - generic [ref=e65]:
+                - checkbox "Remove background (transparent)" [ref=e66] [cursor=pointer]
+                - generic [ref=e67]: Remove background (transparent)
+              - generic [ref=e68]:
+                - generic [ref=e69]: Custom Details (optional)
+                - textbox "Add specific details like clothing, accessories..." [ref=e70]
+              - generic [ref=e71]:
+                - generic [ref=e72]: Negative Prompt (optional)
+                - 'textbox "Exclude elements like: blurry, low quality, text..." [ref=e73]'
+                - paragraph [ref=e74]: Describe what you DON'T want in the image
+              - button "Generate Character" [disabled]:
+                - img
+                - generic: Generate Character
+            - generic [ref=e75]:
+              - heading "Result" [level=3] [ref=e76]
+              - generic [ref=e78]:
+                - img [ref=e79]
+                - paragraph [ref=e81]: Your comic character will appear here
+      - generic [ref=e83]:
+        - heading "Recent Creations" [level=3] [ref=e84]
+        - generic [ref=e86]:
+          - generic [ref=e87]:
+            - img "Comic" [ref=e89]
+            - generic [ref=e90]:
+              - paragraph [ref=e91]: COMIC_STORY
+              - generic [ref=e92]:
+                - generic [ref=e93]: COMPLETED
+                - button [ref=e94] [cursor=pointer]:
+                  - img
+          - generic [ref=e95]:
+            - img "Comic" [ref=e97]
+            - generic [ref=e98]:
+              - paragraph [ref=e99]: COMIC_PANEL
+              - generic [ref=e100]:
+                - generic [ref=e101]: COMPLETED
+                - button [ref=e102] [cursor=pointer]:
+                  - img
+          - generic [ref=e103]:
+            - img "Comic" [ref=e105]
+            - generic [ref=e106]:
+              - paragraph [ref=e107]: COMIC_CHARACTER
+              - generic [ref=e108]:
+                - generic [ref=e109]: COMPLETED
+                - button [ref=e110] [cursor=pointer]:
+                  - img
+          - generic [ref=e111]:
+            - img "Comic" [ref=e113]
+            - generic [ref=e114]:
+              - paragraph [ref=e115]: COMIC_CHARACTER
+              - generic [ref=e116]:
+                - generic [ref=e117]: COMPLETED
+                - button [ref=e118] [cursor=pointer]:
+                  - img
+      - paragraph [ref=e120]:
+        - text: ⚠️
+        - strong [ref=e121]: "Content Policy:"
+        - text: Copyrighted characters (Marvel, DC, Disney, etc.) are not allowed. All content must be original. User-uploaded photos must be owned by the user or used with permission.
+  - button [ref=e122] [cursor=pointer]:
+    - img [ref=e123]
+  - button "Share your feedback" [ref=e126] [cursor=pointer]:
+    - img [ref=e127]
+  - region "Notifications alt+T"
+```

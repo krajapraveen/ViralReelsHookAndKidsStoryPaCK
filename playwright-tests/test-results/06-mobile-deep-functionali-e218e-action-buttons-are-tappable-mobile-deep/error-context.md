@@ -1,0 +1,194 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e7]
+          - generic [ref=e9]: CreatorStudio AI
+        - generic [ref=e10]:
+          - link [ref=e11] [cursor=pointer]:
+            - /url: /app/profile
+            - button [ref=e12]:
+              - img
+          - generic [ref=e13]:
+            - img [ref=e14]
+            - generic [ref=e19]: "0"
+          - button [ref=e20] [cursor=pointer]:
+            - img
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - heading "Welcome back, !" [level=1] [ref=e23]
+        - paragraph [ref=e24]: What would you like to create today?
+      - generic [ref=e25]:
+        - link "Generate Reel Script Create viral reel scripts in 5-10 seconds 10 credits per reel" [ref=e26] [cursor=pointer]:
+          - /url: /app/reels
+          - generic [ref=e27]:
+            - img [ref=e28]
+            - heading "Generate Reel Script" [level=2] [ref=e31]
+            - paragraph [ref=e32]: Create viral reel scripts in 5-10 seconds
+            - generic [ref=e33]:
+              - img [ref=e34]
+              - generic [ref=e39]: 10 credits per reel
+        - link "Create Kids Story Pack Complete video production packages 10 credits per story" [ref=e40] [cursor=pointer]:
+          - /url: /app/stories
+          - generic [ref=e41]:
+            - img [ref=e42]
+            - heading "Create Kids Story Pack" [level=2] [ref=e44]
+            - paragraph [ref=e45]: Complete video production packages
+            - generic [ref=e46]:
+              - img [ref=e47]
+              - generic [ref=e52]: 10 credits per story
+      - link "🎨 GenStudio AI Text→Image • Text→Video • Image→Video • Brand Style Profiles • Video Remix" [ref=e53] [cursor=pointer]:
+        - /url: /app/gen-studio
+        - generic [ref=e56]:
+          - img [ref=e58]
+          - generic [ref=e60]:
+            - heading "🎨 GenStudio AI" [level=2] [ref=e61]
+            - paragraph [ref=e62]: Text→Image • Text→Video • Image→Video • Brand Style Profiles • Video Remix
+      - link "⭐ Creator Tools 30-Day Calendar • Carousel Generator • Hashtag Bank • Thumbnails • Trending Topics" [ref=e63] [cursor=pointer]:
+        - /url: /app/creator-tools
+        - generic [ref=e66]:
+          - img [ref=e68]
+          - generic [ref=e71]:
+            - heading "⭐ Creator Tools" [level=2] [ref=e72]
+            - paragraph [ref=e73]: 30-Day Calendar • Carousel Generator • Hashtag Bank • Thumbnails • Trending Topics
+      - link "🎨 Kids Coloring Book Create personalized printable story coloring books • Photo-to-outline conversion" [ref=e74] [cursor=pointer]:
+        - /url: /app/coloring-book
+        - generic [ref=e77]:
+          - img [ref=e79]
+          - generic [ref=e85]:
+            - heading "🎨 Kids Coloring Book" [level=2] [ref=e86]
+            - paragraph [ref=e87]: Create personalized printable story coloring books • Photo-to-outline conversion
+      - generic [ref=e88]:
+        - link "🦸 Comix AI Photo → Comic Characters • Panels • Story Mode • 9 Styles NEW FEATURE" [ref=e89] [cursor=pointer]:
+          - /url: /app/comix
+          - generic [ref=e90]:
+            - generic [ref=e91]:
+              - img [ref=e93]
+              - generic [ref=e95]:
+                - heading "🦸 Comix AI" [level=2] [ref=e96]
+                - paragraph [ref=e97]: Photo → Comic Characters • Panels • Story Mode • 9 Styles
+            - generic [ref=e98]: NEW FEATURE
+        - link "GIF Maker Photo to Reaction GIFs • 12 Emotions • Kids-Safe NEW FEATURE" [ref=e99] [cursor=pointer]:
+          - /url: /app/gif-maker
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - img [ref=e103]
+              - generic [ref=e105]:
+                - heading "GIF Maker" [level=2] [ref=e106]
+                - paragraph [ref=e107]: Photo to Reaction GIFs • 12 Emotions • Kids-Safe
+            - generic [ref=e108]: NEW FEATURE
+        - link "Comic Story Book Story to 10-50 Page PDF • 14 Styles • Copyright-Free NEW FEATURE" [ref=e109] [cursor=pointer]:
+          - /url: /app/comic-storybook
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - img [ref=e113]
+              - generic [ref=e115]:
+                - heading "Comic Story Book" [level=2] [ref=e116]
+                - paragraph [ref=e117]: Story to 10-50 Page PDF • 14 Styles • Copyright-Free
+            - generic [ref=e118]: NEW FEATURE
+      - generic [ref=e119]:
+        - link "Story Series Turn stories into 3-7 episode series with scene beats & cliffhangers NEW" [ref=e120] [cursor=pointer]:
+          - /url: /app/story-series
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - img [ref=e123]
+              - heading "Story Series" [level=3] [ref=e125]
+            - paragraph [ref=e126]: Turn stories into 3-7 episode series with scene beats & cliffhangers
+            - generic [ref=e127]: NEW
+        - link "Challenge Generator 7/30-day content challenges with hooks, CTAs & hashtags NEW" [ref=e128] [cursor=pointer]:
+          - /url: /app/challenge-generator
+          - generic [ref=e129]:
+            - generic [ref=e130]:
+              - img [ref=e131]
+              - heading "Challenge Generator" [level=3] [ref=e133]
+            - paragraph [ref=e134]: 7/30-day content challenges with hooks, CTAs & hashtags
+            - generic [ref=e135]: NEW
+        - 'link "Tone Switcher AI-free text rewriter: Funny, Aggressive, Calm, Luxury, Motivational NEW" [ref=e136] [cursor=pointer]':
+          - /url: /app/tone-switcher
+          - generic [ref=e137]:
+            - generic [ref=e138]:
+              - img [ref=e139]
+              - heading "Tone Switcher" [level=3] [ref=e141]
+            - paragraph [ref=e142]: "AI-free text rewriter: Funny, Aggressive, Calm, Luxury, Motivational"
+            - generic [ref=e143]: NEW
+      - generic [ref=e144]:
+        - generic [ref=e145]:
+          - generic [ref=e146]:
+            - generic [ref=e147]: Available Credits
+            - img [ref=e148]
+          - generic [ref=e153]: "0"
+        - link "Total Generations 0" [ref=e154] [cursor=pointer]:
+          - /url: /app/history
+          - generic [ref=e155]:
+            - generic [ref=e156]: Total Generations
+            - img [ref=e157]
+          - generic [ref=e160]: "0"
+        - link "Buy Credits View Plans →" [ref=e161] [cursor=pointer]:
+          - /url: /app/billing
+          - generic [ref=e162]:
+            - generic [ref=e163]: Buy Credits
+            - img [ref=e164]
+          - generic [ref=e166]: View Plans →
+        - link "Feature Requests Vote & Request →" [ref=e167] [cursor=pointer]:
+          - /url: /app/feature-requests
+          - generic [ref=e168]:
+            - generic [ref=e169]: Feature Requests
+            - img [ref=e170]
+          - generic [ref=e172]: Vote & Request →
+      - generic [ref=e173]:
+        - link "Subscription" [ref=e174] [cursor=pointer]:
+          - /url: /app/subscription
+          - img [ref=e175]
+          - generic [ref=e177]: Subscription
+        - link "Analytics" [ref=e178] [cursor=pointer]:
+          - /url: /app/analytics
+          - img [ref=e179]
+          - generic [ref=e181]: Analytics
+        - link "Content Vault" [ref=e182] [cursor=pointer]:
+          - /url: /app/content-vault
+          - img [ref=e183]
+          - generic [ref=e185]: Content Vault
+        - link "Payment History" [ref=e186] [cursor=pointer]:
+          - /url: /app/payment-history
+          - img [ref=e187]
+          - generic [ref=e190]: Payment History
+        - link "Help & Guides" [ref=e191] [cursor=pointer]:
+          - /url: /user-manual
+          - img [ref=e192]
+          - generic [ref=e195]: Help & Guides
+        - link "Privacy & Data Settings" [ref=e196] [cursor=pointer]:
+          - /url: /app/privacy
+          - img [ref=e197]
+          - generic [ref=e200]: Privacy & Data Settings
+        - link "Copyright & Legal" [ref=e201] [cursor=pointer]:
+          - /url: /app/copyright
+          - img [ref=e202]
+          - generic [ref=e205]: Copyright & Legal
+      - generic [ref=e206]:
+        - generic [ref=e207]:
+          - heading "Recent Generations" [level=3] [ref=e208]
+          - link "View All" [ref=e209] [cursor=pointer]:
+            - /url: /app/history
+            - button "View All" [ref=e210]:
+              - img
+              - text: View All
+        - paragraph [ref=e213]: No generations yet. Start creating!
+    - button "Open help guide" [ref=e214] [cursor=pointer]:
+      - img [ref=e216]
+  - button [ref=e219] [cursor=pointer]:
+    - img [ref=e220]
+  - button "Share your feedback" [ref=e223] [cursor=pointer]:
+    - img [ref=e224]
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e226]:
+        - img [ref=e228]
+        - generic [ref=e231]: Failed to load dashboard data
+      - listitem [ref=e232]:
+        - img [ref=e234]
+        - generic [ref=e237]: Login successful!
+```
