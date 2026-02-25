@@ -1,0 +1,521 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Activity, AlertTriangle, CheckCircle, XCircle, Clock, Server, 
+  Database, Zap, RefreshCw, Bell, Shield, TrendingUp, TrendingDown,
+  Loader2, ChevronDown, ChevronRight
+} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { toast } from 'sonner';
+
+const API = process.env.REACT_APP_BACKEND_URL || '';
+
+const SelfHealingDashboard = () => {
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [expandedSections, setExpandedSections] = useState({});
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/api/monitoring/dashboard`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        setDashboard(await response.json());
+      }
+    } catch (error) {
+      console.error('Dashboard fetch failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+    
+    if (autoRefresh) {
+      const interval = setInterval(fetchDashboard, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchDashboard, autoRefresh]);
+
+  const getHealthColor = (status) => {
+    switch (status) {
+      case 'healthy': return 'text-green-500 bg-green-100 dark:bg-green-900/30';
+      case 'degraded': return 'text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30';
+      case 'critical': return 'text-red-500 bg-red-100 dark:bg-red-900/30';
+      default: return 'text-gray-500 bg-gray-100';
+    }
+  };
+
+  const getHealthIcon = (status) => {
+    switch (status) {
+      case 'healthy': return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'degraded': return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+      case 'critical': return <XCircle className="h-5 w-5 text-red-500" />;
+      default: return <Clock className="h-5 w-5 text-gray-500" />;
+    }
+  };
+
+  const acknowledgeAlert = async (alertId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${API}/api/monitoring/alerts/${alertId}/acknowledge`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      toast.success('Alert acknowledged');
+      fetchDashboard();
+    } catch (error) {
+      toast.error('Failed to acknowledge alert');
+    }
+  };
+
+  const resolveAlert = async (alertId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${API}/api/monitoring/alerts/${alertId}/resolve`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      toast.success('Alert resolved');
+      fetchDashboard();
+    } catch (error) {
+      toast.error('Failed to resolve alert');
+    }
+  };
+
+  const resetCircuitBreaker = async (name) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${API}/api/monitoring/circuit-breakers/${name}/reset`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      toast.success(`Circuit breaker ${name} reset`);
+      fetchDashboard();
+    } catch (error) {
+      toast.error('Failed to reset circuit breaker');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  if (!dashboard) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        Failed to load dashboard data
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Shield className="h-6 w-6 text-indigo-500" />
+            Self-Healing System Monitor
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+            Real-time system health and automatic recovery status
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <Button
+            variant={autoRefresh ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${autoRefresh ? 'animate-spin' : ''}`} />
+            {autoRefresh ? 'Auto-refreshing' : 'Paused'}
+          </Button>
+          
+          <Button variant="outline" size="sm" onClick={fetchDashboard}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Refresh Now
+          </Button>
+        </div>
+      </div>
+
+      {/* System Health Banner */}
+      <Card className={`border-2 ${getHealthColor(dashboard.system_health)}`}>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {getHealthIcon(dashboard.system_health)}
+              <div>
+                <h2 className="font-semibold text-lg capitalize">
+                  System Status: {dashboard.system_health}
+                </h2>
+                {dashboard.health_issues && dashboard.health_issues.length > 0 && (
+                  <p className="text-sm opacity-80">
+                    Issues: {dashboard.health_issues.join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <div className="text-right text-sm text-gray-600 dark:text-gray-400">
+              <div>Uptime: {Math.floor(dashboard.metrics?.uptime_seconds / 3600)}h {Math.floor((dashboard.metrics?.uptime_seconds % 3600) / 60)}m</div>
+              <div>Last Updated: {new Date(dashboard.timestamp).toLocaleTimeString()}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Error Rate (5min)</p>
+                <p className={`text-2xl font-bold ${
+                  dashboard.metrics?.error_rate_5min > 5 ? 'text-red-500' :
+                  dashboard.metrics?.error_rate_5min > 1 ? 'text-yellow-500' : 'text-green-500'
+                }`}>
+                  {dashboard.metrics?.error_rate_5min?.toFixed(2)}%
+                </p>
+              </div>
+              <Activity className="h-8 w-8 text-gray-300" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">P95 Latency</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {dashboard.metrics?.latency_p95_ms?.toFixed(0)}ms
+                </p>
+              </div>
+              <Zap className="h-8 w-8 text-gray-300" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Active Alerts</p>
+                <p className={`text-2xl font-bold ${
+                  dashboard.active_alerts_count > 0 ? 'text-red-500' : 'text-green-500'
+                }`}>
+                  {dashboard.active_alerts_count}
+                </p>
+              </div>
+              <Bell className="h-8 w-8 text-gray-300" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Incidents (24h)</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {dashboard.recent_incidents_count}
+                </p>
+              </div>
+              <AlertTriangle className="h-8 w-8 text-gray-300" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="alerts">
+            Alerts
+            {dashboard.active_alerts_count > 0 && (
+              <Badge variant="destructive" className="ml-2">{dashboard.active_alerts_count}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="circuits">Circuit Breakers</TabsTrigger>
+          <TabsTrigger value="queues">Job Queues</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Payment Health */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Payment System
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Status</span>
+                    <Badge className={getHealthColor(dashboard.payment_health?.status)}>
+                      {dashboard.payment_health?.status}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Success Rate (24h)</span>
+                    <span className="font-medium">{dashboard.payment_health?.metrics?.success_rate}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Stuck Payments</span>
+                    <span className={`font-medium ${dashboard.payment_health?.metrics?.stuck_payments > 0 ? 'text-red-500' : ''}`}>
+                      {dashboard.payment_health?.metrics?.stuck_payments}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Storage Health */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Server className="h-4 w-4" />
+                  Storage System
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Status</span>
+                    <Badge className={getHealthColor(dashboard.storage_health?.overall)}>
+                      {dashboard.storage_health?.overall}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Primary</span>
+                    <span className="font-medium">{dashboard.storage_health?.primary?.status}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Fallback</span>
+                    <span className="font-medium">{dashboard.storage_health?.fallback?.status}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Incidents */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Recent Incidents</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dashboard.incidents && dashboard.incidents.length > 0 ? (
+                <div className="space-y-2">
+                  {dashboard.incidents.slice(0, 5).map((incident, index) => (
+                    <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={incident.severity === 'error' ? 'destructive' : 'secondary'}>
+                          {incident.severity}
+                        </Badge>
+                        <span className="text-sm">{incident.type}</span>
+                      </div>
+                      <span className="text-sm text-gray-500">
+                        {new Date(incident.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No recent incidents</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Alerts Tab */}
+        <TabsContent value="alerts" className="space-y-4">
+          {dashboard.alerts && dashboard.alerts.length > 0 ? (
+            dashboard.alerts.map((alert, index) => (
+              <Card key={index} className={`border-l-4 ${
+                alert.severity === 'critical' ? 'border-l-red-500' :
+                alert.severity === 'error' ? 'border-l-orange-500' :
+                alert.severity === 'warning' ? 'border-l-yellow-500' : 'border-l-blue-500'
+              }`}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlertTriangle className={`h-4 w-4 ${
+                        alert.severity === 'critical' ? 'text-red-500' :
+                        alert.severity === 'error' ? 'text-orange-500' : 'text-yellow-500'
+                      }`} />
+                      {alert.title}
+                    </CardTitle>
+                    <Badge variant={alert.acknowledged ? 'secondary' : 'destructive'}>
+                      {alert.acknowledged ? 'Acknowledged' : alert.severity}
+                    </Badge>
+                  </div>
+                  <CardDescription>{alert.message}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">
+                      {new Date(alert.created_at).toLocaleString()}
+                    </span>
+                    <div className="flex gap-2">
+                      {!alert.acknowledged && (
+                        <Button size="sm" variant="outline" onClick={() => acknowledgeAlert(alert.alert_id)}>
+                          Acknowledge
+                        </Button>
+                      )}
+                      <Button size="sm" variant="default" onClick={() => resolveAlert(alert.alert_id)}>
+                        Resolve
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                <p className="text-gray-600 dark:text-gray-400">No active alerts</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Circuit Breakers Tab */}
+        <TabsContent value="circuits" className="space-y-4">
+          {dashboard.circuit_breakers && Object.entries(dashboard.circuit_breakers).map(([name, cb]) => (
+            <Card key={name} className={`border-l-4 ${
+              cb.state === 'closed' ? 'border-l-green-500' :
+              cb.state === 'half_open' ? 'border-l-yellow-500' : 'border-l-red-500'
+            }`}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{name}</CardTitle>
+                  <Badge className={
+                    cb.state === 'closed' ? 'bg-green-100 text-green-800' :
+                    cb.state === 'half_open' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                  }>
+                    {cb.state}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Failures</span>
+                    <p className="font-medium">{cb.failure_count}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Threshold</span>
+                    <p className="font-medium">{cb.failure_threshold}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Recovery</span>
+                    <p className="font-medium">{cb.recovery_timeout}s</p>
+                  </div>
+                </div>
+                {cb.state !== 'closed' && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="mt-3"
+                    onClick={() => resetCircuitBreaker(name)}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Reset
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          
+          {(!dashboard.circuit_breakers || Object.keys(dashboard.circuit_breakers).length === 0) && (
+            <Card>
+              <CardContent className="py-8 text-center text-gray-500">
+                No circuit breakers configured
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Job Queues Tab */}
+        <TabsContent value="queues" className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {dashboard.queue_depths && Object.entries(dashboard.queue_depths).map(([name, depth]) => (
+              <Card key={name}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500 capitalize">{name} Queue</p>
+                      <p className={`text-2xl font-bold ${depth > 50 ? 'text-yellow-500' : depth > 100 ? 'text-red-500' : 'text-green-500'}`}>
+                        {depth}
+                      </p>
+                    </div>
+                    {depth > 50 ? (
+                      <TrendingUp className="h-8 w-8 text-yellow-300" />
+                    ) : (
+                      <TrendingDown className="h-8 w-8 text-green-300" />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* Payments Tab */}
+        <TabsContent value="payments" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Health</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Total (24h)</p>
+                  <p className="text-xl font-bold">{dashboard.payment_health?.metrics?.total_24h || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Successful</p>
+                  <p className="text-xl font-bold text-green-600">{dashboard.payment_health?.metrics?.successful_24h || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Failed</p>
+                  <p className="text-xl font-bold text-red-600">{dashboard.payment_health?.metrics?.failed_24h || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Stuck</p>
+                  <p className={`text-xl font-bold ${(dashboard.payment_health?.metrics?.stuck_payments || 0) > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {dashboard.payment_health?.metrics?.stuck_payments || 0}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default SelfHealingDashboard;
