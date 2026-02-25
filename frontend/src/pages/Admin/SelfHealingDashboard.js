@@ -121,10 +121,10 @@ const ScalingDashboard = () => {
               <p className="text-sm text-gray-500 mb-1">Min / Max</p>
               <p className="text-2xl font-semibold">{scaling.min_workers} / {scaling.max_workers}</p>
             </div>
-            <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <p className="text-sm text-gray-500 mb-1">Queue Depth</p>
+            <div className="text-center p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <p className="text-sm text-slate-500 mb-1">Queue Depth</p>
               <p className={`text-2xl font-semibold ${
-                (scaling.metrics?.queue_depth || 0) > 50 ? 'text-yellow-500' : 'text-green-500'
+                (scaling.metrics?.queue_depth || 0) > 50 ? 'text-amber-600' : 'text-emerald-600'
               }`}>
                 {scaling.metrics?.queue_depth?.toFixed(0) || 0}
               </p>
