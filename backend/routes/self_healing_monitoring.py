@@ -20,7 +20,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared import db, logger, get_admin_user
+from shared import db, logger, get_admin_user, get_current_user
 from services.self_healing_core import (
     metrics, alert_manager, IncidentLogger, orchestrator,
     AlertSeverity, CorrelationContext
