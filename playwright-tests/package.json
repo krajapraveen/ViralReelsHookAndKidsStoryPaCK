@@ -4,21 +4,26 @@
   "main": "index.js",
   "scripts": {
     "test": "npx playwright test",
-    "test:public": "npx playwright test 01-public-auth.spec.ts",
-    "test:features": "npx playwright test 02-generation-features.spec.ts",
-    "test:admin": "npx playwright test 03-admin-security.spec.ts",
-    "test:api": "npx playwright test 04-api-mobile.spec.ts",
+    "test:smoke": "npx playwright test --project=smoke",
+    "test:mobile": "npx playwright test --project=mobile-comprehensive --project=mobile-deep",
+    "test:mobile:comprehensive": "npx playwright test --project=mobile-comprehensive",
+    "test:mobile:deep": "npx playwright test --project=mobile-deep",
+    "test:edge": "npx playwright test --project=edge-cases",
+    "test:desktop": "npx playwright test --project=desktop",
+    "test:all": "npx playwright test --project=desktop --project=mobile-comprehensive --project=mobile-deep --project=edge-cases",
     "test:headed": "npx playwright test --headed",
-    "test:report": "npx playwright show-report"
+    "test:report": "npx playwright show-report",
+    "visual:compare": "npx ts-node utils/visual-compare.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "CreatorStudio AI - Comprehensive Test Suite",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
 }
