@@ -18,6 +18,7 @@ import sys
 import random
 import base64
 import asyncio
+import hashlib
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
