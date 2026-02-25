@@ -97,11 +97,48 @@ export default function GifMaker() {
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         toast.error('Image too large. Max 10MB.');
+        e.target.value = ''; // Clear file input
         return;
       }
+      
+      // CRITICAL: Reset ALL previous state when new photo uploaded
+      // Clear previous photo and preview
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview); // Clean up memory
+      }
+      
+      // Reset generation state
+      setCurrentJob(null);
+      stopGifPolling();
+      setLoading(false);
+      
+      // Clear toast tracking for fresh generation
+      toastShownRef.current = {};
+      
+      // Set new photo
       setPhoto(file);
       setPhotoPreview(URL.createObjectURL(file));
+      
+      // Keep emotion/style selection but clear any cached results
+      console.log('New photo uploaded - state reset');
     }
+  };
+
+  // Clear file input and reset state
+  const clearPhoto = () => {
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhoto(null);
+    setPhotoPreview(null);
+    setCurrentJob(null);
+    stopGifPolling();
+    setLoading(false);
+    toastShownRef.current = {};
+    
+    // Clear file input element
+    const fileInput = document.getElementById('gif-photo-input');
+    if (fileInput) fileInput.value = '';
   };
 
   // Track which jobs have shown toast using ref to prevent loops
