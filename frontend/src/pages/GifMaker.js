@@ -194,33 +194,47 @@ export default function GifMaker() {
       return;
     }
     
+    if (!selectedEmotion) {
+      toast.error('Please select an emotion/GIF template');
+      return;
+    }
+    
     const cost = pricing.generate || 10;
     if (credits < cost) {
       toast.error(`Insufficient credits. Need ${cost} credits.`);
       return;
     }
     
+    // CRITICAL: Clear previous results and stop any existing polling
+    setCurrentJob(null);
+    stopGifPolling();
     setLoading(true);
-    stopGifPolling(); // Clear any existing polling
+    toastShownRef.current = {}; // Reset toast tracking
     
     try {
       const formData = new FormData();
-      formData.append('photo', photo);
+      
+      // CRITICAL: Always append fresh file and parameters
+      formData.append('photo', photo, photo.name); // Include filename
       formData.append('emotion', selectedEmotion);
       formData.append('style', selectedStyle);
       formData.append('background', selectedBackground);
       formData.append('animation_intensity', animationIntensity);
+      formData.append('timestamp', Date.now().toString()); // Prevent caching
       if (addText) formData.append('add_text', addText);
       
       const response = await api.post('/api/gif-maker/generate', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       });
       
       setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
-      // Reset toast shown state for new job and start polling
-      toastShownRef.current = {};
+      // Start fresh polling
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
       pollingRef.current = interval;
