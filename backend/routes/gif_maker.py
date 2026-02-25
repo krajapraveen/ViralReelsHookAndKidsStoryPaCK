@@ -596,12 +596,16 @@ async def process_gif_generation(
     user_id: str, 
     cost: int
 ):
-    """Background task to generate animated GIF with actual motion"""
+    """Background task to generate animated GIF - OPTIMIZED for speed"""
     try:
-        await db.gif_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "PROCESSING", "progress": 5, "progressMessage": "Starting..."}}
+        from routes.optimized_workers import (
+            update_job_progress, generate_image_fast, save_image_async,
+            create_gif_optimized, create_bounce_gif_fast, get_progress_for_step
         )
+        
+        # Step 1: Initialize
+        progress, msg = get_progress_for_step("gif", "start")
+        await update_job_progress("gif_jobs", job_id, progress, msg, "PROCESSING")
         
         emotion_info = EMOTIONS[emotion]
         style_info = GIF_STYLES[style]
@@ -609,97 +613,94 @@ async def process_gif_generation(
         frames = []
         result_url = None
         
+        # Step 2: Process image
+        progress, msg = get_progress_for_step("gif", "processing")
+        await update_job_progress("gif_jobs", job_id, progress, msg)
+        
         # Encode photo to base64
         photo_b64 = base64.b64encode(photo_content).decode('utf-8')
         
-        # Animation frame descriptions based on emotion
-        animation_frames = get_animation_frames(emotion, frame_count)
+        # Use fewer frames for faster generation
+        optimized_frame_count = min(frame_count, 6)  # Cap at 6 frames for speed
+        animation_frames = get_animation_frames(emotion, optimized_frame_count)
+        
+        # Step 3: Generate frames
+        progress, msg = get_progress_for_step("gif", "generating")
+        await update_job_progress("gif_jobs", job_id, progress, msg)
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
-                from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-                
-                # Generate multiple frames for animation
+                # Generate frames with progress updates
                 for i, frame_desc in enumerate(animation_frames):
-                    progress = 10 + int((i / len(animation_frames)) * 70)
-                    await db.gif_jobs.update_one(
-                        {"id": job_id},
-                        {"$set": {"progress": progress, "progressMessage": f"Creating frame {i+1}/{len(animation_frames)}..."}}
+                    # Update progress for each frame
+                    frame_progress, frame_msg = get_progress_for_step("gif", "frame", i + 1, len(animation_frames))
+                    await update_job_progress("gif_jobs", job_id, frame_progress, frame_msg)
+                    
+                    # Optimized prompt for faster generation
+                    prompt = f"""Transform to {style_info['name']} cartoon: {emotion_info['name']} expression.
+Frame {i+1}: {frame_desc}
+Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}"""
+                    
+                    image_bytes = await generate_image_fast(
+                        prompt,
+                        f"gif-{job_id}-{i}",
+                        photo_b64
                     )
                     
-                    chat = LlmChat(
-                        api_key=EMERGENT_LLM_KEY, 
-                        session_id=f"gif-frame-{job_id}-{i}", 
-                        system_message="You are a kids-friendly cartoon animator. Create cute, safe character frames for animation."
-                    )
-                    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-                    
-                    prompt = f"""Transform the person in this photo into a {style_info['name']} character.
-Emotion: {emotion_info['name']} - {emotion_info['description']}
-Animation frame {i+1}/{len(animation_frames)}: {frame_desc}
-Style: {style_info.get('description', '')}
-Kid-friendly, cute, safe for children.
-{f"Text bubble: '{add_text}'" if add_text else ""}
-Create a single frame image for this animation step."""
-                    
-                    msg = UserMessage(
-                        text=prompt,
-                        file_contents=[ImageContent(photo_b64)]
-                    )
-                    
-                    text_response, images = await chat.send_message_multimodal_response(msg)
-                    
-                    if images and len(images) > 0:
-                        img_data = images[0]
-                        image_bytes = base64.b64decode(img_data['data'])
-                        
-                        import hashlib
+                    if image_bytes:
                         filename = f"gif_frame_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:12]}.png"
                         filepath = f"/app/backend/static/generated/{filename}"
                         
-                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                        
-                        with open(filepath, 'wb') as f:
-                            f.write(image_bytes)
-                        
-                        frames.append(filepath)
+                        if await save_image_async(image_bytes, filepath):
+                            frames.append(filepath)
                 
-                # Create animated GIF from frames
+                # Step 4: Assemble GIF
                 if frames:
-                    await db.gif_jobs.update_one(
-                        {"id": job_id},
-                        {"$set": {"progress": 85, "progressMessage": "Assembling GIF..."}}
-                    )
+                    progress, msg = get_progress_for_step("gif", "assembling")
+                    await update_job_progress("gif_jobs", job_id, progress, msg)
                     
-                    gif_path = await create_animated_gif(job_id, frames, emotion)
-                    if gif_path:
-                        result_url = f"/api/static/generated/{os.path.basename(gif_path)}"
+                    duration_map = {
+                        "dancing": 120, "jumping": 100, "excited": 100,
+                        "thinking": 300, "sad": 250, "happy": 150,
+                        "laughing": 120, "surprised": 150, "waving": 150,
+                        "hearts": 200, "thumbsup": 200, "celebrate": 100
+                    }
+                    duration = duration_map.get(emotion, 150)
+                    
+                    gif_filename = f"animated_{hashlib.md5(job_id.encode()).hexdigest()[:16]}.gif"
+                    gif_path = f"/app/backend/static/generated/{gif_filename}"
+                    
+                    if await create_gif_optimized(frames, gif_path, duration):
+                        result_url = f"/api/static/generated/{gif_filename}"
                         
             except Exception as e:
                 logger.error(f"GIF generation error: {e}")
         
-        # Fallback: create simple animated GIF from single frame or placeholder
+        # Fallback: create quick bounce animation
         if not result_url:
-            await db.gif_jobs.update_one(
-                {"id": job_id},
-                {"$set": {"progress": 80, "progressMessage": "Creating fallback animation..."}}
-            )
+            progress, msg = get_progress_for_step("gif", "assembling")
+            await update_job_progress("gif_jobs", job_id, progress, "Creating animation...")
             
-            # Try to create from photo itself with animation effect
             try:
-                gif_path = await create_fallback_gif(job_id, photo_content, emotion)
-                if gif_path:
-                    result_url = f"/api/static/generated/{os.path.basename(gif_path)}"
-            except:
-                pass
+                gif_filename = f"bounce_{hashlib.md5(job_id.encode()).hexdigest()[:16]}.gif"
+                gif_path = f"/app/backend/static/generated/{gif_filename}"
+                
+                if await create_bounce_gif_fast(photo_content, gif_path, emotion):
+                    result_url = f"/api/static/generated/{gif_filename}"
+            except Exception as e:
+                logger.error(f"Fallback GIF error: {e}")
         
         if not result_url:
             result_url = f"https://placehold.co/512x512/ff69b4/white?text={emotion_info['emoji']}+{emotion}"
         
-        # Deduct credits for generation
+        # Step 5: Finalize
+        progress, msg = get_progress_for_step("gif", "finalizing")
+        await update_job_progress("gif_jobs", job_id, progress, msg)
+        
+        # Deduct credits
         await deduct_credits(user_id, cost, f"GIF: {emotion}")
         
-        # Update job
+        # Complete
         await db.gif_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -720,7 +721,7 @@ Create a single frame image for this animation step."""
         logger.error(f"GIF processing error: {e}")
         await db.gif_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "FAILED", "error": str(e), "progress": 0}}
+            {"$set": {"status": "FAILED", "error": str(e), "progress": 0, "progressMessage": "Generation failed"}}
         )
 
 
