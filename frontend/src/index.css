@@ -65,23 +65,6 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-    --primary-foreground: 255 255 255;
-    --secondary: 249 115 22;
-    --secondary-foreground: 255 255 255;
-    --muted: 30 41 59;
-    --muted-foreground: 148 163 184;
-    --accent: 30 41 59;
-    --accent-foreground: 248 250 252;
-    --destructive: 239 68 68;
-    --destructive-foreground: 255 255 255;
-    --border: 51 65 85;
-    --input: 30 41 59;
-    --ring: 99 102 241;
-    
-    --color-heading: 248 250 252;
-    --color-body: 203 213 225;
-    --color-muted: 148 163 184;
-  }
 }
 
 @layer base {
