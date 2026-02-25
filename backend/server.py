@@ -481,6 +481,13 @@ async def startup():
     except Exception as e:
         logger.warning(f"Payment reconciliation task warning: {e}")
     
+    # Start auto-scaling engine
+    try:
+        await initialize_priority_scaling()
+        logger.info("Auto-scaling and priority lanes initialized")
+    except Exception as e:
+        logger.warning(f"Auto-scaling initialization warning: {e}")
+    
     logger.info("CreatorStudio API ready!")
 
 
