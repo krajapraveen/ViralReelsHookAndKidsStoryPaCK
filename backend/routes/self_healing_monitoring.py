@@ -556,3 +556,56 @@ async def get_storage_health(
     Get storage system health
     """
     return await StorageHealthService.check_storage_health()
+
+
+
+# ============================================
+# CLIENT ERROR LOGGING
+# ============================================
+
+class ClientErrorRequest:
+    """Model for client error logging"""
+    pass
+
+from pydantic import BaseModel
+from typing import Optional
+
+class ClientErrorLog(BaseModel):
+    error: str
+    stack: Optional[str] = None
+    componentStack: Optional[str] = None
+    url: str
+    userAgent: str
+    timestamp: str
+
+@router.post("/client-error")
+async def log_client_error(
+    error: ClientErrorLog,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Log client-side errors for monitoring
+    """
+    user_id = str(current_user.get("_id", "anonymous"))
+    
+    try:
+        await db.client_errors.insert_one({
+            "user_id": user_id,
+            "error": error.error,
+            "stack": error.stack,
+            "component_stack": error.componentStack,
+            "url": error.url,
+            "user_agent": error.userAgent,
+            "timestamp": error.timestamp,
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        await metrics.increment("client_errors.total")
+        
+    except Exception as e:
+        logger.warning(f"Failed to log client error: {e}")
+    
+    return {"status": "logged"}
+
+
+from shared import get_current_user
