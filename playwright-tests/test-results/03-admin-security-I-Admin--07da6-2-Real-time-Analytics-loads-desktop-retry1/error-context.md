@@ -1,0 +1,205 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button [ref=e7] [cursor=pointer]:
+          - img
+        - generic [ref=e8]:
+          - heading "Real-Time Analytics" [level=1] [ref=e9]:
+            - img [ref=e10]
+            - text: Real-Time Analytics
+          - paragraph [ref=e12]:
+            - text: Live platform metrics and performance
+            - generic [ref=e14]:
+              - img [ref=e15]
+              - text: WebSocket
+      - generic [ref=e19]:
+        - combobox [ref=e20] [cursor=pointer]:
+          - option "Last 24 hours"
+          - option "Last 7 days" [selected]
+          - option "Last 30 days"
+          - option "Last 90 days"
+          - option "Custom range"
+        - generic [ref=e21]: 6:57:56 AM
+        - button "Live" [ref=e23] [cursor=pointer]:
+          - img
+          - text: Live
+        - button [ref=e24] [cursor=pointer]:
+          - img
+    - generic [ref=e26]:
+      - button "Overview" [ref=e27] [cursor=pointer]
+      - button "Revenue" [ref=e28] [cursor=pointer]
+      - button "Monitoring" [ref=e29] [cursor=pointer]
+      - button "Alerts" [ref=e30] [cursor=pointer]
+      - button "Export" [ref=e31] [cursor=pointer]
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - img [ref=e37]
+            - generic [ref=e41]: LIVE
+          - paragraph [ref=e43]: "0"
+          - paragraph [ref=e44]: Active Users
+        - generic [ref=e46]:
+          - img [ref=e47]
+          - paragraph [ref=e52]: "22"
+          - paragraph [ref=e53]: Total Users
+          - paragraph [ref=e54]: + 0 today
+        - generic [ref=e56]:
+          - img [ref=e57]
+          - paragraph [ref=e59]: "0"
+          - paragraph [ref=e60]: Generations Today
+        - generic [ref=e62]:
+          - img [ref=e63]
+          - paragraph [ref=e65]: "0"
+          - paragraph [ref=e66]: Logins Today
+        - generic [ref=e68]:
+          - img [ref=e69]
+          - paragraph [ref=e71]: "0"
+          - paragraph [ref=e72]: Credits Used
+        - generic [ref=e74]:
+          - img [ref=e75]
+          - paragraph [ref=e77]: ₹0
+          - paragraph [ref=e78]: Revenue Today
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - generic [ref=e82]:
+              - img [ref=e83]
+              - text: Generation Success Rate
+            - generic [ref=e86]: Last 24 hours
+          - generic [ref=e87]:
+            - generic [ref=e88]:
+              - generic [ref=e89]: 0 %
+              - generic [ref=e90]:
+                - paragraph [ref=e91]: 0 successful
+                - paragraph [ref=e92]: 0 failed
+            - progressbar [ref=e93]
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - generic [ref=e97]:
+              - img [ref=e98]
+              - text: Weekly Revenue
+            - generic [ref=e100]: Last 7 days
+          - generic [ref=e101]:
+            - generic [ref=e102]: ₹0
+            - generic [ref=e103]:
+              - generic [ref=e104]: "Today:"
+              - generic [ref=e105]: ₹0
+        - generic [ref=e106]:
+          - generic [ref=e108]:
+            - img [ref=e109]
+            - text: Generations by Type
+          - generic [ref=e114]:
+            - generic [ref=e115]:
+              - generic [ref=e116]: REEL
+              - generic [ref=e120]: "3"
+            - generic [ref=e121]:
+              - generic [ref=e122]: STORY
+              - generic [ref=e126]: "1"
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - generic [ref=e130]:
+            - img [ref=e131]
+            - text: Hourly Activity
+          - generic [ref=e135]:
+            - 'generic "06:00: 1" [ref=e136]':
+              - generic [ref=e138]: 06:00
+            - 'generic "07:00: 3"'
+            - 'generic "08:00: 0"'
+            - 'generic "09:00: 0"'
+            - 'generic "10:00: 0" [ref=e139]':
+              - generic [ref=e141]: 10:00
+            - 'generic "11:00: 0"'
+            - 'generic "12:00: 0"'
+            - 'generic "13:00: 0"'
+            - 'generic "14:00: 0" [ref=e142]':
+              - generic [ref=e144]: 14:00
+            - 'generic "15:00: 0"'
+            - 'generic "16:00: 0"'
+            - 'generic "17:00: 0"'
+            - 'generic "18:00: 0" [ref=e145]':
+              - generic [ref=e147]: 18:00
+            - 'generic "19:00: 0"'
+            - 'generic "20:00: 0"'
+            - 'generic "21:00: 0"'
+            - 'generic "22:00: 0" [ref=e148]':
+              - generic [ref=e150]: 22:00
+            - 'generic "23:00: 0"'
+            - 'generic "00:00: 0"'
+            - 'generic "01:00: 0"'
+            - 'generic "02:00: 0" [ref=e151]':
+              - generic [ref=e153]: 02:00
+            - 'generic "03:00: 0"'
+            - 'generic "04:00: 0"'
+            - 'generic "05:00: 0"'
+        - generic [ref=e154]:
+          - generic [ref=e156]:
+            - img [ref=e157]
+            - text: Recent Activity
+          - generic [ref=e162]:
+            - generic [ref=e163]:
+              - img [ref=e166]
+              - generic [ref=e168]:
+                - paragraph [ref=e169]: REEL generated
+                - paragraph [ref=e170]: 8:21:25 AM
+            - generic [ref=e171]:
+              - img [ref=e174]
+              - generic [ref=e176]:
+                - paragraph [ref=e177]: REEL generated
+                - paragraph [ref=e178]: 8:04:30 AM
+            - generic [ref=e179]:
+              - img [ref=e182]
+              - generic [ref=e184]:
+                - paragraph [ref=e185]: STORY generated
+                - paragraph [ref=e186]: 8:04:02 AM
+            - generic [ref=e187]:
+              - img [ref=e190]
+              - generic [ref=e192]:
+                - paragraph [ref=e193]: REEL generated
+                - paragraph [ref=e194]: 7:57:24 AM
+            - generic [ref=e195]:
+              - img [ref=e198]
+              - generic [ref=e200]:
+                - paragraph [ref=e201]: REEL generated
+                - paragraph [ref=e202]: 7:29:23 AM
+      - generic [ref=e203]:
+        - generic [ref=e204]:
+          - generic [ref=e206]:
+            - img [ref=e207]
+            - text: Generation Trend
+          - combobox [ref=e210] [cursor=pointer]:
+            - option "7 days" [selected]
+            - option "14 days"
+            - option "30 days"
+        - generic [ref=e213]:
+          - generic [ref=e214]:
+            - generic [ref=e215]: "6"
+            - generic [ref=e216]: Thu
+          - generic [ref=e217]:
+            - generic [ref=e218]: "11"
+            - generic [ref=e219]: Fri
+          - generic [ref=e220]:
+            - generic [ref=e221]: "159"
+            - generic [ref=e222]: Sat
+          - generic [ref=e223]:
+            - generic [ref=e224]: "1"
+            - generic [ref=e225]: Sun
+          - generic [ref=e226]:
+            - generic [ref=e227]: "4"
+            - generic [ref=e228]: Mon
+          - generic [ref=e229]:
+            - generic [ref=e230]: "4"
+            - generic [ref=e231]: Tue
+          - generic [ref=e232]:
+            - generic [ref=e233]: "0"
+            - generic [ref=e234]: Wed
+  - button [ref=e235] [cursor=pointer]:
+    - img [ref=e236]
+  - button "Share your feedback" [ref=e239] [cursor=pointer]:
+    - img [ref=e240]
+  - region "Notifications alt+T"
+```
