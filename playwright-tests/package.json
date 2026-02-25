@@ -3,7 +3,13 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npx playwright test",
+    "test:public": "npx playwright test 01-public-auth.spec.ts",
+    "test:features": "npx playwright test 02-generation-features.spec.ts",
+    "test:admin": "npx playwright test 03-admin-security.spec.ts",
+    "test:api": "npx playwright test 04-api-mobile.spec.ts",
+    "test:headed": "npx playwright test --headed",
+    "test:report": "npx playwright show-report"
   },
   "keywords": [],
   "author": "",
