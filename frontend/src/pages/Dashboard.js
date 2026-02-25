@@ -17,17 +17,37 @@ export default function Dashboard() {
   }, []);
 
   const fetchData = async () => {
+    let hasError = false;
+    
+    // Fetch user data first (most critical)
     try {
-      const [creditsRes, userRes, generationsRes] = await Promise.all([
-        creditAPI.getBalance(),
-        authAPI.getCurrentUser(),
-        generationAPI.getGenerations(null, 0, 5)
-      ]);
-      setCredits(creditsRes.data.credits);
+      const userRes = await authAPI.getCurrentUser();
       setUser(userRes.data);
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+      hasError = true;
+    }
+    
+    // Fetch credits separately
+    try {
+      const creditsRes = await creditAPI.getBalance();
+      setCredits(creditsRes.data.credits);
+    } catch (error) {
+      console.error('Failed to fetch credits:', error);
+      hasError = true;
+    }
+    
+    // Fetch recent generations (non-critical)
+    try {
+      const generationsRes = await generationAPI.getGenerations(null, 0, 5);
       setRecentGenerations(generationsRes.data.generations || []);
     } catch (error) {
-      toast.error('Failed to load dashboard data');
+      console.error('Failed to fetch generations:', error);
+      // Don't set hasError for non-critical data
+    }
+    
+    if (hasError) {
+      toast.error('Failed to load some dashboard data');
     }
   };
 
