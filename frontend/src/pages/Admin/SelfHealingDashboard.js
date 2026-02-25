@@ -137,7 +137,7 @@ const ScalingDashboard = () => {
               variant="outline"
               size="sm"
               onClick={() => handleManualScale('down')}
-              disabled={scaling.current_workers <= scaling.min_workers || scaling}
+              disabled={scaling.current_workers <= scaling.min_workers || isScaling}
             >
               <TrendingDown className="h-4 w-4 mr-1" />
               Scale Down
@@ -147,7 +147,7 @@ const ScalingDashboard = () => {
               variant="outline"
               size="sm"
               onClick={() => handleManualScale('up')}
-              disabled={scaling.current_workers >= scaling.max_workers || scaling}
+              disabled={scaling.current_workers >= scaling.max_workers || isScaling}
             >
               <TrendingUp className="h-4 w-4 mr-1" />
               Scale Up
