@@ -281,8 +281,12 @@ export default function ComixAI() {
       return;
     }
     
+    // CRITICAL: Clear previous results
+    setPanelJob(null);
+    stopPolling();
     setLoading(true);
-    setToastShown({});
+    toastShownRef.current = {};
+    
     try {
       const formData = new FormData();
       formData.append('scene_description', sceneDescription);
@@ -291,18 +295,20 @@ export default function ComixAI() {
       formData.append('genre', genre);
       formData.append('mood', mood);
       formData.append('include_speech_bubbles', includeSpeech.toString());
+      formData.append('timestamp', Date.now().toString());
       if (speechText) formData.append('speech_text', speechText);
       if (panelNegativePrompt) formData.append('negative_prompt', panelNegativePrompt);
       
       const response = await api.post('/api/comix/generate-panel', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Cache-Control': 'no-cache'
+        }
       });
       
       setPanelJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Panel generation started!');
       
-      // Reset toast shown state for new job and start polling
-      toastShownRef.current = {};
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId, 'panel'), 2000);
       pollingIntervalRef.current = interval;
@@ -326,8 +332,12 @@ export default function ComixAI() {
       return;
     }
     
+    // CRITICAL: Clear previous results
+    setStoryJob(null);
+    stopPolling();
     setLoading(true);
-    setToastShown({});
+    toastShownRef.current = {};
+    
     try {
       const formData = new FormData();
       formData.append('story_prompt', storyPrompt);
@@ -335,22 +345,24 @@ export default function ComixAI() {
       formData.append('panel_count', storyPanelCount);
       formData.append('genre', storyGenre);
       formData.append('auto_dialogue', autoDialogue.toString());
+      formData.append('timestamp', Date.now().toString());
       if (storyNegativePrompt) formData.append('negative_prompt', storyNegativePrompt);
       
       // Add character images if provided
       characterImages.forEach((img, i) => {
-        formData.append('character_images', img);
+        formData.append('character_images', img, img.name);
       });
       
       const response = await api.post('/api/comix/generate-story', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Cache-Control': 'no-cache'
+        }
       });
       
       setStoryJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success(`Story generation started! ${characterImages.length > 0 ? `Using ${characterImages.length} character image(s)` : ''}`);
       
-      // Reset toast shown state for new job and start polling
-      toastShownRef.current = {};
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId, 'story'), 2000);
       pollingIntervalRef.current = interval;
