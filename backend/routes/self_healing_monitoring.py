@@ -312,10 +312,6 @@ async def get_incidents(
     """
     incidents = await IncidentLogger.get_recent_incidents(hours, incident_type)
     
-    # Convert ObjectId
-    for incident in incidents:
-        incident["_id"] = str(incident["_id"])
-    
     return {
         "hours": hours,
         "count": len(incidents),
