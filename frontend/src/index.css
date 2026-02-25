@@ -669,6 +669,59 @@ input[type="text"]:-webkit-autofill {
 }
 
 /* ============================================
+   ENHANCED AUTOFILL OVERRIDE - REMOVE ALL YELLOW
+   Force professional slate/white backgrounds
+   ============================================ */
+
+/* Light mode autofill - white background */
+:root input:-webkit-autofill,
+:root input:-webkit-autofill:hover,
+:root input:-webkit-autofill:focus,
+:root input:-webkit-autofill:active,
+:root textarea:-webkit-autofill,
+:root select:-webkit-autofill {
+  -webkit-text-fill-color: #0f172a !important;
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  background-color: #ffffff !important;
+  caret-color: #0f172a !important;
+  transition: background-color 600000s 0s, color 600000s 0s !important;
+}
+
+/* Dark mode autofill - slate background */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+.dark textarea:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-text-fill-color: #f8fafc !important;
+  -webkit-box-shadow: 0 0 0px 1000px #1e293b inset !important;
+  box-shadow: 0 0 0px 1000px #1e293b inset !important;
+  background-color: #1e293b !important;
+  caret-color: #f8fafc !important;
+  transition: background-color 600000s 0s, color 600000s 0s !important;
+}
+
+/* Force remove any yellow/amber from inputs */
+input, textarea, select {
+  background-color: transparent !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  background-color: transparent !important;
+}
+
+/* Override any browser-imposed colors */
+input:-webkit-autofill::first-line {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ============================================
    DEFAULT MOBILE RESPONSIVE STYLING
    Uses Tailwind's built-in responsive utilities
    ============================================ */
