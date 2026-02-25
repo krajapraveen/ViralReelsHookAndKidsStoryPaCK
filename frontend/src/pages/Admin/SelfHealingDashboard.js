@@ -741,15 +741,15 @@ const SelfHealingDashboard = () => {
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-500 capitalize">{name} Queue</p>
-                      <p className={`text-2xl font-bold ${depth > 50 ? 'text-yellow-500' : depth > 100 ? 'text-red-500' : 'text-green-500'}`}>
+                      <p className="text-sm text-slate-500 capitalize">{name} Queue</p>
+                      <p className={`text-2xl font-bold ${depth > 100 ? 'text-red-600' : depth > 50 ? 'text-amber-600' : 'text-emerald-600'}`}>
                         {depth}
                       </p>
                     </div>
                     {depth > 50 ? (
-                      <TrendingUp className="h-8 w-8 text-yellow-300" />
+                      <TrendingUp className="h-8 w-8 text-amber-400" />
                     ) : (
-                      <TrendingDown className="h-8 w-8 text-green-300" />
+                      <TrendingDown className="h-8 w-8 text-emerald-400" />
                     )}
                   </div>
                 </CardContent>
@@ -772,20 +772,20 @@ const SelfHealingDashboard = () => {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Total (24h)</p>
+                  <p className="text-sm text-slate-500">Total (24h)</p>
                   <p className="text-xl font-bold">{dashboard.payment_health?.metrics?.total_24h || 0}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Successful</p>
-                  <p className="text-xl font-bold text-green-600">{dashboard.payment_health?.metrics?.successful_24h || 0}</p>
+                  <p className="text-sm text-slate-500">Successful</p>
+                  <p className="text-xl font-bold text-emerald-600">{dashboard.payment_health?.metrics?.successful_24h || 0}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Failed</p>
+                  <p className="text-sm text-slate-500">Failed</p>
                   <p className="text-xl font-bold text-red-600">{dashboard.payment_health?.metrics?.failed_24h || 0}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Stuck</p>
-                  <p className={`text-xl font-bold ${(dashboard.payment_health?.metrics?.stuck_payments || 0) > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                  <p className="text-sm text-slate-500">Stuck</p>
+                  <p className={`text-xl font-bold ${(dashboard.payment_health?.metrics?.stuck_payments || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
                     {dashboard.payment_health?.metrics?.stuck_payments || 0}
                   </p>
                 </div>
