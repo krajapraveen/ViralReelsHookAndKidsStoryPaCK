@@ -1,0 +1,139 @@
+name: 📱 Mobile & Visual Regression Tests
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'frontend/**'
+      - 'playwright-tests/**'
+  workflow_dispatch:
+    inputs:
+      viewport:
+        description: 'Mobile viewport to test'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - iPhone_SE
+          - iPhone_12
+          - iPad_Mini
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  mobile-tests:
+    name: 📱 Mobile Tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport: ${{ github.event.inputs.viewport == 'all' && fromJSON('["iPhone_SE", "iPhone_12", "iPad_Mini"]') || fromJSON(format('["{0}"]', github.event.inputs.viewport || 'iPhone_12')) }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: playwright-tests/yarn.lock
+
+      - name: 📦 Install Dependencies
+        working-directory: playwright-tests
+        run: |
+          yarn install
+          npx playwright install chromium --with-deps
+
+      - name: 📱 Run Mobile Tests - ${{ matrix.viewport }}
+        working-directory: playwright-tests
+        run: |
+          npx playwright test --project=mobile-deep
+        env:
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}
+          VIEWPORT: ${{ matrix.viewport }}
+
+      - name: 📸 Upload Screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-screenshots-${{ matrix.viewport }}
+          path: playwright-tests/mobile-screenshots/
+          retention-days: 14
+
+      - name: 📊 Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-test-results-${{ matrix.viewport }}
+          path: playwright-tests/test-results/
+          retention-days: 7
+
+  visual-regression:
+    name: 👁️ Visual Regression
+    runs-on: ubuntu-latest
+    needs: mobile-tests
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 Install Dependencies
+        working-directory: playwright-tests
+        run: yarn install
+
+      - name: 📥 Download All Screenshots
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mobile-screenshots-*
+          path: playwright-tests/mobile-screenshots/
+          merge-multiple: true
+
+      - name: 📥 Download Baseline (if exists)
+        uses: actions/cache@v4
+        with:
+          path: playwright-tests/visual-baselines/
+          key: visual-baselines-${{ github.base_ref || 'main' }}
+          restore-keys: |
+            visual-baselines-main
+            visual-baselines-
+
+      - name: 🔍 Run Visual Comparison
+        working-directory: playwright-tests
+        run: |
+          npx ts-node utils/visual-compare.ts || true
+        continue-on-error: true
+
+      - name: 💾 Save New Baselines
+        uses: actions/cache@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: playwright-tests/visual-baselines/
+          key: visual-baselines-${{ github.ref_name }}-${{ github.sha }}
+
+      - name: 📊 Upload Visual Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-regression-report
+          path: |
+            playwright-tests/visual-regression-report.md
+            playwright-tests/visual-diffs/
+          retention-days: 14
+
+      - name: 📝 Visual Report Summary
+        if: always()
+        run: |
+          echo "## 👁️ Visual Regression Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f playwright-tests/visual-regression-report.md ]; then
+            cat playwright-tests/visual-regression-report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No visual comparison report generated" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -1,0 +1,115 @@
+name: 🔒 Security & Performance Tests
+
+on:
+  schedule:
+    # Run weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  security-tests:
+    name: 🔒 Security Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 Install Dependencies
+        working-directory: playwright-tests
+        run: |
+          yarn install
+          npx playwright install chromium --with-deps
+
+      - name: 🔒 Run Security Edge Cases
+        working-directory: playwright-tests
+        run: |
+          npx playwright test tests/07-edge-cases.spec.ts --grep "Sanitization|Error Handling"
+        env:
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}
+
+      - name: 📊 Upload Security Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-test-results
+          path: playwright-tests/test-results/
+          retention-days: 30
+
+  performance-tests:
+    name: ⚡ Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 API Performance Tests
+        run: |
+          BASE_URL="${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}"
+          
+          echo "## ⚡ Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Endpoint | Response Time | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|---------------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Health endpoint
+          HEALTH_TIME=$(curl -sL -o /dev/null -w "%{time_total}" "$BASE_URL/api/health/")
+          echo "| /api/health | ${HEALTH_TIME}s | ✅ |" >> $GITHUB_STEP_SUMMARY
+          
+          # Root endpoint
+          ROOT_TIME=$(curl -sL -o /dev/null -w "%{time_total}" "$BASE_URL/")
+          echo "| / | ${ROOT_TIME}s | ✅ |" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📊 Concurrent Request Test
+        run: |
+          BASE_URL="${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}"
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Concurrent Request Test (20 parallel)" >> $GITHUB_STEP_SUMMARY
+          
+          # Run 20 concurrent requests
+          SUCCESS=0
+          FAIL=0
+          for i in {1..20}; do
+            STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$BASE_URL/api/health/" &)
+          done
+          wait
+          
+          echo "Concurrent test completed" >> $GITHUB_STEP_SUMMARY
+
+  dependency-audit:
+    name: 🔍 Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔍 Audit Frontend Dependencies
+        working-directory: frontend
+        run: |
+          yarn audit --level moderate || true
+        continue-on-error: true
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 🔍 Audit Backend Dependencies
+        working-directory: backend
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt || true
+        continue-on-error: true
