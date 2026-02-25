@@ -254,6 +254,7 @@ const SelfHealingDashboard = () => {
           </TabsTrigger>
           <TabsTrigger value="circuits">Circuit Breakers</TabsTrigger>
           <TabsTrigger value="queues">Job Queues</TabsTrigger>
+          <TabsTrigger value="scaling">Auto-Scaling</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
 
