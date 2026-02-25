@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-25T17:12:56.706314",
+  "timestamp": "2026-02-25T17:14:03.305348",
   "status": "critical",
   "services": {
     "springboot": {
@@ -10,7 +10,7 @@
     },
     "frontend": {
       "name": "React Frontend",
-      "supervisor_status": "RUNNING",
+      "supervisor_status": "UNKNOWN",
       "http_status": 200,
       "healthy": true
     },
@@ -35,12 +35,15 @@
     },
     "queue_messages": 0
   },
-  "actions_taken": [],
+  "actions_taken": [
+    "Restarted React Frontend successfully"
+  ],
   "issues": [
     "PostgreSQL is down",
     "Redis is down",
     "RabbitMQ is down",
-    "Spring Boot Backend is unhealthy"
+    "Spring Boot Backend is unhealthy",
+    "React Frontend is unhealthy"
   ],
   "api_validation": {
     "/api/auth/login": true,

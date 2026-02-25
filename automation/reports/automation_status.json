@@ -1,12 +1,12 @@
 {
   "running": true,
   "started_at": "2026-02-25T17:11:37.193804",
-  "last_health_check": "2026-02-25T17:13:13.298652",
-  "last_recovery": null,
+  "last_health_check": "2026-02-25T17:14:31.704263",
+  "last_recovery": "2026-02-25T17:14:31.705171",
   "last_validation": "2026-02-25T17:12:06.703360",
   "last_maintenance": "2026-02-25T17:12:06.705749",
   "health_status": "critical",
-  "checks_performed": 2,
-  "recoveries_performed": 0,
-  "issues_fixed": 0
+  "checks_performed": 3,
+  "recoveries_performed": 1,
+  "issues_fixed": 1
 }
