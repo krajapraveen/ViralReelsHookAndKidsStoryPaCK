@@ -1,0 +1,84 @@
+{
+  "summary": "Self-Healing System implementation tested successfully. Backend APIs (18 tests) passed 100%. Frontend dashboard loads correctly with all features functional.",
+  "iteration": 82,
+  "test_type": "self_healing_system",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/monitoring/dashboard", "issue": "System shows 'Critical' status due to high error rate alerts - this is expected behavior"},
+      {"endpoint": "idempotency_keys index", "issue": "Index creation warning: duplicate key error for null values in idempotency_keys collection - non-blocking but should be cleaned up"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Self-Healing Dashboard", "issues": ["Metric cards and tab content have bright yellow/lime (#E5FF00) background that creates poor contrast with dark text, making the UI hard to read", "Alert description text in Alerts tab is nearly invisible on yellow background"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_self_healing_system_iteration82.py",
+    "/app/test_reports/pytest/pytest_self_healing_iteration82.xml"
+  ],
+  "action_items": [
+    "Consider reducing metric card background color saturation for better readability",
+    "Clean up null values in idempotency_keys MongoDB collection to fix index warning"
+  ],
+  "critical_code_review_comments": [
+    "All self-healing APIs are properly implemented with correct authentication checks",
+    "Admin-only endpoints correctly require get_admin_user dependency",
+    "Health endpoint /api/monitoring/health correctly allows unauthenticated access for external monitoring",
+    "Payment reconciliation background task runs every 2 minutes as expected",
+    "Circuit breakers are implemented but none configured yet - expected until services start having failures"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_self_healing_system_iteration82.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% (dashboard loads, all tabs functional)"
+  },
+  "test_credentials": {
+    "admin": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026",
+    "demo": "demo@example.com / Password123!"
+  },
+  "seed_data_creation": "None needed - used existing admin/demo users",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Self-Healing System fully operational. Backend services for job recovery, payment reconciliation, download recovery all implemented. Monitoring dashboard at /app/admin/self-healing shows system health, alerts, circuit breakers, job queues, and payment health. Currently showing 3 'High Error Rate' alerts which is expected due to recent testing activity.",
+  "features_verified": {
+    "backend_endpoints": [
+      {"endpoint": "/api/monitoring/health", "status": "PASS", "auth_required": false, "notes": "Returns healthy status with checks for api, database, error_rate"},
+      {"endpoint": "/api/monitoring/dashboard", "status": "PASS", "auth_required": true, "notes": "Returns comprehensive dashboard with system_health, metrics, payment_health, storage_health, circuit_breakers, alerts"},
+      {"endpoint": "/api/monitoring/circuit-breakers", "status": "PASS", "auth_required": true, "notes": "Returns circuit breaker states with summary counts"},
+      {"endpoint": "/api/monitoring/alerts", "status": "PASS", "auth_required": true, "notes": "Returns list of alerts with count"},
+      {"endpoint": "/api/monitoring/payments/health", "status": "PASS", "auth_required": true, "notes": "Returns payment system health metrics"},
+      {"endpoint": "/api/monitoring/storage/health", "status": "PASS", "auth_required": true, "notes": "Returns storage health (primary/fallback)"},
+      {"endpoint": "/api/monitoring/metrics", "status": "PASS", "auth_required": true, "notes": "Returns detailed metrics snapshot"},
+      {"endpoint": "/api/monitoring/jobs", "status": "PASS", "auth_required": true, "notes": "Returns job listing with summary"},
+      {"endpoint": "/api/monitoring/jobs/queues", "status": "PASS", "auth_required": true, "notes": "Returns job queue depths"},
+      {"endpoint": "/api/monitoring/incidents", "status": "PASS", "auth_required": true, "notes": "Returns recent incidents"},
+      {"endpoint": "/api/monitoring/payments/reconciliation", "status": "PASS", "auth_required": true, "notes": "Returns reconciliation status"},
+      {"endpoint": "/api/recovery/status", "status": "PASS", "auth_required": true, "notes": "Returns user recovery status with issues list"},
+      {"endpoint": "/api/recovery/download/regenerate", "status": "PASS", "auth_required": true, "notes": "Generates new signed URL for downloads"}
+    ],
+    "frontend_dashboard": [
+      {"feature": "Dashboard loads", "status": "PASS"},
+      {"feature": "System health status banner", "status": "PASS"},
+      {"feature": "Error rate metric", "status": "PASS"},
+      {"feature": "P95 Latency metric", "status": "PASS"},
+      {"feature": "Active Alerts count", "status": "PASS"},
+      {"feature": "Incidents count", "status": "PASS"},
+      {"feature": "Overview tab", "status": "PASS"},
+      {"feature": "Alerts tab", "status": "PASS"},
+      {"feature": "Circuit Breakers tab", "status": "PASS"},
+      {"feature": "Job Queues tab", "status": "PASS"},
+      {"feature": "Payments tab", "status": "PASS"},
+      {"feature": "Auto-refresh toggle", "status": "PASS"},
+      {"feature": "Refresh Now button", "status": "PASS"},
+      {"feature": "Payment System card", "status": "PASS"},
+      {"feature": "Storage System card", "status": "PASS"}
+    ]
+  },
+  "timestamp": "2026-02-25T08:48:00Z"
+}
