@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Activity, AlertTriangle, CheckCircle, XCircle, Clock, Server, 
   Database, Zap, RefreshCw, Bell, Shield, TrendingUp, TrendingDown,
-  Loader2, ChevronDown, ChevronRight
+  Loader2, ChevronDown, ChevronRight, Users, Cpu, Gauge, Crown
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -11,6 +11,280 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/ta
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL || '';
+
+// ============================================
+// SCALING DASHBOARD COMPONENT
+// ============================================
+
+const ScalingDashboard = () => {
+  const [scalingData, setScalingData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [scaling, setScaling] = useState(false);
+
+  const fetchScalingData = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/api/scaling/dashboard`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        setScalingData(await response.json());
+      }
+    } catch (error) {
+      console.error('Scaling data fetch failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchScalingData();
+    const interval = setInterval(fetchScalingData, 15000);
+    return () => clearInterval(interval);
+  }, [fetchScalingData]);
+
+  const handleManualScale = async (direction) => {
+    if (!scalingData) return;
+    
+    const currentWorkers = scalingData.scaling.current_workers;
+    const targetWorkers = direction === 'up' ? currentWorkers + 1 : currentWorkers - 1;
+    
+    setScaling(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/api/scaling/manual`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          target_workers: targetWorkers,
+          reason: `Manual ${direction} from dashboard`
+        })
+      });
+      
+      if (response.ok) {
+        toast.success(`Scaled ${direction} successfully`);
+        fetchScalingData();
+      } else {
+        toast.error('Scaling failed');
+      }
+    } catch (error) {
+      toast.error('Scaling request failed');
+    } finally {
+      setScaling(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  if (!scalingData) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-gray-500">
+          Failed to load scaling data
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { scaling, priority_lanes, queue_by_tier, recent_scaling_events } = scalingData;
+
+  return (
+    <div className="space-y-4">
+      {/* Worker Status */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="h-5 w-5" />
+            Worker Auto-Scaling
+          </CardTitle>
+          <CardDescription>
+            Automatically scales workers based on queue depth and latency
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-500 mb-1">Current Workers</p>
+              <p className="text-4xl font-bold text-indigo-600">{scaling.current_workers}</p>
+            </div>
+            <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-500 mb-1">Min / Max</p>
+              <p className="text-2xl font-semibold">{scaling.min_workers} / {scaling.max_workers}</p>
+            </div>
+            <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-500 mb-1">Queue Depth</p>
+              <p className={`text-2xl font-semibold ${
+                (scaling.metrics?.queue_depth || 0) > 50 ? 'text-yellow-500' : 'text-green-500'
+              }`}>
+                {scaling.metrics?.queue_depth?.toFixed(0) || 0}
+              </p>
+            </div>
+          </div>
+          
+          {/* Manual Scaling Controls */}
+          <div className="flex items-center justify-center gap-4 pt-4 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleManualScale('down')}
+              disabled={scaling.current_workers <= scaling.min_workers || scaling}
+            >
+              <TrendingDown className="h-4 w-4 mr-1" />
+              Scale Down
+            </Button>
+            <span className="text-sm text-gray-500">Manual Control</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleManualScale('up')}
+              disabled={scaling.current_workers >= scaling.max_workers || scaling}
+            >
+              <TrendingUp className="h-4 w-4 mr-1" />
+              Scale Up
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Priority Lanes */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="h-5 w-5" />
+            Priority Lanes
+          </CardTitle>
+          <CardDescription>
+            Premium users get faster processing with dedicated resources
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {Object.entries(priority_lanes || {}).map(([tier, stats]) => (
+              <div 
+                key={tier}
+                className={`p-4 rounded-lg border-2 ${
+                  tier === 'enterprise' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' :
+                  tier === 'pro' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' :
+                  tier === 'basic' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' :
+                  'border-gray-300 bg-gray-50 dark:bg-gray-800'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  {tier === 'enterprise' && <Crown className="h-4 w-4 text-purple-500" />}
+                  {tier === 'pro' && <Zap className="h-4 w-4 text-indigo-500" />}
+                  {tier === 'basic' && <Users className="h-4 w-4 text-blue-500" />}
+                  {tier === 'free' && <Users className="h-4 w-4 text-gray-500" />}
+                  <span className="font-semibold capitalize">{tier}</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Queued</span>
+                    <span className="font-medium">{stats.queued || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Processing</span>
+                    <span className="font-medium">{stats.processing || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">SLA</span>
+                    <span className="font-medium">{stats.sla_seconds || 0}s</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Max Concurrent</span>
+                    <span className="font-medium">{stats.max_concurrent || 0}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Queue by Tier */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <Gauge className="h-5 w-5" />
+            Queue Distribution by Tier
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-2 h-32">
+            {Object.entries(queue_by_tier || {}).map(([tier, count]) => {
+              const maxCount = Math.max(...Object.values(queue_by_tier || {}), 1);
+              const height = (count / maxCount) * 100;
+              return (
+                <div key={tier} className="flex-1 flex flex-col items-center">
+                  <div 
+                    className={`w-full rounded-t transition-all ${
+                      tier === 'enterprise' ? 'bg-purple-500' :
+                      tier === 'pro' ? 'bg-indigo-500' :
+                      tier === 'basic' ? 'bg-blue-500' :
+                      'bg-gray-400'
+                    }`}
+                    style={{ height: `${Math.max(height, 5)}%` }}
+                  />
+                  <span className="text-xs mt-1 capitalize">{tier}</span>
+                  <span className="text-sm font-semibold">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Scaling Events */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Recent Scaling Events
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recent_scaling_events && recent_scaling_events.length > 0 ? (
+            <div className="space-y-2">
+              {recent_scaling_events.slice(0, 5).map((event, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                  <div className="flex items-center gap-2">
+                    {event.direction === 'up' ? (
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-yellow-500" />
+                    )}
+                    <span className="text-sm">
+                      Scaled {event.direction} by {event.amount}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    <span className="mr-2">{event.old_workers} → {event.new_workers} workers</span>
+                    <span>{new Date(event.timestamp).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-4">No scaling events yet</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// ============================================
+// MAIN DASHBOARD COMPONENT
+// ============================================
 
 const SelfHealingDashboard = () => {
   const [dashboard, setDashboard] = useState(null);
