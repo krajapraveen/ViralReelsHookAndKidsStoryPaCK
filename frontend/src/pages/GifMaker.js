@@ -292,21 +292,32 @@ export default function GifMaker() {
       return;
     }
     
+    // CRITICAL: Clear previous results
+    setCurrentJob(null);
+    stopGifPolling();
     setLoading(true);
+    toastShownRef.current = {};
+    
     try {
       const formData = new FormData();
-      formData.append('photo', photo);
+      formData.append('photo', photo, photo.name);
       formData.append('emotions', selectedEmotions.join(','));
       formData.append('style', selectedStyle);
+      formData.append('timestamp', Date.now().toString()); // Prevent caching
       
       const response = await api.post('/api/gif-maker/generate-batch', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Cache-Control': 'no-cache'
+        }
       });
       
       setCurrentJob({ id: response.data.batchId, status: 'QUEUED', type: 'batch' });
       toast.success('Batch generation started!');
       
+      isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.batchId), 2000);
+      pollingRef.current = interval;
       setPollingInterval(interval);
       
     } catch (error) {
