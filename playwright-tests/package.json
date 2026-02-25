@@ -13,12 +13,15 @@
     "test:all": "npx playwright test --project=desktop --project=mobile-comprehensive --project=mobile-deep --project=edge-cases",
     "test:headed": "npx playwright test --headed",
     "test:report": "npx playwright show-report",
-    "visual:compare": "npx ts-node utils/visual-compare.ts"
+    "test:ci": "npx playwright test --project=smoke --reporter=json",
+    "test:ci:full": "npx playwright test --reporter=json",
+    "visual:compare": "npx ts-node utils/visual-compare.ts",
+    "visual:update-baseline": "cp -r mobile-screenshots/* visual-baselines/"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["testing", "playwright", "ci-cd", "smoke-tests"],
+  "author": "CreatorStudio AI",
   "license": "ISC",
-  "description": "CreatorStudio AI - Comprehensive Test Suite",
+  "description": "CreatorStudio AI - Comprehensive Test Suite with CI/CD Integration",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "pixelmatch": "^7.1.0",
