@@ -104,11 +104,38 @@ export default function ComixAI() {
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         toast.error('Image too large. Max 10MB.');
+        e.target.value = ''; // Clear input
         return;
       }
+      
+      // CRITICAL: Reset previous state when new photo uploaded
+      if (characterPhotoPreview) {
+        URL.revokeObjectURL(characterPhotoPreview);
+      }
+      
+      // Clear previous result
+      setCharacterJob(null);
+      stopPolling();
+      toastShownRef.current = {};
+      
       setCharacterPhoto(file);
       setCharacterPhotoPreview(URL.createObjectURL(file));
     }
+  };
+
+  // Clear character photo and reset state
+  const clearCharacterPhoto = () => {
+    if (characterPhotoPreview) {
+      URL.revokeObjectURL(characterPhotoPreview);
+    }
+    setCharacterPhoto(null);
+    setCharacterPhotoPreview(null);
+    setCharacterJob(null);
+    stopPolling();
+    toastShownRef.current = {};
+    
+    const fileInput = document.getElementById('comix-character-photo-input');
+    if (fileInput) fileInput.value = '';
   };
 
   // Handle character images for story mode
