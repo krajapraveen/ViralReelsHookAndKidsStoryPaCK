@@ -67,7 +67,11 @@ const RealtimeAnalytics = () => {
     return { start, end };
   };
 
-  // WebSocket connection
+  // WebSocket connection with exponential backoff
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 10;
+  const baseReconnectDelay = 1000; // 1 second
+  
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
     
@@ -79,6 +83,7 @@ const RealtimeAnalytics = () => {
       
       wsRef.current.onopen = () => {
         setWsConnected(true);
+        reconnectAttemptsRef.current = 0; // Reset on successful connection
         console.log('WebSocket connected');
       };
       
@@ -94,16 +99,26 @@ const RealtimeAnalytics = () => {
         }
       };
       
-      wsRef.current.onclose = () => {
+      wsRef.current.onclose = (event) => {
         setWsConnected(false);
-        // Reconnect after 5 seconds
-        if (autoRefresh) {
-          reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
+        
+        // Exponential backoff reconnection
+        if (autoRefresh && reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(
+            baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current),
+            30000 // Max 30 seconds
+          );
+          reconnectAttemptsRef.current++;
+          console.log(`WebSocket closed. Reconnecting in ${delay/1000}s (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          console.log('Max reconnection attempts reached. Using polling fallback.');
         }
       };
       
-      wsRef.current.onerror = () => {
+      wsRef.current.onerror = (error) => {
         setWsConnected(false);
+        console.error('WebSocket error:', error);
       };
     } catch (e) {
       console.error('WebSocket connection error:', e);
