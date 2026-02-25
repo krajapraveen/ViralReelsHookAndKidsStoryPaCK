@@ -50,7 +50,7 @@ const ScalingDashboard = () => {
     const currentWorkers = scalingData.scaling.current_workers;
     const targetWorkers = direction === 'up' ? currentWorkers + 1 : currentWorkers - 1;
     
-    setScaling(true);
+    setIsScaling(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API}/api/scaling/manual`, {
@@ -74,7 +74,7 @@ const ScalingDashboard = () => {
     } catch (error) {
       toast.error('Scaling request failed');
     } finally {
-      setScaling(false);
+      setIsScaling(false);
     }
   };
 
