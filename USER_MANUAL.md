@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://test-phase-runner.preview.emergentagent.com
+**Platform URL:** https://auto-recovery-lab.preview.emergentagent.com
 
 ---
 

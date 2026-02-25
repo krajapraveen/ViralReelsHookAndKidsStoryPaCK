@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://test-phase-runner.preview.emergentagent.com
+**Website:** https://auto-recovery-lab.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://test-phase-runner.preview.emergentagent.com
+**Base URL:** https://auto-recovery-lab.preview.emergentagent.com
 
 ---
 

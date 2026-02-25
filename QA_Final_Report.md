@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Testing Tools**: Playwright v1.58.2, curl, Python concurrent.futures  
-**Base URL**: https://test-phase-runner.preview.emergentagent.com
+**Base URL**: https://auto-recovery-lab.preview.emergentagent.com
 
 ---
 
