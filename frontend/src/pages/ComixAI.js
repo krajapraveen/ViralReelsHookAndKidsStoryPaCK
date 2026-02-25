@@ -599,23 +599,45 @@ export default function ComixAI() {
                 {characterJob ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className={`px-3 py-1 rounded-full text-sm ${
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         characterJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
                         characterJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                        'bg-yellow-500/20 text-yellow-400'
+                        characterJob.status === 'QUEUED' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-yellow-500/20 text-yellow-400 animate-pulse'
                       }`}>
-                        {characterJob.status}
+                        {characterJob.status === 'PROCESSING' ? 'GENERATING...' : characterJob.status}
                       </span>
-                      {characterJob.progressMessage && characterJob.status === 'PROCESSING' && (
-                        <span className="text-slate-400 text-sm">{characterJob.progressMessage}</span>
+                      {characterJob.progressMessage && (
+                        <span className="text-slate-400 text-sm flex items-center gap-2">
+                          {characterJob.status === 'PROCESSING' && (
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                          )}
+                          {characterJob.progressMessage}
+                        </span>
                       )}
                     </div>
                     
-                    {/* Progress Bar */}
-                    {characterJob.status === 'PROCESSING' && characterJob.progress !== undefined && (
-                      <div className="space-y-2">
-                        <Progress value={characterJob.progress} className="h-2" />
-                        <p className="text-xs text-slate-400 text-center">{characterJob.progress}% complete</p>
+                    {/* Enhanced Progress Bar */}
+                    {(characterJob.status === 'PROCESSING' || characterJob.status === 'QUEUED') && (
+                      <div className="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-400">Progress</span>
+                          <span className="text-purple-400 font-bold">{characterJob.progress || 0}%</span>
+                        </div>
+                        <div className="relative h-3 bg-slate-700 rounded-full overflow-hidden">
+                          <div 
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500"
+                            style={{ width: `${characterJob.progress || 0}%` }}
+                          />
+                        </div>
+                        
+                        {/* Step Indicators */}
+                        <div className="flex justify-between text-xs text-slate-500 mt-2">
+                          <span className={characterJob.progress >= 5 ? 'text-green-400' : ''}>Analyze</span>
+                          <span className={characterJob.progress >= 40 ? 'text-green-400' : ''}>Transform</span>
+                          <span className={characterJob.progress >= 70 ? 'text-green-400' : ''}>Enhance</span>
+                          <span className={characterJob.progress >= 100 ? 'text-green-400' : ''}>Done</span>
+                        </div>
                       </div>
                     )}
                     
