@@ -484,6 +484,11 @@ const SelfHealingDashboard = () => {
           </div>
         </TabsContent>
 
+        {/* Auto-Scaling Tab */}
+        <TabsContent value="scaling" className="space-y-4">
+          <ScalingDashboard />
+        </TabsContent>
+
         {/* Payments Tab */}
         <TabsContent value="payments" className="space-y-4">
           <Card>
