@@ -521,6 +521,12 @@ async def job_worker_loop():
 @app.on_event("shutdown")
 async def shutdown():
     """Application shutdown"""
+    # Shutdown auto-scaling engine
+    try:
+        await shutdown_priority_scaling()
+    except Exception as e:
+        logger.warning(f"Auto-scaling shutdown warning: {e}")
+    
     client.close()
     logger.info("CreatorStudio API shutdown")
 
