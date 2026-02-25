@@ -19,7 +19,7 @@ const API = process.env.REACT_APP_BACKEND_URL || '';
 const ScalingDashboard = () => {
   const [scalingData, setScalingData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scaling, setScaling] = useState(false);
+  const [isScaling, setIsScaling] = useState(false);
 
   const fetchScalingData = useCallback(async () => {
     try {
