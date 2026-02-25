@@ -606,8 +606,8 @@ class AutoScalingEngine:
         if len(self.scaling_history) > 100:
             self.scaling_history.pop(0)
         
-        # Log to database
-        await db.scaling_events.insert_one({**scaling_event, "_id": None})
+        # Log to database (exclude _id to let MongoDB generate it)
+        await db.scaling_events.insert_one(scaling_event.copy())
         
         logger.info(
             f"Scaled {direction}: {old_workers} -> {self.config.current_workers} workers "
