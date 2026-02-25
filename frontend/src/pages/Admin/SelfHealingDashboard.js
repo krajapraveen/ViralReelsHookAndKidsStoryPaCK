@@ -255,18 +255,18 @@ const ScalingDashboard = () => {
           {recent_scaling_events && recent_scaling_events.length > 0 ? (
             <div className="space-y-2">
               {recent_scaling_events.slice(0, 5).map((event, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded">
                   <div className="flex items-center gap-2">
                     {event.direction === 'up' ? (
-                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <TrendingUp className="h-4 w-4 text-emerald-600" />
                     ) : (
-                      <TrendingDown className="h-4 w-4 text-yellow-500" />
+                      <TrendingDown className="h-4 w-4 text-amber-600" />
                     )}
                     <span className="text-sm">
                       Scaled {event.direction} by {event.amount}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-slate-500">
                     <span className="mr-2">{event.old_workers} → {event.new_workers} workers</span>
                     <span>{new Date(event.timestamp).toLocaleTimeString()}</span>
                   </div>
