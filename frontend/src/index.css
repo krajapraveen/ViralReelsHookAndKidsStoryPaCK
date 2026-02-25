@@ -711,6 +711,58 @@ input[type="text"]:-webkit-autofill {
   }
 }
 
+/* MOBILE BUTTON SIZE IMPROVEMENTS - Touch targets min 44px */
+@media (max-width: 640px) {
+  /* Ensure all interactive elements meet touch target guidelines */
+  button:not(.icon-only),
+  [role="button"]:not(.icon-only),
+  a.btn,
+  input[type="submit"],
+  .btn {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.625rem !important;
+  }
+  
+  /* Tab buttons specifically */
+  [role="tab"],
+  button[data-state="active"],
+  button[data-state="inactive"] {
+    min-height: 40px !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  /* Generate/Submit buttons should be prominent */
+  button:has-text("Generate"),
+  button:has-text("Create"),
+  button:has-text("Submit"),
+  button[type="submit"] {
+    min-height: 48px !important;
+    font-size: 1rem !important;
+  }
+  
+  /* Select/dropdown triggers */
+  [role="combobox"],
+  select,
+  .select-trigger {
+    min-height: 44px !important;
+  }
+  
+  /* Form inputs */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    min-height: 44px !important;
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+  
+  /* Cards should have proper padding */
+  .card {
+    padding: 1rem !important;
+  }
+}
+
 /* Accessibility - Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * {
