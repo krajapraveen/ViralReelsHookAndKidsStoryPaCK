@@ -703,16 +703,29 @@ input[type="text"]:-webkit-autofill {
   transition: background-color 600000s 0s, color 600000s 0s !important;
 }
 
-/* Force remove any yellow/amber from inputs */
-input, textarea, select {
-  background-color: transparent !important;
+/* Force remove any yellow/amber from inputs - but allow custom backgrounds */
+input:not([class*="bg-"]), 
+textarea:not([class*="bg-"]), 
+select:not([class*="bg-"]) {
+  background-color: transparent;
+}
+
+/* Dark mode input text colors - ensure visibility */
+.dark input,
+.dark textarea,
+.dark select {
+  color: #f8fafc !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #94a3b8 !important;
 }
 
 input:not([type="checkbox"]):not([type="radio"]):focus,
 textarea:focus,
 select:focus {
   outline: none;
-  background-color: transparent !important;
 }
 
 /* Override any browser-imposed colors */
