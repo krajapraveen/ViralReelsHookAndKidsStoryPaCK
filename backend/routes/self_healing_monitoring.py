@@ -606,6 +606,3 @@ async def log_client_error(
         logger.warning(f"Failed to log client error: {e}")
     
     return {"status": "logged"}
-
-
-from shared import get_current_user
