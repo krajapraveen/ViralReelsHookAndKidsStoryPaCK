@@ -7,6 +7,53 @@ Build a full-stack application named "CreatorStudio AI" for generating viral ree
 
 ---
 
+## Session Summary - February 25, 2026 - Critical Photo/GIF Selection Bug Fix ✅
+
+### Bug Description:
+When uploading a new photo and selecting a GIF template, the previous photo/result was being used instead of the new one. This affected GIF Maker, ComixAI, ComicStorybook, and GenStudio Image-to-Video.
+
+### Root Cause:
+- Previous uploaded image still stored in state
+- GIF template/result not reset
+- File input not cleared properly
+- Cached preview being reused
+- No timestamp to prevent caching
+
+### Fixes Applied:
+
+#### 1. GIF Maker (`/app/frontend/src/pages/GifMaker.js`)
+- `handlePhotoChange`: Clears `currentJob`, stops polling, resets `toastShownRef`, revokes old preview URL
+- `clearPhoto`: New function to reset all state including file input value
+- `generateGif`: Appends `timestamp` to FormData to prevent caching
+- `generateBatch`: Same fixes applied
+
+#### 2. ComixAI (`/app/frontend/src/pages/ComixAI.js`)
+- `handlePhotoChange`: Clears `characterJob`, stops polling, resets state
+- `clearCharacterPhoto`: New function to reset all state
+- `handleCharacterImagesChange`: Revokes old preview URLs, clears story job
+- All generate functions append `timestamp` for cache prevention
+
+#### 3. ComicStorybook (`/app/frontend/src/pages/ComicStorybook.js`)
+- `handleFileChange`: Clears `currentJob`, preview, stops polling
+- `clearStoryFile`: New function to reset all state
+- `generateStorybook`: Appends `timestamp` to prevent caching
+
+#### 4. GenStudio Image-to-Video (`/app/frontend/src/pages/GenStudioImageToVideo.js`)
+- `handleImageSelect`: Clears `currentJob`, `jobStatus`, `result`, `progress`
+- `removeImage`: Properly resets all state and clears file input ref
+
+### Test Results: `/app/test_reports/iteration_77.json`
+- Frontend: 100% - All state reset scenarios verified
+- All QA test cases passed:
+  - ✅ Upload A → choose GIF → generate
+  - ✅ Upload B → choose same GIF → verify B is used (not A)
+  - ✅ Upload same image again → generate
+  - ✅ Change GIF template without uploading new image
+  - ✅ Rapid uploads (3–5 times) handled correctly
+  - ✅ Clear/remove buttons reset state properly
+
+---
+
 ## Session Summary - February 24, 2026 (Part 5) - Enhanced Real-Time Analytics ✅
 
 ### All 6 Requested Features Implemented:
