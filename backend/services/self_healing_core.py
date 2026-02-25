@@ -506,7 +506,7 @@ class IncidentLogger:
             query["type"] = incident_type
         
         try:
-            cursor = db.incidents.find(query).sort("created_at", -1).limit(100)
+            cursor = db.incidents.find(query, {"_id": 0}).sort("created_at", -1).limit(100)
             return await cursor.to_list(length=100)
         except Exception:
             return []
