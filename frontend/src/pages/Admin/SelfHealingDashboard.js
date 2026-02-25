@@ -321,19 +321,19 @@ const SelfHealingDashboard = () => {
 
   const getHealthColor = (status) => {
     switch (status) {
-      case 'healthy': return 'text-green-500 bg-green-100 dark:bg-green-900/30';
-      case 'degraded': return 'text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30';
-      case 'critical': return 'text-red-500 bg-red-100 dark:bg-red-900/30';
-      default: return 'text-gray-500 bg-gray-100';
+      case 'healthy': return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20';
+      case 'degraded': return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20';
+      case 'critical': return 'text-red-600 bg-red-50 dark:bg-red-900/20';
+      default: return 'text-slate-500 bg-slate-100 dark:bg-slate-800';
     }
   };
 
   const getHealthIcon = (status) => {
     switch (status) {
-      case 'healthy': return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'degraded': return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
-      case 'critical': return <XCircle className="h-5 w-5 text-red-500" />;
-      default: return <Clock className="h-5 w-5 text-gray-500" />;
+      case 'healthy': return <CheckCircle className="h-5 w-5 text-emerald-600" />;
+      case 'degraded': return <AlertTriangle className="h-5 w-5 text-amber-600" />;
+      case 'critical': return <XCircle className="h-5 w-5 text-red-600" />;
+      default: return <Clock className="h-5 w-5 text-slate-500" />;
     }
   };
 
