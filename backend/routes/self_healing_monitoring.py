@@ -257,12 +257,8 @@ async def get_alerts(
         query["resolved_at"] = None
     
     try:
-        cursor = db.alerts.find(query).sort("created_at", -1).limit(limit)
+        cursor = db.alerts.find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
         alerts = await cursor.to_list(length=limit)
-        
-        # Convert ObjectId to string
-        for alert in alerts:
-            alert["_id"] = str(alert["_id"])
         
         return {
             "count": len(alerts),
