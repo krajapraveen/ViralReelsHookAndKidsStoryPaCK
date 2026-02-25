@@ -383,7 +383,7 @@ async def get_user_recovery_status(
     """
     Get overall recovery status for current user
     """
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id", ""))
     
     # Check for pending jobs
     pending_jobs = await db.jobs.count_documents({
