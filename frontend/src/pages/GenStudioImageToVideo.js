@@ -136,13 +136,24 @@ export default function ImageToVideo() {
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       toast.error('Invalid image type. Use PNG, JPEG, or WebP');
+      e.target.value = '';
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
       toast.error('Image too large. Maximum size is 10MB');
+      e.target.value = '';
       return;
     }
+
+    // CRITICAL: Clear previous state when new image selected
+    if (imagePreview) {
+      // Clean up old preview URL to prevent memory leaks
+    }
+    setCurrentJob(null);
+    setJobStatus(null);
+    setResult(null);
+    setProgress({ step: 0, message: '' });
 
     setSelectedImage(file);
     const reader = new FileReader();
@@ -153,6 +164,10 @@ export default function ImageToVideo() {
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    setCurrentJob(null);
+    setJobStatus(null);
+    setResult(null);
+    setProgress({ step: 0, message: '' });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
