@@ -462,6 +462,22 @@ async def startup():
     # Start job worker
     asyncio.create_task(job_worker_loop())
     
+    # Initialize self-healing system
+    try:
+        from services.self_healing_core import initialize_self_healing
+        await initialize_self_healing()
+        logger.info("Self-healing system initialized")
+    except Exception as e:
+        logger.warning(f"Self-healing initialization warning: {e}")
+    
+    # Start payment reconciliation background task
+    try:
+        from services.payment_recovery_service import start_payment_reconciliation_task
+        asyncio.create_task(start_payment_reconciliation_task())
+        logger.info("Payment reconciliation task started")
+    except Exception as e:
+        logger.warning(f"Payment reconciliation task warning: {e}")
+    
     logger.info("CreatorStudio API ready!")
 
 
