@@ -211,11 +211,16 @@ export default function ComicStorybook() {
       return;
     }
     
+    // CRITICAL: Clear previous results
+    setCurrentJob(null);
+    stopPolling();
     setLoading(true);
+    toastShownRef.current = {};
+    
     try {
       const formData = new FormData();
       if (inputMethod === 'file' && storyFile) {
-        formData.append('story_file', storyFile);
+        formData.append('story_file', storyFile, storyFile.name);
       } else {
         formData.append('story_text', storyText);
       }
@@ -224,16 +229,19 @@ export default function ComicStorybook() {
       formData.append('panels_per_page', panelsPerPage);
       formData.append('title', title);
       formData.append('author', author);
+      formData.append('timestamp', Date.now().toString()); // Prevent caching
       
       const response = await api.post('/api/comic-storybook/generate', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Cache-Control': 'no-cache'
+        }
       });
       
       setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Story book generation started!');
       
-      // Reset toast shown state for new job and start polling
-      toastShownRef.current = {};
+      // Start fresh polling
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 3000);
       pollingRef.current = interval;
