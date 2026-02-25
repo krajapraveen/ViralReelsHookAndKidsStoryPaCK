@@ -1,0 +1,76 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - link "Dashboard" [ref=e7] [cursor=pointer]:
+            - /url: /app
+            - button "Dashboard" [ref=e8]:
+              - img
+              - generic [ref=e9]: Dashboard
+          - generic [ref=e10]:
+            - img [ref=e11]
+            - generic [ref=e13]: Story Generator
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - img [ref=e16]
+            - generic [ref=e21]: "0"
+          - button "Logout" [ref=e22] [cursor=pointer]:
+            - img
+            - generic [ref=e23]: Logout
+    - generic [ref=e24]:
+      - generic [ref=e27]:
+        - img [ref=e29]
+        - generic [ref=e31]:
+          - heading "Credits Exhausted!" [level=3] [ref=e32]
+          - paragraph [ref=e33]: You've used all your free credits. Upgrade to continue generating amazing content.
+          - link "View Plans & Upgrade" [ref=e35] [cursor=pointer]:
+            - /url: /pricing
+            - button "View Plans & Upgrade" [ref=e36]:
+              - img
+              - text: View Plans & Upgrade
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - heading "Create Kids Story Pack" [level=2] [ref=e39]
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - generic [ref=e42]:
+                - generic [ref=e43]: Age Group *
+                - combobox [ref=e44] [cursor=pointer]:
+                  - generic: Select age group
+                  - img [ref=e45]
+                - combobox [ref=e47] [cursor=pointer]
+              - generic [ref=e48]:
+                - generic [ref=e49]: Genre
+                - combobox [ref=e50] [cursor=pointer]:
+                  - generic: Fantasy
+                  - img [ref=e51]
+                - combobox [ref=e53] [cursor=pointer]
+            - generic [ref=e54]:
+              - generic [ref=e55]: Number of Scenes
+              - combobox [ref=e56] [cursor=pointer]:
+                - generic: 8 scenes (10 credits)
+                - img [ref=e57]
+              - combobox [ref=e59] [cursor=pointer]
+            - generic [ref=e61]:
+              - img [ref=e62]
+              - generic [ref=e67]: "Cost: 6 credits"
+            - button "Generate Story Pack" [ref=e68] [cursor=pointer]:
+              - img
+              - text: Generate Story Pack
+        - generic [ref=e69]:
+          - heading "Story Pack" [level=2] [ref=e71]
+          - generic [ref=e73]:
+            - img [ref=e74]
+            - paragraph [ref=e77]: Your story pack will appear here
+    - button "Open help guide" [ref=e78] [cursor=pointer]:
+      - img [ref=e80]
+  - button [ref=e83] [cursor=pointer]:
+    - img [ref=e84]
+  - button "Share your feedback" [ref=e87] [cursor=pointer]:
+    - img [ref=e88]
+  - region "Notifications alt+T"
+```

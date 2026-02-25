@@ -1,0 +1,95 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link [ref=e8] [cursor=pointer]:
+            - /url: /app/gen-studio
+            - img [ref=e9]
+          - generic [ref=e11]:
+            - img [ref=e13]
+            - generic [ref=e19]:
+              - heading "Video Remix" [level=1] [ref=e20]
+              - paragraph [ref=e21]: Remix videos with new styles
+        - generic [ref=e23]:
+          - img [ref=e24]
+          - generic [ref=e29]: "0"
+          - generic [ref=e30]: credits
+    - main [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - heading "Upload Video" [level=3] [ref=e35]
+            - generic [ref=e37] [cursor=pointer]:
+              - img [ref=e38]
+              - paragraph [ref=e41]: Click to upload a video
+              - paragraph [ref=e42]: MP4, WebM, MOV (max 50MB)
+          - generic [ref=e43]:
+            - heading "Remix Instructions" [level=3] [ref=e44]
+            - 'textbox "Describe how you want to remix this video... Example: ''Add cinematic color grading, slow-motion effect, dramatic music vibe, film grain overlay''" [ref=e45]'
+            - paragraph [ref=e46]: 0 /1000 characters
+          - generic [ref=e47]:
+            - heading "Style Settings" [level=3] [ref=e48]:
+              - img [ref=e49]
+              - text: Style Settings
+            - generic [ref=e52]:
+              - generic [ref=e53]:
+                - generic [ref=e54]: Template Style
+                - combobox [ref=e55] [cursor=pointer]:
+                  - generic: Dynamic (Fast cuts, energetic)
+                  - img [ref=e56]
+              - generic [ref=e58]:
+                - generic [ref=e59]:
+                  - paragraph [ref=e60]: Add Watermark
+                  - paragraph [ref=e61]: Required for free plan
+                - button [ref=e62] [cursor=pointer]
+          - generic [ref=e65] [cursor=pointer]:
+            - checkbox "Content Rights Confirmation I confirm that I own or have rights to this video and it does not contain prohibited content." [ref=e66]
+            - generic [ref=e67]:
+              - paragraph [ref=e68]:
+                - img [ref=e69]
+                - text: Content Rights Confirmation
+              - paragraph [ref=e71]: I confirm that I own or have rights to this video and it does not contain prohibited content.
+          - button "Remix Video (12 credits)" [disabled]:
+            - generic:
+              - img
+              - text: Remix Video (12 credits)
+        - generic [ref=e72]:
+          - generic [ref=e73]:
+            - heading "Remixed Video" [level=3] [ref=e74]
+            - generic [ref=e77]:
+              - img [ref=e79]
+              - paragraph [ref=e82]: Your remixed video will appear here
+              - paragraph [ref=e83]: Upload a video and describe the remix
+          - generic [ref=e84]:
+            - heading "💡 Remix Ideas" [level=3] [ref=e85]
+            - list [ref=e86]:
+              - listitem [ref=e87]:
+                - text: •
+                - strong [ref=e88]: "Color Grading:"
+                - text: "\"Apply cinematic teal and orange look\""
+              - listitem [ref=e89]:
+                - text: •
+                - strong [ref=e90]: "Speed Effects:"
+                - text: "\"Add slow motion to key moments\""
+              - listitem [ref=e91]:
+                - text: •
+                - strong [ref=e92]: "Style Transfer:"
+                - text: "\"Make it look like a vintage film\""
+              - listitem [ref=e93]:
+                - text: •
+                - strong [ref=e94]: "Mood Change:"
+                - text: "\"Transform to dramatic, dark aesthetic\""
+              - listitem [ref=e95]:
+                - text: •
+                - strong [ref=e96]: "Effects:"
+                - text: "\"Add film grain, lens flares, light leaks\""
+  - button [ref=e97] [cursor=pointer]:
+    - img [ref=e98]
+  - button "Share your feedback" [ref=e101] [cursor=pointer]:
+    - img [ref=e102]
+  - region "Notifications alt+T"
+```

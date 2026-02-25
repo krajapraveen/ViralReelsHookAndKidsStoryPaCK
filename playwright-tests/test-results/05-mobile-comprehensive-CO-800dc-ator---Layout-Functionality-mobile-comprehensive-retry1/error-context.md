@@ -1,0 +1,100 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - link "Dashboard" [ref=e7] [cursor=pointer]:
+            - /url: /app
+            - button "Dashboard" [ref=e8]:
+              - img
+              - generic [ref=e9]: Dashboard
+          - generic [ref=e10]:
+            - img [ref=e11]
+            - generic [ref=e13]: Reel Generator
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - img [ref=e16]
+            - generic [ref=e21]: "0"
+          - button "Logout" [ref=e22] [cursor=pointer]:
+            - img
+            - generic [ref=e23]: Logout
+    - generic [ref=e24]:
+      - generic [ref=e27]:
+        - img [ref=e29]
+        - generic [ref=e31]:
+          - heading "Credits Exhausted!" [level=3] [ref=e32]
+          - paragraph [ref=e33]: You've used all your free credits. Upgrade to continue generating amazing content.
+          - link "View Plans & Upgrade" [ref=e35] [cursor=pointer]:
+            - /url: /pricing
+            - button "View Plans & Upgrade" [ref=e36]:
+              - img
+              - text: View Plans & Upgrade
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - heading "Generate Reel Script" [level=2] [ref=e39]
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - generic [ref=e42]: Topic *
+              - textbox "Topic *" [ref=e43]:
+                - /placeholder: E.g., Morning routines of successful entrepreneurs
+            - generic [ref=e44]:
+              - generic [ref=e45]:
+                - generic [ref=e46]: Niche
+                - combobox [ref=e47] [cursor=pointer]:
+                  - generic: Luxury
+                  - img [ref=e48]
+                - combobox [ref=e50] [cursor=pointer]
+              - generic [ref=e51]:
+                - generic [ref=e52]: Tone
+                - combobox [ref=e53] [cursor=pointer]:
+                  - generic: Bold
+                  - img [ref=e54]
+                - combobox [ref=e56] [cursor=pointer]
+            - generic [ref=e57]:
+              - generic [ref=e58]:
+                - generic [ref=e59]: Duration
+                - combobox [ref=e60] [cursor=pointer]:
+                  - generic: 30 seconds
+                  - img [ref=e61]
+                - combobox [ref=e63] [cursor=pointer]
+              - generic [ref=e64]:
+                - generic [ref=e65]: Language
+                - combobox [ref=e66] [cursor=pointer]:
+                  - generic: English
+                  - img [ref=e67]
+                - combobox [ref=e69] [cursor=pointer]
+            - generic [ref=e70]:
+              - generic [ref=e71]:
+                - generic [ref=e72]: Goal
+                - combobox [ref=e73] [cursor=pointer]:
+                  - generic: Gain Followers
+                  - img [ref=e74]
+                - combobox [ref=e76] [cursor=pointer]
+              - generic [ref=e77]:
+                - generic [ref=e78]: Audience
+                - combobox [ref=e79] [cursor=pointer]:
+                  - generic: General Audience
+                  - img [ref=e80]
+                - combobox [ref=e82] [cursor=pointer]
+            - generic [ref=e84]:
+              - img [ref=e85]
+              - generic [ref=e90]: "Cost: 10 credits per reel"
+            - button "Generate Reel Script" [ref=e91] [cursor=pointer]:
+              - img
+              - text: Generate Reel Script
+        - generic [ref=e92]:
+          - heading "Generated Script" [level=2] [ref=e94]
+          - generic [ref=e96]:
+            - img [ref=e97]
+            - paragraph [ref=e99]: Your generated reel script will appear here
+    - button "Open help guide" [ref=e100] [cursor=pointer]:
+      - img [ref=e102]
+  - button [ref=e105] [cursor=pointer]:
+    - img [ref=e106]
+  - button "Share your feedback" [ref=e109] [cursor=pointer]:
+    - img [ref=e110]
+  - region "Notifications alt+T"
+```

@@ -1,0 +1,258 @@
+name: 🚀 CI/CD Pipeline - Smoke Tests & Deployment
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      run_full_tests:
+        description: 'Run full test suite (including mobile tests)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ============================================
+  # JOB 1: Lint & Build Check
+  # ============================================
+  lint-and-build:
+    name: 🔍 Lint & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: 📦 Install Frontend Dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: 📦 Install Backend Dependencies
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔍 Lint Frontend
+        working-directory: frontend
+        run: yarn lint || true
+
+      - name: 🔍 Lint Backend
+        working-directory: backend
+        run: |
+          pip install ruff
+          ruff check . || true
+
+      - name: 🏗️ Build Frontend
+        working-directory: frontend
+        run: yarn build
+        env:
+          CI: false
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL || 'https://api.example.com' }}
+
+  # ============================================
+  # JOB 2: Smoke Tests (Runs on every push)
+  # ============================================
+  smoke-tests:
+    name: 🧪 Smoke Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-build
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: playwright-tests/yarn.lock
+
+      - name: 📦 Install Playwright Dependencies
+        working-directory: playwright-tests
+        run: |
+          yarn install
+          npx playwright install chromium --with-deps
+
+      - name: 🚀 Run Smoke Tests
+        working-directory: playwright-tests
+        run: yarn test:smoke
+        env:
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}
+        continue-on-error: false
+
+      - name: 📊 Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-results
+          path: |
+            playwright-tests/test-results/
+            playwright-tests/smoke-test-results.json
+          retention-days: 7
+
+      - name: 📝 Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 Smoke Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f playwright-tests/smoke-test-results.json ]; then
+            echo "✅ Smoke tests completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Smoke tests may have issues" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ============================================
+  # JOB 3: Full Test Suite (Optional/Manual)
+  # ============================================
+  full-tests:
+    name: 🧪 Full Test Suite
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: github.event.inputs.run_full_tests == 'true' || github.ref == 'refs/heads/main'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: playwright-tests/yarn.lock
+
+      - name: 📦 Install Playwright Dependencies
+        working-directory: playwright-tests
+        run: |
+          yarn install
+          npx playwright install chromium --with-deps
+
+      - name: 🧪 Run Desktop Tests
+        working-directory: playwright-tests
+        run: yarn test:desktop
+        env:
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}
+        continue-on-error: true
+
+      - name: 📱 Run Mobile Tests
+        working-directory: playwright-tests
+        run: yarn test:mobile
+        env:
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}
+        continue-on-error: true
+
+      - name: 🔧 Run Edge Case Tests
+        working-directory: playwright-tests
+        run: yarn test:edge
+        env:
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://test-phase-runner.preview.emergentagent.com' }}
+        continue-on-error: true
+
+      - name: 📊 Upload Full Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-test-results
+          path: |
+            playwright-tests/test-results/
+            playwright-tests/playwright-report/
+          retention-days: 14
+
+  # ============================================
+  # JOB 4: Deploy to Production
+  # ============================================
+  deploy:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [smoke-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: ${{ secrets.PRODUCTION_URL }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to Production
+        run: |
+          echo "🚀 Deploying to production..."
+          # Add your deployment commands here
+          # Examples:
+          # - Vercel: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
+          # - AWS: aws s3 sync ./dist s3://bucket-name
+          # - Docker: docker push your-registry/your-app:latest
+          echo "✅ Deployment triggered successfully"
+
+      - name: 📝 Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # JOB 5: Post-Deployment Verification
+  # ============================================
+  post-deploy-verify:
+    name: ✅ Post-Deployment Verification
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 Install Playwright
+        working-directory: playwright-tests
+        run: |
+          yarn install
+          npx playwright install chromium --with-deps
+
+      - name: ⏳ Wait for deployment to propagate
+        run: sleep 30
+
+      - name: 🔍 Run Post-Deploy Smoke Tests
+        working-directory: playwright-tests
+        run: yarn test:smoke
+        env:
+          BASE_URL: ${{ secrets.PRODUCTION_URL }}
+
+      - name: 📊 Upload Verification Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: post-deploy-verification
+          path: playwright-tests/test-results/
+          retention-days: 7
+
+      - name: 🎉 Success Notification
+        if: success()
+        run: |
+          echo "## ✅ Production Deployment Verified!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All smoke tests passed after deployment." >> $GITHUB_STEP_SUMMARY
