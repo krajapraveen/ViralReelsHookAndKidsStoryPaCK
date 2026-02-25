@@ -628,16 +628,16 @@ const SelfHealingDashboard = () => {
           {dashboard.alerts && dashboard.alerts.length > 0 ? (
             dashboard.alerts.map((alert, index) => (
               <Card key={index} className={`border-l-4 ${
-                alert.severity === 'critical' ? 'border-l-red-500' :
-                alert.severity === 'error' ? 'border-l-orange-500' :
-                alert.severity === 'warning' ? 'border-l-yellow-500' : 'border-l-blue-500'
+                alert.severity === 'critical' ? 'border-l-red-600' :
+                alert.severity === 'error' ? 'border-l-orange-600' :
+                alert.severity === 'warning' ? 'border-l-amber-500' : 'border-l-indigo-500'
               }`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
                       <AlertTriangle className={`h-4 w-4 ${
-                        alert.severity === 'critical' ? 'text-red-500' :
-                        alert.severity === 'error' ? 'text-orange-500' : 'text-yellow-500'
+                        alert.severity === 'critical' ? 'text-red-600' :
+                        alert.severity === 'error' ? 'text-orange-600' : 'text-amber-600'
                       }`} />
                       {alert.title}
                     </CardTitle>
@@ -649,7 +649,7 @@ const SelfHealingDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-slate-500">
                       {new Date(alert.created_at).toLocaleString()}
                     </span>
                     <div className="flex gap-2">
@@ -669,8 +669,8 @@ const SelfHealingDashboard = () => {
           ) : (
             <Card>
               <CardContent className="py-8 text-center">
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
-                <p className="text-gray-600 dark:text-gray-400">No active alerts</p>
+                <CheckCircle className="h-12 w-12 text-emerald-600 mx-auto mb-2" />
+                <p className="text-slate-600 dark:text-slate-400">No active alerts</p>
               </CardContent>
             </Card>
           )}
@@ -680,15 +680,15 @@ const SelfHealingDashboard = () => {
         <TabsContent value="circuits" className="space-y-4">
           {dashboard.circuit_breakers && Object.entries(dashboard.circuit_breakers).map(([name, cb]) => (
             <Card key={name} className={`border-l-4 ${
-              cb.state === 'closed' ? 'border-l-green-500' :
-              cb.state === 'half_open' ? 'border-l-yellow-500' : 'border-l-red-500'
+              cb.state === 'closed' ? 'border-l-emerald-500' :
+              cb.state === 'half_open' ? 'border-l-amber-500' : 'border-l-red-500'
             }`}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">{name}</CardTitle>
                   <Badge className={
-                    cb.state === 'closed' ? 'bg-green-100 text-green-800' :
-                    cb.state === 'half_open' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                    cb.state === 'closed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                    cb.state === 'half_open' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                   }>
                     {cb.state}
                   </Badge>
@@ -697,7 +697,7 @@ const SelfHealingDashboard = () => {
               <CardContent>
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Failures</span>
+                    <span className="text-slate-500">Failures</span>
                     <p className="font-medium">{cb.failure_count}</p>
                   </div>
                   <div>
