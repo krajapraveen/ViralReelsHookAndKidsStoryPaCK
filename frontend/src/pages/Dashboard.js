@@ -99,7 +99,7 @@ export default function Dashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <div className="mb-8 sm:mb-12">
-          <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2" data-testid="dashboard-welcome">Welcome back, {user?.name}!</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2" data-testid="dashboard-welcome">Welcome back{user?.name ? `, ${user.name}` : ''}!</h1>
           <p className="text-slate-400 text-base sm:text-lg">What would you like to create today?</p>
         </div>
 
