@@ -139,24 +139,24 @@ export default function History() {
             </div>
             <p className="text-2xl font-bold text-purple-400">{stats.stories}</p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center gap-2 text-amber-500 text-sm mb-1">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-4">
+            <div className="flex items-center gap-2 text-amber-400 text-sm mb-1">
               <Coins className="w-4 h-4" />
               Credits Used
             </div>
-            <p className="text-2xl font-bold text-amber-600">{stats.totalCredits}</p>
+            <p className="text-2xl font-bold text-amber-400">{stats.totalCredits}</p>
           </div>
         </div>
 
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-slate-500">Loading your creations...</p>
+            <p className="text-slate-400">Loading your creations...</p>
           </div>
         ) : generations.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-            <Sparkles className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500 mb-4">No generations yet. Start creating!</p>
+          <div className="text-center py-12 bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50">
+            <Sparkles className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+            <p className="text-slate-400 mb-4">No generations yet. Start creating!</p>
             <Link to="/app">
               <Button className="bg-indigo-500 hover:bg-indigo-600 text-white">
                 Go to Dashboard
@@ -168,7 +168,7 @@ export default function History() {
             {generations.map((gen) => (
               <div 
                 key={gen.id} 
-                className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow"
+                className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 overflow-hidden hover:border-indigo-500/50 transition-all"
               >
                 {/* Main Row */}
                 <div 
@@ -178,12 +178,12 @@ export default function History() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4 flex-1">
                       {gen.type === 'REEL' ? (
-                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Video className="w-6 h-6 text-indigo-600" />
+                        <div className="w-12 h-12 bg-indigo-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Video className="w-6 h-6 text-indigo-400" />
                         </div>
                       ) : (
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <BookOpen className="w-6 h-6 text-purple-600" />
+                        <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <BookOpen className="w-6 h-6 text-purple-400" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
