@@ -17,24 +17,31 @@ export default function Dashboard() {
   }, []);
 
   const fetchData = async () => {
-    let hasError = false;
-    
     // Fetch user data first (most critical)
     try {
       const userRes = await authAPI.getCurrentUser();
       setUser(userRes.data);
+      
+      // Get credits from user data if available
+      if (userRes.data?.credits !== undefined) {
+        setCredits(userRes.data.credits);
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      hasError = true;
+      // Don't show error toast for user fetch - will redirect on 401
     }
     
-    // Fetch credits separately
+    // Fetch credits from wallet as backup/primary (more reliable endpoint)
     try {
-      const creditsRes = await creditAPI.getBalance();
-      setCredits(creditsRes.data.credits);
+      const walletRes = await walletAPI.getWallet();
+      if (walletRes.data?.balanceCredits !== undefined) {
+        setCredits(walletRes.data.balanceCredits);
+      } else if (walletRes.data?.availableCredits !== undefined) {
+        setCredits(walletRes.data.availableCredits);
+      }
     } catch (error) {
-      console.error('Failed to fetch credits:', error);
-      hasError = true;
+      // Silently fail - we may already have credits from user data
+      console.error('Failed to fetch wallet:', error);
     }
     
     // Fetch recent generations (non-critical)
@@ -43,11 +50,7 @@ export default function Dashboard() {
       setRecentGenerations(generationsRes.data.generations || []);
     } catch (error) {
       console.error('Failed to fetch generations:', error);
-      // Don't set hasError for non-critical data
-    }
-    
-    if (hasError) {
-      toast.error('Failed to load some dashboard data');
+      // Don't show error for non-critical data
     }
   };
 
