@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertTriangle } from 'lucide-react';
 
 const colorClasses = {
   blue: 'bg-blue-500/20 text-blue-400',
@@ -10,15 +11,20 @@ const colorClasses = {
   red: 'bg-red-500/20 text-red-400',
 };
 
-export default function StatCard({ icon, label, value, subValue, color }) {
+export default function StatCard({ icon, label, value, subValue, color, hasError = false }) {
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+    <div className={`bg-slate-800 border rounded-xl p-4 relative ${hasError ? 'border-amber-500/30' : 'border-slate-700'}`}>
+      {hasError && (
+        <div className="absolute top-2 right-2">
+          <AlertTriangle className="w-4 h-4 text-amber-400/60" />
+        </div>
+      )}
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${colorClasses[color]}`}>
         {icon}
       </div>
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className={`text-2xl font-bold ${hasError ? 'text-slate-500' : 'text-white'}`}>{value}</div>
       <div className="text-sm text-slate-400">{label}</div>
-      {subValue && <div className="text-xs text-slate-500 mt-1">{subValue}</div>}
+      {subValue && <div className={`text-xs mt-1 ${hasError ? 'text-amber-400/60' : 'text-slate-500'}`}>{subValue}</div>}
     </div>
   );
 }
