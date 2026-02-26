@@ -285,6 +285,7 @@ api_router.include_router(user_analytics_user_router)  # User-facing analytics e
 api_router.include_router(self_healing_monitoring_router)
 api_router.include_router(recovery_ui_router)
 api_router.include_router(priority_scaling_router)
+api_router.include_router(sre_monitoring_router)
 
 # Include API router in app
 app.include_router(api_router)
