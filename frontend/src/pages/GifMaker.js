@@ -787,6 +787,15 @@ export default function GifMaker() {
           </p>
         </div>
       </main>
+      
+      {/* Rating Modal */}
+      <RatingModal 
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        featureKey="gif_maker"
+        relatedRequestId={lastGenerationId}
+        onSubmitSuccess={() => setShowRatingModal(false)}
+      />
     </div>
   );
 }
