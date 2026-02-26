@@ -131,7 +131,7 @@ export default function Contact() {
               </div>
 
               <div>
-                <Label htmlFor="contact-message">Message *</Label>
+                <Label htmlFor="contact-message" className="text-slate-300">Message *</Label>
                 <Textarea
                   id="contact-message"
                   value={formData.message}
@@ -139,7 +139,7 @@ export default function Contact() {
                   placeholder="Tell us how we can help you..."
                   rows={5}
                   required
-                  className="mt-1"
+                  className="mt-1 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
                   data-testid="contact-message"
                 />
               </div>
