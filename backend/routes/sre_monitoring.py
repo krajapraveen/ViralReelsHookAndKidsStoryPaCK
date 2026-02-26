@@ -253,3 +253,176 @@ def _get_job_collection(job_type: str) -> str:
         "gif": "gif_jobs"
     }
     return mapping.get(job_type, "genstudio_jobs")
+
+
+# ============== CIRCUIT BREAKER ENDPOINTS ==============
+
+@router.get("/circuits")
+async def get_circuit_breakers(admin: dict = Depends(get_admin_user)):
+    """Get status of all circuit breakers"""
+    try:
+        cm = get_circuit_manager()
+        return {
+            "success": True,
+            "circuits": cm.get_all_status(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/circuits/{circuit_name}/reset")
+async def reset_circuit_breaker(
+    circuit_name: str,
+    admin: dict = Depends(get_admin_user)
+):
+    """Manually reset a circuit breaker"""
+    try:
+        cm = get_circuit_manager()
+        circuit = cm.get_circuit(circuit_name)
+        circuit._transition_to_closed()
+        
+        return {
+            "success": True,
+            "message": f"Circuit {circuit_name} reset to closed state",
+            "status": circuit.get_status()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============== AUTO-SCALING ENDPOINTS ==============
+
+@router.get("/scaling")
+async def get_scaling_status(admin: dict = Depends(get_admin_user)):
+    """Get auto-scaling status and metrics"""
+    try:
+        scaler = await get_dynamic_scaler(db)
+        metrics = await scaler.get_queue_metrics()
+        decision = await scaler.evaluate_scaling()
+        
+        return {
+            "success": True,
+            "status": scaler.get_scaling_status(),
+            "current_metrics": metrics,
+            "recommendation": decision
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/scaling/evaluate")
+async def trigger_scaling_evaluation(admin: dict = Depends(get_admin_user)):
+    """Trigger scaling evaluation and apply if needed"""
+    try:
+        scaler = await get_dynamic_scaler(db)
+        decision = await scaler.evaluate_scaling()
+        applied = await scaler.apply_scaling_decision(decision)
+        
+        return {
+            "success": True,
+            "decision": decision,
+            "applied": applied,
+            "current_status": scaler.get_scaling_status()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============== SELF-HEALING ENDPOINTS ==============
+
+@router.get("/healing/status")
+async def get_healing_status(admin: dict = Depends(get_admin_user)):
+    """Get self-healing status"""
+    try:
+        healer = await get_self_healer(db)
+        
+        # Get stuck jobs count
+        stuck_count = await db.genstudio_jobs.count_documents({
+            "status": "PROCESSING",
+            "startedAt": {"$lt": (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()}
+        })
+        
+        # Get unreconciled payments
+        unreconciled = await db.orders.count_documents({
+            "status": "PAID",
+            "credited": {"$ne": True}
+        })
+        
+        return {
+            "success": True,
+            "last_run": healer.last_run.isoformat() if healer.last_run else None,
+            "issues_detected": {
+                "stuck_jobs": stuck_count,
+                "unreconciled_payments": unreconciled
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/healing/run")
+async def trigger_self_healing(admin: dict = Depends(get_admin_user)):
+    """Trigger self-healing reconciliation"""
+    try:
+        healer = await get_self_healer(db)
+        results = await healer.run_full_reconciliation()
+        
+        return {
+            "success": True,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============== CDN ENDPOINTS ==============
+
+@router.get("/cdn/status")
+async def get_cdn_status(admin: dict = Depends(get_admin_user)):
+    """Get CDN and asset delivery status"""
+    try:
+        cdn = await get_cdn_optimizer(db)
+        reconciler = await get_reconciliation_service(db)
+        
+        # Get expired assets count
+        expired_assets = await reconciler.find_expired_assets()
+        missing_assets = await reconciler.find_missing_assets()
+        
+        return {
+            "success": True,
+            "asset_status": {
+                "expired_links": len(expired_assets),
+                "missing_assets": len(missing_assets)
+            },
+            "cache_config": {
+                "static": "31536000s (immutable)",
+                "images": "86400s (stale-while-revalidate)",
+                "videos": "3600s (stale-while-revalidate)",
+                "documents": "86400s (stale-while-revalidate)"
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cdn/reconcile")
+async def reconcile_cdn_assets(admin: dict = Depends(get_admin_user)):
+    """Reconcile expired and missing CDN assets"""
+    try:
+        reconciler = await get_reconciliation_service(db)
+        
+        # Get base URL from environment or use default
+        import os
+        base_url = os.environ.get("REACT_APP_BACKEND_URL", "")
+        
+        results = await reconciler.reconcile_expired_links(base_url)
+        
+        return {
+            "success": True,
+            "results": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
