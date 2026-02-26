@@ -203,14 +203,14 @@ export default function PaymentHistory() {
 
           {loading ? (
             <div className="p-12 text-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500 mx-auto"></div>
-              <p className="mt-4 text-slate-500">Loading transactions...</p>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-400 mx-auto"></div>
+              <p className="mt-4 text-slate-400">Loading transactions...</p>
             </div>
           ) : payments.length === 0 ? (
             <div className="p-12 text-center">
-              <Receipt className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-700 mb-2">No transactions yet</h3>
-              <p className="text-slate-500 mb-4">Your payment history will appear here once you make a purchase.</p>
+              <Receipt className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">No transactions yet</h3>
+              <p className="text-slate-400 mb-4">Your payment history will appear here once you make a purchase.</p>
               <Link to="/app/billing">
                 <Button className="bg-purple-600 hover:bg-purple-700">
                   <Coins className="w-4 h-4 mr-2" />
@@ -220,22 +220,22 @@ export default function PaymentHistory() {
             </div>
           ) : (
             <>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-700">
                 {payments.map((payment, index) => (
-                  <div key={payment.id || index} className="p-4 hover:bg-slate-50 transition-colors" data-testid={`payment-${payment.id}`}>
+                  <div key={payment.id || index} className="p-4 hover:bg-slate-700/30 transition-colors" data-testid={`payment-${payment.id}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         {getStatusIcon(payment.status)}
                         <div>
-                          <p className="font-semibold text-slate-900">
+                          <p className="font-semibold text-white">
                             {payment.product?.name || payment.description || 'Credit Purchase'}
                           </p>
-                          <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <div className="flex items-center gap-2 text-sm text-slate-400">
                             <Calendar className="w-3 h-3" />
                             {formatDate(payment.createdAt || payment.paidAt)}
                             {payment.orderId && (
                               <>
-                                <span className="text-slate-300">•</span>
+                                <span className="text-slate-600">•</span>
                                 <span className="font-mono text-xs">{payment.orderId.slice(-8)}</span>
                               </>
                             )}
@@ -245,11 +245,11 @@ export default function PaymentHistory() {
                       
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <p className="font-bold text-slate-900">
+                          <p className="font-bold text-white">
                             {formatCurrency(payment.amount, payment.currency)}
                           </p>
                           {payment.credits && (
-                            <p className="text-sm text-purple-600">+{payment.credits} credits</p>
+                            <p className="text-sm text-purple-400">+{payment.credits} credits</p>
                           )}
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
