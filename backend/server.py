@@ -2,7 +2,7 @@
 CreatorStudio AI - Modular FastAPI Application
 Refactored from monolithic server.py to use modular routes
 """
-from fastapi import FastAPI, APIRouter, Request, Response
+from fastapi import FastAPI, APIRouter, Request, Response, Depends
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
