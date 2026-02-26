@@ -508,6 +508,20 @@ async def startup():
     except Exception as e:
         logger.warning(f"Auto-scaling initialization warning: {e}")
     
+    # Create performance indexes
+    try:
+        await create_performance_indexes()
+        logger.info("Performance indexes created")
+    except Exception as e:
+        logger.warning(f"Performance index creation warning: {e}")
+    
+    # Start performance maintenance loop
+    try:
+        asyncio.create_task(performance_maintenance_loop())
+        logger.info("Performance maintenance loop started")
+    except Exception as e:
+        logger.warning(f"Performance maintenance loop warning: {e}")
+    
     logger.info("CreatorStudio API ready!")
 
 
