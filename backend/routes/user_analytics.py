@@ -1,611 +1,974 @@
 """
-CreatorStudio AI - User Analytics & Feedback API
-=================================================
+CreatorStudio AI - User Analytics & Ratings API
+================================================
 Comprehensive analytics for understanding user behavior, satisfaction, and feature usage.
 
 Features:
 - Rating distribution with user identification
-- Feature usage tracking per user
+- Feature usage tracking per user  
 - Feature failure correlation with ratings
 - Session analytics (login/logout duration)
-- Geographic distribution
+- Geographic distribution (privacy-safe)
 - Happiness analytics per feature
+- Mandatory feedback for low ratings
+- CSV export functionality
+
+Admin Endpoints (A5):
+- GET /admin/ratings/summary
+- GET /admin/ratings/list
+- GET /admin/users/:userId/sessions
+- GET /admin/feature-events
+- GET /admin/ratings/drilldown/:ratingId
+- GET /admin/ratings/export/csv
 """
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+import hashlib
+import uuid
 import os
 import sys
+import io
+import csv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared import db, logger, get_admin_user
+from shared import db, logger, get_admin_user, get_current_user
 
 router = APIRouter(prefix="/admin/user-analytics", tags=["Admin - User Analytics"])
+
+# Also create a user-facing router for submitting ratings
+user_router = APIRouter(prefix="/user-analytics", tags=["User Analytics"])
 
 
 # ============================================
 # MODELS
 # ============================================
 
-class UserFeedbackDetail(BaseModel):
-    user_id: Optional[str]
-    email: Optional[str]
-    name: Optional[str]
-    rating: int
-    comment: Optional[str]
-    feature_used: Optional[str]
-    feature_failed: Optional[str]
-    created_at: str
-    session_duration_minutes: Optional[int]
-    location: Optional[Dict[str, str]]
+class RatingReasonType:
+    GENERATION_FAILED = "generation_failed"
+    POOR_QUALITY = "poor_quality"
+    TOO_SLOW = "too_slow"
+    CONFUSING_UI = "confusing_ui"
+    CREDITS_ISSUE = "credits_issue"
+    DOWNLOAD_FAILED = "download_failed"
+    OTHER = "other"
 
 
-class FeatureHappinessScore(BaseModel):
-    feature: str
-    total_uses: int
-    success_count: int
-    failure_count: int
-    average_rating: float
-    happiness_score: float  # Calculated as (success_rate * avg_rating) / 5
-    common_issues: List[str]
+class RatingCreate(BaseModel):
+    """Rating submission with mandatory feedback for 1-2 stars"""
+    rating: int = Field(..., ge=1, le=5)
+    feature_key: Optional[str] = None
+    reason_type: Optional[str] = None  # Required for 1-2 stars
+    comment: Optional[str] = None  # Required for 1-2 stars if reason_type is OTHER
+    related_request_id: Optional[str] = None
+
+
+class FeatureEventCreate(BaseModel):
+    """Track a feature event"""
+    feature_key: str
+    event_type: str  # FEATURE_OPENED, GENERATE_CLICKED, GENERATION_SUCCESS, etc.
+    status: Optional[str] = "success"
+    latency_ms: Optional[int] = None
+    error_code: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 # ============================================
 # HELPER FUNCTIONS
 # ============================================
 
-async def get_user_info(user_id: str) -> Dict[str, Any]:
-    """Get user details by ID"""
-    if not user_id:
-        return {"email": "Anonymous", "name": "Anonymous User"}
-    
-    user = await db.users.find_one(
-        {"id": user_id},
-        {"_id": 0, "email": 1, "name": 1, "id": 1}
-    )
-    return user or {"email": "Unknown", "name": "Unknown User"}
+def hash_ip(ip_address: str) -> str:
+    """Create a privacy-safe hash of IP address"""
+    if not ip_address:
+        return None
+    # Use SHA256 with a salt for privacy
+    salt = os.environ.get("IP_HASH_SALT", "creatorstudio_privacy_salt_2026")
+    return hashlib.sha256(f"{salt}:{ip_address}".encode()).hexdigest()[:16]
 
 
-async def get_user_session_info(user_id: str, feedback_time: str) -> Dict[str, Any]:
-    """Get session info for a user around the time of feedback"""
-    if not user_id or not feedback_time:
+async def get_approximate_location(ip_address: str) -> Dict[str, str]:
+    """Get approximate location from IP (using cached geo data)"""
+    if not ip_address:
         return {}
     
     try:
-        feedback_dt = datetime.fromisoformat(feedback_time.replace("Z", "+00:00"))
-        
-        # Find the login activity closest to feedback time
-        session = await db.login_activity.find_one(
-            {
-                "user_id": user_id,
-                "status": "SUCCESS",
-                "timestamp": {"$lte": feedback_time}
-            },
-            {"_id": 0},
-            sort=[("timestamp", -1)]
-        )
-        
-        if session:
-            login_time = datetime.fromisoformat(session.get("timestamp", "").replace("Z", "+00:00"))
-            duration = (feedback_dt - login_time).total_seconds() / 60
-            
+        # Check cache first
+        ip_hash = hash_ip(ip_address)
+        cached = await db.ip_geo_cache.find_one({"ip_hash": ip_hash}, {"_id": 0})
+        if cached:
             return {
-                "session_duration_minutes": int(duration),
-                "location": {
-                    "country": session.get("country"),
-                    "city": session.get("city"),
-                    "region": session.get("region")
-                },
-                "device": session.get("device_type"),
-                "browser": session.get("browser"),
-                "ip_address": session.get("ip_address")
+                "country": cached.get("country"),
+                "region": cached.get("region"),
+                "city": cached.get("city")
             }
+        
+        # Fetch from ip-api.com (free, 45 req/min)
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"http://ip-api.com/json/{ip_address}", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                location = {
+                    "country": data.get("country"),
+                    "region": data.get("regionName"),
+                    "city": data.get("city")
+                }
+                
+                # Cache for 72 hours
+                await db.ip_geo_cache.update_one(
+                    {"ip_hash": ip_hash},
+                    {"$set": {
+                        "ip_hash": ip_hash,
+                        **location,
+                        "cached_at": datetime.now(timezone.utc).isoformat()
+                    }},
+                    upsert=True
+                )
+                
+                return location
     except Exception as e:
-        logger.warning(f"Error getting session info: {e}")
+        logger.warning(f"Geo lookup failed: {e}")
     
     return {}
 
 
-async def get_user_feature_usage(user_id: str, before_time: str = None) -> Dict[str, Any]:
-    """Get features used by a user before giving feedback"""
+async def get_user_info(user_id: str) -> Dict[str, Any]:
+    """Get user details by ID"""
     if not user_id:
-        return {"features_used": [], "features_failed": []}
+        return {"email": "Anonymous", "name": "Anonymous User", "plan": "unknown"}
+    
+    user = await db.users.find_one(
+        {"id": user_id},
+        {"_id": 0, "email": 1, "name": 1, "id": 1, "plan": 1, "role": 1}
+    )
+    return user or {"email": "Unknown", "name": "Unknown User", "plan": "unknown"}
+
+
+async def get_session_for_user(user_id: str, around_time: str = None) -> Dict[str, Any]:
+    """Get the session info for a user around a specific time"""
+    if not user_id:
+        return {}
     
     query = {"user_id": user_id}
-    if before_time:
-        query["created_at"] = {"$lte": before_time}
+    if around_time:
+        query["login_at"] = {"$lte": around_time}
     
-    # Get recent generations (features used)
-    generations = await db.generations.find(
+    session = await db.user_sessions.find_one(
         query,
-        {"_id": 0, "type": 1, "status": 1, "created_at": 1}
-    ).sort("created_at", -1).limit(20).to_list(20)
+        {"_id": 0},
+        sort=[("login_at", -1)]
+    )
     
-    features_used = []
-    features_failed = []
+    return session or {}
+
+
+async def get_recent_feature_events(user_id: str, session_id: str = None, limit: int = 20) -> List[Dict]:
+    """Get recent feature events for a user"""
+    query = {"user_id": user_id}
+    if session_id:
+        query["session_id"] = session_id
     
-    for gen in generations:
-        feature = gen.get("type", "unknown")
-        if feature not in features_used:
-            features_used.append(feature)
+    events = await db.feature_events.find(
+        query,
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return events
+
+
+# ============================================
+# USER-FACING ENDPOINTS (Rating Submission)
+# ============================================
+
+@user_router.post("/session/start")
+async def start_session(request: Request, user: dict = Depends(get_current_user)):
+    """Start a new user session for tracking"""
+    try:
+        # Get client info
+        user_agent = request.headers.get("user-agent", "")
+        ip_address = request.client.host if request.client else None
         
-        if gen.get("status") in ["failed", "error"]:
-            if feature not in features_failed:
-                features_failed.append(feature)
-    
+        # Determine device type from user agent
+        device_type = "desktop"
+        if "Mobile" in user_agent:
+            device_type = "mobile"
+        elif "Tablet" in user_agent or "iPad" in user_agent:
+            device_type = "tablet"
+        
+        # Determine platform
+        platform = f"web_{device_type}"
+        
+        # Get browser
+        browser = "unknown"
+        if "Chrome" in user_agent:
+            browser = "Chrome"
+        elif "Safari" in user_agent:
+            browser = "Safari"
+        elif "Firefox" in user_agent:
+            browser = "Firefox"
+        elif "Edge" in user_agent:
+            browser = "Edge"
+        
+        # Get approximate location (privacy-safe)
+        approx_location = await get_approximate_location(ip_address)
+        
+        session_id = str(uuid.uuid4())
+        session = {
+            "session_id": session_id,
+            "user_id": user["id"],
+            "login_at": datetime.now(timezone.utc).isoformat(),
+            "logout_at": None,
+            "device_type": device_type,
+            "platform": platform,
+            "browser": browser,
+            "user_agent": user_agent[:500],  # Truncate
+            "approx_location": approx_location,
+            "ip_hash": hash_ip(ip_address)
+        }
+        
+        await db.user_sessions.insert_one(session)
+        
+        return {"success": True, "session_id": session_id}
+        
+    except Exception as e:
+        logger.error(f"Session start error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@user_router.post("/session/end")
+async def end_session(session_id: str, user: dict = Depends(get_current_user)):
+    """End a user session"""
+    try:
+        await db.user_sessions.update_one(
+            {"session_id": session_id, "user_id": user["id"]},
+            {"$set": {"logout_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Session end error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@user_router.post("/event")
+async def track_feature_event(
+    data: FeatureEventCreate,
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Track a feature event (A4)"""
+    try:
+        # Get current session
+        session = await get_session_for_user(user["id"])
+        session_id = session.get("session_id")
+        
+        event = {
+            "event_id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "user_id": user["id"],
+            "feature_key": data.feature_key,
+            "event_type": data.event_type,
+            "status": data.status or "success",
+            "latency_ms": data.latency_ms,
+            "error_code": data.error_code,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "metadata": data.metadata or {}
+        }
+        
+        await db.feature_events.insert_one(event)
+        
+        return {"success": True, "event_id": event["event_id"]}
+        
+    except Exception as e:
+        logger.error(f"Event tracking error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@user_router.post("/rating")
+async def submit_rating(
+    data: RatingCreate,
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Submit a rating with mandatory feedback for 1-2 stars (A3)"""
+    try:
+        # Enforce mandatory feedback for low ratings
+        if data.rating <= 2:
+            if not data.reason_type:
+                raise HTTPException(
+                    status_code=400,
+                    detail="For ratings of 1-2 stars, please provide a reason for your feedback"
+                )
+            if data.reason_type == "other" and not data.comment:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please provide a comment explaining your feedback"
+                )
+        
+        # Get current session
+        session = await get_session_for_user(user["id"])
+        session_id = session.get("session_id")
+        
+        rating = {
+            "rating_id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "session_id": session_id,
+            "feature_key": data.feature_key,
+            "rating": data.rating,
+            "reason_type": data.reason_type,
+            "comment": data.comment,
+            "attachment_url": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "related_request_id": data.related_request_id
+        }
+        
+        await db.ratings.insert_one(rating)
+        
+        # Also save to legacy feedback collection for backwards compatibility
+        legacy_feedback = {
+            "id": rating["rating_id"],
+            "type": "rating",
+            "rating": data.rating,
+            "category": data.feature_key or "general",
+            "message": data.comment,
+            "suggestion": data.reason_type,
+            "email": None,
+            "userId": user["id"],
+            "createdAt": rating["created_at"]
+        }
+        await db.feedback.insert_one(legacy_feedback)
+        
+        return {
+            "success": True,
+            "message": "Thank you for your feedback!",
+            "rating_id": rating["rating_id"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Rating submission error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to submit rating")
+
+
+@user_router.get("/rating-reasons")
+async def get_rating_reasons():
+    """Get available reasons for low ratings"""
     return {
-        "features_used": features_used,
-        "features_failed": features_failed
+        "reasons": [
+            {"key": "generation_failed", "label": "Generation failed or errored"},
+            {"key": "poor_quality", "label": "Output quality was poor"},
+            {"key": "too_slow", "label": "Generation was too slow"},
+            {"key": "confusing_ui", "label": "Interface was confusing"},
+            {"key": "credits_issue", "label": "Credits or payment issue"},
+            {"key": "download_failed", "label": "Download failed"},
+            {"key": "other", "label": "Other (please specify)"}
+        ]
     }
 
 
 # ============================================
-# ENDPOINTS
+# ADMIN ENDPOINTS (A5)
 # ============================================
 
-@router.get("/feedback-details")
-async def get_detailed_feedback(
+@router.get("/ratings/summary")
+async def get_ratings_summary(
     days: int = Query(default=30, ge=1, le=365),
-    min_rating: Optional[int] = Query(default=None, ge=1, le=5),
-    max_rating: Optional[int] = Query(default=None, ge=1, le=5),
+    feature_key: Optional[str] = None,
+    platform: Optional[str] = None,
+    user_type: Optional[str] = None,
     current_user: dict = Depends(get_admin_user)
 ):
     """
-    Get detailed feedback with user identification, feature usage, and session info
+    Get rating summary with filters (A1, A5)
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     
-    query = {"rating": {"$exists": True}}
-    if min_rating:
-        query["rating"] = {"$gte": min_rating}
-    if max_rating:
-        query.setdefault("rating", {})["$lte"] = max_rating
+    # Build query
+    query = {"created_at": {"$gte": cutoff}}
+    if feature_key:
+        query["feature_key"] = feature_key
     
-    feedbacks = await db.feedback.find(
+    # Get ratings
+    ratings = await db.ratings.find(query, {"_id": 0}).to_list(10000)
+    
+    # Filter by platform/user_type if needed (requires joining with sessions/users)
+    if platform or user_type:
+        filtered_ratings = []
+        for r in ratings:
+            include = True
+            
+            if platform and r.get("session_id"):
+                session = await db.user_sessions.find_one(
+                    {"session_id": r["session_id"]},
+                    {"_id": 0, "platform": 1}
+                )
+                if session and session.get("platform") != platform:
+                    include = False
+            
+            if user_type and r.get("user_id"):
+                user = await db.users.find_one(
+                    {"id": r["user_id"]},
+                    {"_id": 0, "plan": 1}
+                )
+                if user and user.get("plan") != user_type:
+                    include = False
+            
+            if include:
+                filtered_ratings.append(r)
+        
+        ratings = filtered_ratings
+    
+    # Calculate metrics
+    total = len(ratings)
+    if total == 0:
+        return {
+            "period_days": days,
+            "total_ratings": 0,
+            "average_rating": 0,
+            "distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+            "nps_score": 0,
+            "satisfaction_percentage": 0,
+            "low_rating_count": 0,
+            "low_rating_percentage": 0
+        }
+    
+    # Distribution
+    distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    for r in ratings:
+        rating_val = r.get("rating", 0)
+        if 1 <= rating_val <= 5:
+            distribution[rating_val] += 1
+    
+    # Average
+    avg_rating = sum(r.get("rating", 0) for r in ratings) / total
+    
+    # NPS Score
+    promoters = distribution[5] + distribution[4]
+    detractors = distribution[1] + distribution[2]
+    nps = ((promoters - detractors) / total) * 100
+    
+    # Low ratings
+    low_count = distribution[1] + distribution[2]
+    
+    return {
+        "period_days": days,
+        "total_ratings": total,
+        "average_rating": round(avg_rating, 2),
+        "distribution": distribution,
+        "nps_score": round(nps, 1),
+        "satisfaction_percentage": round((avg_rating / 5) * 100, 1),
+        "low_rating_count": low_count,
+        "low_rating_percentage": round((low_count / total) * 100, 1) if total > 0 else 0
+    }
+
+
+@router.get("/ratings/list")
+async def get_ratings_list(
+    days: int = Query(default=30, ge=1, le=365),
+    rating_filter: Optional[int] = Query(default=None, ge=1, le=5),
+    feature_key: Optional[str] = None,
+    page: int = Query(default=0, ge=0),
+    size: int = Query(default=50, ge=1, le=100),
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Get paginated list of ratings with user details (A1, A5)
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    
+    query = {"created_at": {"$gte": cutoff}}
+    if rating_filter:
+        query["rating"] = rating_filter
+    if feature_key:
+        query["feature_key"] = feature_key
+    
+    total = await db.ratings.count_documents(query)
+    
+    ratings = await db.ratings.find(
         query,
         {"_id": 0}
-    ).sort("createdAt", -1).limit(500).to_list(500)
+    ).sort("created_at", -1).skip(page * size).limit(size).to_list(size)
     
-    detailed_feedbacks = []
-    
-    for fb in feedbacks:
-        user_id = fb.get("userId")
-        feedback_time = fb.get("createdAt", "")
+    # Enrich with user info
+    enriched = []
+    for r in ratings:
+        user_info = await get_user_info(r.get("user_id"))
+        session_info = await get_session_for_user(r.get("user_id"), r.get("created_at"))
         
-        # Get user info
-        user_info = await get_user_info(user_id)
-        
-        # Get session info
-        session_info = await get_user_session_info(user_id, feedback_time)
-        
-        # Get feature usage
-        feature_usage = await get_user_feature_usage(user_id, feedback_time)
-        
-        detailed_feedbacks.append({
-            "feedback_id": fb.get("id"),
-            "user_id": user_id,
-            "email": fb.get("email") or user_info.get("email"),
-            "name": user_info.get("name", "Unknown"),
-            "rating": fb.get("rating"),
-            "comment": fb.get("message") or fb.get("suggestion", "No comment provided"),
-            "category": fb.get("category"),
-            "features_used": feature_usage.get("features_used", []),
-            "features_failed": feature_usage.get("features_failed", []),
-            "session_duration_minutes": session_info.get("session_duration_minutes"),
-            "location": session_info.get("location"),
-            "device": session_info.get("device"),
-            "browser": session_info.get("browser"),
-            "created_at": feedback_time
+        enriched.append({
+            **r,
+            "user_email": user_info.get("email"),
+            "user_name": user_info.get("name"),
+            "user_plan": user_info.get("plan"),
+            "device_type": session_info.get("device_type"),
+            "platform": session_info.get("platform"),
+            "approx_location": session_info.get("approx_location")
         })
     
     return {
-        "total": len(detailed_feedbacks),
-        "feedbacks": detailed_feedbacks
+        "total": total,
+        "page": page,
+        "size": size,
+        "ratings": enriched
+    }
+
+
+@router.get("/ratings/drilldown/{rating_id}")
+async def get_rating_drilldown(
+    rating_id: str,
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Get detailed drilldown for a specific rating (A1 - WHY low rating)
+    Shows user details, feature used, output status, error codes, session analytics
+    """
+    # Get the rating
+    rating = await db.ratings.find_one({"rating_id": rating_id}, {"_id": 0})
+    if not rating:
+        raise HTTPException(status_code=404, detail="Rating not found")
+    
+    user_id = rating.get("user_id")
+    session_id = rating.get("session_id")
+    rating_time = rating.get("created_at")
+    
+    # Get user info
+    user_info = await get_user_info(user_id)
+    
+    # Get session info
+    session = await db.user_sessions.find_one(
+        {"session_id": session_id} if session_id else {"user_id": user_id},
+        {"_id": 0}
+    )
+    
+    # Calculate session duration
+    session_duration = None
+    if session:
+        login_at = session.get("login_at")
+        logout_at = session.get("logout_at") or rating_time
+        if login_at and logout_at:
+            try:
+                login_dt = datetime.fromisoformat(login_at.replace("Z", "+00:00"))
+                logout_dt = datetime.fromisoformat(logout_at.replace("Z", "+00:00"))
+                session_duration = int((logout_dt - login_dt).total_seconds() / 60)
+            except:
+                pass
+    
+    # Get feature events before rating
+    events = []
+    if session_id:
+        events = await db.feature_events.find(
+            {"session_id": session_id, "created_at": {"$lte": rating_time}},
+            {"_id": 0}
+        ).sort("created_at", -1).limit(20).to_list(20)
+    elif user_id:
+        events = await db.feature_events.find(
+            {"user_id": user_id, "created_at": {"$lte": rating_time}},
+            {"_id": 0}
+        ).sort("created_at", -1).limit(20).to_list(20)
+    
+    # Extract error codes
+    error_codes = list(set(e.get("error_code") for e in events if e.get("error_code")))
+    
+    # Determine output status from events
+    output_status = "unknown"
+    for e in events:
+        if e.get("event_type") == "GENERATION_SUCCESS":
+            output_status = "success"
+            break
+        elif e.get("event_type") == "GENERATION_FAILED":
+            output_status = "failed"
+            break
+    
+    # Get related generation if available
+    related_gen = None
+    if rating.get("related_request_id"):
+        related_gen = await db.generations.find_one(
+            {"id": rating["related_request_id"]},
+            {"_id": 0, "type": 1, "status": 1, "error": 1, "created_at": 1}
+        )
+    
+    return {
+        "rating_id": rating_id,
+        "user_id": user_id,
+        "user_email": user_info.get("email"),
+        "user_name": user_info.get("name"),
+        "user_type": user_info.get("plan"),
+        "rating": rating.get("rating"),
+        "reason_type": rating.get("reason_type"),
+        "comment": rating.get("comment"),
+        "feature_key": rating.get("feature_key"),
+        "created_at": rating_time,
+        
+        "session_id": session_id,
+        "session_duration_minutes": session_duration,
+        "device_type": session.get("device_type") if session else None,
+        "platform": session.get("platform") if session else None,
+        "browser": session.get("browser") if session else None,
+        
+        "approx_location": session.get("approx_location") if session else None,
+        
+        "feature_events_before_rating": events,
+        "output_status": output_status,
+        "error_codes": error_codes,
+        
+        "related_generation": related_gen
+    }
+
+
+@router.get("/users/{user_id}/sessions")
+async def get_user_sessions(
+    user_id: str,
+    days: int = Query(default=30, ge=1, le=365),
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Get all sessions for a specific user (A5)
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    
+    sessions = await db.user_sessions.find(
+        {"user_id": user_id, "login_at": {"$gte": cutoff}},
+        {"_id": 0}
+    ).sort("login_at", -1).to_list(100)
+    
+    # Get user info
+    user_info = await get_user_info(user_id)
+    
+    # Calculate metrics
+    total_sessions = len(sessions)
+    total_duration = 0
+    locations = set()
+    devices = set()
+    
+    for s in sessions:
+        if s.get("login_at") and s.get("logout_at"):
+            try:
+                login_dt = datetime.fromisoformat(s["login_at"].replace("Z", "+00:00"))
+                logout_dt = datetime.fromisoformat(s["logout_at"].replace("Z", "+00:00"))
+                total_duration += (logout_dt - login_dt).total_seconds() / 60
+            except:
+                total_duration += 30  # Default
+        else:
+            total_duration += 30
+        
+        if s.get("approx_location", {}).get("country"):
+            locations.add(s["approx_location"]["country"])
+        if s.get("device_type"):
+            devices.add(s["device_type"])
+    
+    return {
+        "user_id": user_id,
+        "user_email": user_info.get("email"),
+        "user_name": user_info.get("name"),
+        "total_sessions": total_sessions,
+        "total_duration_minutes": int(total_duration),
+        "avg_session_minutes": int(total_duration / total_sessions) if total_sessions > 0 else 0,
+        "locations": list(locations),
+        "devices": list(devices),
+        "sessions": sessions
+    }
+
+
+@router.get("/feature-events")
+async def get_feature_events(
+    days: int = Query(default=7, ge=1, le=90),
+    feature_key: Optional[str] = None,
+    event_type: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = Query(default=0, ge=0),
+    size: int = Query(default=100, ge=1, le=500),
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Get feature events with filters (A5)
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    
+    query = {"created_at": {"$gte": cutoff}}
+    if feature_key:
+        query["feature_key"] = feature_key
+    if event_type:
+        query["event_type"] = event_type
+    if status:
+        query["status"] = status
+    
+    total = await db.feature_events.count_documents(query)
+    
+    events = await db.feature_events.find(
+        query,
+        {"_id": 0}
+    ).sort("created_at", -1).skip(page * size).limit(size).to_list(size)
+    
+    return {
+        "total": total,
+        "page": page,
+        "size": size,
+        "events": events
     }
 
 
 @router.get("/feature-happiness")
-async def get_feature_happiness_scores(
+async def get_feature_happiness_report(
     days: int = Query(default=30, ge=1, le=365),
     current_user: dict = Depends(get_admin_user)
 ):
     """
-    Get happiness scores for each feature based on success rate and user ratings
+    Get Happy vs Unhappy features report (A1)
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     
-    # Get all generation types and their success/failure counts
+    # Get feature event aggregates
     pipeline = [
         {"$match": {"created_at": {"$gte": cutoff}}},
         {"$group": {
-            "_id": "$type",
-            "total": {"$sum": 1},
-            "success": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
-            "failed": {"$sum": {"$cond": [{"$in": ["$status", ["failed", "error"]]}, 1, 0]}}
+            "_id": "$feature_key",
+            "total_events": {"$sum": 1},
+            "success_count": {"$sum": {"$cond": [{"$eq": ["$status", "success"]}, 1, 0]}},
+            "failed_count": {"$sum": {"$cond": [{"$eq": ["$status", "failed"]}, 1, 0]}},
+            "avg_latency": {"$avg": "$latency_ms"}
         }}
     ]
     
-    generation_stats = await db.generations.aggregate(pipeline).to_list(100)
+    event_stats = await db.feature_events.aggregate(pipeline).to_list(100)
     
-    # Get feedback ratings correlated with features
-    feature_ratings = {}
-    feedbacks = await db.feedback.find(
-        {"rating": {"$exists": True}, "createdAt": {"$gte": cutoff}},
-        {"_id": 0, "userId": 1, "rating": 1, "createdAt": 1, "message": 1}
-    ).to_list(500)
+    # Get ratings per feature
+    rating_pipeline = [
+        {"$match": {"created_at": {"$gte": cutoff}, "feature_key": {"$ne": None}}},
+        {"$group": {
+            "_id": "$feature_key",
+            "avg_rating": {"$avg": "$rating"},
+            "rating_count": {"$sum": 1},
+            "low_ratings": {"$sum": {"$cond": [{"$lte": ["$rating", 2]}, 1, 0]}}
+        }}
+    ]
     
-    for fb in feedbacks:
-        user_id = fb.get("userId")
-        if user_id:
-            # Get features used by this user
-            usage = await get_user_feature_usage(user_id, fb.get("createdAt"))
-            for feature in usage.get("features_used", []):
-                if feature not in feature_ratings:
-                    feature_ratings[feature] = {"ratings": [], "issues": []}
-                feature_ratings[feature]["ratings"].append(fb.get("rating", 0))
-                
-                # If low rating and feature failed, track the issue
-                if fb.get("rating", 5) <= 2 and feature in usage.get("features_failed", []):
-                    issue = fb.get("message", "Unknown issue")[:100]
-                    if issue and issue not in feature_ratings[feature]["issues"]:
-                        feature_ratings[feature]["issues"].append(issue)
+    rating_stats = await db.ratings.aggregate(rating_pipeline).to_list(100)
+    rating_map = {r["_id"]: r for r in rating_stats}
+    
+    # Get common issues per feature
+    issue_pipeline = [
+        {"$match": {"created_at": {"$gte": cutoff}, "reason_type": {"$ne": None}}},
+        {"$group": {
+            "_id": {"feature": "$feature_key", "reason": "$reason_type"},
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"count": -1}}
+    ]
+    
+    issues = await db.ratings.aggregate(issue_pipeline).to_list(200)
+    issue_map = {}
+    for i in issues:
+        feature = i["_id"]["feature"]
+        if feature not in issue_map:
+            issue_map[feature] = []
+        issue_map[feature].append({"reason": i["_id"]["reason"], "count": i["count"]})
     
     # Calculate happiness scores
-    happiness_data = []
-    
-    for stat in generation_stats:
-        feature = stat["_id"] or "unknown"
-        total = stat["total"]
-        success = stat["success"]
-        failed = stat["failed"]
+    features = []
+    for stat in event_stats:
+        feature_key = stat["_id"]
+        if not feature_key:
+            continue
         
-        success_rate = (success / total) * 100 if total > 0 else 0
+        total = stat["total_events"]
+        success = stat["success_count"]
+        failed = stat["failed_count"]
         
-        # Get average rating for this feature
-        ratings = feature_ratings.get(feature, {}).get("ratings", [])
-        avg_rating = sum(ratings) / len(ratings) if ratings else 3.0  # Default to 3 if no ratings
+        success_rate = (success / total * 100) if total > 0 else 0
         
-        # Calculate happiness score (0-100)
+        rating_info = rating_map.get(feature_key, {})
+        avg_rating = rating_info.get("avg_rating", 3.0)
+        rating_count = rating_info.get("rating_count", 0)
+        low_ratings = rating_info.get("low_ratings", 0)
+        
+        # Happiness score: weighted combination of success rate and rating
         happiness_score = (success_rate * 0.6) + ((avg_rating / 5) * 40)
         
-        happiness_data.append({
-            "feature": feature,
-            "display_name": feature.replace("_", " ").title(),
+        features.append({
+            "feature_key": feature_key,
+            "display_name": feature_key.replace("_", " ").title(),
             "total_uses": total,
             "success_count": success,
             "failure_count": failed,
             "success_rate": round(success_rate, 1),
-            "average_rating": round(avg_rating, 2),
+            "avg_rating": round(avg_rating, 2),
+            "rating_count": rating_count,
+            "low_rating_count": low_ratings,
             "happiness_score": round(happiness_score, 1),
-            "common_issues": feature_ratings.get(feature, {}).get("issues", [])[:5],
-            "rating_count": len(ratings)
+            "avg_latency_ms": round(stat.get("avg_latency") or 0),
+            "common_issues": issue_map.get(feature_key, [])[:5]
         })
     
     # Sort by happiness score
-    happiness_data.sort(key=lambda x: x["happiness_score"], reverse=True)
+    features.sort(key=lambda x: x["happiness_score"], reverse=True)
     
-    # Separate into happy and unhappy features
-    happy_features = [f for f in happiness_data if f["happiness_score"] >= 70]
-    unhappy_features = [f for f in happiness_data if f["happiness_score"] < 70]
+    # Split into happy/unhappy
+    happy_features = [f for f in features if f["happiness_score"] >= 70]
+    unhappy_features = [f for f in features if f["happiness_score"] < 70]
     unhappy_features.reverse()  # Most unhappy first
     
     return {
         "happy_features": happy_features[:10],
         "unhappy_features": unhappy_features[:10],
-        "all_features": happiness_data,
-        "period_days": days
-    }
-
-
-@router.get("/user-sessions")
-async def get_user_sessions_analytics(
-    days: int = Query(default=7, ge=1, le=90),
-    current_user: dict = Depends(get_admin_user)
-):
-    """
-    Get session analytics including duration, location, and activity
-    """
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    
-    # Get login activities
-    sessions = await db.login_activity.find(
-        {
-            "status": "SUCCESS",
-            "timestamp": {"$gte": cutoff}
-        },
-        {"_id": 0}
-    ).sort("timestamp", -1).limit(500).to_list(500)
-    
-    # Group sessions by user
-    user_sessions = {}
-    for session in sessions:
-        user_id = session.get("user_id")
-        if not user_id:
-            continue
-        
-        if user_id not in user_sessions:
-            user_sessions[user_id] = {
-                "sessions": [],
-                "locations": set(),
-                "devices": set(),
-                "total_duration": 0
-            }
-        
-        user_sessions[user_id]["sessions"].append(session)
-        
-        if session.get("country"):
-            user_sessions[user_id]["locations"].add(f"{session.get('city', 'Unknown')}, {session.get('country')}")
-        if session.get("device_type"):
-            user_sessions[user_id]["devices"].add(session.get("device_type"))
-    
-    # Calculate session durations and compile results
-    session_analytics = []
-    
-    for user_id, data in user_sessions.items():
-        user_info = await get_user_info(user_id)
-        
-        # Estimate session duration (time between consecutive logins or 30 min default)
-        total_duration = 0
-        for i, sess in enumerate(data["sessions"]):
-            if i + 1 < len(data["sessions"]):
-                try:
-                    current = datetime.fromisoformat(sess["timestamp"].replace("Z", "+00:00"))
-                    next_sess = datetime.fromisoformat(data["sessions"][i + 1]["timestamp"].replace("Z", "+00:00"))
-                    duration = (current - next_sess).total_seconds() / 60
-                    if duration > 0 and duration < 480:  # Max 8 hours
-                        total_duration += duration
-                except:
-                    total_duration += 30  # Default 30 min
-            else:
-                total_duration += 30
-        
-        latest_session = data["sessions"][0] if data["sessions"] else {}
-        
-        session_analytics.append({
-            "user_id": user_id,
-            "email": user_info.get("email"),
-            "name": user_info.get("name"),
-            "session_count": len(data["sessions"]),
-            "total_duration_minutes": int(total_duration),
-            "avg_session_minutes": int(total_duration / len(data["sessions"])) if data["sessions"] else 0,
-            "locations": list(data["locations"])[:5],
-            "devices": list(data["devices"]),
-            "last_login": latest_session.get("timestamp"),
-            "last_location": {
-                "country": latest_session.get("country"),
-                "city": latest_session.get("city"),
-                "region": latest_session.get("region")
-            },
-            "last_device": latest_session.get("device_type"),
-            "last_browser": latest_session.get("browser")
-        })
-    
-    # Sort by session count
-    session_analytics.sort(key=lambda x: x["session_count"], reverse=True)
-    
-    # Calculate summary stats
-    total_sessions = sum(u["session_count"] for u in session_analytics)
-    avg_duration = sum(u["avg_session_minutes"] for u in session_analytics) / len(session_analytics) if session_analytics else 0
-    
-    # Location distribution
-    location_counts = {}
-    for user in session_analytics:
-        for loc in user["locations"]:
-            country = loc.split(", ")[-1] if ", " in loc else loc
-            location_counts[country] = location_counts.get(country, 0) + 1
-    
-    top_locations = sorted(location_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    return {
-        "summary": {
-            "total_users": len(session_analytics),
-            "total_sessions": total_sessions,
-            "avg_session_duration_minutes": round(avg_duration, 1),
-            "top_locations": [{"country": loc, "count": count} for loc, count in top_locations]
-        },
-        "users": session_analytics[:100],
-        "period_days": days
-    }
-
-
-@router.get("/rating-users")
-async def get_users_who_rated(
-    rating: Optional[int] = Query(default=None, ge=1, le=5),
-    days: int = Query(default=30, ge=1, le=365),
-    current_user: dict = Depends(get_admin_user)
-):
-    """
-    Get list of users who provided ratings with their details
-    """
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    
-    query = {"rating": {"$exists": True}, "createdAt": {"$gte": cutoff}}
-    if rating:
-        query["rating"] = rating
-    
-    feedbacks = await db.feedback.find(
-        query,
-        {"_id": 0}
-    ).sort("createdAt", -1).to_list(500)
-    
-    rating_users = []
-    
-    for fb in feedbacks:
-        user_id = fb.get("userId")
-        user_info = await get_user_info(user_id) if user_id else {"email": fb.get("email"), "name": "Guest"}
-        session_info = await get_user_session_info(user_id, fb.get("createdAt")) if user_id else {}
-        feature_usage = await get_user_feature_usage(user_id, fb.get("createdAt")) if user_id else {}
-        
-        rating_users.append({
-            "user_id": user_id,
-            "email": fb.get("email") or user_info.get("email"),
-            "name": user_info.get("name", "Guest"),
-            "rating": fb.get("rating"),
-            "comment": fb.get("message") or fb.get("suggestion", "No comment"),
-            "features_used": feature_usage.get("features_used", []),
-            "features_failed": feature_usage.get("features_failed", []),
-            "session_duration": session_info.get("session_duration_minutes"),
-            "location": session_info.get("location"),
-            "device": session_info.get("device"),
-            "rated_at": fb.get("createdAt")
-        })
-    
-    # Group by rating
-    by_rating = {1: [], 2: [], 3: [], 4: [], 5: []}
-    for user in rating_users:
-        r = user.get("rating", 0)
-        if 1 <= r <= 5:
-            by_rating[r].append(user)
-    
-    return {
-        "total_ratings": len(rating_users),
-        "by_rating": {
-            "5_star": len(by_rating[5]),
-            "4_star": len(by_rating[4]),
-            "3_star": len(by_rating[3]),
-            "2_star": len(by_rating[2]),
-            "1_star": len(by_rating[1])
-        },
-        "users": rating_users,
-        "period_days": days
-    }
-
-
-@router.get("/feature-failures")
-async def get_feature_failures(
-    days: int = Query(default=7, ge=1, le=90),
-    current_user: dict = Depends(get_admin_user)
-):
-    """
-    Get features that failed for users, correlated with their ratings
-    """
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    
-    # Get failed generations
-    failures = await db.generations.find(
-        {
-            "status": {"$in": ["failed", "error"]},
-            "created_at": {"$gte": cutoff}
-        },
-        {"_id": 0, "user_id": 1, "type": 1, "error": 1, "created_at": 1}
-    ).sort("created_at", -1).limit(500).to_list(500)
-    
-    # Group by feature and get user feedback
-    feature_failures = {}
-    
-    for fail in failures:
-        feature = fail.get("type", "unknown")
-        user_id = fail.get("user_id")
-        
-        if feature not in feature_failures:
-            feature_failures[feature] = {
-                "total_failures": 0,
-                "affected_users": set(),
-                "errors": [],
-                "user_ratings": []
-            }
-        
-        feature_failures[feature]["total_failures"] += 1
-        if user_id:
-            feature_failures[feature]["affected_users"].add(user_id)
-        
-        error = fail.get("error", "Unknown error")[:100]
-        if error not in feature_failures[feature]["errors"]:
-            feature_failures[feature]["errors"].append(error)
-    
-    # Get user ratings for affected users
-    for feature, data in feature_failures.items():
-        for user_id in data["affected_users"]:
-            user_feedback = await db.feedback.find_one(
-                {"userId": user_id, "rating": {"$exists": True}},
-                {"_id": 0, "rating": 1}
-            )
-            if user_feedback:
-                data["user_ratings"].append(user_feedback.get("rating", 0))
-    
-    # Compile results
-    results = []
-    for feature, data in feature_failures.items():
-        avg_rating = sum(data["user_ratings"]) / len(data["user_ratings"]) if data["user_ratings"] else None
-        
-        results.append({
-            "feature": feature,
-            "display_name": feature.replace("_", " ").title(),
-            "total_failures": data["total_failures"],
-            "affected_users_count": len(data["affected_users"]),
-            "common_errors": data["errors"][:5],
-            "avg_user_rating": round(avg_rating, 2) if avg_rating else "No ratings",
-            "impact_severity": "High" if data["total_failures"] > 10 or (avg_rating and avg_rating < 3) else "Medium" if data["total_failures"] > 5 else "Low"
-        })
-    
-    # Sort by failure count
-    results.sort(key=lambda x: x["total_failures"], reverse=True)
-    
-    return {
-        "total_failures": sum(r["total_failures"] for r in results),
-        "total_affected_users": len(set().union(*[set(d["affected_users"]) for d in feature_failures.values()])) if feature_failures else 0,
-        "features": results,
+        "all_features": features,
         "period_days": days
     }
 
 
 @router.get("/dashboard-summary")
-async def get_analytics_dashboard_summary(
+async def get_dashboard_summary(
     days: int = Query(default=7, ge=1, le=90),
     current_user: dict = Depends(get_admin_user)
 ):
     """
-    Get summary dashboard data for user analytics
+    Get summary data for analytics dashboard (A1)
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     
-    # Total ratings
-    total_ratings = await db.feedback.count_documents({"rating": {"$exists": True}, "createdAt": {"$gte": cutoff}})
+    # Ratings summary
+    ratings_summary = await get_ratings_summary(days=days, current_user=current_user)
     
-    # Average rating
-    ratings_list = await db.feedback.find(
-        {"rating": {"$exists": True}, "createdAt": {"$gte": cutoff}},
-        {"_id": 0, "rating": 1}
-    ).to_list(1000)
-    avg_rating = sum(r.get("rating", 0) for r in ratings_list) / len(ratings_list) if ratings_list else 0
+    # Session summary
+    total_sessions = await db.user_sessions.count_documents({"login_at": {"$gte": cutoff}})
+    unique_users = len(await db.user_sessions.distinct("user_id", {"login_at": {"$gte": cutoff}}))
     
-    # Rating distribution
-    distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
-    for r in ratings_list:
-        rating = r.get("rating", 0)
-        if 1 <= rating <= 5:
-            distribution[rating] += 1
+    # Feature events summary
+    total_events = await db.feature_events.count_documents({"created_at": {"$gte": cutoff}})
+    failed_events = await db.feature_events.count_documents({
+        "created_at": {"$gte": cutoff},
+        "status": "failed"
+    })
     
-    # Total sessions
-    total_sessions = await db.login_activity.count_documents({"status": "SUCCESS", "timestamp": {"$gte": cutoff}})
-    
-    # Unique users who logged in
-    unique_users = len(await db.login_activity.distinct("user_id", {"status": "SUCCESS", "timestamp": {"$gte": cutoff}}))
-    
-    # Total failures
-    total_failures = await db.generations.count_documents({"status": {"$in": ["failed", "error"]}, "created_at": {"$gte": cutoff}})
-    
-    # NPS calculation
-    promoters = distribution.get(5, 0) + distribution.get(4, 0)
-    detractors = distribution.get(1, 0) + distribution.get(2, 0)
-    nps = ((promoters - detractors) / total_ratings * 100) if total_ratings > 0 else 0
+    # Low ratings needing attention
+    low_ratings = await db.ratings.find(
+        {"created_at": {"$gte": cutoff}, "rating": {"$lte": 2}},
+        {"_id": 0, "rating_id": 1, "rating": 1, "feature_key": 1, "reason_type": 1, "created_at": 1}
+    ).sort("created_at", -1).limit(10).to_list(10)
     
     return {
         "period_days": days,
-        "ratings": {
-            "total": total_ratings,
-            "average": round(avg_rating, 2),
-            "distribution": distribution,
-            "nps_score": round(nps, 1)
-        },
+        "ratings": ratings_summary,
         "sessions": {
             "total": total_sessions,
             "unique_users": unique_users
         },
-        "failures": {
-            "total": total_failures
+        "events": {
+            "total": total_events,
+            "failed": failed_events,
+            "failure_rate": round((failed_events / total_events * 100), 1) if total_events > 0 else 0
         },
-        "satisfaction_percentage": round((avg_rating / 5) * 100, 1) if avg_rating else 0
+        "low_ratings_requiring_attention": low_ratings
     }
+
+
+@router.get("/ratings/export/csv")
+async def export_ratings_csv(
+    days: int = Query(default=30, ge=1, le=365),
+    rating_filter: Optional[int] = Query(default=None, ge=1, le=5),
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Export ratings data as CSV (A6)
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    
+    query = {"created_at": {"$gte": cutoff}}
+    if rating_filter:
+        query["rating"] = rating_filter
+    
+    ratings = await db.ratings.find(query, {"_id": 0}).sort("created_at", -1).to_list(10000)
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow([
+        "Rating ID", "User ID", "Rating", "Feature", "Reason Type", 
+        "Comment", "Created At", "Session ID", "Related Request ID"
+    ])
+    
+    # Data rows
+    for r in ratings:
+        writer.writerow([
+            r.get("rating_id"),
+            r.get("user_id"),
+            r.get("rating"),
+            r.get("feature_key"),
+            r.get("reason_type"),
+            r.get("comment", ""),
+            r.get("created_at"),
+            r.get("session_id"),
+            r.get("related_request_id")
+        ])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=ratings_export_{datetime.now().strftime('%Y%m%d')}.csv"
+        }
+    )
+
+
+@router.delete("/ratings/reset")
+async def reset_all_ratings(
+    confirm: bool = Query(default=False),
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Reset/clear all ratings data (requested by user)
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Please confirm by adding ?confirm=true to the request"
+        )
+    
+    # Delete all ratings
+    ratings_result = await db.ratings.delete_many({})
+    
+    # Also clear legacy feedback ratings
+    feedback_result = await db.feedback.delete_many({"type": "rating"})
+    
+    logger.info(f"Admin {current_user['email']} reset all ratings: {ratings_result.deleted_count} ratings, {feedback_result.deleted_count} feedback entries")
+    
+    return {
+        "success": True,
+        "deleted_ratings": ratings_result.deleted_count,
+        "deleted_feedback": feedback_result.deleted_count,
+        "message": "All ratings have been reset"
+    }
+
+
+# Create database indexes on startup
+async def create_analytics_indexes():
+    """Create indexes for analytics collections"""
+    try:
+        # User sessions indexes
+        await db.user_sessions.create_index("session_id", unique=True)
+        await db.user_sessions.create_index([("user_id", 1), ("login_at", -1)])
+        await db.user_sessions.create_index("login_at")
+        
+        # Feature events indexes
+        await db.feature_events.create_index("event_id", unique=True)
+        await db.feature_events.create_index([("user_id", 1), ("created_at", -1)])
+        await db.feature_events.create_index([("session_id", 1), ("created_at", -1)])
+        await db.feature_events.create_index([("feature_key", 1), ("event_type", 1)])
+        await db.feature_events.create_index("created_at")
+        
+        # Ratings indexes
+        await db.ratings.create_index("rating_id", unique=True)
+        await db.ratings.create_index([("user_id", 1), ("created_at", -1)])
+        await db.ratings.create_index([("rating", 1), ("created_at", -1)])
+        await db.ratings.create_index([("feature_key", 1), ("rating", 1)])
+        await db.ratings.create_index("created_at")
+        
+        logger.info("Analytics indexes created successfully")
+    except Exception as e:
+        logger.warning(f"Analytics index creation warning: {e}")
