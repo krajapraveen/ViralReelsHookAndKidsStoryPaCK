@@ -175,9 +175,9 @@ export default function Reviews() {
                 {renderStars(review.rating)}
               </div>
               
-              <p className="text-slate-600 leading-relaxed">{review.message}</p>
+              <p className="text-slate-300 leading-relaxed">{review.message}</p>
               
-              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2 text-sm text-slate-500">
+              <div className="mt-4 pt-4 border-t border-slate-700 flex items-center gap-2 text-sm text-slate-400">
                 <ThumbsUp className="w-4 h-4" />
                 <span>Verified User</span>
               </div>
