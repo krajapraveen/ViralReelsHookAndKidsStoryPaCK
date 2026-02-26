@@ -90,6 +90,20 @@ from routes.priority_scaling import router as priority_scaling_router
 from services.self_healing_middleware import SelfHealingMiddleware
 from services.priority_scaling_service import initialize_priority_scaling, shutdown_priority_scaling
 
+# Performance and stability module
+from performance import (
+    PerformanceMiddleware,
+    create_performance_indexes,
+    get_performance_report,
+    run_health_checks,
+    performance_maintenance_loop,
+    metrics,
+    cache,
+    idempotency,
+    job_retry,
+    stuck_recovery
+)
+
 # Create FastAPI app
 app = FastAPI(
     title="CreatorStudio AI API",
