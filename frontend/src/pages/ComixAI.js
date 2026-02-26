@@ -19,6 +19,8 @@ export default function ComixAI() {
   const [styles, setStyles] = useState({});
   const [layouts, setLayouts] = useState({});
   const [creditCosts, setCreditCosts] = useState({});
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [lastGenerationId, setLastGenerationId] = useState(null);
   
   // Character generation state
   const [characterPhoto, setCharacterPhoto] = useState(null);
