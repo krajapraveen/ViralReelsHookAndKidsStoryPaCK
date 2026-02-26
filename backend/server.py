@@ -104,6 +104,11 @@ from performance import (
     stuck_recovery
 )
 
+# SRE Phase 2 & 3 Services
+from services.database_indexes import create_all_indexes, get_index_status
+from services.idempotency_service import get_idempotency_service
+from services.fallback_output_service import get_fallback_service
+
 # Create FastAPI app
 app = FastAPI(
     title="CreatorStudio AI API",
