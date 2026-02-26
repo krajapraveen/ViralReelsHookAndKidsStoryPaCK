@@ -100,6 +100,7 @@ export default function AdminDashboard() {
     { id: 'payment-monitoring', label: '💰 Payment Monitor' },
     { id: 'exceptions', label: '⚠️ Exceptions' },
     { id: 'satisfaction', label: 'Satisfaction' },
+    { id: 'user-analytics', label: '📊 User Analytics' },
     { id: 'feature-requests', label: '💡 Feature Requests' },
     { id: 'feedback', label: '📝 User Feedback' },
     { id: 'trending', label: '📈 Trending Topics' },
