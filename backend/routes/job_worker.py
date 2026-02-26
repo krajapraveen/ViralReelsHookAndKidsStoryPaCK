@@ -1,6 +1,7 @@
 """
 Async Job Worker - Background Processing for GenStudio Jobs
 Processes QUEUED jobs and handles credit finalization (CAPTURE/RELEASE)
+Includes SRE Phase 3: Auto-retry, fallback outputs, and improved error handling
 """
 import asyncio
 import traceback
@@ -20,6 +21,10 @@ from routes.wallet import (
 # Worker configuration
 POLL_INTERVAL = 2  # seconds
 MAX_CONCURRENT_JOBS = 3
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAYS = [10, 30, 90]  # seconds - exponential backoff
 
 
 async def process_text_to_image(job: dict) -> dict:
