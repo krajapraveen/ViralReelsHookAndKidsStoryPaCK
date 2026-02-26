@@ -22,6 +22,8 @@ export default function ReelGenerator() {
   const [result, setResult] = useState(null);
   const [isFreeTier, setIsFreeTier] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [lastGenerationId, setLastGenerationId] = useState(null);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
