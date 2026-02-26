@@ -110,6 +110,10 @@ export default function Login({ setAuth }) {
     try {
       const response = await authAPI.login({ email: email.trim().toLowerCase(), password });
       localStorage.setItem('token', response.data.token);
+      // Store user data from login response for immediate access
+      if (response.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
       setAuth(true);
       toast.success('Login successful!');
       navigate('/app', { replace: true });
