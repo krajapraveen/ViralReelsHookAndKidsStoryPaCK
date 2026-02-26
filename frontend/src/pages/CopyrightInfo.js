@@ -123,15 +123,15 @@ export default function CopyrightInfo() {
         {sections.map((section, idx) => {
           const Icon = section.icon;
           const colorClasses = {
-            purple: { bg: 'bg-purple-100', text: 'text-purple-600', border: 'border-purple-200' },
-            green: { bg: 'bg-green-100', text: 'text-green-600', border: 'border-green-200' },
-            amber: { bg: 'bg-amber-100', text: 'text-amber-600', border: 'border-amber-200' }
+            purple: { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30' },
+            green: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30' },
+            amber: { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30' }
           };
           const colors = colorClasses[section.color];
           
           return (
-            <div key={idx} className={`bg-white rounded-xl border ${colors.border} p-6 shadow-sm`}>
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-900">
+            <div key={idx} className={`bg-slate-800/50 backdrop-blur-sm rounded-xl border ${colors.border} p-6`}>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
                 <div className={`p-2 ${colors.bg} rounded-lg`}>
                   <Icon className={`w-5 h-5 ${colors.text}`} />
                 </div>
@@ -139,11 +139,11 @@ export default function CopyrightInfo() {
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
                 {section.items.map((item, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-slate-50">
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-slate-700/30">
                     <CheckCircle className={`w-5 h-5 ${colors.text} mt-0.5 flex-shrink-0`} />
                     <div>
-                      <p className="font-semibold text-slate-900">{item.label}</p>
-                      <p className="text-sm text-slate-600">{item.desc}</p>
+                      <p className="font-semibold text-white">{item.label}</p>
+                      <p className="text-sm text-slate-400">{item.desc}</p>
                     </div>
                   </div>
                 ))}
