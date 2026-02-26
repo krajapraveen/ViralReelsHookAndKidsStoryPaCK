@@ -547,6 +547,27 @@ async def startup():
     except Exception as e:
         logger.warning(f"Performance index creation warning: {e}")
     
+    # Create comprehensive database indexes (SRE Phase 2)
+    try:
+        index_report = await create_all_indexes(db)
+        logger.info(f"Database indexes: {len(index_report.get('created', []))} created, {len(index_report.get('existing', []))} existing")
+    except Exception as e:
+        logger.warning(f"Database index creation warning: {e}")
+    
+    # Initialize idempotency service (SRE Phase 3)
+    try:
+        await get_idempotency_service(db)
+        logger.info("Idempotency service initialized")
+    except Exception as e:
+        logger.warning(f"Idempotency service warning: {e}")
+    
+    # Initialize fallback output service (SRE Phase 3)
+    try:
+        await get_fallback_service(db)
+        logger.info("Fallback output service initialized")
+    except Exception as e:
+        logger.warning(f"Fallback output service warning: {e}")
+    
     # Start performance maintenance loop
     try:
         asyncio.create_task(performance_maintenance_loop())
