@@ -690,6 +690,15 @@ export default function ComicStorybook() {
           </p>
         </div>
       </main>
+      
+      {/* Rating Modal */}
+      <RatingModal 
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        featureKey="comic_storybook"
+        relatedRequestId={lastGenerationId}
+        onSubmitSuccess={() => setShowRatingModal(false)}
+      />
     </div>
   );
 }
