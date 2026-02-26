@@ -50,6 +50,7 @@ import GifMaker from './pages/GifMaker';
 import ComicStorybook from './pages/ComicStorybook';
 import RealtimeAnalytics from './pages/RealtimeAnalytics';
 import SelfHealingDashboard from './pages/Admin/SelfHealingDashboard';
+import UserAnalyticsDashboard from './pages/Admin/UserAnalyticsDashboard';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import AppTour, { TourProvider } from './components/AppTour';
