@@ -17,13 +17,29 @@ export default function Dashboard() {
   }, []);
 
   const fetchData = async () => {
-    // Fetch user data first (most critical for admin detection)
+    // Try to get cached user data from localStorage first (set during login)
+    try {
+      const cachedUser = localStorage.getItem('user');
+      if (cachedUser) {
+        const userData = JSON.parse(cachedUser);
+        setUser(userData);
+        if (userData.credits !== undefined) {
+          setCredits(userData.credits);
+        }
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+    
+    // Fetch fresh user data (most critical for admin detection)
     try {
       const userRes = await authAPI.getCurrentUser();
       // Handle different response structures
       const userData = userRes.data?.user || userRes.data;
       if (userData) {
         setUser(userData);
+        // Update cached user data
+        localStorage.setItem('user', JSON.stringify(userData));
         // Get credits from user data if available
         if (userData.credits !== undefined) {
           setCredits(userData.credits);
@@ -31,7 +47,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      // Try to get user from a different source if available
+      // Keep using cached user data if API fails
     }
     
     // Fetch credits from wallet as backup/primary (more reliable endpoint)
