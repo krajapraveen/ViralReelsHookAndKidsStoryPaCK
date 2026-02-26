@@ -1202,6 +1202,15 @@ export default function ComixAI() {
           </p>
         </div>
       </main>
+      
+      {/* Rating Modal */}
+      <RatingModal 
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        featureKey="comix_ai"
+        relatedRequestId={lastGenerationId}
+        onSubmitSuccess={() => setShowRatingModal(false)}
+      />
     </div>
   );
 }
