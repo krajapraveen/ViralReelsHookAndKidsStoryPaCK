@@ -210,7 +210,7 @@ async def process_image_to_video(job: dict) -> dict:
     motion_prompt = input_data.get("motionPrompt", "")
     duration = input_data.get("duration", 4)
     aspect_ratio = input_data.get("aspectRatio", "16:9")
-    image_base64 = input_data.get("imageBase64", "")
+    _image_base64 = input_data.get("imageBase64", "")  # Reserved for future image-based generation
     
     size_map = {
         "16:9": "1280x720",
