@@ -230,6 +230,31 @@ export default function AdminDashboard() {
         </div>
       </header>
 
+      {/* Error Banner - Show when some data failed to load */}
+      {(apiErrors.analytics || apiErrors.features) && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-amber-300 text-sm">
+                Some dashboard data couldn't be loaded.
+                {apiErrors.analytics && <span className="text-amber-400/80"> Analytics: {apiErrors.analytics}.</span>}
+                {apiErrors.features && <span className="text-amber-400/80"> Feature Requests: {apiErrors.features}.</span>}
+              </p>
+            </div>
+            <Button 
+              onClick={fetchAnalytics} 
+              variant="outline" 
+              size="sm" 
+              className="border-amber-500/50 text-amber-300 hover:bg-amber-500/20"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Overview Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
