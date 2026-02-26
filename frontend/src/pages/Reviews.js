@@ -93,7 +93,7 @@ export default function Reviews() {
   const avgRating = displayReviews.reduce((acc, r) => acc + r.rating, 0) / displayReviews.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
       {/* Feedback Form Modal */}
       <FeedbackForm isOpen={showFeedbackForm} onClose={() => setShowFeedbackForm(false)} />
 
