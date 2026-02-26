@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import RatingModal from '../components/RatingModal';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(0);
@@ -16,6 +17,8 @@ export default function GifMaker() {
   const [backgrounds, setBackgrounds] = useState({});
   const [creditCosts, setCreditCosts] = useState({});
   const [pricing, setPricing] = useState({ generate: 10, download: 15 });
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [lastGenerationId, setLastGenerationId] = useState(null);
   
   // Generation state
   const [photo, setPhoto] = useState(null);
