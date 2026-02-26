@@ -17,18 +17,21 @@ export default function Dashboard() {
   }, []);
 
   const fetchData = async () => {
-    // Fetch user data first (most critical)
+    // Fetch user data first (most critical for admin detection)
     try {
       const userRes = await authAPI.getCurrentUser();
-      setUser(userRes.data);
-      
-      // Get credits from user data if available
-      if (userRes.data?.credits !== undefined) {
-        setCredits(userRes.data.credits);
+      // Handle different response structures
+      const userData = userRes.data?.user || userRes.data;
+      if (userData) {
+        setUser(userData);
+        // Get credits from user data if available
+        if (userData.credits !== undefined) {
+          setCredits(userData.credits);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      // Don't show error toast for user fetch - will redirect on 401
+      // Try to get user from a different source if available
     }
     
     // Fetch credits from wallet as backup/primary (more reliable endpoint)
