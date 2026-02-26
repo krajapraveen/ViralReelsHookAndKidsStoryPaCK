@@ -121,6 +121,9 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 from slowapi.middleware import SlowAPIMiddleware
 app.add_middleware(SlowAPIMiddleware)
 
+# Add Performance middleware for metrics and correlation IDs (before Self-Healing)
+app.add_middleware(PerformanceMiddleware)
+
 # Add Self-Healing middleware for request tracking and correlation IDs
 app.add_middleware(SelfHealingMiddleware)
 
