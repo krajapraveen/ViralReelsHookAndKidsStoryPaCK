@@ -111,9 +111,10 @@ def create_rate_limit_dependency(max_requests: int, window_seconds: int):
     return rate_limit_check
 
 # Pre-configured rate limiters for common use cases
-rate_limit_generation = create_rate_limit_dependency(10, 60)  # 10 per minute
-rate_limit_auth = create_rate_limit_dependency(5, 60)         # 5 per minute
-rate_limit_export = create_rate_limit_dependency(20, 60)      # 20 per minute
+rate_limit_generation = create_rate_limit_dependency(30, 60)   # 30 per minute for generation
+rate_limit_auth = create_rate_limit_dependency(20, 60)         # 20 per minute for auth
+rate_limit_export = create_rate_limit_dependency(30, 60)       # 30 per minute for export
+rate_limit_api = create_rate_limit_dependency(200, 60)         # 200 per minute for general API
 
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Handle rate limit exceeded errors"""
