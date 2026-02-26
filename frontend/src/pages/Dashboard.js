@@ -62,7 +62,7 @@ export default function Dashboard() {
     navigate('/login');
   };
 
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
