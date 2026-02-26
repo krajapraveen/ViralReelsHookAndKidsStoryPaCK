@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { 
   Sparkles, Users, CreditCard, FileText, ArrowLeft, 
-  Eye, Star, RefreshCw, Activity, DollarSign, LogOut, Coins, Shield, BarChart3
+  Eye, Star, RefreshCw, Activity, DollarSign, LogOut, Coins, Shield, BarChart3,
+  AlertTriangle
 } from 'lucide-react';
 
 // Import tab components
@@ -23,46 +24,76 @@ import ExceptionMonitoringTab from '../components/admin/ExceptionMonitoringTab';
 import UserAnalyticsTab from '../components/admin/UserAnalyticsTab';
 import HelpGuide from '../components/HelpGuide';
 
+// Default fallback data structure for graceful degradation
+const defaultAnalytics = {
+  overview: { totalUsers: 0, newUsers: 0, activeSessions: 0, totalGenerations: 0, totalRevenue: 0, periodRevenue: 0 },
+  visitors: { uniqueVisitors: 0, totalPageViews: 0 },
+  featureUsage: [],
+  payments: { totalAmount: 0, successfulPayments: 0 },
+  satisfaction: { satisfactionPercentage: 0, averageRating: 0 },
+  generations: { successRate: 100 },
+  recentActivity: []
+};
+
 export default function AdminDashboard() {
-  const [analytics, setAnalytics] = useState(null);
+  // Individual state for each data source for better resilience
+  const [analytics, setAnalytics] = useState(defaultAnalytics);
   const [featureRequests, setFeatureRequests] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState(30);
+  const [apiErrors, setApiErrors] = useState({ analytics: null, features: null });
   const navigate = useNavigate();
+
+  const fetchAnalytics = useCallback(async () => {
+    setLoading(true);
+    const errors = { analytics: null, features: null };
+    
+    // Fetch analytics data with individual error handling
+    try {
+      const analyticsRes = await api.get(`/api/admin/analytics/dashboard?days=${dateRange}`);
+      if (analyticsRes.data.success && analyticsRes.data.data) {
+        setAnalytics(prev => ({ ...defaultAnalytics, ...analyticsRes.data.data }));
+      } else {
+        errors.analytics = 'Invalid response format';
+        console.warn('Analytics API returned invalid format');
+      }
+    } catch (error) {
+      const status = error.response?.status;
+      if (status === 403) {
+        toast.error('Admin access required');
+        navigate('/app');
+        return;
+      } else if (status === 401) {
+        // Let axios interceptor handle auth redirect
+        return;
+      }
+      errors.analytics = error.message || 'Failed to load analytics';
+      console.error('Analytics API error:', status, error.message);
+      // Keep existing data or use defaults - don't clear
+    }
+
+    // Fetch feature requests data independently
+    try {
+      const featuresRes = await api.get('/api/feature-requests/analytics');
+      if (featuresRes.data.success) {
+        setFeatureRequests(featuresRes.data.data);
+      } else {
+        errors.features = 'Invalid response format';
+      }
+    } catch (error) {
+      errors.features = error.message || 'Failed to load feature requests';
+      console.error('Feature requests API error:', error.message);
+      // Keep existing feature requests data
+    }
+
+    setApiErrors(errors);
+    setLoading(false);
+  }, [dateRange, navigate]);
 
   useEffect(() => {
     fetchAnalytics();
-  }, [dateRange]);
-
-  const fetchAnalytics = async () => {
-    setLoading(true);
-    try {
-      const [analyticsRes, featuresRes] = await Promise.all([
-        api.get(`/api/admin/analytics/dashboard?days=${dateRange}`).catch(e => {
-          console.log('Analytics error:', e.response?.status);
-          return { data: { success: false } };
-        }),
-        api.get('/api/feature-requests/analytics').catch(() => ({ data: { success: false } }))
-      ]);
-      
-      if (analyticsRes.data.success) {
-        setAnalytics(analyticsRes.data.data);
-      }
-      if (featuresRes.data.success) {
-        setFeatureRequests(featuresRes.data.data);
-      }
-    } catch (error) {
-      if (error.response?.status === 403) {
-        toast.error('Admin access required');
-        navigate('/app');
-      }
-      // Silent fail for other errors - don't show toast
-      console.error('Dashboard data error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchAnalytics]);
 
   const updateFeatureStatus = async (featureId, status, adminResponse) => {
     try {
