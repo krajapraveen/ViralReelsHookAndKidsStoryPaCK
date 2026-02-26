@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://auto-recovery-lab.preview.emergentagent.com
+**Website:** https://rating-insights.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

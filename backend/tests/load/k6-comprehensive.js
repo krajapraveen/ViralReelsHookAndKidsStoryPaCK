@@ -14,7 +14,7 @@ const loginSuccess = new Counter('login_success');
 const generationSuccess = new Counter('generation_success');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://auto-recovery-lab.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://rating-insights.preview.emergentagent.com';
 
 export const options = {
   scenarios: {

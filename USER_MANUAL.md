@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://auto-recovery-lab.preview.emergentagent.com
+**Platform URL:** https://rating-insights.preview.emergentagent.com
 
 ---
 

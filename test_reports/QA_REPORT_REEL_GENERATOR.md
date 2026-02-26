@@ -3,7 +3,7 @@
 **Audit Date:** February 21, 2026  
 **Audit Role:** Senior QA Lead + Performance Engineer + Security Auditor + UI Reviewer  
 **Target URL:** https://visionary-suite.com/app/reels  
-**Preview URL:** https://auto-recovery-lab.preview.emergentagent.com/app/reels
+**Preview URL:** https://rating-insights.preview.emergentagent.com/app/reels
 
 ---
 

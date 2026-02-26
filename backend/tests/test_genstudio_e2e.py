@@ -16,7 +16,7 @@ import time
 # Get API URL from environment
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://auto-recovery-lab.preview.emergentagent.com"
+    BASE_URL = "https://rating-insights.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "demo@example.com"

@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Purpose**: Master checklist for Phase 1-7 QA & Performance Testing  
-**Base URL**: https://auto-recovery-lab.preview.emergentagent.com
+**Base URL**: https://rating-insights.preview.emergentagent.com
 
 ---
 

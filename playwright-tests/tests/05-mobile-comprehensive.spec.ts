@@ -8,7 +8,7 @@ import * as path from 'path';
  * Viewports: iPhone SE (375px), iPhone 12 (390px), iPad (768px)
  */
 
-const BASE_URL = 'https://auto-recovery-lab.preview.emergentagent.com';
+const BASE_URL = 'https://rating-insights.preview.emergentagent.com';
 const SCREENSHOT_DIR = '/app/playwright-tests/mobile-screenshots';
 
 const DEMO_USER = {

@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Test Suite 1: Public Pages & Authentication
  */
 
-const BASE_URL = 'https://auto-recovery-lab.preview.emergentagent.com';
+const BASE_URL = 'https://rating-insights.preview.emergentagent.com';
 
 // Test credentials
 const DEMO_USER = {
