@@ -87,29 +87,29 @@ export default function History() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-white/10">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-indigo-500" />
-              <span className="text-xl font-bold">Generation History</span>
+              <Sparkles className="w-6 h-6 text-indigo-400" />
+              <span className="text-xl font-bold text-white">Generation History</span>
             </div>
           </div>
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[180px]" data-testid="history-filter">
+            <SelectTrigger className="w-[180px] bg-slate-700/50 border-slate-600 text-white" data-testid="history-filter">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Types</SelectItem>
-              <SelectItem value="REEL">Reels Only</SelectItem>
-              <SelectItem value="STORY">Stories Only</SelectItem>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              <SelectItem value="ALL" className="text-white">All Types</SelectItem>
+              <SelectItem value="REEL" className="text-white">Reels Only</SelectItem>
+              <SelectItem value="STORY" className="text-white">Stories Only</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -118,26 +118,26 @@ export default function History() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-4">
+            <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
               <FileText className="w-4 h-4" />
               Total Generations
             </div>
-            <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+            <p className="text-2xl font-bold text-white">{stats.total}</p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center gap-2 text-indigo-500 text-sm mb-1">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-4">
+            <div className="flex items-center gap-2 text-indigo-400 text-sm mb-1">
               <Video className="w-4 h-4" />
               Reels Created
             </div>
-            <p className="text-2xl font-bold text-indigo-600">{stats.reels}</p>
+            <p className="text-2xl font-bold text-indigo-400">{stats.reels}</p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center gap-2 text-purple-500 text-sm mb-1">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-4">
+            <div className="flex items-center gap-2 text-purple-400 text-sm mb-1">
               <BookOpen className="w-4 h-4" />
               Stories Created
             </div>
-            <p className="text-2xl font-bold text-purple-600">{stats.stories}</p>
+            <p className="text-2xl font-bold text-purple-400">{stats.stories}</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <div className="flex items-center gap-2 text-amber-500 text-sm mb-1">
