@@ -3,7 +3,7 @@
 **Date:** February 21, 2026  
 **Auditor:** Senior QA Lead + Frontend Engineer + Security Tester  
 **Target:** Reset Password Modal (Login → "Forgot password?")  
-**Preview URL:** https://rating-insights.preview.emergentagent.com/login  
+**Preview URL:** https://dashboard-stability.preview.emergentagent.com/login  
 **Production URL:** https://visionary-suite.com/login  
 
 ---

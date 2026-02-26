@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://rating-insights.preview.emergentagent.com
+**Website:** https://dashboard-stability.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

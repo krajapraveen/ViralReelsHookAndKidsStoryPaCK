@@ -1,6 +1,6 @@
 {
   "timestamp": "2026-02-15T17:11:45.147686",
-  "target": "https://rating-insights.preview.emergentagent.com",
+  "target": "https://dashboard-stability.preview.emergentagent.com",
   "summary": {
     "vulnerabilities": 11,
     "warnings": 8,
