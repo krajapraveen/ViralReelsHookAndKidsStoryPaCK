@@ -415,7 +415,7 @@ export default function ToneSwitcher() {
             {/* Empty State */}
             {!preview && !result && (
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-12 text-center">
-                <ToneIcon className="w-20 h-20 text-slate-700 mx-auto mb-4" />
+                <ToneIcon className="w-20 h-20 text-slate-500 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-white mb-2">Transform Your Text</h3>
                 <p className="text-slate-400 max-w-md mx-auto">
                   Paste your text, choose a tone, and watch it transform.

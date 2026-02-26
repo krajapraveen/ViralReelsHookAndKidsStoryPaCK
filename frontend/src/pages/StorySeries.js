@@ -416,7 +416,7 @@ export default function StorySeries() {
               </div>
             ) : (
               <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8 text-center">
-                <Film className="w-16 h-16 text-slate-700 mx-auto mb-4" />
+                <Film className="w-16 h-16 text-slate-500 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-white mb-2">Your Series Will Appear Here</h3>
                 <p className="text-sm text-slate-400">
                   Configure your settings and generate a multi-episode series
