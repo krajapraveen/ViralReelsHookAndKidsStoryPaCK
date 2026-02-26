@@ -697,6 +697,46 @@ cache = InMemoryCache(default_ttl=300)
 
 
 # ============================================
+# CACHED RESPONSE DECORATOR
+# ============================================
+
+def cached_response(ttl: int = 300, key_prefix: str = ""):
+    """
+    Decorator for caching static responses.
+    Works with FastAPI endpoints.
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Generate cache key from function name and arguments
+            cache_key = f"{key_prefix}:{func.__name__}"
+            
+            # Check cache
+            cached = await cache.get(cache_key)
+            if cached is not None:
+                return cached
+            
+            # Call function and cache result
+            result = await func(*args, **kwargs)
+            await cache.set(cache_key, result, ttl)
+            return result
+        
+        return wrapper
+    return decorator
+
+
+# Pre-cache commonly accessed static data
+async def warm_cache():
+    """Pre-populate cache with static data"""
+    # Cache styles data
+    await cache.set("storybook_styles", {
+        "styles": {},  # Will be populated from actual endpoint
+    }, ttl=3600)
+    
+    logger.info("Cache warmed up")
+
+
+# ============================================
 # PERFORMANCE API ENDPOINTS
 # ============================================
 
