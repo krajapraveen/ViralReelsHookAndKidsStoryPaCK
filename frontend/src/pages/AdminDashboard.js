@@ -5,7 +5,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { 
   Sparkles, Users, CreditCard, FileText, ArrowLeft, 
-  Eye, Star, RefreshCw, Activity, DollarSign, LogOut, Coins, Shield
+  Eye, Star, RefreshCw, Activity, DollarSign, LogOut, Coins, Shield, BarChart3
 } from 'lucide-react';
 
 // Import tab components
