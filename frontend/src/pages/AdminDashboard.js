@@ -20,6 +20,7 @@ import UserFeedbackTab from '../components/admin/UserFeedbackTab';
 import TrendingTopicsTab from '../components/admin/TrendingTopicsTab';
 import PaymentMonitoringTab from '../components/admin/PaymentMonitoringTab';
 import ExceptionMonitoringTab from '../components/admin/ExceptionMonitoringTab';
+import UserAnalyticsTab from '../components/admin/UserAnalyticsTab';
 import HelpGuide from '../components/HelpGuide';
 
 export default function AdminDashboard() {
