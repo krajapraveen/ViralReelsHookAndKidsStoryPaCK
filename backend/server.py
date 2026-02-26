@@ -121,6 +121,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 from slowapi.middleware import SlowAPIMiddleware
 app.add_middleware(SlowAPIMiddleware)
 
+# Add GZip compression middleware for responses
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Add Performance middleware for metrics and correlation IDs (before Self-Healing)
 app.add_middleware(PerformanceMiddleware)
 
