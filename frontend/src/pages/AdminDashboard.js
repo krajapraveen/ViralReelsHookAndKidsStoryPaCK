@@ -252,6 +252,7 @@ export default function AdminDashboard() {
             {activeTab === 'payment-monitoring' && <PaymentMonitoringTab />}
             {activeTab === 'exceptions' && <ExceptionMonitoringTab />}
             {activeTab === 'satisfaction' && <SatisfactionTab satisfaction={satisfaction} />}
+            {activeTab === 'user-analytics' && <UserAnalyticsTab dateRange={dateRange} />}
             {activeTab === 'feature-requests' && (
               <FeatureRequestsTab data={featureRequests} onUpdateStatus={updateFeatureStatus} />
             )}
