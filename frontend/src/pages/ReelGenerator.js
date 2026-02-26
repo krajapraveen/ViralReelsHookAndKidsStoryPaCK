@@ -603,6 +603,15 @@ export default function ReelGenerator() {
       
       {/* Help Guide */}
       <HelpGuide pageId="reel-generator" />
+      
+      {/* Rating Modal */}
+      <RatingModal 
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        featureKey="reel_generator"
+        relatedRequestId={lastGenerationId}
+        onSubmitSuccess={() => setShowRatingModal(false)}
+      />
     </div>
   );
 }
