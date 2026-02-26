@@ -262,17 +262,24 @@ JOB_PROCESSORS = {
 
 
 async def process_job(job: dict):
-    """Process a single job"""
+    """Process a single job with retry logic and fallback outputs"""
     job_id = job["id"]
     job_type = job["jobType"]
     user_id = job["userId"]
+    attempts = job.get("attempts", 0) + 1
     
-    logger.info(f"Processing job {job_id} (type: {job_type})")
+    logger.info(f"Processing job {job_id} (type: {job_type}, attempt: {attempts}/{MAX_RETRIES})")
     
     try:
         # Mark as running
         await mark_job_started(job_id)
         await update_job_progress(job_id, 10, "Starting generation...")
+        
+        # Update attempt count
+        await db.genstudio_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"attempts": attempts, "lastAttemptAt": datetime.now(timezone.utc).isoformat()}}
+        )
         
         # Get processor
         processor = JOB_PROCESSORS.get(job_type)
@@ -281,8 +288,11 @@ async def process_job(job: dict):
         
         await update_job_progress(job_id, 30, "Processing with AI...")
         
-        # Process the job
-        result = await processor(job)
+        # Process the job with timeout
+        try:
+            result = await asyncio.wait_for(processor(job), timeout=300)  # 5 min timeout
+        except asyncio.TimeoutError:
+            raise Exception("Job processing timed out after 5 minutes")
         
         await update_job_progress(job_id, 90, "Finalizing...")
         
@@ -304,11 +314,17 @@ async def process_job(job: dict):
         
     except Exception as e:
         error_message = str(e)
-        logger.error(f"Job {job_id} failed: {error_message}")
-        logger.error(traceback.format_exc())
+        logger.error(f"Job {job_id} failed (attempt {attempts}): {error_message}")
         
-        # Mark failure and release credits
-        await mark_job_failed(job_id, error_message)
+        # Check if we should retry
+        if attempts < MAX_RETRIES and _is_retryable_error(error_message):
+            await _schedule_retry(job_id, job_type, attempts, error_message)
+        else:
+            # Mark as failed and generate fallback output
+            await mark_job_failed(job_id, error_message)
+            
+            # Generate fallback output for user
+            await _generate_fallback_output(job_id, user_id, job_type, job.get("inputJson", {}), error_message)
         
         await log_exception(
             functionality=f"job_worker_{job_type}",
@@ -316,8 +332,72 @@ async def process_job(job: dict):
             error_message=error_message,
             user_id=user_id,
             stack_trace=traceback.format_exc(),
-            severity="ERROR"
+            severity="ERROR" if attempts >= MAX_RETRIES else "WARNING"
         )
+
+
+def _is_retryable_error(error_message: str) -> bool:
+    """Determine if an error is retryable"""
+    non_retryable = [
+        "invalid input",
+        "content policy",
+        "violates",
+        "blocked",
+        "unknown job type",
+        "insufficient credits"
+    ]
+    error_lower = error_message.lower()
+    return not any(term in error_lower for term in non_retryable)
+
+
+async def _schedule_retry(job_id: str, job_type: str, attempts: int, error_message: str):
+    """Schedule a job for retry with exponential backoff"""
+    delay_idx = min(attempts - 1, len(RETRY_DELAYS) - 1)
+    delay = RETRY_DELAYS[delay_idx]
+    retry_at = datetime.now(timezone.utc).replace(second=datetime.now().second + delay)
+    
+    await db.genstudio_jobs.update_one(
+        {"id": job_id},
+        {
+            "$set": {
+                "status": "QUEUED",
+                "lastError": error_message,
+                "retryAt": retry_at.isoformat(),
+                "retryCount": attempts
+            }
+        }
+    )
+    
+    logger.info(f"Job {job_id} scheduled for retry in {delay}s (attempt {attempts + 1}/{MAX_RETRIES})")
+
+
+async def _generate_fallback_output(job_id: str, user_id: str, job_type: str, input_data: dict, error_message: str):
+    """Generate fallback output when job fails after all retries"""
+    try:
+        from services.fallback_output_service import get_fallback_service
+        fallback_service = await get_fallback_service(db)
+        
+        fallback = await fallback_service.generate_fallback(
+            job_id=job_id,
+            user_id=user_id,
+            job_type=job_type,
+            input_data=input_data,
+            error_message=error_message
+        )
+        
+        if fallback:
+            # Store fallback in job result
+            await db.genstudio_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "hasFallback": True,
+                    "fallbackType": fallback.get("fallbackType"),
+                    "fallbackMessage": fallback.get("message")
+                }}
+            )
+            logger.info(f"Generated {fallback.get('fallbackType')} fallback for job {job_id}")
+    except Exception as e:
+        logger.error(f"Failed to generate fallback for job {job_id}: {e}")
 
 
 async def worker_loop():
