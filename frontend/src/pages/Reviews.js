@@ -98,13 +98,13 @@ export default function Reviews() {
       <FeedbackForm isOpen={showFeedbackForm} onClose={() => setShowFeedbackForm(false)} />
 
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-xl">C</span>
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <span className="text-xl font-bold text-white">
               CreatorStudio AI
             </span>
           </Link>
@@ -118,7 +118,7 @@ export default function Reviews() {
               Write a Review
             </Button>
             <Link to="/">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-white/10">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Home
               </Button>
@@ -130,23 +130,23 @@ export default function Reviews() {
       <div className="max-w-6xl mx-auto px-4 py-16">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-slate-900 mb-4">Customer Reviews</h1>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-6">
+          <h1 className="text-4xl font-bold text-white mb-4">Customer Reviews</h1>
+          <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-6">
             See what our users are saying about CreatorStudio AI
           </p>
           
           {/* Rating Summary */}
-          <div className="inline-flex items-center gap-4 bg-white rounded-2xl px-8 py-4 border border-slate-200 shadow-sm">
+          <div className="inline-flex items-center gap-4 bg-slate-800/50 backdrop-blur-sm rounded-2xl px-8 py-4 border border-slate-700/50">
             <div className="text-center">
-              <div className="text-4xl font-bold text-slate-900">{avgRating.toFixed(1)}</div>
+              <div className="text-4xl font-bold text-white">{avgRating.toFixed(1)}</div>
               <div className="flex gap-1 justify-center mt-1">
                 {renderStars(Math.round(avgRating))}
               </div>
             </div>
-            <div className="w-px h-12 bg-slate-200" />
+            <div className="w-px h-12 bg-slate-700" />
             <div className="text-left">
-              <div className="text-2xl font-bold text-slate-900">{displayReviews.length}</div>
-              <div className="text-slate-600">Total Reviews</div>
+              <div className="text-2xl font-bold text-white">{displayReviews.length}</div>
+              <div className="text-slate-400">Total Reviews</div>
             </div>
           </div>
         </div>
@@ -156,7 +156,7 @@ export default function Reviews() {
           {displayReviews.map((review) => (
             <div 
               key={review.id} 
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow"
+              className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 hover:border-indigo-500/50 transition-all"
               data-testid={`review-${review.id}`}
             >
               <div className="flex items-start justify-between mb-4">
@@ -165,8 +165,8 @@ export default function Reviews() {
                     <User className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">{review.name}</h3>
-                    <p className="text-sm text-slate-500">{new Date(review.createdAt).toLocaleDateString()}</p>
+                    <h3 className="font-semibold text-white">{review.name}</h3>
+                    <p className="text-sm text-slate-400">{new Date(review.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
               </div>
