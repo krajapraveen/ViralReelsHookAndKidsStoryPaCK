@@ -10,6 +10,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import RatingModal from '../components/RatingModal';
 
 export default function ComixAI() {
   const [credits, setCredits] = useState(0);
