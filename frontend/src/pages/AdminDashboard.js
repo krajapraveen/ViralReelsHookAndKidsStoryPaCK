@@ -74,16 +74,20 @@ export default function AdminDashboard() {
     }
 
     // Fetch feature requests data independently
+    // Note: This is an optional feature - 404 means it's not deployed, don't show error
     try {
       const featuresRes = await api.get('/api/feature-requests/analytics');
       if (featuresRes.data.success) {
         setFeatureRequests(featuresRes.data.data);
-      } else {
-        errors.features = 'Invalid response format';
       }
+      // Silent fail for invalid format - not critical
     } catch (error) {
-      errors.features = error.message || 'Failed to load feature requests';
-      console.error('Feature requests API error:', error.message);
+      const status = error.response?.status;
+      // Only log 404s silently - feature not available in this deployment
+      if (status !== 404) {
+        errors.features = error.message || 'Failed to load feature requests';
+        console.error('Feature requests API error:', error.message);
+      }
       // Keep existing feature requests data
     }
 
