@@ -261,43 +261,49 @@ export default function AdminDashboard() {
           <StatCard 
             icon={<Users className="w-5 h-5" />}
             label="Total Users"
-            value={overview?.totalUsers || 0}
-            subValue={`+${overview?.newUsers || 0} new`}
+            value={formatValue(overview?.totalUsers, hasAnalyticsError)}
+            subValue={hasAnalyticsError ? 'Data unavailable' : `+${overview?.newUsers || 0} new`}
             color="blue"
+            hasError={hasAnalyticsError}
           />
           <StatCard 
             icon={<Eye className="w-5 h-5" />}
             label="Visitors"
-            value={visitors?.uniqueVisitors || 0}
-            subValue={`${visitors?.totalPageViews || 0} page views`}
+            value={formatValue(visitors?.uniqueVisitors, hasAnalyticsError)}
+            subValue={hasAnalyticsError ? 'Data unavailable' : `${visitors?.totalPageViews || 0} page views`}
             color="green"
+            hasError={hasAnalyticsError}
           />
           <StatCard 
             icon={<Activity className="w-5 h-5" />}
             label="Active Sessions"
-            value={overview?.activeSessions || 0}
+            value={formatValue(overview?.activeSessions, hasAnalyticsError)}
             color="purple"
+            hasError={hasAnalyticsError}
           />
           <StatCard 
             icon={<FileText className="w-5 h-5" />}
             label="Generations"
-            value={overview?.totalGenerations || 0}
-            subValue={`${generations?.successRate || 100}% success`}
+            value={formatValue(overview?.totalGenerations, hasAnalyticsError)}
+            subValue={hasAnalyticsError ? 'Data unavailable' : `${generations?.successRate || 100}% success`}
             color="indigo"
+            hasError={hasAnalyticsError}
           />
           <StatCard 
             icon={<DollarSign className="w-5 h-5" />}
             label="Total Revenue"
-            value={`₹${overview?.totalRevenue || 0}`}
-            subValue={`₹${overview?.periodRevenue || 0} this period`}
+            value={hasAnalyticsError ? 'N/A' : `₹${overview?.totalRevenue || 0}`}
+            subValue={hasAnalyticsError ? 'Data unavailable' : `₹${overview?.periodRevenue || 0} this period`}
             color="emerald"
+            hasError={hasAnalyticsError}
           />
           <StatCard 
             icon={<Star className="w-5 h-5" />}
             label="Satisfaction"
-            value={`${satisfaction?.satisfactionPercentage || 0}%`}
-            subValue={`${satisfaction?.averageRating || 0}/5 rating`}
+            value={hasAnalyticsError ? 'N/A' : `${satisfaction?.satisfactionPercentage || 0}%`}
+            subValue={hasAnalyticsError ? 'Data unavailable' : `${satisfaction?.averageRating || 0}/5 rating`}
             color="yellow"
+            hasError={hasAnalyticsError}
           />
         </div>
 
