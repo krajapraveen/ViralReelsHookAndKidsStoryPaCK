@@ -11,6 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, get_admin_user, logger
 from services.database_indexes import get_index_status, create_all_indexes
+from services.auto_scaling_service import (
+    get_circuit_manager, get_dynamic_scaler, get_self_healer
+)
+from services.cdn_optimizer import get_cdn_optimizer, get_reconciliation_service
 from performance import metrics, cache, get_performance_report, run_health_checks
 
 router = APIRouter(prefix="/sre", tags=["SRE Monitoring"])
