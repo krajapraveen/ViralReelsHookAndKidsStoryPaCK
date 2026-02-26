@@ -308,6 +308,29 @@ async def root_health():
     """Root health check"""
     return {"status": "healthy", "version": "2.0.0"}
 
+# ==================== PERFORMANCE ENDPOINTS ====================
+
+@app.get("/api/performance/metrics")
+async def get_metrics():
+    """Get current performance metrics"""
+    return await get_performance_report()
+
+@app.get("/api/performance/health")
+async def get_detailed_health():
+    """Get detailed health check with all subsystems"""
+    return await run_health_checks()
+
+@app.post("/api/performance/recover-stuck-jobs")
+async def trigger_stuck_job_recovery(admin: dict = Depends(get_admin_user)):
+    """Manually trigger stuck job recovery"""
+    recovered = await stuck_recovery.recover_stuck_jobs()
+    return {"recovered_count": recovered, "status": "success"}
+
+@app.get("/api/performance/cache-stats")
+async def get_cache_stats():
+    """Get cache statistics"""
+    return cache.get_stats()
+
 # ==================== STARTUP/SHUTDOWN ====================
 
 async def cleanup_expired_downloads():
