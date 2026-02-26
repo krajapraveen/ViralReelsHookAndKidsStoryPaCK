@@ -118,7 +118,13 @@ export default function ReelGenerator() {
       // Backend returns result, not output
       setResult(response.data.result);
       setCredits(response.data.remainingCredits || credits - 1);
+      setLastGenerationId(response.data.generationId || null);
       toast.success('Reel script generated successfully!');
+      
+      // Show rating modal after successful generation (with delay)
+      setTimeout(() => {
+        setShowRatingModal(true);
+      }, 2000);
     } catch (error) {
       toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
     } finally {
