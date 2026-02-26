@@ -100,15 +100,15 @@ export default function PaymentHistory() {
       case 'PAID':
       case 'SUCCESS':
       case 'COMPLETED':
-        return 'bg-green-100 text-green-700';
+        return 'bg-green-500/20 text-green-400';
       case 'FAILED':
       case 'CANCELLED':
-        return 'bg-red-100 text-red-700';
+        return 'bg-red-500/20 text-red-400';
       case 'PENDING':
       case 'CREATED':
-        return 'bg-amber-100 text-amber-700';
+        return 'bg-amber-500/20 text-amber-400';
       default:
-        return 'bg-slate-100 text-slate-700';
+        return 'bg-slate-500/20 text-slate-400';
     }
   };
 
