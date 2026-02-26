@@ -49,18 +49,18 @@ export default function Contact() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-xl">C</span>
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <span className="text-xl font-bold text-white">
               CreatorStudio AI
             </span>
           </Link>
           <Link to="/">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-white/10">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
             </Button>
@@ -70,36 +70,36 @@ export default function Contact() {
 
       <div className="max-w-6xl mx-auto px-4 py-16">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-slate-900 mb-4">Get in Touch</h1>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+          <h1 className="text-4xl font-bold text-white mb-4">Get in Touch</h1>
+          <p className="text-lg text-slate-300 max-w-2xl mx-auto">
             Have questions, feedback, or need support? We'd love to hear from you.
           </p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-12">
           {/* Contact Form */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <MessageSquare className="w-6 h-6 text-indigo-500" />
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-8">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+              <MessageSquare className="w-6 h-6 text-indigo-400" />
               Send us a Message
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5" data-testid="contact-form">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="contact-name">Full Name *</Label>
+                  <Label htmlFor="contact-name" className="text-slate-300">Full Name *</Label>
                   <Input
                     id="contact-name"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                     placeholder="John Doe"
                     required
-                    className="mt-1"
+                    className="mt-1 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
                     data-testid="contact-name"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="contact-email">Email Address *</Label>
+                  <Label htmlFor="contact-email" className="text-slate-300">Email Address *</Label>
                   <Input
                     id="contact-email"
                     type="email"
@@ -107,25 +107,25 @@ export default function Contact() {
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     placeholder="john@example.com"
                     required
-                    className="mt-1"
+                    className="mt-1 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
                     data-testid="contact-email"
                   />
                 </div>
               </div>
 
               <div>
-                <Label>Subject</Label>
+                <Label className="text-slate-300">Subject</Label>
                 <Select value={formData.subject} onValueChange={(v) => setFormData({...formData, subject: v})}>
-                  <SelectTrigger className="mt-1" data-testid="contact-subject">
+                  <SelectTrigger className="mt-1 bg-slate-700/50 border-slate-600 text-white" data-testid="contact-subject">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="General Inquiry">General Inquiry</SelectItem>
-                    <SelectItem value="Technical Support">Technical Support</SelectItem>
-                    <SelectItem value="Billing Question">Billing Question</SelectItem>
-                    <SelectItem value="Feature Request">Feature Request</SelectItem>
-                    <SelectItem value="Partnership">Partnership</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="General Inquiry" className="text-white">General Inquiry</SelectItem>
+                    <SelectItem value="Technical Support" className="text-white">Technical Support</SelectItem>
+                    <SelectItem value="Billing Question" className="text-white">Billing Question</SelectItem>
+                    <SelectItem value="Feature Request" className="text-white">Feature Request</SelectItem>
+                    <SelectItem value="Partnership" className="text-white">Partnership</SelectItem>
+                    <SelectItem value="Other" className="text-white">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
