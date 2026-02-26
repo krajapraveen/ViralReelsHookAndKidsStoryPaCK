@@ -121,7 +121,26 @@ export default function AdminDashboard() {
     );
   }
 
-  const { overview, visitors, featureUsage, payments, satisfaction, generations, recentActivity } = analytics || {};
+  // Extract data with fallbacks to prevent undefined errors
+  const { 
+    overview = defaultAnalytics.overview, 
+    visitors = defaultAnalytics.visitors, 
+    featureUsage = defaultAnalytics.featureUsage, 
+    payments = defaultAnalytics.payments, 
+    satisfaction = defaultAnalytics.satisfaction, 
+    generations = defaultAnalytics.generations, 
+    recentActivity = defaultAnalytics.recentActivity 
+  } = analytics;
+
+  // Helper to format values with error state
+  const formatValue = (value, hasError, prefix = '', suffix = '') => {
+    if (hasError && (value === 0 || value === undefined || value === null)) {
+      return 'N/A';
+    }
+    return `${prefix}${value ?? 0}${suffix}`;
+  };
+
+  const hasAnalyticsError = apiErrors.analytics !== null;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
