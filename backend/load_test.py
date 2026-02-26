@@ -240,10 +240,10 @@ class LoadTester:
         actions = [
             ("GET", "/api/auth/me", None, 30),  # Profile check - most common
             ("GET", "/api/performance/health", None, 20),  # Health check
-            ("GET", "/api/generation/", None, 15),  # Generation list
-            ("GET", "/api/comic-storybook/styles", None, 10),  # Comic storybook styles
-            ("GET", "/api/comix-ai/styles", None, 10),  # Comix styles
-            ("GET", "/api/gif-maker/options", None, 10),  # GIF options
+            ("GET", "/api/comic-storybook/styles", None, 15),  # Comic storybook styles
+            ("GET", "/api/comix/styles", None, 10),  # Comix styles
+            ("GET", "/api/gif-maker/emotions", None, 10),  # GIF emotions
+            ("GET", "/api/comix/credits-info", None, 10),  # Credits info
             ("GET", "/api/performance/metrics", None, 5),  # Performance metrics
         ]
         
