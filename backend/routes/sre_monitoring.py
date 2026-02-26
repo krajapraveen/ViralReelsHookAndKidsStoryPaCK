@@ -3,7 +3,7 @@ SRE Monitoring Routes - Exposes performance metrics, index status, and system he
 """
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import sys
 import os
 
@@ -383,7 +383,6 @@ async def trigger_self_healing(admin: dict = Depends(get_admin_user)):
 async def get_cdn_status(admin: dict = Depends(get_admin_user)):
     """Get CDN and asset delivery status"""
     try:
-        cdn = await get_cdn_optimizer(db)
         reconciler = await get_reconciliation_service(db)
         
         # Get expired assets count
