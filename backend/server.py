@@ -252,6 +252,7 @@ api_router.include_router(login_activity_router)
 api_router.include_router(content_router)
 api_router.include_router(realtime_analytics_router)
 api_router.include_router(user_analytics_router)
+api_router.include_router(user_analytics_user_router)  # User-facing analytics endpoints
 
 # Self-healing system routes
 api_router.include_router(self_healing_monitoring_router)
