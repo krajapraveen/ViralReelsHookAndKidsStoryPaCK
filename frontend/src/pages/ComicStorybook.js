@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import RatingModal from '../components/RatingModal';
 
 export default function ComicStorybook() {
   const [credits, setCredits] = useState(0);
@@ -16,6 +17,8 @@ export default function ComicStorybook() {
   const [styles, setStyles] = useState({});
   const [layouts, setLayouts] = useState({});
   const [pricing, setPricing] = useState({});
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [lastGenerationId, setLastGenerationId] = useState(null);
   
   // Input state
   const [inputMethod, setInputMethod] = useState('text');
