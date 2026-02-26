@@ -238,13 +238,13 @@ class LoadTester:
         
         # Define user actions with weights
         actions = [
-            ("GET", "/api/auth/profile", None, 30),  # Profile check - most common
-            ("GET", "/api/credits/balance", None, 20),  # Credit balance
-            ("GET", "/api/generation/history", None, 15),  # History
-            ("GET", "/api/reel-generator/styles", None, 10),  # Get styles
+            ("GET", "/api/auth/me", None, 30),  # Profile check - most common
+            ("GET", "/api/performance/health", None, 20),  # Health check
+            ("GET", "/api/generation/", None, 15),  # Generation list
+            ("GET", "/api/comic-storybook/styles", None, 10),  # Comic storybook styles
             ("GET", "/api/comix-ai/styles", None, 10),  # Comix styles
             ("GET", "/api/gif-maker/options", None, 10),  # GIF options
-            ("GET", "/api/performance/health", None, 5),  # Health check
+            ("GET", "/api/performance/metrics", None, 5),  # Performance metrics
         ]
         
         while time.time() < end_time:
