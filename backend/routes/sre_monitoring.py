@@ -152,7 +152,6 @@ async def retry_dead_letter_item(
             raise HTTPException(status_code=404, detail="Item not found")
         
         # Re-queue the job
-        job_data = item.get("job_data", {})
         job_id = item.get("job_id")
         
         # Update the original job to retry
