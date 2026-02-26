@@ -1,0 +1,68 @@
+{
+  "summary": {
+    "total_requests": 1672,
+    "successful": 278,
+    "failed": 1394,
+    "error_rate_percent": 83.37,
+    "requests_per_second": 47.02,
+    "duration_seconds": 35.56
+  },
+  "latency_ms": {
+    "min": 17.76,
+    "max": 259.37,
+    "avg": 58.21,
+    "median_p50": 51.88,
+    "p95": 98.58,
+    "p99": 162.96
+  },
+  "errors": {},
+  "endpoints": {
+    "/api/auth/profile": {
+      "count": 518,
+      "success_rate": 0.0,
+      "avg_latency_ms": 53.07
+    },
+    "/api/gif-maker/options": {
+      "count": 153,
+      "success_rate": 0.0,
+      "avg_latency_ms": 53.08
+    },
+    "/api/comix-ai/styles": {
+      "count": 178,
+      "success_rate": 0.0,
+      "avg_latency_ms": 55.12
+    },
+    "/api/reel-generator/styles": {
+      "count": 173,
+      "success_rate": 0.0,
+      "avg_latency_ms": 57.06
+    },
+    "/api/generation/history": {
+      "count": 240,
+      "success_rate": 0.0,
+      "avg_latency_ms": 52.33
+    },
+    "/api/credits/balance": {
+      "count": 327,
+      "success_rate": 61.16,
+      "avg_latency_ms": 69.03
+    },
+    "/api/performance/health": {
+      "count": 83,
+      "success_rate": 93.98,
+      "avg_latency_ms": 83.16
+    }
+  },
+  "test_config": {
+    "api_url": "https://rating-insights.preview.emergentagent.com",
+    "start_time": "2026-02-26T07:33:40.487538+00:00",
+    "end_time": "2026-02-26T07:34:16.046587+00:00"
+  },
+  "verdict": {
+    "status": "FAIL",
+    "production_ready": false,
+    "issues": [
+      "CRITICAL: Error rate 83.3732057416268% exceeds 5% threshold"
+    ]
+  }
+}
