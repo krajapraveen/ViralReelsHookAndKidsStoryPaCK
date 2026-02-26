@@ -154,6 +154,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Self-Healing</span>
               </Button>
             </Link>
+            <Link to="/app/admin/user-analytics">
+              <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-300 hover:bg-amber-500/20" data-testid="user-analytics-btn">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Ratings</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}
