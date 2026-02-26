@@ -133,26 +133,26 @@ export default function PaymentHistory() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-900">
+              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-white/10">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Receipt className="w-6 h-6 text-purple-600" />
-              <span className="text-xl font-bold text-slate-900">Payment History</span>
+              <Receipt className="w-6 h-6 text-purple-400" />
+              <span className="text-xl font-bold text-white">Payment History</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-full px-4 py-2">
-              <Coins className="w-4 h-4 text-purple-600" />
-              <span className="font-semibold text-purple-700">{credits} Credits</span>
+            <div className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2">
+              <Coins className="w-4 h-4 text-purple-400" />
+              <span className="font-semibold text-purple-300">{credits} Credits</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-600">
+            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-300 hover:text-white hover:bg-white/10">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -163,41 +163,41 @@ export default function PaymentHistory() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Stats Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <CreditCard className="w-5 h-5 text-purple-600" />
+              <div className="p-2 bg-purple-500/20 rounded-lg">
+                <CreditCard className="w-5 h-5 text-purple-400" />
               </div>
-              <span className="text-slate-500 text-sm">Total Transactions</span>
+              <span className="text-slate-400 text-sm">Total Transactions</span>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{stats.total}</p>
+            <p className="text-3xl font-bold text-white">{stats.total}</p>
           </div>
           
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
+              <div className="p-2 bg-green-500/20 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-400" />
               </div>
-              <span className="text-slate-500 text-sm">Successful Payments</span>
+              <span className="text-slate-400 text-sm">Successful Payments</span>
             </div>
-            <p className="text-3xl font-bold text-green-600">{stats.successful}</p>
+            <p className="text-3xl font-bold text-green-400">{stats.successful}</p>
           </div>
           
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <IndianRupee className="w-5 h-5 text-amber-600" />
+              <div className="p-2 bg-amber-500/20 rounded-lg">
+                <IndianRupee className="w-5 h-5 text-amber-400" />
               </div>
-              <span className="text-slate-500 text-sm">Total Spent</span>
+              <span className="text-slate-400 text-sm">Total Spent</span>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{formatCurrency(stats.totalAmount)}</p>
+            <p className="text-3xl font-bold text-white">{formatCurrency(stats.totalAmount)}</p>
           </div>
         </div>
 
         {/* Payment List */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="p-6 border-b border-slate-200">
-            <h2 className="text-lg font-bold text-slate-900">Transaction History</h2>
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50">
+          <div className="p-6 border-b border-slate-700">
+            <h2 className="text-lg font-bold text-white">Transaction History</h2>
             <p className="text-slate-500 text-sm">View all your past transactions and purchases</p>
           </div>
 
