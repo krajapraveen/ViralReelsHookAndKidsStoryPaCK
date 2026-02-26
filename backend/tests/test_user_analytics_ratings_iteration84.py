@@ -659,7 +659,8 @@ class TestResetRatings:
             "email": "admin@creatorstudio.ai",
             "password": "Cr3@t0rStud!o#2026"
         })
-        return response.json()["token"]
+        assert response.status_code == 200, f"Admin login failed: {response.text}"
+        return response.json().get("token")
     
     def test_reset_ratings_without_confirm_fails(self, admin_token):
         """Test that reset without confirm=true fails"""
