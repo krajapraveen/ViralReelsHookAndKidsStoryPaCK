@@ -340,8 +340,11 @@ export default function PhotoToComic() {
       return;
     }
     
-    setLoading(true);
+    // CRITICAL: Clear previous results and stop polling
     setJob(null);
+    stopPolling();
+    setLoading(true);
+    toastShownRef.current = {}; // Reset toast tracking for new generation
     
     try {
       const formData = new FormData();
@@ -354,15 +357,22 @@ export default function PhotoToComic() {
       formData.append('transparent_bg', addOns.transparent_bg);
       formData.append('multiple_poses', addOns.multiple_poses);
       formData.append('hd_export', addOns.hd_export);
+      formData.append('timestamp', Date.now().toString()); // Prevent caching
       
       const res = await api.post('/api/photo-to-comic/generate', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Cache-Control': 'no-cache'
+        }
       });
       
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
+      // Start fresh polling using refs
+      isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(res.data.jobId), 2000);
+      pollingIntervalRef.current = interval;
       setPollingIntervalState(interval);
       
     } catch (e) {
