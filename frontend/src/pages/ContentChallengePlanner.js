@@ -7,7 +7,7 @@ import {
   Wallet, CheckCircle, ChevronRight, Lock,
   Instagram, Youtube, Linkedin, Baby, Briefcase,
   Users, DollarSign, MessageCircle, TrendingUp,
-  AlertTriangle, Clock, Hash
+  AlertTriangle, Clock, Hash, Eye, X
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
 
@@ -47,6 +47,11 @@ export default function ContentChallengePlanner() {
   // Result state
   const [result, setResult] = useState(null);
   const [activeDay, setActiveDay] = useState(1);
+  
+  // Preview Mode state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
