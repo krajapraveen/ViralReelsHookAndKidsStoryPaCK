@@ -45,6 +45,8 @@ export default function GifMaker() {
   // Monetization state
   const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [watermarkRequired, setWatermarkRequired] = useState(true);
+  const [selectedVariation, setSelectedVariation] = useState('single');
+  const [userPlan, setUserPlan] = useState('free');
   const navigate = useNavigate();
 
   const emotionIcons = {
