@@ -1235,6 +1235,18 @@ export default function ComixAI() {
         relatedRequestId={lastGenerationId}
         onSubmitSuccess={() => setShowRatingModal(false)}
       />
+      
+      {/* Upsell Modal - Shows after generation */}
+      <UpsellModal
+        isOpen={showUpsellModal}
+        onClose={() => setShowUpsellModal(false)}
+        generationId={lastGenerationId}
+        feature="comix"
+        onSuccess={(upsellId, data) => {
+          toast.success(`${upsellId} applied!`);
+          fetchCredits();
+        }}
+      />
     </div>
   );
 }
