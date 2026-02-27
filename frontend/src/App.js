@@ -59,6 +59,8 @@ import CaptionRewriterPro from './pages/CaptionRewriterPro';
 import ContentBlueprintLibrary from './pages/ContentBlueprintLibrary';
 // ADMIN SECURITY DASHBOARD
 import AdminSecurityDashboard from './pages/AdminSecurityDashboard';
+// ADMIN BIO TEMPLATES
+import BioTemplatesAdmin from './pages/Admin/BioTemplatesAdmin';
 // INSTAGRAM BIO GENERATOR
 import InstagramBioGenerator from './pages/InstagramBioGenerator';
 // COMMENT REPLY BANK
