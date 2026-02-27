@@ -102,6 +102,23 @@ Features:
 - Route `/app/content-vault` now redirects to `/app/blueprint-library`
 - Dashboard updated: Blueprint Library link added, Content Vault removed
 
+### Phase 8: Admin Security Dashboard (COMPLETED)
+**Route:** `/app/admin/security` (Admin-only)
+**Component:** `/app/frontend/src/pages/AdminSecurityDashboard.js`
+
+Features:
+- **Threat Level Badge**: LOW/MEDIUM/HIGH/CRITICAL based on event count
+- **4 Stats Cards**: Active Blocks, Security Events (7d), Failed Logins, Whitelisted IPs
+- **5 Tabs**:
+  1. **Overview**: Real-time activity feed + Top flagged IPs + Event breakdown
+  2. **Blocked IPs**: Manage blocked IPs with unblock option
+  3. **Suspicious Users**: Users with security flags and risk levels
+  4. **Activity Log**: Complete security audit trail
+  5. **Investigate IP**: Search IP activity history
+- **Block IP Modal**: Block IPs for 1-720 hours with reason
+- **Auto-refresh**: Every 30 seconds
+- **Access Control**: Admin-only, non-admin users get 403
+
 ---
 
 ## 3 REBUILT FEATURES (Simplified Wizard Pattern)
