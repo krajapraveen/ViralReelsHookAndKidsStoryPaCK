@@ -388,6 +388,10 @@ api_router.include_router(template_versioning_router)
 api_router.include_router(pdf_protection_router)
 api_router.include_router(video_streaming_router)
 
+# NEW: System Resilience Dashboard and Advanced Analytics Export
+api_router.include_router(system_resilience_router)
+api_router.include_router(analytics_export_router)
+
 # Include API router in app
 app.include_router(api_router)
 
