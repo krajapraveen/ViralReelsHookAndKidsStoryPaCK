@@ -61,22 +61,6 @@ const HELP_CONTENT = {
       trending: { title: 'Trending Topics', credits: 'FREE', desc: 'Weekly trending content ideas' }
     }
   },
-  'genstudio': {
-    title: 'GenStudio',
-    description: 'AI-powered image and video generation studio.',
-    credits: 'Text-to-Image: 5 credits | Image-to-Video: 15 credits',
-    steps: [
-      'Navigate to the desired generation type',
-      'Enter your prompt or upload media',
-      'Adjust settings and style options',
-      'Click "Generate" and wait for results'
-    ],
-    tips: [
-      'Be descriptive in your prompts',
-      'Use style presets for consistent branding',
-      'Higher quality settings use more credits'
-    ]
-  },
   'dashboard': {
     title: 'Dashboard Overview',
     description: 'Your content creation hub with quick access to all features.',
