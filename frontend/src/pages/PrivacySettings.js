@@ -145,10 +145,6 @@ export default function PrivacySettings() {
                 <div className="text-sm text-slate-500 mt-1">Payments Made</div>
               </div>
               <div className="bg-slate-800/30 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-green-400">{dataOverview.genstudioCount}</div>
-                <div className="text-sm text-slate-500 mt-1">Studio Projects</div>
-              </div>
-              <div className="bg-slate-800/30 rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-blue-400">{dataOverview.profile?.credits || 0}</div>
                 <div className="text-sm text-slate-500 mt-1">Credits Balance</div>
               </div>
