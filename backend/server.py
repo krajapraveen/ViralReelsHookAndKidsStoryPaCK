@@ -88,6 +88,7 @@ from routes.monetization import router as monetization_router
 from routes.share import router as share_router
 from routes.photo_to_comic import router as photo_to_comic_router
 from routes.referral import router as referral_router
+from routes.comic_storybook_v2 import router as comic_storybook_v2_router
 
 # Security middleware
 from middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
