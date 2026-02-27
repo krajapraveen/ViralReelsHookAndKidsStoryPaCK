@@ -174,6 +174,21 @@ export default function StoryEpisodeCreator() {
         <p className="text-xs text-slate-500 mt-2 text-right">{storyIdea.length}/500 characters</p>
       </div>
 
+      {/* Preview Button */}
+      <button
+        onClick={handleShowPreview}
+        disabled={loadingPreview}
+        className="w-full py-4 rounded-xl border-2 border-dashed border-purple-500/50 text-purple-300 hover:bg-purple-500/10 transition-all flex items-center justify-center gap-2"
+        data-testid="preview-btn"
+      >
+        {loadingPreview ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <Eye className="w-5 h-5" />
+        )}
+        <span className="font-medium">See Example Output (FREE)</span>
+      </button>
+
       <Button
         onClick={() => setStep(2)}
         disabled={storyIdea.length < 10}
