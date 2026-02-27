@@ -1233,6 +1233,7 @@ export default function ColoringBookWizard() {
         {currentStep === 5 && (
           <StepDownload
             generationResult={generationResult}
+            storyTitle={storyData.title}
             onStartNew={handleStartNew}
             onUpgradeHD={() => toast.info('HD upgrade coming soon!')}
           />
