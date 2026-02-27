@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://avatar-comic-builder.preview.emergentagent.com
+API URL: https://reaction-pack.preview.emergentagent.com
 ```
 
 ### Results Summary

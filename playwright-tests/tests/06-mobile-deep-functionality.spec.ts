@@ -5,7 +5,7 @@ import { test, expect, Page } from '@playwright/test';
  * Tests interactive elements, forms, tabs, modals on mobile
  */
 
-const BASE_URL = 'https://avatar-comic-builder.preview.emergentagent.com';
+const BASE_URL = 'https://reaction-pack.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

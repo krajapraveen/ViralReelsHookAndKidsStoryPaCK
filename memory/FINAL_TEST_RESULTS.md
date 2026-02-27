@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://avatar-comic-builder.preview.emergentagent.com
+**Website:** https://reaction-pack.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

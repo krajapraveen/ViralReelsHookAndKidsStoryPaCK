@@ -54,7 +54,7 @@
     }
   },
   "test_config": {
-    "api_url": "https://avatar-comic-builder.preview.emergentagent.com",
+    "api_url": "https://reaction-pack.preview.emergentagent.com",
     "start_time": "2026-02-26T07:38:13.314035+00:00",
     "end_time": "2026-02-26T07:38:48.817980+00:00"
   },
