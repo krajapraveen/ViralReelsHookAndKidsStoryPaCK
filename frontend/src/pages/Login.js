@@ -118,8 +118,21 @@ export default function Login({ setAuth }) {
       toast.success('Login successful!');
       navigate('/app', { replace: true });
     } catch (error) {
+      const status = error.response?.status;
+      const message = error.response?.data?.detail || '';
+      
+      // Handle account lockout (HTTP 423)
+      if (status === 423) {
+        toast.error(message || 'Account temporarily locked. Please try again later.');
+      }
+      // Handle remaining attempts warning
+      else if (message.includes('attempts remaining')) {
+        toast.error(message);
+      }
       // Generic error message to not reveal if email exists
-      toast.error('Invalid email or password. Please try again.');
+      else {
+        toast.error('Invalid email or password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
