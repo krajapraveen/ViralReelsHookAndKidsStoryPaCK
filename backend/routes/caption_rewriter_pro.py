@@ -304,7 +304,6 @@ async def get_config():
 async def get_preview():
     """Get a FREE sample preview - Try Before You Buy"""
     return SAMPLE_PREVIEW
-    }
 
 @router.post("/rewrite")
 @limiter.limit("20/minute")
