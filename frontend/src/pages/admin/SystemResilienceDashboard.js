@@ -133,7 +133,10 @@ export default function SystemResilienceDashboard() {
     }
   };
 
-  if (!user?.isAdmin) {
+  // Check if user is admin (user.role === 'ADMIN' or user.isAdmin)
+  const isAdmin = user?.role === 'ADMIN' || user?.isAdmin;
+  
+  if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center">
         <div className="text-center">
