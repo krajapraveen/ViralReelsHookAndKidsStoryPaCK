@@ -523,6 +523,77 @@ export default function ContentChallengePlanner() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-orange-950/20 to-slate-950">
+      {/* Preview Modal */}
+      {showPreview && previewData && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-orange-500/30 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 p-4 border-b border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                  <Eye className="w-5 h-5 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">FREE Preview</h3>
+                  <p className="text-xs text-orange-300">See what you'll get before you commit</p>
+                </div>
+              </div>
+              <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-white p-2">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4 flex items-center gap-3">
+                <Instagram className="w-5 h-5 text-pink-400" />
+                <span className="text-white text-sm">{previewData.platform} • {previewData.duration} Days • {previewData.goal}</span>
+              </div>
+              
+              <div className="space-y-4">
+                {previewData.daily_plans?.map((day, idx) => (
+                  <div key={idx} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded">DAY {day.day}</span>
+                      <div className="flex items-center gap-1 text-slate-400 text-xs">
+                        <Clock className="w-3 h-3" />
+                        {day.posting_time}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="bg-orange-500/10 rounded p-2">
+                        <p className="text-xs text-orange-400 mb-1">HOOK</p>
+                        <p className="text-sm text-white">{day.hook}</p>
+                      </div>
+                      <div className="bg-slate-900/50 rounded p-2">
+                        <p className="text-xs text-purple-400 mb-1">CONTENT IDEA</p>
+                        <p className="text-sm text-slate-300">{day.content_idea}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {day.hashtags?.map((tag, i) => (
+                          <span key={i} className="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-700 bg-slate-800/50">
+              <p className="text-xs text-center text-slate-400 mb-3">{previewData.preview_message}</p>
+              <Button 
+                onClick={() => setShowPreview(false)} 
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+              >
+                <Sparkles className="w-4 h-4 mr-2" /> Create Your Own Plan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-4">
