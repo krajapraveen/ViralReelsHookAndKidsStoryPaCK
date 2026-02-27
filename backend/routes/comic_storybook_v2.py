@@ -361,8 +361,6 @@ AVOID: {negative_prompt}"""
     }
 
 
-from pydantic import BaseModel
-
 class GenerateComicRequest(BaseModel):
     genre: str
     storyIdea: str
