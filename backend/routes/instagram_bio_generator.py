@@ -378,10 +378,12 @@ async def generate_single_bio(niche: str, tone: str, goal: str) -> Dict[str, Any
         }).to_list(length=100)
     
     if not headlines:
-        # Ultimate fallback
-        headlines = [{"template": f"Welcome to my {niche.lower()} journey"}]
+        # Ultimate fallback - use default headline
+        headline_template = f"Welcome to my {niche.lower()} journey"
+    else:
+        selected_headline = random.choice(headlines)
+        headline_template = selected_headline.get("template", f"Welcome to my {niche.lower()} journey")
     
-    headline_template = random.choice(headlines)["template"]
     headline = interpolate_template(headline_template)
     
     # Fetch value lines
@@ -395,8 +397,11 @@ async def generate_single_bio(niche: str, tone: str, goal: str) -> Dict[str, Any
     
     # Pick 1-2 value lines
     selected_values = random.sample(value_lines, min(2, len(value_lines)))
-    value1 = interpolate_template(selected_values[0]["template"])
-    value2 = interpolate_template(selected_values[-1]["template"]) if len(selected_values) > 1 else ""
+    value1_item = selected_values[0] if selected_values else {"template": "Daily tips and insights"}
+    value1 = interpolate_template(value1_item.get("template", "Daily tips and insights"))
+    
+    value2_item = selected_values[-1] if len(selected_values) > 1 else None
+    value2 = interpolate_template(value2_item.get("template", "")) if value2_item else ""
     
     # Fetch CTA
     ctas = await db.bio_ctas.find({
@@ -407,7 +412,8 @@ async def generate_single_bio(niche: str, tone: str, goal: str) -> Dict[str, Any
     if not ctas:
         ctas = [{"template": "Link in bio for more"}]
     
-    cta = interpolate_template(random.choice(ctas)["template"])
+    selected_cta = random.choice(ctas) if ctas else {"template": "Follow for more"}
+    cta = interpolate_template(selected_cta.get("template", "Follow for more"))
     
     # Fetch emojis
     emoji_sets = await db.bio_emoji_sets.find({
@@ -418,27 +424,25 @@ async def generate_single_bio(niche: str, tone: str, goal: str) -> Dict[str, Any
     if not emoji_sets:
         emoji_sets = [{"emojis": ["✨", "📈", "🎯"]}]
     
-    emojis = emoji_sets[0]["emojis"]
+    emoji_set = emoji_sets[0] if emoji_sets else {"emojis": ["✨", "📈", "🎯"]}
+    emojis = emoji_set.get("emojis", ["✨", "📈", "🎯"])
     selected_emojis = random.sample(emojis, min(3, len(emojis)))
     
     # Assemble bio
     bio_lines = []
     
     # Line 1: Emoji + Headline
-    bio_lines.append(f"{selected_emojis[0]} {headline}")
+    emoji1 = selected_emojis[0] if selected_emojis else "✨"
+    bio_lines.append(f"{emoji1} {headline}")
     
     # Line 2: Emoji + Value 1
-    if len(selected_emojis) > 1:
-        bio_lines.append(f"{selected_emojis[1]} {value1}")
-    else:
-        bio_lines.append(f"• {value1}")
+    emoji2 = selected_emojis[1] if len(selected_emojis) > 1 else "•"
+    bio_lines.append(f"{emoji2} {value1}")
     
     # Line 3: Value 2 (if available)
     if value2 and value2 != value1:
-        if len(selected_emojis) > 2:
-            bio_lines.append(f"{selected_emojis[2]} {value2}")
-        else:
-            bio_lines.append(f"• {value2}")
+        emoji3 = selected_emojis[2] if len(selected_emojis) > 2 else "•"
+        bio_lines.append(f"{emoji3} {value2}")
     
     # Line 4: CTA with pointing emoji
     bio_lines.append(f"👇 {cta}")
