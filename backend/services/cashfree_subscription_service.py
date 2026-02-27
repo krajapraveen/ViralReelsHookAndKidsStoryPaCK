@@ -186,19 +186,33 @@ class CashfreeSubscriptionService:
             response.raise_for_status()
             result = response.json()
             
+            # Log full response for debugging
+            logger.info(f"Cashfree subscription response: {result}")
+            
+            # Extract payment link from different possible locations
+            payment_link = (
+                result.get("subscription_payment_link") or 
+                result.get("data", {}).get("subscription_payment_link") or
+                result.get("payment_link") or
+                result.get("data", {}).get("payment_link") or
+                result.get("payment_url") or
+                result.get("data", {}).get("payment_url")
+            )
+            
             # Store subscription in database
             subscription_doc = {
                 "subscription_id": subscription_id,
-                "cf_subscription_id": result.get("cf_subscription_id") or result.get("subscription_id"),
+                "cf_subscription_id": result.get("cf_subscription_id") or result.get("subscription_id") or result.get("data", {}).get("cf_subscription_id"),
                 "user_id": user_id,
                 "plan_key": plan_key,
                 "plan_name": plan["name"],
-                "status": "INITIALIZED",
+                "status": result.get("subscription_status") or result.get("data", {}).get("subscription_status") or "INITIALIZED",
                 "price": plan["price_inr"],
                 "currency": "INR",
                 "credits_per_cycle": plan["credits_per_cycle"],
                 "discount_percent": plan["discount_percent"],
-                "payment_link": result.get("subscription_payment_link") or result.get("data", {}).get("subscription_payment_link"),
+                "payment_link": payment_link,
+                "raw_response": result,  # Store for debugging
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
