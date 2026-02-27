@@ -57,6 +57,8 @@ import ContentChallengePlanner from './pages/ContentChallengePlanner';
 import CaptionRewriterPro from './pages/CaptionRewriterPro';
 // CONTENT BLUEPRINT LIBRARY
 import ContentBlueprintLibrary from './pages/ContentBlueprintLibrary';
+// ADMIN SECURITY DASHBOARD
+import AdminSecurityDashboard from './pages/AdminSecurityDashboard';
 import './App.css';
 
 function App() {
