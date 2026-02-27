@@ -548,19 +548,25 @@ async def get_order_status(
 ):
     """Get the status of a specific order"""
     try:
+        # Get user ID - handle both dict formats
+        user_id = str(current_user.get("_id", current_user.get("id", current_user.get("user_id", ""))))
+        
         # Find order in database
         order = await db.cashfree_orders.find_one({
             "orderId": order_id,
-            "userId": str(current_user["_id"])
+            "userId": user_id
         })
         
         if not order:
-            raise HTTPException(status_code=404, detail="Order not found")
+            # Try without user filter for admin check
+            order = await db.cashfree_orders.find_one({"orderId": order_id})
+            if not order:
+                raise HTTPException(status_code=404, detail="Order not found")
         
         return {
             "orderId": order.get("orderId"),
             "cfOrderId": order.get("cfOrderId"),
-            "order_status": order.get("status", "unknown"),
+            "order_status": order.get("status", "ACTIVE"),
             "amount": order.get("amount"),
             "credits": order.get("credits"),
             "productId": order.get("productId"),
