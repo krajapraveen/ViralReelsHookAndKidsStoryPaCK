@@ -1,5 +1,5 @@
 {
-  "running": true,
+  "running": false,
   "started_at": "2026-02-27T12:16:51.058089",
   "last_health_check": "2026-02-27T12:29:32.349158",
   "last_recovery": null,
