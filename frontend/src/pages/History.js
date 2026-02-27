@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { generationAPI } from '../utils/api';
 import { toast } from 'sonner';
+import HelpGuide from '../components/HelpGuide';
 import { Sparkles, Video, BookOpen, ArrowLeft, Filter, ChevronDown, ChevronUp, Download, Eye, Clock, Coins, Calendar, FileText } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';

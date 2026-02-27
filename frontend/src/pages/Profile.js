@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import HelpGuide from '../components/HelpGuide';
 import { 
   Sparkles, ArrowLeft, User, Mail, Shield, Bell, 
   CreditCard, Clock, Save, Trash2, Download,
