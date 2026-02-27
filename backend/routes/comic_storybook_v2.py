@@ -370,6 +370,14 @@ async def generate_comic_book(
     user: dict = Depends(get_current_user)
 ):
     """Generate full comic book"""
+    # Extract from request body
+    genre = request.genre
+    storyIdea = request.storyIdea
+    title = request.title
+    author = request.author
+    pageCount = request.pageCount
+    addOns = request.addOns
+    dedicationText = request.dedicationText
     
     # Validate content
     is_blocked, keyword = check_blocked_keywords(storyIdea)
