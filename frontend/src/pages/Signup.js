@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { authAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, User, Check, X } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, User, Check, X, Shield } from 'lucide-react';
+import api from '../utils/api';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -15,6 +16,55 @@ export default function Signup({ setAuth }) {
   const [errors, setErrors] = useState({ name: '', email: '', password: '' });
   const [touched, setTouched] = useState({ name: false, email: false, password: false });
   const navigate = useNavigate();
+  
+  // CAPTCHA state
+  const [captchaConfig, setCaptchaConfig] = useState({ enabled: false, siteKey: '' });
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaLoaded, setCaptchaLoaded] = useState(false);
+  const captchaRef = useRef(null);
+
+  // Load CAPTCHA config on mount
+  useEffect(() => {
+    const loadCaptchaConfig = async () => {
+      try {
+        const response = await api.get('/api/auth/captcha-config');
+        setCaptchaConfig(response.data);
+        
+        if (response.data.enabled && response.data.siteKey) {
+          // Load hCaptcha script
+          if (!window.hcaptcha) {
+            const script = document.createElement('script');
+            script.src = 'https://js.hcaptcha.com/1/api.js';
+            script.async = true;
+            script.defer = true;
+            script.onload = () => setCaptchaLoaded(true);
+            document.head.appendChild(script);
+          } else {
+            setCaptchaLoaded(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load CAPTCHA config:', error);
+      }
+    };
+    loadCaptchaConfig();
+  }, []);
+
+  // Render hCaptcha when loaded
+  useEffect(() => {
+    if (captchaLoaded && captchaConfig.enabled && captchaRef.current && window.hcaptcha) {
+      try {
+        window.hcaptcha.render(captchaRef.current, {
+          sitekey: captchaConfig.siteKey,
+          callback: (token) => setCaptchaToken(token),
+          'expired-callback': () => setCaptchaToken(''),
+          theme: 'dark'
+        });
+      } catch (e) {
+        // Already rendered
+      }
+    }
+  }, [captchaLoaded, captchaConfig]);
 
   // Password requirements check
   const passwordRequirements = useMemo(() => ({
