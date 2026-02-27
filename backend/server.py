@@ -96,6 +96,10 @@ from routes.story_episode_creator import router as story_episode_creator_router
 from routes.content_challenge_planner import router as content_challenge_planner_router
 from routes.caption_rewriter_pro import router as caption_rewriter_pro_router
 
+# REVENUE PROTECTION & AUDIT SYSTEM
+from routes.audit_dashboard import router as audit_dashboard_router
+from routes.content_blueprint_library import router as blueprint_library_router
+
 # Security middleware
 from middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
 
