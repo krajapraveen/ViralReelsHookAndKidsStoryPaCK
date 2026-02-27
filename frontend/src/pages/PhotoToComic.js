@@ -18,6 +18,7 @@ import ShareCreation from '../components/ShareCreation';
 import VariationSelector from '../components/VariationSelector';
 import PremiumLock, { PremiumBanner } from '../components/PremiumLock';
 import { StylePreviewModal, STYLE_PREVIEWS } from '../components/StylePreview';
+import HelpGuide from '../components/HelpGuide';
 
 // Copyright blocked keywords (case-insensitive, substring match)
 const BLOCKED_KEYWORDS = [
