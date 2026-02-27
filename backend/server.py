@@ -376,6 +376,7 @@ api_router.include_router(admin_audit_logs_router)
 api_router.include_router(protected_download_router)
 api_router.include_router(template_leaderboard_router)
 api_router.include_router(template_versioning_router)
+api_router.include_router(admin_system_router)
 
 # Include API router in app
 app.include_router(api_router)
