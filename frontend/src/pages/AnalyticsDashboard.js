@@ -36,7 +36,6 @@ export default function AnalyticsDashboard() {
     { key: 'challenges', label: 'Challenges', icon: Calendar, color: 'blue' },
     { key: 'toneRewrites', label: 'Tone Rewrites', icon: Wand2, color: 'green' },
     { key: 'coloringBooks', label: 'Coloring Books', icon: Palette, color: 'pink' },
-    { key: 'genstudioJobs', label: 'GenStudio Jobs', icon: Sparkles, color: 'yellow' },
     { key: 'totalGenerations', label: 'Total Generations', icon: Video, color: 'indigo' },
   ];
 
