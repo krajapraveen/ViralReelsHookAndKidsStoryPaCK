@@ -11,8 +11,61 @@ Full-stack SaaS platform for creative content generation with comprehensive mone
 - **Admin Dashboard**: Comprehensive analytics, user management, and monitoring
 - **Share Your Creation**: Social sharing with Open Graph meta tags
 - **Monetization Components**: UpsellModal, PremiumLock, VariationSelector, Watermarks
+- **Subscription Management**: Full plan management UI with upgrade/downgrade
 
-## Recent Changes (2026-02-27)
+## Latest Changes (2026-02-27)
+
+### Batch Implementation - 5 Features
+
+#### 1. Coloring Book Background Color ✅
+- Updated to match landing page: `bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950`
+- Professional dark theme consistent across entire app
+
+#### 2. Subscription Flow End-to-End ✅
+- Cashfree Sandbox integration working
+- Creates subscription and returns payment link
+- Webhook handler for payment events
+- Plan activation on payment success
+
+#### 3. Diagonal Watermarks for Free Users ✅
+- `watermark_service.py` - Adds diagonal watermark text across images
+- Integrated into `comix_ai.py` and `gif_maker.py`
+- Configurable per content type (opacity, font size, spacing)
+- Checks user plan before applying
+
+#### 4. VariationSelector and PremiumLock in Generators ✅
+- `PremiumLock.jsx` component created
+- VariationSelector added to ComixAI generate section
+- PremiumLock, PremiumBanner components available
+- All generators have monetization imports ready
+
+#### 5. Subscription Management UI Page ✅
+- New `/app/subscription` page
+- Current plan display with status
+- All 3 plans with features and pricing
+- Subscribe Now / Change Plan buttons
+- Payment history section
+- FAQ section
+
+### Subscription Plans (Cashfree)
+| Plan | Price (INR) | Credits/Month | Discount |
+|------|-------------|---------------|----------|
+| Creator | ₹299 | 100 | 20% |
+| Pro | ₹599 | 300 | 30% |
+| Studio | ₹1499 | 1000 | 40% |
+
+### Files Created/Modified
+- `/app/frontend/src/pages/SubscriptionManagement.jsx` - NEW
+- `/app/frontend/src/components/PremiumLock.jsx` - NEW
+- `/app/backend/services/watermark_service.py` - Watermark logic
+- `/app/backend/services/cashfree_subscription_service.py` - Subscription API
+- `/app/frontend/src/pages/ColoringBookWizard.jsx` - Background updated
+- `/app/frontend/src/pages/ComixAI.js` - Monetization components
+- `/app/frontend/src/pages/GifMaker.js` - Monetization components
+- `/app/backend/routes/comix_ai.py` - Watermark integration
+- `/app/backend/routes/gif_maker.py` - Watermark integration
+
+## Previous Changes (2026-02-27)
 
 ### Task 1: Share Your Creation Feature ✅ COMPLETE
 - Social share modal with all platforms (WhatsApp, Facebook, Twitter, LinkedIn, Email, Copy Link)
