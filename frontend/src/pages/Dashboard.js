@@ -152,26 +152,6 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* GenStudio AI Highlight */}
-        <Link to="/app/gen-studio">
-          <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-gen-studio" data-tour="genstudio-card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <Sparkles className="w-6 h-6 sm:w-8 sm:h-8" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold mb-1">🎨 GenStudio AI</h2>
-                  <p className="text-white/80 text-xs sm:text-base">Text→Image • Text→Video • Image→Video • Brand Style Profiles • Video Remix</p>
-                </div>
-              </div>
-              <div className="hidden md:block text-right">
-                <span className="bg-white/20 rounded-full px-4 py-2 text-sm">NEW</span>
-              </div>
-            </div>
-          </div>
-        </Link>
-
         {/* Creator Tools Highlight */}
         <Link to="/app/creator-tools">
           <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/20" data-testid="quick-action-creator-tools" data-tour="creator-tools-card">
