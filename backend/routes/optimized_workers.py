@@ -121,6 +121,37 @@ async def save_image_async(image_bytes: bytes, filepath: str) -> bool:
     return await loop.run_in_executor(THREAD_POOL, save_image_sync, image_bytes, filepath)
 
 
+async def save_image_with_watermark(
+    image_bytes: bytes, 
+    filepath: str, 
+    user_id: str,
+    content_type: str = "COMIC"
+) -> bool:
+    """Save image with watermark applied for free users"""
+    from services.watermark_service import add_diagonal_watermark, should_apply_watermark, get_watermark_config
+    
+    try:
+        # Check user plan
+        user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
+        user_plan = user_data.get("plan", "free") if user_data else "free"
+        
+        # Apply watermark for free users
+        if should_apply_watermark(user_plan):
+            config = get_watermark_config(content_type)
+            image_bytes = add_diagonal_watermark(
+                image_bytes,
+                text=config["text"],
+                opacity=config["opacity"],
+                font_size=config["font_size"],
+                spacing=config["spacing"]
+            )
+        
+        return await save_image_async(image_bytes, filepath)
+    except Exception as e:
+        logger.error(f"Save image with watermark error: {e}")
+        return await save_image_async(image_bytes, filepath)
+
+
 async def create_gif_optimized(frames: List[str], output_path: str, duration: int = 150) -> bool:
     """Create animated GIF from frames - optimized for speed"""
     try:
