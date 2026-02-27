@@ -592,20 +592,32 @@ async def get_payment_history(
         # Get user ID - handle both dict formats
         user_id = str(current_user.get("_id", current_user.get("id", current_user.get("user_id", ""))))
         
-        # Find all orders for this user
-        cursor = db.cashfree_orders.find(
+        # Find all orders for this user (check both collections)
+        orders_cursor = db.orders.find(
             {"userId": user_id},
             {"_id": 0}
         ).sort("createdAt", -1).skip(skip).limit(limit)
         
-        payments = await cursor.to_list(length=limit)
+        payments = await orders_cursor.to_list(length=limit)
         
-        # Get total count
-        total = await db.cashfree_orders.count_documents({"userId": user_id})
+        # Also check cashfree_orders collection
+        cf_cursor = db.cashfree_orders.find(
+            {"userId": user_id},
+            {"_id": 0}
+        ).sort("createdAt", -1).skip(skip).limit(limit)
+        
+        cf_payments = await cf_cursor.to_list(length=limit)
+        
+        # Combine and dedupe
+        all_payments = payments + cf_payments
+        
+        # Get total count from both collections
+        total1 = await db.orders.count_documents({"userId": user_id})
+        total2 = await db.cashfree_orders.count_documents({"userId": user_id})
         
         return {
-            "payments": payments,
-            "total": total,
+            "payments": all_payments,
+            "total": total1 + total2,
             "limit": limit,
             "skip": skip
         }
