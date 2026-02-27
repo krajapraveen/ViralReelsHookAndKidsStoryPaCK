@@ -101,6 +101,9 @@ from routes.audit_dashboard import router as audit_dashboard_router
 from routes.content_blueprint_library import router as blueprint_library_router
 from routes.security_management import router as security_management_router
 
+# NEW FEATURE: Instagram Bio Generator
+from routes.instagram_bio_generator import router as instagram_bio_generator_router
+
 # Security middleware
 from middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
 
