@@ -4,7 +4,7 @@
  */
 import { test as base, expect } from '@playwright/test';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://webhook-retry-sys.preview.emergentagent.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://studio-audit.preview.emergentagent.com';
 
 // Test credentials
 const TEST_USERS = {

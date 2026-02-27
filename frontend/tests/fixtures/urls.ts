@@ -1,4 +1,4 @@
-export const BASE = process.env.BASE_URL ?? "https://webhook-retry-sys.preview.emergentagent.com";
+export const BASE = process.env.BASE_URL ?? "https://studio-audit.preview.emergentagent.com";
 
 export const URLS = {
   // Public pages
