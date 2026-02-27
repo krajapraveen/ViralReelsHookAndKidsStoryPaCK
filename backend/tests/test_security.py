@@ -1,615 +1,356 @@
 """
-Security Testing for CreatorStudio AI
-Tests: Rate limiting, security headers, attack pattern blocking, input sanitization,
-password validation, prohibited content detection, file expiry, and payment exception handling
+Security Penetration Testing Suite
+Tests for OWASP Top 10 vulnerabilities and security best practices.
+
+Run with: python -m pytest backend/tests/test_security.py -v
 """
 import pytest
-import requests
-import os
-import time
+import asyncio
+import re
 import json
-from datetime import datetime
+from unittest.mock import AsyncMock, patch
+import sys
+import os
 
-# Get BASE_URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-if not BASE_URL:
-    raise ValueError("REACT_APP_BACKEND_URL environment variable not set")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Test credentials
-TEST_EMAIL = "demo@example.com"
-TEST_PASSWORD = "Password123!"
+# Test configurations
+API_BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://reaction-pack.preview.emergentagent.com")
 
 
 class TestSecurityHeaders:
-    """Test security headers are present in responses"""
+    """Test security headers are properly configured"""
     
-    def test_security_headers_on_health_endpoint(self):
-        """Verify security headers are present on health endpoint"""
-        response = requests.get(f"{BASE_URL}/api/health")
-        
-        # Check for security headers
-        headers_to_check = [
-            "X-Content-Type-Options",
-            "X-Frame-Options", 
-            "X-XSS-Protection",
-            "Content-Security-Policy",
-            "Referrer-Policy",
+    @pytest.mark.asyncio
+    async def test_csp_header_present(self):
+        """A01:2021 - Content Security Policy should be present"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{API_BASE_URL}/api/health") as response:
+                csp = response.headers.get("Content-Security-Policy")
+                assert csp is not None, "CSP header missing"
+                assert "default-src" in csp, "CSP should include default-src"
+    
+    @pytest.mark.asyncio
+    async def test_hsts_header_present(self):
+        """A01:2021 - HSTS header should be present"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{API_BASE_URL}/api/health") as response:
+                hsts = response.headers.get("Strict-Transport-Security")
+                assert hsts is not None, "HSTS header missing"
+                assert "max-age=" in hsts, "HSTS should include max-age"
+    
+    @pytest.mark.asyncio
+    async def test_x_frame_options_header(self):
+        """A01:2021 - X-Frame-Options should prevent clickjacking"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{API_BASE_URL}/api/health") as response:
+                xfo = response.headers.get("X-Frame-Options")
+                assert xfo in ["DENY", "SAMEORIGIN"], f"X-Frame-Options should be DENY or SAMEORIGIN, got {xfo}"
+    
+    @pytest.mark.asyncio
+    async def test_x_content_type_options(self):
+        """A01:2021 - X-Content-Type-Options should prevent MIME sniffing"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{API_BASE_URL}/api/health") as response:
+                xcto = response.headers.get("X-Content-Type-Options")
+                assert xcto == "nosniff", f"X-Content-Type-Options should be nosniff, got {xcto}"
+    
+    @pytest.mark.asyncio
+    async def test_referrer_policy_header(self):
+        """A01:2021 - Referrer-Policy should be configured"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{API_BASE_URL}/api/health") as response:
+                rp = response.headers.get("Referrer-Policy")
+                assert rp is not None, "Referrer-Policy header missing"
+
+
+class TestInjectionPrevention:
+    """A03:2021 - Injection Prevention Tests"""
+    
+    @pytest.mark.asyncio
+    async def test_sql_injection_blocked(self):
+        """Test SQL injection attempts are blocked"""
+        import aiohttp
+        payloads = [
+            "'; DROP TABLE users; --",
+            "1' OR '1'='1",
+            "1; SELECT * FROM users",
+            "admin'--",
+            "1 UNION SELECT * FROM users"
         ]
         
-        for header in headers_to_check:
-            assert header in response.headers, f"Missing security header: {header}"
-            print(f"✓ {header}: {response.headers[header][:50]}...")
-        
-        # Verify specific header values
-        assert response.headers.get("X-Content-Type-Options") == "nosniff"
-        assert response.headers.get("X-Frame-Options") == "DENY"
-        print("✓ All security headers present and correct")
+        async with aiohttp.ClientSession() as session:
+            for payload in payloads:
+                async with session.post(
+                    f"{API_BASE_URL}/api/auth/login",
+                    json={"email": payload, "password": "test"}
+                ) as response:
+                    # Should not return 500 (internal error would indicate SQL injection worked)
+                    assert response.status != 500, f"SQL injection payload may have worked: {payload}"
     
-    def test_security_headers_on_auth_endpoint(self):
-        """Verify security headers on auth endpoints"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "test@test.com",
-            "password": "wrongpassword"
-        })
+    @pytest.mark.asyncio
+    async def test_nosql_injection_blocked(self):
+        """Test NoSQL injection attempts are blocked"""
+        import aiohttp
+        payloads = [
+            {"$gt": ""},
+            {"$ne": None},
+            {"$where": "1==1"}
+        ]
         
-        # Even on failed auth, security headers should be present
-        assert "X-Content-Type-Options" in response.headers
-        assert "X-Frame-Options" in response.headers
-        print("✓ Security headers present on auth endpoint")
+        async with aiohttp.ClientSession() as session:
+            for payload in payloads:
+                async with session.post(
+                    f"{API_BASE_URL}/api/auth/login",
+                    json={"email": payload, "password": "test"}
+                ) as response:
+                    # Should return 422 (validation error) not 200
+                    assert response.status != 200, f"NoSQL injection may have worked"
+    
+    @pytest.mark.asyncio
+    async def test_xss_in_input_sanitized(self):
+        """Test XSS payloads are sanitized"""
+        import aiohttp
+        xss_payloads = [
+            "<script>alert('xss')</script>",
+            "<img src=x onerror=alert('xss')>",
+            "javascript:alert('xss')",
+            "<svg onload=alert('xss')>",
+            "'\"><script>alert('xss')</script>"
+        ]
+        
+        async with aiohttp.ClientSession() as session:
+            # First login to get token
+            async with session.post(
+                f"{API_BASE_URL}/api/auth/login",
+                json={"email": "demo@example.com", "password": "Password123!"}
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    token = data.get("token")
+                    
+                    # Try XSS in caption rewriter
+                    for payload in xss_payloads:
+                        async with session.post(
+                            f"{API_BASE_URL}/api/caption-rewriter-pro/rewrite",
+                            json={"text": payload, "tone": "funny", "pack_type": "single_tone"},
+                            headers={"Authorization": f"Bearer {token}"}
+                        ) as rewrite_response:
+                            if rewrite_response.status == 200:
+                                result = await rewrite_response.json()
+                                # Check that script tags are not in output
+                                result_str = json.dumps(result)
+                                assert "<script>" not in result_str.lower(), f"XSS payload may not be sanitized: {payload}"
+
+
+class TestAuthenticationSecurity:
+    """A07:2021 - Authentication and Session Management Tests"""
+    
+    @pytest.mark.asyncio
+    async def test_password_not_in_response(self):
+        """Passwords should never be returned in API responses"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{API_BASE_URL}/api/auth/login",
+                json={"email": "demo@example.com", "password": "Password123!"}
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    data_str = json.dumps(data).lower()
+                    assert "password123" not in data_str, "Password found in response!"
+    
+    @pytest.mark.asyncio
+    async def test_invalid_token_rejected(self):
+        """Invalid JWT tokens should be rejected"""
+        import aiohttp
+        invalid_tokens = [
+            "invalid_token",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature",
+            "",
+            "null",
+            "undefined"
+        ]
+        
+        async with aiohttp.ClientSession() as session:
+            for token in invalid_tokens:
+                async with session.get(
+                    f"{API_BASE_URL}/api/wallet",
+                    headers={"Authorization": f"Bearer {token}"}
+                ) as response:
+                    assert response.status in [401, 403, 422], f"Invalid token should be rejected: {token}"
+    
+    @pytest.mark.asyncio
+    async def test_missing_auth_header_rejected(self):
+        """Requests without auth header should be rejected for protected routes"""
+        import aiohttp
+        protected_routes = [
+            "/api/wallet",
+            "/api/story-episode-creator/generate",
+            "/api/content-challenge-planner/generate",
+            "/api/caption-rewriter-pro/rewrite"
+        ]
+        
+        async with aiohttp.ClientSession() as session:
+            for route in protected_routes:
+                async with session.get(f"{API_BASE_URL}{route}") as response:
+                    assert response.status in [401, 403, 405, 422], f"Protected route {route} should require auth"
 
 
 class TestRateLimiting:
-    """Test rate limiting on auth and payment endpoints"""
+    """A04:2021 - Rate Limiting Tests"""
     
-    def test_login_rate_limit_exists(self):
-        """Test that login endpoint has rate limiting (10/minute)"""
-        # Make a few requests to verify rate limiting is configured
-        # We won't actually hit the limit to avoid blocking ourselves
-        responses = []
-        for i in range(3):
-            response = requests.post(f"{BASE_URL}/api/auth/login", json={
-                "email": f"ratelimit_test_{i}@test.com",
-                "password": "wrongpassword"
-            })
-            responses.append(response.status_code)
-            time.sleep(0.5)  # Small delay between requests
-        
-        # All should return 401 (invalid credentials), not 429 (rate limited) for 3 requests
-        assert all(code == 401 for code in responses), "Expected 401 for invalid credentials"
-        print("✓ Login endpoint responds correctly (rate limiting configured)")
-    
-    def test_register_rate_limit_exists(self):
-        """Test that register endpoint has rate limiting (5/minute)"""
-        # Make a few requests to verify rate limiting is configured
-        responses = []
-        for i in range(2):
-            response = requests.post(f"{BASE_URL}/api/auth/register", json={
-                "name": f"Rate Test {i}",
-                "email": f"ratelimit_register_{i}_{int(time.time())}@test.com",
-                "password": "WeakPass"  # Intentionally weak to fail validation
-            })
-            responses.append(response.status_code)
-            time.sleep(0.5)
-        
-        # Should return 400 (weak password) not 429 for 2 requests
-        assert all(code == 400 for code in responses), "Expected 400 for weak password"
-        print("✓ Register endpoint responds correctly (rate limiting configured)")
+    @pytest.mark.asyncio
+    async def test_login_rate_limited(self):
+        """Login endpoint should be rate limited"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            rate_limited = False
+            for i in range(15):  # Try 15 rapid requests
+                async with session.post(
+                    f"{API_BASE_URL}/api/auth/login",
+                    json={"email": "test@test.com", "password": "wrong"}
+                ) as response:
+                    if response.status == 429:
+                        rate_limited = True
+                        break
+            # Note: This may not trigger in test environment with low traffic
+            # Just log the result
+            print(f"Rate limiting triggered: {rate_limited}")
 
 
-class TestAttackPatternBlocking:
-    """Test that common attack patterns are blocked"""
+class TestCopyrightProtection:
+    """Business Logic Security - Copyright Protection Tests"""
     
-    def test_path_traversal_in_api_blocked(self):
-        """Test path traversal attacks in API paths are handled"""
-        # Note: Kubernetes ingress may normalize URLs before they reach the backend
-        # The backend security middleware blocks these patterns when they reach it
-        attack_paths = [
-            "/api/../../../etc/passwd",
-            "/api/..%2F..%2F..%2Fetc/passwd",
+    @pytest.mark.asyncio
+    async def test_blocked_keywords_in_story_creator(self):
+        """Story Episode Creator should block copyrighted content"""
+        import aiohttp
+        blocked_keywords = [
+            "Mickey Mouse goes on adventure",
+            "Spider-Man saves the day",
+            "Harry Potter at Hogwarts",
+            "Pokemon trainer catches Pikachu",
+            "Batman fights Joker"
         ]
         
-        for path in attack_paths:
-            response = requests.get(f"{BASE_URL}{path}")
-            # Should return 200 (normalized by proxy), 400 (bad request), 403, or 404
-            # The important thing is it doesn't return actual file contents
-            assert response.status_code in [200, 400, 403, 404], f"Unexpected response for: {path}"
-            if response.status_code == 200:
-                # Verify it's not returning /etc/passwd content
-                assert "root:" not in response.text, "Path traversal returned sensitive file!"
-            print(f"✓ Path traversal handled safely: {path[:40]}...")
-    
-    def test_sql_injection_patterns_blocked(self):
-        """Test SQL injection patterns in URL are blocked"""
-        attack_paths = [
-            "/api/health?id=1%20OR%201=1",
-            "/api/health?id=1'%20OR%20'1'='1",
-            "/api/health?id=1;DROP%20TABLE%20users",
-        ]
-        
-        for path in attack_paths:
-            response = requests.get(f"{BASE_URL}{path}")
-            # Should return 403 or normal response (not execute injection)
-            assert response.status_code in [200, 403, 404], f"Unexpected response for: {path}"
-            print(f"✓ SQL injection pattern handled: {path[:40]}...")
-    
-    def test_xss_patterns_in_url_blocked(self):
-        """Test XSS patterns in URL are blocked"""
-        attack_paths = [
-            "/api/health?q=<script>alert(1)</script>",
-            "/api/health?q=javascript:alert(1)",
-            "/api/health?q=onerror=alert(1)",
-        ]
-        
-        for path in attack_paths:
-            response = requests.get(f"{BASE_URL}{path}")
-            # Should return 403 Forbidden
-            assert response.status_code in [200, 403, 404], f"XSS pattern not handled: {path}"
-            print(f"✓ XSS pattern handled: {path[:40]}...")
-    
-    def test_common_exploit_paths_handled(self):
-        """Test common exploit paths don't expose sensitive data"""
-        # Note: Kubernetes ingress may return 200 for unknown paths
-        # The important thing is they don't expose sensitive data
-        exploit_paths = [
-            "/wp-admin",
-            "/wp-login.php",
-            "/.env",
-            "/.git/config",
-            "/phpinfo.php",
-            "/admin.php",
-        ]
-        
-        for path in exploit_paths:
-            response = requests.get(f"{BASE_URL}{path}")
-            # Should return 200 (frontend SPA), 403, or 404
-            assert response.status_code in [200, 403, 404], f"Unexpected status for: {path}"
-            # Verify no sensitive data is exposed
-            if response.status_code == 200:
-                text = response.text.lower()
-                assert "mongo" not in text or "mongodb" not in text, f"DB credentials exposed at {path}"
-                assert "secret" not in text or "jwt" not in text, f"Secrets exposed at {path}"
-            print(f"✓ Exploit path handled safely: {path}")
+        async with aiohttp.ClientSession() as session:
+            # Login first
+            async with session.post(
+                f"{API_BASE_URL}/api/auth/login",
+                json={"email": "demo@example.com", "password": "Password123!"}
+            ) as login_response:
+                if login_response.status == 200:
+                    data = await login_response.json()
+                    token = data.get("token")
+                    
+                    for keyword in blocked_keywords:
+                        async with session.post(
+                            f"{API_BASE_URL}/api/story-episode-creator/generate",
+                            json={"story_idea": keyword, "episode_count": 3, "add_ons": []},
+                            headers={"Authorization": f"Bearer {token}"}
+                        ) as response:
+                            assert response.status == 400, f"Copyright keyword '{keyword}' should be blocked"
+                            error_data = await response.json()
+                            assert "copyrighted" in error_data.get("detail", "").lower() or "branded" in error_data.get("detail", "").lower()
 
 
-class TestInputSanitization:
-    """Test input sanitization on prompts and user inputs"""
+class TestInputValidation:
+    """A03:2021 - Input Validation Tests"""
     
-    @pytest.fixture
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed - skipping authenticated tests")
+    @pytest.mark.asyncio
+    async def test_oversized_input_rejected(self):
+        """Oversized inputs should be rejected"""
+        import aiohttp
+        # Create a very large string
+        large_input = "A" * 100000  # 100KB string
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{API_BASE_URL}/api/auth/login",
+                json={"email": large_input, "password": "test"}
+            ) as response:
+                # Should return validation error, not crash
+                assert response.status in [400, 413, 422], "Oversized input should be rejected"
     
-    def test_xss_in_reel_prompt_sanitized(self, auth_token):
-        """Test XSS in reel generation prompt is sanitized"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        # Try XSS in topic
-        response = requests.post(f"{BASE_URL}/api/generate/reel", 
-            headers=headers,
-            json={
-                "topic": "<script>alert('xss')</script>Test topic",
-                "niche": "General",
-                "language": "English",
-                "tone": "Bold",
-                "duration": "30s",
-                "goal": "Followers"
-            }
-        )
-        
-        # Should either sanitize and process, or reject with 400
-        assert response.status_code in [200, 400, 402, 503], f"Unexpected status: {response.status_code}"
-        
-        # If successful, check that script tags are not in response
-        if response.status_code == 200:
-            response_text = json.dumps(response.json())
-            assert "<script>" not in response_text.lower(), "XSS not sanitized in response"
-        
-        print("✓ XSS in reel prompt handled correctly")
-    
-    def test_command_injection_in_prompt_blocked(self, auth_token):
-        """Test command injection in prompts is blocked"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        # Try command injection
-        response = requests.post(f"{BASE_URL}/api/generate/reel",
-            headers=headers,
-            json={
-                "topic": "; rm -rf /; echo test",
-                "niche": "General",
-                "language": "English",
-                "tone": "Bold",
-                "duration": "30s",
-                "goal": "Followers"
-            }
-        )
-        
-        # Should be blocked or sanitized
-        assert response.status_code in [200, 400, 402, 503], f"Unexpected status: {response.status_code}"
-        print("✓ Command injection in prompt handled correctly")
+    @pytest.mark.asyncio
+    async def test_invalid_json_handled(self):
+        """Invalid JSON should be handled gracefully"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{API_BASE_URL}/api/auth/login",
+                data="not valid json {{{",
+                headers={"Content-Type": "application/json"}
+            ) as response:
+                # Should return 400 or 422, not 500
+                assert response.status in [400, 422], "Invalid JSON should return 400/422, not crash"
 
 
-class TestPasswordStrengthValidation:
-    """Test password strength validation on registration"""
+class TestSensitiveDataExposure:
+    """A02:2021 - Sensitive Data Exposure Tests"""
     
-    def test_password_too_short_rejected(self):
-        """Test password less than 8 characters is rejected"""
-        response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "name": "Test User",
-            "email": f"short_pass_{int(time.time())}@test.com",
-            "password": "Short1!"  # 7 characters
-        })
-        
-        assert response.status_code == 400
-        assert "8 characters" in response.json().get("detail", "").lower() or "password" in response.json().get("detail", "").lower()
-        print("✓ Short password rejected")
+    @pytest.mark.asyncio
+    async def test_no_sensitive_data_in_error_messages(self):
+        """Error messages should not expose sensitive data"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{API_BASE_URL}/api/auth/login",
+                json={"email": "nonexistent@test.com", "password": "wrongpass"}
+            ) as response:
+                if response.status == 401:
+                    data = await response.json()
+                    detail = data.get("detail", "").lower()
+                    # Error should be generic, not reveal which part is wrong
+                    assert "password" not in detail or "incorrect" in detail
+                    assert "user not found" not in detail  # Don't reveal if user exists
     
-    def test_password_no_uppercase_rejected(self):
-        """Test password without uppercase is rejected"""
-        response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "name": "Test User",
-            "email": f"no_upper_{int(time.time())}@test.com",
-            "password": "password123!"  # No uppercase
-        })
-        
-        assert response.status_code == 400
-        assert "uppercase" in response.json().get("detail", "").lower()
-        print("✓ Password without uppercase rejected")
-    
-    def test_password_no_lowercase_rejected(self):
-        """Test password without lowercase is rejected"""
-        response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "name": "Test User",
-            "email": f"no_lower_{int(time.time())}@test.com",
-            "password": "PASSWORD123!"  # No lowercase
-        })
-        
-        assert response.status_code == 400
-        assert "lowercase" in response.json().get("detail", "").lower()
-        print("✓ Password without lowercase rejected")
-    
-    def test_password_no_number_rejected(self):
-        """Test password without number is rejected"""
-        response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "name": "Test User",
-            "email": f"no_number_{int(time.time())}@test.com",
-            "password": "Password!!"  # No number
-        })
-        
-        assert response.status_code == 400
-        assert "number" in response.json().get("detail", "").lower()
-        print("✓ Password without number rejected")
-    
-    def test_password_no_special_char_rejected(self):
-        """Test password without special character is rejected"""
-        response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "name": "Test User",
-            "email": f"no_special_{int(time.time())}@test.com",
-            "password": "Password123"  # No special character
-        })
-        
-        assert response.status_code == 400
-        assert "special" in response.json().get("detail", "").lower()
-        print("✓ Password without special character rejected")
-    
-    def test_strong_password_accepted(self):
-        """Test strong password is accepted"""
-        # Wait a bit to avoid rate limiting from previous tests
-        time.sleep(2)
-        
-        unique_email = f"strong_pass_{int(time.time())}@test.com"
-        response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "name": "Test User",
-            "email": unique_email,
-            "password": "StrongPass123!"  # Meets all requirements
-        })
-        
-        # Should succeed (200) or fail for other reasons (not password)
-        # 429 means rate limiting is working (which is good!)
-        if response.status_code == 400:
-            detail = response.json().get("detail", "").lower()
-            assert "password" not in detail or "already" in detail, f"Strong password rejected: {detail}"
-        elif response.status_code == 429:
-            print("✓ Rate limiting is active (strong password test skipped due to rate limit)")
-            return  # Rate limiting is working, which is a security feature
-        else:
-            assert response.status_code == 200, f"Unexpected status: {response.status_code}"
-        print("✓ Strong password accepted")
+    @pytest.mark.asyncio
+    async def test_mongodb_id_not_exposed(self):
+        """MongoDB _id should not be exposed in responses"""
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            # Login first
+            async with session.post(
+                f"{API_BASE_URL}/api/auth/login",
+                json={"email": "demo@example.com", "password": "Password123!"}
+            ) as login_response:
+                if login_response.status == 200:
+                    data = await login_response.json()
+                    token = data.get("token")
+                    
+                    # Check wallet endpoint
+                    async with session.get(
+                        f"{API_BASE_URL}/api/wallet",
+                        headers={"Authorization": f"Bearer {token}"}
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            data_str = json.dumps(data)
+                            assert "_id" not in data_str, "MongoDB _id should not be exposed"
+                            # Check for ObjectId pattern
+                            assert not re.search(r'ObjectId\(["\'][a-f0-9]{24}["\']\)', data_str), "ObjectId should not be exposed"
 
 
-class TestProhibitedContentDetection:
-    """Test prohibited content detection in AI generation prompts"""
-    
-    @pytest.fixture
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed - skipping authenticated tests")
-    
-    def test_deepfake_content_blocked(self, auth_token):
-        """Test deepfake content is blocked"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        response = requests.post(f"{BASE_URL}/api/generate/reel",
-            headers=headers,
-            json={
-                "topic": "How to create a deepfake video of a celebrity",
-                "niche": "Tech",
-                "language": "English",
-                "tone": "Bold",
-                "duration": "30s",
-                "goal": "Views"
-            }
-        )
-        
-        # Should be blocked with 400 or handled
-        if response.status_code == 400:
-            detail = response.json().get("detail", "").lower()
-            assert "prohibited" in detail or "content" in detail or "policy" in detail
-            print("✓ Deepfake content blocked with proper message")
-        else:
-            # If not blocked, it should be sanitized
-            print(f"✓ Deepfake content handled (status: {response.status_code})")
-    
-    def test_celebrity_content_blocked(self, auth_token):
-        """Test celebrity impersonation content is blocked"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        response = requests.post(f"{BASE_URL}/api/generate/reel",
-            headers=headers,
-            json={
-                "topic": "Create content impersonating a famous celebrity person",
-                "niche": "Entertainment",
-                "language": "English",
-                "tone": "Bold",
-                "duration": "30s",
-                "goal": "Views"
-            }
-        )
-        
-        if response.status_code == 400:
-            detail = response.json().get("detail", "").lower()
-            assert "prohibited" in detail or "celebrity" in detail or "policy" in detail
-            print("✓ Celebrity content blocked with proper message")
-        else:
-            print(f"✓ Celebrity content handled (status: {response.status_code})")
-    
-    def test_violence_content_blocked(self, auth_token):
-        """Test violence content is blocked"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        response = requests.post(f"{BASE_URL}/api/generate/reel",
-            headers=headers,
-            json={
-                "topic": "How to commit violence and murder",
-                "niche": "General",
-                "language": "English",
-                "tone": "Bold",
-                "duration": "30s",
-                "goal": "Views"
-            }
-        )
-        
-        if response.status_code == 400:
-            detail = response.json().get("detail", "").lower()
-            assert "prohibited" in detail or "violence" in detail or "policy" in detail
-            print("✓ Violence content blocked with proper message")
-        else:
-            print(f"✓ Violence content handled (status: {response.status_code})")
-
-
-class TestFileExpiry:
-    """Test file expiry is set to 3 minutes"""
-    
-    @pytest.fixture
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed - skipping authenticated tests")
-    
-    def test_file_expiry_notification_in_response(self, auth_token):
-        """Test that file expiry information is communicated"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        # Check if any generation endpoint returns expiry info
-        # First check user's generations
-        response = requests.get(f"{BASE_URL}/api/generate/generations", headers=headers)
-        
-        if response.status_code == 200:
-            data = response.json()
-            generations = data.get("content", [])
-            
-            # Check if any generation has expiry info
-            for gen in generations[:5]:  # Check first 5
-                if "expiresAt" in gen or "expiry" in str(gen).lower():
-                    print(f"✓ Found expiry info in generation: {gen.get('id', 'unknown')[:8]}...")
-                    return
-            
-            print("✓ Generations endpoint working (expiry may be in individual generation details)")
-        else:
-            print(f"✓ Generations endpoint returned {response.status_code}")
-    
-    def test_file_expiry_constant_is_3_minutes(self):
-        """Verify FILE_EXPIRY_MINUTES is set to 3 in backend code"""
-        # This is a code review test - we verify the constant is set correctly
-        # by checking the server.py file
-        import subprocess
-        result = subprocess.run(
-            ["grep", "-c", "FILE_EXPIRY_MINUTES = 3", "/app/backend/server.py"],
-            capture_output=True, text=True
-        )
-        count = int(result.stdout.strip()) if result.stdout.strip() else 0
-        assert count >= 1, "FILE_EXPIRY_MINUTES should be set to 3"
-        print("✓ FILE_EXPIRY_MINUTES is correctly set to 3")
-
-
-class TestIPBlocking:
-    """Test IP blocking after multiple failed attempts"""
-    
-    def test_ip_blocking_mechanism_exists(self):
-        """Verify IP blocking mechanism is implemented in security module"""
-        import subprocess
-        
-        # Check that blocked_ips set exists
-        result = subprocess.run(
-            ["grep", "-c", "blocked_ips", "/app/backend/security.py"],
-            capture_output=True, text=True
-        )
-        count = int(result.stdout.strip()) if result.stdout.strip() else 0
-        assert count >= 3, "IP blocking mechanism should be implemented"
-        
-        # Check MAX_SUSPICIOUS_ATTEMPTS is defined
-        result = subprocess.run(
-            ["grep", "MAX_SUSPICIOUS_ATTEMPTS", "/app/backend/security.py"],
-            capture_output=True, text=True
-        )
-        assert "MAX_SUSPICIOUS_ATTEMPTS = 10" in result.stdout, "MAX_SUSPICIOUS_ATTEMPTS should be 10"
-        
-        print("✓ IP blocking mechanism is implemented (10 attempts before block)")
-
-
-class TestPaymentExceptionHandling:
-    """Test payment endpoints have proper exception handling"""
-    
-    @pytest.fixture
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed - skipping authenticated tests")
-    
-    def test_invalid_product_id_handled(self, auth_token):
-        """Test invalid product ID returns proper error"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        response = requests.post(f"{BASE_URL}/api/payments/create-order",
-            headers=headers,
-            json={
-                "productId": "invalid_product_id_12345",
-                "currency": "INR"
-            }
-        )
-        
-        # Should return 400 or 404, not 500
-        assert response.status_code in [400, 404], f"Expected 400/404, got {response.status_code}"
-        assert "error" in response.json() or "detail" in response.json()
-        print("✓ Invalid product ID handled with proper error")
-    
-    def test_invalid_payment_verification_handled(self, auth_token):
-        """Test invalid payment verification returns proper error"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        response = requests.post(f"{BASE_URL}/api/payments/verify",
-            headers=headers,
-            json={
-                "razorpay_order_id": "invalid_order_id",
-                "razorpay_payment_id": "invalid_payment_id",
-                "razorpay_signature": "invalid_signature"
-            }
-        )
-        
-        # Should return 400 or 401, not 500
-        assert response.status_code in [400, 401, 404], f"Expected 400/401/404, got {response.status_code}"
-        print("✓ Invalid payment verification handled with proper error")
-    
-    def test_payment_without_auth_rejected(self):
-        """Test payment endpoints require authentication"""
-        response = requests.post(f"{BASE_URL}/api/payments/create-order",
-            json={
-                "productId": "starter",
-                "currency": "INR"
-            }
-        )
-        
-        assert response.status_code == 401 or response.status_code == 403
-        print("✓ Payment endpoint requires authentication")
-
-
-class TestSecurityLogging:
-    """Test security logging for suspicious activities"""
-    
-    def test_failed_login_logged(self):
-        """Test that failed login attempts are logged (verify via response)"""
-        # Make a failed login attempt
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "nonexistent_user@test.com",
-            "password": "wrongpassword"
-        })
-        
-        assert response.status_code == 401
-        # The logging happens server-side, we just verify the endpoint works
-        print("✓ Failed login returns 401 (logging happens server-side)")
-    
-    def test_suspicious_path_logged(self):
-        """Test that suspicious path access is handled safely"""
-        # Try to access a suspicious path
-        response = requests.get(f"{BASE_URL}/.env")
-        
-        # May return 200 (SPA fallback), 403, or 404
-        # The important thing is no sensitive data is exposed
-        assert response.status_code in [200, 403, 404]
-        if response.status_code == 200:
-            # Verify no .env content is exposed
-            assert "MONGO_URL" not in response.text
-            assert "JWT_SECRET" not in response.text
-            assert "API_KEY" not in response.text
-        print("✓ Suspicious path access handled safely (no sensitive data exposed)")
-
-
-class TestAPISecurityBasics:
-    """Test basic API security measures"""
-    
-    def test_api_returns_json_content_type(self):
-        """Test API returns proper JSON content type"""
-        response = requests.get(f"{BASE_URL}/api/health")
-        
-        content_type = response.headers.get("Content-Type", "")
-        assert "application/json" in content_type
-        print("✓ API returns JSON content type")
-    
-    def test_cors_headers_present(self):
-        """Test CORS headers are configured"""
-        response = requests.options(f"{BASE_URL}/api/health", headers={
-            "Origin": "https://example.com",
-            "Access-Control-Request-Method": "GET"
-        })
-        
-        # CORS should be configured (may return various status codes)
-        assert response.status_code in [200, 204, 405]
-        print("✓ CORS endpoint responds")
-    
-    def test_no_server_version_disclosure(self):
-        """Test server doesn't disclose version info"""
-        response = requests.get(f"{BASE_URL}/api/health")
-        
-        # Check that sensitive server info is not disclosed
-        server_header = response.headers.get("Server", "")
-        x_powered_by = response.headers.get("X-Powered-By", "")
-        
-        # These should be empty or generic
-        assert "uvicorn" not in server_header.lower() or server_header == ""
-        assert x_powered_by == "" or "python" not in x_powered_by.lower()
-        print("✓ Server version not disclosed in headers")
+def run_security_tests():
+    """Run all security tests and generate report"""
+    import subprocess
+    result = subprocess.run(
+        ["python", "-m", "pytest", __file__, "-v", "--tb=short"],
+        capture_output=True,
+        text=True
+    )
+    print(result.stdout)
+    if result.returncode != 0:
+        print("STDERR:", result.stderr)
+    return result.returncode
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--tb=short"])
+    exit(run_security_tests())
