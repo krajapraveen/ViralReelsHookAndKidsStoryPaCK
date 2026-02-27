@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play, Menu, X } from 'lucide-react';
+import { Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play, Menu, X, Shield, CheckCircle } from 'lucide-react';
 import DemoReelGenerator from '../components/DemoReelGenerator';
 
 export default function Landing() {
