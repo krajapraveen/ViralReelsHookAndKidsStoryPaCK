@@ -75,6 +75,10 @@ import StoryHookGenerator from './pages/StoryHookGenerator';
 import DailyViralIdeas from './pages/DailyViralIdeas';
 // TEMPLATE ANALYTICS DASHBOARD
 import TemplateAnalyticsDashboard from './pages/Admin/TemplateAnalyticsDashboard';
+// ADMIN AUDIT LOGS
+import AdminAuditLogs from './pages/Admin/AuditLogs';
+// TEMPLATE LEADERBOARD
+import TemplateLeaderboard from './pages/Admin/TemplateLeaderboard';
 import './App.css';
 
 function App() {
