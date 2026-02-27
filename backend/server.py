@@ -87,6 +87,10 @@ from routes.sre_monitoring import router as sre_monitoring_router
 from routes.monetization import router as monetization_router
 from routes.share import router as share_router
 from routes.photo_to_comic import router as photo_to_comic_router
+from routes.referral import router as referral_router
+
+# Security middleware
+from middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
 
 # Self-healing system imports
 from routes.self_healing_monitoring import router as self_healing_monitoring_router
