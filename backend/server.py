@@ -610,6 +610,16 @@ async def startup():
     except Exception as e:
         logger.warning(f"Performance index creation warning: {e}")
     
+    # Initialize Webhook Retry Queue
+    try:
+        import services.webhook_retry_queue as wrq
+        wrq.webhook_queue = WebhookRetryQueue(db)
+        await wrq.webhook_queue.initialize()
+        asyncio.create_task(wrq.webhook_queue.start_worker(interval=30))
+        logger.info("Webhook retry queue initialized and worker started")
+    except Exception as e:
+        logger.warning(f"Webhook queue initialization warning: {e}")
+    
     # Create comprehensive database indexes (SRE Phase 2)
     try:
         index_report = await create_all_indexes(db)
