@@ -674,6 +674,20 @@ Make it visually dynamic and engaging, appropriate for all ages."""
                         img_data = images[0]
                         image_bytes = base64.b64decode(img_data['data'])
                         
+                        # Apply watermark for free users
+                        user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
+                        user_plan = user_data.get("plan", "free") if user_data else "free"
+                        
+                        if should_apply_watermark(user_plan):
+                            config = get_watermark_config("COMIC")
+                            image_bytes = add_diagonal_watermark(
+                                image_bytes,
+                                text=config["text"],
+                                opacity=config["opacity"],
+                                font_size=config["font_size"],
+                                spacing=config["spacing"]
+                            )
+                        
                         import hashlib
                         filename = f"comic_story_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:16]}.png"
                         filepath = f"/app/backend/static/generated/{filename}"
