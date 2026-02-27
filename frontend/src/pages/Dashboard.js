@@ -338,6 +338,14 @@ export default function Dashboard() {
             <span className="text-sm">Blueprint Library</span>
             <span className="text-xs bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded">NEW</span>
           </Link>
+          {/* Admin Security Dashboard Link - Only show to admins */}
+          {user?.role?.toUpperCase() === 'ADMIN' && (
+            <Link to="/app/admin/security" className="inline-flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors font-medium" data-testid="admin-security-link">
+              <Shield className="w-4 h-4" />
+              <span className="text-sm">Security Dashboard</span>
+              <span className="text-xs bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">ADMIN</span>
+            </Link>
+          )}
           <Link to="/app/referral" className="inline-flex items-center gap-2 text-pink-400 hover:text-pink-300 transition-colors font-medium">
             <Users className="w-4 h-4" />
             <span className="text-sm">Referral & Gift Cards</span>
