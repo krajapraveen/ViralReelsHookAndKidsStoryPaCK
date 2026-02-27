@@ -497,17 +497,23 @@ async def generate_bios(
     if not check_copyright(data.niche):
         raise HTTPException(status_code=400, detail="Input contains blocked content")
     
-    # Check credits
+    # Check credits - first check user object, then wallet collection
     user_id = user.get("id", user.get("_id", ""))
+    
+    # Check if credits are in user object directly
+    user_credits = user.get("credits", 0)
+    
+    # Also check wallet collection as fallback
     wallet = await db.wallets.find_one({"userId": str(user_id)})
     if not wallet:
-        # Try with ObjectId format if it's a mongo id
         wallet = await db.wallets.find_one({"userId": user_id})
-    if not wallet:
-        # Create wallet if it doesn't exist (fallback)
-        wallet = {"balanceCredits": 0, "availableCredits": 0}
     
-    current_credits = wallet.get("balanceCredits", wallet.get("availableCredits", 0))
+    wallet_credits = 0
+    if wallet:
+        wallet_credits = wallet.get("balanceCredits", wallet.get("availableCredits", 0))
+    
+    # Use whichever has more credits (user or wallet)
+    current_credits = max(user_credits, wallet_credits)
     if current_credits < CREDIT_COST:
         raise HTTPException(
             status_code=402,
