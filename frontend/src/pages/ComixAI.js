@@ -69,6 +69,7 @@ export default function ComixAI() {
   const [selectedVariation, setSelectedVariation] = useState('single');
   const [watermarkRequired, setWatermarkRequired] = useState(true);
   const [premiumStyles, setPremiumStyles] = useState([]);
+  const [userPlan, setUserPlan] = useState('free');
   const navigate = useNavigate();
 
   useEffect(() => {
