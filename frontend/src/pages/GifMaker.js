@@ -39,6 +39,11 @@ export default function GifMaker() {
   const [currentJob, setCurrentJob] = useState(null);
   const [history, setHistory] = useState([]);
   const [pollingInterval, setPollingInterval] = useState(null);
+  
+  // Monetization state
+  const [showUpsellModal, setShowUpsellModal] = useState(false);
+  const [watermarkRequired, setWatermarkRequired] = useState(true);
+  const navigate = useNavigate();
 
   const emotionIcons = {
     happy: '😀',
