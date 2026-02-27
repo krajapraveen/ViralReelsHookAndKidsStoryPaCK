@@ -94,7 +94,7 @@ async def generate_reel_content_inline(data: dict) -> dict:
     raise last_error
 
 
-async def generate_story_image(prompt: str, story_id: str, scene_index: int) -> str:
+async def generate_story_image(prompt: str, story_id: str, scene_index: int, user_plan: str = "free") -> str:
     """Generate an image for a story scene using Gemini Nano Banana with automatic retry"""
     import base64
     import asyncio
@@ -126,6 +126,18 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int) -> 
             if images and len(images) > 0:
                 # Save image to temp file
                 image_bytes = base64.b64decode(images[0]['data'])
+                
+                # Apply watermark for free users
+                if should_apply_watermark(user_plan):
+                    config = get_watermark_config("STORY")
+                    image_bytes = add_diagonal_watermark(
+                        image_bytes,
+                        text=config["text"],
+                        opacity=config["opacity"],
+                        font_size=config["font_size"],
+                        spacing=config["spacing"]
+                    )
+                
                 filename = f"story_{story_id}_scene_{scene_index}.png"
                 filepath = f"/tmp/{filename}"
                 with open(filepath, "wb") as f:
