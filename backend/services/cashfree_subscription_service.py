@@ -100,10 +100,11 @@ class CashfreeSubscriptionService:
     def _get_headers(self) -> Dict[str, str]:
         """Get API headers"""
         return {
-            "x-api-version": "2023-08-01",
+            "x-api-version": "2025-01-01",
             "x-client-id": CASHFREE_APP_ID,
             "x-client-secret": CASHFREE_SECRET_KEY,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "accept": "application/json"
         }
     
     async def create_plan(self, plan_key: str) -> Dict[str, Any]:
@@ -113,19 +114,17 @@ class CashfreeSubscriptionService:
             raise ValueError(f"Unknown plan: {plan_key}")
         
         payload = {
-            "plan_id": plan["plan_id"],
             "plan_name": plan["name"],
-            "plan_type": "PERIODIC",
+            "plan_amount": plan["price_inr"],
             "plan_currency": "INR",
-            "plan_recurring_amount": plan["price_inr"],
-            "plan_interval_type": plan["interval"].upper(),
-            "plan_intervals": plan["interval_count"],
-            "plan_description": plan["description"]
+            "billing_frequency": "MONTHLY",
+            "billing_cycles": -1,  # Indefinite
+            "is_auto_collect": True
         }
         
         try:
             response = await self.client.post(
-                f"{CASHFREE_BASE_URL}/plans",
+                CASHFREE_PLAN_URL,
                 json=payload,
                 headers=self._get_headers()
             )
