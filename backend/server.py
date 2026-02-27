@@ -124,6 +124,10 @@ from routes.protected_download import router as protected_download_router
 from routes.template_leaderboard import router as template_leaderboard_router
 from routes.template_versioning import router as template_versioning_router
 
+# NEW: PDF Protection and Video Streaming Routes
+from routes.pdf_protection import router as pdf_protection_router
+from routes.video_streaming import router as video_streaming_router
+
 # Webhook Retry Queue
 from services.webhook_retry_queue import WebhookRetryQueue, webhook_queue
 
