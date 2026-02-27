@@ -220,7 +220,7 @@ export default function Dashboard() {
             <Link to="/app/gif-maker">
               <div className="bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-xl p-4 transition-all hover:scale-105">
                 <Film className="w-8 h-8 text-pink-400 mb-2" />
-                <h3 className="font-semibold text-white text-sm">GIF Maker</h3>
+                <h3 className="font-semibold text-white text-sm">Reaction GIF</h3>
                 <p className="text-xs text-slate-400">8 credits</p>
               </div>
             </Link>
