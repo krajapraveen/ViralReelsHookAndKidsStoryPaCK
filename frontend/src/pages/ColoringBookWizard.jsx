@@ -817,8 +817,6 @@ const StepPreview = ({ mode, storyData, costBreakdown, userPlan, onGenerate, onB
 // STEP 5: DOWNLOAD
 // =============================================================================
 const StepDownload = ({ generationResult, storyTitle, onStartNew, onUpgradeHD }) => {
-  const [showShare, setShowShare] = useState(false);
-  
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="text-center mb-8">
@@ -851,14 +849,18 @@ const StepDownload = ({ generationResult, storyTitle, onStartNew, onUpgradeHD })
             <div className="text-sm text-slate-400">+5 credits</div>
           </button>
 
-          {/* Share Button - Opens ShareCreation Modal */}
-          <ShareCreation
-            type="COLORING_BOOK"
-            title={storyTitle || "My Coloring Book"}
-            preview="A beautiful AI-generated coloring book with unique illustrations perfect for kids!"
-            generationId={generationResult?.generationId}
-            contentType="coloring_book"
-          />
+          {/* Share Card */}
+          <div className="p-6 bg-slate-700/50 border-2 border-slate-600 rounded-2xl text-white hover:border-cyan-500 hover:bg-slate-700 transition-all duration-300 flex flex-col items-center justify-center">
+            <Share2 className="w-10 h-10 mb-3 text-cyan-400" />
+            <ShareCreation
+              type="COLORING_BOOK"
+              title={storyTitle || "My Coloring Book"}
+              preview="A beautiful AI-generated coloring book with unique illustrations perfect for kids!"
+              generationId={generationResult?.generationId}
+              contentType="coloring_book"
+            />
+            <div className="text-sm text-slate-400 mt-1">Valid 30 days</div>
+          </div>
         </div>
       </div>
 
