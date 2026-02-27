@@ -189,7 +189,7 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         )
         
         # Create order meta with return URL
-        frontend_url = os.environ.get("FRONTEND_URL", "https://blueprint-lib.preview.emergentagent.com")
+        frontend_url = os.environ.get("FRONTEND_URL", "https://ui-consistency-pass-2.preview.emergentagent.com")
         order_meta = OrderMeta(
             return_url=f"{frontend_url}/app/billing?order_id={order_id}&gateway=cashfree",
             notify_url=f"{frontend_url}/api/cashfree/webhook"

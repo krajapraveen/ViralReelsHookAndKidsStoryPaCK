@@ -2,7 +2,7 @@ const { defineConfig } = require('cypress');
 
 module.exports = defineConfig({
   e2e: {
-    baseUrl: process.env.CYPRESS_BASE_URL || 'https://blueprint-lib.preview.emergentagent.com',
+    baseUrl: process.env.CYPRESS_BASE_URL || 'https://ui-consistency-pass-2.preview.emergentagent.com',
     supportFile: 'cypress/support/e2e.js',
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
     viewportWidth: 1920,

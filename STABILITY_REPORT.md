@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://blueprint-lib.preview.emergentagent.com
+API URL: https://ui-consistency-pass-2.preview.emergentagent.com
 ```
 
 ### Results Summary

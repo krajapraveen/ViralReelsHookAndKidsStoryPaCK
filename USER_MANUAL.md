@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://blueprint-lib.preview.emergentagent.com
+**Platform URL:** https://ui-consistency-pass-2.preview.emergentagent.com
 
 ---
 

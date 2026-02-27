@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Purpose**: Master checklist for Phase 1-7 QA & Performance Testing  
-**Base URL**: https://blueprint-lib.preview.emergentagent.com
+**Base URL**: https://ui-consistency-pass-2.preview.emergentagent.com
 
 ---
 

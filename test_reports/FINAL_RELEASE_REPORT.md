@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://blueprint-lib.preview.emergentagent.com  
+**Base URL:** https://ui-consistency-pass-2.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---

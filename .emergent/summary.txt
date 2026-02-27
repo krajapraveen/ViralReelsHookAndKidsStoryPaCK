@@ -1,92 +1,307 @@
 <analysis>**original_problem_statement:**
-The user's primary goal is a comprehensive overhaul of the application's core content generation tools, transforming them from complex interfaces into simplified, guided, multi-step wizards. This initiative aims to improve user experience, increase monetization through a credit-based freemium model, and ensure strict copyright safety.
+The user has mandated a comprehensive, production-grade quality assurance and performance engineering overhaul of the entire application. The goal is to test, fix, and re-test every aspect of the site until it is stable, secure, and provides a consistent user experience.
 
-The project involves a series of mandatory, sequential rebuilds:
-1.  **Comix AI** → **Convert Photos To Comic Character** (3-step wizard). (Completed)
-2.  **Comic Story Book Generator** → **Comic Story Book Builder** (5-step wizard with Template Library). (Completed)
-3.  **GIF Maker** → **Photo Reaction GIF Creator** (4-step wizard). (Completed)
-4.  **Story Series** → **Story Episode Creator** (3-step wizard). (Completed)
-5.  **Challenge Generator** → **Content Challenge Planner** (4-step wizard). (Completed)
-6.  **Tone Switcher** → **Caption Rewriter Pro** (3-step wizard). (Completed)
-7.  **Content Vault** → **Content Blueprint Library** (New rebuild with a zero-API cost, database-driven model). (Not Started)
+This involves several critical phases, which must be followed strictly:
+1.  **Full Site QA:** Test all pages, UI components (buttons, forms, modals), and functional flows from end-to-end.
+2.  **Parallel Output & Load Testing:** Ensure the system can handle concurrent users (10, 25, 50) without errors, and load test every content generation endpoint.
+3.  **Cashfree Sandbox Payment Testing:** Fully integrate and test all payment scenarios (success, failure, pending, refund, webhooks) in the Cashfree sandbox.
+4.  **Error & Exception Fixing:** Eliminate all console errors, API 500s, and silent failures, replacing them with clear user messages and internal logs.
+5.  **UI/UX Professional Design Audit:** Correct all visual inconsistencies, including text, alignment, spacing, and mobile responsiveness.
+6.  **Unify Background Color:** Ensure every page background matches the professional gradient of the landing page for a cohesive brand identity.
+7.  **Update User Manuals:** Remove all outdated help guides and add new, user-friendly How to use panels with examples and error guides for every feature.
+8.  **Final QA Report:** Produce a detailed report confirming all fixes, test results, and any remaining known issues.
 
-Alongside these rebuilds, the user has requested significant security enhancements, including a full security audit, penetration testing, 2FA, CAPTCHA, account lockouts, and IP-based blocking. A key directive is the Zero Investment Rule, which mandates reusing existing infrastructure and models, favoring pre-generated, database-served content to create high-margin, low-cost digital products.
+This task supersedes all previous work and is the sole focus. The agent must act as a Senior QA Lead, Performance Engineer, UI Auditor, and Payments QA specialist.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application has been significantly enhanced with multiple rebuilt features, new monetization strategies, and robust security measures.
--   **Completed Feature Rebuilds:** All major tools (Comix AI, Comic Story Book, GIF Maker, Story Series, Challenge Generator, Tone Switcher) have been successfully rebuilt into simplified, multi-step guided wizards.
--   **New Features:**
-    -   A **Quick Preview Mode** has been added to the three most recently rebuilt features (Story Episode Creator, Content Challenge Planner, Caption Rewriter Pro) allowing users a try before you buy experience.
-    -   A **Referral Program & Gift Cards** system is in place.
-    -   A comprehensive **QA Report** and **Security Penetration Test Report** have been created.
--   **Security Enhancements:**
-    -   **Account Lockout:** Implemented to block accounts after 5 failed login attempts for 30 minutes.
-    -   **CAPTCHA:** hCaptcha has been added to the user registration flow to prevent bots.
-    -   **Security Badge:** A footer badge Protected by OWASP Standards has been added to the landing page and user dashboard.
-    -   **Security Headers:** A full suite of security headers (CSP, HSTS, XSS Protection, etc.) is active on the backend.
-    -   **Input Sanitization:** User inputs are sanitized to prevent XSS attacks.
--   **Watermarking:** Watermark implementation has been verified and applied across all image/GIF generation pipelines for free users.
+The application features several rebuilt guided wizard tools, a Content Blueprint Library (a zero-API-cost digital product store), and a suite of security enhancements including an Admin Security Dashboard, IP blocking, and 2FA.
+
+However, the agent has just begun a massive, user-mandated QA and bug-fixing process. During the initial phase of this process, the agent created a QA test script () and discovered several broken or missing API endpoints related to features that were recently rebuilt (e.g., preview, styles, templates endpoints). The agent was in the middle of fixing these backend issues and starting the UI/UX audit.
 
 **Last working item**:
--   **Last item agent was working**: The agent received a large, multi-part request from the user. It includes implementing four new security features (IP blocking, audit log dashboard, vulnerability scanning, 2FA) and a major rebuild of the Content Vault into the Content Blueprint Library. The agent had just begun exploring the codebase to prepare for these tasks.
--   **Status**: NOT STARTED
--   **Agent Testing Done**: N/A
--   **Which testing method agent to use?**: both. The backend testing agent will be needed to verify the new security features (IP blocking, audit logs, 2FA). The frontend testing agent will be needed to validate the completely new UI and UX for the Content Blueprint Library.
+-   **Last item agent was working**: The agent was simultaneously addressing two parts of the user's comprehensive QA request:
+    1.  **Backend Fixes:** Adding missing API endpoints (, , ) for features like the Coloring Book and GIF Maker that were discovered by the new QA script.
+    2.  **UI/UX Audit:** Creating a unified CSS theme file () to enforce a consistent background gradient across all application pages, as requested by the user.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: Y (The agent was actively running a custom QA script to find bugs)
+-   **Which testing method agent to use?**: both. This is a full-site audit. The backend agent is needed for API, load, and concurrency testing. The frontend agent is needed for UI/UX, responsiveness, and end-to-end flow validation.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-There are no pending bugs. All work is focused on implementing the user's requested features.
+This entire section is derived from the user's comprehensive QA request.
+
+-   **Issue 1: Missing API Endpoints (P0)**
+    -   **Description**: The QA script revealed that several content generation features have missing or incorrectly routed endpoints for fetching styles, templates, or previews. For example, the coloring book was missing a  endpoint, and the GIF maker was missing .
+    -   **Attempted fixes**: The agent created stubs for the missing routes in  and  and was about to restart the backend to test them.
+    -   **Next debug checklist**:
+        1.  Restart the backend service.
+        2.  Re-run the QA test script () to confirm the endpoint fixes.
+        3.  Check the logs for any new errors (==> /var/log/supervisor/backend.err.log <==
+2026-02-27 13:49:51,138 - services.database_indexes - ERROR - Failed to create index idx_feature_event_id on feature_events: Index build failed: 4aa14af6-add3-4b0e-bedd-8b58f767ff90: Collection creatorstudio_production.feature_events ( f5cd6d00-a837-4779-85af-a9854484371a ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.feature_events index: idx_feature_event_id dup key: { eventId: null }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: 4aa14af6-add3-4b0e-bedd-8b58f767ff90: Collection creatorstudio_production.feature_events ( f5cd6d00-a837-4779-85af-a9854484371a ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.feature_events index: idx_feature_event_id dup key: { eventId: null }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'eventId': 1}, 'keyValue': {'eventId': None}}
+2026-02-27 13:49:51,162 - services.database_indexes - ERROR - Failed to create index idx_idempotency_key on idempotency_keys: Index build failed: 36c4a9f6-b494-449d-a20d-10071363621a: Collection creatorstudio_production.idempotency_keys ( 5ddd3292-7646-4194-91b6-3176702e3cd0 ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.idempotency_keys index: idx_idempotency_key dup key: { key: null }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: 36c4a9f6-b494-449d-a20d-10071363621a: Collection creatorstudio_production.idempotency_keys ( 5ddd3292-7646-4194-91b6-3176702e3cd0 ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.idempotency_keys index: idx_idempotency_key dup key: { key: null }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'key': 1}, 'keyValue': {'key': None}}
+2026-02-27 13:49:51,168 - services.database_indexes - INFO - Index creation complete: 0 created, 55 existing, 2 errors
+2026-02-27 13:49:51,168 - creatorstudio - INFO - Database indexes: 0 created, 55 existing
+2026-02-27 13:49:51,168 - services.idempotency_service - WARNING - Idempotency index creation: An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }, full error: {'ok': 0.0, 'errmsg': 'An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }', 'code': 86, 'codeName': 'IndexKeySpecsConflict'}
+2026-02-27 13:49:51,168 - creatorstudio - INFO - Idempotency service initialized
+2026-02-27 13:49:51,169 - services.fallback_output_service - WARNING - Fallback index creation: Index already exists with a different name: idx_fallback_job, full error: {'ok': 0.0, 'errmsg': 'Index already exists with a different name: idx_fallback_job', 'code': 85, 'codeName': 'IndexOptionsConflict'}
+2026-02-27 13:49:51,169 - creatorstudio - INFO - Fallback output service initialized
+2026-02-27 13:49:51,169 - creatorstudio - INFO - Performance maintenance loop started
+2026-02-27 13:49:51,169 - creatorstudio - INFO - CreatorStudio API ready!
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-02-27 13:49:52,175 - creatorstudio - INFO - Auto-scaling engine stopped
+2026-02-27 13:49:52,175 - creatorstudio - INFO - Priority lanes and auto-scaling shut down
+2026-02-27 13:49:52,177 - creatorstudio - INFO - CreatorStudio API shutdown
+INFO:     Application shutdown complete.
+INFO:     Finished server process [13075]
+INFO:     Stopping reloader process [6280]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [13110] using WatchFiles
+2026-02-27 13:49:55,878 - creatorstudio - INFO - Cashfree client initialized in TEST mode
+2026-02-27 13:49:56,257 - creatorstudio - INFO - CORS configured with origins: ['*']
+INFO:     Started server process [13112]
+INFO:     Waiting for application startup.
+2026-02-27 13:49:56,700 - creatorstudio - INFO - CreatorStudio API starting...
+2026-02-27 13:49:56,710 - creatorstudio - INFO - Database indexes created
+2026-02-27 13:49:56,711 - creatorstudio - INFO - Admin user credits verified (password preserved)
+2026-02-27 13:49:56,712 - creatorstudio - INFO - Demo user credits verified (password preserved)
+2026-02-27 13:49:56,713 - creatorstudio - INFO - Initializing self-healing system...
+2026-02-27 13:49:56,713 - creatorstudio - INFO - Running security cleanup task...
+2026-02-27 13:49:56,714 - creatorstudio - INFO - Job Worker started as background task
+2026-02-27 13:49:56,719 - creatorstudio - WARNING - Index creation warning: An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }, full error: {'ok': 0.0, 'errmsg': 'An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }', 'code': 86, 'codeName': 'IndexKeySpecsConflict'}
+2026-02-27 13:49:56,720 - creatorstudio - INFO - Self-healing system initialized
+2026-02-27 13:49:56,720 - creatorstudio - INFO - Self-healing system initialized
+2026-02-27 13:49:56,720 - creatorstudio - INFO - Payment reconciliation task started
+2026-02-27 13:49:56,720 - creatorstudio - INFO - Auto-scaling engine started
+2026-02-27 13:49:56,720 - creatorstudio - INFO - Priority lanes and auto-scaling initialized
+2026-02-27 13:49:56,720 - creatorstudio - INFO - Auto-scaling and priority lanes initialized
+2026-02-27 13:49:56,720 - creatorstudio - INFO - Running payment reconciliation...
+2026-02-27 13:49:56,722 - creatorstudio - INFO - Reconciliation complete: 0 reconciled, 0 failed
+2026-02-27 13:49:56,734 - creatorstudio.performance - INFO - Performance indexes created: ['users', 'generations', 'payments', 'storybook_jobs', 'comix_jobs', 'gif_jobs', 'idempotency_keys', 'dead_letter_queue', 'user_sessions', 'feature_events', 'ratings', 'ip_geo_cache']
+2026-02-27 13:49:56,734 - creatorstudio - INFO - Performance indexes created
+2026-02-27 13:49:56,762 - services.database_indexes - ERROR - Failed to create index idx_feature_event_id on feature_events: Index build failed: dc66fd37-ec72-479e-8694-b943c8e19057: Collection creatorstudio_production.feature_events ( f5cd6d00-a837-4779-85af-a9854484371a ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.feature_events index: idx_feature_event_id dup key: { eventId: null }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: dc66fd37-ec72-479e-8694-b943c8e19057: Collection creatorstudio_production.feature_events ( f5cd6d00-a837-4779-85af-a9854484371a ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.feature_events index: idx_feature_event_id dup key: { eventId: null }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'eventId': 1}, 'keyValue': {'eventId': None}}
+2026-02-27 13:49:56,784 - services.database_indexes - ERROR - Failed to create index idx_idempotency_key on idempotency_keys: Index build failed: df8fbb87-83d1-43c9-aadf-56f295cf4c4e: Collection creatorstudio_production.idempotency_keys ( 5ddd3292-7646-4194-91b6-3176702e3cd0 ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.idempotency_keys index: idx_idempotency_key dup key: { key: null }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: df8fbb87-83d1-43c9-aadf-56f295cf4c4e: Collection creatorstudio_production.idempotency_keys ( 5ddd3292-7646-4194-91b6-3176702e3cd0 ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.idempotency_keys index: idx_idempotency_key dup key: { key: null }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'key': 1}, 'keyValue': {'key': None}}
+2026-02-27 13:49:56,789 - services.database_indexes - INFO - Index creation complete: 0 created, 55 existing, 2 errors
+2026-02-27 13:49:56,789 - creatorstudio - INFO - Database indexes: 0 created, 55 existing
+2026-02-27 13:49:56,789 - services.idempotency_service - WARNING - Idempotency index creation: An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }, full error: {'ok': 0.0, 'errmsg': 'An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }', 'code': 86, 'codeName': 'IndexKeySpecsConflict'}
+2026-02-27 13:49:56,789 - creatorstudio - INFO - Idempotency service initialized
+2026-02-27 13:49:56,789 - services.fallback_output_service - WARNING - Fallback index creation: Index already exists with a different name: idx_fallback_job, full error: {'ok': 0.0, 'errmsg': 'Index already exists with a different name: idx_fallback_job', 'code': 85, 'codeName': 'IndexOptionsConflict'}
+2026-02-27 13:49:56,789 - creatorstudio - INFO - Fallback output service initialized
+2026-02-27 13:49:56,789 - creatorstudio - INFO - Performance maintenance loop started
+2026-02-27 13:49:56,789 - creatorstudio - INFO - CreatorStudio API ready!
+INFO:     Application startup complete.
+2026-02-27 13:50:56,719 - creatorstudio - INFO - Running security cleanup task...
+2026-02-27 13:51:56,725 - creatorstudio - INFO - Running security cleanup task...
+2026-02-27 13:51:56,725 - creatorstudio - INFO - Running payment reconciliation...
+2026-02-27 13:51:56,726 - creatorstudio - INFO - Reconciliation complete: 0 reconciled, 0 failed
+2026-02-27 13:52:56,731 - creatorstudio - INFO - Running security cleanup task...
+2026-02-27 13:53:56,731 - creatorstudio - INFO - Running payment reconciliation...
+2026-02-27 13:53:56,732 - creatorstudio - INFO - Reconciliation complete: 0 reconciled, 0 failed
+2026-02-27 13:53:56,738 - creatorstudio - INFO - Running security cleanup task...
+2026-02-27 13:54:56,743 - creatorstudio - INFO - Running security cleanup task...
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [47] using WatchFiles
+2026-02-27 13:56:01,187 - creatorstudio - INFO - Cashfree client initialized in TEST mode
+2026-02-27 13:56:01,683 - creatorstudio - INFO - CORS configured with origins: ['*']
+INFO:     Started server process [92]
+INFO:     Waiting for application startup.
+2026-02-27 13:56:02,136 - creatorstudio - INFO - CreatorStudio API starting...
+2026-02-27 13:56:02,154 - creatorstudio - INFO - Database indexes created
+2026-02-27 13:56:02,163 - creatorstudio - INFO - Admin user credits verified (password preserved)
+2026-02-27 13:56:02,165 - creatorstudio - INFO - Demo user credits verified (password preserved)
+2026-02-27 13:56:02,167 - creatorstudio - INFO - Initializing self-healing system...
+2026-02-27 13:56:02,167 - creatorstudio - INFO - Running security cleanup task...
+2026-02-27 13:56:02,171 - creatorstudio - INFO - Job Worker started as background task
+2026-02-27 13:56:02,180 - creatorstudio - WARNING - Index creation warning: An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }, full error: {'ok': 0.0, 'errmsg': 'An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }', 'code': 86, 'codeName': 'IndexKeySpecsConflict'}
+2026-02-27 13:56:02,180 - creatorstudio - INFO - Self-healing system initialized
+2026-02-27 13:56:02,180 - creatorstudio - INFO - Self-healing system initialized
+2026-02-27 13:56:02,180 - creatorstudio - INFO - Payment reconciliation task started
+2026-02-27 13:56:02,180 - creatorstudio - INFO - Auto-scaling engine started
+2026-02-27 13:56:02,180 - creatorstudio - INFO - Priority lanes and auto-scaling initialized
+2026-02-27 13:56:02,180 - creatorstudio - INFO - Auto-scaling and priority lanes initialized
+2026-02-27 13:56:02,181 - creatorstudio - INFO - Running payment reconciliation...
+2026-02-27 13:56:02,182 - creatorstudio - INFO - Reconciliation complete: 0 reconciled, 0 failed
+2026-02-27 13:56:02,208 - creatorstudio.performance - INFO - Performance indexes created: ['users', 'generations', 'payments', 'storybook_jobs', 'comix_jobs', 'gif_jobs', 'idempotency_keys', 'dead_letter_queue', 'user_sessions', 'feature_events', 'ratings', 'ip_geo_cache']
+2026-02-27 13:56:02,208 - creatorstudio - INFO - Performance indexes created
+2026-02-27 13:56:02,290 - services.database_indexes - ERROR - Failed to create index idx_feature_event_id on feature_events: Index build failed: e246f5df-16cc-4158-bb8c-bda50f3ad0e4: Collection creatorstudio_production.feature_events ( f5cd6d00-a837-4779-85af-a9854484371a ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.feature_events index: idx_feature_event_id dup key: { eventId: null }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: e246f5df-16cc-4158-bb8c-bda50f3ad0e4: Collection creatorstudio_production.feature_events ( f5cd6d00-a837-4779-85af-a9854484371a ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.feature_events index: idx_feature_event_id dup key: { eventId: null }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'eventId': 1}, 'keyValue': {'eventId': None}}
+2026-02-27 13:56:02,354 - services.database_indexes - ERROR - Failed to create index idx_idempotency_key on idempotency_keys: Index build failed: db39672e-d299-4494-a0bb-1668d2a4a590: Collection creatorstudio_production.idempotency_keys ( 5ddd3292-7646-4194-91b6-3176702e3cd0 ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.idempotency_keys index: idx_idempotency_key dup key: { key: null }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: db39672e-d299-4494-a0bb-1668d2a4a590: Collection creatorstudio_production.idempotency_keys ( 5ddd3292-7646-4194-91b6-3176702e3cd0 ) :: caused by :: E11000 duplicate key error collection: creatorstudio_production.idempotency_keys index: idx_idempotency_key dup key: { key: null }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'key': 1}, 'keyValue': {'key': None}}
+2026-02-27 13:56:02,363 - services.database_indexes - INFO - Index creation complete: 0 created, 55 existing, 2 errors
+2026-02-27 13:56:02,363 - creatorstudio - INFO - Database indexes: 0 created, 55 existing
+2026-02-27 13:56:02,364 - services.idempotency_service - WARNING - Idempotency index creation: An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }, full error: {'ok': 0.0, 'errmsg': 'An existing index has the same name as the requested index. When index names are not specified, they are auto generated and can cause conflicts. Please refer to our documentation. Requested index: { v: 2, unique: true, key: { key: 1 }, name: "key_1" }, existing index: { v: 2, unique: true, key: { key: 1 }, name: "key_1", sparse: true }', 'code': 86, 'codeName': 'IndexKeySpecsConflict'}
+2026-02-27 13:56:02,364 - creatorstudio - INFO - Idempotency service initialized
+2026-02-27 13:56:02,368 - services.fallback_output_service - WARNING - Fallback index creation: Index already exists with a different name: idx_fallback_job, full error: {'ok': 0.0, 'errmsg': 'Index already exists with a different name: idx_fallback_job', 'code': 85, 'codeName': 'IndexOptionsConflict'}
+2026-02-27 13:56:02,368 - creatorstudio - INFO - Fallback output service initialized
+2026-02-27 13:56:02,368 - creatorstudio - INFO - Performance maintenance loop started
+2026-02-27 13:56:02,368 - creatorstudio - INFO - CreatorStudio API ready!
+INFO:     Application startup complete.
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.64.134.72:55864 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40924 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40928 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40940 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40948 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40950 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40952 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56394 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56398 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56412 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56426 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40958 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40882 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40970 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40982 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40990 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56432 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56434 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:40996 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41010 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41024 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41038 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56446 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56448 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41054 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41070 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41082 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56450 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41098 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41106 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56458 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41122 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56460 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41136 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41148 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56466 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41156 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41170 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41178 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56476 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56480 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56492 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56506 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.129.79:41194 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:56522 - "GET /api/health HTTP/1.1" 307 Temporary Redirect
+INFO:     10.64.134.72:55864 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:56432 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:40906 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:40876 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:56106 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45654 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45658 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45660 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41196 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41202 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45676 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41214 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41230 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45680 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41246 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41260 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41276 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41284 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41292 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45690 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45706 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41296 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45710 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41308 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45722 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41312 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45738 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45746 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41316 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41322 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45756 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41334 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41350 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45762 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41354 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45766 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45772 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45786 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41368 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41372 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45800 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45814 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41386 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41396 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45826 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41402 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41414 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45842 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:41430 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.134.72:45848 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     10.64.129.79:57348 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.64.134.72:60708 - "GET /api/credits/packages HTTP/1.1" 200 OK
+INFO:     10.64.129.79:57348 - "GET /api/credits/history HTTP/1.1" 200 OK
+INFO:     10.64.129.79:57348 - "GET /api/gif-maker/templates HTTP/1.1" 200 OK
+INFO:     10.64.129.79:57348 - "GET /api/coloring-book/styles HTTP/1.1" 200 OK).
+    -   **Why fix this issue and what will be achieved with the fix?**: The core functionality of several generator tools is broken without these endpoints. Fixing them is critical to making the application usable.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?**: Backend
+    -   **Blocked on other issue**: No
+
+-   **Issue 2: Inconsistent UI Background (P0)**
+    -   **Description**: The user mandated that all pages must share the same professional background gradient as the landing page. Currently, pages have inconsistent backgrounds.
+    -   **Attempted fixes**: The agent created a new CSS file  with a  variable and started applying it in .
+    -   **Next debug checklist**:
+        1.  Apply the  class to the root layout component (likely in  or ).
+        2.  Remove all page-specific background styles from individual component CSS files to ensure the global style is applied everywhere.
+        3.  Take screenshots of several key pages (Dashboard, a feature page, profile page) to verify consistency.
+    -   **Why fix this issue and what will be achieved with the fix?**: This will create a polished and professional user experience, unifying the product's visual identity.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?**: Frontend
+    -   **Blocked on other issue**: No
 
 **In progress Task List**:
--   **Task 1: Implement Security Enhancements (P0)**
-    -   **Where to resume**: This is a new task. The agent needs to start implementation.
-        1.  **IP-based suspicious activity blocking:** Implement logic to detect and block suspicious IP addresses.
-        2.  **Audit logging dashboard:** Create a new page and backend service for admins to view critical user actions.
-        3.  **Regular dependency vulnerability scanning:** Set up a process or script (e.g., using  or a similar tool) to scan Python dependencies.
-        4.  **Two-factor authentication (2FA):** Add 2FA as an optional security measure for users, likely requiring a new database field and verification flow (e.g., using ).
-    -   **What will be achieved with this?**: Further hardens the application against common security threats and provides better administrative oversight.
-    -   **Status**: NOT STARTED
-    -   **Should Test frontend/backend/both after fix?**: Both.
-    -   **Blocked on something**: No.
+-   **Task 1: Complete Full Site QA (P0)**
+    -   **Description**: Execute the user's full QA plan, including testing all pages, navigation, modals, forms, and functional flows.
+    -   **Where to resume**: Continue executing the checks outlined in the custom script  and manually test UI components that the script can't cover.
+    -   **What will be achieved with this?**: A stable, bug-free user experience across the entire application.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on something**: Blocked until Issue 1: Missing API Endpoints is resolved.
 
--   **Task 2: Rebuild Content Vault into Content Blueprint Library (P0)**
-    -   **Where to resume**: This is a new task. The agent needs to remove the old Content Vault files and create the new feature from scratch.
-        1.  Create new frontend () and backend () files.
-        2.  Implement the three distinct products as specified: Viral Hook Bank, Reel Framework Packs, and Kids Story Idea Bank.
-        3.  **Crucially, this must follow the Zero Investment Rule**: All content (hooks, frameworks, ideas) must be pre-created, stored in the database, and served dynamically. No LLM API calls should be used for generation.
-        4.  Update the database schema to store this new content.
-        5.  Implement the new credit-based pricing model and update the dashboard to link to the new library.
-    -   **What will be achieved with this?**: Replaces a confusing, low-value feature with a highly profitable, zero-API-cost digital product library that aligns with the user's monetization goals.
-    -   **Status**: NOT STARTED
-    -   **Should Test frontend/backend/both after fix?**: Both.
+-   **Task 2: Add Feature-Specific User Manuals (P1)**
+    -   **Description**: Create user-friendly How to use components for each feature page.
+    -   **Where to resume**: The agent created placeholder files (, ). The next step is to populate these with actual content (steps, examples, warnings) and integrate them into each feature page.
+    -   **What will be achieved with this?**: Improved user onboarding and reduced support load.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: Frontend
     -   **Blocked on something**: No.
 
 **Upcoming and Future Tasks**
--   **Upcoming Tasks:**
-    -   **(P1) Complete SRE Phase 7 (Full Security Audit):** While many security features have been added, the original request for a formal, comprehensive security audit against OWASP Top 10 vulnerabilities remains. This could involve using more advanced automated tools or a structured manual review.
+-   **Upcoming Tasks (P0, part of the current mandate):**
+    -   **Parallel Output & Load Testing:** Set up and run concurrency tests for 10, 25, and 50 virtual users.
+    -   **Cashfree Sandbox E2E Testing:** Implement and test all payment and webhook scenarios.
+    -   **Remove Outdated Help Guides:** Audit and delete all old user manuals from the codebase and UI.
+-   **Future Tasks:**
+    -   **CI Integration:** Implement Playwright E2E tests and Lighthouse performance checks into a CI pipeline.
+    -   **Sentry Integration:** Add Sentry for frontend and backend error tracking.
 
 **Completed work in this session**
--   **Feature Rebuilds**:
-    -   Story Series → **Story Episode Creator**
-    -   Challenge Generator → **Content Challenge Planner**
-    -   Tone Switcher → **Caption Rewriter Pro**
--   **New Features & Enhancements**:
-    -   **Quick Preview Mode**: Added to the 3 features above, allowing users to see example outputs before spending credits.
-    -   **QA Report**: Created a detailed before/after report at .
-    -   **Watermark Verification**: Ensured watermarks are applied across all generation pipelines, including a fix for .
+-   **Admin Security Dashboard**: A new page for admins to monitor threats, view logs, and manage blocked IPs.
 -   **Security Hardening**:
-    -   **Penetration Testing**: Created and executed a security test suite (), identified and fixed an XSS vulnerability.
-    -   **Account Lockout**: Implemented after 5 failed login attempts.
-    -   **CAPTCHA**: Integrated hCaptcha into the registration flow.
-    -   **Security Badge**: Added Protected by OWASP Standards badge to footers.
-    -   **HTTP Security Headers**: Successfully added and verified a comprehensive set of security headers via middleware.
--   **Bug Fixes**:
-    -   Fixed a critical syntax error in  that was breaking the component.
+    -   **IP-based suspicious activity blocking**: Service and API to block/unblock IPs.
+    -   **Two-Factor Authentication (2FA)**: Email-based OTP system for users.
+    -   **Dependency Vulnerability Scanning**:  check implemented and run.
+-   **Content Blueprint Library Enhancements**: Added a significant amount of new pre-generated content to the database.
+-   **Code Refactoring**:
+    -   Centralized image/GIF generation logic into a new .
+    -   Deprecated and fully removed the old Content Vault feature (frontend and backend).
+    -   Created an  report.
+-   **QA & Audit Preparation**:
+    -   Created a comprehensive QA test script at .
 
 **Earlier issues found/mentioned but not fixed**
--   None.
+-   None. The current task is to find and fix all issues.
 
 **Known issue recurrence from previous fork**
 -   None.
@@ -95,76 +310,79 @@ There are no pending bugs. All work is focused on implementing the user's reques
 
 
 **Key Technical Concepts**
--   **Zero API Cost Content**: A core business strategy to serve pre-generated, high-value content directly from the database, maximizing profit margins.
--   **Quick Preview Mode**: A try before you buy UX pattern to increase conversion by showing users example outputs before they commit credits.
--   **Progressive Security Hardening**: Systematically adding layers of security: input sanitization (XSS), robust HTTP headers, account lockout policies, and bot protection (CAPTCHA).
--   **Guided Wizard UI:** The primary development pattern of converting complex single-page applications into simple, multi-step user flows.
+-   **Comprehensive QA & Auditing**: A systematic process of testing every facet of an application (functional, performance, security, UI/UX) based on a detailed specification.
+-   **Revenue Protection Security**: A focused security strategy prioritizing the protection of monetization mechanics (credits, payments, API abuse).
+-   **Admin Security Dashboard**: A centralized UI for real-time threat monitoring and management.
+-   **Centralized Background Workers**: Refactoring asynchronous or heavy tasks into a dedicated module () to improve maintainability.
+-   **Global Theming**: Using CSS custom properties (variables) to enforce visual consistency (e.g., background color) across a large application.
 
 **key DB schema**
--   : (New/Modified) Tracks failed login attempts by IP and email to enable account and IP locking.
--   , , : (To be created) New tables to store the pre-generated content for the Content Blueprint Library.
+-   : 
+-   : 
+-   : 
+-   , , : Tables storing pre-generated content.
 
 **changes in tech stack**
--   ****: Added to the Python backend for robust HTML/input sanitization to prevent XSS.
--   ****: Integrated on the frontend () and verified on the backend for bot protection during registration.
+-   ****: Used via command line for one-time dependency vulnerability scanning.
 
 **All files of reference**
--   **/app/frontend/src/pages/ContentVault.js**: To be REMOVED and replaced.
--   **/app/backend/routes/content_vault.py**: To be REMOVED and replaced.
--   **/app/backend/routes/login_activity.py**: Recently modified for account lockout.
--   **/app/frontend/src/pages/Signup.js**: Recently modified for hCaptcha integration.
--   **/app/backend/routes/auth.py**: Recently modified for CAPTCHA verification.
--   **/app/frontend/src/pages/Landing.js**: Recently modified to add the security badge.
--   **/app/backend/server.py**: Recently modified to add security middleware.
--   **/app/backend/tests/security_tests.py**: New file containing the security test suite.
+-   **/app/tests/qa_and_audit.py**: The primary driver for the current task. Contains the test cases for finding bugs.
+-   **/app/frontend/src/styles/theme.css**: The new file for unifying the application's visual theme.
+-   **/app/backend/routes/coloring_book.py**: Needs to be fixed to add the  endpoint.
+-   **/app/backend/routes/photo_reaction_gif_creator.py**: Needs to be fixed to add the  endpoint.
+-   **/app/frontend/src/components/help/**: Directory containing the new placeholder components for user manuals.
+-   All feature pages under  need to be audited for background consistency and to add the new user manuals.
 
 **Areas that need refactoring**:
--   The image and GIF generation logic is still somewhat spread out. Centralizing this further in  would simplify the implementation of cross-cutting concerns and make future updates easier.
+-   The user-mandated centralization of generation logic into  has been started, but a full audit is needed to ensure no feature still contains its own isolated generation logic.
 
 **key api endpoints**
--   : (Updated) Now requires a .
--   : (Updated) Implements account lockout logic.
--   : (New) Provides the hCaptcha site key to the frontend.
--   : (New) Provides a sample output for the Story Episode Creator.
--   : (New) Provides a sample output for the Content Challenge Planner.
--   : (New) Provides a sample output for the Caption Rewriter Pro.
+-   : (New) Fetches data for the admin dashboard.
+-   : (New) Allows an admin to block an IP.
+-   : (New) Generates a 2FA secret for a user.
+-   : (New) Verifies a 2FA OTP during login.
+-   : (Broken/Missing)
+-   : (Broken/Missing)
 
 **Critical Info for New Agent**
--   **Strict Rebuild Order:** The immediate priority is the latest user request. First, implement the four security features (IP blocking, audit log, vulnerability scan, 2FA). After that, rebuild the Content Vault into the Content Blueprint Library.
--   **Zero Investment Rule is Paramount:** The Content Blueprint Library rebuild MUST NOT use any LLM APIs for content generation. All hooks, frameworks, and ideas must be pre-written, stored in the database, and served dynamically. This is a critical business requirement for creating a high-margin product.
--   **Follow the Wizard Pattern:** The user strongly prefers converting complex tools into simple, guided, multi-step wizards. Adhere to this pattern.
+-   **Your sole priority is the user's QA mandate (Message 178).** Do not get sidetracked. Follow the list of 10 tasks provided by the user in order.
+-   Start by fixing the known broken API endpoints identified by the QA script. This is a blocker for further testing.
+-   Immediately after, complete the UI background unification task.
+-   Systematically proceed through the rest of the QA list: creating user manuals, load testing, payment testing, etc.
+-   Use the script at  as your guide and expand it as you find more issues.
+-   This is a large, multi-step task. Communicate progress clearly after each major fix or completed QA section.
 
 **documents and test reports created in this job**
--   : A detailed report on the before/after of recent feature rebuilds.
--   : A Pytest script for security penetration testing.
--   : A summary of the security test results and fixes.
--   : Test results for the rebuilt features (Story Episode Creator, etc.).
+-   
+-   
+-    (Admin Security Dashboard Test)
+-    (Security Features & Blueprint Library Test)
+-    (Initial Blueprint Library Test)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (latest):** Requested a large batch of features: four security enhancements (IP blocking, audit log, dependency scanning, 2FA) and a complete, high-priority rebuild of the Content Vault into a Content Blueprint Library with a zero-API-cost model. **(This is the current P0 task set).**
-2.  **User:** Requested security enhancements: Security Badge, CAPTCHA, and account lockout. **(Completed).**
-3.  **User:** Requested a Quick Preview Mode for the rebuilt features and a full security penetration test. **(Completed).**
-4.  **User:** Provided detailed specifications for rebuilding Story Series, Challenge Generator, and Tone Switcher into simplified, guided wizards. **(Completed).**
+1.  **User (latest):** Delivered a massive, 10-point, non-negotiable QA and performance audit plan. Demanded the agent act as a Senior QA lead and fix everything from backend endpoints and payment flows to UI consistency and user manuals. **(This is the current and only P0 task).**
+2.  **User:** Requested an Admin Security Dashboard with real-time threat monitoring. **(Completed).**
+3.  **User:** Requested a large batch of 7 features/fixes, including IP blocking, 2FA, vulnerability scanning, adding more content, an OWASP audit, centralizing workers, and removing the Content Vault. **(Completed).**
 
 **Project Health Check:**
--   **Working**: All core features, including all rebuilt wizards, referral program, quick previews, and enhanced security (lockout, CAPTCHA, headers).
--   **Broken**: The legacy Content Vault is considered deprecated and is being actively replaced.
--   **In Progress**: None. The agent is about to start the next major set of tasks.
+-   **Broken**: Several core features (Coloring Book, GIF Maker) have broken API endpoints. The overall UI has inconsistent backgrounds.
+-   **Mocked**: N/A
+-   **In Progress**: A full-site QA and bug-fixing cycle is underway.
 
 **3rd Party Integrations**
--   **Cashfree**: For recurring subscription payments (currently in  mode).
--   **Gemini Nano Banana (via emergentintegrations)**: Core AI generation model for some features.
+-   **Cashfree**: For payments. **Requires full sandbox testing.**
+-   **Gemini Nano Banana (via emergentintegrations)**: For AI content generation.
 -   **hCaptcha**: For bot protection on the registration page.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES. It was used successfully after the latest batch of feature rebuilds.
+-   **Testing agent used after significant changes**: YES, it was used to verify the Admin Security Dashboard.
 -   **Troubleshoot agent used after agent stuck in loop**: NO.
--   **Test files created**: Yes,  was created and used to find and fix vulnerabilities.
--   **Known regressions**: None.
+-   **Test files created**: Yes, .
+-   **Known regressions**: Several API endpoints for previously working features are now identified as missing/broken.
 
 **Credentials to test flow:**
 *   **Admin User:**  / 
 *   **Demo User:**  / 
 
 **What agent forgot to execute**
--   The agent has been thorough and has not forgotten any tasks. The latest user request is large and has been correctly identified as the next set of P0 tasks to begin.</analysis>
+The agent has not forgotten anything. It is in the very early stages of executing an extremely large and detailed user request. The immediate next steps are clearly defined: fix the broken backend endpoints and unify the UI background before proceeding to the next items on the user's QA checklist.</analysis>

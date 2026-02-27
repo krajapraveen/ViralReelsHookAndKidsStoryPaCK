@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://blueprint-lib.preview.emergentagent.com
+**Base URL:** https://ui-consistency-pass-2.preview.emergentagent.com
 
 ---
 

@@ -8,7 +8,7 @@ const cashfreeLatency = new Trend("cashfree_latency");
 const orderCreated = new Counter("orders_created");
 const webhookProcessed = new Counter("webhooks_processed");
 
-const BASE = __ENV.BASE_URL || "https://blueprint-lib.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://ui-consistency-pass-2.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

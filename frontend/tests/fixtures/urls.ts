@@ -1,4 +1,4 @@
-export const BASE = process.env.BASE_URL ?? "https://blueprint-lib.preview.emergentagent.com";
+export const BASE = process.env.BASE_URL ?? "https://ui-consistency-pass-2.preview.emergentagent.com";
 
 export const URLS = {
   // Public pages
