@@ -1,193 +1,186 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Full-stack SaaS platform for creative content generation with comprehensive monetization optimization, admin analytics, stability improvements, auto-scaling, self-healing, and CDN optimization.
+Full-stack SaaS platform for creative content generation with comprehensive monetization optimization, admin analytics, and template-based zero-cost content tools.
 
 ## Latest Session Changes (2026-02-27)
 
-### P0 Features COMPLETED
+### ✅ P0 Features COMPLETED
 
-#### 1. AI Comment Reply Bank (COMPLETED)
-**Route:** `/app/comment-reply-bank`
-**Backend:** `/app/backend/routes/comment_reply_bank.py`
-
-**Features:**
-- Template-based comment reply generation (zero AI)
-- Intent detection: praise, question, objection, negative, pricing, collaboration, generic
-- 4 reply types: Funny, Smart, Sales, Short
-- Single mode (4 replies, 5 credits) and Full Pack (12 replies, 15 credits)
-- Copyright blocking (50+ keywords)
-- Admin endpoints for managing keywords and templates
-
-**Pricing:**
-| Mode | Credits | Replies |
-|------|---------|---------|
-| Single Reply Set | 5 | 4 |
-| Full Reply Pack | 15 | 12 |
-| Download | 1 | - |
-
-#### 2. Kids Bedtime Story Audio Script Builder (COMPLETED)
-**Route:** `/app/bedtime-story-builder`
-**Backend:** `/app/backend/routes/bedtime_story_builder.py`
+#### 1. Template Analytics Dashboard (Admin BI)
+**Route:** `/admin/template-analytics`
+**Backend:** `/app/backend/routes/template_analytics.py`
 
 **Features:**
-- 4-step wizard (Age Group → Theme/Moral → Length/Voice → Generate)
-- 3 age groups: 3-5, 6-8, 9-12 years
-- 14 themes, 10 morals, 3 lengths (3/5/8 min), 3 voice styles
-- Complete narration script with [PAUSE], [WHISPER], [SLOW] markers
-- Voice pacing notes per scene
-- SFX cues (sound effect suggestions)
-- Export to TXT format
-- Admin endpoints for managing themes and morals
+- Real-time generation tracking (last hour)
+- Feature performance cards with usage stats
+- Revenue impact calculation per feature
+- User segment analysis (power/regular/casual/one-time)
+- Trending niches and tones with growth %
+- Daily usage breakdown
+- Per-feature detailed analytics modal
 
-**Pricing:**
-| Type | Credits |
-|------|---------|
-| Story Generation | 10 |
-| PDF Export | 2 |
-| Series Pack | 25 |
-
-#### 3. Webhook Retry Queue (COMPLETED)
-**Service:** `/app/backend/services/webhook_retry_queue.py`
-**Handler:** `/app/backend/routes/cashfree_webhook_handler.py`
+#### 2. YouTube Thumbnail Text Generator (5 credits)
+**Route:** `/app/thumbnail-generator`
+**Backend:** `/app/backend/routes/youtube_thumbnail_generator.py`
 
 **Features:**
-- Exponential backoff: 1min, 5min, 15min, 1hr, 4hr
-- Max 5 retry attempts
-- HMAC signature generation for secure delivery
-- Queue statistics and monitoring
-- Manual retry capability for failed webhooks
-- Auto-started on server startup
+- 10 niches (general, tutorial, tech, gaming, finance, fitness, etc.)
+- 5 emotions (curiosity, shock, fear, excitement, inspiration)
+- Outputs 10 hooks in 3 styles: Original, ALL CAPS, Title Case, Bold Short
+- Copyright keyword blocking (50+ terms)
+- User manual on page
 
-### P1 Features COMPLETED
-
-#### 4. Admin Panel for Bio Templates (COMPLETED - RBAC)
-**Route:** `/app/admin/bio-templates`
-**Frontend:** `/app/frontend/src/pages/Admin/BioTemplatesAdmin.js`
+#### 3. Brand Story Builder (18 credits)
+**Route:** `/app/brand-story-builder`
+**Backend:** `/app/backend/routes/brand_story_builder.py`
 
 **Features:**
-- Role-based access control (ADMIN only)
-- JWT validation on every API call
-- 5 tabs: Niches, Headlines, Value Lines, CTAs, Emojis
-- Full CRUD operations (Create, Read, Update, Delete)
-- Search/filter functionality
-- Statistics dashboard
-- Active/Inactive status toggle
-- Delete confirmation modal
+- 15 industries
+- 4 tones (professional, bold, luxury, friendly)
+- Outputs: Brand Story + Elevator Pitch + About Section
+- Founder story integration
+- Copyright blocking
 
-**Security Measures:**
-- Backend enforces ADMIN role check via `get_admin_user` dependency
-- Frontend redirects non-admins to dashboard
-- Audit logging for admin actions
+#### 4. Offer Generator (20 credits)
+**Route:** `/app/offer-generator`
+**Backend:** `/app/backend/routes/offer_generator.py`
+
+**Features:**
+- 3 tones (bold, premium, direct)
+- Outputs: Offer Name + Hook + 3 Bonuses + Guarantee + Pricing Angle
+- Value stack pricing calculations
+- Copyright blocking
+
+#### 5. Story Hook Generator (8 credits)
+**Route:** `/app/story-hook-generator`
+**Backend:** `/app/backend/routes/story_hook_generator.py`
+
+**Features:**
+- 8 genres (Fantasy, Romance, Thriller, Sci-Fi, Mystery, Horror, Historical, Adventure)
+- 5 tones, 6 character types, 8 settings
+- Outputs: 10 Opening Hooks + 5 Cliffhangers + 3 Plot Twists
+- IP-safe (no copyrighted characters)
+
+#### 6. Daily Viral Idea Drop (FREE + Pro)
+**Route:** `/app/daily-viral-ideas`
+**Backend:** `/app/backend/routes/daily_viral_ideas.py`
+
+**Features:**
+- 12 niches with default idea banks
+- FREE: 1 idea/day
+- PAID: 10 ideas for 5 credits
+- PRO: Unlimited daily access (subscription)
+- Trending score badges
+- Niche filtering
+
+---
+
+## Global Build Rules Applied
+
+✅ Database-driven templates only
+✅ No LLM calls or external APIs
+✅ No background workers
+✅ Synchronous endpoints (<200ms response)
+✅ Copyright keyword blocking (50+ terms)
+✅ Credits deducted BEFORE generation
+✅ User manual on each page
+✅ All features accessible from Dashboard
 
 ---
 
 ## Previous Session Features (Also Complete)
 
-### Instagram Niche Bio Generator ✅
-- Template-based bio generator (5 credits, no AI)
-- 10 niches, 8 tones, 7 goals
-- Admin panel for template management
+### Template-Based Features
+- Instagram Niche Bio Generator (5 credits)
+- AI Comment Reply Bank (5-15 credits)
+- Kids Bedtime Story Audio Script Builder (10 credits)
 
-### Phase 1-8 Security & Revenue Protection ✅
-- Credit Protection Service
-- Prompt Safety Layer
-- Role Protection Service
-- Download Protection with signed URLs
-- Audit Logging
+### Admin Panels
+- Bio Templates Admin (RBAC)
+- Webhook Retry Queue
+
+### Phase 1-8 Security & Revenue Protection
+- Credit Protection, Prompt Safety, Role Protection
+- Download Protection, Audit Logging
 - Content Blueprint Library
-- IP-Based Security
-- Two-Factor Authentication
-
-### 3 REBUILT Features ✅
-1. Story Episode Creator - 3-step wizard
-2. Content Challenge Planner - 4-step wizard
-3. Caption Rewriter Pro - 3-step wizard
-
-### Other Complete Features ✅
-- Photo to Comic (24 safe styles)
-- Photo Reaction GIF Creator
-- Comic Story Book Builder
-- Referral Program & Gift Cards
-- OWASP Security Compliance
-- Cashfree Payment Integration
+- IP-Based Security, 2FA
 
 ---
 
 ## Test Results
 
-### Iteration 96 (New Features)
-- **Backend**: 96% (24/25 tests passed)
-- **Frontend**: 100% (All wizard steps verified)
-- **Status**: PASS
+### Iteration 97 (5 New Template Features + Analytics)
+- **Backend**: 100% (25/25 tests passed)
+- **Frontend**: 100% (All 6 pages verified)
+- **Copyright Blocking**: PASS
+- **Response Times**: All < 50ms
 
-### Test Credentials
-- Admin: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
-- Demo: `demo@example.com` / `Password123!`
+### Bug Fixed by Testing Agent
+- KeyError: '_id' in all 5 generate routes
+- Fixed: user['_id'] -> user['id']
+
+---
+
+## Credit Summary
+
+| Feature | Credits |
+|---------|---------|
+| YouTube Thumbnail Generator | 5 |
+| Brand Story Builder | 18 |
+| Offer Generator | 20 |
+| Story Hook Generator | 8 |
+| Daily Viral Ideas | FREE / 5 |
+| Instagram Bio Generator | 5 |
+| Comment Reply Bank | 5-15 |
+| Bedtime Story Builder | 10 |
 
 ---
 
 ## API Endpoints Summary
 
-### Comment Reply Bank
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/comment-reply-bank/config` | Get configuration |
-| POST | `/api/comment-reply-bank/generate` | Generate replies |
-| POST | `/api/comment-reply-bank/download` | Download replies |
-| GET | `/api/comment-reply-bank/admin/keywords` | Admin: Get keywords |
-| POST | `/api/comment-reply-bank/admin/keywords` | Admin: Create keyword |
-| DELETE | `/api/comment-reply-bank/admin/keywords/{id}` | Admin: Delete keyword |
-| GET | `/api/comment-reply-bank/admin/templates` | Admin: Get templates |
-| POST | `/api/comment-reply-bank/admin/templates` | Admin: Create template |
-| DELETE | `/api/comment-reply-bank/admin/templates/{id}` | Admin: Delete template |
-
-### Bedtime Story Builder
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/bedtime-story-builder/config` | Get configuration |
-| POST | `/api/bedtime-story-builder/generate` | Generate story |
-| POST | `/api/bedtime-story-builder/export` | Export story |
-| GET | `/api/bedtime-story-builder/admin/themes` | Admin: Get themes |
-| POST | `/api/bedtime-story-builder/admin/themes` | Admin: Create theme |
-| DELETE | `/api/bedtime-story-builder/admin/themes/{id}` | Admin: Delete theme |
-| GET | `/api/bedtime-story-builder/admin/morals` | Admin: Get morals |
-| POST | `/api/bedtime-story-builder/admin/morals` | Admin: Create moral |
-
-### Instagram Bio Generator Admin
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/instagram-bio-generator/admin/stats` | Get statistics |
-| GET | `/api/instagram-bio-generator/admin/niches` | Get niches |
-| POST | `/api/instagram-bio-generator/admin/niches` | Create niche |
-| PUT | `/api/instagram-bio-generator/admin/niches/{id}` | Update niche |
-| DELETE | `/api/instagram-bio-generator/admin/niches/{id}` | Delete niche |
-| GET | `/api/instagram-bio-generator/admin/headlines` | Get headlines |
-| POST | `/api/instagram-bio-generator/admin/headlines` | Create headline |
-| GET | `/api/instagram-bio-generator/admin/values` | Get value lines |
-| POST | `/api/instagram-bio-generator/admin/values` | Create value line |
-| GET | `/api/instagram-bio-generator/admin/ctas` | Get CTAs |
-| POST | `/api/instagram-bio-generator/admin/ctas` | Create CTA |
-| GET | `/api/instagram-bio-generator/admin/emojis` | Get emoji sets |
-| POST | `/api/instagram-bio-generator/admin/emojis` | Create emoji set |
+### New Feature APIs
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/youtube-thumbnail-generator/config` | GET | Get config |
+| `/api/youtube-thumbnail-generator/generate` | POST | Generate thumbnails |
+| `/api/brand-story-builder/config` | GET | Get config |
+| `/api/brand-story-builder/generate` | POST | Generate story |
+| `/api/offer-generator/config` | GET | Get config |
+| `/api/offer-generator/generate` | POST | Generate offer |
+| `/api/story-hook-generator/config` | GET | Get config |
+| `/api/story-hook-generator/generate` | POST | Generate hooks |
+| `/api/daily-viral-ideas/config` | GET | Get config |
+| `/api/daily-viral-ideas/free` | GET | Get free idea |
+| `/api/daily-viral-ideas/unlock` | POST | Unlock pack |
+| `/api/template-analytics/dashboard` | GET | Admin dashboard |
+| `/api/template-analytics/realtime` | GET | Real-time stats |
+| `/api/template-analytics/revenue-impact` | GET | Revenue analysis |
+| `/api/template-analytics/user-segments` | GET | User segments |
 
 ---
 
 ## Status Summary
 
-### ✅ ALL P0/P1 FEATURES COMPLETE
-1. ✅ AI Comment Reply Bank - Intent detection + 4 reply types
-2. ✅ Kids Bedtime Story Audio Script Builder - 4-step wizard
-3. ✅ Webhook Retry Queue - Exponential backoff
-4. ✅ Admin Panel for Bio Templates - Full RBAC
+### ✅ ALL REQUESTED FEATURES COMPLETE
+1. ✅ Template Analytics Dashboard
+2. ✅ YouTube Thumbnail Text Generator
+3. ✅ Brand Story Builder
+4. ✅ Offer Generator
+5. ✅ Story Hook Generator
+6. ✅ Daily Viral Idea Drop
 
 ### P2 - BACKLOG
 - CI Integration with Sentry
 - Resolve Playwright Test Flakiness
 - Email notifications for gift cards
-- Referral share analytics
+- Admin audit log viewer
 
 ---
 
-**Environment:** Cashfree in TEST mode (using SANDBOX credentials)
+## Test Credentials
+- **Admin**: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
+- **Demo**: `demo@example.com` / `Password123!`
+
+**Environment:** Cashfree in TEST mode (SANDBOX)
 **Last Updated:** 2026-02-27
