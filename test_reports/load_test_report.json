@@ -1,0 +1,247 @@
+{
+  "test_type": "Extended Load Test (25-50 Concurrent Users)",
+  "timestamp": "2026-02-27T14:26:11.808853",
+  "api_url": "https://ui-consistency-pass-2.preview.emergentagent.com",
+  "results": {
+    "25_users": {
+      "total_requests": 600,
+      "successful_requests": 536,
+      "failed_requests": 64,
+      "success_rate": "89.33%",
+      "avg_response_time": "1.815s",
+      "p95_response_time": "19.620s",
+      "p99_response_time": "30.504s",
+      "requests_per_second": "20.00",
+      "endpoints": {
+        "/api/health/": {
+          "requests": 50,
+          "successes": 50,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 2.5575580072402953,
+          "p95_response_time": 2.62929105758667,
+          "success_rate": 100.0
+        },
+        "/api/cashfree/products": {
+          "requests": 50,
+          "successes": 44,
+          "failures": 6,
+          "errors": [],
+          "avg_response_time": 5.740822463035584,
+          "p95_response_time": 30.033463716506958,
+          "success_rate": 88.0
+        },
+        "/api/coloring-book/styles": {
+          "requests": 50,
+          "successes": 48,
+          "failures": 2,
+          "errors": [],
+          "avg_response_time": 3.2489274168014526,
+          "p95_response_time": 20.657126903533936,
+          "success_rate": 96.0
+        },
+        "/api/gif-maker/templates": {
+          "requests": 50,
+          "successes": 48,
+          "failures": 2,
+          "errors": [],
+          "avg_response_time": 2.567861785888672,
+          "p95_response_time": 20.560985326766968,
+          "success_rate": 96.0
+        },
+        "/api/story-episode-creator/config": {
+          "requests": 50,
+          "successes": 47,
+          "failures": 3,
+          "errors": [],
+          "avg_response_time": 3.1050022411346436,
+          "p95_response_time": 30.493700742721558,
+          "success_rate": 94.0
+        },
+        "/api/content-challenge-planner/config": {
+          "requests": 50,
+          "successes": 50,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 1.0755947351455688,
+          "p95_response_time": 7.486884593963623,
+          "success_rate": 100.0
+        },
+        "/api/caption-rewriter-pro/config": {
+          "requests": 50,
+          "successes": 50,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.570822811126709,
+          "p95_response_time": 1.143641471862793,
+          "success_rate": 100.0
+        },
+        "/api/photo-to-comic/styles": {
+          "requests": 50,
+          "successes": 50,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.1565529489517212,
+          "p95_response_time": 0.15373897552490234,
+          "success_rate": 100.0
+        },
+        "/api/reaction-gif/reactions": {
+          "requests": 50,
+          "successes": 50,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.7644382858276367,
+          "p95_response_time": 2.1450324058532715,
+          "success_rate": 100.0
+        },
+        "/api/comic-storybook-v2/config": {
+          "requests": 50,
+          "successes": 0,
+          "failures": 50,
+          "errors": [],
+          "avg_response_time": 0.5402783489227295,
+          "p95_response_time": 2.413588285446167,
+          "success_rate": 0.0
+        },
+        "/api/wallet/me": {
+          "requests": 50,
+          "successes": 49,
+          "failures": 1,
+          "errors": [],
+          "avg_response_time": 0.8017008829116822,
+          "p95_response_time": 1.1177709102630615,
+          "success_rate": 98.0
+        },
+        "/api/blueprint-library/catalog": {
+          "requests": 50,
+          "successes": 50,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.6471354055404663,
+          "p95_response_time": 0.37564611434936523,
+          "success_rate": 100.0
+        }
+      }
+    },
+    "50_users": {
+      "total_requests": 1200,
+      "successful_requests": 1098,
+      "failed_requests": 102,
+      "success_rate": "91.50%",
+      "avg_response_time": "1.033s",
+      "p95_response_time": "5.492s",
+      "p99_response_time": "12.875s",
+      "requests_per_second": "40.00",
+      "endpoints": {
+        "/api/health/": {
+          "requests": 100,
+          "successes": 98,
+          "failures": 2,
+          "errors": [],
+          "avg_response_time": 6.608138885498047,
+          "p95_response_time": 12.883326530456543,
+          "success_rate": 98.0
+        },
+        "/api/cashfree/products": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 1.2048408818244933,
+          "p95_response_time": 11.320371627807617,
+          "success_rate": 100.0
+        },
+        "/api/coloring-book/styles": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.6150538563728333,
+          "p95_response_time": 1.1122498512268066,
+          "success_rate": 100.0
+        },
+        "/api/gif-maker/templates": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.8625031161308289,
+          "p95_response_time": 5.297467947006226,
+          "success_rate": 100.0
+        },
+        "/api/story-episode-creator/config": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.24523156642913818,
+          "p95_response_time": 0.6103198528289795,
+          "success_rate": 100.0
+        },
+        "/api/content-challenge-planner/config": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.8196619486808777,
+          "p95_response_time": 2.554198741912842,
+          "success_rate": 100.0
+        },
+        "/api/caption-rewriter-pro/config": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.2196888256072998,
+          "p95_response_time": 0.528921365737915,
+          "success_rate": 100.0
+        },
+        "/api/photo-to-comic/styles": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.26484041929244995,
+          "p95_response_time": 0.6051084995269775,
+          "success_rate": 100.0
+        },
+        "/api/reaction-gif/reactions": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.24799896478652955,
+          "p95_response_time": 0.5889761447906494,
+          "success_rate": 100.0
+        },
+        "/api/comic-storybook-v2/config": {
+          "requests": 100,
+          "successes": 0,
+          "failures": 100,
+          "errors": [],
+          "avg_response_time": 0.2557594394683838,
+          "p95_response_time": 0.6499669551849365,
+          "success_rate": 0.0
+        },
+        "/api/wallet/me": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.5170026350021363,
+          "p95_response_time": 0.8831787109375,
+          "success_rate": 100.0
+        },
+        "/api/blueprint-library/catalog": {
+          "requests": 100,
+          "successes": 100,
+          "failures": 0,
+          "errors": [],
+          "avg_response_time": 0.5381106352806091,
+          "p95_response_time": 2.4390549659729004,
+          "success_rate": 100.0
+        }
+      }
+    }
+  }
+}

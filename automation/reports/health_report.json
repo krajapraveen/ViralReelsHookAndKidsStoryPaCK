@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-27T14:22:56.038058",
+  "timestamp": "2026-02-27T14:25:11.077854",
   "status": "critical",
   "services": {
     "springboot": {
@@ -43,7 +43,7 @@
     "Spring Boot Backend is unhealthy"
   ],
   "api_validation": {
-    "/api/auth/login": true,
+    "/api/auth/login": false,
     "/api/payments/products": true
   }
 }
