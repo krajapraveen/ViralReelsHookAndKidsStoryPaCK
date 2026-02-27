@@ -108,10 +108,10 @@ export default function Dashboard() {
               </Button>
             </Link>
             
-            <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2" data-testid="credit-balance" data-tour="credits-display">
-              <Coins className="w-4 h-4 text-indigo-400" />
-              <span className="font-semibold text-indigo-300 text-sm sm:text-base">{credits}</span>
-            </div>
+            <CreditStatusBadge 
+              credits={credits} 
+              onCreditsUpdate={(newBalance) => setCredits(newBalance)} 
+            />
             
             <Button variant="ghost" onClick={handleLogout} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="logout-btn">
               <LogOut className="w-4 h-4" />
