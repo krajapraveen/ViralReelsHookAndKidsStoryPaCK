@@ -271,29 +271,49 @@ export default function PhotoToComic() {
     return total;
   };
 
-  // Poll job status
+  // Stop polling helper function
+  const stopPolling = useCallback(() => {
+    isPollingRef.current = false;
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingIntervalState(null);
+    }
+  }, [pollingInterval]);
+
+  // Poll job status with ref-based loop prevention
   const pollJobStatus = useCallback(async (jobId) => {
+    // Prevent polling if already stopped
+    if (!isPollingRef.current) return;
+    
     try {
       const res = await api.get(`/api/photo-to-comic/job/${jobId}`);
       setJob(res.data);
       
       if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
-        if (pollingInterval) clearInterval(pollingInterval);
-        setPollingIntervalState(null);
+        // Stop polling immediately
+        stopPolling();
         setLoading(false);
         fetchCredits();
         
-        if (res.data.status === 'COMPLETED') {
-          toast.success('Your comic character is ready!');
-          setTimeout(() => setShowRating(true), 2000);
-        } else {
-          toast.error('Generation failed. Please try again.');
+        // Only show toast once per job using ref (not state)
+        if (!toastShownRef.current[jobId]) {
+          toastShownRef.current[jobId] = true;
+          if (res.data.status === 'COMPLETED') {
+            toast.success('Your comic character is ready!');
+            setTimeout(() => setShowRating(true), 2000);
+          } else {
+            toast.error('Generation failed. Please try again.');
+          }
         }
       }
     } catch (e) {
       console.error('Poll error:', e);
     }
-  }, [pollingInterval]);
+  }, [stopPolling]);
 
   // Generate comic avatar
   const generateAvatar = async () => {
