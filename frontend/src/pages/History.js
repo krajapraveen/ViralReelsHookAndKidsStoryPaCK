@@ -460,6 +460,9 @@ export default function History() {
           )}
         </DialogContent>
       </Dialog>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="history" />
     </div>
   );
 }

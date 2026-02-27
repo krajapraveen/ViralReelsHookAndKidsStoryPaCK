@@ -561,6 +561,9 @@ export default function Profile() {
           </div>
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="profile" />
     </div>
   );
 }
