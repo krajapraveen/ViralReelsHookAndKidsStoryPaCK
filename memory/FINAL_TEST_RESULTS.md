@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://reaction-pack.preview.emergentagent.com
+**Website:** https://blueprint-lib.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

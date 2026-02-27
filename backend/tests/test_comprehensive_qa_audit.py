@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 
 # Base URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://reaction-pack.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://blueprint-lib.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "admin@creatorstudio.ai"

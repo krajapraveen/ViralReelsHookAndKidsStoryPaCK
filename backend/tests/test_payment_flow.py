@@ -9,7 +9,7 @@ import json
 import hmac
 import hashlib
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://reaction-pack.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://blueprint-lib.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 ADMIN_EMAIL = "admin@creatorstudio.ai"

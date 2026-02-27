@@ -19,7 +19,7 @@ import os
 import json
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://reaction-pack.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://blueprint-lib.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}
@@ -460,7 +460,7 @@ class TestPhase6Security:
         """Test CORS headers are present"""
         response = requests.options(
             f"{BASE_URL}/api/health",
-            headers={"Origin": "https://reaction-pack.preview.emergentagent.com"}
+            headers={"Origin": "https://blueprint-lib.preview.emergentagent.com"}
         )
         # OPTIONS should return 200 or method not allowed
         print(f"PASS: CORS preflight handled - Status {response.status_code}")

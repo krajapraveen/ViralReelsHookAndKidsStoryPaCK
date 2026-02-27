@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Test Suite 1: Public Pages & Authentication
  */
 
-const BASE_URL = 'https://reaction-pack.preview.emergentagent.com';
+const BASE_URL = 'https://blueprint-lib.preview.emergentagent.com';
 
 // Test credentials
 const DEMO_USER = {

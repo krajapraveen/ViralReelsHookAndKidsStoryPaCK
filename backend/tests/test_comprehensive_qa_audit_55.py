@@ -15,7 +15,7 @@ import os
 import time
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://reaction-pack.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://blueprint-lib.preview.emergentagent.com')
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}

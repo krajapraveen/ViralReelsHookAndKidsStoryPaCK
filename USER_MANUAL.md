@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://reaction-pack.preview.emergentagent.com
+**Platform URL:** https://blueprint-lib.preview.emergentagent.com
 
 ---
 

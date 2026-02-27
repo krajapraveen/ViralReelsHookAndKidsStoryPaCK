@@ -1,77 +1,89 @@
 <analysis>**original_problem_statement:**
-The user's primary goal is to overhaul the application's core content generation tools, transforming them from complex interfaces into simplified, guided, multi-step wizards. This initiative aims to improve user experience, increase monetization, and ensure strict copyright safety.
+The user's primary goal is a comprehensive overhaul of the application's core content generation tools, transforming them from complex interfaces into simplified, guided, multi-step wizards. This initiative aims to improve user experience, increase monetization through a credit-based freemium model, and ensure strict copyright safety.
 
 The project involves a series of mandatory, sequential rebuilds:
-1.  **Comix AI** was rebuilt into **Convert Photos To Comic Character** (a 3-step wizard). (Completed)
-2.  **Comic Story Book Generator** was rebuilt into **Comic Story Book Builder** (a 5-step wizard). (Completed)
-3.  A **Template Library** was added to the Comic Story Book Builder. (In Progress)
-4.  **GIF Maker** is being rebuilt into **Photo Reaction GIF Creator** (a 4-step wizard). (In Progress)
+1.  **Comix AI** → **Convert Photos To Comic Character** (3-step wizard). (Completed)
+2.  **Comic Story Book Generator** → **Comic Story Book Builder** (5-step wizard with Template Library). (Completed)
+3.  **GIF Maker** → **Photo Reaction GIF Creator** (4-step wizard). (Completed)
+4.  **Story Series** → **Story Episode Creator** (3-step wizard). (Completed)
+5.  **Challenge Generator** → **Content Challenge Planner** (4-step wizard). (Completed)
+6.  **Tone Switcher** → **Caption Rewriter Pro** (3-step wizard). (Completed)
+7.  **Content Vault** → **Content Blueprint Library** (New rebuild with a zero-API cost, database-driven model). (Not Started)
 
-Alongside these rebuilds, the user has requested the implementation of monetization features (Premium Locks, Variation Selectors), a referral program, robust security measures, and the finalization of watermarking on all free user content.
+Alongside these rebuilds, the user has requested significant security enhancements, including a full security audit, penetration testing, 2FA, CAPTCHA, account lockouts, and IP-based blocking. A key directive is the Zero Investment Rule, which mandates reusing existing infrastructure and models, favoring pre-generated, database-served content to create high-margin, low-cost digital products.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The agent has successfully executed several major feature rebuilds and enhancements.
--   **Completed Feature Rebuilds:**
-    -   The Comix AI tool was successfully replaced by the **Convert Photos To Comic Character** feature, a 3-step guided wizard with full copyright protection. It has been tested and integrated into the dashboard.
-    -   The Comic Story Book Generator was successfully replaced by the **Comic Story Book Builder**, a 5-step wizard with a new pricing model and copyright safety measures. It has been tested and integrated.
--   **Completed New Features:**
-    -   A **Referral Program & Gift Cards** feature has been fully implemented, including backend routes and a dedicated frontend page.
-    -   Monetization components (, ) have been visually integrated into generator UIs.
-    -   Security middleware for headers (CSP, HSTS) has been added to the backend.
--   **In-Progress Foundation:**
-    -   The rebuild of GIF Maker into **Photo Reaction GIF Creator** has begun. The initial frontend and backend files have been created, routes have been registered, and the dashboard has been updated.
-    -   A **Template Library** UI has been added to the Comic Story Book Builder, allowing users to choose between starting from a template or a blank slate. The backend logic for this is not yet verified.
-    -   The  is correctly set to  for safe development.
+The application has been significantly enhanced with multiple rebuilt features, new monetization strategies, and robust security measures.
+-   **Completed Feature Rebuilds:** All major tools (Comix AI, Comic Story Book, GIF Maker, Story Series, Challenge Generator, Tone Switcher) have been successfully rebuilt into simplified, multi-step guided wizards.
+-   **New Features:**
+    -   A **Quick Preview Mode** has been added to the three most recently rebuilt features (Story Episode Creator, Content Challenge Planner, Caption Rewriter Pro) allowing users a try before you buy experience.
+    -   A **Referral Program & Gift Cards** system is in place.
+    -   A comprehensive **QA Report** and **Security Penetration Test Report** have been created.
+-   **Security Enhancements:**
+    -   **Account Lockout:** Implemented to block accounts after 5 failed login attempts for 30 minutes.
+    -   **CAPTCHA:** hCaptcha has been added to the user registration flow to prevent bots.
+    -   **Security Badge:** A footer badge Protected by OWASP Standards has been added to the landing page and user dashboard.
+    -   **Security Headers:** A full suite of security headers (CSP, HSTS, XSS Protection, etc.) is active on the backend.
+    -   **Input Sanitization:** User inputs are sanitized to prevent XSS attacks.
+-   **Watermarking:** Watermark implementation has been verified and applied across all image/GIF generation pipelines for free users.
 
 **Last working item**:
--   **Last item agent was working**: The agent was working on two user requests simultaneously: adding a Template Library to the Comic Story Book Builder and rebuilding the GIF Maker into the Photo Reaction GIF Creator. The agent created the necessary files and routes for the new GIF creator, updated the dashboard link, restarted the backend, and was in the process of testing the new API config endpoint.
--   **Status**: IN PROGRESS
--   **Agent Testing Done**: Y (Only for the new GIF creator's  endpoint, which returned successfully).
--   **Which testing method agent to use?**: both. Use the frontend testing agent to validate the new 4-step GIF creator wizard UI. Use the backend testing agent to verify the new API logic, especially copyright blocking, the two pricing models (Single vs. Pack), and add-on functionality.
+-   **Last item agent was working**: The agent received a large, multi-part request from the user. It includes implementing four new security features (IP blocking, audit log dashboard, vulnerability scanning, 2FA) and a major rebuild of the Content Vault into the Content Blueprint Library. The agent had just begun exploring the codebase to prepare for these tasks.
+-   **Status**: NOT STARTED
+-   **Agent Testing Done**: N/A
+-   **Which testing method agent to use?**: both. The backend testing agent will be needed to verify the new security features (IP blocking, audit logs, 2FA). The frontend testing agent will be needed to validate the completely new UI and UX for the Content Blueprint Library.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
 There are no pending bugs. All work is focused on implementing the user's requested features.
 
 **In progress Task List**:
--   **Task 1: Complete Photo Reaction GIF Creator Rebuild (P0)**
-    -   **Where to resume**:
-        1.  Implement the full 4-step guided wizard UI in .
-        2.  Flesh out the backend logic in  to handle the two product types (Single GIF, Reaction Pack), credit calculations, add-ons (HD, transparent background), and copyright/safety checks.
-        3.  Ensure the zero investment rule is followed by reusing the existing animation engine.
-        4.  Perform E2E testing using the testing agent.
-    -   **What will be achieved with this?**: Replaces a complex tool with a simple, high-conversion, and profitable feature for creating shareable reaction GIFs.
-    -   **Status**: IN PROGRESS
+-   **Task 1: Implement Security Enhancements (P0)**
+    -   **Where to resume**: This is a new task. The agent needs to start implementation.
+        1.  **IP-based suspicious activity blocking:** Implement logic to detect and block suspicious IP addresses.
+        2.  **Audit logging dashboard:** Create a new page and backend service for admins to view critical user actions.
+        3.  **Regular dependency vulnerability scanning:** Set up a process or script (e.g., using  or a similar tool) to scan Python dependencies.
+        4.  **Two-factor authentication (2FA):** Add 2FA as an optional security measure for users, likely requiring a new database field and verification flow (e.g., using ).
+    -   **What will be achieved with this?**: Further hardens the application against common security threats and provides better administrative oversight.
+    -   **Status**: NOT STARTED
     -   **Should Test frontend/backend/both after fix?**: Both.
     -   **Blocked on something**: No.
 
--   **Task 2: Finalize and Test Template Library for Comic Story Book Builder (P1)**
-    -   **Where to resume**: The UI for selecting a template has been added to .
-        1.  Verify that the backend () correctly processes requests originating from a template selection.
-        2.  Ensure the chosen template's story idea correctly populates the prompt in Step 2.
-        3.  Conduct an E2E test to confirm a user can select a template and successfully generate a comic book.
-    -   **What will be achieved with this?**: Enhances the Comic Story Book Builder by providing users with pre-made starting points, reducing friction and increasing engagement.
-    -   **Status**: IN PROGRESS
+-   **Task 2: Rebuild Content Vault into Content Blueprint Library (P0)**
+    -   **Where to resume**: This is a new task. The agent needs to remove the old Content Vault files and create the new feature from scratch.
+        1.  Create new frontend () and backend () files.
+        2.  Implement the three distinct products as specified: Viral Hook Bank, Reel Framework Packs, and Kids Story Idea Bank.
+        3.  **Crucially, this must follow the Zero Investment Rule**: All content (hooks, frameworks, ideas) must be pre-created, stored in the database, and served dynamically. No LLM API calls should be used for generation.
+        4.  Update the database schema to store this new content.
+        5.  Implement the new credit-based pricing model and update the dashboard to link to the new library.
+    -   **What will be achieved with this?**: Replaces a confusing, low-value feature with a highly profitable, zero-API-cost digital product library that aligns with the user's monetization goals.
+    -   **Status**: NOT STARTED
     -   **Should Test frontend/backend/both after fix?**: Both.
     -   **Blocked on something**: No.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **(P1) Finalize Watermark Implementation:** While the agent worked on this, a full verification across all generation pipelines (Comics, GIFs, etc.) for free users is still needed to confirm it's universally applied.
-    -   **(P1) Create Final QA & Reporting Document:** The user requested a before/after report. The agent created , but it is empty. This document needs to be populated with details on UX improvements and performance enhancements from the recent rebuilds.
--   **Future Tasks:**
-    -   **(P2) Complete SRE Phase 7 (Security Audit):** The agent added security headers, but the user's original request for a full security audit (addressing OWASP vulnerabilities) remains.
+    -   **(P1) Complete SRE Phase 7 (Full Security Audit):** While many security features have been added, the original request for a formal, comprehensive security audit against OWASP Top 10 vulnerabilities remains. This could involve using more advanced automated tools or a structured manual review.
 
 **Completed work in this session**
--   **Convert Photos To Comic Character Rebuild**: Successfully replaced Comix AI with a new, tested, 3-step wizard with copyright protection.
--   **Comic Story Book Builder Rebuild**: Successfully replaced the old generator with a new, tested, 5-step wizard with a new pricing model and copyright safety.
--   **Referral Program & Gift Cards**: Implemented a new, fully functional referral system with a dedicated UI.
--   **Monetization Component Integration**: Integrated  and  components into the UIs for  and .
--   **Security Hardening**: Added initial security middleware for CSP and other headers in the backend.
--   **Dashboard Overhaul**: Updated the main dashboard to reflect all the new and renamed features, including Photo to Comic and Comic Story Book Builder.
--   **Cashfree Environment Configuration**: Set the payment gateway to  mode to prevent accidental live charges during development.
+-   **Feature Rebuilds**:
+    -   Story Series → **Story Episode Creator**
+    -   Challenge Generator → **Content Challenge Planner**
+    -   Tone Switcher → **Caption Rewriter Pro**
+-   **New Features & Enhancements**:
+    -   **Quick Preview Mode**: Added to the 3 features above, allowing users to see example outputs before spending credits.
+    -   **QA Report**: Created a detailed before/after report at .
+    -   **Watermark Verification**: Ensured watermarks are applied across all generation pipelines, including a fix for .
+-   **Security Hardening**:
+    -   **Penetration Testing**: Created and executed a security test suite (), identified and fixed an XSS vulnerability.
+    -   **Account Lockout**: Implemented after 5 failed login attempts.
+    -   **CAPTCHA**: Integrated hCaptcha into the registration flow.
+    -   **Security Badge**: Added Protected by OWASP Standards badge to footers.
+    -   **HTTP Security Headers**: Successfully added and verified a comprehensive set of security headers via middleware.
+-   **Bug Fixes**:
+    -   Fixed a critical syntax error in  that was breaking the component.
 
 **Earlier issues found/mentioned but not fixed**
 -   None.
@@ -83,73 +95,71 @@ There are no pending bugs. All work is focused on implementing the user's reques
 
 
 **Key Technical Concepts**
+-   **Zero API Cost Content**: A core business strategy to serve pre-generated, high-value content directly from the database, maximizing profit margins.
+-   **Quick Preview Mode**: A try before you buy UX pattern to increase conversion by showing users example outputs before they commit credits.
+-   **Progressive Security Hardening**: Systematically adding layers of security: input sanitization (XSS), robust HTTP headers, account lockout policies, and bot protection (CAPTCHA).
 -   **Guided Wizard UI:** The primary development pattern of converting complex single-page applications into simple, multi-step user flows.
--   **Feature Rebuild:** Replacing a feature's entire UX and backend logic while reusing the core generation engine to meet new business and safety requirements.
--   **Copyright Safety Automation:** Proactively preventing IP infringement via automated keyword blocking and injection of universal negative prompts at the API level.
--   **Component-based Monetization:** Integrating reusable React components (, ) to apply consistent pricing and access controls across different features.
 
 **key DB schema**
--   : Stores user subscription details.
--   : For public sharing links.
--   : (New) Tracks referral codes, sign-ups, and rewards.
--   : (New) Manages gift card codes and balances.
+-   : (New/Modified) Tracks failed login attempts by IP and email to enable account and IP locking.
+-   , , : (To be created) New tables to store the pre-generated content for the Content Blueprint Library.
 
 **changes in tech stack**
--   No changes to the core tech stack.
+-   ****: Added to the Python backend for robust HTML/input sanitization to prevent XSS.
+-   ****: Integrated on the frontend () and verified on the backend for bot protection during registration.
 
 **All files of reference**
--   **/app/frontend/src/pages/PhotoReactionGifCreator.js**: New file for the GIF creator rebuild.
--   **/app/backend/routes/photo_reaction_gif_creator.py**: New backend for the GIF creator.
--   **/app/frontend/src/pages/ComicStoryBookBuilder.jsx**: Recently modified to add the Template Library.
--   **/app/frontend/src/pages/Dashboard.js**: Updated to link to all the new/rebuilt features.
--   **/app/frontend/src/App.js**: Contains routing for all new pages.
--   **/app/backend/server.py**: Main FastAPI app, includes all new routers.
+-   **/app/frontend/src/pages/ContentVault.js**: To be REMOVED and replaced.
+-   **/app/backend/routes/content_vault.py**: To be REMOVED and replaced.
+-   **/app/backend/routes/login_activity.py**: Recently modified for account lockout.
+-   **/app/frontend/src/pages/Signup.js**: Recently modified for hCaptcha integration.
+-   **/app/backend/routes/auth.py**: Recently modified for CAPTCHA verification.
+-   **/app/frontend/src/pages/Landing.js**: Recently modified to add the security badge.
+-   **/app/backend/server.py**: Recently modified to add security middleware.
+-   **/app/backend/tests/security_tests.py**: New file containing the security test suite.
 
 **Areas that need refactoring**:
--   The image and GIF generation logic is still somewhat spread out. Centralizing this further in  would simplify the implementation of cross-cutting concerns like watermarking and make future updates easier.
+-   The image and GIF generation logic is still somewhat spread out. Centralizing this further in  would simplify the implementation of cross-cutting concerns and make future updates easier.
 
 **key api endpoints**
--   : (New) Gets configuration for the GIF creator.
--   : (New) Endpoint to generate GIFs.
--   : (Updated) Generates comic books.
--   : Generates comic avatars/strips.
--   : (New) Gets user's referral program status.
--   : (New) Redeems a gift card.
+-   : (Updated) Now requires a .
+-   : (Updated) Implements account lockout logic.
+-   : (New) Provides the hCaptcha site key to the frontend.
+-   : (New) Provides a sample output for the Story Episode Creator.
+-   : (New) Provides a sample output for the Content Challenge Planner.
+-   : (New) Provides a sample output for the Caption Rewriter Pro.
 
 **Critical Info for New Agent**
--   **Top Priority:** The user has mandated a strict order of operations. The immediate priority is to **complete the Photo Reaction GIF Creator rebuild**.
--   **Follow the Wizard Pattern:** The user strongly prefers converting complex tools into simple, guided, multi-step wizards. Adhere to this pattern for all new feature development.
--   **Zero Investment Rule:** All rebuilds must reuse existing generation engines without introducing new infrastructure costs or third-party APIs unless explicitly approved.
--   **Test After Every Major Step:** The previous agent successfully used the  after each major rebuild. Continue this practice to ensure stability and catch regressions.
+-   **Strict Rebuild Order:** The immediate priority is the latest user request. First, implement the four security features (IP blocking, audit log, vulnerability scan, 2FA). After that, rebuild the Content Vault into the Content Blueprint Library.
+-   **Zero Investment Rule is Paramount:** The Content Blueprint Library rebuild MUST NOT use any LLM APIs for content generation. All hooks, frameworks, and ideas must be pre-written, stored in the database, and served dynamically. This is a critical business requirement for creating a high-margin product.
+-   **Follow the Wizard Pattern:** The user strongly prefers converting complex tools into simple, guided, multi-step wizards. Adhere to this pattern.
 
 **documents and test reports created in this job**
--    (Continuously updated).
--    (Test results for PhotoToComic rebuild).
--    (Test results for monetization, referral program, etc.).
--    (Test results for Comic Story Book Builder rebuild).
--    (New, empty placeholder).
+-   : A detailed report on the before/after of recent feature rebuilds.
+-   : A Pytest script for security penetration testing.
+-   : A summary of the security test results and fixes.
+-   : Test results for the rebuilt features (Story Episode Creator, etc.).
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (latest):** Provided detailed specifications for adding a Template Library to the Comic Story Book Builder and rebuilding the GIF Maker into a Photo Reaction GIF Creator. **(This is the current P0/P1 task set).**
-2.  **User:** Provided detailed specifications for rebuilding the Comic Story Book Generator into a 5-step Comic Story Book Builder. **(Completed).**
-3.  **User:** Requested 6 features be implemented at once, including style previews, monetization integration, watermarking, a QA report, a security audit, and a referral program. **(Mostly completed or in progress).**
+1.  **User (latest):** Requested a large batch of features: four security enhancements (IP blocking, audit log, dependency scanning, 2FA) and a complete, high-priority rebuild of the Content Vault into a Content Blueprint Library with a zero-API-cost model. **(This is the current P0 task set).**
+2.  **User:** Requested security enhancements: Security Badge, CAPTCHA, and account lockout. **(Completed).**
+3.  **User:** Requested a Quick Preview Mode for the rebuilt features and a full security penetration test. **(Completed).**
+4.  **User:** Provided detailed specifications for rebuilding Story Series, Challenge Generator, and Tone Switcher into simplified, guided wizards. **(Completed).**
 
 **Project Health Check:**
--   **Working**: Core application, Convert Photos To Comic Character, Comic Story Book Builder, Referral Program, Admin/User Dashboards.
--   **Broken**: The legacy GIF Maker is considered deprecated and is being actively replaced.
--   **In Progress**:
-    -   Complete rebuild of GIF Maker into Photo Reaction GIF Creator.
-    -   Final testing and verification of the Template Library feature in the Comic Story Book Builder.
-    -   Universal application of watermarks for free users.
+-   **Working**: All core features, including all rebuilt wizards, referral program, quick previews, and enhanced security (lockout, CAPTCHA, headers).
+-   **Broken**: The legacy Content Vault is considered deprecated and is being actively replaced.
+-   **In Progress**: None. The agent is about to start the next major set of tasks.
 
 **3rd Party Integrations**
 -   **Cashfree**: For recurring subscription payments (currently in  mode).
--   **Gemini Nano Banana (via emergentintegrations)**: Core AI generation model.
+-   **Gemini Nano Banana (via emergentintegrations)**: Core AI generation model for some features.
+-   **hCaptcha**: For bot protection on the registration page.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES. It was used successfully after the Photo to Comic rebuild, the Referral Program implementation, and the Comic Story Book Builder rebuild.
+-   **Testing agent used after significant changes**: YES. It was used successfully after the latest batch of feature rebuilds.
 -   **Troubleshoot agent used after agent stuck in loop**: NO.
--   **Test files created**: None.
+-   **Test files created**: Yes,  was created and used to find and fix vulnerabilities.
 -   **Known regressions**: None.
 
 **Credentials to test flow:**
@@ -157,5 +167,4 @@ There are no pending bugs. All work is focused on implementing the user's reques
 *   **Demo User:**  / 
 
 **What agent forgot to execute**
--   **Populate QA Report:** The agent created the  file as requested but did not populate it with the before/after analysis of the feature rebuilds. This task remains outstanding.
--   **Full Security Audit:** While security headers were added, the broader task of a full security audit to address OWASP vulnerabilities has not been completed.</analysis>
+-   The agent has been thorough and has not forgotten any tasks. The latest user request is large and has been correctly identified as the next set of P0 tasks to begin.</analysis>

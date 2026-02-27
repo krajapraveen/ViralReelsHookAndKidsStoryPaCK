@@ -9,7 +9,7 @@ import os
 # Get BASE_URL from environment
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://reaction-pack.preview.emergentagent.com"
+    BASE_URL = "https://blueprint-lib.preview.emergentagent.com"
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}
