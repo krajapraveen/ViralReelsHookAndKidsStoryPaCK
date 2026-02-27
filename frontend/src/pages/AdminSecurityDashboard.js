@@ -165,7 +165,7 @@ const AdminSecurityDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
         <div className="text-center">
           <Shield className="w-12 h-12 text-violet-500 mx-auto mb-4 animate-pulse" />
           <p className="text-slate-400">Loading Security Dashboard...</p>
