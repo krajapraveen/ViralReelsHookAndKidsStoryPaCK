@@ -1,180 +1,227 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Full-stack SaaS platform for creative content generation with comprehensive monetization optimization, admin analytics, and template-based zero-cost content tools.
+Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
 ## Latest Session Changes (2026-02-27)
 
-### ✅ P0 Features COMPLETED
-
-#### 1. Template Analytics Dashboard (Admin BI)
-**Route:** `/admin/template-analytics`
-**Backend:** `/app/backend/routes/template_analytics.py`
-
-**Features:**
-- Real-time generation tracking (last hour)
-- Feature performance cards with usage stats
-- Revenue impact calculation per feature
-- User segment analysis (power/regular/casual/one-time)
-- Trending niches and tones with growth %
-- Daily usage breakdown
-- Per-feature detailed analytics modal
-
-#### 2. YouTube Thumbnail Text Generator (5 credits)
-**Route:** `/app/thumbnail-generator`
-**Backend:** `/app/backend/routes/youtube_thumbnail_generator.py`
-
-**Features:**
-- 10 niches (general, tutorial, tech, gaming, finance, fitness, etc.)
-- 5 emotions (curiosity, shock, fear, excitement, inspiration)
-- Outputs 10 hooks in 3 styles: Original, ALL CAPS, Title Case, Bold Short
-- Copyright keyword blocking (50+ terms)
-- User manual on page
-
-#### 3. Brand Story Builder (18 credits)
-**Route:** `/app/brand-story-builder`
-**Backend:** `/app/backend/routes/brand_story_builder.py`
-
-**Features:**
-- 15 industries
-- 4 tones (professional, bold, luxury, friendly)
-- Outputs: Brand Story + Elevator Pitch + About Section
-- Founder story integration
-- Copyright blocking
-
-#### 4. Offer Generator (20 credits)
-**Route:** `/app/offer-generator`
-**Backend:** `/app/backend/routes/offer_generator.py`
-
-**Features:**
-- 3 tones (bold, premium, direct)
-- Outputs: Offer Name + Hook + 3 Bonuses + Guarantee + Pricing Angle
-- Value stack pricing calculations
-- Copyright blocking
-
-#### 5. Story Hook Generator (8 credits)
-**Route:** `/app/story-hook-generator`
-**Backend:** `/app/backend/routes/story_hook_generator.py`
-
-**Features:**
-- 8 genres (Fantasy, Romance, Thriller, Sci-Fi, Mystery, Horror, Historical, Adventure)
-- 5 tones, 6 character types, 8 settings
-- Outputs: 10 Opening Hooks + 5 Cliffhangers + 3 Plot Twists
-- IP-safe (no copyrighted characters)
-
-#### 6. Daily Viral Idea Drop (FREE + Pro)
-**Route:** `/app/daily-viral-ideas`
-**Backend:** `/app/backend/routes/daily_viral_ideas.py`
-
-**Features:**
-- 12 niches with default idea banks
-- FREE: 1 idea/day
-- PAID: 10 ideas for 5 credits
-- PRO: Unlimited daily access (subscription)
-- Trending score badges
-- Niche filtering
+### ✅ 7 MAJOR FEATURES COMPLETED
 
 ---
 
-## Global Build Rules Applied
+#### 1. Sentry Integration (Placeholder)
+**Status**: PLACEHOLDER - User needs to add DSN
 
-✅ Database-driven templates only
-✅ No LLM calls or external APIs
-✅ No background workers
-✅ Synchronous endpoints (<200ms response)
-✅ Copyright keyword blocking (50+ terms)
-✅ Credits deducted BEFORE generation
-✅ User manual on each page
-✅ All features accessible from Dashboard
+**Configuration:**
+- Backend: `SENTRY_DSN` and `SENTRY_ENV` in `/app/backend/.env`
+- Frontend: `REACT_APP_SENTRY_DSN` and `REACT_APP_SENTRY_ENV` in `/app/frontend/.env`
+
+**Setup Instructions:**
+1. Create Sentry project at sentry.io
+2. Get DSN from project settings
+3. Add to environment variables
+4. Recommended: Separate projects for frontend/backend
 
 ---
 
-## Previous Session Features (Also Complete)
+#### 2. Playwright Test Auth State Fix
+**Files:**
+- `/app/tests/e2e/auth-setup.js` - Auth state fixture
+- `/app/playwright.config.js` - CI-optimized config
+- `/app/.github/workflows/playwright.yml` - GitHub Actions workflow
 
-### Template-Based Features
-- Instagram Niche Bio Generator (5 credits)
-- AI Comment Reply Bank (5-15 credits)
-- Kids Bedtime Story Audio Script Builder (10 credits)
+**Features:**
+- Centralized auth state management
+- `storageState.json` for session reuse
+- Separate demo/admin user fixtures
+- 2 retries on CI
+- Screenshot on failure
+- HTML + JSON reporters
 
-### Admin Panels
-- Bio Templates Admin (RBAC)
-- Webhook Retry Queue
+---
 
-### Phase 1-8 Security & Revenue Protection
-- Credit Protection, Prompt Safety, Role Protection
-- Download Protection, Audit Logging
-- Content Blueprint Library
-- IP-Based Security, 2FA
+#### 3. Admin Audit Log Viewer
+**Route:** `/app/admin/audit-logs`
+**Backend:** `/app/backend/routes/admin_audit_logs.py`
+**Service:** `/app/backend/services/audit_log.py`
+
+**Features:**
+- Track all admin actions
+- 12 action types (create, update, delete, security, etc.)
+- Paginated logs with filters
+- Search functionality
+- JSON/CSV export
+- Statistics dashboard
+
+**Action Types:**
+- template_create, template_update, template_delete
+- user_role_change, user_ban, user_credit_adjust
+- webhook_retry, config_update, export_data
+- ip_block, security_alert
+
+---
+
+#### 4. Template Performance Leaderboard
+**Route:** `/app/admin/leaderboard`
+**Backend:** `/app/backend/routes/template_leaderboard.py`
+
+**Features:**
+- Revenue rankings by template
+- Top performers by volume/users
+- Growth trends (period comparison)
+- Top niches and tones analysis
+- CSV/JSON export
+- Period selection (7/30/90 days)
+
+**Metrics:**
+- Total Revenue ($0.10/credit assumed)
+- Generations count
+- Unique users
+- Credits consumed
+- Growth percentage
+
+---
+
+#### 5. Content Protection Layer
+**Backend:** `/app/backend/services/content_protection.py`
+**Routes:** `/app/backend/routes/protected_download.py`
+**Frontend:** `/app/frontend/src/utils/contentProtection.js`
+**Components:** `/app/frontend/src/components/ProtectedContent.js`
+
+**Features:**
+- ✅ Context menu disable (output areas only)
+- ✅ Text selection disable for premium content
+- ✅ Remove public file URLs
+- ✅ Backend protected download endpoint
+- ✅ Signed URLs with 60s expiry
+- ✅ Dynamic watermark (user email + date + site)
+- ✅ Subtle repeating diagonal watermark
+- ✅ Ownership validation on download
+- ✅ DevTools shortcut deterrence (F12, Ctrl+Shift+I)
+- ✅ Watermark removal purchase (5 credits)
+
+**Watermark Format:**
+```
+Generated for user@email.com
+visionary-suite.com
+2026-02-27
+```
+
+**APIs:**
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `/api/protected-download/config` | Public | Get protection config |
+| `/api/protected-download/get-signed-url` | Required | Generate 60s signed URL |
+| `/api/protected-download/file/{token}` | Token | Download with watermark |
+| `/api/protected-download/remove-watermark` | Required | Purchase removal (5 credits) |
+
+---
+
+#### 6. Template Versioning & A/B Testing
+**Backend:** `/app/backend/routes/template_versioning.py`
+**Service:** `/app/backend/services/template_versioning.py`
+
+**Version Management:**
+- Create versions with content + notes
+- Auto-increment version numbers
+- Status: draft, active, archived, testing
+- Activate/deactivate versions
+- Admin audit logging on changes
+
+**A/B Testing:**
+- Create test with 2 variants
+- Configurable traffic split (default 50/50)
+- Consistent user assignment (hash-based)
+- Impression and conversion tracking
+- Winner analysis with lift calculation
+- End test and activate winner
+
+**APIs:**
+| Endpoint | Description |
+|----------|-------------|
+| POST `/api/template-versioning/versions` | Create version |
+| GET `/api/template-versioning/versions/{id}` | List versions |
+| POST `/api/template-versioning/versions/activate` | Activate version |
+| POST `/api/template-versioning/ab-tests` | Create A/B test |
+| GET `/api/template-versioning/ab-tests` | List active tests |
+| GET `/api/template-versioning/ab-tests/{id}/results` | Get results |
+| POST `/api/template-versioning/ab-tests/end` | End test |
+| GET `/api/template-versioning/variant/{id}` | Public: Get variant |
+| POST `/api/template-versioning/conversion/{id}` | Public: Track conversion |
+
+---
+
+#### 7. Advanced Analytics Export
+**Backend:** `/app/backend/routes/template_leaderboard.py`
+
+**Export Formats:**
+- JSON (full data + metadata)
+- CSV (summary, daily, raw)
+
+**Report Types:**
+- `summary` - Revenue rankings
+- `daily` - Day-by-day breakdown
+- `raw` - All analytics data
+
+**APIs:**
+| Endpoint | Description |
+|----------|-------------|
+| GET `/api/template-leaderboard/export/json` | JSON export |
+| GET `/api/template-leaderboard/export/csv?report_type=summary` | CSV summary |
+| GET `/api/template-leaderboard/export/csv?report_type=daily` | CSV daily |
+| GET `/api/template-leaderboard/export/csv?report_type=raw` | CSV raw data |
+
+---
+
+## Admin Dashboard Quick Access
+
+| Button | Route | Description |
+|--------|-------|-------------|
+| Template BI | `/admin/template-analytics` | Business intelligence |
+| Leaderboard | `/admin/leaderboard` | Revenue rankings |
+| Audit Logs | `/admin/audit-logs` | Admin action tracking |
+| Bio Templates | `/admin/bio-templates` | Template management |
+| Ratings | `/admin/user-analytics` | User feedback |
 
 ---
 
 ## Test Results
 
-### Iteration 97 (5 New Template Features + Analytics)
-- **Backend**: 100% (25/25 tests passed)
-- **Frontend**: 100% (All 6 pages verified)
-- **Copyright Blocking**: PASS
-- **Response Times**: All < 50ms
-
-### Bug Fixed by Testing Agent
-- KeyError: '_id' in all 5 generate routes
-- Fixed: user['_id'] -> user['id']
+### Iteration 98 (7 Major Features)
+- **Backend**: 100% (20/20 tests passed)
+- **Frontend**: 100% (All pages verified)
+- **Status**: PASS
 
 ---
 
-## Credit Summary
+## All Features Summary
 
-| Feature | Credits |
-|---------|---------|
-| YouTube Thumbnail Generator | 5 |
-| Brand Story Builder | 18 |
-| Offer Generator | 20 |
-| Story Hook Generator | 8 |
-| Daily Viral Ideas | FREE / 5 |
-| Instagram Bio Generator | 5 |
-| Comment Reply Bank | 5-15 |
-| Bedtime Story Builder | 10 |
+### Template-Based Tools (No AI)
+| Feature | Credits | Description |
+|---------|---------|-------------|
+| YouTube Thumbnail Generator | 5 | 10 hooks × 3 styles |
+| Brand Story Builder | 18 | Story + Pitch + About |
+| Offer Generator | 20 | Name + Hook + Bonuses + Guarantee |
+| Story Hook Generator | 8 | 10 hooks + 5 cliffhangers + 3 twists |
+| Daily Viral Ideas | FREE/5 | 1 free/day, 10 for 5 credits |
+| Instagram Bio Generator | 5 | 3 bios per generation |
+| Comment Reply Bank | 5-15 | Intent detection + 4 reply types |
+| Bedtime Story Builder | 10 | Narration scripts with SFX |
 
----
+### Admin Features
+- Template Analytics Dashboard
+- Template Performance Leaderboard
+- Admin Audit Log Viewer
+- Bio Templates Admin
+- A/B Testing Management
+- Analytics Export
 
-## API Endpoints Summary
-
-### New Feature APIs
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/youtube-thumbnail-generator/config` | GET | Get config |
-| `/api/youtube-thumbnail-generator/generate` | POST | Generate thumbnails |
-| `/api/brand-story-builder/config` | GET | Get config |
-| `/api/brand-story-builder/generate` | POST | Generate story |
-| `/api/offer-generator/config` | GET | Get config |
-| `/api/offer-generator/generate` | POST | Generate offer |
-| `/api/story-hook-generator/config` | GET | Get config |
-| `/api/story-hook-generator/generate` | POST | Generate hooks |
-| `/api/daily-viral-ideas/config` | GET | Get config |
-| `/api/daily-viral-ideas/free` | GET | Get free idea |
-| `/api/daily-viral-ideas/unlock` | POST | Unlock pack |
-| `/api/template-analytics/dashboard` | GET | Admin dashboard |
-| `/api/template-analytics/realtime` | GET | Real-time stats |
-| `/api/template-analytics/revenue-impact` | GET | Revenue analysis |
-| `/api/template-analytics/user-segments` | GET | User segments |
-
----
-
-## Status Summary
-
-### ✅ ALL REQUESTED FEATURES COMPLETE
-1. ✅ Template Analytics Dashboard
-2. ✅ YouTube Thumbnail Text Generator
-3. ✅ Brand Story Builder
-4. ✅ Offer Generator
-5. ✅ Story Hook Generator
-6. ✅ Daily Viral Idea Drop
-
-### P2 - BACKLOG
-- CI Integration with Sentry
-- Resolve Playwright Test Flakiness
-- Email notifications for gift cards
-- Admin audit log viewer
+### Security Features
+- Content Protection Layer
+- Signed URLs (60s expiry)
+- Dynamic Watermarking
+- Copyright Keyword Blocking
+- RBAC (Role-Based Access Control)
 
 ---
 
@@ -182,5 +229,4 @@ Full-stack SaaS platform for creative content generation with comprehensive mone
 - **Admin**: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
 - **Demo**: `demo@example.com` / `Password123!`
 
-**Environment:** Cashfree in TEST mode (SANDBOX)
 **Last Updated:** 2026-02-27
