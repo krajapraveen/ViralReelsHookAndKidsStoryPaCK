@@ -459,6 +459,25 @@ async def create_fallback_gif(job_id: str, photo_content: bytes, emotion: str) -
         return None
 
 
+
+@router.get("/templates")
+async def get_gif_templates():
+    """Get available GIF templates and presets"""
+    return {
+        "templates": [
+            {"id": "reaction", "name": "Reaction GIF", "description": "Photo with animated reactions"},
+            {"id": "meme", "name": "Meme Style", "description": "Photo with text overlays"},
+            {"id": "bounce", "name": "Bounce", "description": "Simple bounce animation"},
+            {"id": "shake", "name": "Shake", "description": "Shake effect animation"},
+            {"id": "zoom", "name": "Zoom", "description": "Zoom in/out effect"}
+        ],
+        "emotions": EMOTIONS,
+        "styles": GIF_STYLES,
+        "default_template": "reaction"
+    }
+
+
+
 @router.get("/emotions")
 async def get_available_emotions(user: dict = Depends(get_current_user)):
     """Get all available emotion presets"""
