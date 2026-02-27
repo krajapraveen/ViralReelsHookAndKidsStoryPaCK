@@ -258,41 +258,41 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* 3 New Standalone Apps */}
+        {/* 3 REBUILT Standalone Apps */}
         <div className="grid md:grid-cols-3 gap-4 mb-8 sm:mb-12">
-          {/* Story Series */}
-          <Link to="/app/story-series">
-            <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-story-series">
+          {/* Story Episode Creator (Rebuilt from Story Series) */}
+          <Link to="/app/story-episode-creator">
+            <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-story-episode">
               <div className="flex items-center gap-3 mb-2">
                 <Film className="w-6 h-6" />
-                <h3 className="font-bold">Story Series</h3>
+                <h3 className="font-bold">Story Episode Creator</h3>
               </div>
-              <p className="text-white/80 text-xs sm:text-sm">Turn stories into 3-7 episode series with scene beats & cliffhangers</p>
-              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">NEW</span>
+              <p className="text-white/80 text-xs sm:text-sm">Turn one idea into a binge-worthy mini series</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">REBUILT</span>
             </div>
           </Link>
 
-          {/* Challenge Generator */}
-          <Link to="/app/challenge-generator">
-            <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-challenge">
+          {/* Content Challenge Planner (Rebuilt from Challenge Generator) */}
+          <Link to="/app/content-challenge-planner">
+            <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-content-planner">
               <div className="flex items-center gap-3 mb-2">
                 <Calendar className="w-6 h-6" />
-                <h3 className="font-bold">Challenge Generator</h3>
+                <h3 className="font-bold">Content Challenge Planner</h3>
               </div>
-              <p className="text-white/80 text-xs sm:text-sm">7/30-day content challenges with hooks, CTAs & hashtags</p>
-              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">NEW</span>
+              <p className="text-white/80 text-xs sm:text-sm">Get a ready-to-post content plan in seconds</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">REBUILT</span>
             </div>
           </Link>
 
-          {/* Tone Switcher */}
-          <Link to="/app/tone-switcher">
-            <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-tone">
+          {/* Caption Rewriter Pro (Rebuilt from Tone Switcher) */}
+          <Link to="/app/caption-rewriter">
+            <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-caption-rewriter">
               <div className="flex items-center gap-3 mb-2">
                 <Type className="w-6 h-6" />
-                <h3 className="font-bold">Tone Switcher</h3>
+                <h3 className="font-bold">Caption Rewriter Pro</h3>
               </div>
-              <p className="text-white/80 text-xs sm:text-sm">AI-free text rewriter: Funny, Aggressive, Calm, Luxury, Motivational</p>
-              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">NEW</span>
+              <p className="text-white/80 text-xs sm:text-sm">Rewrite your content in viral tones instantly</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">REBUILT</span>
             </div>
           </Link>
         </div>
