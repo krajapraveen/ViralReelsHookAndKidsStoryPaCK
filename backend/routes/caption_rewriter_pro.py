@@ -334,6 +334,9 @@ async def rewrite_caption(
     user_id = user["id"]
     user_plan = user.get("plan", "free")
     
+    # SANITIZE INPUT - Remove XSS payloads
+    sanitized_text = sanitize_xss(data.text)
+    
     # Validate tone
     if data.tone not in TONES:
         raise HTTPException(status_code=400, detail=f"Invalid tone. Choose from: {list(TONES.keys())}")
@@ -343,7 +346,7 @@ async def rewrite_caption(
         raise HTTPException(status_code=400, detail="Invalid pack type")
     
     # COPYRIGHT CHECK
-    violation = check_copyright_violation(data.text)
+    violation = check_copyright_violation(sanitized_text)
     if violation:
         raise HTTPException(
             status_code=400,
