@@ -610,6 +610,16 @@ export default function ComixAI() {
                   <p className="text-xs text-slate-500 mt-1">Describe what you DON'T want in the image</p>
                 </div>
 
+                {/* Variation Selector - Monetization */}
+                <div className="mb-4">
+                  <VariationSelector
+                    selected={selectedVariation}
+                    onSelect={setSelectedVariation}
+                    baseCost={creditCosts.character || 10}
+                    disabled={loading}
+                  />
+                </div>
+
                 <Button 
                   onClick={generateCharacter}
                   disabled={loading || !characterPhoto}
