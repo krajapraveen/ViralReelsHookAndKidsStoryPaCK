@@ -1,0 +1,695 @@
+{
+  "timestamp": "2026-02-27T13:47:17.116301+00:00",
+  "pages_tested": [
+    {
+      "page": "Login",
+      "status": "PASS"
+    }
+  ],
+  "api_endpoints_tested": [
+    {
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/auth/me",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/auth/captcha-config",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/credits/balance",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/credits/history",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/credits/packages",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/blueprint-library/catalog",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/blueprint-library/hooks",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/blueprint-library/frameworks",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/blueprint-library/story-ideas",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/security/2fa/status",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/generation/history",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/story-episode/preview",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/story-episode/genres",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/content-challenge/preview",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/content-challenge/platforms",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/caption-rewriter/preview",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/caption-rewriter/tones",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/coloring-book/styles",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/photo-to-comic/styles",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/gif-maker/templates",
+      "method": "GET",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/referral/status",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/referral/stats",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/subscriptions/plans",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/subscriptions/status",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/analytics/dashboard",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    },
+    {
+      "endpoint": "/api/health",
+      "method": "GET",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "endpoint": "/api/users/profile",
+      "method": "GET",
+      "status": 404,
+      "passed": false
+    }
+  ],
+  "bugs_found": [
+    {
+      "type": "API",
+      "endpoint": "/api/credits/history",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/credits/packages",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/generation/history",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/story-episode/preview",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/story-episode/genres",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/content-challenge/preview",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/content-challenge/platforms",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/caption-rewriter/preview",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/caption-rewriter/tones",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/coloring-book/styles",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/referral/status",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/subscriptions/status",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/analytics/dashboard",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "API",
+      "endpoint": "/api/users/profile",
+      "expected": [
+        200
+      ],
+      "actual": 404,
+      "body": "{'detail': 'Not Found'}"
+    },
+    {
+      "type": "ADMIN_API",
+      "endpoint": "/api/admin/stats",
+      "expected": [
+        200
+      ],
+      "actual": 404
+    },
+    {
+      "type": "PERFORMANCE",
+      "endpoint": "/api/generation/history",
+      "description": "Low success rate: 0.0%"
+    }
+  ],
+  "bugs_fixed": [],
+  "load_test_results": {
+    "/api/health": {
+      "endpoint": "/api/health",
+      "total_requests": 20,
+      "concurrent_users": 10,
+      "response_times": [
+        1184.5567226409912,
+        1188.7013912200928,
+        1189.2390251159668,
+        1189.3198490142822,
+        1190.3955936431885,
+        1190.7031536102295,
+        1194.286584854126,
+        1226.330041885376,
+        1244.7428703308105,
+        1276.7131328582764,
+        1181.199550628662,
+        1183.1822395324707,
+        1183.3031177520752,
+        1184.7596168518066,
+        1186.8746280670166,
+        1187.5526905059814,
+        1187.859058380127,
+        1195.005178451538,
+        1217.6158428192139,
+        1220.308780670166
+      ],
+      "success_count": 20,
+      "failure_count": 0,
+      "errors": [],
+      "avg_response_time": 1200.13,
+      "p95_response_time": 1276.71,
+      "min_response_time": 1181.2,
+      "max_response_time": 1276.71,
+      "success_rate": 100.0
+    },
+    "/api/credits/balance": {
+      "endpoint": "/api/credits/balance",
+      "total_requests": 20,
+      "concurrent_users": 10,
+      "response_times": [
+        88.74130249023438,
+        88.3333683013916,
+        89.20717239379883,
+        94.9702262878418,
+        97.21636772155762,
+        97.19181060791016,
+        97.6710319519043,
+        99.20215606689453,
+        101.50766372680664,
+        106.1856746673584,
+        75.18720626831055,
+        81.62879943847656,
+        81.41088485717773,
+        81.41517639160156,
+        81.47883415222168,
+        82.09991455078125,
+        82.5655460357666,
+        86.59934997558594,
+        88.04726600646973,
+        89.83349800109863
+      ],
+      "success_count": 20,
+      "failure_count": 0,
+      "errors": [],
+      "avg_response_time": 89.52,
+      "p95_response_time": 106.19,
+      "min_response_time": 75.19,
+      "max_response_time": 106.19,
+      "success_rate": 100.0
+    },
+    "/api/blueprint-library/catalog": {
+      "endpoint": "/api/blueprint-library/catalog",
+      "total_requests": 20,
+      "concurrent_users": 10,
+      "response_times": [
+        127.60210037231445,
+        129.39047813415527,
+        132.84945487976074,
+        134.76228713989258,
+        137.4685764312744,
+        137.1140480041504,
+        139.17279243469238,
+        139.509916305542,
+        144.36841011047363,
+        147.07660675048828,
+        96.27032279968262,
+        96.44794464111328,
+        99.76935386657715,
+        100.56447982788086,
+        100.9824275970459,
+        101.06468200683594,
+        103.75475883483887,
+        106.1246395111084,
+        106.25576972961426,
+        110.52989959716797
+      ],
+      "success_count": 20,
+      "failure_count": 0,
+      "errors": [],
+      "avg_response_time": 119.55,
+      "p95_response_time": 147.08,
+      "min_response_time": 96.27,
+      "max_response_time": 147.08,
+      "success_rate": 100.0
+    },
+    "/api/blueprint-library/hooks": {
+      "endpoint": "/api/blueprint-library/hooks",
+      "total_requests": 20,
+      "concurrent_users": 10,
+      "response_times": [
+        187.07704544067383,
+        188.89570236206055,
+        197.94464111328125,
+        198.66561889648438,
+        198.5483169555664,
+        198.96793365478516,
+        200.70981979370117,
+        204.83160018920898,
+        209.92326736450195,
+        212.74137496948242,
+        72.79300689697266,
+        73.9588737487793,
+        79.26821708679199,
+        85.9372615814209,
+        86.08198165893555,
+        87.73350715637207,
+        89.06126022338867,
+        93.40119361877441,
+        96.26889228820801,
+        97.05066680908203
+      ],
+      "success_count": 20,
+      "failure_count": 0,
+      "errors": [],
+      "avg_response_time": 142.99,
+      "p95_response_time": 212.74,
+      "min_response_time": 72.79,
+      "max_response_time": 212.74,
+      "success_rate": 100.0
+    },
+    "/api/generation/history": {
+      "endpoint": "/api/generation/history",
+      "total_requests": 20,
+      "concurrent_users": 10,
+      "response_times": [
+        62.219858169555664,
+        66.04719161987305,
+        66.41626358032227,
+        68.91322135925293,
+        70.31893730163574,
+        71.19393348693848,
+        71.79403305053711,
+        73.55141639709473,
+        73.32491874694824,
+        74.39136505126953,
+        52.91891098022461,
+        55.22036552429199,
+        62.55507469177246,
+        63.46774101257324,
+        65.59205055236816,
+        70.24073600769043,
+        70.12939453125,
+        88.94467353820801,
+        106.65082931518555,
+        107.30242729187012
+      ],
+      "success_count": 0,
+      "failure_count": 20,
+      "errors": [],
+      "avg_response_time": 72.06,
+      "p95_response_time": 107.3,
+      "min_response_time": 52.92,
+      "max_response_time": 107.3,
+      "success_rate": 0.0
+    },
+    "concurrent_25": {
+      "endpoint": "/api/blueprint-library/catalog",
+      "total_requests": 50,
+      "concurrent_users": 25,
+      "response_times": [
+        106.97269439697266,
+        106.9343090057373,
+        111.41586303710938,
+        114.5944595336914,
+        114.85648155212402,
+        114.66407775878906,
+        117.82670021057129,
+        119.62723731994629,
+        125.88620185852051,
+        126.94144248962402,
+        218.42384338378906,
+        228.2874584197998,
+        230.87596893310547,
+        231.23621940612793,
+        232.29360580444336,
+        234.1172695159912,
+        237.3504638671875,
+        239.8698329925537,
+        244.56501007080078,
+        246.16384506225586,
+        249.85384941101074,
+        255.54203987121582,
+        256.1461925506592,
+        256.4833164215088,
+        261.9748115539551,
+        145.18022537231445,
+        146.67224884033203,
+        149.3370532989502,
+        157.87959098815918,
+        163.0241870880127,
+        166.2459373474121,
+        180.83643913269043,
+        181.17785453796387,
+        181.87642097473145,
+        185.0440502166748,
+        186.0039234161377,
+        185.48250198364258,
+        188.11416625976562,
+        187.7572536468506,
+        191.3456916809082,
+        198.50516319274902,
+        203.14812660217285,
+        202.26192474365234,
+        204.53143119812012,
+        208.1308364868164,
+        207.1218490600586,
+        208.28557014465332,
+        213.18483352661133,
+        216.69888496398926,
+        218.77598762512207
+      ],
+      "success_count": 50,
+      "failure_count": 0,
+      "errors": [],
+      "avg_response_time": 189.19,
+      "p95_response_time": 256.15,
+      "min_response_time": 106.93,
+      "max_response_time": 261.97,
+      "success_rate": 100.0
+    },
+    "heavy_50": {
+      "endpoint": "/api/health",
+      "total_requests": 100,
+      "concurrent_users": 50,
+      "response_times": [
+        5082.355737686157,
+        5121.284961700439,
+        5121.246576309204,
+        5121.444940567017,
+        5121.048450469971,
+        5119.468450546265,
+        5120.405673980713,
+        5121.941566467285,
+        5119.459390640259,
+        5120.62406539917,
+        5121.389150619507,
+        5122.035026550293,
+        5123.424291610718,
+        5121.609210968018,
+        5121.323823928833,
+        5121.331214904785,
+        5123.387813568115,
+        5121.370792388916,
+        5122.9448318481445,
+        5122.619152069092,
+        5124.08447265625,
+        5122.169733047485,
+        5122.296571731567,
+        5123.599290847778,
+        5123.35467338562,
+        5125.78272819519,
+        5124.217987060547,
+        5125.108957290649,
+        5125.92887878418,
+        5126.040935516357,
+        5125.163316726685,
+        5125.230073928833,
+        5127.024173736572,
+        5126.339673995972,
+        5126.26576423645,
+        5127.316236495972,
+        5128.195524215698,
+        5128.265142440796,
+        5130.793809890747,
+        5130.944490432739,
+        5130.147695541382,
+        5129.495143890381,
+        5131.54411315918,
+        5130.706548690796,
+        5131.236553192139,
+        5133.067846298218,
+        5133.804082870483,
+        5136.261224746704,
+        5405.438184738159,
+        5416.867017745972,
+        5403.452634811401,
+        5426.156520843506,
+        5426.222562789917,
+        5434.7381591796875,
+        5433.64143371582,
+        5436.398983001709,
+        5437.0410442352295,
+        5435.416698455811,
+        5436.105966567993,
+        5434.56244468689,
+        5434.974908828735,
+        5436.365127563477,
+        5434.958457946777,
+        5436.0926151275635,
+        5436.103343963623,
+        5435.069799423218,
+        5436.182498931885,
+        5437.149524688721,
+        5435.747385025024,
+        5436.29002571106,
+        5436.184406280518,
+        5437.721252441406,
+        5436.634540557861,
+        5436.939239501953,
+        5439.064741134644,
+        5440.498113632202,
+        5441.124677658081,
+        5440.102815628052,
+        5441.376447677612,
+        5440.650701522827,
+        5441.677570343018,
+        5443.80259513855,
+        5441.962003707886,
+        5444.402694702148,
+        5442.260980606079,
+        5443.2971477508545,
+        5443.30096244812,
+        5443.791627883911,
+        5443.856954574585,
+        5445.155143737793,
+        5447.470903396606,
+        5444.797992706299,
+        5446.48551940918,
+        5447.492361068726,
+        5448.0602741241455,
+        5447.1282958984375,
+        5449.457168579102,
+        5448.9898681640625,
+        5450.370073318481,
+        5456.223964691162
+      ],
+      "success_count": 100,
+      "failure_count": 0,
+      "errors": [],
+      "avg_response_time": 5287.6,
+      "p95_response_time": 5448.06,
+      "min_response_time": 5082.36,
+      "max_response_time": 5456.22,
+      "success_rate": 100.0
+    }
+  },
+  "payment_test_results": {
+    "config": "NOT_FOUND",
+    "packages": "FAIL",
+    "order_creation": 404
+  },
+  "ui_issues": [],
+  "validation_issues": [],
+  "console_errors": [],
+  "summary": {
+    "total_api_endpoints_tested": 28,
+    "passed_api_endpoints": 14,
+    "failed_api_endpoints": 14,
+    "total_bugs_found": 16,
+    "validation_issues": 0,
+    "load_tests_completed": 7,
+    "timestamp": "2026-02-27T13:48:08.258045+00:00"
+  }
+}
