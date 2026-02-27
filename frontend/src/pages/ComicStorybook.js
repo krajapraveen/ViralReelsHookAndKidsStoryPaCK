@@ -705,6 +705,18 @@ export default function ComicStorybook() {
         relatedRequestId={lastGenerationId}
         onSubmitSuccess={() => setShowRatingModal(false)}
       />
+      
+      {/* Upsell Modal - Shows after generation */}
+      <UpsellModal
+        isOpen={showUpsellModal}
+        onClose={() => setShowUpsellModal(false)}
+        generationId={lastGenerationId}
+        feature="comic_storybook"
+        onSuccess={(upsellId, data) => {
+          toast.success(`${upsellId} applied!`);
+          fetchCredits();
+        }}
+      />
     </div>
   );
 }
