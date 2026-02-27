@@ -488,6 +488,68 @@ export default function CaptionRewriterPro() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-cyan-950/20 to-slate-950">
+      {/* Preview Modal */}
+      {showPreview && previewData && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 p-4 border-b border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                  <Eye className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">FREE Preview</h3>
+                  <p className="text-xs text-cyan-300">See what you'll get before you commit</p>
+                </div>
+              </div>
+              <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-white p-2">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 mb-4">
+                <p className="text-xs text-cyan-400 mb-1">ORIGINAL TEXT</p>
+                <p className="text-white text-sm">{previewData.original_text}</p>
+              </div>
+              
+              <div className="space-y-4">
+                {Object.entries(previewData.results || {}).map(([toneKey, toneData]) => (
+                  <div key={toneKey} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xl">{toneData.emoji}</span>
+                      <h4 className="text-white font-bold">{toneData.tone_name}</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {toneData.variations?.slice(0, 2).map((v, i) => (
+                        <div key={i} className="bg-slate-900/50 rounded p-3">
+                          <p className="text-xs text-slate-500 mb-1">Variation {v.variation}</p>
+                          <p className="text-sm text-slate-300">{v.text}</p>
+                        </div>
+                      ))}
+                      <p className="text-xs text-slate-500 italic text-center">...and more variations</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-700 bg-slate-800/50">
+              <p className="text-xs text-center text-slate-400 mb-3">{previewData.preview_message}</p>
+              <Button 
+                onClick={() => setShowPreview(false)} 
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+              >
+                <Sparkles className="w-4 h-4 mr-2" /> Create Your Own Rewrites
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-4">
