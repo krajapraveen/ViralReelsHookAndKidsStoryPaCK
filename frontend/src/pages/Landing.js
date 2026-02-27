@@ -250,6 +250,14 @@ export default function Landing() {
               <Sparkles className="w-5 h-5 text-indigo-500" />
               <span className="text-white font-semibold">CreatorStudio AI</span>
             </div>
+            
+            {/* Security Badge */}
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-full px-4 py-2">
+              <Shield className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 text-sm font-medium">Protected by OWASP Standards</span>
+              <CheckCircle className="w-3 h-3 text-green-400" />
+            </div>
+            
             <div className="flex items-center gap-6 text-slate-400">
               <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
               <Link to="/reviews" className="hover:text-white transition-colors">Reviews</Link>
