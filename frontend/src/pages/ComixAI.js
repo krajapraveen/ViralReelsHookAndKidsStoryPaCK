@@ -75,10 +75,22 @@ export default function ComixAI() {
     fetchCredits();
     fetchStyles();
     fetchHistory();
+    fetchWatermarkStatus();
     return () => {
       if (pollingInterval) clearInterval(pollingInterval);
     };
   }, []);
+  
+  const fetchWatermarkStatus = async () => {
+    try {
+      const res = await api.get('/api/monetization/watermark-status');
+      if (res.data.success) {
+        setWatermarkRequired(res.data.add_watermark);
+      }
+    } catch (error) {
+      console.error('Failed to fetch watermark status');
+    }
+  };
 
   const fetchCredits = async () => {
     try {
