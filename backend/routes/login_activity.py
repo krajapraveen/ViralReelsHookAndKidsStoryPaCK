@@ -905,3 +905,79 @@ async def is_ip_blocked(ip_address: str) -> bool:
         "expires_at": {"$gt": now}
     })
     return blocked is not None
+
+
+# =============================================================================
+# ACCOUNT LOCKOUT FEATURE
+# =============================================================================
+MAX_FAILED_ATTEMPTS = 5  # Lock after 5 failed attempts
+LOCKOUT_DURATION_MINUTES = 30  # Lock for 30 minutes
+
+
+async def is_account_locked(email: str) -> tuple:
+    """Check if account is locked due to failed attempts
+    Returns: (is_locked, remaining_minutes, attempts_count)
+    """
+    # Check for existing lockout
+    lockout = await db.account_lockouts.find_one({"email": email.lower()}, {"_id": 0})
+    
+    if lockout:
+        locked_until = datetime.fromisoformat(lockout["locked_until"])
+        now = datetime.now(timezone.utc)
+        
+        if now < locked_until:
+            remaining = (locked_until - now).total_seconds() / 60
+            return True, int(remaining), lockout.get("attempts", MAX_FAILED_ATTEMPTS)
+        else:
+            # Lockout expired, clear it
+            await db.account_lockouts.delete_one({"email": email.lower()})
+    
+    # Count recent failed attempts
+    window_start = (datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_DURATION_MINUTES)).isoformat()
+    failed_count = await db.login_activity.count_documents({
+        "identifier": email.lower(),
+        "status": "FAILED",
+        "timestamp": {"$gte": window_start}
+    })
+    
+    return False, 0, failed_count
+
+
+async def record_failed_attempt(email: str) -> tuple:
+    """Record a failed login attempt and check if account should be locked
+    Returns: (should_lock, remaining_attempts)
+    """
+    is_locked, remaining, attempts = await is_account_locked(email)
+    
+    if is_locked:
+        return True, 0
+    
+    # Increment count (the login activity logging already happened)
+    new_count = attempts + 1
+    
+    if new_count >= MAX_FAILED_ATTEMPTS:
+        # Lock the account
+        locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+        await db.account_lockouts.update_one(
+            {"email": email.lower()},
+            {
+                "$set": {
+                    "email": email.lower(),
+                    "locked_until": locked_until.isoformat(),
+                    "attempts": new_count,
+                    "locked_at": datetime.now(timezone.utc).isoformat()
+                }
+            },
+            upsert=True
+        )
+        logger.warning(f"Account locked due to {new_count} failed attempts: {email}")
+        return True, 0
+    
+    remaining_attempts = MAX_FAILED_ATTEMPTS - new_count
+    return False, remaining_attempts
+
+
+async def clear_failed_attempts(email: str):
+    """Clear failed attempts after successful login"""
+    await db.account_lockouts.delete_one({"email": email.lower()})
+
