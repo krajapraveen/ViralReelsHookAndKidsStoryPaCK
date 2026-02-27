@@ -10,7 +10,6 @@ import {
 import api from '../utils/api';
 
 const FEATURE_ICONS = {
-  genstudio: Sparkles,
   story_generator: BookMarked,
   reel_generator: Video,
   story_series: Film,
