@@ -55,6 +55,8 @@ import AppTour, { TourProvider } from './components/AppTour';
 import StoryEpisodeCreator from './pages/StoryEpisodeCreator';
 import ContentChallengePlanner from './pages/ContentChallengePlanner';
 import CaptionRewriterPro from './pages/CaptionRewriterPro';
+// CONTENT BLUEPRINT LIBRARY
+import ContentBlueprintLibrary from './pages/ContentBlueprintLibrary';
 import './App.css';
 
 function App() {
