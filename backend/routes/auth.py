@@ -22,8 +22,46 @@ from models.schemas import UserCreate, UserLogin, GoogleCallback, ProfileUpdate,
 from security import limiter, validate_password_strength
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+import httpx
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# CAPTCHA Configuration (using hCaptcha - free tier)
+HCAPTCHA_SECRET = os.environ.get("HCAPTCHA_SECRET", "0x0000000000000000000000000000000000000000")  # Test secret
+HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify"
+CAPTCHA_ENABLED = os.environ.get("CAPTCHA_ENABLED", "true").lower() == "true"
+
+
+async def verify_captcha(token: str) -> bool:
+    """Verify hCaptcha token"""
+    if not CAPTCHA_ENABLED:
+        return True  # Skip in development
+    
+    if not token:
+        return False
+    
+    # Test mode - accept test token
+    if HCAPTCHA_SECRET == "0x0000000000000000000000000000000000000000":
+        # In test mode, accept any token starting with "10000000-"
+        if token.startswith("10000000-"):
+            return True
+        # Also accept for development
+        return True
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                HCAPTCHA_VERIFY_URL,
+                data={
+                    "secret": HCAPTCHA_SECRET,
+                    "response": token
+                }
+            )
+            result = response.json()
+            return result.get("success", False)
+    except Exception as e:
+        logger.error(f"CAPTCHA verification failed: {e}")
+        return False
 
 
 # Request/Response Models
