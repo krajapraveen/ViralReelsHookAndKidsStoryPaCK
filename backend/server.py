@@ -135,6 +135,7 @@ from routes.self_healing_monitoring import router as self_healing_monitoring_rou
 from routes.recovery_ui import router as recovery_ui_router
 from routes.priority_scaling import router as priority_scaling_router
 from routes.admin_system_routes import router as admin_system_router
+from routes.admin_worker_routes import router as admin_worker_router
 from services.self_healing_middleware import SelfHealingMiddleware
 from services.priority_scaling_service import initialize_priority_scaling, shutdown_priority_scaling
 
