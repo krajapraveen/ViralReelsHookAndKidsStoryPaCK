@@ -190,7 +190,7 @@ async def generate_thumbnails(request: GenerateRequest, user: dict = Depends(get
     
     # Deduct credits
     await db.users.update_one(
-        {"_id": ObjectId(user["_id"])},
+        {"id": user["id"]},
         {"$inc": {"credits": -5}}
     )
     
@@ -212,7 +212,7 @@ async def generate_thumbnails(request: GenerateRequest, user: dict = Depends(get
             thumbnails.append(format_thumbnail_text(base))
         
         # Track for analytics
-        await track_generation(str(user["_id"]), request.niche, request.emotion, request.topic)
+        await track_generation(str(user["id"]), request.niche, request.emotion, request.topic)
         
         generation_time = int((time.time() - start_time) * 1000)
         
@@ -226,7 +226,7 @@ async def generate_thumbnails(request: GenerateRequest, user: dict = Depends(get
     except Exception as e:
         # Refund on error
         await db.users.update_one(
-            {"_id": ObjectId(user["_id"])},
+            {"id": user["id"]},
             {"$inc": {"credits": 5}}
         )
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
