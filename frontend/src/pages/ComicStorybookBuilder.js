@@ -894,38 +894,6 @@ export default function ComicStorybookBuilder() {
       </div>
     );
   };
-            />
-          </div>
-          
-          {/* Author Name */}
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Author Name (Optional)
-            </label>
-            <Input
-              placeholder="Your name"
-              value={authorName}
-              onChange={(e) => setAuthorName(e.target.value)}
-              className="bg-slate-700 border-slate-600 text-white"
-            />
-          </div>
-        </div>
-        
-        <div className="flex justify-between mt-8">
-          <Button variant="outline" onClick={prevStep} className="text-slate-300 border-slate-600">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
-          </Button>
-          <Button 
-            onClick={nextStep}
-            disabled={!canProceed()}
-            className="px-8 bg-gradient-to-r from-purple-600 to-pink-600"
-          >
-            Continue <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </div>
-      </div>
-    );
-  };
 
   // ============================================
   // RENDER STEP 3: Choose Length
