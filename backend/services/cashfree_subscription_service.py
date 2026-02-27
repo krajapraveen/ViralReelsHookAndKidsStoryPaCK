@@ -161,9 +161,10 @@ class CashfreeSubscriptionService:
                 "plan_name": plan["name"],
                 "plan_type": "PERIODIC",
                 "plan_amount": plan["price_inr"],
+                "plan_max_amount": plan["price_inr"],
                 "plan_currency": "INR",
-                "billing_frequency": "MONTHLY",
-                "billing_cycles": -1
+                "plan_interval_type": "MONTH",
+                "plan_intervals": 1
             },
             "authorization_details": {
                 "authorization_amount": 1,  # Small auth amount
