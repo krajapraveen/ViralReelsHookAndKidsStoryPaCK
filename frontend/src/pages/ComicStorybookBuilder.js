@@ -14,6 +14,7 @@ import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
+import HelpGuide from '../components/HelpGuide';
 
 // ============================================
 // COPYRIGHT BLOCKED KEYWORDS
