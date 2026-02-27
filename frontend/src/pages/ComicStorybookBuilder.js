@@ -1386,6 +1386,9 @@ export default function ComicStorybookBuilder() {
           setShowUpsell(false);
         }}
       />
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="comic-storybook" />
     </div>
   );
 }
