@@ -218,7 +218,6 @@ export default function UserAnalyticsDashboard() {
                 <SelectItem value="story_pack" className="text-white">Story Pack</SelectItem>
                 <SelectItem value="comix_ai" className="text-white">Comix AI</SelectItem>
                 <SelectItem value="gif_maker" className="text-white">GIF Maker</SelectItem>
-                <SelectItem value="genstudio" className="text-white">GenStudio</SelectItem>
               </SelectContent>
             </Select>
 
