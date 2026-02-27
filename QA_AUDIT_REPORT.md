@@ -2,7 +2,7 @@
 ## CreatorStudio AI - Visionary Suite
 **Audit Date**: 2026-02-26
 **Auditor**: E1 Automated QA System
-**Environment**: https://sre-platform-2.preview.emergentagent.com
+**Environment**: https://avatar-comic-builder.preview.emergentagent.com
 
 ---
 

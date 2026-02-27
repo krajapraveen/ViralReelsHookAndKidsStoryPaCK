@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://sre-platform-2.preview.emergentagent.com
+**Website:** https://avatar-comic-builder.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

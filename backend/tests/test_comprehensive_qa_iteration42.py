@@ -21,7 +21,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://sre-platform-2.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://avatar-comic-builder.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 DEMO_EMAIL = "demo@example.com"

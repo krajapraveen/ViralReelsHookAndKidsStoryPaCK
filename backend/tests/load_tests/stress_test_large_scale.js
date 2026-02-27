@@ -23,7 +23,7 @@ const throughput = new Counter('throughput');
 const activeUsers = new Gauge('active_users');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://sre-platform-2.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://avatar-comic-builder.preview.emergentagent.com';
 
 // Test configuration for large-scale testing
 export const options = {
