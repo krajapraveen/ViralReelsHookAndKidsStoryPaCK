@@ -25,6 +25,7 @@ from shared import (
 from models.schemas import GenerateReelRequest, GenerateStoryRequest
 from ml_threat_detection import threat_intel
 from security import log_security_event, limiter, rate_limit_generation
+from services.watermark_service import add_diagonal_watermark, should_apply_watermark, get_watermark_config
 
 router = APIRouter(prefix="/generate", tags=["Generation"])
 
