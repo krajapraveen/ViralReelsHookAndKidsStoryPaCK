@@ -155,6 +155,9 @@ function App() {
       <Route path="/app/comic-storybook-old" element={isAuthenticated ? <ComicStorybook /> : <Navigate to="/login" />} />
       <Route path="/app/referral" element={isAuthenticated ? <ReferralProgram /> : <Navigate to="/login" />} />
       <Route path="/app/gift-cards" element={isAuthenticated ? <ReferralProgram /> : <Navigate to="/login" />} />
+      {/* Instagram Bio Generator */}
+      <Route path="/app/instagram-bio-generator" element={isAuthenticated ? <InstagramBioGenerator /> : <Navigate to="/login" />} />
+      <Route path="/app/bio-generator" element={isAuthenticated ? <InstagramBioGenerator /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
