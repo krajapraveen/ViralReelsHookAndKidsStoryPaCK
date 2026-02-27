@@ -1232,18 +1232,29 @@ export default function ComicStorybookBuilder() {
                 ) : previewPages.length > 0 ? (
                   <div className="grid grid-cols-2 gap-4">
                     {previewPages.map((page, idx) => (
-                      <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-600">
+                      <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-800">
                         <img 
                           src={page.url} 
                           alt={`Preview ${idx + 1}`}
                           className="w-full aspect-[3/4] object-cover"
+                          onError={(e) => {
+                            // Fallback to gradient placeholder on error
+                            e.target.style.display = 'none';
+                            e.target.parentElement.querySelector('.fallback-placeholder').style.display = 'flex';
+                          }}
                         />
+                        <div className="fallback-placeholder hidden w-full aspect-[3/4] items-center justify-center bg-gradient-to-br from-purple-900 to-indigo-900">
+                          <div className="text-center">
+                            <BookOpen className="w-12 h-12 mx-auto text-purple-400 mb-2" />
+                            <span className="text-purple-300 text-sm">{page.type === 'cover' ? 'Cover Preview' : `Page ${idx}`}</span>
+                          </div>
+                        </div>
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                           <span className="text-white text-xs font-medium">
                             {page.type === 'cover' ? 'Cover' : `Page ${idx}`}
                           </span>
                         </div>
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                           <span className="text-white text-xs bg-black/50 px-2 py-1 rounded">PREVIEW</span>
                         </div>
                       </div>
