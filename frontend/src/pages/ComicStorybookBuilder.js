@@ -178,6 +178,196 @@ const ADD_ONS = [
   },
   {
     id: 'hd_print',
+
+// ============================================
+// STORY TEMPLATES LIBRARY
+// ============================================
+const STORY_TEMPLATES = {
+  kids_adventure: [
+    {
+      id: 'birthday_adventure',
+      title: 'Birthday Adventure',
+      emoji: '🎂',
+      story: 'It\'s Max\'s birthday, and a magical balloon floats down with a treasure map! Max and their best friend go on an exciting adventure through the neighborhood to find the hidden birthday surprise.',
+      suggestedTitle: 'Max\'s Birthday Adventure'
+    },
+    {
+      id: 'first_day_school',
+      title: 'First Day at School',
+      emoji: '🏫',
+      story: 'Luna is nervous about her first day at school, but she meets a friendly talking backpack who helps her make new friends and discover that school can be fun!',
+      suggestedTitle: 'Luna\'s First Day'
+    },
+    {
+      id: 'lost_puppy',
+      title: 'The Lost Puppy',
+      emoji: '🐕',
+      story: 'When Sam finds a lost puppy in the park, they go on a heartwarming journey through town asking everyone for help to find the puppy\'s home.',
+      suggestedTitle: 'Finding Biscuit\'s Home'
+    },
+    {
+      id: 'treehouse_secret',
+      title: 'Treehouse Secret',
+      emoji: '🌳',
+      story: 'Alex discovers a magical treehouse in the backyard that can transport them to different imaginary worlds. Today\'s adventure takes them to a land of friendly dinosaurs!',
+      suggestedTitle: 'The Magic Treehouse'
+    }
+  ],
+  superhero: [
+    {
+      id: 'power_discovery',
+      title: 'Power Discovery',
+      emoji: '⚡',
+      story: 'On their 10th birthday, Jamie wakes up floating above their bed! Now they must learn to control their new flying ability while keeping it secret from everyone except their trusty pet hamster.',
+      suggestedTitle: 'The Day I Could Fly'
+    },
+    {
+      id: 'neighborhood_hero',
+      title: 'Neighborhood Hero',
+      emoji: '🦸',
+      story: 'When a big storm knocks out power in the neighborhood, a young hero with the ability to glow in the dark helps guide everyone to safety.',
+      suggestedTitle: 'Glow: The Light Hero'
+    },
+    {
+      id: 'sidekick_story',
+      title: 'The Sidekick Story',
+      emoji: '🤝',
+      story: 'Every hero needs a helper! Follow Whiskers the cat as she becomes the unexpected sidekick to the world\'s youngest superhero.',
+      suggestedTitle: 'Whiskers the Sidekick'
+    }
+  ],
+  fantasy: [
+    {
+      id: 'dragon_friend',
+      title: 'My Dragon Friend',
+      emoji: '🐉',
+      story: 'When Lily finds a tiny dragon egg in her garden, she raises it in secret. But as the dragon grows, so do the adventures - and the problems of hiding a fire-breathing friend!',
+      suggestedTitle: 'Lily and Spark'
+    },
+    {
+      id: 'magic_paintbrush',
+      title: 'The Magic Paintbrush',
+      emoji: '🖌️',
+      story: 'Everything Oliver paints comes to life! When he accidentally paints a monster, he must quickly paint a solution before his whole art room escapes into the real world.',
+      suggestedTitle: 'Oliver\'s Living Art'
+    },
+    {
+      id: 'fairy_garden',
+      title: 'The Fairy Garden',
+      emoji: '🧚',
+      story: 'Emma discovers that the flowers in grandma\'s garden are actually homes for tiny fairies! She becomes their human protector against a pesky garden gnome.',
+      suggestedTitle: 'Guardian of the Fairy Garden'
+    }
+  ],
+  comedy: [
+    {
+      id: 'robot_chef',
+      title: 'The Robot Chef',
+      emoji: '🤖',
+      story: 'Dad builds a robot to help in the kitchen, but it takes cooking instructions way too literally! Chaos ensues when it tries to make "cloud pancakes" and "rainbow soup."',
+      suggestedTitle: 'Cooking with Robo-Chef'
+    },
+    {
+      id: 'backwards_day',
+      title: 'Backwards Day',
+      emoji: '🔄',
+      story: 'When Timmy wishes everything was backwards, he wakes up to a world where dessert is for breakfast, homework does itself, and his dog walks him!',
+      suggestedTitle: 'The Totally Backwards Day'
+    },
+    {
+      id: 'talking_vegetables',
+      title: 'Talking Vegetables',
+      emoji: '🥕',
+      story: 'Mia refuses to eat her vegetables until they start talking back! Now the carrots, peas, and broccoli are her sassiest friends with the funniest opinions.',
+      suggestedTitle: 'Mia\'s Veggie Friends'
+    }
+  ],
+  romance: [
+    {
+      id: 'pen_pals',
+      title: 'Pen Pals',
+      emoji: '✉️',
+      story: 'Two kids from different countries become pen pals. Through their letters and drawings, they share their worlds and develop a sweet friendship that spans the ocean.',
+      suggestedTitle: 'Letters Across the Sea'
+    },
+    {
+      id: 'dance_partners',
+      title: 'Dance Partners',
+      emoji: '💃',
+      story: 'At the school talent show, two shy kids are paired up for a dance. Through practice and patience, they go from stepping on toes to best friends.',
+      suggestedTitle: 'Two Left Feet'
+    }
+  ],
+  scifi: [
+    {
+      id: 'space_pet',
+      title: 'My Space Pet',
+      emoji: '👽',
+      story: 'When a tiny alien spaceship crash-lands in the backyard, Kai adopts the adorable purple creature inside. But keeping an alien pet that floats and glows is harder than it looks!',
+      suggestedTitle: 'Kai and Zoob'
+    },
+    {
+      id: 'robot_best_friend',
+      title: 'Robot Best Friend',
+      emoji: '🤖',
+      story: 'In the future, every kid gets a robot companion on their 8th birthday. But Maya\'s robot, Bolt, is different - he wants to learn how to dream.',
+      suggestedTitle: 'Bolt\'s Dream'
+    },
+    {
+      id: 'time_machine_toy',
+      title: 'The Time Machine Toy',
+      emoji: '⏰',
+      story: 'Jordan\'s new toy car turns out to be a real time machine! A quick trip to see dinosaurs turns into an adventure to get back home before dinner.',
+      suggestedTitle: 'Race Through Time'
+    }
+  ],
+  mystery: [
+    {
+      id: 'missing_cookies',
+      title: 'The Missing Cookies',
+      emoji: '🍪',
+      story: 'Someone is stealing cookies from the cookie jar every night! Detective Daisy gathers clues, interviews suspects (including the family dog), and solves the tasty mystery.',
+      suggestedTitle: 'Detective Daisy\'s First Case'
+    },
+    {
+      id: 'secret_room',
+      title: 'The Secret Room',
+      emoji: '🚪',
+      story: 'While playing hide and seek in grandpa\'s old house, twins discover a hidden room with mysterious objects and a map leading to a family secret.',
+      suggestedTitle: 'The Hidden Room Mystery'
+    },
+    {
+      id: 'playground_puzzle',
+      title: 'Playground Puzzle',
+      emoji: '🔍',
+      story: 'When all the swings at the playground mysteriously disappear overnight, a group of kids must follow the clues to solve the case before recess ends forever!',
+      suggestedTitle: 'The Great Swing Mystery'
+    }
+  ],
+  horror_lite: [
+    {
+      id: 'friendly_monster',
+      title: 'Friendly Monster',
+      emoji: '👻',
+      story: 'There\'s a monster under Ben\'s bed! But instead of being scary, it\'s lonely and just wants a friend. Together they have midnight adventures.',
+      suggestedTitle: 'My Monster Friend'
+    },
+    {
+      id: 'haunted_house',
+      title: 'The Not-So-Haunted House',
+      emoji: '🏚️',
+      story: 'Everyone says the old house on the hill is haunted. When Sophie investigates, she finds it\'s actually home to the sweetest ghost family who just need help fixing their home.',
+      suggestedTitle: 'The Friendly Haunted House'
+    },
+    {
+      id: 'halloween_switch',
+      title: 'Halloween Costume Mix-up',
+      emoji: '🎃',
+      story: 'On Halloween night, costumes in town start coming to life! Now everyone has to work together to reverse the spell before the candy deadline.',
+      suggestedTitle: 'The Halloween Switcheroo'
+    }
+  ]
+};
     name: 'HD Print Version',
     description: '300 DPI print-ready PDF',
     credits: 5,
