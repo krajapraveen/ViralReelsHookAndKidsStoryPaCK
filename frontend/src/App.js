@@ -150,6 +150,7 @@ function App() {
       <Route path="/app/admin/self-healing" element={isAuthenticated ? <SelfHealingDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/admin/user-analytics" element={isAuthenticated ? <UserAnalyticsDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/admin/security" element={isAuthenticated ? <AdminSecurityDashboard /> : <Navigate to="/login" />} />
+      <Route path="/app/admin/bio-templates" element={isAuthenticated ? <BioTemplatesAdmin /> : <Navigate to="/login" />} />
       {/* New Feature Routes */}
       <Route path="/app/comix" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/comix-ai" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
