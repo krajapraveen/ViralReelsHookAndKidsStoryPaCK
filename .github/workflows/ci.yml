@@ -1,0 +1,200 @@
+# CI/CD Pipeline Configuration for CreatorStudio AI
+# GitHub Actions Workflow
+
+name: CreatorStudio AI CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Backend Tests
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio aiohttp
+          
+      - name: Run backend tests
+        working-directory: ./backend
+        run: |
+          pytest tests/ -v --tb=short
+          
+      - name: Run linting
+        working-directory: ./backend
+        run: |
+          pip install ruff
+          ruff check .
+
+  # Frontend Tests
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
+          
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: yarn install --frozen-lockfile
+        
+      - name: Run linting
+        working-directory: ./frontend
+        run: yarn lint || true
+        
+      - name: Build frontend
+        working-directory: ./frontend
+        run: yarn build
+        env:
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL }}
+
+  # E2E Tests with Playwright
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
+          
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: yarn install --frozen-lockfile
+        
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+        
+      - name: Run Playwright tests
+        working-directory: ./frontend
+        run: npx playwright test
+        env:
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL }}
+          
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: test_reports/playwright-report/
+          retention-days: 30
+
+  # Load Testing
+  load-tests:
+    runs-on: ubuntu-latest
+    needs: [backend-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        run: |
+          pip install aiohttp pytest-asyncio
+          
+      - name: Run load tests
+        run: |
+          python tests/load_tests/load_test_runner.py
+        env:
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL }}
+          
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-report
+          path: test_reports/load_test_report.json
+          retention-days: 30
+
+  # Security Scan
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          pip install -r requirements.txt
+          pip install safety
+          
+      - name: Run security scan
+        working-directory: ./backend
+        run: |
+          safety check --json > ../test_reports/security-scan.json || true
+          
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report
+          path: test_reports/security-scan.json
+          retention-days: 30
+
+  # Lighthouse Performance Check
+  lighthouse:
+    runs-on: ubuntu-latest
+    needs: [frontend-tests]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          urls: |
+            ${{ secrets.REACT_APP_BACKEND_URL }}
+            ${{ secrets.REACT_APP_BACKEND_URL }}/login
+            ${{ secrets.REACT_APP_BACKEND_URL }}/pricing
+          uploadArtifacts: true
+          configPath: './lighthouserc.json'
+        continue-on-error: true
+
+  # Deploy (only on main)
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, load-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy notification
+        run: |
+          echo "Deployment would be triggered here"
+          echo "All tests passed, ready for deployment"
