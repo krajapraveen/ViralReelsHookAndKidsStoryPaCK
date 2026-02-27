@@ -51,6 +51,10 @@ import ReferralProgram from './pages/ReferralProgram';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import AppTour, { TourProvider } from './components/AppTour';
+// NEW REBUILT FEATURES
+import StoryEpisodeCreator from './pages/StoryEpisodeCreator';
+import ContentChallengePlanner from './pages/ContentChallengePlanner';
+import CaptionRewriterPro from './pages/CaptionRewriterPro';
 import './App.css';
 
 function App() {
