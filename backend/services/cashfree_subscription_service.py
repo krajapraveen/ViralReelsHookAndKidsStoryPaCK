@@ -148,29 +148,36 @@ class CashfreeSubscriptionService:
         if not plan:
             raise ValueError(f"Unknown plan: {plan_key}")
         
-        subscription_id = f"sub_{user_id}_{int(datetime.now(timezone.utc).timestamp())}"
+        subscription_id = f"sub_{user_id[:8]}_{int(datetime.now(timezone.utc).timestamp())}"
         
         payload = {
             "subscription_id": subscription_id,
-            "plan_id": plan["plan_id"],
             "customer_details": {
                 "customer_name": customer_name,
                 "customer_email": customer_email,
                 "customer_phone": customer_phone
             },
+            "plan_details": {
+                "plan_name": plan["name"],
+                "plan_amount": plan["price_inr"],
+                "plan_currency": "INR",
+                "billing_frequency": "MONTHLY",
+                "billing_cycles": -1
+            },
             "authorization_details": {
-                "authorization_amount": plan["price_inr"],
+                "authorization_amount": 1,  # Small auth amount
                 "authorization_amount_refund": True
             },
             "subscription_meta": {
-                "return_url": return_url
+                "return_url": return_url + f"&subscription_id={subscription_id}",
+                "notify_url": f"{os.environ.get('BACKEND_URL', '')}/api/subscriptions/recurring/webhook"
             },
             "subscription_note": f"CreatorStudio {plan['name']} Subscription"
         }
         
         try:
             response = await self.client.post(
-                f"{CASHFREE_BASE_URL}",
+                CASHFREE_BASE_URL,
                 json=payload,
                 headers=self._get_headers()
             )
@@ -180,7 +187,7 @@ class CashfreeSubscriptionService:
             # Store subscription in database
             subscription_doc = {
                 "subscription_id": subscription_id,
-                "cf_subscription_id": result.get("cf_subscription_id"),
+                "cf_subscription_id": result.get("cf_subscription_id") or result.get("subscription_id"),
                 "user_id": user_id,
                 "plan_key": plan_key,
                 "plan_name": plan["name"],
@@ -189,7 +196,7 @@ class CashfreeSubscriptionService:
                 "currency": "INR",
                 "credits_per_cycle": plan["credits_per_cycle"],
                 "discount_percent": plan["discount_percent"],
-                "payment_link": result.get("subscription_payment_link"),
+                "payment_link": result.get("subscription_payment_link") or result.get("data", {}).get("subscription_payment_link"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
@@ -201,13 +208,19 @@ class CashfreeSubscriptionService:
             return {
                 "success": True,
                 "subscription_id": subscription_id,
-                "payment_link": result.get("subscription_payment_link"),
+                "payment_link": subscription_doc["payment_link"],
                 "plan": plan
             }
             
         except httpx.HTTPStatusError as e:
             logger.error(f"Failed to create subscription: {e.response.text}")
-            raise
+            # Return a fallback response for testing
+            return {
+                "success": False,
+                "error": str(e),
+                "message": "Cashfree API error. Please try again or contact support.",
+                "debug": e.response.text if hasattr(e, 'response') else str(e)
+            }
     
     async def get_subscription(self, subscription_id: str) -> Optional[Dict[str, Any]]:
         """Get subscription details from Cashfree"""
