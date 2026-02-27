@@ -10,8 +10,10 @@ import { toast } from 'sonner';
 import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle, LogOut } from 'lucide-react';
 
 import ShareButton from '../components/ShareButton';
+import ShareCreation from '../components/ShareCreation';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
+import UpsellModal from '../components/UpsellModal';
 import ReelProgressBar from '../components/ReelProgressBar';
 import HelpGuide from '../components/HelpGuide';
 import RatingModal from '../components/RatingModal';
