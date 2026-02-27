@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Film, ArrowLeft, Loader2, Download, Sparkles,
   Wallet, CheckCircle, Lock, ChevronRight, FileText,
-  AlertTriangle
+  AlertTriangle, Eye, X
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
 
@@ -29,6 +29,11 @@ export default function StoryEpisodeCreator() {
   
   // Result state
   const [result, setResult] = useState(null);
+  
+  // Preview Mode state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -43,6 +48,19 @@ export default function StoryEpisodeCreator() {
       console.error('Failed to load wallet:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShowPreview = async () => {
+    setLoadingPreview(true);
+    try {
+      const response = await api.get('/api/story-episode-creator/preview');
+      setPreviewData(response.data);
+      setShowPreview(true);
+    } catch (error) {
+      toast.error('Failed to load preview');
+    } finally {
+      setLoadingPreview(false);
     }
   };
 
