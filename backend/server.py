@@ -137,6 +137,9 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 from slowapi.middleware import SlowAPIMiddleware
 app.add_middleware(SlowAPIMiddleware)
 
+# Add Security Headers middleware - OWASP compliance
+app.add_middleware(SecurityHeadersMiddleware)
+
 # Add GZip compression middleware for responses
 from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
