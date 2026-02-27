@@ -155,8 +155,8 @@ export default function Dashboard() {
 
         {/* PRIMARY TOOLS - High Revenue (Reordered for Monetization) */}
         <div className="grid md:grid-cols-2 gap-4 mb-4 sm:mb-6">
-          {/* Comix AI - Priority 1 */}
-          <Link to="/app/comix">
+          {/* Photo to Comic - Priority 1 */}
+          <Link to="/app/photo-to-comic">
             <div className="relative bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-comix">
               <div className="absolute top-3 right-3 flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
                 <Flame className="w-3 h-3" />
@@ -167,11 +167,11 @@ export default function Dashboard() {
                   <ImageIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h2 className="text-lg sm:text-xl font-bold mb-1">Comix AI</h2>
-                  <p className="text-white/80 text-xs sm:text-sm">Create viral comic panels with AI</p>
+                  <h2 className="text-lg sm:text-xl font-bold mb-1">Photo to Comic</h2>
+                  <p className="text-white/80 text-xs sm:text-sm">Transform photos into comic characters</p>
                   <div className="flex items-center gap-2 mt-2 text-xs">
-                    <span className="bg-white/20 rounded-full px-2 py-0.5">10-45 credits</span>
-                    <span className="text-yellow-300">🔥 Pro Styles Available</span>
+                    <span className="bg-white/20 rounded-full px-2 py-0.5">15-45 credits</span>
+                    <span className="text-yellow-300">🎨 24 Safe Styles</span>
                   </div>
                 </div>
               </div>
