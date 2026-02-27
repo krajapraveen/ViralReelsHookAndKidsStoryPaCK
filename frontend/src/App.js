@@ -40,6 +40,7 @@ import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import ComixAI from './pages/ComixAI';
 import PhotoToComic from './pages/PhotoToComic';
 import GifMaker from './pages/GifMaker';
+import PhotoReactionGIF from './pages/PhotoReactionGIF';
 import ComicStorybook from './pages/ComicStorybook';
 import ComicStorybookBuilder from './pages/ComicStorybookBuilder';
 import RealtimeAnalytics from './pages/RealtimeAnalytics';
