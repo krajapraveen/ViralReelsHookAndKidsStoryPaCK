@@ -199,6 +199,8 @@ export default function ComicStorybook() {
             // Show rating modal after successful generation
             setLastGenerationId(jobId);
             setTimeout(() => setShowRatingModal(true), 2000);
+            // Show upsell modal after rating
+            setTimeout(() => setShowUpsellModal(true), 4000);
           } else {
             toast.error('Generation failed. Please try again.');
           }
