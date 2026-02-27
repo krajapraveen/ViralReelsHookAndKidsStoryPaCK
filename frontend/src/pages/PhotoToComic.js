@@ -174,6 +174,11 @@ export default function PhotoToComic() {
   const [job, setJob] = useState(null);
   const [pollingInterval, setPollingIntervalState] = useState(null);
   
+  // CRITICAL: Use refs to prevent infinite loops
+  const toastShownRef = useRef({});
+  const pollingIntervalRef = useRef(null);
+  const isPollingRef = useRef(false);
+  
   // Modals
   const [showRating, setShowRating] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
@@ -183,6 +188,12 @@ export default function PhotoToComic() {
     fetchCredits();
     fetchUserPlan();
     return () => {
+      // Clean up all polling on unmount
+      isPollingRef.current = false;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
       if (pollingInterval) clearInterval(pollingInterval);
     };
   }, []);
