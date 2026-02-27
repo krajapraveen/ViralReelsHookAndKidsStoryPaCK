@@ -244,8 +244,13 @@ async def send_password_reset_email(email: str, token: str, name: str):
 @router.post("/register")
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserCreate, background_tasks: BackgroundTasks):
-    """Register a new user with validation and email verification"""
+    """Register a new user with validation, CAPTCHA verification, and email verification"""
     try:
+        # Verify CAPTCHA first
+        captcha_token = getattr(data, 'captcha_token', None) or request.headers.get('X-Captcha-Token', '')
+        if CAPTCHA_ENABLED and not await verify_captcha(captcha_token):
+            raise HTTPException(status_code=400, detail="CAPTCHA verification failed. Please complete the CAPTCHA.")
+        
         # Validate name
         name_valid, name_result = validate_name(data.name)
         if not name_valid:
