@@ -1,46 +1,46 @@
 {
   "test_type": "Cashfree Payment Flow Test",
-  "timestamp": "2026-02-27T14:27:13.297029",
+  "timestamp": "2026-02-27T14:28:36.461879",
   "api_url": "https://ui-consistency-pass-2.preview.emergentagent.com",
   "total_tests": 6,
-  "passed": 4,
-  "failed": 2,
+  "passed": 5,
+  "failed": 1,
   "results": [
     {
       "test": "Gateway Health",
       "passed": true,
       "details": "Status: healthy, Environment: test",
-      "timestamp": "2026-02-27T14:27:11.782365"
+      "timestamp": "2026-02-27T14:28:35.100093"
     },
     {
       "test": "Wallet Balance",
       "passed": true,
       "details": "Current balance: 999999999 credits",
-      "timestamp": "2026-02-27T14:27:11.844547"
+      "timestamp": "2026-02-27T14:28:35.170170"
     },
     {
       "test": "Product Listing",
       "passed": true,
       "details": "Found 7 products",
-      "timestamp": "2026-02-27T14:27:11.900026"
+      "timestamp": "2026-02-27T14:28:35.219532"
     },
     {
       "test": "Order Creation",
       "passed": true,
-      "details": "Order cf_order_9c4bc144_1772202432052 created for starter",
-      "timestamp": "2026-02-27T14:27:13.181989"
+      "details": "Order cf_order_9c4bc144_1772202515319 created for starter",
+      "timestamp": "2026-02-27T14:28:36.345139"
     },
     {
       "test": "Order Status",
       "passed": false,
       "details": "Order status: unknown",
-      "timestamp": "2026-02-27T14:27:13.239483"
+      "timestamp": "2026-02-27T14:28:36.399515"
     },
     {
       "test": "Payment History",
-      "passed": false,
-      "details": "{'detail': 'Not Found'}",
-      "timestamp": "2026-02-27T14:27:13.296626"
+      "passed": true,
+      "details": "Found 0 payment records",
+      "timestamp": "2026-02-27T14:28:36.461481"
     }
   ],
   "sandbox_test_cards": {
