@@ -210,7 +210,7 @@ async def generate_hooks(request: GenerateRequest, user: dict = Depends(get_curr
     
     # Deduct credits BEFORE generation
     await db.users.update_one(
-        {"_id": ObjectId(user["_id"])},
+        {"id": user["id"]},
         {"$inc": {"credits": -8}}
     )
     
@@ -262,7 +262,7 @@ async def generate_hooks(request: GenerateRequest, user: dict = Depends(get_curr
         # Track analytics
         await db.template_analytics.insert_one({
             "feature": "story_hook_generator",
-            "user_id": str(user["_id"]),
+            "user_id": str(user["id"]),
             "genre": genre,
             "tone": request.tone,
             "created_at": datetime.now(timezone.utc)
@@ -282,7 +282,7 @@ async def generate_hooks(request: GenerateRequest, user: dict = Depends(get_curr
     except Exception as e:
         # Refund on error
         await db.users.update_one(
-            {"_id": ObjectId(user["_id"])},
+            {"id": user["id"]},
             {"$inc": {"credits": 8}}
         )
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
