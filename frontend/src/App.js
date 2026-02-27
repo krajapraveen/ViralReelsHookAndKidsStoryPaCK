@@ -131,7 +131,8 @@ function App() {
       <Route path="/app/comix-ai" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/photo-to-comic" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/gif-maker" element={isAuthenticated ? <GifMaker /> : <Navigate to="/login" />} />
-      <Route path="/app/comic-storybook" element={isAuthenticated ? <ComicStorybook /> : <Navigate to="/login" />} />
+      <Route path="/app/comic-storybook" element={isAuthenticated ? <ComicStorybookBuilder /> : <Navigate to="/login" />} />
+      <Route path="/app/comic-storybook-old" element={isAuthenticated ? <ComicStorybook /> : <Navigate to="/login" />} />
       <Route path="/app/referral" element={isAuthenticated ? <ReferralProgram /> : <Navigate to="/login" />} />
       <Route path="/app/gift-cards" element={isAuthenticated ? <ReferralProgram /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
