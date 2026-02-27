@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, ArrowRight, Upload, Wand2, Image, Camera, Sparkles, 
   Loader2, Download, Check, AlertTriangle, Shield, Info,
-  User, Palette, Book, Zap, Crown, Lock
+  User, Palette, Book, Zap, Crown, Lock, Eye
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -15,6 +15,9 @@ import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
+import VariationSelector from '../components/VariationSelector';
+import PremiumLock, { PremiumBanner } from '../components/PremiumLock';
+import { StylePreviewModal, STYLE_PREVIEWS } from '../components/StylePreview';
 
 // Copyright blocked keywords (case-insensitive, substring match)
 const BLOCKED_KEYWORDS = [
