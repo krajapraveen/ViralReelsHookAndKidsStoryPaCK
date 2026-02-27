@@ -218,10 +218,12 @@ All 3 features use:
 10. ✅ QA Report populated
 11. ✅ **Quick Preview Mode** - "Try Before You Buy" for all 3 rebuilt features
 12. ✅ **Security Penetration Testing** - 17/17 tests passed (OWASP Top 10 compliant)
+13. ✅ **Security Badge** - "Protected by OWASP Standards" in Landing + Dashboard footers
+14. ✅ **CAPTCHA for Registration** - hCaptcha integration with Security Verification
+15. ✅ **Account Lockout** - 5 failed attempts = 30 min lockout
 
 ### P2 - BACKLOG
-- Implement CAPTCHA for registration
-- Add account lockout after failed attempts
+- IP-based suspicious activity blocking
 - Email notifications for gift cards
 - Referral share analytics
 
