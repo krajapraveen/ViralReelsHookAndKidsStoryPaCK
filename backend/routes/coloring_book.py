@@ -155,6 +155,22 @@ async def deduct_credits_atomic(user_id: str, amount: int, ref_type: str, ref_id
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
+@router.get("/styles")
+async def get_coloring_book_styles():
+    """Get available coloring book styles"""
+    return {
+        "styles": [
+            {"id": "classic", "name": "Classic Outlines", "description": "Traditional coloring book style with clean black outlines"},
+            {"id": "detailed", "name": "Detailed", "description": "More intricate designs with fine details"},
+            {"id": "simple", "name": "Simple", "description": "Easy-to-color designs for younger children"},
+            {"id": "mandala", "name": "Mandala", "description": "Circular patterns for relaxation"},
+            {"id": "cartoon", "name": "Cartoon", "description": "Fun cartoon-style illustrations"}
+        ],
+        "default": "classic"
+    }
+
+
+
 @router.get("/pricing")
 async def get_coloring_book_pricing(user: dict = Depends(get_current_user)):
     """Get complete pricing configuration - NEW 5-STEP WIZARD STRUCTURE"""
