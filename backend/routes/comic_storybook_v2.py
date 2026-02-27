@@ -352,16 +352,21 @@ AVOID: {negative_prompt}"""
     }
 
 
+from pydantic import BaseModel
+
+class GenerateComicRequest(BaseModel):
+    genre: str
+    storyIdea: str
+    title: str = "My Comic Story"
+    author: str = "Anonymous"
+    pageCount: int = 20
+    addOns: Optional[Dict] = None
+    dedicationText: Optional[str] = None
+
 @router.post("/generate")
 async def generate_comic_book(
+    request: GenerateComicRequest,
     background_tasks: BackgroundTasks,
-    genre: str,
-    storyIdea: str,
-    title: str = "My Comic Story",
-    author: str = "Anonymous",
-    pageCount: int = 20,
-    addOns: Dict = None,
-    dedicationText: str = None,
     user: dict = Depends(get_current_user)
 ):
     """Generate full comic book"""
