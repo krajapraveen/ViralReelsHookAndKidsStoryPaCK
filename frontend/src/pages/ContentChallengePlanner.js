@@ -69,6 +69,19 @@ export default function ContentChallengePlanner() {
     }
   };
 
+  const handleShowPreview = async () => {
+    setLoadingPreview(true);
+    try {
+      const response = await api.get('/api/content-challenge-planner/preview');
+      setPreviewData(response.data);
+      setShowPreview(true);
+    } catch (error) {
+      toast.error('Failed to load preview');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
   const getCost = () => {
     const option = DURATIONS.find(d => d.days === duration);
     return option?.credits || 18;
