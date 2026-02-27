@@ -36,7 +36,7 @@ export default function VariationSelector({
 
   const calculateTotalCost = (variationType) => {
     const variation = variations[variationType];
-    return baseCredits + variation.extra_credits;
+    return credits + variation.extra_credits;
   };
 
   return (
