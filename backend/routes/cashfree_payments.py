@@ -551,22 +551,24 @@ async def get_order_status(
         # Get user ID - handle both dict formats
         user_id = str(current_user.get("_id", current_user.get("id", current_user.get("user_id", ""))))
         
-        # Find order in database
-        order = await db.cashfree_orders.find_one({
-            "orderId": order_id,
-            "userId": user_id
+        # Find order in database (check both collections)
+        order = await db.orders.find_one({
+            "$or": [
+                {"order_id": order_id},
+                {"orderId": order_id}
+            ]
         })
         
         if not order:
-            # Try without user filter for admin check
             order = await db.cashfree_orders.find_one({"orderId": order_id})
-            if not order:
-                raise HTTPException(status_code=404, detail="Order not found")
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
         
         return {
-            "orderId": order.get("orderId"),
-            "cfOrderId": order.get("cfOrderId"),
-            "order_status": order.get("status", "ACTIVE"),
+            "orderId": order.get("order_id", order.get("orderId")),
+            "cfOrderId": order.get("cf_order_id", order.get("cfOrderId")),
+            "order_status": order.get("status", "PENDING"),
             "amount": order.get("amount"),
             "credits": order.get("credits"),
             "productId": order.get("productId"),
