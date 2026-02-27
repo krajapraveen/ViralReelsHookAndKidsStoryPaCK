@@ -1,0 +1,175 @@
+{
+  "audit_timestamp": "2026-02-27T12:58:10.247499+00:00",
+  "owasp_version": "2021",
+  "categories": {
+    "A01_Broken_Access_Control": {
+      "category": "A01:2021 \u2013 Broken Access Control",
+      "checks_performed": 4,
+      "checks_passed": 4,
+      "findings": {
+        "passed": [
+          "Admin routes are properly protected with authentication",
+          "User isolation patterns found in data queries",
+          "CORS is configured",
+          "Rate limiting is implemented"
+        ],
+        "failed": [],
+        "warnings": []
+      }
+    },
+    "A02_Cryptographic_Failures": {
+      "category": "A02:2021 \u2013 Cryptographic Failures",
+      "checks_performed": 5,
+      "checks_passed": 4,
+      "findings": {
+        "passed": [
+          "Secure password hashing is implemented",
+          "JWT authentication is implemented",
+          "HTTPS/TLS references found",
+          "Secrets loaded from environment variables"
+        ],
+        "failed": [
+          "Potential hardcoded secrets found in 29 locations"
+        ],
+        "warnings": []
+      }
+    },
+    "A03_Injection": {
+      "category": "A03:2021 \u2013 Injection",
+      "checks_performed": 4,
+      "checks_passed": 4,
+      "findings": {
+        "passed": [
+          "No raw SQL with string formatting found",
+          "MongoDB queries use safe patterns",
+          "Input sanitization library detected",
+          "XSS prevention measures found"
+        ],
+        "failed": [],
+        "warnings": []
+      }
+    },
+    "A04_Insecure_Design": {
+      "category": "A04:2021 \u2013 Insecure Design",
+      "checks_performed": 3,
+      "checks_passed": 3,
+      "findings": {
+        "passed": [
+          "Pydantic models used for input validation",
+          "Error handling patterns implemented",
+          "Credit/business logic validation found"
+        ],
+        "failed": [],
+        "warnings": []
+      }
+    },
+    "A05_Security_Misconfiguration": {
+      "category": "A05:2021 \u2013 Security Misconfiguration",
+      "checks_performed": 4,
+      "checks_passed": 2,
+      "findings": {
+        "passed": [
+          "Debug mode appears to be disabled",
+          "Security headers are configured"
+        ],
+        "failed": [
+          "Potential default credentials found"
+        ],
+        "warnings": [
+          "Review error messages for information disclosure"
+        ]
+      }
+    },
+    "A06_Vulnerable_Components": {
+      "category": "A06:2021 \u2013 Vulnerable and Outdated Components",
+      "checks_performed": 3,
+      "checks_passed": 2,
+      "findings": {
+        "passed": [
+          "requirements.txt exists for dependency management",
+          "package.json exists for frontend dependencies"
+        ],
+        "failed": [],
+        "warnings": [
+          "Run vulnerability_scanner.py for detailed component analysis"
+        ]
+      }
+    },
+    "A07_Authentication_Failures": {
+      "category": "A07:2021 \u2013 Identification and Authentication Failures",
+      "checks_performed": 4,
+      "checks_passed": 4,
+      "findings": {
+        "passed": [
+          "Password policy checks found",
+          "Account lockout mechanism implemented",
+          "Session/token management implemented",
+          "Two-factor authentication supported"
+        ],
+        "failed": [],
+        "warnings": []
+      }
+    },
+    "A08_Data_Integrity": {
+      "category": "A08:2021 \u2013 Software and Data Integrity Failures",
+      "checks_performed": 3,
+      "checks_passed": 3,
+      "findings": {
+        "passed": [
+          "File upload validation found",
+          "Signature/hash verification implemented",
+          "Content Security Policy configured"
+        ],
+        "failed": [],
+        "warnings": []
+      }
+    },
+    "A09_Logging_Monitoring": {
+      "category": "A09:2021 \u2013 Security Logging and Monitoring Failures",
+      "checks_performed": 3,
+      "checks_passed": 3,
+      "findings": {
+        "passed": [
+          "Comprehensive logging implemented",
+          "Audit logging system found",
+          "Security events are logged"
+        ],
+        "failed": [],
+        "warnings": []
+      }
+    },
+    "A10_SSRF": {
+      "category": "A10:2021 \u2013 Server-Side Request Forgery",
+      "checks_performed": 3,
+      "checks_passed": 1,
+      "findings": {
+        "passed": [
+          "URL validation patterns found"
+        ],
+        "failed": [],
+        "warnings": [
+          "External HTTP requests found in 79 locations - ensure URL validation",
+          "Internal IP references found - ensure SSRF protection"
+        ]
+      }
+    }
+  },
+  "summary": {
+    "total_checks": 36,
+    "passed_checks": 30,
+    "failed_checks": 6,
+    "compliance_score": 83.3,
+    "risk_level": "MEDIUM",
+    "audit_duration_seconds": 1
+  },
+  "recommendations": [
+    "Run regular security audits (at least quarterly)",
+    "Keep all dependencies updated to latest secure versions",
+    "Implement security training for development team",
+    "Use automated security scanning in CI/CD pipeline",
+    "Conduct penetration testing annually",
+    "Monitor security logs and set up alerts",
+    "Document and review all API endpoints for access control",
+    "Implement bug bounty program for responsible disclosure"
+  ]
+}
