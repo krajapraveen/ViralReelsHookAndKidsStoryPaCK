@@ -333,6 +333,10 @@ export default function Dashboard() {
 
         {/* Privacy & Settings Quick Link */}
         <div className="mb-8 sm:mb-12 flex gap-4 sm:gap-6 flex-wrap">
+          <Link to="/app/referral" className="inline-flex items-center gap-2 text-pink-400 hover:text-pink-300 transition-colors font-medium">
+            <Users className="w-4 h-4" />
+            <span className="text-sm">Referral & Gift Cards</span>
+          </Link>
           <Link to="/app/subscription" className="inline-flex items-center gap-2 text-yellow-400 hover:text-yellow-300 transition-colors font-medium">
             <Crown className="w-4 h-4" />
             <span className="text-sm">Subscription</span>
