@@ -104,6 +104,15 @@ from routes.security_management import router as security_management_router
 # NEW FEATURE: Instagram Bio Generator
 from routes.instagram_bio_generator import router as instagram_bio_generator_router
 
+# NEW FEATURE: Comment Reply Bank
+from routes.comment_reply_bank import router as comment_reply_bank_router
+
+# NEW FEATURE: Bedtime Story Builder
+from routes.bedtime_story_builder import router as bedtime_story_builder_router
+
+# Webhook Retry Queue
+from services.webhook_retry_queue import WebhookRetryQueue, webhook_queue
+
 # Security middleware
 from middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
 
