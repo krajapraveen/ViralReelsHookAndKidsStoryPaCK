@@ -1159,29 +1159,30 @@ export default function ComicStorybookBuilder() {
             
             {job ? (
               <div className="space-y-4">
-                {/* Status */}
-                <div className="flex items-center justify-between">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    job.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
-                    job.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                    'bg-yellow-500/20 text-yellow-400 animate-pulse'
-                  }`}>
-                    {job.status === 'PROCESSING' ? 'GENERATING...' : job.status}
-                  </span>
-                </div>
-                
-                {/* Progress */}
-                {(job.status === 'PROCESSING' || job.status === 'QUEUED') && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Progress</span>
-                      <span className="text-purple-400">{job.progress || 0}%</span>
+                {/* Show WaitingWithGames during processing */}
+                {(job.status === 'PROCESSING' || job.status === 'QUEUED') ? (
+                  <WaitingWithGames 
+                    progress={job.progress || 0}
+                    status={job.progressMessage || (job.status === 'QUEUED' ? 'In queue...' : 'Creating your comic book...')}
+                    estimatedTime="2-5 minutes"
+                    onCancel={() => {
+                      // Could add cancel logic here
+                      toast.info('Generation in progress - please wait');
+                    }}
+                  />
+                ) : (
+                  <>
+                    {/* Status Badge */}
+                    <div className="flex items-center justify-between">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        job.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
+                        job.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {job.status}
+                      </span>
                     </div>
-                    <Progress value={job.progress || 0} className="h-2" />
-                    {job.progressMessage && (
-                      <p className="text-xs text-slate-500">{job.progressMessage}</p>
-                    )}
-                  </div>
+                  </>
                 )}
                 
                 {/* Download Buttons */}
