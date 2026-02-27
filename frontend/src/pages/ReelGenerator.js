@@ -479,10 +479,12 @@ export default function ReelGenerator() {
             )}
             
             {loading && !result && (
-              <div className="text-center py-12 text-slate-400">
-                <Loader2 className="w-12 h-12 mx-auto mb-4 text-indigo-400 animate-spin" />
-                <p>Generating your reel script...</p>
-              </div>
+              <WaitingWithGames 
+                progress={50}
+                status="Generating your reel script..."
+                estimatedTime="10-30 seconds"
+                onCancel={() => toast.info('Generation in progress - please wait')}
+              />
             )}
             
             {result && result.hooks && (
