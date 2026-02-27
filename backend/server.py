@@ -635,6 +635,31 @@ async def startup():
     except Exception as e:
         logger.warning(f"Auto-scaling initialization warning: {e}")
     
+    # Initialize enhanced worker pools
+    try:
+        from services.enhanced_worker_system import get_worker_system
+        worker_system = get_worker_system(db)
+        
+        # Register feature handlers (placeholder async functions for now)
+        async def comic_avatar_handler(payload): return {"status": "processed"}
+        async def comic_strip_handler(payload): return {"status": "processed"}
+        async def gif_maker_handler(payload): return {"status": "processed"}
+        async def coloring_book_handler(payload): return {"status": "processed"}
+        async def reel_generator_handler(payload): return {"status": "processed"}
+        async def story_generator_handler(payload): return {"status": "processed"}
+        
+        worker_system.register_feature("comic_avatar", comic_avatar_handler)
+        worker_system.register_feature("comic_strip", comic_strip_handler)
+        worker_system.register_feature("gif_maker", gif_maker_handler)
+        worker_system.register_feature("coloring_book", coloring_book_handler)
+        worker_system.register_feature("reel_generator", reel_generator_handler)
+        worker_system.register_feature("story_generator", story_generator_handler)
+        
+        await worker_system.start()
+        logger.info("Enhanced worker pools initialized and started")
+    except Exception as e:
+        logger.warning(f"Worker system initialization warning: {e}")
+    
     # Create performance indexes
     try:
         await create_performance_indexes()
