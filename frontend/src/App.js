@@ -61,6 +61,10 @@ import ContentBlueprintLibrary from './pages/ContentBlueprintLibrary';
 import AdminSecurityDashboard from './pages/AdminSecurityDashboard';
 // INSTAGRAM BIO GENERATOR
 import InstagramBioGenerator from './pages/InstagramBioGenerator';
+// COMMENT REPLY BANK
+import CommentReplyBank from './pages/CommentReplyBank';
+// BEDTIME STORY BUILDER
+import BedtimeStoryBuilder from './pages/BedtimeStoryBuilder';
 import './App.css';
 
 function App() {
