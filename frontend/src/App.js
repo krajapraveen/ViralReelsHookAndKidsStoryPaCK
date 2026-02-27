@@ -38,6 +38,7 @@ import AdminUsersManagement from './pages/AdminUsersManagement';
 import SubscriptionManagement from './pages/SubscriptionManagement.jsx';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import ComixAI from './pages/ComixAI';
+import PhotoToComic from './pages/PhotoToComic';
 import GifMaker from './pages/GifMaker';
 import ComicStorybook from './pages/ComicStorybook';
 import RealtimeAnalytics from './pages/RealtimeAnalytics';
