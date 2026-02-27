@@ -13,6 +13,7 @@ import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
 import ShareButton from '../components/ShareButton';
 import HelpGuide from '../components/HelpGuide';
+import WaitingWithGames from '../components/WaitingWithGames';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);

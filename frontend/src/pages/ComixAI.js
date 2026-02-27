@@ -15,6 +15,7 @@ import UpsellModal from '../components/UpsellModal';
 import VariationSelector from '../components/VariationSelector';
 import ShareCreation from '../components/ShareCreation';
 import PremiumLock, { PremiumBanner } from '../components/PremiumLock';
+import WaitingWithGames from '../components/WaitingWithGames';
 
 export default function ComixAI() {
   const [credits, setCredits] = useState(0);
