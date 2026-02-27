@@ -45,6 +45,24 @@ def check_copyright_violation(text: str) -> Optional[str]:
             return keyword
     return None
 
+def sanitize_xss(text: str) -> str:
+    """Remove potential XSS payloads from text"""
+    if not text:
+        return text
+    # Remove script tags
+    import re
+    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'<script[^>]*>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'</script>', '', text, flags=re.IGNORECASE)
+    # Remove event handlers
+    text = re.sub(r'\s*on\w+\s*=\s*["\'][^"\']*["\']', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*on\w+\s*=\s*\S+', '', text, flags=re.IGNORECASE)
+    # Remove javascript: URLs
+    text = re.sub(r'javascript\s*:', '', text, flags=re.IGNORECASE)
+    # Remove img/svg/iframe with onerror
+    text = re.sub(r'<(img|svg|iframe)[^>]*>', '', text, flags=re.IGNORECASE)
+    return text
+
 # =============================================================================
 # PRICING - SIMPLIFIED (Only 3 options)
 # =============================================================================
