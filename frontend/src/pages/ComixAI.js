@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload, Wand2, Image, BookOpen, Palette, Loader2, Download, Copy, Check, RefreshCw, Trash2, Settings, Key, Sparkles, Grid3X3, Layers, Lock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Upload, Wand2, Image, BookOpen, Palette, Loader2, Download, Copy, Check, RefreshCw, Trash2, Settings, Key, Sparkles, Grid3X3, Layers, Lock, Crown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -11,6 +11,9 @@ import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
+import UpsellModal from '../components/UpsellModal';
+import VariationSelector from '../components/VariationSelector';
+import ShareCreation from '../components/ShareCreation';
 
 export default function ComixAI() {
   const [credits, setCredits] = useState(0);
