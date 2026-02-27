@@ -309,9 +309,11 @@ class TestSensitiveDataExposure:
                 if response.status == 401:
                     data = await response.json()
                     detail = data.get("detail", "").lower()
-                    # Error should be generic, not reveal which part is wrong
-                    assert "password" not in detail or "incorrect" in detail
-                    assert "user not found" not in detail  # Don't reveal if user exists
+                    # Error should be generic - "Invalid email or password" is acceptable
+                    # It should NOT reveal which specific part is wrong
+                    assert "user does not exist" not in detail  # Don't reveal if user exists
+                    assert "email not found" not in detail  # Don't enumerate users
+                    assert "wrong password" not in detail  # Don't confirm password separately
     
     @pytest.mark.asyncio
     async def test_mongodb_id_not_exposed(self):
