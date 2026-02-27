@@ -627,55 +627,26 @@ export default function GifMaker() {
               
               {currentJob ? (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      currentJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
-                      currentJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                      currentJob.status === 'QUEUED' ? 'bg-blue-500/20 text-blue-400' :
-                      'bg-yellow-500/20 text-yellow-400 animate-pulse'
-                    }`}>
-                      {currentJob.status === 'PROCESSING' ? 'GENERATING...' : currentJob.status}
-                    </span>
-                    {currentJob.progressMessage && (
-                      <span className="text-slate-400 text-sm flex items-center gap-2">
-                        {currentJob.status === 'PROCESSING' && (
-                          <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
-                        )}
-                        {currentJob.progressMessage}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Enhanced Progress Bar */}
-                  {(currentJob.status === 'PROCESSING' || currentJob.status === 'QUEUED') && (
-                    <div className="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-400">Progress</span>
-                        <span className="text-pink-400 font-bold">{currentJob.progress || 0}%</span>
+                  {/* Show WaitingWithGames during processing */}
+                  {(currentJob.status === 'PROCESSING' || currentJob.status === 'QUEUED') ? (
+                    <WaitingWithGames 
+                      progress={currentJob.progress || 0}
+                      status={currentJob.progressMessage || (currentJob.status === 'QUEUED' ? 'In queue...' : 'Creating your GIF...')}
+                      estimatedTime="30-60 seconds"
+                      onCancel={() => toast.info('Generation in progress - please wait')}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          currentJob.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
+                          currentJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
+                          'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {currentJob.status}
+                        </span>
                       </div>
-                      <div className="relative">
-                        <Progress value={currentJob.progress || 0} className="h-3" />
-                        <div 
-                          className="absolute top-0 left-0 h-3 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all duration-500"
-                          style={{ width: `${currentJob.progress || 0}%` }}
-                        />
-                      </div>
-                      
-                      {/* Step Indicators */}
-                      <div className="flex justify-between text-xs text-slate-500 mt-2">
-                        <span className={currentJob.progress >= 5 ? 'text-green-400' : ''}>Initialize</span>
-                        <span className={currentJob.progress >= 30 ? 'text-green-400' : ''}>Generate</span>
-                        <span className={currentJob.progress >= 85 ? 'text-green-400' : ''}>Assemble</span>
-                        <span className={currentJob.progress >= 100 ? 'text-green-400' : ''}>Done</span>
-                      </div>
-                      
-                      {/* Estimated Time */}
-                      {currentJob.progress < 100 && currentJob.progress > 0 && (
-                        <p className="text-xs text-slate-500 text-center mt-2">
-                          Estimated time remaining: ~{Math.max(1, Math.round((100 - currentJob.progress) / 10))}s
-                        </p>
-                      )}
-                    </div>
+                    </>
                   )}
                   
                   {currentJob.resultUrl && (
