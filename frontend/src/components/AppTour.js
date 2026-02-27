@@ -42,14 +42,6 @@ const TOUR_STEPS = [
     position: 'left'
   },
   {
-    id: 'genstudio',
-    title: 'GenStudio AI',
-    content: 'Our AI generation suite! Create images from text, convert images to videos, and remix existing videos with AI.',
-    target: '[data-tour="genstudio-card"]',
-    page: '/app',
-    position: 'bottom'
-  },
-  {
     id: 'creator-tools',
     title: 'Creator Tools',
     content: 'Access 30-day content calendars, carousel generators, hashtag banks, trending topics, and more! Some tools are FREE!',
