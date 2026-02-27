@@ -150,7 +150,10 @@ class CashfreePaymentTester:
             # Display products
             print("\n  Available Products:")
             for p in product_list:
-                print(f"    - {p.get('name', p.get('id'))}: {p.get('credits', 'N/A')} credits @ INR {p.get('price', 'N/A')}")
+                if isinstance(p, dict):
+                    print(f"    - {p.get('name', p.get('id'))}: {p.get('credits', 'N/A')} credits @ INR {p.get('price', 'N/A')}")
+                else:
+                    print(f"    - {p}")
         else:
             self.record_result("Product Listing", False, "No products found")
     
