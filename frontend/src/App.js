@@ -191,6 +191,10 @@ function App() {
       <Route path="/app/daily-viral-ideas" element={isAuthenticated ? <DailyViralIdeas /> : <Navigate to="/login" />} />
       {/* TEMPLATE ANALYTICS DASHBOARD */}
       <Route path="/app/admin/template-analytics" element={isAuthenticated ? <TemplateAnalyticsDashboard /> : <Navigate to="/login" />} />
+      {/* ADMIN AUDIT LOGS */}
+      <Route path="/app/admin/audit-logs" element={isAuthenticated ? <AdminAuditLogs /> : <Navigate to="/login" />} />
+      {/* TEMPLATE LEADERBOARD */}
+      <Route path="/app/admin/leaderboard" element={isAuthenticated ? <TemplateLeaderboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
