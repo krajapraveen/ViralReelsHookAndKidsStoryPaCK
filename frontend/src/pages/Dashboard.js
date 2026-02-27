@@ -178,23 +178,23 @@ export default function Dashboard() {
             </div>
           </Link>
 
-          {/* Comic Storybook - Priority 2 */}
+          {/* Comic Story Book Builder - Priority 2 */}
           <Link to="/app/comic-storybook">
             <div className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-emerald-500/20" data-testid="quick-action-storybook">
-              <div className="absolute top-3 right-3 flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-                <Flame className="w-3 h-3" />
-                TRENDING
+              <div className="absolute top-3 right-3 flex items-center gap-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full">
+                <Sparkles className="w-3 h-3" />
+                REBUILT
               </div>
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="bg-white/20 rounded-xl p-2 sm:p-3">
                   <Library className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h2 className="text-lg sm:text-xl font-bold mb-1">Comic Storybook</h2>
-                  <p className="text-white/80 text-xs sm:text-sm">Full illustrated storybooks in minutes</p>
+                  <h2 className="text-lg sm:text-xl font-bold mb-1">Comic Story Book Builder</h2>
+                  <p className="text-white/80 text-xs sm:text-sm">Turn your idea into a printable comic book</p>
                   <div className="flex items-center gap-2 mt-2 text-xs">
-                    <span className="bg-white/20 rounded-full px-2 py-0.5">30-120 credits</span>
-                    <span className="text-yellow-300">📖 Bundle Savings</span>
+                    <span className="bg-white/20 rounded-full px-2 py-0.5">25-60 credits</span>
+                    <span className="text-yellow-300">📖 5-Step Wizard</span>
                   </div>
                 </div>
               </div>
