@@ -172,16 +172,47 @@ async def deduct_credits_atomic(user_id: str, amount: int, ref_type: str, ref_id
 # ENDPOINTS
 # =============================================================================
 @router.get("/pricing")
-async def get_coloring_book_pricing():
-    """Get pricing for coloring book exports"""
+async def get_coloring_book_pricing(user: dict = Depends(get_current_user)):
+    """Get complete pricing configuration - NEW 5-STEP WIZARD STRUCTURE"""
+    user_plan = user.get("plan", "free").lower()
+    benefits = SUBSCRIPTION_BENEFITS.get(user_plan, SUBSCRIPTION_BENEFITS["free"])
+    
+    # Mark pro-only addons with lock status
+    addons_with_access = {}
+    for addon_id, addon in ADDONS.items():
+        is_locked = addon.get("pro_only", False) and user_plan not in ["pro", "studio"]
+        addons_with_access[addon_id] = {
+            **addon,
+            "locked": is_locked,
+            "unlock_plan": "pro" if addon.get("pro_only") else None
+        }
+    
     return {
-        "creditPricing": COLORING_BOOK_PRICING,
-        "regionalPricing": REGIONAL_PRICING,
-        "freePreview": {
-            "pages": 1,
-            "hasWatermark": True
+        "success": True,
+        "storyMode": STORY_MODE_PRICING,
+        "photoMode": PHOTO_MODE_PRICING,
+        "addons": addons_with_access,
+        "subscription": {
+            "plan": user_plan,
+            "benefits": benefits
         },
-        "note": "Credits deducted only after successful export"
+        "defaults": {
+            "storyPageOption": "20_pages",
+            "photoImageOption": "5_images",
+            "preSelectedAddons": ["personalized_cover"]
+        },
+        "psychology": {
+            "bestValue": "20 Pages + Personalized Cover",
+            "savings": "Save 15%",
+            "expectedAOV": 39
+        },
+        # Legacy fields for backward compatibility
+        "creditPricing": COLORING_BOOK_PRICING,
+        "freePreview": {
+            "pages": benefits["preview_pages"],
+            "hasWatermark": benefits["watermark"]
+        },
+        "note": "Credits deducted only after successful generation"
     }
 
 
