@@ -403,7 +403,12 @@ export default function StoryGenerator() {
               )}
             </div>
             {loading && !result && (
-              <StoryProgressBar isGenerating={loading} />
+              <WaitingWithGames 
+                progress={polling ? 50 : 10}
+                status={polling ? 'Creating your story pack...' : 'Starting generation...'}
+                estimatedTime="30-90 seconds"
+                onCancel={() => toast.info('Generation in progress - please wait')}
+              />
             )}
             {!loading && !result && <div className="text-center py-12 text-slate-400"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-600" /><p>Your story pack will appear here</p></div>}
             {result && <div className="space-y-5 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar" data-testid="story-result">
