@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Copy, Check, AlertTriangle, BookOpen, DollarSign, Download, Gift, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import HelpGuide from '../components/HelpGuide';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -337,6 +338,9 @@ const OfferGenerator = () => {
           Copyright 2026 CreatorStudio AI. All rights reserved.
         </div>
       </div>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="offer-generator" />
     </div>
   );
 };
