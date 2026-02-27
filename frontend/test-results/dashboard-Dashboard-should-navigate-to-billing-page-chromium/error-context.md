@@ -1,0 +1,134 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - link "Dashboard" [ref=e7] [cursor=pointer]:
+            - /url: /app
+            - button "Dashboard" [ref=e8]:
+              - img
+              - text: Dashboard
+          - generic [ref=e9]:
+            - img [ref=e10]
+            - generic [ref=e12]: Billing
+        - generic [ref=e13]:
+          - img [ref=e14]
+          - generic [ref=e19]: 999999999 Credits
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - heading "Subscription Plans" [level=2] [ref=e22]
+        - paragraph [ref=e23]: Save more with longer commitments
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e28]:
+              - img [ref=e29]
+              - text: 10%
+            - heading "Weekly Subscription" [level=3] [ref=e31]
+            - generic [ref=e32]:
+              - generic [ref=e33]: ₹ 199
+              - generic [ref=e34]: /week
+            - paragraph [ref=e36]: 50 Credits
+            - list [ref=e37]:
+              - listitem [ref=e38]:
+                - img [ref=e39]
+                - text: Auto-renewal
+              - listitem [ref=e41]:
+                - img [ref=e42]
+                - text: Priority support
+            - button "Subscribe" [ref=e44] [cursor=pointer]
+          - generic [ref=e45]:
+            - generic [ref=e47]:
+              - img [ref=e48]
+              - text: 20%
+            - heading "Monthly Subscription" [level=3] [ref=e50]
+            - generic [ref=e51]:
+              - generic [ref=e52]: ₹ 699
+              - generic [ref=e53]: /month
+            - paragraph [ref=e55]: 200 Credits
+            - list [ref=e56]:
+              - listitem [ref=e57]:
+                - img [ref=e58]
+                - text: Auto-renewal
+              - listitem [ref=e60]:
+                - img [ref=e61]
+                - text: Priority support
+            - button "Subscribe" [ref=e63] [cursor=pointer]
+          - generic [ref=e64]:
+            - generic [ref=e66]:
+              - img [ref=e67]
+              - text: 35%
+            - heading "Quarterly Subscription" [level=3] [ref=e69]
+            - generic [ref=e70]:
+              - generic [ref=e71]: ₹ 1999
+              - generic [ref=e72]: /quarter
+            - paragraph [ref=e74]: 500 Credits
+            - list [ref=e75]:
+              - listitem [ref=e76]:
+                - img [ref=e77]
+                - text: Auto-renewal
+              - listitem [ref=e79]:
+                - img [ref=e80]
+                - text: Priority support
+            - button "Subscribe" [ref=e82] [cursor=pointer]
+          - generic [ref=e83]:
+            - generic [ref=e85]:
+              - img [ref=e86]
+              - text: 50%
+            - generic [ref=e89]:
+              - img [ref=e90]
+              - text: Best
+            - heading "Yearly Subscription" [level=3] [ref=e92]
+            - generic [ref=e93]:
+              - generic [ref=e94]: ₹ 5999
+              - generic [ref=e95]: /year
+            - paragraph [ref=e97]: 2500 Credits
+            - list [ref=e98]:
+              - listitem [ref=e99]:
+                - img [ref=e100]
+                - text: Auto-renewal
+              - listitem [ref=e102]:
+                - img [ref=e103]
+                - text: Priority support
+            - button "Subscribe" [ref=e105] [cursor=pointer]
+      - generic [ref=e106]:
+        - heading "Credit Packs" [level=2] [ref=e107]
+        - paragraph [ref=e108]: One-time purchase, no commitment
+        - generic [ref=e110]:
+          - generic [ref=e111]:
+            - heading "Starter Pack" [level=3] [ref=e112]
+            - generic [ref=e113]:
+              - generic [ref=e114]: ₹ 499
+              - generic [ref=e115]: one-time
+            - generic [ref=e116]:
+              - paragraph [ref=e117]: 100 Credits
+              - paragraph [ref=e118]: ₹ 5.0 /credit
+            - button "Buy Now" [ref=e119] [cursor=pointer]
+          - generic [ref=e120]:
+            - heading "Creator Pack" [level=3] [ref=e121]
+            - generic [ref=e122]:
+              - generic [ref=e123]: ₹ 999
+              - generic [ref=e124]: one-time
+            - generic [ref=e125]:
+              - paragraph [ref=e126]: 300 Credits
+              - paragraph [ref=e127]: ₹ 3.3 /credit
+            - button "Buy Now" [ref=e128] [cursor=pointer]
+          - generic [ref=e129]:
+            - heading "Pro Pack" [level=3] [ref=e130]
+            - generic [ref=e131]:
+              - generic [ref=e132]: ₹ 2499
+              - generic [ref=e133]: one-time
+            - generic [ref=e134]:
+              - paragraph [ref=e135]: 1000 Credits
+              - paragraph [ref=e136]: ₹ 2.5 /credit
+            - button "Buy Now" [ref=e137] [cursor=pointer]
+    - button "Open help guide" [ref=e138] [cursor=pointer]:
+      - img [ref=e140]
+  - button [ref=e143] [cursor=pointer]:
+    - img [ref=e144]
+  - button "Share your feedback" [ref=e147] [cursor=pointer]:
+    - img [ref=e148]
+  - region "Notifications alt+T"
+```

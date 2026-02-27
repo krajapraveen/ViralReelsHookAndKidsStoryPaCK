@@ -1,0 +1,48 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link [ref=e8] [cursor=pointer]:
+            - /url: /app
+            - img [ref=e9]
+          - generic [ref=e11]:
+            - img [ref=e13]
+            - generic [ref=e15]:
+              - heading "Story Episode Creator" [level=1] [ref=e16]
+              - paragraph [ref=e17]: Turn one idea into a binge-worthy mini series
+        - generic [ref=e18]:
+          - img [ref=e19]
+          - generic [ref=e22]: "999999999"
+          - generic [ref=e23]: credits
+    - main [ref=e24]:
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - generic [ref=e29]: "1"
+            - text: Step 1 of 3
+          - heading "Enter Your Story Idea" [level=2] [ref=e30]
+          - paragraph [ref=e31]: Describe your story in 2-3 lines
+        - generic [ref=e32]:
+          - 'textbox "Example: A young inventor named Mia discovers a magical toolbox that brings her drawings to life. She must use her creativity to solve problems in her neighborhood while keeping the magic a secret." [ref=e33]'
+          - paragraph [ref=e34]: 0 /500 characters
+        - button "See Example Output (FREE)" [ref=e35] [cursor=pointer]:
+          - img [ref=e37]
+          - generic [ref=e40]: See Example Output (FREE)
+        - button "Continue to Choose Length" [disabled]:
+          - text: Continue to Choose Length
+          - img
+        - generic [ref=e41]:
+          - img [ref=e42]
+          - generic [ref=e44]:
+            - paragraph [ref=e45]: Content Policy
+            - paragraph [ref=e46]: Copyrighted characters (Disney, Marvel, Pokemon, etc.) and celebrity names are not allowed.
+  - button [ref=e47] [cursor=pointer]:
+    - img [ref=e48]
+  - button "Share your feedback" [ref=e51] [cursor=pointer]:
+    - img [ref=e52]
+  - region "Notifications alt+T"
+```

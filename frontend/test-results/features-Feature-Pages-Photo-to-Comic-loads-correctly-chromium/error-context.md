@@ -1,0 +1,59 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link "Dashboard" [ref=e8] [cursor=pointer]:
+            - /url: /app
+            - img [ref=e9]
+            - generic [ref=e11]: Dashboard
+          - generic [ref=e12]:
+            - img [ref=e13]
+            - heading "Convert Photos To Comic Character" [level=1] [ref=e16]
+        - generic [ref=e19]: 999,999,999 Credits
+    - main [ref=e20]:
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - heading "Choose Your Creation Mode" [level=2] [ref=e24]
+          - paragraph [ref=e25]: Transform your photos into amazing comic art
+        - generic [ref=e26]:
+          - generic [ref=e27] [cursor=pointer]:
+            - generic [ref=e28]:
+              - img [ref=e30]
+              - generic [ref=e33]: RECOMMENDED
+            - heading "Comic Avatar" [level=3] [ref=e34]
+            - paragraph [ref=e35]: Transform your photo into a single comic character portrait. Perfect for profile pictures and avatars.
+            - generic [ref=e36]:
+              - generic [ref=e37]:
+                - img [ref=e38]
+                - text: 3 Steps
+              - generic [ref=e40]:
+                - img [ref=e41]
+                - text: From 15 credits
+          - generic [ref=e43] [cursor=pointer]:
+            - generic [ref=e44]:
+              - img [ref=e46]
+              - generic [ref=e48]: POPULAR
+            - heading "Comic Strip" [level=3] [ref=e49]
+            - paragraph [ref=e50]: Create a multi-panel comic story featuring you as the main character with AI-generated dialogue.
+            - generic [ref=e51]:
+              - generic [ref=e52]:
+                - img [ref=e53]
+                - text: 5 Steps
+              - generic [ref=e55]:
+                - img [ref=e56]
+                - text: From 25 credits
+      - generic [ref=e59]:
+        - img [ref=e60]
+        - generic [ref=e62]:
+          - paragraph [ref=e63]: Content Policy
+          - paragraph [ref=e64]: Upload only images you own or have permission to use. We do not allow copyrighted characters, celebrity likeness, or brand-based requests. All generated content must be original.
+  - button [ref=e65] [cursor=pointer]:
+    - img [ref=e66]
+  - button "Share your feedback" [ref=e69] [cursor=pointer]:
+    - img [ref=e70]
+  - region "Notifications alt+T"
+```

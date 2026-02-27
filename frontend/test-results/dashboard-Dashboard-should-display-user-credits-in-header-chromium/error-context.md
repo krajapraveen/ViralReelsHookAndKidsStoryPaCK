@@ -1,0 +1,262 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e7]
+          - generic [ref=e9]: CreatorStudio AI
+        - generic [ref=e10]:
+          - link "Admin Panel" [ref=e12] [cursor=pointer]:
+            - /url: /app/admin
+            - button "Admin Panel" [ref=e13]:
+              - img
+              - generic [ref=e14]: Admin Panel
+          - link "Profile" [ref=e15] [cursor=pointer]:
+            - /url: /app/profile
+            - button "Profile" [ref=e16]:
+              - img
+              - generic [ref=e17]: Profile
+          - generic [ref=e18]:
+            - button "Claim daily reward!" [ref=e20] [cursor=pointer]:
+              - img [ref=e21]
+            - button "999,999,999" [ref=e27] [cursor=pointer]:
+              - img [ref=e28]
+              - generic [ref=e33]: 999,999,999
+          - button "Logout" [ref=e34] [cursor=pointer]:
+            - img
+            - generic [ref=e35]: Logout
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - heading "Welcome back , Admin !" [level=1] [ref=e38]
+        - paragraph [ref=e39]: What would you like to create today?
+      - generic [ref=e40]:
+        - link "Generate Reel Script Create viral reel scripts in 5-10 seconds 10 credits per reel" [ref=e41] [cursor=pointer]:
+          - /url: /app/reels
+          - generic [ref=e42]:
+            - img [ref=e43]
+            - heading "Generate Reel Script" [level=2] [ref=e46]
+            - paragraph [ref=e47]: Create viral reel scripts in 5-10 seconds
+            - generic [ref=e48]:
+              - img [ref=e49]
+              - generic [ref=e54]: 10 credits per reel
+        - link "Create Kids Story Pack Complete video production packages 10 credits per story" [ref=e55] [cursor=pointer]:
+          - /url: /app/stories
+          - generic [ref=e56]:
+            - img [ref=e57]
+            - heading "Create Kids Story Pack" [level=2] [ref=e59]
+            - paragraph [ref=e60]: Complete video production packages
+            - generic [ref=e61]:
+              - img [ref=e62]
+              - generic [ref=e67]: 10 credits per story
+      - generic [ref=e68]:
+        - link "TRENDING Photo to Comic Transform photos into comic characters 15-45 credits 🎨 24 Safe Styles" [ref=e69] [cursor=pointer]:
+          - /url: /app/photo-to-comic
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - img [ref=e72]
+              - text: TRENDING
+            - generic [ref=e74]:
+              - img [ref=e76]
+              - generic [ref=e80]:
+                - heading "Photo to Comic" [level=2] [ref=e81]
+                - paragraph [ref=e82]: Transform photos into comic characters
+                - generic [ref=e83]:
+                  - generic [ref=e84]: 15-45 credits
+                  - generic [ref=e85]: 🎨 24 Safe Styles
+        - link "REBUILT Comic Story Book Builder Turn your idea into a printable comic book 25-60 credits 📖 5-Step Wizard" [ref=e86] [cursor=pointer]:
+          - /url: /app/comic-storybook
+          - generic [ref=e87]:
+            - generic [ref=e88]:
+              - img [ref=e89]
+              - text: REBUILT
+            - generic [ref=e91]:
+              - img [ref=e93]
+              - generic [ref=e95]:
+                - heading "Comic Story Book Builder" [level=2] [ref=e96]
+                - paragraph [ref=e97]: Turn your idea into a printable comic book
+                - generic [ref=e98]:
+                  - generic [ref=e99]: 25-60 credits
+                  - generic [ref=e100]: 📖 5-Step Wizard
+      - generic [ref=e101]:
+        - generic [ref=e103]:
+          - img [ref=e105]
+          - generic [ref=e107]:
+            - heading "Creator Boost Pack" [level=2] [ref=e108]
+            - paragraph [ref=e109]: Quick content tools for creators
+        - generic [ref=e110]:
+          - link "Reaction GIF 8 credits" [ref=e111] [cursor=pointer]:
+            - /url: /app/gif-maker
+            - generic [ref=e112]:
+              - img [ref=e113]
+              - heading "Reaction GIF" [level=3] [ref=e115]
+              - paragraph [ref=e116]: 8 credits
+          - link "Coloring Book 15 credits" [ref=e117] [cursor=pointer]:
+            - /url: /app/coloring-book
+            - generic [ref=e118]:
+              - img [ref=e119]
+              - heading "Coloring Book" [level=3] [ref=e125]
+              - paragraph [ref=e126]: 15 credits
+          - link "Tone Switcher 5 credits" [ref=e127] [cursor=pointer]:
+            - /url: /app/tone-switcher
+            - generic [ref=e128]:
+              - img [ref=e129]
+              - heading "Tone Switcher" [level=3] [ref=e132]
+              - paragraph [ref=e133]: 5 credits
+          - link "Challenge Gen 5 credits" [ref=e134] [cursor=pointer]:
+            - /url: /app/challenge-generator
+            - generic [ref=e135]:
+              - img [ref=e136]
+              - heading "Challenge Gen" [level=3] [ref=e138]
+              - paragraph [ref=e139]: 5 credits
+        - link "View all creator tools" [ref=e140] [cursor=pointer]:
+          - /url: /app/creator-tools
+          - generic [ref=e141]:
+            - generic [ref=e142]: View all creator tools
+            - img [ref=e143]
+      - generic [ref=e145]:
+        - link "Story Episode Creator Turn one idea into a binge-worthy mini series REBUILT" [ref=e146] [cursor=pointer]:
+          - /url: /app/story-episode-creator
+          - generic [ref=e147]:
+            - generic [ref=e148]:
+              - img [ref=e149]
+              - heading "Story Episode Creator" [level=3] [ref=e151]
+            - paragraph [ref=e152]: Turn one idea into a binge-worthy mini series
+            - generic [ref=e153]: REBUILT
+        - link "Content Challenge Planner Get a ready-to-post content plan in seconds REBUILT" [ref=e154] [cursor=pointer]:
+          - /url: /app/content-challenge-planner
+          - generic [ref=e155]:
+            - generic [ref=e156]:
+              - img [ref=e157]
+              - heading "Content Challenge Planner" [level=3] [ref=e159]
+            - paragraph [ref=e160]: Get a ready-to-post content plan in seconds
+            - generic [ref=e161]: REBUILT
+        - link "Caption Rewriter Pro Rewrite your content in viral tones instantly REBUILT" [ref=e162] [cursor=pointer]:
+          - /url: /app/caption-rewriter
+          - generic [ref=e163]:
+            - generic [ref=e164]:
+              - img [ref=e165]
+              - heading "Caption Rewriter Pro" [level=3] [ref=e167]
+            - paragraph [ref=e168]: Rewrite your content in viral tones instantly
+            - generic [ref=e169]: REBUILT
+      - generic [ref=e170]:
+        - generic [ref=e171]:
+          - generic [ref=e172]:
+            - generic [ref=e173]: Available Credits
+            - img [ref=e174]
+          - generic [ref=e179]: "999999999"
+        - link "Total Generations 5" [ref=e180] [cursor=pointer]:
+          - /url: /app/history
+          - generic [ref=e181]:
+            - generic [ref=e182]: Total Generations
+            - img [ref=e183]
+          - generic [ref=e186]: "5"
+        - link "Buy Credits View Plans →" [ref=e187] [cursor=pointer]:
+          - /url: /app/billing
+          - generic [ref=e188]:
+            - generic [ref=e189]: Buy Credits
+            - img [ref=e190]
+          - generic [ref=e192]: View Plans →
+        - link "Feature Requests Vote & Request →" [ref=e193] [cursor=pointer]:
+          - /url: /app/feature-requests
+          - generic [ref=e194]:
+            - generic [ref=e195]: Feature Requests
+            - img [ref=e196]
+          - generic [ref=e198]: Vote & Request →
+      - generic [ref=e199]:
+        - link "Blueprint Library NEW" [ref=e200] [cursor=pointer]:
+          - /url: /app/blueprint-library
+          - img [ref=e201]
+          - generic [ref=e203]: Blueprint Library
+          - generic [ref=e204]: NEW
+        - link "Security Dashboard ADMIN" [ref=e206] [cursor=pointer]:
+          - /url: /app/admin/security
+          - img [ref=e207]
+          - generic [ref=e209]: Security Dashboard
+          - generic [ref=e210]: ADMIN
+        - link "Referral & Gift Cards" [ref=e211] [cursor=pointer]:
+          - /url: /app/referral
+          - img [ref=e212]
+          - generic [ref=e217]: Referral & Gift Cards
+        - link "Subscription" [ref=e218] [cursor=pointer]:
+          - /url: /app/subscription
+          - img [ref=e219]
+          - generic [ref=e221]: Subscription
+        - link "Analytics" [ref=e222] [cursor=pointer]:
+          - /url: /app/analytics
+          - img [ref=e223]
+          - generic [ref=e225]: Analytics
+        - link "Payment History" [ref=e226] [cursor=pointer]:
+          - /url: /app/payment-history
+          - img [ref=e227]
+          - generic [ref=e230]: Payment History
+        - link "Help & Guides" [ref=e231] [cursor=pointer]:
+          - /url: /user-manual
+          - img [ref=e232]
+          - generic [ref=e235]: Help & Guides
+        - link "Privacy & Data Settings" [ref=e236] [cursor=pointer]:
+          - /url: /app/privacy
+          - img [ref=e237]
+          - generic [ref=e240]: Privacy & Data Settings
+        - link "Copyright & Legal" [ref=e241] [cursor=pointer]:
+          - /url: /app/copyright
+          - img [ref=e242]
+          - generic [ref=e245]: Copyright & Legal
+      - generic [ref=e246]:
+        - generic [ref=e247]:
+          - heading "Recent Generations" [level=3] [ref=e248]
+          - link "View All" [ref=e249] [cursor=pointer]:
+            - /url: /app/history
+            - button "View All" [ref=e250]:
+              - img
+              - text: View All
+        - generic [ref=e253]:
+          - generic [ref=e254]:
+            - generic [ref=e255]:
+              - img [ref=e258]
+              - generic [ref=e260]:
+                - generic [ref=e261]: STORY Generation
+                - generic [ref=e262]: 2/22/2026, 5:27:12 AM
+            - generic [ref=e263]: COMPLETED
+          - generic [ref=e264]:
+            - generic [ref=e265]:
+              - img [ref=e268]
+              - generic [ref=e270]:
+                - generic [ref=e271]: STORY Generation
+                - generic [ref=e272]: 2/21/2026, 5:26:01 PM
+            - generic [ref=e273]: COMPLETED
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - img [ref=e278]
+              - generic [ref=e281]:
+                - generic [ref=e282]: REEL Generation
+                - generic [ref=e283]: 2/21/2026, 5:25:23 PM
+            - generic [ref=e284]: COMPLETED
+          - generic [ref=e285]:
+            - generic [ref=e286]:
+              - img [ref=e289]
+              - generic [ref=e292]:
+                - generic [ref=e293]: REEL Generation
+                - generic [ref=e294]: 2/21/2026, 5:25:15 PM
+            - generic [ref=e295]: COMPLETED
+          - generic [ref=e296]:
+            - generic [ref=e297]:
+              - img [ref=e300]
+              - generic [ref=e302]:
+                - generic [ref=e303]: STORY Generation
+                - generic [ref=e304]: 2/21/2026, 5:16:35 PM
+            - generic [ref=e305]: COMPLETED
+    - button "Open help guide" [ref=e306] [cursor=pointer]:
+      - img [ref=e308]
+    - contentinfo [ref=e311]:
+      - generic [ref=e313]:
+        - img [ref=e314]
+        - generic [ref=e316]: Protected by OWASP Standards
+  - button [ref=e317] [cursor=pointer]:
+    - img [ref=e318]
+  - button "Share your feedback" [ref=e321] [cursor=pointer]:
+    - img [ref=e322]
+  - region "Notifications alt+T"
+```
