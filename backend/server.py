@@ -61,6 +61,7 @@ from routes.privacy import router as privacy_router
 from routes.wallet import router as wallet_router
 from routes.sse import router as sse_router
 from routes.coloring_book import router as coloring_book_router
+from routes.coloring_book_v2 import router as coloring_book_v2_router
 from routes.story_series import router as story_series_router
 from routes.challenge_generator import router as challenge_router
 from routes.tone_switcher import router as tone_switcher_router
