@@ -128,6 +128,11 @@ export default function ReelGenerator() {
       setTimeout(() => {
         setShowRatingModal(true);
       }, 2000);
+      
+      // Show upsell modal after rating
+      setTimeout(() => {
+        setShowUpsellModal(true);
+      }, 4000);
     } catch (error) {
       toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
     } finally {
