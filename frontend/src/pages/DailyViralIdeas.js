@@ -118,7 +118,7 @@ const DailyViralIdeas = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-orange-950 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
       </div>
     );
@@ -130,7 +130,7 @@ const DailyViralIdeas = () => {
     : ideasToShow;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-orange-950 to-slate-950 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
