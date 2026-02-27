@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload, Wand2, Loader2, Download, Share2, RefreshCw, Trash2, Sparkles, Image, Heart, Smile, PartyPopper, ThumbsUp, Music, Hand, Lock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Upload, Wand2, Loader2, Download, Share2, RefreshCw, Trash2, Sparkles, Image, Heart, Smile, PartyPopper, ThumbsUp, Music, Hand, Lock, Crown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
@@ -8,6 +8,8 @@ import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
+import UpsellModal from '../components/UpsellModal';
+import ShareCreation from '../components/ShareCreation';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(0);
