@@ -379,7 +379,7 @@ async def rewrite_caption(
     for tone in tones_to_use:
         variations = []
         for i in range(3):  # Always 3 variations per tone
-            variation = generate_variation(data.text, tone, i)
+            variation = generate_variation(sanitized_text, tone, i)
             variations.append({
                 "variation": i + 1,
                 "text": variation
@@ -397,7 +397,7 @@ async def rewrite_caption(
     rewrite_doc = {
         "id": rewrite_id,
         "userId": user_id,
-        "original_text": data.text,
+        "original_text": sanitized_text,
         "selected_tone": data.tone,
         "pack_type": data.pack_type,
         "results": results,
@@ -415,7 +415,7 @@ async def rewrite_caption(
     return {
         "success": True,
         "rewrite_id": rewrite_id,
-        "original_text": data.text,
+        "original_text": sanitized_text,
         "selected_tone": data.tone,
         "results": results,
         "total_variations": total_variations,
