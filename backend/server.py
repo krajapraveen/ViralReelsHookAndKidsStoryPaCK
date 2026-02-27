@@ -300,6 +300,7 @@ api_router.include_router(monetization_router)
 api_router.include_router(share_router)
 api_router.include_router(photo_to_comic_router)
 api_router.include_router(referral_router)
+api_router.include_router(comic_storybook_v2_router)
 
 # Include API router in app
 app.include_router(api_router)
