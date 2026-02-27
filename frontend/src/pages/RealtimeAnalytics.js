@@ -305,7 +305,7 @@ const RealtimeAnalytics = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <RefreshCw className="w-8 h-8 text-purple-500 animate-spin" />
           <p className="text-gray-400">Loading real-time analytics...</p>
@@ -319,7 +319,7 @@ const RealtimeAnalytics = () => {
   const revenue = metrics?.revenue || {};
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">

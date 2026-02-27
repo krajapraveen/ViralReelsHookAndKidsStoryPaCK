@@ -174,7 +174,7 @@ export default function ReelGenerator() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
       {/* Upgrade Modal */}
       <UpgradeModal 
         isOpen={showUpgradeModal} 
