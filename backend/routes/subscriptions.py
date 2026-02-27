@@ -765,3 +765,165 @@ async def track_ab_conversion(
     )
     
     return {"success": True}
+
+
+# =============================================================================
+# CASHFREE RECURRING SUBSCRIPTION ENDPOINTS
+# =============================================================================
+
+from services.cashfree_subscription_service import (
+    get_subscription_service,
+    get_subscription_plans as get_cf_plans,
+    SUBSCRIPTION_PLANS as CF_PLANS
+)
+
+class CreateRecurringSubscriptionRequest(BaseModel):
+    plan_key: str = Field(..., pattern="^(creator|pro|studio)$")
+    customer_phone: Optional[str] = Field(default=None)
+
+
+@router.get("/recurring/plans")
+async def get_recurring_plans():
+    """Get Cashfree recurring subscription plans"""
+    plans = get_cf_plans()
+    return {
+        "success": True,
+        "plans": [
+            {
+                "key": key,
+                **plan,
+                "popular": key == "pro"
+            }
+            for key, plan in plans.items()
+        ]
+    }
+
+
+@router.get("/recurring/current")
+async def get_current_recurring(user: dict = Depends(get_current_user)):
+    """Get user's current recurring subscription"""
+    service = await get_subscription_service(db)
+    subscription = await service.get_user_subscription(user["id"])
+    
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "plan": 1, "credits": 1})
+    current_plan = user_data.get("plan", "free") if user_data else "free"
+    
+    plan_details = CF_PLANS.get(current_plan, {})
+    
+    return {
+        "success": True,
+        "has_subscription": subscription is not None,
+        "subscription": subscription,
+        "current_plan": current_plan,
+        "plan_details": plan_details if plan_details else {
+            "name": "Free Plan",
+            "discount_percent": 0,
+            "features": ["Basic access", "Watermarked outputs"]
+        }
+    }
+
+
+@router.post("/recurring/create")
+async def create_recurring_subscription(
+    request: CreateRecurringSubscriptionRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Create a new Cashfree recurring subscription"""
+    service = await get_subscription_service(db)
+    
+    existing = await service.get_user_subscription(user["id"])
+    if existing and existing.get("status") == "ACTIVE":
+        raise HTTPException(status_code=400, detail="Already have an active subscription")
+    
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "email": 1, "name": 1})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    frontend_url = os.environ.get("FRONTEND_URL", "https://creatorstudio.ai")
+    
+    try:
+        result = await service.create_subscription(
+            user_id=user["id"],
+            plan_key=request.plan_key,
+            customer_email=user_data.get("email", ""),
+            customer_phone=request.customer_phone or "9999999999",
+            customer_name=user_data.get("name", "User"),
+            return_url=f"{frontend_url}/app/billing?subscription=success"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Failed to create recurring subscription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/recurring/cancel")
+async def cancel_recurring_subscription(user: dict = Depends(get_current_user)):
+    """Cancel Cashfree recurring subscription"""
+    service = await get_subscription_service(db)
+    
+    subscription = await service.get_user_subscription(user["id"])
+    if not subscription:
+        raise HTTPException(status_code=404, detail="No active subscription")
+    
+    try:
+        return await service.cancel_subscription(subscription["subscription_id"], user["id"])
+    except Exception as e:
+        logger.error(f"Failed to cancel subscription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/recurring/change-plan")
+async def change_recurring_plan(
+    new_plan_key: str,
+    user: dict = Depends(get_current_user)
+):
+    """Change Cashfree recurring subscription plan"""
+    if new_plan_key not in ["creator", "pro", "studio"]:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    service = await get_subscription_service(db)
+    
+    subscription = await service.get_user_subscription(user["id"])
+    if not subscription:
+        raise HTTPException(status_code=404, detail="No active subscription")
+    
+    try:
+        return await service.change_plan(user["id"], subscription["subscription_id"], new_plan_key)
+    except Exception as e:
+        logger.error(f"Failed to change plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/recurring/webhook")
+async def recurring_webhook(
+    request: Request,
+    x_cashfree_signature: str = Header(None, alias="x-cashfree-signature")
+):
+    """Handle Cashfree recurring subscription webhooks"""
+    body = await request.body()
+    service = await get_subscription_service(db)
+    
+    if x_cashfree_signature:
+        if not service.verify_webhook_signature(body, x_cashfree_signature):
+            logger.warning("Invalid recurring webhook signature")
+            raise HTTPException(status_code=401, detail="Invalid signature")
+    
+    try:
+        data = await request.json()
+        event_type = data.get("type", "")
+        
+        logger.info(f"Received recurring webhook: {event_type}")
+        
+        await db.subscription_webhooks.insert_one({
+            "event_type": event_type,
+            "data": data,
+            "received_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        result = await service.handle_webhook(event_type, data)
+        return {"success": True, "result": result}
+        
+    except Exception as e:
+        logger.error(f"Recurring webhook error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
