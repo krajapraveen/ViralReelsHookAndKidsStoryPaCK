@@ -20,18 +20,15 @@ DEMO_PASSWORD = "Password123!"
 
 # Endpoints to test (weight determines frequency)
 ENDPOINTS = [
-    {"path": "/api/health", "method": "GET", "weight": 5, "auth": False},
-    {"path": "/api/credits/balance", "method": "GET", "weight": 10, "auth": True},
-    {"path": "/api/user/profile", "method": "GET", "weight": 8, "auth": True},
-    {"path": "/api/photo-to-comic/styles", "method": "GET", "weight": 10, "auth": True},
-    {"path": "/api/photo-to-comic/pricing", "method": "GET", "weight": 10, "auth": True},
-    {"path": "/api/comic-storybook-v2/config", "method": "GET", "weight": 8, "auth": True},
-    {"path": "/api/generations/history?page=0&limit=10", "method": "GET", "weight": 5, "auth": True},
-    {"path": "/api/help/manual", "method": "GET", "weight": 5, "auth": False},
-    {"path": "/api/creator-tools/hashtags/niches", "method": "GET", "weight": 8, "auth": True},
+    {"path": "/api/health", "method": "GET", "weight": 10, "auth": False},
+    {"path": "/api/credits/balance", "method": "GET", "weight": 15, "auth": True},
+    {"path": "/api/user/profile", "method": "GET", "weight": 10, "auth": True},
+    {"path": "/api/photo-to-comic/styles", "method": "GET", "weight": 15, "auth": True},
+    {"path": "/api/photo-to-comic/pricing", "method": "GET", "weight": 15, "auth": True},
+    {"path": "/api/comic-storybook-v2/config", "method": "GET", "weight": 10, "auth": True},
+    {"path": "/api/help/manual", "method": "GET", "weight": 10, "auth": False},
+    {"path": "/api/creator-tools/hashtags/niches", "method": "GET", "weight": 10, "auth": True},
     {"path": "/api/creator-tools/trending", "method": "GET", "weight": 5, "auth": True},
-    {"path": "/api/reel/templates/trending", "method": "GET", "weight": 8, "auth": True},
-    {"path": "/api/story/templates/genres", "method": "GET", "weight": 5, "auth": True},
 ]
 
 
