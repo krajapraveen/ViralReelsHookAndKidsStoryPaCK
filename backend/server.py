@@ -128,6 +128,10 @@ from routes.template_versioning import router as template_versioning_router
 from routes.pdf_protection import router as pdf_protection_router
 from routes.video_streaming import router as video_streaming_router
 
+# NEW: System Resilience Dashboard and Advanced Analytics Export
+from routes.system_resilience import router as system_resilience_router
+from routes.advanced_analytics_export import router as analytics_export_router
+
 # Webhook Retry Queue
 from services.webhook_retry_queue import WebhookRetryQueue, webhook_queue
 
