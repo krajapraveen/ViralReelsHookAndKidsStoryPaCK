@@ -45,6 +45,7 @@ import RealtimeAnalytics from './pages/RealtimeAnalytics';
 import SelfHealingDashboard from './pages/Admin/SelfHealingDashboard';
 import UserAnalyticsDashboard from './pages/Admin/UserAnalyticsDashboard';
 import SharePage from './pages/SharePage';
+import ReferralProgram from './pages/ReferralProgram';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import AppTour, { TourProvider } from './components/AppTour';
