@@ -3,9 +3,9 @@ import { test, expect, devices } from '@playwright/test';
 /**
  * Mobile Responsiveness E2E Tests
  */
-test.describe('Mobile Responsiveness', () => {
-  test.use({ ...devices['iPhone 13'] });
+test.use({ ...devices['iPhone 13'] });
 
+test.describe('Mobile Responsiveness', () => {
   test('landing page is mobile responsive', async ({ page }) => {
     await page.goto('/');
     
