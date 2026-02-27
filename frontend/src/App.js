@@ -24,14 +24,6 @@ import ContentVault from './pages/ContentVault';
 import PaymentHistory from './pages/PaymentHistory';
 import VerifyEmail from './pages/VerifyEmail';
 import ResetPassword from './pages/ResetPassword';
-// GenStudio Pages
-import GenStudioDashboard from './pages/GenStudioDashboard';
-import GenStudioTextToImage from './pages/GenStudioTextToImage';
-import GenStudioTextToVideo from './pages/GenStudioTextToVideo';
-import GenStudioImageToVideo from './pages/GenStudioImageToVideo';
-import GenStudioVideoRemix from './pages/GenStudioVideoRemix';
-import GenStudioHistory from './pages/GenStudioHistory';
-import GenStudioStyleProfiles from './pages/GenStudioStyleProfiles';
 // New Feature Pages
 import CreatorProTools from './pages/CreatorProTools';
 import TwinFinder from './pages/TwinFinder';
