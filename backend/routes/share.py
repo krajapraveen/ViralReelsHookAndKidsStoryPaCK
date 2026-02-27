@@ -13,7 +13,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared import db, logger, get_current_user, get_current_user_optional
+from shared import db, logger, get_current_user
 
 router = APIRouter(prefix="/share", tags=["Share"])
 
