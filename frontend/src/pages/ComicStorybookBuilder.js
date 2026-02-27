@@ -381,19 +381,6 @@ const STORY_TEMPLATES = {
     }
   ]
 };
-    name: 'HD Print Version',
-    description: '300 DPI print-ready PDF',
-    credits: 5,
-    icon: Download
-  },
-  {
-    id: 'commercial_license',
-    name: 'Commercial License',
-    description: 'Sell or distribute commercially',
-    credits: 15,
-    icon: Crown
-  }
-];
 
 export default function ComicStorybookBuilder() {
   // User state
