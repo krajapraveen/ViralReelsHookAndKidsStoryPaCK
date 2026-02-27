@@ -377,9 +377,12 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
         result = None
         generation_error = None
         
+        # Get user plan for watermark decision
+        user_plan = user.get("plan", "free")
+        
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
-                result = await generate_story_content_inline(data.model_dump())
+                result = await generate_story_content_inline(data.model_dump(), user_plan=user_plan)
             except Exception as inline_error:
                 logger.warning(f"Inline story generation failed: {inline_error}")
                 generation_error = str(inline_error)
