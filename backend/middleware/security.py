@@ -239,7 +239,7 @@ def get_cors_config():
         "allow_origins": [
             "https://creatorstudio.ai",
             "https://www.creatorstudio.ai",
-            "https://ui-consistency-pass-2.preview.emergentagent.com",
+            "https://webhook-retry-sys.preview.emergentagent.com",
             "http://localhost:3000",
             "http://localhost:8001"
         ],

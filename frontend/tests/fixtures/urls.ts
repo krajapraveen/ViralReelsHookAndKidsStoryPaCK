@@ -1,4 +1,4 @@
-export const BASE = process.env.BASE_URL ?? "https://ui-consistency-pass-2.preview.emergentagent.com";
+export const BASE = process.env.BASE_URL ?? "https://webhook-retry-sys.preview.emergentagent.com";
 
 export const URLS = {
   // Public pages

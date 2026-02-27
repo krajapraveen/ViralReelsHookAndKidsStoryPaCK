@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Test configurations
-API_BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ui-consistency-pass-2.preview.emergentagent.com")
+API_BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://webhook-retry-sys.preview.emergentagent.com")
 
 
 class TestSecurityHeaders:

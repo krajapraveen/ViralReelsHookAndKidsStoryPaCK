@@ -33,7 +33,7 @@ jobs:
         run: |
           npx playwright test tests/07-edge-cases.spec.ts --grep "Sanitization|Error Handling"
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://ui-consistency-pass-2.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://webhook-retry-sys.preview.emergentagent.com' }}
 
       - name: 📊 Upload Security Results
         uses: actions/upload-artifact@v4
@@ -52,7 +52,7 @@ jobs:
 
       - name: 🔍 API Performance Tests
         run: |
-          BASE_URL="${{ secrets.PREVIEW_URL || 'https://ui-consistency-pass-2.preview.emergentagent.com' }}"
+          BASE_URL="${{ secrets.PREVIEW_URL || 'https://webhook-retry-sys.preview.emergentagent.com' }}"
           
           echo "## ⚡ Performance Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -69,7 +69,7 @@ jobs:
 
       - name: 📊 Concurrent Request Test
         run: |
-          BASE_URL="${{ secrets.PREVIEW_URL || 'https://ui-consistency-pass-2.preview.emergentagent.com' }}"
+          BASE_URL="${{ secrets.PREVIEW_URL || 'https://webhook-retry-sys.preview.emergentagent.com' }}"
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Concurrent Request Test (20 parallel)" >> $GITHUB_STEP_SUMMARY
