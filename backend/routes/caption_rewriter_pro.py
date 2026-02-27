@@ -237,6 +237,46 @@ async def deduct_credits(user_id: str, amount: int, ref_type: str, ref_id: str):
     })
 
 # =============================================================================
+# SAMPLE PREVIEW DATA (Try Before You Buy)
+# =============================================================================
+SAMPLE_PREVIEW = {
+    "original_text": "Check out our new product! It's really good and you should buy it.",
+    "selected_tone": "funny",
+    "results": {
+        "funny": {
+            "tone_name": "Funny",
+            "emoji": "😂",
+            "variations": [
+                {"variation": 1, "text": "Hot take: check out our new product! It's incredible and you should totally invest in it...just saying! 😂 🔥 ✨"},
+                {"variation": 2, "text": "Plot twist: our new product is chef's kiss worthy and you absolutely need it - you're welcome! 🤣 😆 💀"},
+                {"variation": 3, "text": "Not gonna lie, this product is amazing and you should definitely get it (trust me) 😂 ✨ 🔥"}
+            ]
+        },
+        "luxury": {
+            "tone_name": "Luxury",
+            "emoji": "✨",
+            "variations": [
+                {"variation": 1, "text": "For the discerning: discover our exceptional new creation...crafted for excellence. ✨ 💎 🥂"},
+                {"variation": 2, "text": "Experience luxury: our exquisite new masterpiece awaits...beyond ordinary. 👑 🌟 🎭"},
+                {"variation": 3, "text": "Elevate your: acquire our unparalleled new offering...for the refined. ✨ 💎 👑"}
+            ]
+        },
+        "bold": {
+            "tone_name": "Bold",
+            "emoji": "💪",
+            "variations": [
+                {"variation": 1, "text": "Listen up: check out our new product! It's AMAZING and you MUST get it. Period. 💪 🔥 ⚡"},
+                {"variation": 2, "text": "Here's the truth: our product is incredible and you definitely need to commit to it. Make it happen. 🎯 💥 🚀"},
+                {"variation": 3, "text": "No excuses: this product is GREAT and you absolutely WILL love it. Do it now. 💪 ⚡ 🔥"}
+            ]
+        }
+    },
+    "total_variations": 9,
+    "is_preview": True,
+    "preview_message": "This is a FREE preview showing 3 tones. Generate your own rewrites!"
+}
+
+# =============================================================================
 # ENDPOINTS
 # =============================================================================
 @router.get("/config")
@@ -258,6 +298,12 @@ async def get_config():
             {"step": 2, "title": "Choose Tone", "description": "Select from 6 viral tones"},
             {"step": 3, "title": "Generate", "description": "Get 3 variations instantly"}
         ]
+    }
+
+@router.get("/preview")
+async def get_preview():
+    """Get a FREE sample preview - Try Before You Buy"""
+    return SAMPLE_PREVIEW
     }
 
 @router.post("/rewrite")
