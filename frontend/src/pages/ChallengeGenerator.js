@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
+import HelpGuide from '../components/HelpGuide';
 import {
   Calendar, ArrowLeft, Loader2, Download, Sparkles,
   Wallet, Target, Clock, Megaphone, Hash, FileText,
