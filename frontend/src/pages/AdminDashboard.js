@@ -226,6 +226,18 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Template BI</span>
               </Button>
             </Link>
+            <Link to="/app/admin/leaderboard">
+              <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-300 hover:bg-amber-500/20" data-testid="leaderboard-btn">
+                <Trophy className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Leaderboard</span>
+              </Button>
+            </Link>
+            <Link to="/app/admin/audit-logs">
+              <Button variant="outline" size="sm" className="border-red-500/50 text-red-300 hover:bg-red-500/20" data-testid="audit-logs-btn">
+                <ClipboardList className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Audit Logs</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}
