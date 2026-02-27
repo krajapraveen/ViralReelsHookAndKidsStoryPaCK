@@ -139,8 +139,14 @@ class CashfreePaymentTester:
         
         products = await self.get_products(session)
         
-        if "products" in products and len(products["products"]) > 0:
-            product_list = products["products"]
+        if "products" in products:
+            product_dict = products["products"]
+            # Products might be a dict with product_id as key
+            if isinstance(product_dict, dict):
+                product_list = list(product_dict.keys())
+            else:
+                product_list = product_dict
+                
             self.record_result(
                 "Product Listing",
                 True,
@@ -149,10 +155,14 @@ class CashfreePaymentTester:
             
             # Display products
             print("\n  Available Products:")
-            for p in product_list:
-                if isinstance(p, dict):
-                    print(f"    - {p.get('name', p.get('id'))}: {p.get('credits', 'N/A')} credits @ INR {p.get('price', 'N/A')}")
-                else:
+            if isinstance(product_dict, dict):
+                for product_id, details in product_dict.items():
+                    if isinstance(details, dict):
+                        print(f"    - {product_id}: {details.get('name', product_id)} - {details.get('credits', 'N/A')} credits @ INR {details.get('price', 'N/A')}")
+                    else:
+                        print(f"    - {product_id}")
+            else:
+                for p in product_list:
                     print(f"    - {p}")
         else:
             self.record_result("Product Listing", False, "No products found")
