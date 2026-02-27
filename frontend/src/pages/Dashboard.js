@@ -350,10 +350,6 @@ export default function Dashboard() {
             <BarChart3 className="w-4 h-4" />
             <span className="text-sm">Analytics</span>
           </Link>
-          <Link to="/app/content-vault" className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors font-medium">
-            <Library className="w-4 h-4" />
-            <span className="text-sm">Content Vault</span>
-          </Link>
           <Link to="/app/payment-history" className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
             <Receipt className="w-4 h-4" />
             <span className="text-sm">Payment History</span>
