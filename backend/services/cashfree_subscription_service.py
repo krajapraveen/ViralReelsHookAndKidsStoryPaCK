@@ -21,11 +21,13 @@ if CASHFREE_ENV == "PRODUCTION":
     CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY")
     CASHFREE_WEBHOOK_SECRET = os.environ.get("CASHFREE_WEBHOOK_SECRET")
     CASHFREE_BASE_URL = "https://api.cashfree.com/pg/subscriptions"
+    CASHFREE_PLAN_URL = "https://api.cashfree.com/pg/subscription/plans"
 else:
     CASHFREE_APP_ID = os.environ.get("CASHFREE_SANDBOX_APP_ID")
     CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SANDBOX_SECRET_KEY")
     CASHFREE_WEBHOOK_SECRET = os.environ.get("CASHFREE_SANDBOX_WEBHOOK_SECRET")
     CASHFREE_BASE_URL = "https://sandbox.cashfree.com/pg/subscriptions"
+    CASHFREE_PLAN_URL = "https://sandbox.cashfree.com/pg/subscription/plans"
 
 # Subscription Plans Configuration
 SUBSCRIPTION_PLANS = {
