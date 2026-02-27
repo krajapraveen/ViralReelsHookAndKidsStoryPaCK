@@ -541,6 +541,68 @@ async def cashfree_health():
     }
 
 
+@router.get("/order/{order_id}/status")
+async def get_order_status(
+    order_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the status of a specific order"""
+    try:
+        # Find order in database
+        order = await db.cashfree_orders.find_one({
+            "orderId": order_id,
+            "userId": str(current_user["_id"])
+        })
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        return {
+            "orderId": order.get("orderId"),
+            "cfOrderId": order.get("cfOrderId"),
+            "order_status": order.get("status", "unknown"),
+            "amount": order.get("amount"),
+            "credits": order.get("credits"),
+            "productId": order.get("productId"),
+            "createdAt": str(order.get("createdAt", ""))
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching order status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/payments/history")
+async def get_payment_history(
+    current_user: dict = Depends(get_current_user),
+    limit: int = 20,
+    skip: int = 0
+):
+    """Get payment history for the current user"""
+    try:
+        # Find all orders for this user
+        cursor = db.cashfree_orders.find(
+            {"userId": str(current_user["_id"])},
+            {"_id": 0}
+        ).sort("createdAt", -1).skip(skip).limit(limit)
+        
+        payments = await cursor.to_list(length=limit)
+        
+        # Get total count
+        total = await db.cashfree_orders.count_documents({"userId": str(current_user["_id"])})
+        
+        return {
+            "payments": payments,
+            "total": total,
+            "limit": limit,
+            "skip": skip
+        }
+    except Exception as e:
+        logger.error(f"Error fetching payment history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================================
 # REFUND ENDPOINTS (Admin Only)
 # =============================================================================
