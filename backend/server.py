@@ -312,6 +312,11 @@ api_router.include_router(referral_router)
 api_router.include_router(comic_storybook_v2_router)
 api_router.include_router(reaction_gif_router)
 
+# NEW REBUILT FEATURES
+api_router.include_router(story_episode_creator_router)
+api_router.include_router(content_challenge_planner_router)
+api_router.include_router(caption_rewriter_pro_router)
+
 # Include API router in app
 app.include_router(api_router)
 
