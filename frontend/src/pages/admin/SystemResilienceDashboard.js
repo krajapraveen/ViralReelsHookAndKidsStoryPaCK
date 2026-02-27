@@ -1,12 +1,36 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, RefreshCw, Activity, Shield, AlertTriangle, CheckCircle, Clock, DollarSign, Loader2, TrendingUp, Server, Zap } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import api from '../../utils/api';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function SystemResilienceDashboard() {
-  const { user, token } = useAuth();
+  // Get user and token from localStorage (consistent with other admin pages)
+  const [user, setUser] = useState(null);
+  const token = localStorage.getItem('token');
+  const navigate = useNavigate();
+  
+  // Load user data on mount
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const response = await api.get('/api/users/me');
+        if (response.data) {
+          setUser(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to load user:', err);
+        navigate('/login');
+      }
+    };
+    
+    if (token) {
+      loadUser();
+    } else {
+      navigate('/login');
+    }
+  }, [token, navigate]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
