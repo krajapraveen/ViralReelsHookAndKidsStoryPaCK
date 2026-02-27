@@ -153,51 +153,110 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* Creator Tools Highlight */}
-        <Link to="/app/creator-tools">
-          <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/20" data-testid="quick-action-creator-tools" data-tour="creator-tools-card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <Wand2 className="w-6 h-6 sm:w-8 sm:h-8" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold mb-1">⭐ Creator Tools</h2>
-                  <p className="text-white/80 text-xs sm:text-base">30-Day Calendar • Carousel Generator • Hashtag Bank • Thumbnails • Trending Topics</p>
-                </div>
-              </div>
-              <div className="hidden md:block text-right">
-                <span className="bg-white/20 rounded-full px-4 py-2 text-sm">NEW</span>
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        {/* Coloring Book Highlight */}
-        <Link to="/app/coloring-book">
-          <div className="bg-gradient-to-r from-rose-500 via-fuchsia-500 to-violet-500 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-fuchsia-500/20" data-testid="quick-action-coloring-book">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <Palette className="w-6 h-6 sm:w-8 sm:h-8" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold mb-1">🎨 Kids Coloring Book</h2>
-                  <p className="text-white/80 text-xs sm:text-base">Create personalized printable story coloring books • Photo-to-outline conversion</p>
-                </div>
-              </div>
-              <div className="hidden md:block text-right">
-                <span className="bg-white/20 rounded-full px-4 py-2 text-sm">NEW</span>
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        {/* NEW: Comix AI & GIF Maker */}
+        {/* PRIMARY TOOLS - High Revenue (Reordered for Monetization) */}
         <div className="grid md:grid-cols-2 gap-4 mb-4 sm:mb-6">
+          {/* Comix AI - Priority 1 */}
           <Link to="/app/comix">
-            <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-comix">
+            <div className="relative bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-comix">
+              <div className="absolute top-3 right-3 flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                <Flame className="w-3 h-3" />
+                TRENDING
+              </div>
               <div className="flex items-center gap-3 sm:gap-4">
+                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
+                  <ImageIcon className="w-6 h-6 sm:w-8 sm:h-8" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold mb-1">Comix AI</h2>
+                  <p className="text-white/80 text-xs sm:text-sm">Create viral comic panels with AI</p>
+                  <div className="flex items-center gap-2 mt-2 text-xs">
+                    <span className="bg-white/20 rounded-full px-2 py-0.5">10-45 credits</span>
+                    <span className="text-yellow-300">🔥 Pro Styles Available</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Comic Storybook - Priority 2 */}
+          <Link to="/app/comic-storybook">
+            <div className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-emerald-500/20" data-testid="quick-action-storybook">
+              <div className="absolute top-3 right-3 flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                <Flame className="w-3 h-3" />
+                TRENDING
+              </div>
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
+                  <Library className="w-6 h-6 sm:w-8 sm:h-8" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold mb-1">Comic Storybook</h2>
+                  <p className="text-white/80 text-xs sm:text-sm">Full illustrated storybooks in minutes</p>
+                  <div className="flex items-center gap-2 mt-2 text-xs">
+                    <span className="bg-white/20 rounded-full px-2 py-0.5">30-120 credits</span>
+                    <span className="text-yellow-300">📖 Bundle Savings</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Creator Boost Pack - Bundled Small Tools */}
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl p-2">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Creator Boost Pack</h2>
+                <p className="text-slate-400 text-sm">Quick content tools for creators</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Link to="/app/gif-maker">
+              <div className="bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-xl p-4 transition-all hover:scale-105">
+                <Film className="w-8 h-8 text-pink-400 mb-2" />
+                <h3 className="font-semibold text-white text-sm">GIF Maker</h3>
+                <p className="text-xs text-slate-400">8 credits</p>
+              </div>
+            </Link>
+            
+            <Link to="/app/coloring-book">
+              <div className="bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-xl p-4 transition-all hover:scale-105">
+                <Palette className="w-8 h-8 text-fuchsia-400 mb-2" />
+                <h3 className="font-semibold text-white text-sm">Coloring Book</h3>
+                <p className="text-xs text-slate-400">15 credits</p>
+              </div>
+            </Link>
+            
+            <Link to="/app/tone-switcher">
+              <div className="bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-xl p-4 transition-all hover:scale-105">
+                <Wand2 className="w-8 h-8 text-indigo-400 mb-2" />
+                <h3 className="font-semibold text-white text-sm">Tone Switcher</h3>
+                <p className="text-xs text-slate-400">5 credits</p>
+              </div>
+            </Link>
+            
+            <Link to="/app/challenge-generator">
+              <div className="bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-xl p-4 transition-all hover:scale-105">
+                <Calendar className="w-8 h-8 text-cyan-400 mb-2" />
+                <h3 className="font-semibold text-white text-sm">Challenge Gen</h3>
+                <p className="text-xs text-slate-400">5 credits</p>
+              </div>
+            </Link>
+          </div>
+          
+          <Link to="/app/creator-tools">
+            <div className="mt-4 flex items-center justify-center gap-2 text-purple-400 hover:text-purple-300 transition-colors">
+              <span className="text-sm">View all creator tools</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </Link>
+        </div>
                 <div className="bg-white/20 rounded-xl p-2 sm:p-3">
                   <Sparkles className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
