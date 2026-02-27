@@ -298,6 +298,49 @@ async def deduct_credits(user_id: str, amount: int, ref_type: str, ref_id: str):
     })
 
 # =============================================================================
+# SAMPLE PREVIEW DATA (Try Before You Buy)
+# =============================================================================
+SAMPLE_PREVIEW = {
+    "platform": "Instagram",
+    "duration": 7,
+    "goal": "Followers",
+    "daily_plans": [
+        {
+            "day": 1,
+            "hook": "Stop scrolling! This will change your perspective...",
+            "content_idea": "Day in the life",
+            "content_type": "Reel",
+            "caption": "If this helped you, follow for more daily tips!",
+            "cta": "Follow for daily value!",
+            "hashtags": ["#reels", "#instagood", "#trending"],
+            "posting_time": "7:00 AM"
+        },
+        {
+            "day": 2,
+            "hook": "The secret nobody tells you about...",
+            "content_idea": "Quick tips carousel",
+            "content_type": "Carousel",
+            "caption": "Save this for later and follow for more!",
+            "cta": "Follow for daily value!",
+            "hashtags": ["#fyp", "#viral", "#trending"],
+            "posting_time": "12:00 PM"
+        },
+        {
+            "day": 3,
+            "hook": "If you're not doing this, you're missing out...",
+            "content_idea": "Before and after",
+            "content_type": "Post",
+            "caption": "Don't miss our next post - hit follow!",
+            "cta": "Follow for daily value!",
+            "hashtags": ["#reels", "#viral", "#instagood"],
+            "posting_time": "7:00 PM"
+        }
+    ],
+    "is_preview": True,
+    "preview_message": "This is a FREE preview (showing 3 of 7 days). Generate your full plan!"
+}
+
+# =============================================================================
 # ENDPOINTS
 # =============================================================================
 @router.get("/config")
@@ -321,6 +364,11 @@ async def get_config():
             {"step": 4, "title": "Generate", "description": "Get your content plan"}
         ]
     }
+
+@router.get("/preview")
+async def get_preview():
+    """Get a FREE sample preview - Try Before You Buy"""
+    return SAMPLE_PREVIEW
 
 @router.post("/generate")
 @limiter.limit("10/minute")
