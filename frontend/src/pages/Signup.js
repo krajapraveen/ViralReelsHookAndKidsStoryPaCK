@@ -423,6 +423,24 @@ export default function Signup({ setAuth }) {
               )}
             </div>
 
+            {/* CAPTCHA */}
+            {captchaConfig.enabled && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-slate-300 text-sm">
+                  <Shield className="w-4 h-4 text-green-400" />
+                  <span>Security Verification</span>
+                </div>
+                <div 
+                  ref={captchaRef}
+                  className="flex justify-center"
+                  data-testid="captcha-container"
+                />
+                {!captchaToken && (
+                  <p className="text-xs text-slate-500 text-center">Please complete the verification above</p>
+                )}
+              </div>
+            )}
+
             <Button
               type="submit"
               disabled={loading}
