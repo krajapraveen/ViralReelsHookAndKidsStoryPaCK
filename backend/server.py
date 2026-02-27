@@ -342,6 +342,12 @@ api_router.include_router(security_management_router)
 # NEW FEATURE: Instagram Bio Generator
 api_router.include_router(instagram_bio_generator_router)
 
+# NEW FEATURE: Comment Reply Bank
+api_router.include_router(comment_reply_bank_router)
+
+# NEW FEATURE: Bedtime Story Builder
+api_router.include_router(bedtime_story_builder_router)
+
 # Include API router in app
 app.include_router(api_router)
 
