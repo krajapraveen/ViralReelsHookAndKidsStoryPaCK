@@ -779,6 +779,14 @@ AVOID: {negative_prompt}"""
             {"id": job_id},
             {"$set": {"status": "FAILED", "error": str(e)}}
         )
+        
+        # Auto-refund on generation failure
+        try:
+            from services.auto_refund import handle_generation_failure
+            await handle_generation_failure(db, user_id, "comic_strip", str(e))
+            logger.info(f"Auto-refund processed for failed comic strip: {job_id}")
+        except Exception as refund_error:
+            logger.error(f"Auto-refund failed: {refund_error}")
 
 
 @router.get("/job/{job_id}")
