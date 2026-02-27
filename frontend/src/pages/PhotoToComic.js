@@ -509,6 +509,9 @@ export default function PhotoToComic() {
     setStoryPrompt('');
     setJob(null);
     setContentError(null);
+    // CRITICAL: Reset refs to prevent stale state issues
+    stopPolling();
+    toastShownRef.current = {};
     setAddOns({
       transparent_bg: false,
       multiple_poses: false,
