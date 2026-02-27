@@ -20,7 +20,9 @@ export default function ComicStorybook() {
   const [layouts, setLayouts] = useState({});
   const [pricing, setPricing] = useState({});
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [lastGenerationId, setLastGenerationId] = useState(null);
+  const navigate = useNavigate();
   
   // Input state
   const [inputMethod, setInputMethod] = useState('text');
