@@ -560,7 +560,11 @@ async def generate_bios(
         
         # Get updated balance
         updated_wallet = await db.wallets.find_one({"userId": user["id"]})
-        remaining_credits = updated_wallet.get("balanceCredits", updated_wallet.get("availableCredits", 0))
+        if updated_wallet:
+            remaining_credits = updated_wallet.get("balanceCredits", updated_wallet.get("availableCredits", 0))
+        else:
+            # Fallback to user credits - 5 that were spent
+            remaining_credits = max(0, user_credits - CREDIT_COST)
         
         # Log generation
         await db.bio_generations.insert_one({
