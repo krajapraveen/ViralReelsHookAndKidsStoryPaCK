@@ -48,13 +48,13 @@ export default function VariationSelector({
       
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {Object.entries(variations).map(([key, variation]) => {
-          const isSelected = selectedVariation === key;
+          const isSelected = selected === key;
           const totalCost = calculateTotalCost(key);
           
           return (
             <button
               key={key}
-              onClick={() => onVariationSelect(key)}
+              onClick={() => onSelect && onSelect(key)}
               className={`relative p-3 rounded-xl border text-left transition-all ${
                 isSelected
                   ? 'border-purple-500 bg-purple-500/20'
