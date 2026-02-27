@@ -63,6 +63,13 @@ export default function ComixAI() {
   const [storyJob, setStoryJob] = useState(null);
   const [history, setHistory] = useState([]);
   const [pollingInterval, setPollingInterval] = useState(null);
+  
+  // Monetization state
+  const [showUpsellModal, setShowUpsellModal] = useState(false);
+  const [selectedVariation, setSelectedVariation] = useState('single');
+  const [watermarkRequired, setWatermarkRequired] = useState(true);
+  const [premiumStyles, setPremiumStyles] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchCredits();
