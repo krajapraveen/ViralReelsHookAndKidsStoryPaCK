@@ -305,7 +305,10 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
 @limiter.limit("10/minute")
 async def login(request: Request, data: UserLogin):
     """Login with email and password"""
-    from routes.login_activity import log_login_activity, is_ip_blocked, extract_client_ip
+    from routes.login_activity import (
+        log_login_activity, is_ip_blocked, extract_client_ip,
+        is_account_locked, record_failed_attempt, clear_failed_attempts
+    )
     
     try:
         # Check if IP is blocked
@@ -321,6 +324,22 @@ async def login(request: Request, data: UserLogin):
             )
             raise HTTPException(status_code=403, detail="Access denied. Please contact support.")
         
+        # Check if account is locked
+        is_locked, remaining_minutes, attempts = await is_account_locked(data.email)
+        if is_locked:
+            await log_login_activity(
+                request=request,
+                user_id=None,
+                identifier=data.email.lower(),
+                status="FAILED",
+                auth_method="email_password",
+                failure_reason="Account locked"
+            )
+            raise HTTPException(
+                status_code=423,
+                detail=f"Account temporarily locked due to multiple failed attempts. Try again in {remaining_minutes} minutes."
+            )
+        
         user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
         
         if not user:
@@ -333,6 +352,13 @@ async def login(request: Request, data: UserLogin):
                 auth_method="email_password",
                 failure_reason="User not found"
             )
+            # Check if should lock
+            should_lock, remaining = await record_failed_attempt(data.email)
+            if should_lock:
+                raise HTTPException(
+                    status_code=423,
+                    detail=f"Account temporarily locked due to multiple failed attempts. Try again in 30 minutes."
+                )
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         if not verify_password(data.password, user.get("password", "")):
@@ -345,7 +371,22 @@ async def login(request: Request, data: UserLogin):
                 auth_method="email_password",
                 failure_reason="Invalid password"
             )
+            # Check if should lock
+            should_lock, remaining = await record_failed_attempt(data.email)
+            if should_lock:
+                raise HTTPException(
+                    status_code=423,
+                    detail=f"Account temporarily locked due to multiple failed attempts. Try again in 30 minutes."
+                )
+            if remaining > 0:
+                raise HTTPException(
+                    status_code=401,
+                    detail=f"Invalid email or password. {remaining} attempts remaining before account lock."
+                )
             raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Clear failed attempts on successful login
+        await clear_failed_attempts(data.email)
         
         # Update last login
         await db.users.update_one(
