@@ -22,7 +22,6 @@ from models.schemas import UserCreate, UserLogin, GoogleCallback, ProfileUpdate,
 from security import limiter, validate_password_strength
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
-import httpx
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -414,7 +413,7 @@ async def login(request: Request, data: UserLogin):
             if should_lock:
                 raise HTTPException(
                     status_code=423,
-                    detail=f"Account temporarily locked due to multiple failed attempts. Try again in 30 minutes."
+                    detail="Account temporarily locked due to multiple failed attempts. Try again in 30 minutes."
                 )
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
@@ -433,7 +432,7 @@ async def login(request: Request, data: UserLogin):
             if should_lock:
                 raise HTTPException(
                     status_code=423,
-                    detail=f"Account temporarily locked due to multiple failed attempts. Try again in 30 minutes."
+                    detail="Account temporarily locked due to multiple failed attempts. Try again in 30 minutes."
                 )
             if remaining > 0:
                 raise HTTPException(
