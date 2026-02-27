@@ -101,8 +101,8 @@ function App() {
       {/* Creator Pro & TwinFinder Routes */}
       <Route path="/app/creator-pro" element={isAuthenticated ? <CreatorProTools /> : <Navigate to="/login" />} />
       <Route path="/app/twinfinder" element={isAuthenticated ? <TwinFinder /> : <Navigate to="/login" />} />
-      {/* Coloring Book Route */}
-      <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBook /> : <Navigate to="/login" />} />
+      {/* Coloring Book Wizard - Complete 5-Step Rebuild */}
+      <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBookWizard /> : <Navigate to="/login" />} />
       {/* New Standalone Apps */}
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
