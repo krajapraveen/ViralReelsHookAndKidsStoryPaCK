@@ -1,0 +1,26 @@
+{
+  "test_duration_seconds": 60.58,
+  "total_requests": 4058,
+  "successful_requests": 1207,
+  "failed_requests": 2851,
+  "success_rate": 29.74,
+  "requests_per_second": 66.99,
+  "response_times": {
+    "min_ms": 18.58,
+    "max_ms": 30988.7,
+    "avg_ms": 488.12,
+    "median_ms": 79.6,
+    "p95_ms": 844.39,
+    "p99_ms": 19612.78
+  },
+  "status_codes": {
+    "200": 1207,
+    "404": 302,
+    "429": 2532
+  },
+  "errors": {
+    "HTTP 429": 2532,
+    "HTTP 404": 302,
+    "Timeout": 17
+  }
+}
