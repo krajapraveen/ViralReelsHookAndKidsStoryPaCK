@@ -10,6 +10,8 @@ import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
+import VariationSelector from '../components/VariationSelector';
+import PremiumLock, { PremiumBanner } from '../components/PremiumLock';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(0);
