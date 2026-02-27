@@ -325,6 +325,7 @@ api_router.include_router(caption_rewriter_pro_router)
 # REVENUE PROTECTION & AUDIT SYSTEM
 api_router.include_router(audit_dashboard_router)
 api_router.include_router(blueprint_library_router)
+api_router.include_router(security_management_router)
 
 # Include API router in app
 app.include_router(api_router)
