@@ -2,7 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Layers, Sparkles, Check, TrendingUp } from 'lucide-react';
 import api from '../utils/api';
 
-export default function VariationSelector({ baseCredits, selectedVariation, onVariationSelect }) {
+export default function VariationSelector({ 
+  baseCredits, 
+  selectedVariation, 
+  onVariationSelect,
+  // Support alternative prop names from different generators
+  baseCost,
+  value,
+  onChange
+}) {
+  // Use alternative prop names if main ones not provided
+  const credits = baseCredits ?? baseCost ?? 10;
+  const selected = selectedVariation ?? value ?? 'single';
+  const onSelect = onVariationSelect ?? onChange;
   const [variations, setVariations] = useState(null);
 
   useEffect(() => {
