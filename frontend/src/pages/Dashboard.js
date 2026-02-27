@@ -417,6 +417,16 @@ export default function Dashboard() {
       
       {/* Help Guide */}
       <HelpGuide pageId="dashboard" />
+      
+      {/* Footer Security Badge */}
+      <footer className="border-t border-slate-800/50 py-4 mt-8">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-center gap-2">
+          <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-full px-4 py-2">
+            <Shield className="w-4 h-4 text-green-400" />
+            <span className="text-green-400 text-sm font-medium">Protected by OWASP Standards</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
