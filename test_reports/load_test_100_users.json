@@ -1,0 +1,210 @@
+{
+  "timestamp": "2026-02-27T17:08:55.160388",
+  "config": {
+    "url": "https://studio-audit.preview.emergentagent.com",
+    "users": 100,
+    "duration": 60,
+    "target": "all"
+  },
+  "results": {
+    "total_requests": 1700,
+    "successful_requests": 698,
+    "failed_requests": 1002,
+    "success_rate": 41.05882352941176,
+    "requests_per_second": 19.24795054944478,
+    "avg_response_time_ms": 3883.540643523721,
+    "min_response_time_ms": 20.866870880126953,
+    "max_response_time_ms": 30997.620582580566
+  },
+  "endpoints": {
+    "GET /api/offer-generator/config": {
+      "total": 100,
+      "successful": 92,
+      "success_rate": 92.0,
+      "avg_time_ms": 3763.7,
+      "min_time_ms": 52.3,
+      "max_time_ms": 30713.9
+    },
+    "GET /api/system-resilience/dashboard": {
+      "total": 100,
+      "successful": 86,
+      "success_rate": 86.0,
+      "avg_time_ms": 3569.2,
+      "min_time_ms": 23.4,
+      "max_time_ms": 30997.6
+    },
+    "GET /api/daily-viral-ideas/config": {
+      "total": 100,
+      "successful": 85,
+      "success_rate": 85.0,
+      "avg_time_ms": 4668.3,
+      "min_time_ms": 47.7,
+      "max_time_ms": 30771.4
+    },
+    "GET /api/story-hooks/config": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 5370.1,
+      "min_time_ms": 52.6,
+      "max_time_ms": 30950.9
+    },
+    "GET /api/bedtime-stories/config": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 3655.4,
+      "min_time_ms": 48.3,
+      "max_time_ms": 30900.2
+    },
+    "GET /api/brand-story/config": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 4189.9,
+      "min_time_ms": 53.2,
+      "max_time_ms": 30918.5
+    },
+    "GET /api/pdf-protection/config": {
+      "total": 100,
+      "successful": 85,
+      "success_rate": 85.0,
+      "avg_time_ms": 3945.6,
+      "min_time_ms": 44.6,
+      "max_time_ms": 30960.7
+    },
+    "GET /api/comment-reply/config": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 4063.9,
+      "min_time_ms": 50.1,
+      "max_time_ms": 30991.2
+    },
+    "GET /api/public/products": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 4025.0,
+      "min_time_ms": 20.9,
+      "max_time_ms": 30871.9
+    },
+    "GET /api/video-stream/config": {
+      "total": 100,
+      "successful": 92,
+      "success_rate": 92.0,
+      "avg_time_ms": 2030.3,
+      "min_time_ms": 46.3,
+      "max_time_ms": 30777.0
+    },
+    "GET /api/admin/dashboard": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 1809.7,
+      "min_time_ms": 50.0,
+      "max_time_ms": 30750.1
+    },
+    "GET /api/instagram-bio/config": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 2845.6,
+      "min_time_ms": 47.3,
+      "max_time_ms": 30986.6
+    },
+    "GET /api/admin/users": {
+      "total": 100,
+      "successful": 87,
+      "success_rate": 87.0,
+      "avg_time_ms": 3851.7,
+      "min_time_ms": 45.5,
+      "max_time_ms": 30977.3
+    },
+    "GET /api/yt-thumbnail-text/config": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 4065.5,
+      "min_time_ms": 51.1,
+      "max_time_ms": 30984.2
+    },
+    "GET /api/dashboard/stats": {
+      "total": 100,
+      "successful": 0,
+      "success_rate": 0.0,
+      "avg_time_ms": 3103.0,
+      "min_time_ms": 47.4,
+      "max_time_ms": 30745.8
+    },
+    "GET /api/wallet/me": {
+      "total": 100,
+      "successful": 89,
+      "success_rate": 89.0,
+      "avg_time_ms": 4970.8,
+      "min_time_ms": 51.7,
+      "max_time_ms": 30910.8
+    },
+    "GET /api/health": {
+      "total": 100,
+      "successful": 82,
+      "success_rate": 82.0,
+      "avg_time_ms": 6092.4,
+      "min_time_ms": 49.0,
+      "max_time_ms": 30995.3
+    }
+  },
+  "errors": [
+    "GET /api/public/products: Timeout",
+    "GET /api/yt-thumbnail-text/config: Timeout",
+    "GET /api/bedtime-stories/config: Timeout",
+    "GET /api/bedtime-stories/config: Timeout",
+    "GET /api/brand-story/config: Timeout",
+    "GET /api/health: Timeout",
+    "GET /api/yt-thumbnail-text/config: Timeout",
+    "GET /api/bedtime-stories/config: Timeout",
+    "GET /api/pdf-protection/config: Timeout",
+    "GET /api/public/products: Timeout",
+    "GET /api/pdf-protection/config: Timeout",
+    "GET /api/health: Timeout",
+    "GET /api/dashboard/stats: Timeout",
+    "GET /api/yt-thumbnail-text/config: Timeout",
+    "GET /api/wallet/me: Timeout",
+    "GET /api/daily-viral-ideas/config: Timeout",
+    "GET /api/brand-story/config: Timeout",
+    "GET /api/bedtime-stories/config: Timeout",
+    "GET /api/story-hooks/config: Timeout",
+    "GET /api/daily-viral-ideas/config: Timeout",
+    "GET /api/dashboard/stats: Timeout",
+    "GET /api/admin/users: Timeout",
+    "GET /api/system-resilience/dashboard: Timeout",
+    "GET /api/pdf-protection/config: Timeout",
+    "GET /api/health: Timeout",
+    "GET /api/admin/dashboard: Timeout",
+    "GET /api/yt-thumbnail-text/config: Timeout",
+    "GET /api/dashboard/stats: Timeout",
+    "GET /api/comment-reply/config: Timeout",
+    "GET /api/bedtime-stories/config: Timeout",
+    "GET /api/health: Timeout",
+    "GET /api/bedtime-stories/config: Timeout",
+    "GET /api/admin/dashboard: Timeout",
+    "GET /api/offer-generator/config: Timeout",
+    "GET /api/pdf-protection/config: Timeout",
+    "GET /api/dashboard/stats: Timeout",
+    "GET /api/admin/users: Timeout",
+    "GET /api/instagram-bio/config: Timeout",
+    "GET /api/system-resilience/dashboard: Timeout",
+    "GET /api/pdf-protection/config: Timeout",
+    "GET /api/wallet/me: Timeout",
+    "GET /api/offer-generator/config: Timeout",
+    "GET /api/pdf-protection/config: Timeout",
+    "GET /api/offer-generator/config: Timeout",
+    "GET /api/comment-reply/config: Timeout",
+    "GET /api/yt-thumbnail-text/config: Timeout",
+    "GET /api/wallet/me: Timeout",
+    "GET /api/pdf-protection/config: Timeout",
+    "GET /api/story-hooks/config: Timeout",
+    "GET /api/wallet/me: Timeout"
+  ],
+  "production_ready": false
+}
