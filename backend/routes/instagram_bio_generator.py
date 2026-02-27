@@ -498,9 +498,14 @@ async def generate_bios(
         raise HTTPException(status_code=400, detail="Input contains blocked content")
     
     # Check credits
-    wallet = await db.wallets.find_one({"userId": user["id"]})
+    user_id = user.get("id", user.get("_id", ""))
+    wallet = await db.wallets.find_one({"userId": str(user_id)})
     if not wallet:
-        raise HTTPException(status_code=400, detail="Wallet not found")
+        # Try with ObjectId format if it's a mongo id
+        wallet = await db.wallets.find_one({"userId": user_id})
+    if not wallet:
+        # Create wallet if it doesn't exist (fallback)
+        wallet = {"balanceCredits": 0, "availableCredits": 0}
     
     current_credits = wallet.get("balanceCredits", wallet.get("availableCredits", 0))
     if current_credits < CREDIT_COST:
