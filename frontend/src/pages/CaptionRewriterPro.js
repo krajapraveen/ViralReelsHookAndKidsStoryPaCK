@@ -186,6 +186,21 @@ export default function CaptionRewriterPro() {
         <p className="text-xs text-slate-500 mt-2 text-right">{text.length}/2000 characters</p>
       </div>
 
+      {/* Preview Button */}
+      <button
+        onClick={handleShowPreview}
+        disabled={loadingPreview}
+        className="w-full py-4 rounded-xl border-2 border-dashed border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/10 transition-all flex items-center justify-center gap-2"
+        data-testid="preview-btn"
+      >
+        {loadingPreview ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <Eye className="w-5 h-5" />
+        )}
+        <span className="font-medium">See Example Rewrites (FREE)</span>
+      </button>
+
       <Button
         onClick={() => setStep(2)}
         disabled={text.length < 10}
