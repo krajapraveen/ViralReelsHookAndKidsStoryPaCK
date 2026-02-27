@@ -162,6 +162,12 @@ function App() {
       {/* Instagram Bio Generator */}
       <Route path="/app/instagram-bio-generator" element={isAuthenticated ? <InstagramBioGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/bio-generator" element={isAuthenticated ? <InstagramBioGenerator /> : <Navigate to="/login" />} />
+      {/* Comment Reply Bank */}
+      <Route path="/app/comment-reply-bank" element={isAuthenticated ? <CommentReplyBank /> : <Navigate to="/login" />} />
+      <Route path="/app/reply-bank" element={isAuthenticated ? <CommentReplyBank /> : <Navigate to="/login" />} />
+      {/* Bedtime Story Builder */}
+      <Route path="/app/bedtime-story-builder" element={isAuthenticated ? <BedtimeStoryBuilder /> : <Navigate to="/login" />} />
+      <Route path="/app/bedtime-stories" element={isAuthenticated ? <BedtimeStoryBuilder /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
