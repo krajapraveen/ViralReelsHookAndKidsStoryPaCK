@@ -211,6 +211,211 @@ const HELP_CONTENT = {
       'Include a moral for educational value'
     ]
   },
+  'photo-to-comic': {
+    title: 'Photo to Comic',
+    description: 'Transform your photos into comic-style characters with multiple styles.',
+    credits: '15-45 credits per generation',
+    steps: [
+      'Choose mode: Comic Avatar or Comic Strip',
+      'Upload your photo (PNG, JPG, WEBP)',
+      'Select a comic style from 24 safe styles',
+      'Add optional custom details',
+      'Choose add-ons (transparent BG, multiple poses, HD)',
+      'Click Generate and wait for results'
+    ],
+    tips: [
+      'Use clear, front-facing photos for best results',
+      'Multiple poses option gives you 3 variations',
+      'HD export is recommended for printing'
+    ]
+  },
+  'brand-story-builder': {
+    title: 'Brand Story Builder',
+    description: 'Create compelling brand stories for your business.',
+    credits: '5 credits per story',
+    steps: [
+      'Enter your brand/business name',
+      'Describe your industry and target audience',
+      'Select your brand values and tone',
+      'Click Generate Brand Story',
+      'Copy and use in your marketing materials'
+    ],
+    tips: [
+      'Be specific about your unique selling points',
+      'Include your mission and vision for better stories',
+      'Use generated stories for About Us pages and pitches'
+    ]
+  },
+  'story-hook-generator': {
+    title: 'Story Hook Generator',
+    description: 'Generate attention-grabbing hooks for your stories and content.',
+    credits: '3 credits per hook set',
+    steps: [
+      'Select your content type (video, blog, social)',
+      'Enter your topic or theme',
+      'Choose hook style (question, statistic, story)',
+      'Click Generate Hooks',
+      'Copy your favorite hooks to use'
+    ],
+    tips: [
+      'Questions hooks drive curiosity and engagement',
+      'Use shocking facts or statistics for authority',
+      'Test different hooks to see what resonates'
+    ]
+  },
+  'offer-generator': {
+    title: 'Offer Generator',
+    description: 'Create irresistible offers and promotions for your products.',
+    credits: '3 credits per offer',
+    steps: [
+      'Enter your product or service name',
+      'Set your regular and sale prices',
+      'Choose offer type (discount, bundle, limited)',
+      'Click Generate Offer',
+      'Copy offer text for your marketing'
+    ],
+    tips: [
+      'Urgency and scarcity increase conversions',
+      'Bundle offers increase average order value',
+      'Always highlight the value, not just the discount'
+    ]
+  },
+  'daily-viral-ideas': {
+    title: 'Daily Viral Ideas',
+    description: 'Get fresh viral content ideas delivered daily.',
+    credits: '1 credit per idea (Pro: unlimited)',
+    steps: [
+      'Select your niche category',
+      'Click Get Todays Idea',
+      'View the viral idea with hooks and tips',
+      'Save ideas you like for later',
+      'Implement within 24 hours for best results'
+    ],
+    tips: [
+      'Check daily for fresh trending topics',
+      'Combine ideas with your unique perspective',
+      'Pro plan gives unlimited daily ideas'
+    ]
+  },
+  'youtube-thumbnail': {
+    title: 'YouTube Thumbnail Text',
+    description: 'Generate eye-catching text for YouTube thumbnails.',
+    credits: 'FREE',
+    steps: [
+      'Enter your video topic or title',
+      'Select emotion/vibe (shock, curiosity, excitement)',
+      'Click Generate Text',
+      'Choose from multiple suggestions',
+      'Use in your thumbnail design tool'
+    ],
+    tips: [
+      'Short text (2-4 words) works best on thumbnails',
+      'Use contrast colors for text visibility',
+      'Emotional words drive higher CTR'
+    ]
+  },
+  'coloring-book': {
+    title: 'Coloring Book Generator',
+    description: 'Create printable coloring book pages with AI.',
+    credits: '5-15 credits per page',
+    steps: [
+      'Choose theme (animals, fantasy, nature)',
+      'Set complexity level (simple to detailed)',
+      'Enter custom prompt for specific designs',
+      'Click Generate Page',
+      'Download as PDF for printing'
+    ],
+    tips: [
+      'Simple designs work best for young children',
+      'Detailed pages are great for adult coloring books',
+      'Use high quality print settings'
+    ]
+  },
+  'challenge-generator': {
+    title: 'Challenge Generator',
+    description: 'Create viral challenge ideas for social media.',
+    credits: '5 credits per challenge',
+    steps: [
+      'Select platform (TikTok, Instagram, YouTube)',
+      'Choose challenge category',
+      'Set difficulty and duration',
+      'Click Generate Challenge',
+      'Get complete challenge brief with hashtags'
+    ],
+    tips: [
+      'Simple challenges get more participation',
+      'Include clear rules and examples',
+      'Create a unique hashtag for tracking'
+    ]
+  },
+  'caption-rewriter': {
+    title: 'Caption Rewriter Pro',
+    description: 'Rewrite and improve your social media captions.',
+    credits: '2 credits per rewrite',
+    steps: [
+      'Paste your original caption',
+      'Select target tone and platform',
+      'Choose length preference',
+      'Click Rewrite Caption',
+      'Compare versions and pick the best'
+    ],
+    tips: [
+      'Include your key message in the first line',
+      'Use emojis strategically, not excessively',
+      'End with a clear call-to-action'
+    ]
+  },
+  'tone-switcher': {
+    title: 'Tone Switcher',
+    description: 'Convert content between different tones and styles.',
+    credits: '2 credits per conversion',
+    steps: [
+      'Paste your content',
+      'Select source and target tones',
+      'Click Convert Tone',
+      'Review and refine the output',
+      'Copy the converted text'
+    ],
+    tips: [
+      'Works great for repurposing content',
+      'Convert formal to casual for social media',
+      'Use professional tone for business contexts'
+    ]
+  },
+  'profile': {
+    title: 'Profile Settings',
+    description: 'Manage your account settings and preferences.',
+    credits: 'N/A',
+    steps: [
+      'Update your display name and avatar',
+      'Change email or password',
+      'View your subscription status',
+      'Manage notification preferences',
+      'Download your data or delete account'
+    ],
+    tips: [
+      'Keep your email updated for important notifications',
+      'Enable 2FA for enhanced security',
+      'Check subscription status before renewal'
+    ]
+  },
+  'history': {
+    title: 'Generation History',
+    description: 'View and manage all your past generations.',
+    credits: 'N/A',
+    steps: [
+      'Browse your generation history',
+      'Filter by type, date, or status',
+      'Click any item to view details',
+      'Re-download or share completed items',
+      'Delete unwanted generations'
+    ],
+    tips: [
+      'Starred items appear at the top',
+      'Use filters to find specific generations',
+      'Export history for your records'
+    ]
+  },
   'default': {
     title: 'Help Guide',
     description: 'Get help with CreatorStudio AI features.',
