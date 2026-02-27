@@ -24,6 +24,8 @@ export default function ComicStorybook() {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [lastGenerationId, setLastGenerationId] = useState(null);
+  const [selectedVariation, setSelectedVariation] = useState('single');
+  const [userPlan, setUserPlan] = useState('free');
   const navigate = useNavigate();
   
   // Input state
