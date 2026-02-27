@@ -67,6 +67,14 @@ import InstagramBioGenerator from './pages/InstagramBioGenerator';
 import CommentReplyBank from './pages/CommentReplyBank';
 // BEDTIME STORY BUILDER
 import BedtimeStoryBuilder from './pages/BedtimeStoryBuilder';
+// NEW 5 TEMPLATE-BASED FEATURES
+import YouTubeThumbnailGenerator from './pages/YouTubeThumbnailGenerator';
+import BrandStoryBuilder from './pages/BrandStoryBuilder';
+import OfferGenerator from './pages/OfferGenerator';
+import StoryHookGenerator from './pages/StoryHookGenerator';
+import DailyViralIdeas from './pages/DailyViralIdeas';
+// TEMPLATE ANALYTICS DASHBOARD
+import TemplateAnalyticsDashboard from './pages/Admin/TemplateAnalyticsDashboard';
 import './App.css';
 
 function App() {
