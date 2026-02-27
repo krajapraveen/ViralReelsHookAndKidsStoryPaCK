@@ -121,7 +121,7 @@ export default function Landing() {
           
           <p className="text-base sm:text-lg md:text-xl text-slate-300 max-w-3xl mx-auto mb-8 sm:mb-12 px-4">
             Hooks, scripts, captions, hashtags — complete kids story video packs with scene prompts and voiceovers, 
-            AI image & video generation (GenStudio), content repurposing tools, thumbnail text generators, content calendars, 
+            content repurposing tools, thumbnail text generators, content calendars, 
             carousel makers, and so much more. Everything you need to create viral content.
           </p>
 
