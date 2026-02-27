@@ -172,15 +172,20 @@ class CashfreePaymentTester:
         print("\n--- Test: Order Creation ---")
         
         products = await self.get_products(session)
-        product_list = products.get("products", [])
+        product_data = products.get("products", {})
         
-        if not product_list:
+        # Handle dict (product_id: details) or list format
+        if isinstance(product_data, dict):
+            product_ids = list(product_data.keys())
+        else:
+            product_ids = product_data
+        
+        if not product_ids:
             self.record_result("Order Creation", False, "No products available")
             return None
         
-        # Get product ID (handle both dict and string formats)
-        first_product = product_list[0]
-        product_id = first_product.get("id") if isinstance(first_product, dict) else first_product
+        # Test with first product
+        product_id = product_ids[0]
         
         order = await self.create_order(session, product_id)
         
@@ -196,7 +201,8 @@ class CashfreePaymentTester:
             print(f"    CF Order ID: {order.get('cfOrderId')}")
             print(f"    Amount: INR {order.get('amount')}")
             print(f"    Credits: {order.get('credits')}")
-            print(f"    Payment Session: {order.get('paymentSessionId', 'N/A')[:50]}...")
+            session_id = order.get('paymentSessionId', 'N/A')
+            print(f"    Payment Session: {session_id[:50] if session_id else 'N/A'}...")
             return order_id
         else:
             self.record_result("Order Creation", False, str(order))
