@@ -165,7 +165,7 @@ async def generate_brand_story(request: GenerateRequest, user: dict = Depends(ge
     
     # Deduct credits BEFORE generation
     await db.users.update_one(
-        {"_id": ObjectId(user["_id"])},
+        {"id": user["id"]},
         {"$inc": {"credits": -18}}
     )
     
@@ -198,7 +198,7 @@ async def generate_brand_story(request: GenerateRequest, user: dict = Depends(ge
         # Track analytics
         await db.template_analytics.insert_one({
             "feature": "brand_story_builder",
-            "user_id": str(user["_id"]),
+            "user_id": str(user["id"]),
             "industry": request.industry,
             "tone": tone,
             "created_at": datetime.now(timezone.utc)
@@ -218,7 +218,7 @@ async def generate_brand_story(request: GenerateRequest, user: dict = Depends(ge
     except Exception as e:
         # Refund on error
         await db.users.update_one(
-            {"_id": ObjectId(user["_id"])},
+            {"id": user["id"]},
             {"$inc": {"credits": 18}}
         )
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
