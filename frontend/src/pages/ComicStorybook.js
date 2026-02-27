@@ -12,6 +12,8 @@ import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
+import VariationSelector from '../components/VariationSelector';
+import PremiumLock from '../components/PremiumLock';
 
 export default function ComicStorybook() {
   const [credits, setCredits] = useState(0);
