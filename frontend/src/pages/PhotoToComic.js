@@ -195,8 +195,8 @@ export default function PhotoToComic() {
 
   const fetchUserPlan = async () => {
     try {
-      const res = await api.get('/api/user/profile');
-      setUserPlan(res.data.user?.plan || 'free');
+      const res = await api.get('/api/auth/me');
+      setUserPlan(res.data?.plan || 'free');
     } catch (e) {
       console.error('Failed to fetch user plan');
     }
