@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="11" skipped="0" tests="25" time="8.055" timestamp="2026-02-27T15:48:01.604021+00:00" hostname="agent-env-a33a7f0b-1196-4cb2-bb27-039f787e2e90"><testcase classname="backend.tests.test_new_template_features_iteration97.TestYouTubeThumbnailGenerator" name="test_config_endpoint" time="0.236" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestYouTubeThumbnailGenerator" name="test_generate_thumbnails" time="0.465"><failure message="AssertionError: Generation failed: Internal Server Error&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:85: in test_generate_thumbnails
+    assert response.status_code == 200, f"Generation failed: {response.text}"
+E   AssertionError: Generation failed: Internal Server Error
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestYouTubeThumbnailGenerator" name="test_copyright_blocking" time="0.363" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestBrandStoryBuilder" name="test_config_endpoint" time="0.103" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestBrandStoryBuilder" name="test_generate_brand_story" time="0.520"><failure message="AssertionError: Generation failed: Internal Server Error&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:144: in test_generate_brand_story
+    assert response.status_code == 200, f"Generation failed: {response.text}"
+E   AssertionError: Generation failed: Internal Server Error
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestBrandStoryBuilder" name="test_copyright_blocking" time="0.122" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestOfferGenerator" name="test_config_endpoint" time="0.141" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestOfferGenerator" name="test_generate_offer" time="0.480"><failure message="AssertionError: Generation failed: Internal Server Error&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:208: in test_generate_offer
+    assert response.status_code == 200, f"Generation failed: {response.text}"
+E   AssertionError: Generation failed: Internal Server Error
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestOfferGenerator" name="test_copyright_blocking" time="0.137" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestStoryHookGenerator" name="test_config_endpoint" time="0.138" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestStoryHookGenerator" name="test_generate_hooks" time="0.545"><failure message="AssertionError: Generation failed: Internal Server Error&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:282: in test_generate_hooks
+    assert response.status_code == 200, f"Generation failed: {response.text}"
+E   AssertionError: Generation failed: Internal Server Error
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestStoryHookGenerator" name="test_all_genres" time="0.117"><failure message="AssertionError: Failed for genre: Fantasy&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:310: in test_all_genres
+    assert response.status_code == 200, f"Failed for genre: {genre}"
+E   AssertionError: Failed for genre: Fantasy
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestDailyViralIdeas" name="test_config_endpoint" time="0.142" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestDailyViralIdeas" name="test_free_idea" time="0.481"><failure message="AssertionError: Failed: Internal Server Error&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:340: in test_free_idea
+    assert response.status_code == 200, f"Failed: {response.text}"
+E   AssertionError: Failed: Internal Server Error
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestDailyViralIdeas" name="test_unlock_full_pack" time="0.124"><failure message="AssertionError: Failed: Internal Server Error&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:360: in test_unlock_full_pack
+    assert response.status_code == 200, f"Failed: {response.text}"
+E   AssertionError: Failed: Internal Server Error
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestTemplateAnalytics" name="test_dashboard_requires_admin" time="0.447" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestTemplateAnalytics" name="test_dashboard_admin_access" time="0.496" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestTemplateAnalytics" name="test_realtime_stats" time="0.189" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestTemplateAnalytics" name="test_revenue_impact" time="0.124" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestTemplateAnalytics" name="test_user_segments" time="0.105" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestCreditDeduction" name="test_credit_check_before_generation" time="0.465" /><testcase classname="backend.tests.test_new_template_features_iteration97.TestResponseTime" name="test_youtube_thumbnail_speed" time="0.470"><failure message="assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:503: in test_youtube_thumbnail_speed
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestResponseTime" name="test_brand_story_speed" time="1.173"><failure message="assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:521: in test_brand_story_speed
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestResponseTime" name="test_offer_generator_speed" time="0.131"><failure message="assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:538: in test_offer_generator_speed
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_new_template_features_iteration97.TestResponseTime" name="test_story_hook_speed" time="0.133"><failure message="assert 500 == 200&#10; +  where 500 = &lt;Response [500]&gt;.status_code">backend/tests/test_new_template_features_iteration97.py:550: in test_story_hook_speed
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500]&gt;.status_code</failure></testcase></testsuite></testsuites>
