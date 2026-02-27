@@ -356,6 +356,14 @@ api_router.include_router(comment_reply_bank_router)
 # NEW FEATURE: Bedtime Story Builder
 api_router.include_router(bedtime_story_builder_router)
 
+# NEW FEATURES: 5 Template-Based Tools + Analytics
+api_router.include_router(youtube_thumbnail_router)
+api_router.include_router(brand_story_router)
+api_router.include_router(offer_generator_router)
+api_router.include_router(story_hook_router)
+api_router.include_router(daily_viral_ideas_router)
+api_router.include_router(template_analytics_router)
+
 # Include API router in app
 app.include_router(api_router)
 
