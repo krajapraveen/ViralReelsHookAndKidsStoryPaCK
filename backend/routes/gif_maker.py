@@ -925,6 +925,20 @@ async def process_gif_batch(batch_id: str, photo_content: bytes, emotions: list,
                         img_data = images[0]
                         image_bytes = base64.b64decode(img_data['data'])
                         
+                        # Apply watermark for free users
+                        user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
+                        user_plan = user_data.get("plan", "free") if user_data else "free"
+                        
+                        if should_apply_watermark(user_plan):
+                            config = get_watermark_config("GIF")
+                            image_bytes = add_diagonal_watermark(
+                                image_bytes,
+                                text=config["text"],
+                                opacity=config["opacity"],
+                                font_size=config["font_size"],
+                                spacing=config["spacing"]
+                            )
+                        
                         import hashlib
                         filename = f"gif_batch_{hashlib.md5(f'{batch_id}_{i}'.encode()).hexdigest()[:16]}.png"
                         filepath = f"/app/backend/static/generated/{filename}"
