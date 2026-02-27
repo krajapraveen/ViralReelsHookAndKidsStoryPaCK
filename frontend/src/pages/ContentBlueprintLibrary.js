@@ -141,7 +141,7 @@ const ContentBlueprintLibrary = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white" data-testid="blueprint-library-page">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white" data-testid="blueprint-library-page">
       {/* Header */}
       <div className="border-b border-slate-800 bg-slate-900/50">
         <div className="max-w-7xl mx-auto px-4 py-6">
