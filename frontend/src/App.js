@@ -111,6 +111,7 @@ function App() {
       <Route path="/app/copyright" element={isAuthenticated ? <CopyrightInfo /> : <Navigate to="/login" />} />
       <Route path="/app/creator-tools" element={isAuthenticated ? <CreatorTools /> : <Navigate to="/login" />} />
       <Route path="/app/content-vault" element={isAuthenticated ? <ContentVault /> : <Navigate to="/login" />} />
+      <Route path="/app/blueprint-library" element={isAuthenticated ? <ContentBlueprintLibrary /> : <Navigate to="/login" />} />
       <Route path="/app/payment-history" element={isAuthenticated ? <PaymentHistory /> : <Navigate to="/login" />} />
       {/* Creator Pro & TwinFinder Routes */}
       <Route path="/app/creator-pro" element={isAuthenticated ? <CreatorProTools /> : <Navigate to="/login" />} />
