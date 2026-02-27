@@ -110,6 +110,14 @@ from routes.comment_reply_bank import router as comment_reply_bank_router
 # NEW FEATURE: Bedtime Story Builder
 from routes.bedtime_story_builder import router as bedtime_story_builder_router
 
+# NEW FEATURES: 5 Template-Based Tools + Analytics
+from routes.youtube_thumbnail_generator import router as youtube_thumbnail_router
+from routes.brand_story_builder import router as brand_story_router
+from routes.offer_generator import router as offer_generator_router
+from routes.story_hook_generator import router as story_hook_router
+from routes.daily_viral_ideas import router as daily_viral_ideas_router
+from routes.template_analytics import router as template_analytics_router
+
 # Webhook Retry Queue
 from services.webhook_retry_queue import WebhookRetryQueue, webhook_queue
 
