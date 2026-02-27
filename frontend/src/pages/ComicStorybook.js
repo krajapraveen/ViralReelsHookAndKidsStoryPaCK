@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Wand2, BookOpen, FileText, Loader2, Download, Eye, Trash2, Sparkles, Settings, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -10,6 +10,8 @@ import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
+import UpsellModal from '../components/UpsellModal';
+import ShareCreation from '../components/ShareCreation';
 
 export default function ComicStorybook() {
   const [credits, setCredits] = useState(0);
