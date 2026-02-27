@@ -189,6 +189,21 @@ export default function ContentChallengePlanner() {
         })}
       </div>
 
+      {/* Preview Button */}
+      <button
+        onClick={handleShowPreview}
+        disabled={loadingPreview}
+        className="w-full py-4 rounded-xl border-2 border-dashed border-orange-500/50 text-orange-300 hover:bg-orange-500/10 transition-all flex items-center justify-center gap-2"
+        data-testid="preview-btn"
+      >
+        {loadingPreview ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <Eye className="w-5 h-5" />
+        )}
+        <span className="font-medium">See Example Plan (FREE)</span>
+      </button>
+
       <Button
         onClick={() => setStep(2)}
         disabled={!platform}
