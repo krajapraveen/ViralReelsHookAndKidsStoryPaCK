@@ -159,6 +159,7 @@ class CashfreeSubscriptionService:
             },
             "plan_details": {
                 "plan_name": plan["name"],
+                "plan_type": "PERIODIC",
                 "plan_amount": plan["price_inr"],
                 "plan_currency": "INR",
                 "billing_frequency": "MONTHLY",
