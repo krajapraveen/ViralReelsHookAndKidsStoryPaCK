@@ -333,6 +333,66 @@ export default function Dashboard() {
               <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">10 CREDITS</span>
             </div>
           </Link>
+
+          {/* YouTube Thumbnail Generator */}
+          <Link to="/app/thumbnail-generator">
+            <div className="bg-gradient-to-br from-red-500 to-orange-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-thumbnail">
+              <div className="flex items-center gap-3 mb-2">
+                <Type className="w-6 h-6" />
+                <h3 className="font-bold">Thumbnail Text Gen</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">10 viral thumbnail phrases in 3 styles</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">5 CREDITS</span>
+            </div>
+          </Link>
+
+          {/* Brand Story Builder */}
+          <Link to="/app/brand-story-builder">
+            <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-brand-story">
+              <div className="flex items-center gap-3 mb-2">
+                <Sparkles className="w-6 h-6" />
+                <h3 className="font-bold">Brand Story Builder</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">Complete brand narrative + elevator pitch</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">18 CREDITS</span>
+            </div>
+          </Link>
+
+          {/* Offer Generator */}
+          <Link to="/app/offer-generator">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-offer">
+              <div className="flex items-center gap-3 mb-2">
+                <Coins className="w-6 h-6" />
+                <h3 className="font-bold">Offer Generator</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">Irresistible offers with bonuses & guarantees</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">20 CREDITS</span>
+            </div>
+          </Link>
+
+          {/* Story Hook Generator */}
+          <Link to="/app/story-hook-generator">
+            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-story-hooks">
+              <div className="flex items-center gap-3 mb-2">
+                <BookOpen className="w-6 h-6" />
+                <h3 className="font-bold">Story Hook Generator</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">10 hooks + cliffhangers for fiction writers</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">8 CREDITS</span>
+            </div>
+          </Link>
+
+          {/* Daily Viral Ideas */}
+          <Link to="/app/daily-viral-ideas">
+            <div className="bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-viral-ideas">
+              <div className="flex items-center gap-3 mb-2">
+                <TrendingUp className="w-6 h-6" />
+                <h3 className="font-bold">Daily Viral Ideas</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">Fresh trending content ideas every day</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">FREE / 5 CREDITS</span>
+            </div>
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-8 sm:mb-12">
