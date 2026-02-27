@@ -577,6 +577,14 @@ AVOID: {negative_prompt}"""
             {"id": job_id},
             {"$set": {"status": "FAILED", "error": str(e)}}
         )
+        
+        # Auto-refund on generation failure
+        try:
+            from services.auto_refund import handle_generation_failure
+            await handle_generation_failure(db, user_id, "comic_avatar", str(e))
+            logger.info(f"Auto-refund processed for failed comic avatar: {job_id}")
+        except Exception as refund_error:
+            logger.error(f"Auto-refund failed: {refund_error}")
 
 
 async def process_comic_strip(
