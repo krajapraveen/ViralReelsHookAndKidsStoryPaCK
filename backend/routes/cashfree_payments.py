@@ -587,16 +587,19 @@ async def get_payment_history(
 ):
     """Get payment history for the current user"""
     try:
+        # Get user ID - handle both dict formats
+        user_id = str(current_user.get("_id", current_user.get("id", current_user.get("user_id", ""))))
+        
         # Find all orders for this user
         cursor = db.cashfree_orders.find(
-            {"userId": str(current_user["_id"])},
+            {"userId": user_id},
             {"_id": 0}
         ).sort("createdAt", -1).skip(skip).limit(limit)
         
         payments = await cursor.to_list(length=limit)
         
         # Get total count
-        total = await db.cashfree_orders.count_documents({"userId": str(current_user["_id"])})
+        total = await db.cashfree_orders.count_documents({"userId": user_id})
         
         return {
             "payments": payments,
