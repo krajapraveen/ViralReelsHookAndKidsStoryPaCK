@@ -718,66 +718,182 @@ export default function ComicStorybookBuilder() {
   );
 
   // ============================================
-  // RENDER STEP 2: Story Idea
+  // RENDER STEP 2: Story Idea with Template Library
   // ============================================
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [showTemplates, setShowTemplates] = useState(true);
+  
+  const applyTemplate = (template) => {
+    setSelectedTemplate(template.id);
+    setStoryIdea(template.story);
+    setBookTitle(template.suggestedTitle);
+    setShowTemplates(false);
+    toast.success('Template applied! Feel free to customize it.');
+  };
+  
   const renderStep2 = () => {
     const genre = STORY_GENRES.find(g => g.id === selectedGenre);
+    const templates = STORY_TEMPLATES[selectedGenre] || [];
     
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full mb-4">
             <span className="text-purple-400 font-medium">Step 2 of 5</span>
           </div>
           <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Describe Your Story</h3>
-          <p className="text-slate-400">Tell us your story idea in 1-3 sentences</p>
+          <p className="text-slate-400">Choose a template or write your own story idea</p>
         </div>
         
-        <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6 space-y-6">
-          {/* Story Idea */}
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Your Story Idea *
-            </label>
-            <Textarea
-              placeholder={genre?.placeholder || 'Describe your story idea...'}
-              value={storyIdea}
-              onChange={(e) => {
-                setStoryIdea(e.target.value);
-                validateContent(e.target.value);
-              }}
-              className="bg-slate-700 border-slate-600 text-white min-h-32 text-lg"
-              data-testid="story-idea-input"
-            />
-            <p className="text-xs text-slate-500 mt-2">
-              Example: "{genre?.placeholder}"
-            </p>
-            
-            {contentError && (
-              <div className="mt-3 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-start gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-red-400 text-sm font-medium">Content issue detected</p>
-                  <p className="text-red-300/80 text-xs mt-1">{contentError.message}</p>
-                </div>
-              </div>
-            )}
+        {/* Template Library Toggle */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-slate-800/50 rounded-full p-1 flex gap-1">
+            <button
+              onClick={() => setShowTemplates(true)}
+              className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                showTemplates ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              📚 Template Library
+            </button>
+            <button
+              onClick={() => setShowTemplates(false)}
+              className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                !showTemplates ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              ✏️ Write My Own
+            </button>
           </div>
-          
-          {/* Book Title */}
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Book Title (Optional)
-            </label>
-            <Input
-              placeholder="My Amazing Adventure"
-              value={bookTitle}
-              onChange={(e) => {
-                setBookTitle(e.target.value);
-                validateContent(e.target.value);
-              }}
-              className="bg-slate-700 border-slate-600 text-white"
-              data-testid="book-title-input"
+        </div>
+        
+        {showTemplates && templates.length > 0 ? (
+          /* Template Library Grid */
+          <div className="mb-8">
+            <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-400" />
+              {genre?.name} Story Templates
+            </h4>
+            <div className="grid md:grid-cols-2 gap-4">
+              {templates.map((template) => (
+                <div
+                  key={template.id}
+                  onClick={() => applyTemplate(template)}
+                  className={`p-5 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] ${
+                    selectedTemplate === template.id
+                      ? 'border-purple-500 bg-purple-500/20'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                  data-testid={`template-${template.id}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl">{template.emoji}</span>
+                    <div className="flex-1">
+                      <h5 className="font-bold text-white mb-1">{template.title}</h5>
+                      <p className="text-sm text-slate-400 line-clamp-3">{template.story}</p>
+                      <p className="text-xs text-purple-400 mt-2">Suggested title: {template.suggestedTitle}</p>
+                    </div>
+                    {selectedTemplate === template.id && (
+                      <Check className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-center text-sm text-slate-500 mt-4">
+              Click a template to use it, then customize as you like!
+            </p>
+          </div>
+        ) : (
+          /* Write Your Own Form */
+          <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6 space-y-6">
+            {/* Story Idea */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Your Story Idea *
+              </label>
+              <Textarea
+                placeholder={genre?.placeholder || 'Describe your story idea...'}
+                value={storyIdea}
+                onChange={(e) => {
+                  setStoryIdea(e.target.value);
+                  setSelectedTemplate(null);
+                  validateContent(e.target.value);
+                }}
+                className="bg-slate-700 border-slate-600 text-white min-h-32 text-lg"
+                data-testid="story-idea-input"
+              />
+              <p className="text-xs text-slate-500 mt-2">
+                Example: "{genre?.placeholder}"
+              </p>
+              
+              {contentError && (
+                <div className="mt-3 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-red-400 text-sm font-medium">Content issue detected</p>
+                    <p className="text-red-300/80 text-xs mt-1">{contentError.message}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Book Title */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Book Title (Optional)
+              </label>
+              <Input
+                placeholder="My Amazing Adventure"
+                value={bookTitle}
+                onChange={(e) => {
+                  setBookTitle(e.target.value);
+                  validateContent(e.target.value);
+                }}
+                className="bg-slate-700 border-slate-600 text-white"
+                data-testid="book-title-input"
+              />
+            </div>
+            
+            {/* Author Name */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Author Name (Optional)
+              </label>
+              <Input
+                placeholder="Your name"
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-white"
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Summary of selection */}
+        {storyIdea && (
+          <div className="mt-6 bg-slate-800/30 rounded-xl border border-slate-700 p-4">
+            <h5 className="text-sm font-medium text-slate-400 mb-2">Your Story:</h5>
+            <p className="text-white">{storyIdea.slice(0, 200)}{storyIdea.length > 200 ? '...' : ''}</p>
+            {bookTitle && <p className="text-purple-400 text-sm mt-2">Title: {bookTitle}</p>}
+          </div>
+        )}
+        
+        <div className="flex justify-between mt-8">
+          <Button variant="outline" onClick={prevStep} className="text-slate-300 border-slate-600">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          </Button>
+          <Button 
+            onClick={nextStep}
+            disabled={!canProceed()}
+            className="px-8 bg-gradient-to-r from-purple-600 to-pink-600"
+          >
+            Continue <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
             />
           </div>
           
