@@ -4,7 +4,14 @@ import { test, expect } from '@playwright/test';
  * Payment Flow E2E Tests
  */
 test.describe('Payment Flow', () => {
-  test.use({ storageState: './e2e/.auth/admin.json' });
+  test.beforeEach(async ({ page }) => {
+    // Login before each test
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'admin@creatorstudio.ai');
+    await page.fill('input[type="password"]', 'Cr3@t0rStud!o#2026');
+    await page.click('button:has-text("Login")');
+    await page.waitForURL('**/app**', { timeout: 10000 });
+  });
 
   test('billing page displays credit packs', async ({ page }) => {
     await page.goto('/app/billing');
