@@ -5,77 +5,163 @@ Full-stack SaaS platform for creative content generation with comprehensive mone
 
 ## Latest Session Changes (2026-02-27)
 
-### Photo Reaction GIF Creator - COMPLETE ✅
-
-**Old Name**: "GIF Maker" → **New Name**: "Photo Reaction GIF Creator"
-
-#### 4-Step Wizard Flow
-- **Step 1**: Upload Photo (PNG, JPG, WEBP up to 10MB)
-- **Step 2**: Choose Reaction Type
-  - Single Mode: Select 1 of 9 reactions (8 credits)
-  - Pack Mode: Get 6 reactions at once (25 credits - Best Value)
-- **Step 3**: Choose GIF Style (5 options)
-- **Step 4**: Add-ons & Generate
-
-#### Reaction Types (9 Options)
-| Reaction | Emoji | Description |
-|----------|-------|-------------|
-| Happy | 😀 | Joyful smile |
-| Laughing | 😂 | LOL moment |
-| Love | 😍 | Heart eyes |
-| Cool | 😎 | Sunglasses vibe |
-| Surprised | 😮 | Wow moment |
-| Sad | 😢 | Emotional moment |
-| Celebrate | 👏 | Clapping |
-| Waving | 👋 | Hello/Goodbye |
-| Wow | 🔥 | On fire! |
-
-#### GIF Styles (5 Options)
-| Style | Description |
-|-------|-------------|
-| Cartoon Motion | Bouncy cartoon animation |
-| Comic Bounce | Classic comic pop effect |
-| Sticker Style | Cute sticker with outline |
-| Neon Glow | Glowing neon effect |
-| Minimal Clean | Simple and elegant |
-
-#### Pricing
-| Mode | Base | HD Quality | Transparent BG | Caption | Commercial License |
-|------|------|------------|----------------|---------|-------------------|
-| Single | 8 cr | +3 cr | +3 cr | +2 cr | +10 cr |
-| Pack (6) | 25 cr | +5 cr | N/A | N/A | +15 cr |
-
-#### API Endpoints
-```
-GET  /api/reaction-gif/reactions  - Returns 9 reactions and 5 styles
-GET  /api/reaction-gif/pricing    - Returns pricing config
-POST /api/reaction-gif/generate   - Generate reaction GIF(s)
-GET  /api/reaction-gif/job/{id}   - Get job status
-GET  /api/reaction-gif/history    - Get user history
-POST /api/reaction-gif/download/{id} - Download GIF(s)
-```
+### 3 REBUILT FEATURES (Simplified Wizard Pattern)
 
 ---
 
-### Comic Story Book Builder - Template Library Added ✅
+## 1. Story Episode Creator (REBUILT from Story Series)
 
-#### Template Library Feature
-- Toggle between "📚 Template Library" and "✏️ Write My Own"
-- 8 genre-specific template sets
-- Templates auto-fill story idea and suggested title
-- Toast notification: "Template applied! Feel free to customize it."
+**Subtitle:** "Turn one idea into a binge-worthy mini series."
 
-#### Templates Per Genre
-| Genre | Templates |
-|-------|-----------|
-| Kids Adventure | Birthday Adventure, First Day at School, The Lost Puppy, Treehouse Secret |
-| Superhero | Power Discovery, Neighborhood Hero, The Sidekick Story |
-| Fantasy | My Dragon Friend, The Magic Paintbrush, The Fairy Garden |
-| Comedy | The Robot Chef, Backwards Day, Talking Vegetables |
-| Romance | Pen Pals, Dance Partners |
-| Sci-Fi | My Space Pet, Robot Best Friend, The Time Machine Toy |
-| Mystery | The Missing Cookies, The Secret Room, Playground Puzzle |
-| Spooky Fun | Friendly Monster, The Not-So-Haunted House, Halloween Costume Mix-up |
+### 3-Step Wizard Flow
+| Step | Title | Description |
+|------|-------|-------------|
+| 1 | Enter Your Idea | Describe your story in 2-3 lines |
+| 2 | Choose Series Length | Select 3, 5, or 7 episodes |
+| 3 | Generate Your Series | Review, add-ons, and create |
+
+### Pricing
+| Option | Credits |
+|--------|---------|
+| 3 Episodes | 15 cr |
+| 5 Episodes (POPULAR) | 25 cr |
+| 7 Episodes | 35 cr |
+| Export PDF | +10 cr |
+| Commercial License | +15 cr |
+
+### Features Removed
+- Character manual input
+- Complex episode credit buttons
+- Recent series section
+- Technical "series mode" logic
+
+### Output
+- Episode titles with summaries
+- Script outline per episode
+- Cliffhanger endings (except final episode)
+- Next episode hooks
+
+### Routes
+- Frontend: `/app/story-episode-creator`
+- Backend: `/api/story-episode-creator/config`, `/generate`, `/history`
+
+---
+
+## 2. Content Challenge Planner (REBUILT from Challenge Generator)
+
+**Subtitle:** "Get a ready-to-post content plan in seconds."
+
+### 4-Step Wizard Flow
+| Step | Title | Description |
+|------|-------|-------------|
+| 1 | Choose Platform | Instagram, YouTube, LinkedIn, Kids Channel, Business |
+| 2 | Choose Duration | 7, 14, or 30 days |
+| 3 | Choose Goal | Followers, Sales, Engagement, Brand Growth |
+| 4 | Generate Plan | Review and create |
+
+### Pricing
+| Duration | Credits |
+|----------|---------|
+| 7 Days | 10 cr |
+| 14 Days (POPULAR) | 18 cr |
+| 30 Days | 30 cr |
+| Download PDF | +5 cr |
+
+### Features Removed
+- Time per day slider
+- Complex goal dropdown
+- Multiple configuration fields
+
+### Output (Per Day)
+- Hook
+- Content idea
+- Caption
+- CTA
+- Hashtags
+- Optimal posting time
+
+### Routes
+- Frontend: `/app/content-challenge-planner`
+- Backend: `/api/content-challenge-planner/config`, `/generate`, `/history`
+
+---
+
+## 3. Caption Rewriter Pro (REBUILT from Tone Switcher)
+
+**Subtitle:** "Rewrite your content in viral tones instantly."
+
+### 3-Step Wizard Flow
+| Step | Title | Description |
+|------|-------|-------------|
+| 1 | Paste Your Text | Enter text to rewrite |
+| 2 | Choose Tone | Select from 6 viral tones |
+| 3 | Generate Rewrite | Choose pack and create |
+
+### 6 Tones Only
+| Tone | Emoji | Description |
+|------|-------|-------------|
+| Funny | 😂 | Add humor and make people laugh |
+| Luxury | ✨ | Sophisticated and premium feel |
+| Bold | 💪 | Confident, direct, no-nonsense |
+| Emotional | ❤️ | Heartfelt and touching |
+| Motivational | 🚀 | Inspiring and empowering |
+| Storytelling | 📖 | Narrative and engaging |
+
+### Pricing
+| Pack | Credits | Variations |
+|------|---------|------------|
+| Single Tone | 5 cr | 3 |
+| 3 Tones Pack (BEST VALUE) | 12 cr | 9 |
+| All Tones Pack | 20 cr | 18 |
+| Commercial Use | +10 cr | - |
+
+### Features Removed
+- Intensity slider
+- Variation packs complexity
+- Technical transformation messaging
+
+### Routes
+- Frontend: `/app/caption-rewriter`
+- Backend: `/api/caption-rewriter-pro/config`, `/rewrite`, `/history`
+
+---
+
+## Copyright Protection (All 3 Features)
+
+### Blocked Keywords (50+)
+**Disney:** Mickey, Minnie, Donald, Goofy, Pluto, Elsa, Anna, Moana, Simba, Nemo, Dory, Woody, Buzz Lightyear
+**Marvel:** Spider-Man, Iron Man, Hulk, Thor, Avengers, Captain America, Black Widow, Thanos
+**DC:** Batman, Superman, Wonder Woman, Aquaman, Joker
+**Anime:** Naruto, Goku, Dragon Ball, One Piece, Luffy, Pokemon, Pikachu
+**Other IP:** Harry Potter, Hogwarts, Shrek, SpongeBob, Dora, Peppa Pig, Paw Patrol, Hello Kitty, Totoro
+**Celebrities:** Taylor Swift, Beyonce, Drake, Elon Musk, Trump, Biden
+**Brands:** Nike, Adidas, Apple, Google, Amazon, Coca Cola
+
+### Error Message
+"Branded or copyrighted content is not allowed."
+
+---
+
+## Zero Investment Strategy
+
+All 3 features use:
+- ✅ Template-based generation (no LLM calls)
+- ✅ Existing infrastructure only
+- ✅ No new API costs
+- ✅ No new model providers
+- ✅ Credit deduction before generation
+- ✅ Watermark for free preview users
+
+---
+
+## Freemium Model
+
+| Feature | Free | Paid |
+|---------|------|------|
+| Preview | ✅ | ✅ |
+| Watermark | ✅ | ❌ |
+| Download | ❌ | ✅ |
+| HD Format | ❌ | ✅ |
 
 ---
 
@@ -87,43 +173,27 @@ POST /api/reaction-gif/download/{id} - Download GIF(s)
 - 24 safe style presets
 - Copyright keyword blocking
 
+### Photo Reaction GIF Creator ✅
+- 4-step wizard
+- 9 reaction types, 5 styles
+- Single (8cr) and Pack (25cr) modes
+
+### Comic Story Book Builder ✅
+- 5-step wizard with Template Library
+- 8 genres, 24 templates
+- Page options (10/20/30 pages)
+
 ### Referral Program & Gift Cards ✅
-- 4-tier referral system (Bronze → Platinum)
-- 5 gift card denominations with discounts
-- Leaderboard display
-
 ### Security Audit (OWASP) ✅
-- CSP, HSTS, X-Frame-Options headers
-- Rate limiting middleware
-- Input sanitization
-- SecurityHeadersMiddleware enabled (Feb 27, 2026)
-
 ### Style Preview Feature ✅
-- Visual thumbnails for all styles
-- Preview modal with descriptions
-
----
-
-## Files Reference
-
-### New/Updated Files
-- `/app/frontend/src/pages/PhotoReactionGIF.js` - 4-step wizard UI
-- `/app/backend/routes/reaction_gif.py` - Reaction GIF backend
-- `/app/frontend/src/pages/ComicStorybookBuilder.js` - Template Library added
-- `/app/frontend/src/App.js` - Routes for /app/gif-maker and /app/reaction-gif
-
-### Routing
-- `/app/gif-maker` → PhotoReactionGIF (new)
-- `/app/reaction-gif` → PhotoReactionGIF (new)
-- `/app/gif-maker-old` → GifMaker (deprecated)
-- `/app/comic-storybook` → ComicStorybookBuilder
+### Watermark for free users ✅
 
 ---
 
 ## Test Results
 
-### Iteration 90 (Photo Reaction GIF Creator + Template Library)
-- **Backend**: 100% (14 core tests passed)
+### Iteration 91 (3 REBUILT Features)
+- **Backend**: 100% (25/25 tests passed)
 - **Frontend**: 100% (All wizard steps verified)
 - **Status**: PASS
 
@@ -135,16 +205,17 @@ POST /api/reaction-gif/download/{id} - Download GIF(s)
 
 ## Status Summary
 
-### ✅ ALL P0/P1 FEATURES COMPLETE
-1. ✅ Photo Reaction GIF Creator - 4-step wizard (REBUILT)
-2. ✅ Comic Story Book Builder - Template Library (ADDED)
-3. ✅ Comic Story Book Builder - 5-step wizard with copyright safety
-4. ✅ Photo to Comic - 3-step wizard with 24 styles
-5. ✅ Referral Program & Gift Cards
-6. ✅ Security Audit - OWASP headers (SecurityHeadersMiddleware enabled)
-7. ✅ Style Preview Feature
-8. ✅ Watermark for free users (all generation pipelines)
-9. ✅ QA Report populated (/app/reports/QA_Report.md)
+### ✅ ALL FEATURES COMPLETE
+1. ✅ Story Episode Creator - 3-step wizard (REBUILT)
+2. ✅ Content Challenge Planner - 4-step wizard (REBUILT)
+3. ✅ Caption Rewriter Pro - 3-step wizard (REBUILT)
+4. ✅ Photo Reaction GIF Creator - 4-step wizard
+5. ✅ Comic Story Book Builder - 5-step wizard with Template Library
+6. ✅ Photo to Comic - 3-step wizard with 24 styles
+7. ✅ Referral Program & Gift Cards
+8. ✅ Security Audit - OWASP headers
+9. ✅ Watermark for free users (all generation pipelines)
+10. ✅ QA Report populated
 
 ### P2 - BACKLOG
 - Full security penetration testing
