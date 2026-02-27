@@ -78,6 +78,20 @@ class VerifyEmailRequest(BaseModel):
     token: str
 
 
+# CAPTCHA site key (public key for frontend)
+HCAPTCHA_SITE_KEY = os.environ.get("HCAPTCHA_SITE_KEY", "10000000-ffff-ffff-ffff-000000000001")  # Test key
+
+
+@router.get("/captcha-config")
+async def get_captcha_config():
+    """Get CAPTCHA configuration for frontend"""
+    return {
+        "enabled": CAPTCHA_ENABLED,
+        "provider": "hcaptcha",
+        "siteKey": HCAPTCHA_SITE_KEY
+    }
+
+
 # Helper Functions
 def validate_name(name: str) -> tuple:
     """Validate full name"""
