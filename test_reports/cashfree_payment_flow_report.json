@@ -1,0 +1,84 @@
+{
+  "test_type": "Cashfree Payment Flow Test",
+  "timestamp": "2026-02-27T14:27:13.297029",
+  "api_url": "https://ui-consistency-pass-2.preview.emergentagent.com",
+  "total_tests": 6,
+  "passed": 4,
+  "failed": 2,
+  "results": [
+    {
+      "test": "Gateway Health",
+      "passed": true,
+      "details": "Status: healthy, Environment: test",
+      "timestamp": "2026-02-27T14:27:11.782365"
+    },
+    {
+      "test": "Wallet Balance",
+      "passed": true,
+      "details": "Current balance: 999999999 credits",
+      "timestamp": "2026-02-27T14:27:11.844547"
+    },
+    {
+      "test": "Product Listing",
+      "passed": true,
+      "details": "Found 7 products",
+      "timestamp": "2026-02-27T14:27:11.900026"
+    },
+    {
+      "test": "Order Creation",
+      "passed": true,
+      "details": "Order cf_order_9c4bc144_1772202432052 created for starter",
+      "timestamp": "2026-02-27T14:27:13.181989"
+    },
+    {
+      "test": "Order Status",
+      "passed": false,
+      "details": "Order status: unknown",
+      "timestamp": "2026-02-27T14:27:13.239483"
+    },
+    {
+      "test": "Payment History",
+      "passed": false,
+      "details": "{'detail': 'Not Found'}",
+      "timestamp": "2026-02-27T14:27:13.296626"
+    }
+  ],
+  "sandbox_test_cards": {
+    "success": {
+      "card_number": "4111111111111111",
+      "card_expiry_mm": "12",
+      "card_expiry_yy": "25",
+      "card_cvv": "123",
+      "card_holder_name": "Test User",
+      "description": "Always succeeds"
+    },
+    "failure": {
+      "card_number": "4111111111111112",
+      "card_expiry_mm": "12",
+      "card_expiry_yy": "25",
+      "card_cvv": "123",
+      "card_holder_name": "Test User",
+      "description": "Always fails"
+    },
+    "otp_required": {
+      "card_number": "4111111111111141",
+      "card_expiry_mm": "12",
+      "card_expiry_yy": "25",
+      "card_cvv": "123",
+      "card_holder_name": "Test User",
+      "description": "Requires OTP (use any 6 digits)"
+    },
+    "insufficient_funds": {
+      "card_number": "4111111111111151",
+      "card_expiry_mm": "12",
+      "card_expiry_yy": "25",
+      "card_cvv": "123",
+      "card_holder_name": "Test User",
+      "description": "Insufficient funds"
+    }
+  },
+  "sandbox_upi": {
+    "success": "testsuccess@gocash",
+    "failure": "testfailure@gocash"
+  }
+}
