@@ -44,10 +44,20 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
 
-# Cashfree Configuration
-CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID")
-CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY")
+# Cashfree Configuration - Select credentials based on environment
 CASHFREE_ENVIRONMENT = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION")
+
+# Use sandbox credentials for TEST environment, production credentials otherwise
+if CASHFREE_ENVIRONMENT == "TEST":
+    CASHFREE_APP_ID = os.environ.get("CASHFREE_SANDBOX_APP_ID")
+    CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SANDBOX_SECRET_KEY")
+    CASHFREE_WEBHOOK_SECRET = os.environ.get("CASHFREE_SANDBOX_WEBHOOK_SECRET")
+    logger.info("Using Cashfree SANDBOX credentials")
+else:
+    CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID")
+    CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY")
+    CASHFREE_WEBHOOK_SECRET = os.environ.get("CASHFREE_WEBHOOK_SECRET")
+    logger.info("Using Cashfree PRODUCTION credentials")
 
 # Initialize Cashfree client
 cashfree_client = None
@@ -67,7 +77,9 @@ try:
             XClientId=CASHFREE_APP_ID,
             XClientSecret=CASHFREE_SECRET_KEY
         )
-        logger.info(f"Cashfree client initialized in {CASHFREE_ENVIRONMENT} mode")
+        logger.info(f"Cashfree client initialized in {CASHFREE_ENVIRONMENT} mode with App ID: {CASHFREE_APP_ID[:10]}...")
+    else:
+        logger.warning(f"Cashfree credentials not found for {CASHFREE_ENVIRONMENT} environment")
 except ImportError as e:
     logger.warning(f"Cashfree SDK not available: {e}")
 except Exception as e:
