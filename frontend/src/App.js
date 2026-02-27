@@ -78,6 +78,9 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         
+        {/* Public Share Page - No auth required */}
+        <Route path="/share/:shareId" element={<SharePage />} />
+        
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
         <Route path="/app/reels" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
