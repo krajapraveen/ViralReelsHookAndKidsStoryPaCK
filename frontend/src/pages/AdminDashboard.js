@@ -220,6 +220,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Bio Templates</span>
               </Button>
             </Link>
+            <Link to="/app/admin/template-analytics">
+              <Button variant="outline" size="sm" className="border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/20" data-testid="template-analytics-btn">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Template BI</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}
