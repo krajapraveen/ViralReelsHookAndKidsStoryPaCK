@@ -12,7 +12,7 @@ export default defineConfig({
     ['list']
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'https://dashboard-stability.preview.emergentagent.com',
+    baseURL: process.env.BASE_URL || 'https://sre-platform-2.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

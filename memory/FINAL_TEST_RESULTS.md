@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://dashboard-stability.preview.emergentagent.com
+**Website:** https://sre-platform-2.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

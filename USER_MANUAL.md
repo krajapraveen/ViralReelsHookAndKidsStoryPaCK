@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://dashboard-stability.preview.emergentagent.com
+**Platform URL:** https://sre-platform-2.preview.emergentagent.com
 
 ---
 

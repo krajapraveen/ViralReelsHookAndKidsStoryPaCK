@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://dashboard-stability.preview.emergentagent.com
+**Base URL:** https://sre-platform-2.preview.emergentagent.com
 
 ---
 
