@@ -468,6 +468,73 @@ export default function StoryEpisodeCreator() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950/20 to-slate-950">
+      {/* Preview Modal */}
+      {showPreview && previewData && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-purple-500/30 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 p-4 border-b border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Eye className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">FREE Preview</h3>
+                  <p className="text-xs text-purple-300">See what you'll get before you commit</p>
+                </div>
+              </div>
+              <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-white p-2">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 mb-4">
+                <p className="text-sm text-purple-300 font-medium">Story Idea:</p>
+                <p className="text-white text-sm">{previewData.story_idea}</p>
+              </div>
+              
+              <p className="text-xs text-slate-500 mb-3">Example: {previewData.episode_count} episodes featuring {previewData.hero_name}</p>
+              
+              <div className="space-y-4">
+                {previewData.episodes?.map((ep, idx) => (
+                  <div key={idx} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                    <h4 className="text-purple-400 font-bold text-sm mb-2">{ep.title}</h4>
+                    <p className="text-slate-300 text-xs mb-3">{ep.summary}</p>
+                    <div className="bg-slate-900/50 rounded p-2 mb-2">
+                      <p className="text-xs text-slate-500 mb-1">Script Outline:</p>
+                      <ul className="text-xs text-slate-400 space-y-1">
+                        {ep.script_outline?.slice(0, 2).map((point, i) => (
+                          <li key={i}>• {point}</li>
+                        ))}
+                        <li className="text-slate-500 italic">...and more</li>
+                      </ul>
+                    </div>
+                    {ep.cliffhanger && (
+                      <div className="bg-pink-500/10 rounded p-2 mt-2">
+                        <p className="text-xs text-pink-400">Cliffhanger: "{ep.cliffhanger}"</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-700 bg-slate-800/50">
+              <p className="text-xs text-center text-slate-400 mb-3">{previewData.preview_message}</p>
+              <Button 
+                onClick={() => setShowPreview(false)} 
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+              >
+                <Sparkles className="w-4 h-4 mr-2" /> Create Your Own Series
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-4">
