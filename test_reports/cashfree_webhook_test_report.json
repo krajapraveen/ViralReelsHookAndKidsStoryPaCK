@@ -1,0 +1,64 @@
+{
+  "test_type": "Cashfree Webhook E2E Testing",
+  "timestamp": "2026-02-27T14:27:57.361034",
+  "api_url": "https://ui-consistency-pass-2.preview.emergentagent.com",
+  "total_tests": 9,
+  "passed": 4,
+  "failed": 5,
+  "results": [
+    {
+      "test": "Create Order",
+      "passed": true,
+      "details": "Order cf_order_9c4bc144_1772202470898 created",
+      "timestamp": "2026-02-27T14:27:51.877748"
+    },
+    {
+      "test": "Webhook Processing",
+      "passed": false,
+      "details": "Status: 403",
+      "timestamp": "2026-02-27T14:27:51.938216"
+    },
+    {
+      "test": "Credits Addition",
+      "passed": true,
+      "details": "Balance: 999999999 -> 999999999 (diff: 0)",
+      "timestamp": "2026-02-27T14:27:53.006900"
+    },
+    {
+      "test": "Failure Webhook Processing",
+      "passed": false,
+      "details": "Status: 403",
+      "timestamp": "2026-02-27T14:27:54.120421"
+    },
+    {
+      "test": "No Credits on Failure",
+      "passed": true,
+      "details": "Balance unchanged: 999999999 -> 999999999",
+      "timestamp": "2026-02-27T14:27:55.198864"
+    },
+    {
+      "test": "Idempotency Check",
+      "passed": false,
+      "details": "First: 403, Second: 403",
+      "timestamp": "2026-02-27T14:27:55.711629"
+    },
+    {
+      "test": "Invalid Signature Rejection",
+      "passed": true,
+      "details": "Status: 403 (expected 400/401/403)",
+      "timestamp": "2026-02-27T14:27:55.765947"
+    },
+    {
+      "test": "Refund Webhook Processing",
+      "passed": false,
+      "details": "Status: 403",
+      "timestamp": "2026-02-27T14:27:56.342895"
+    },
+    {
+      "test": "Order Status Check",
+      "passed": false,
+      "details": "HTTP 500",
+      "timestamp": "2026-02-27T14:27:57.360585"
+    }
+  ]
+}
