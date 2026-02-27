@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, RefreshCw, Activity, Shield, AlertTriangle, CheckCircle, Clock, DollarSign, Loader2, TrendingUp, Server, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from '../../utils/api';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -11,23 +10,24 @@ export default function SystemResilienceDashboard() {
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
   
-  // Load user data on mount
+  // Load user data from localStorage on mount
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const response = await api.get('/api/users/me');
-        if (response.data) {
-          setUser(response.data);
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        // Check if user is admin
+        if (parsedUser.role === 'ADMIN' || parsedUser.isAdmin) {
+          setUser(parsedUser);
+        } else {
+          // Not an admin, redirect
+          navigate('/app');
         }
-      } catch (err) {
-        console.error('Failed to load user:', err);
+      } else if (!token) {
         navigate('/login');
       }
-    };
-    
-    if (token) {
-      loadUser();
-    } else {
+    } catch (err) {
+      console.error('Failed to load user:', err);
       navigate('/login');
     }
   }, [token, navigate]);
