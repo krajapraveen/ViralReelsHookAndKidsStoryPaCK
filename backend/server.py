@@ -298,6 +298,7 @@ api_router.include_router(sre_monitoring_router)
 api_router.include_router(monetization_router)
 api_router.include_router(share_router)
 api_router.include_router(photo_to_comic_router)
+api_router.include_router(referral_router)
 
 # Include API router in app
 app.include_router(api_router)
