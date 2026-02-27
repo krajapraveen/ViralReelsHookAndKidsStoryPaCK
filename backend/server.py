@@ -380,6 +380,10 @@ api_router.include_router(protected_download_router)
 api_router.include_router(template_leaderboard_router)
 api_router.include_router(template_versioning_router)
 
+# NEW: PDF Protection and Video Streaming
+api_router.include_router(pdf_protection_router)
+api_router.include_router(video_streaming_router)
+
 # Include API router in app
 app.include_router(api_router)
 
