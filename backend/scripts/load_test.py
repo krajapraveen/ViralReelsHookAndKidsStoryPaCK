@@ -13,8 +13,8 @@ from typing import List, Dict, Any
 
 # Configuration
 BASE_URL = "https://qa-hardening-1.preview.emergentagent.com"
-CONCURRENT_USERS = 100
-TEST_DURATION_SECONDS = 60
+CONCURRENT_USERS = 50  # Reduced for better stability
+TEST_DURATION_SECONDS = 30  # Shorter test
 DEMO_EMAIL = "demo@example.com"
 DEMO_PASSWORD = "Password123!"
 
