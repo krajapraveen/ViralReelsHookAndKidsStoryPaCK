@@ -624,6 +624,24 @@ async def startup():
     except Exception as e:
         logger.warning(f"Self-healing initialization warning: {e}")
     
+    # Initialize enhanced self-healing with worker retries
+    try:
+        from services.enhanced_self_healing_system import get_self_healing_system
+        healing_system = await get_self_healing_system(db)
+        asyncio.create_task(healing_system.start_monitoring())
+        logger.info("Enhanced self-healing monitoring started")
+    except Exception as e:
+        logger.warning(f"Enhanced self-healing initialization warning: {e}")
+    
+    # Initialize auto-refund service
+    try:
+        from services.enhanced_auto_refund import get_auto_refund_service
+        refund_service = await get_auto_refund_service(db)
+        asyncio.create_task(refund_service.start_background_worker())
+        logger.info("Auto-refund background worker started")
+    except Exception as e:
+        logger.warning(f"Auto-refund initialization warning: {e}")
+    
     # Start payment reconciliation background task
     try:
         from services.payment_recovery_service import start_payment_reconciliation_task
