@@ -309,6 +309,30 @@ export default function Dashboard() {
               <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">5 CREDITS</span>
             </div>
           </Link>
+
+          {/* Comment Reply Bank */}
+          <Link to="/app/comment-reply-bank">
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-comment-reply">
+              <div className="flex items-center gap-3 mb-2">
+                <MessageSquare className="w-6 h-6" />
+                <h3 className="font-bold">Comment Reply Bank</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">High-engagement replies for any comment</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">5-15 CREDITS</span>
+            </div>
+          </Link>
+
+          {/* Bedtime Story Builder */}
+          <Link to="/app/bedtime-story-builder">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-4 sm:p-5 text-white hover:scale-[1.02] transition-transform cursor-pointer h-full" data-testid="quick-action-bedtime-story">
+              <div className="flex items-center gap-3 mb-2">
+                <Moon className="w-6 h-6" />
+                <h3 className="font-bold">Bedtime Story Builder</h3>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm">Audio scripts with voice notes & SFX cues</p>
+              <span className="inline-block mt-2 text-xs bg-white/20 rounded-full px-2 py-1">10 CREDITS</span>
+            </div>
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-8 sm:mb-12">
