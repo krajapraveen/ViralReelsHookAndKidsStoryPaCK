@@ -588,6 +588,9 @@ export default function CaptionRewriterPro() {
           </>
         )}
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="caption-rewriter" />
     </div>
   );
 }

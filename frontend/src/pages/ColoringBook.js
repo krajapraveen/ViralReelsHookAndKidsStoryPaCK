@@ -1082,6 +1082,9 @@ export default function ColoringBookGenerator() {
           </p>
         </div>
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="coloring-book" />
     </div>
   );
 }

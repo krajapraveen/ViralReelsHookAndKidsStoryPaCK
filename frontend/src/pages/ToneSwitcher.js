@@ -443,6 +443,9 @@ export default function ToneSwitcher() {
           </div>
         </div>
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="tone-switcher" />
     </div>
   );
 }

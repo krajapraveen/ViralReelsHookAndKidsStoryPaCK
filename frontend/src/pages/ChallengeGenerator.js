@@ -435,6 +435,9 @@ export default function ChallengeGenerator() {
           </div>
         </div>
       </main>
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="challenge-generator" />
     </div>
   );
 }
