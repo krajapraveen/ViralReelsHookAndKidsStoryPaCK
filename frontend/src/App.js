@@ -20,7 +20,7 @@ import AutomationDashboard from './pages/AutomationDashboard';
 import Profile from './pages/Profile';
 import CopyrightInfo from './pages/CopyrightInfo';
 import CreatorTools from './pages/CreatorTools';
-import ContentVault from './pages/ContentVault';
+// ContentVault removed - replaced by ContentBlueprintLibrary
 import PaymentHistory from './pages/PaymentHistory';
 import VerifyEmail from './pages/VerifyEmail';
 import ResetPassword from './pages/ResetPassword';
