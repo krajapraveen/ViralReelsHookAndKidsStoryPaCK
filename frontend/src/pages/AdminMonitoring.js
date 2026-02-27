@@ -309,7 +309,6 @@ export default function AdminMonitoring() {
                       <th className="text-center py-3 px-4 text-slate-400">Challenges</th>
                       <th className="text-center py-3 px-4 text-slate-400">Tone Rewrites</th>
                       <th className="text-center py-3 px-4 text-slate-400">Coloring Books</th>
-                      <th className="text-center py-3 px-4 text-slate-400">GenStudio</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -320,7 +319,6 @@ export default function AdminMonitoring() {
                         <td className="py-3 px-4 text-center text-blue-400">{day.challenges}</td>
                         <td className="py-3 px-4 text-center text-green-400">{day.toneRewrites}</td>
                         <td className="py-3 px-4 text-center text-pink-400">{day.coloringBooks}</td>
-                        <td className="py-3 px-4 text-center text-yellow-400">{day.genstudioJobs}</td>
                       </tr>
                     ))}
                   </tbody>
