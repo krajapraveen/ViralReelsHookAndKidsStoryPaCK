@@ -17,7 +17,8 @@ router = APIRouter(prefix="/admin/system", tags=["Admin System"])
 
 def require_admin(user: dict):
     """Check if user is admin"""
-    if user.get("role") not in ["admin", "superadmin"]:
+    user_role = user.get("role", "").lower()
+    if user_role not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
