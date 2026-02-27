@@ -222,13 +222,20 @@ export default function Signup({ setAuth }) {
       return;
     }
     
+    // Validate CAPTCHA
+    if (captchaConfig.enabled && !captchaToken) {
+      toast.error('Please complete the CAPTCHA verification');
+      return;
+    }
+    
     setLoading(true);
 
     try {
       const response = await authAPI.register({ 
         name: name.trim(), 
         email: email.trim().toLowerCase(), 
-        password 
+        password,
+        captcha_token: captchaToken
       });
       localStorage.setItem('token', response.data.token);
       setAuth(true);
@@ -236,8 +243,16 @@ export default function Signup({ setAuth }) {
       navigate('/app', { replace: true });
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Signup failed. Please try again.';
+      // Handle CAPTCHA error
+      if (errorMessage.toLowerCase().includes('captcha')) {
+        toast.error('CAPTCHA verification failed. Please try again.');
+        // Reset CAPTCHA
+        if (window.hcaptcha && captchaRef.current) {
+          window.hcaptcha.reset();
+          setCaptchaToken('');
+        }
       // Handle duplicate email error
-      if (errorMessage.toLowerCase().includes('email') && errorMessage.toLowerCase().includes('exist')) {
+      } else if (errorMessage.toLowerCase().includes('email') && errorMessage.toLowerCase().includes('exist')) {
         toast.error('An account with this email already exists. Please login or use a different email.');
       } else {
         toast.error(errorMessage);
