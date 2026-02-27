@@ -20,7 +20,7 @@ test.describe('API Endpoints', () => {
     
     const data = await response.json();
     expect(data.products).toBeDefined();
-    expect(data.products.length).toBeGreaterThan(0);
+    expect(Object.keys(data.products).length).toBeGreaterThan(0);
   });
 
   test('coloring book styles endpoint works', async ({ request }) => {
