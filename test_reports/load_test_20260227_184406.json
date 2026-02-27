@@ -1,0 +1,24 @@
+{
+  "test_duration_seconds": 88.36,
+  "total_requests": 1296,
+  "successful_requests": 708,
+  "failed_requests": 588,
+  "success_rate": 54.63,
+  "requests_per_second": 14.67,
+  "response_times": {
+    "min_ms": 47.2,
+    "max_ms": 30986.05,
+    "avg_ms": 5227.61,
+    "median_ms": 456.78,
+    "p95_ms": 30677.79,
+    "p99_ms": 30886.81
+  },
+  "status_codes": {
+    "200": 708,
+    "404": 467
+  },
+  "errors": {
+    "HTTP 404": 467,
+    "Timeout": 121
+  }
+}
