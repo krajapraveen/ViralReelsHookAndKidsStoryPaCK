@@ -1,7 +1,7 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Full-stack SaaS platform for creative content generation with comprehensive admin analytics, stability improvements, auto-scaling, self-healing, and CDN optimization.
+Full-stack SaaS platform for creative content generation with comprehensive monetization optimization, admin analytics, stability improvements, auto-scaling, self-healing, and CDN optimization.
 
 ## Core Features (Implemented)
 - **Content Generation**: Reel Generator, Comic AI, GIF Maker, Story Generator, Comic Storybook
@@ -10,104 +10,126 @@ Full-stack SaaS platform for creative content generation with comprehensive admi
 - **Credit System**: Wallet-based credit management for generations
 - **Admin Dashboard**: Comprehensive analytics, user management, and monitoring
 
-## Recent Changes (2026-02-26)
+## Recent Changes (2026-02-27)
 
-### Full QA Audit + SRE Implementation
-- **A→Z Feature Audit**: All 49 pages tested and verified
-- **Performance Testing**: All APIs under 150ms p95 latency
-- **Security Audit**: All headers configured (CSP, XSS, HSTS)
+### Monetization Optimization (No New AI/Infra)
 
-### Phase 5: Auto-Scaling & Self-Healing ✅
-- **Dynamic Worker Scaling**: 4 priority queues (TEXT/IMAGE/VIDEO/BATCH)
-- **Circuit Breakers**: 6 services protected (Gemini, OpenAI, Sora, ElevenLabs, Storage, Payment)
-- **Self-Healing**: Stuck job recovery, payment reconciliation, auto-retry with backoff
-- **Idempotency**: SHA256 request deduplication
+#### 1. Multi-Output Pricing ✅
+- Single output: Base cost
+- 3 Variations: +5 credits (50% savings)
+- 5 Variations: +10 credits (60% savings)
+- 10 Variations: +20 credits (70% savings)
 
-### Phase 6: CDN Integration ✅
-- **Cache Headers**: Configured for static, images, videos, documents
-- **Signed URLs**: Implemented with expiration
-- **Asset Reconciliation**: Expired link regeneration
+#### 2. Premium Style Lock System ✅
+- 50% of styles locked as "Pro Only"
+- Upgrade modal for non-Pro users
+- Affects: Comix AI, GIF Maker, Storybook, Reel Generator
+
+#### 3. Revenue Upsell Layer ✅
+- HD Download: +5 credits
+- Remove Watermark: +3 credits
+- Commercial License: +10 credits
+- Batch Download ZIP: +5 credits
+- Watermark-free for paid plans
+
+#### 4. Subscription Model ✅
+| Plan | Price | Credits | Features |
+|------|-------|---------|----------|
+| Free | ₹0 | 10 trial | Basic styles, watermarked |
+| Creator | ₹499/mo | 200/mo | Watermark-free, HD |
+| Pro | ₹1,499/mo | 800/mo | Premium styles, commercial |
+| Studio | ₹3,999/mo | 3,000/mo | Priority queue, all features |
+
+#### 5. Credit Psychology UI ✅
+- Color-coded credit badge (green/yellow/red)
+- "Only X credits left" alerts
+- Daily Login Reward: +3 credits
+- Trending 🔥 badge on high-value tools
+
+#### 6. Bundle Pricing ✅
+- Comix: 1 panel (10) → 3 panels (25) → 6 panels (45)
+- Storybook: 4 pages (30) → 8 pages (55) → 20 pages (120)
+- GIF: 1 GIF (8) → 3 GIFs (20) → 5 GIFs (30)
+
+#### 7. Dashboard Reordering ✅
+**Priority Order:**
+1. Comix AI (🔥 TRENDING)
+2. Comic Storybook (🔥 TRENDING)
+3. Reel Generator
+4. Story Pack
+
+**Creator Boost Pack (bundled tools):**
+- GIF Maker, Coloring Book, Tone Switcher, Challenge Gen
+
+## New API Endpoints (Monetization)
+
+```
+GET  /api/monetization/plans           - Subscription plans
+GET  /api/monetization/variations      - Multi-output pricing
+GET  /api/monetization/bundles/{f}     - Bundle pricing
+GET  /api/monetization/upsells         - Upsell options
+GET  /api/monetization/styles/{f}      - Feature styles with lock status
+POST /api/monetization/styles/check    - Check style access
+POST /api/monetization/upsell/purchase - Purchase upsell
+GET  /api/monetization/daily-reward/status  - Daily reward status
+POST /api/monetization/daily-reward/claim   - Claim daily reward
+GET  /api/monetization/credit-status   - Credit psychology alerts
+GET  /api/monetization/dashboard-config - Dashboard priority config
+GET  /api/monetization/watermark-status - Watermark logic
+```
+
+## New Frontend Components
+
+```
+/app/frontend/src/components/
+├── UpsellModal.jsx        - Post-generation upsells
+├── StyleSelector.jsx      - Premium style lock UI
+├── CreditStatusBadge.jsx  - Credit psychology badge
+└── VariationSelector.jsx  - Multi-output selector
+```
 
 ## Architecture
 
 ```
 /app/
 ├── backend/
-│   ├── models/
-│   ├── performance.py
+│   ├── config/
+│   │   └── monetization.py    # NEW: Centralized pricing config
 │   ├── routes/
-│   │   ├── sre_monitoring.py     # 16 new SRE endpoints
-│   │   ├── job_worker.py         # Enhanced with retry logic
-│   │   └── wallet.py
-│   ├── services/
-│   │   ├── worker_queues.py      # Separate queue implementation
-│   │   ├── database_indexes.py   # 55 indexes
-│   │   ├── idempotency_service.py
-│   │   ├── fallback_output_service.py
-│   │   ├── cdn_optimizer.py      # Cache headers, signed URLs
-│   │   └── auto_scaling_service.py # Circuit breakers, scaling
-│   └── server.py
+│   │   └── monetization.py    # NEW: Monetization APIs
+│   └── services/
+│       ├── auto_scaling_service.py
+│       ├── cdn_optimizer.py
+│       └── ...
 └── frontend/
     └── src/
+        ├── components/
+        │   ├── UpsellModal.jsx
+        │   ├── StyleSelector.jsx
+        │   ├── CreditStatusBadge.jsx
+        │   └── VariationSelector.jsx
         └── pages/
-            └── AdminDashboard.js  # Resilience improvements
+            └── Dashboard.js   # Reordered for monetization
 ```
 
-## New API Endpoints (SRE)
-
-### Public
-- `GET /api/sre/health` - System health check
-
-### Admin Only
-- `GET /api/sre/status` - Full SRE dashboard
-- `GET /api/sre/performance` - Performance metrics
-- `GET /api/sre/indexes` - Database index status
-- `GET /api/sre/circuits` - Circuit breaker status
-- `POST /api/sre/circuits/{name}/reset` - Reset circuit
-- `GET /api/sre/scaling` - Auto-scaling metrics
-- `POST /api/sre/scaling/evaluate` - Trigger scaling
-- `GET /api/sre/healing/status` - Self-healing status
-- `POST /api/sre/healing/run` - Run reconciliation
-- `GET /api/sre/cdn/status` - CDN status
-- `POST /api/sre/cdn/reconcile` - Reconcile assets
-- `GET /api/sre/dlq` - Dead letter queue
-- `GET /api/sre/fallbacks` - Fallback outputs
-
-## Performance Metrics
-- **API Latency**: p95 < 150ms
-- **Page Load**: < 100ms
-- **Database Indexes**: 55 configured
-- **Worker Queues**: 4 priority lanes
-- **Circuit Breakers**: 6 services protected
-
-## Test Results
-- **Backend**: 93% pass rate
-- **Frontend**: 100% pass rate
-- **Total Tests**: 100+
-
-## Backlog (Completed)
-- ✅ P0: Admin Dashboard resilience fix
-- ✅ P1: Worker & DB Optimization (Phase 2)
-- ✅ P1: Output Reliability (Phase 3)
-- ✅ P2: Auto-Scaling & Self-Healing (Phase 5)
-- ✅ P2: CDN Integration (Phase 6)
-- ✅ P2: Full A→Z QA Audit
-
-## Future Enhancements
-- P3: Prometheus/Grafana integration
-- P3: Multi-region support
-- P3: Database read replicas
-- P3: Advanced observability (Jaeger/Zipkin)
+## Monetization Goals
+- **ARPU Increase**: Higher basket size via bundles
+- **Subscription Conversions**: Premium style locks + upgrade prompts
+- **Credit Consumption**: Multi-output pricing + trending badges
+- **No API Cost Increase**: Pricing logic only, no new AI models
 
 ## Test Credentials
 - Admin: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
 - Demo: `demo@example.com` / `Password123!`
 
-## QA Status
-**VERDICT: ✅ GO FOR PRODUCTION**
-- All critical features working
-- Performance under threshold
-- Security headers configured
-- Auto-scaling implemented
-- Self-healing implemented
-- CDN caching configured
+## Backlog
+- ✅ Monetization optimization complete
+- ✅ GenStudio AI removed
+- ✅ Full A→Z QA audit complete
+- ✅ Auto-scaling & self-healing implemented
+- ✅ CDN caching configured
+
+## Future Enhancements
+- P3: Referral program
+- P3: Affiliate system
+- P3: Gift cards
