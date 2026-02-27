@@ -201,7 +201,7 @@ async def get_user_free_claim_today(user_id: str) -> bool:
 async def check_pro_subscription(user: dict) -> bool:
     """Check if user has Pro subscription"""
     subscription = await db.subscriptions.find_one({
-        "user_id": str(user["_id"]),
+        "user_id": str(user["id"]),
         "status": "active",
         "plan": {"$in": ["pro", "premium", "unlimited"]}
     })
@@ -247,7 +247,7 @@ async def get_config():
 @router.get("/free")
 async def get_free_idea(user: dict = Depends(get_current_user)):
     """Get single free idea for the day"""
-    user_id = str(user["_id"])
+    user_id = str(user["id"])
     
     # Check if Pro subscriber
     is_pro = await check_pro_subscription(user)
@@ -302,7 +302,7 @@ async def get_free_idea(user: dict = Depends(get_current_user)):
 @router.post("/unlock")
 async def unlock_full_pack(user: dict = Depends(get_current_user)):
     """Unlock full pack of 10 ideas for 5 credits"""
-    user_id = str(user["_id"])
+    user_id = str(user["id"])
     
     # Check if Pro subscriber (free for them)
     is_pro = await check_pro_subscription(user)
@@ -320,7 +320,7 @@ async def unlock_full_pack(user: dict = Depends(get_current_user)):
     
     # Deduct credits BEFORE generation
     await db.users.update_one(
-        {"_id": ObjectId(user["_id"])},
+        {"id": user["id"]},
         {"$inc": {"credits": -5}}
     )
     
@@ -351,7 +351,7 @@ async def unlock_full_pack(user: dict = Depends(get_current_user)):
     except Exception as e:
         # Refund on error
         await db.users.update_one(
-            {"_id": ObjectId(user["_id"])},
+            {"id": user["id"]},
             {"$inc": {"credits": 5}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to unlock: {str(e)}")
