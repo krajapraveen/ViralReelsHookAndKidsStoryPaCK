@@ -1,8 +1,25 @@
+/* ============================================
+   UNIFIED APP BACKGROUND - Production Styling
+   Consistent with Landing Page
+   ============================================ */
+:root {
+  --app-bg-primary: #020617; /* slate-950 */
+  --app-bg-secondary: #1e1b4b; /* indigo-950 */
+  --app-gradient-from: #020617;
+  --app-gradient-via: #1e1b4b;
+  --app-gradient-to: #020617;
+}
+
 .App {
   min-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Unified app background class - matches landing page */
+.app-bg-unified {
+  background: linear-gradient(to bottom, var(--app-gradient-from), var(--app-gradient-via), var(--app-gradient-to));
 }
 
 /* Hide Emergent badge */
