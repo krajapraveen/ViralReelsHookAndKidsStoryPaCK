@@ -79,6 +79,8 @@ import TemplateAnalyticsDashboard from './pages/Admin/TemplateAnalyticsDashboard
 import AdminAuditLogs from './pages/Admin/AuditLogs';
 // TEMPLATE LEADERBOARD
 import TemplateLeaderboard from './pages/Admin/TemplateLeaderboard';
+// SYSTEM RESILIENCE DASHBOARD
+import SystemResilienceDashboard from './pages/admin/SystemResilienceDashboard';
 import './App.css';
 
 function App() {
