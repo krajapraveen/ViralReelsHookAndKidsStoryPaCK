@@ -125,8 +125,9 @@ function App() {
       <Route path="/app/admin/self-healing" element={isAuthenticated ? <SelfHealingDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/admin/user-analytics" element={isAuthenticated ? <UserAnalyticsDashboard /> : <Navigate to="/login" />} />
       {/* New Feature Routes */}
-      <Route path="/app/comix" element={isAuthenticated ? <ComixAI /> : <Navigate to="/login" />} />
-      <Route path="/app/comix-ai" element={isAuthenticated ? <ComixAI /> : <Navigate to="/login" />} />
+      <Route path="/app/comix" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
+      <Route path="/app/comix-ai" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
+      <Route path="/app/photo-to-comic" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/gif-maker" element={isAuthenticated ? <GifMaker /> : <Navigate to="/login" />} />
       <Route path="/app/comic-storybook" element={isAuthenticated ? <ComicStorybook /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
