@@ -1,5 +1,5 @@
 """
-Credits Routes - Balance, Ledger, History
+Credits Routes - Balance, Ledger, History, Packages
 CreatorStudio AI
 """
 from fastapi import APIRouter, HTTPException, Depends
@@ -14,6 +14,45 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared import db, get_current_user
 
 router = APIRouter(prefix="/credits", tags=["Credits"])
+
+
+# Credit packages configuration
+CREDIT_PACKAGES = [
+    {"id": "starter", "name": "Starter Pack", "credits": 100, "price": 4.99, "currency": "USD", "popular": False},
+    {"id": "basic", "name": "Basic Pack", "credits": 500, "price": 19.99, "currency": "USD", "popular": True},
+    {"id": "pro", "name": "Pro Pack", "credits": 1500, "price": 49.99, "currency": "USD", "popular": False},
+    {"id": "ultimate", "name": "Ultimate Pack", "credits": 5000, "price": 149.99, "currency": "USD", "popular": False},
+]
+
+
+@router.get("/packages")
+async def get_credit_packages():
+    """Get available credit packages for purchase"""
+    return CREDIT_PACKAGES
+
+
+@router.get("/history")
+async def get_credit_history(
+    page: int = 0,
+    size: int = 20,
+    user: dict = Depends(get_current_user)
+):
+    """Get credit transaction history (alias for ledger)"""
+    skip = page * size
+    
+    history = await db.credit_ledger.find(
+        {"userId": user["id"]},
+        {"_id": 0}
+    ).sort("createdAt", -1).skip(skip).limit(size).to_list(length=size)
+    
+    total = await db.credit_ledger.count_documents({"userId": user["id"]})
+    
+    return {
+        "history": history,
+        "total": total,
+        "page": page,
+        "size": size
+    }
 
 
 @router.get("/balance")
