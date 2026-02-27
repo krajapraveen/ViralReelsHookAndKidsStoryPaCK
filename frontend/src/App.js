@@ -179,6 +179,14 @@ function App() {
       {/* Bedtime Story Builder */}
       <Route path="/app/bedtime-story-builder" element={isAuthenticated ? <BedtimeStoryBuilder /> : <Navigate to="/login" />} />
       <Route path="/app/bedtime-stories" element={isAuthenticated ? <BedtimeStoryBuilder /> : <Navigate to="/login" />} />
+      {/* NEW 5 TEMPLATE-BASED FEATURES */}
+      <Route path="/app/thumbnail-generator" element={isAuthenticated ? <YouTubeThumbnailGenerator /> : <Navigate to="/login" />} />
+      <Route path="/app/brand-story-builder" element={isAuthenticated ? <BrandStoryBuilder /> : <Navigate to="/login" />} />
+      <Route path="/app/offer-generator" element={isAuthenticated ? <OfferGenerator /> : <Navigate to="/login" />} />
+      <Route path="/app/story-hook-generator" element={isAuthenticated ? <StoryHookGenerator /> : <Navigate to="/login" />} />
+      <Route path="/app/daily-viral-ideas" element={isAuthenticated ? <DailyViralIdeas /> : <Navigate to="/login" />} />
+      {/* TEMPLATE ANALYTICS DASHBOARD */}
+      <Route path="/app/admin/template-analytics" element={isAuthenticated ? <TemplateAnalyticsDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
