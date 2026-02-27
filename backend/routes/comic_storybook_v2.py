@@ -253,15 +253,23 @@ async def get_pricing(user: dict = Depends(get_current_user)):
     return {"pricing": PRICING}
 
 
+class PreviewComicRequest(BaseModel):
+    genre: str
+    storyIdea: str
+    title: str = "My Comic Story"
+    pageCount: int = 20
+
 @router.post("/preview")
 async def generate_preview(
-    genre: str,
-    storyIdea: str,
-    title: str = "My Comic Story",
-    pageCount: int = 20,
+    request: PreviewComicRequest,
     user: dict = Depends(get_current_user)
 ):
     """Generate preview pages (watermarked)"""
+    # Extract from request body
+    genre = request.genre
+    storyIdea = request.storyIdea
+    title = request.title
+    pageCount = request.pageCount
     
     # Validate content
     is_blocked, keyword = check_blocked_keywords(storyIdea)
