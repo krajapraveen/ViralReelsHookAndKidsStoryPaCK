@@ -122,10 +122,10 @@ export default function AnalyticsDashboard() {
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
           <div className="flex flex-wrap gap-3">
-            <Link to="/app/gen-studio/history">
+            <Link to="/app/history">
               <Button variant="outline" className="border-slate-700 hover:bg-slate-800">
                 <Clock className="w-4 h-4 mr-2" />
-                View Job History
+                View History
               </Button>
             </Link>
             <Link to="/app/billing">
