@@ -63,23 +63,7 @@ COLORING_BOOK_PRICING = {
     "PERSONALIZED_COVER": 1,
     "PER_EXTRA_PAGE": 0.5,
 }
-
-# Regional pricing for subscriptions (for future integration)
-REGIONAL_PRICING = {
-    "INR": {
-        "weekly": {"price": 99, "exports": 5, "worksheets": 5},
-        "monthly": {"price": 299, "exports": 25, "worksheets": -1, "recommended": True},  # -1 = unlimited
-        "quarterly": {"price": 699, "exports": 100, "worksheets": -1, "best_value": True},
-        "single_book": {"price": 149}
-    },
-    "USD": {
-        "weekly": {"price": 4.99, "exports": 5, "worksheets": 5},
-        "monthly": {"price": 9.99, "exports": 25, "worksheets": -1, "recommended": True},
-        "quarterly": {"price": 24.99, "exports": 100, "worksheets": -1, "best_value": True},
-        "single_book": {"price": 4.99}
-    }
-}
-
+# Regional pricing removed - using new structure
 
 # =============================================================================
 # PYDANTIC MODELS
