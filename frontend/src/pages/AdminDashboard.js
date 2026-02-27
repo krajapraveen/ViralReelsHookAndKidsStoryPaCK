@@ -214,6 +214,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Ratings</span>
               </Button>
             </Link>
+            <Link to="/app/admin/bio-templates">
+              <Button variant="outline" size="sm" className="border-pink-500/50 text-pink-300 hover:bg-pink-500/20" data-testid="bio-templates-btn">
+                <FileText className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Bio Templates</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}
