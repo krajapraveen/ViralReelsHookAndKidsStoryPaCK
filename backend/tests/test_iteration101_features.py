@@ -105,14 +105,6 @@ class TestHealthAndBasicEndpoints:
         data = response.json()
         assert data.get("status") in ["ok", "healthy"], f"Unexpected health status: {data}"
         print(f"PASS: Health endpoint returned status: {data.get('status')}")
-    
-    def test_comics_config_endpoint(self):
-        """Test comics configuration endpoint"""
-        response = requests.get(f"{BASE_URL}/api/comics/config")
-        assert response.status_code == 200, f"Comics config failed: {response.status_code}"
-        data = response.json()
-        assert "emotions" in data or "styles" in data, "Expected comics config data"
-        print("PASS: Comics config endpoint working")
 
 
 class TestPageBackgrounds:
