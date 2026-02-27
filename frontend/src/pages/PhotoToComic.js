@@ -1472,6 +1472,9 @@ export default function PhotoToComic() {
           setShowUpsell(false);
         }}
       />
+      
+      {/* Help Guide */}
+      <HelpGuide pageId="photo-to-comic" />
     </div>
   );
 }
