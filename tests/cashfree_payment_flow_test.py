@@ -162,13 +162,15 @@ class CashfreePaymentTester:
         print("\n--- Test: Order Creation ---")
         
         products = await self.get_products(session)
-        if not products.get("products"):
+        product_list = products.get("products", [])
+        
+        if not product_list:
             self.record_result("Order Creation", False, "No products available")
             return None
         
-        # Test with first product
-        product = products["products"][0]
-        product_id = product.get("id")
+        # Get product ID (handle both dict and string formats)
+        first_product = product_list[0]
+        product_id = first_product.get("id") if isinstance(first_product, dict) else first_product
         
         order = await self.create_order(session, product_id)
         
