@@ -370,6 +370,12 @@ api_router.include_router(story_hook_router)
 api_router.include_router(daily_viral_ideas_router)
 api_router.include_router(template_analytics_router)
 
+# NEW: Admin Audit Logs, Protected Downloads, Leaderboard, Versioning
+api_router.include_router(admin_audit_logs_router)
+api_router.include_router(protected_download_router)
+api_router.include_router(template_leaderboard_router)
+api_router.include_router(template_versioning_router)
+
 # Include API router in app
 app.include_router(api_router)
 
