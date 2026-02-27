@@ -160,7 +160,7 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int, use
     return None
 
 
-async def generate_story_content_inline(data: dict, generate_images: bool = True) -> dict:
+async def generate_story_content_inline(data: dict, generate_images: bool = True, user_plan: str = "free") -> dict:
     """Generate story content using LLM with optional image generation and automatic retry"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     import asyncio
@@ -211,7 +211,7 @@ async def generate_story_content_inline(data: dict, generate_images: bool = True
             if generate_images and result.get("scenes"):
                 # Generate a cover image based on the story title and synopsis
                 cover_prompt = f"{result.get('title', 'Story')}: {result.get('synopsis', '')}. Main characters: {', '.join([c.get('name', '') for c in result.get('characters', [])])}"
-                cover_image_url = await generate_story_image(cover_prompt, unique_id, 0)
+                cover_image_url = await generate_story_image(cover_prompt, unique_id, 0, user_plan)
                 if cover_image_url:
                     result["coverImageUrl"] = cover_image_url
                 
@@ -219,7 +219,7 @@ async def generate_story_content_inline(data: dict, generate_images: bool = True
                 first_scene = result["scenes"][0]
                 visual_desc = first_scene.get("visualDescription") or first_scene.get("visual_description") or first_scene.get("sceneTitle", "")
                 if visual_desc:
-                    scene_image_url = await generate_story_image(visual_desc, unique_id, 1)
+                    scene_image_url = await generate_story_image(visual_desc, unique_id, 1, user_plan)
                     if scene_image_url:
                         first_scene["imageUrl"] = scene_image_url
             
