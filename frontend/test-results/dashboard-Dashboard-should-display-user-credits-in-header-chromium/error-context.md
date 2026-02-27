@@ -258,5 +258,9 @@
     - img [ref=e318]
   - button "Share your feedback" [ref=e321] [cursor=pointer]:
     - img [ref=e322]
-  - region "Notifications alt+T"
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e324]:
+        - img [ref=e326]
+        - generic [ref=e329]: Login successful!
 ```

@@ -133,5 +133,5 @@
       - img [ref=e148]
     - region "Notifications alt+T"
   - iframe [ref=e152]:
-    - generic [ref=f5e2]: "{\"message\":\"payment_session_id is not present or is invalid\",\"code\":\"payment_session_id_invalid\",\"type\":\"request_failed\"}"
+    - generic [ref=f8e2]: "{\"message\":\"payment_session_id is not present or is invalid\",\"code\":\"payment_session_id_invalid\",\"type\":\"request_failed\"}"
 ```

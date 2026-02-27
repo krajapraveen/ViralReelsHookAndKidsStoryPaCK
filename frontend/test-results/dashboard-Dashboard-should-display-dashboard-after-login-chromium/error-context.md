@@ -258,18 +258,5 @@
     - img [ref=e318]
   - button "Share your feedback" [ref=e321] [cursor=pointer]:
     - img [ref=e322]
-  - generic [ref=e326]:
-    - generic [ref=e327]:
-      - generic [ref=e328]:
-        - img [ref=e329]
-        - heading "Welcome to CreatorStudio AI!" [level=3] [ref=e331]
-      - button [ref=e332] [cursor=pointer]:
-        - img [ref=e333]
-    - paragraph [ref=e336]: Let's take a quick tour to help you get started with creating viral content. This will only take about 2 minutes.
-    - generic [ref=e345]:
-      - button "Skip Tour" [ref=e346] [cursor=pointer]
-      - button "Next" [ref=e348] [cursor=pointer]:
-        - text: Next
-        - img
   - region "Notifications alt+T"
 ```
