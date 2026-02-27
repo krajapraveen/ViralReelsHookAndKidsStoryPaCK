@@ -26,7 +26,7 @@ import sys
 import os
 
 # Configuration
-API_BASE_URL = os.environ.get('API_BASE_URL', 'https://webhook-retry-sys.preview.emergentagent.com')
+API_BASE_URL = os.environ.get('API_BASE_URL', 'https://qa-hardening-1.preview.emergentagent.com')
 ADMIN_EMAIL = "admin@creatorstudio.ai"
 ADMIN_PASSWORD = "Cr3@t0rStud!o#2026"
 DEMO_EMAIL = "demo@example.com"

@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://webhook-retry-sys.preview.emergentagent.com
+API URL: https://qa-hardening-1.preview.emergentagent.com
 ```
 
 ### Results Summary

@@ -52,7 +52,7 @@ jobs:
         run: |
           npx playwright test --project=mobile-deep
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://webhook-retry-sys.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://qa-hardening-1.preview.emergentagent.com' }}
           VIEWPORT: ${{ matrix.viewport }}
 
       - name: 📸 Upload Screenshots
