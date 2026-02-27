@@ -234,6 +234,58 @@ async def deduct_credits(user_id: str, amount: int, ref_type: str, ref_id: str):
     })
 
 # =============================================================================
+# SAMPLE PREVIEW DATA (Try Before You Buy)
+# =============================================================================
+SAMPLE_PREVIEW = {
+    "story_idea": "A young inventor named Mia discovers a magical toolbox that brings her drawings to life.",
+    "hero_name": "Mia",
+    "episode_count": 3,
+    "episodes": [
+        {
+            "episode_number": 1,
+            "title": "Episode 1: The Discovery",
+            "summary": "Mia discovers something unexpected in her everyday life when she finds a glowing toolbox in her grandmother's attic.",
+            "script_outline": [
+                "Mia explores her grandmother's dusty attic during a rainy afternoon",
+                "She finds a mysterious wooden toolbox with strange symbols",
+                "When Mia opens it, the tools inside glow with magical light",
+                "Her first drawing - a butterfly - comes to life!"
+            ],
+            "cliffhanger": "But just as Mia relaxed, a shadow appeared at the attic window...",
+            "next_episode_hook": "What will Mia do next?"
+        },
+        {
+            "episode_number": 2,
+            "title": "Episode 2: The Rising Challenge",
+            "summary": "Mia faces her first major challenge when her magical creations start causing chaos in the neighborhood.",
+            "script_outline": [
+                "Mia's drawings are running wild through the streets",
+                "The neighborhood kids think it's amazing but adults are worried",
+                "Mia must learn to control her magical abilities",
+                "She discovers the toolbox responds to her emotions"
+            ],
+            "cliffhanger": "Little did Mia know, someone was watching her every move...",
+            "next_episode_hook": "Can Mia overcome this challenge?"
+        },
+        {
+            "episode_number": 3,
+            "title": "Episode 3: The Resolution",
+            "summary": "Mia achieves her goal and celebrates when she learns the true power of creativity and friendship.",
+            "script_outline": [
+                "Mia realizes the toolbox belonged to her great-grandmother, also an inventor",
+                "She uses her powers to help a lost child find their way home",
+                "The neighborhood embraces Mia's gift",
+                "Mia promises to use her magic responsibly"
+            ],
+            "cliffhanger": None,
+            "next_episode_hook": None
+        }
+    ],
+    "is_preview": True,
+    "preview_message": "This is a FREE preview. Generate your own unique series!"
+}
+
+# =============================================================================
 # ENDPOINTS
 # =============================================================================
 @router.get("/config")
@@ -255,6 +307,11 @@ async def get_config():
             {"step": 3, "title": "Generate", "description": "Create your mini series"}
         ]
     }
+
+@router.get("/preview")
+async def get_preview():
+    """Get a FREE sample preview - Try Before You Buy"""
+    return SAMPLE_PREVIEW
 
 @router.post("/generate")
 @limiter.limit("10/minute")
