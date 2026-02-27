@@ -28,8 +28,10 @@ ENDPOINTS = [
     {"path": "/api/comic-storybook-v2/config", "method": "GET", "weight": 8, "auth": True},
     {"path": "/api/generations/history?page=0&limit=10", "method": "GET", "weight": 5, "auth": True},
     {"path": "/api/help/manual", "method": "GET", "weight": 5, "auth": False},
-    {"path": "/api/templates/reel/all", "method": "GET", "weight": 8, "auth": True},
-    {"path": "/api/creator-tools/hashtags/niches", "method": "GET", "weight": 5, "auth": True},
+    {"path": "/api/creator-tools/hashtags/niches", "method": "GET", "weight": 8, "auth": True},
+    {"path": "/api/creator-tools/trending", "method": "GET", "weight": 5, "auth": True},
+    {"path": "/api/reel/templates/trending", "method": "GET", "weight": 8, "auth": True},
+    {"path": "/api/story/templates/genres", "method": "GET", "weight": 5, "auth": True},
 ]
 
 
