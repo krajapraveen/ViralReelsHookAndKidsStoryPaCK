@@ -257,48 +257,6 @@ export default function Dashboard() {
             </div>
           </Link>
         </div>
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <Sparkles className="w-6 h-6 sm:w-8 sm:h-8" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold mb-1">🦸 Comix AI</h2>
-                  <p className="text-white/80 text-xs sm:text-base">Photo → Comic Characters • Panels • Story Mode • 9 Styles</p>
-                </div>
-              </div>
-              <span className="inline-block mt-3 text-xs bg-white/20 rounded-full px-3 py-1">NEW FEATURE</span>
-            </div>
-          </Link>
-
-          <Link to="/app/gif-maker">
-            <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/20" data-testid="quick-action-gif-maker">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <Film className="w-6 h-6 sm:w-8 sm:h-8" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold mb-1">GIF Maker</h2>
-                  <p className="text-white/80 text-xs sm:text-base">Photo to Reaction GIFs • 12 Emotions • Kids-Safe</p>
-                </div>
-              </div>
-              <span className="inline-block mt-3 text-xs bg-white/20 rounded-full px-3 py-1">NEW FEATURE</span>
-            </div>
-          </Link>
-
-          <Link to="/app/comic-storybook">
-            <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-amber-500/20" data-testid="quick-action-comic-storybook">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <BookOpen className="w-6 h-6 sm:w-8 sm:h-8" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold mb-1">Comic Story Book</h2>
-                  <p className="text-white/80 text-xs sm:text-base">Story to 10-50 Page PDF • 14 Styles • Copyright-Free</p>
-                </div>
-              </div>
-              <span className="inline-block mt-3 text-xs bg-white/20 rounded-full px-3 py-1">NEW FEATURE</span>
-            </div>
-          </Link>
-        </div>
 
         {/* 3 New Standalone Apps */}
         <div className="grid md:grid-cols-3 gap-4 mb-8 sm:mb-12">
