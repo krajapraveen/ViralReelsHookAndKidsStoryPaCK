@@ -6,7 +6,7 @@ import {
   Wand2, ArrowLeft, Loader2, Copy, Download,
   Wallet, CheckCircle, ChevronRight, Lock,
   Smile, Sparkles, Heart, Rocket, BookOpen,
-  AlertTriangle, Crown
+  AlertTriangle, Crown, Eye, X
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
 
@@ -41,6 +41,11 @@ export default function CaptionRewriterPro() {
   // Result state
   const [result, setResult] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  
+  // Preview Mode state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -55,6 +60,19 @@ export default function CaptionRewriterPro() {
       console.error('Failed to load wallet:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShowPreview = async () => {
+    setLoadingPreview(true);
+    try {
+      const response = await api.get('/api/caption-rewriter-pro/preview');
+      setPreviewData(response.data);
+      setShowPreview(true);
+    } catch (error) {
+      toast.error('Failed to load preview');
+    } finally {
+      setLoadingPreview(false);
     }
   };
 
