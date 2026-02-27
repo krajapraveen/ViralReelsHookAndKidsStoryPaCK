@@ -13,8 +13,7 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from middleware.auth import get_current_user, get_admin_user
-from database import db
+from shared import get_current_user, get_admin_user, db
 
 logger = logging.getLogger("creatorstudio")
 router = APIRouter(prefix="/instagram-bio-generator", tags=["Instagram Bio Generator"])
