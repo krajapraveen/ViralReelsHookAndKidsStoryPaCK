@@ -118,6 +118,12 @@ from routes.story_hook_generator import router as story_hook_router
 from routes.daily_viral_ideas import router as daily_viral_ideas_router
 from routes.template_analytics import router as template_analytics_router
 
+# NEW: Admin Audit Logs, Protected Downloads, Leaderboard, Versioning
+from routes.admin_audit_logs import router as admin_audit_logs_router
+from routes.protected_download import router as protected_download_router
+from routes.template_leaderboard import router as template_leaderboard_router
+from routes.template_versioning import router as template_versioning_router
+
 # Webhook Retry Queue
 from services.webhook_retry_queue import WebhookRetryQueue, webhook_queue
 
