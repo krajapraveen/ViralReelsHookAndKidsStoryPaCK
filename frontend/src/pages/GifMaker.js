@@ -584,6 +584,17 @@ export default function GifMaker() {
               </div>
             </div>
 
+            {/* Variation Selector - Monetization */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+              <VariationSelector
+                value={selectedVariation}
+                onChange={setSelectedVariation}
+                feature="gif_maker"
+                baseCost={pricing.generate}
+                userPlan={userPlan}
+              />
+            </div>
+
             {/* Generate Button */}
             <Button 
               onClick={batchMode ? generateBatch : generateGif}
