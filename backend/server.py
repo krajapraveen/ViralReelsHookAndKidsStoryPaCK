@@ -85,6 +85,7 @@ from routes.realtime_analytics import router as realtime_analytics_router
 from routes.user_analytics import router as user_analytics_router, user_router as user_analytics_user_router
 from routes.sre_monitoring import router as sre_monitoring_router
 from routes.monetization import router as monetization_router
+from routes.share import router as share_router
 
 # Self-healing system imports
 from routes.self_healing_monitoring import router as self_healing_monitoring_router
