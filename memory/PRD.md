@@ -301,3 +301,20 @@ visionary-suite.com
 - **Demo**: `demo@example.com` / `Password123!`
 
 **Last Updated:** 2026-02-27
+
+---
+
+## Pending Tasks (P1-P2)
+
+### P1 - QA & Hardening (Remaining)
+- [ ] Auto-refund mechanism for failed generations
+- [ ] Self-healing system for automatic issue resolution
+- [ ] Load testing (100+ concurrent users)
+- [ ] Full Cashfree sandbox payment testing
+
+### P2 - Future Tasks
+- [ ] PDF flattening and video streaming protection
+- [ ] Template versioning & A/B testing infrastructure
+- [ ] Advanced analytics export (CSV)
+- [ ] Subscription model for Daily Viral Ideas
+- [ ] Playwright test flakiness review
