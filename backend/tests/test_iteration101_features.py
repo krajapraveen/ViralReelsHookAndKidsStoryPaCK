@@ -23,7 +23,8 @@ class TestAdminWorkerRoutes:
             "password": "Cr3@t0rStud!o#2026"
         })
         if response.status_code == 200:
-            return response.json().get("access_token")
+            data = response.json()
+            return data.get("token") or data.get("access_token")
         pytest.skip("Admin auth failed")
     
     @pytest.fixture
@@ -34,7 +35,8 @@ class TestAdminWorkerRoutes:
             "password": "Password123!"
         })
         if response.status_code == 200:
-            return response.json().get("access_token")
+            data = response.json()
+            return data.get("token") or data.get("access_token")
         pytest.skip("User auth failed")
     
     def test_worker_metrics_endpoint_requires_admin(self, user_token):
