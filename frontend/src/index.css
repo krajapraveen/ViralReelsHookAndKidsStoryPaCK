@@ -847,3 +847,40 @@ input:-webkit-autofill::first-line {
     color: black !important;
   }
 }
+
+/* ============================================================================
+   UNIFIED THEME BACKGROUND - All pages use consistent dark slate theme
+   This matches the Landing Page professional gradient
+   ============================================================================ */
+:root {
+  --app-bg-start: #020617;      /* slate-950 */
+  --app-bg-middle: #1e1b4b;     /* indigo-950 */
+  --app-bg-end: #020617;        /* slate-950 */
+  --app-bg-gradient: linear-gradient(to bottom, var(--app-bg-start), var(--app-bg-middle), var(--app-bg-end));
+  --app-card-bg: rgba(15, 23, 42, 0.5);  /* slate-900/50 */
+  --app-card-border: rgba(51, 65, 85, 0.5);  /* slate-700/50 */
+}
+
+/* Apply unified background to all app pages */
+.app-page,
+[class*="min-h-screen"][class*="bg-slate"] {
+  background: var(--app-bg-gradient) !important;
+  min-height: 100vh;
+}
+
+/* Ensure consistent card styling */
+.app-card {
+  @apply bg-slate-900/50 border border-slate-700/50 rounded-xl backdrop-blur-sm;
+}
+
+/* Feature page wrapper */
+.feature-page {
+  @apply min-h-screen;
+  background: var(--app-bg-gradient);
+}
+
+/* Section styling */
+.feature-section {
+  @apply bg-slate-900/30 border border-slate-800/50 rounded-xl p-6;
+}
+
