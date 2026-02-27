@@ -119,6 +119,10 @@ function App() {
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/tone-switcher" element={isAuthenticated ? <ToneSwitcher /> : <Navigate to="/login" />} />
+      {/* NEW REBUILT FEATURES - Simple Wizard UIs */}
+      <Route path="/app/story-episode-creator" element={isAuthenticated ? <StoryEpisodeCreator /> : <Navigate to="/login" />} />
+      <Route path="/app/content-challenge-planner" element={isAuthenticated ? <ContentChallengePlanner /> : <Navigate to="/login" />} />
+      <Route path="/app/caption-rewriter" element={isAuthenticated ? <CaptionRewriterPro /> : <Navigate to="/login" />} />
       {/* User Manual - Available to all */}
       <Route path="/user-manual" element={<UserManual />} />
       <Route path="/help" element={<UserManual />} />
