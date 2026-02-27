@@ -9,6 +9,7 @@ Features:
 - BYO-Key / Credits model
 - Content moderation
 - Multiple comic styles
+- Diagonal watermarks for free users
 """
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from datetime import datetime, timezone
@@ -27,6 +28,7 @@ from shared import (
     db, logger, get_current_user, deduct_credits,
     LLM_AVAILABLE, EMERGENT_LLM_KEY
 )
+from services.watermark_service import add_diagonal_watermark, should_apply_watermark, get_watermark_config
 
 router = APIRouter(prefix="/comix", tags=["Comix AI"])
 
