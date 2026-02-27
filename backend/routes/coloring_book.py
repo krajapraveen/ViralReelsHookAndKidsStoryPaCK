@@ -20,13 +20,48 @@ router = APIRouter(prefix="/coloring-book", tags=["Coloring Book"])
 
 
 # =============================================================================
-# PRICING CONFIGURATION
+# PRICING CONFIGURATION - NEW STRUCTURE (AS SPECIFIED BY USER)
 # =============================================================================
+
+# Story Mode Pricing - Push 20 pages as default (Most Popular)
+STORY_MODE_PRICING = {
+    "5_pages": {"pages": 5, "credits": 10, "label": "5 Pages"},
+    "10_pages": {"pages": 10, "credits": 18, "label": "10 Pages", "savings": "10%"},
+    "20_pages": {"pages": 20, "credits": 32, "label": "20 Pages", "badge": "MOST POPULAR", "default": True, "savings": "20%"},
+    "30_pages": {"pages": 30, "credits": 45, "label": "30 Pages", "badge": "BEST VALUE", "savings": "25%"},
+}
+
+# Photo Mode Pricing - Batch discount increases usage
+PHOTO_MODE_PRICING = {
+    "1_image": {"images": 1, "credits": 5, "label": "1 Image"},
+    "5_images": {"images": 5, "credits": 20, "label": "5 Images", "savings": "20%", "badge": "POPULAR"},
+    "10_images": {"images": 10, "credits": 35, "label": "10 Images", "badge": "BEST VALUE", "savings": "30%"},
+}
+
+# Add-ons - High Profit, Low Cost
+ADDONS = {
+    "activity_pages": {"id": "activity_pages", "name": "Activity Pages", "description": "Puzzles, mazes & fun activities", "credits": 3, "icon": "puzzle"},
+    "personalized_cover": {"id": "personalized_cover", "name": "Personalized Cover", "description": "Custom cover with child's name", "credits": 4, "icon": "user", "default": True},
+    "dedication_page": {"id": "dedication_page", "name": "Dedication Page", "description": "Add a personal message", "credits": 2, "icon": "heart"},
+    "premium_templates": {"id": "premium_templates", "name": "Premium Cover Templates", "description": "Beautiful designer covers", "credits": 5, "icon": "crown", "pro_only": True},
+    "hd_print": {"id": "hd_print", "name": "HD Print Version", "description": "High-resolution 300 DPI PDF", "credits": 5, "icon": "printer"},
+    "commercial_license": {"id": "commercial_license", "name": "Commercial License", "description": "Use for commercial purposes", "credits": 10, "icon": "briefcase"}
+}
+
+# Subscription Benefits
+SUBSCRIPTION_BENEFITS = {
+    "free": {"discount": 0, "preview_pages": 2, "watermark": True, "premium_templates": False, "priority_generation": False},
+    "creator": {"discount": 20, "preview_pages": 3, "watermark": False, "premium_templates": False, "priority_generation": False},
+    "pro": {"discount": 30, "preview_pages": 5, "watermark": False, "premium_templates": True, "priority_generation": True},
+    "studio": {"discount": 40, "preview_pages": -1, "watermark": False, "premium_templates": True, "priority_generation": True, "commercial_included": True}
+}
+
+# Legacy pricing (keeping for backward compatibility with old frontend)
 COLORING_BOOK_PRICING = {
-    "BASE_EXPORT": 5,           # Base cost for 10-page export
-    "ACTIVITY_PAGES": 2,        # Add-on for activity pages
-    "PERSONALIZED_COVER": 1,    # Add-on for personalized cover
-    "PER_EXTRA_PAGE": 0.5,      # Per page above 10
+    "BASE_EXPORT": 5,
+    "ACTIVITY_PAGES": 2,
+    "PERSONALIZED_COVER": 1,
+    "PER_EXTRA_PAGE": 0.5,
 }
 
 # Regional pricing for subscriptions (for future integration)
