@@ -197,6 +197,8 @@ function App() {
       <Route path="/app/admin/audit-logs" element={isAuthenticated ? <AdminAuditLogs /> : <Navigate to="/login" />} />
       {/* TEMPLATE LEADERBOARD */}
       <Route path="/app/admin/leaderboard" element={isAuthenticated ? <TemplateLeaderboard /> : <Navigate to="/login" />} />
+      {/* SYSTEM RESILIENCE DASHBOARD */}
+      <Route path="/app/admin/system-resilience" element={isAuthenticated ? <SystemResilienceDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Routes>
       
