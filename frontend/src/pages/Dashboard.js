@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { walletAPI, authAPI, generationAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Video, BookOpen, Clock, LogOut, CreditCard, History as HistoryIcon, Coins, Shield, Lightbulb, Lock, User, Copyright, Wand2, Library, Receipt, Palette, Film, Calendar, Type, Crown, BarChart3, HelpCircle } from 'lucide-react';
+import { Sparkles, Video, BookOpen, Clock, LogOut, CreditCard, History as HistoryIcon, Coins, Shield, Lightbulb, Lock, User, Copyright, Wand2, Library, Receipt, Palette, Film, Calendar, Type, Crown, BarChart3, HelpCircle, TrendingUp, Flame, Gift, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import HelpGuide from '../components/HelpGuide';
+import CreditStatusBadge from '../components/CreditStatusBadge';
 
 export default function Dashboard() {
   const [credits, setCredits] = useState(0);
