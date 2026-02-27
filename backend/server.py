@@ -86,6 +86,7 @@ from routes.user_analytics import router as user_analytics_router, user_router a
 from routes.sre_monitoring import router as sre_monitoring_router
 from routes.monetization import router as monetization_router
 from routes.share import router as share_router
+from routes.photo_to_comic import router as photo_to_comic_router
 
 # Self-healing system imports
 from routes.self_healing_monitoring import router as self_healing_monitoring_router
