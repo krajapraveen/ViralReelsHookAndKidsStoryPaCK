@@ -190,14 +190,18 @@ class CashfreeSubscriptionService:
             logger.info(f"Cashfree subscription response: {result}")
             
             # Extract payment link from different possible locations
-            payment_link = (
-                result.get("subscription_payment_link") or 
-                result.get("data", {}).get("subscription_payment_link") or
-                result.get("payment_link") or
-                result.get("data", {}).get("payment_link") or
-                result.get("payment_url") or
-                result.get("data", {}).get("payment_url")
-            )
+            # Cashfree sandbox doesn't return direct payment_link, need to construct from session
+            cf_subscription_id = result.get("cf_subscription_id")
+            subscription_session_id = result.get("subscription_session_id", "")
+            
+            # Construct payment URL - sandbox uses a different URL
+            if CASHFREE_ENV == "PRODUCTION":
+                payment_link = f"https://payments.cashfree.com/subscription/?session_id={subscription_session_id}"
+            else:
+                payment_link = f"https://payments-test.cashfree.com/subscription/?session_id={subscription_session_id}"
+            
+            if not subscription_session_id:
+                payment_link = result.get("subscription_payment_link") or result.get("data", {}).get("subscription_payment_link")
             
             # Store subscription in database
             subscription_doc = {
