@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
+import WaitingWithGames from '../components/WaitingWithGames';
 import { 
   Book, ArrowLeft, Download, Image, Palette, Settings,
   Wand2, Loader2, CheckCircle, AlertCircle, Upload,

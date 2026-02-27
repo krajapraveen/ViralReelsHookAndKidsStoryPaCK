@@ -17,6 +17,7 @@ import UpsellModal from '../components/UpsellModal';
 import ReelProgressBar from '../components/ReelProgressBar';
 import HelpGuide from '../components/HelpGuide';
 import RatingModal from '../components/RatingModal';
+import WaitingWithGames from '../components/WaitingWithGames';
 
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(0);
