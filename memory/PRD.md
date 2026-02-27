@@ -358,6 +358,13 @@ All 3 features use:
 - **CI/CD Integration**: PASS (GitHub Actions + Playwright E2E)
 - **Sandbox Test Cards**: Documented and ready for manual testing
 
+### New Features (2026-02-27)
+- **Webhook Retry Queue**: `/app/backend/services/webhook_retry_queue.py` - Exponential backoff retry for failed webhook deliveries
+- **Instagram Niche Bio Generator**: Template-based bio generator (5 credits, no AI)
+  - 10 niches, 8 tones, 7 goals
+  - Admin panel for template management
+  - Copyright-safe with 30+ blocked keywords
+
 ### P2 - BACKLOG
 - Email notifications for gift cards
 - Referral share analytics
