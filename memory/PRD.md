@@ -96,6 +96,7 @@ POST /api/reaction-gif/download/{id} - Download GIF(s)
 - CSP, HSTS, X-Frame-Options headers
 - Rate limiting middleware
 - Input sanitization
+- SecurityHeadersMiddleware enabled (Feb 27, 2026)
 
 ### Style Preview Feature ✅
 - Visual thumbnails for all styles
