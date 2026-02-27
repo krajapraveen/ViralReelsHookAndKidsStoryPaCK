@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import api, { walletAPI } from '../utils/api';
+import ShareCreation from '../components/ShareCreation';
 
 // =============================================================================
 // STEP 1: CHOOSE MODE
