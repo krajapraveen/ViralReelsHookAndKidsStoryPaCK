@@ -27,7 +27,7 @@ import ResetPassword from './pages/ResetPassword';
 // New Feature Pages
 import CreatorProTools from './pages/CreatorProTools';
 import TwinFinder from './pages/TwinFinder';
-import ColoringBook from './pages/ColoringBook';
+import ColoringBookWizard from './pages/ColoringBookWizard';
 import StorySeries from './pages/StorySeries';
 import ChallengeGenerator from './pages/ChallengeGenerator';
 import ToneSwitcher from './pages/ToneSwitcher';
