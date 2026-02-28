@@ -88,6 +88,16 @@ const FUN_FACTS = [
   "Fun fact: The most creative time of day is typically late evening.",
 ];
 
+// Explore other features suggestions
+const OTHER_FEATURES = [
+  { name: 'Comic Avatar', path: '/app/comix-ai', icon: Image, color: 'text-purple-400' },
+  { name: 'Reel Generator', path: '/app/reel', icon: Film, color: 'text-pink-400' },
+  { name: 'Story Pack', path: '/app/stories', icon: BookOpen, color: 'text-blue-400' },
+  { name: 'GIF Maker', path: '/app/gif-maker', icon: Zap, color: 'text-amber-400' },
+  { name: 'Coloring Book', path: '/app/coloring-book', icon: Palette, color: 'text-green-400' },
+  { name: 'Comic Storybook', path: '/app/comic-storybook', icon: Gift, color: 'text-indigo-400' },
+];
+
 export default function WaitingWithGames({ 
   progress = 0, 
   status = "Generating...", 
