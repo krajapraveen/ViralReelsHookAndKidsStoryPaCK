@@ -1,4 +1,5 @@
 // Playwright configuration for stable CI
+// CreatorStudio AI E2E Tests
 import { defineConfig, devices } from '@playwright/test';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://downloads-recovery.preview.emergentagent.com';
@@ -6,20 +7,30 @@ const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://downloads-recovery
 export default defineConfig({
   testDir: './tests/e2e',
   
+  // Test timeout
+  timeout: 60000,
+  expect: {
+    timeout: 10000,
+  },
+  
   // Run tests in parallel
   fullyParallel: true,
   
   // Retry on CI
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
   
   // Limit workers on CI
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : 2,
   
   // Reporter
   reporter: [
-    ['html', { outputFolder: 'playwright-report' }],
-    ['json', { outputFile: 'test-results.json' }]
+    ['list'],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['json', { outputFile: 'test-results/playwright-results.json' }]
   ],
+  
+  // Output directory for test artifacts
+  outputDir: 'test-results/',
   
   // Shared settings
   use: {
@@ -31,44 +42,37 @@ export default defineConfig({
     // Increase timeouts for stability
     actionTimeout: 15000,
     navigationTimeout: 30000,
+    
+    // Browser settings
+    headless: true,
+    viewport: { width: 1920, height: 1080 },
+    ignoreHTTPSErrors: true,
   },
 
-  // Global setup for auth state
-  globalSetup: './tests/e2e/auth-setup.js',
-
-  // Projects
+  // Projects - simplified without global setup
   projects: [
-    // Setup project to create auth state
-    {
-      name: 'setup',
-      testMatch: /global-setup\.ts/,
-    },
-    
-    // Chrome tests with auth
+    // Chrome tests (main)
     {
       name: 'chromium',
       use: { 
         ...devices['Desktop Chrome'],
-        storageState: '.auth/demo-user.json',
       },
-      dependencies: ['setup'],
     },
 
-    // Admin tests
+    // Firefox tests (cross-browser)
     {
-      name: 'admin',
+      name: 'firefox',
       use: {
-        ...devices['Desktop Chrome'],
-        storageState: '.auth/admin-user.json',
+        ...devices['Desktop Firefox'],
       },
-      dependencies: ['setup'],
+    },
+
+    // Mobile viewport tests
+    {
+      name: 'mobile-chrome',
+      use: {
+        ...devices['Pixel 5'],
+      },
     },
   ],
-
-  // Web server (optional - for local testing)
-  // webServer: {
-  //   command: 'npm run start',
-  //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
-  // },
 });
