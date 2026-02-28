@@ -1390,6 +1390,7 @@ export default function ComicStorybookBuilder() {
         onClose={() => setShowRating(false)}
         featureKey="comic_storybook"
         relatedRequestId={job?.id}
+        onSubmitSuccess={() => setShowRating(false)}
       />
       
       <UpsellModal

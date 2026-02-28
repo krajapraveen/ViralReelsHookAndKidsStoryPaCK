@@ -1503,6 +1503,7 @@ export default function PhotoToComic() {
         onClose={() => setShowRating(false)}
         featureKey="photo_to_comic"
         relatedRequestId={job?.id}
+        onSubmitSuccess={() => setShowRating(false)}
       />
       
       <UpsellModal
