@@ -1,6 +1,26 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+// Smart API URL detection for production
+const getApiBaseUrl = () => {
+  // If env variable is set, use it
+  if (process.env.REACT_APP_BACKEND_URL) {
+    return process.env.REACT_APP_BACKEND_URL;
+  }
+  
+  // In production (visionary-suite.com), use same origin
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'visionary-suite.com' || hostname === 'www.visionary-suite.com') {
+      return 'https://visionary-suite.com';
+    }
+  }
+  
+  // Default fallback
+  return 'http://localhost:8001';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+console.log('API Base URL:', API_BASE_URL); // Debug log
 
 const api = axios.create({
   baseURL: API_BASE_URL,
