@@ -1,26 +1,32 @@
 import axios from 'axios';
 
-// Smart API URL detection for production
+// FORCE correct API URL at runtime - ignore env variable on production
 const getApiBaseUrl = () => {
-  // If env variable is set, use it
-  if (process.env.REACT_APP_BACKEND_URL) {
-    return process.env.REACT_APP_BACKEND_URL;
-  }
-  
-  // In production (visionary-suite.com), use same origin
+  // Check if we're running in browser
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+    
+    // PRODUCTION: Always use same origin for visionary-suite.com
     if (hostname === 'visionary-suite.com' || hostname === 'www.visionary-suite.com') {
+      console.log('PRODUCTION detected - using visionary-suite.com');
       return 'https://visionary-suite.com';
+    }
+    
+    // PREVIEW: Use the preview URL
+    if (hostname.includes('preview.emergentagent.com')) {
+      console.log('PREVIEW detected - using', window.location.origin);
+      return window.location.origin;
     }
   }
   
-  // Default fallback
-  return 'http://localhost:8001';
+  // Fallback to env variable or localhost
+  const envUrl = process.env.REACT_APP_BACKEND_URL;
+  console.log('Using env URL:', envUrl || 'http://localhost:8001');
+  return envUrl || 'http://localhost:8001';
 };
 
 const API_BASE_URL = getApiBaseUrl();
-console.log('API Base URL:', API_BASE_URL); // Debug log
+console.log('=== API Base URL Set To:', API_BASE_URL, '===');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
