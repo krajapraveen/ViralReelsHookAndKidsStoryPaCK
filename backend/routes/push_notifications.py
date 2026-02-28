@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, logger, get_admin_user
 
-router = APIRouter(prefix="/notifications", tags=["Notifications"])
+router = APIRouter(prefix="/admin-notifications", tags=["Admin Notifications"])
 
 # Notification Configuration
 NOTIFICATION_TYPES = {
