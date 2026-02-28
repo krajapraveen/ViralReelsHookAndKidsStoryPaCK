@@ -380,6 +380,7 @@ api_router.include_router(template_leaderboard_router)
 api_router.include_router(template_versioning_router)
 api_router.include_router(admin_system_router)
 api_router.include_router(admin_worker_router)
+api_router.include_router(download_expiry_router)
 
 # Include API router in app
 app.include_router(api_router)
