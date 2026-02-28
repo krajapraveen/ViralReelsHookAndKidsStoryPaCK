@@ -953,3 +953,177 @@ async def delete_account(user: dict = Depends(get_current_user)):
     logger.info(f"User account deleted: {user_id}")
     
     return {"message": "Account deleted successfully"}
+
+
+# ============================================
+# ADMIN ACCOUNT UNLOCK ENDPOINT
+# ============================================
+
+class UnlockAccountRequest(BaseModel):
+    email: EmailStr
+    master_key: str = Field(..., description="Master unlock key for security")
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str = Field(..., min_length=8)
+    master_key: str = Field(..., description="Master unlock key for security")
+
+# Master key for emergency account operations - should be set in environment
+MASTER_UNLOCK_KEY = os.environ.get("MASTER_UNLOCK_KEY", "CreatorStudio#Emergency#2026!")
+
+
+@router.post("/admin/unlock-account")
+async def unlock_account(data: UnlockAccountRequest):
+    """
+    Emergency endpoint to unlock a locked account.
+    Use this after deployment to unlock accounts that were locked due to failed attempts.
+    
+    Required: master_key must match MASTER_UNLOCK_KEY environment variable
+    """
+    # Verify master key
+    if data.master_key != MASTER_UNLOCK_KEY:
+        logger.warning(f"Invalid master key attempt for unlock: {data.email}")
+        raise HTTPException(status_code=403, detail="Invalid master key")
+    
+    email = data.email.lower()
+    
+    # Check if user exists
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # 1. Delete from account_lockouts collection
+    lockout_result = await db.account_lockouts.delete_many({"email": email})
+    
+    # 2. Delete failed login activity records
+    activity_result = await db.login_activity.delete_many({
+        "identifier": email,
+        "status": "FAILED"
+    })
+    
+    # 3. Clear any user-level lock flags
+    await db.users.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "locked": False,
+                "lockUntil": None,
+                "lockedUntil": None,
+                "failedLoginAttempts": 0,
+                "loginAttempts": 0,
+                "accountLocked": False,
+                "lastFailedLogin": None
+            },
+            "$unset": {
+                "lockExpiry": "",
+                "lockReason": "",
+                "lockoutUntil": ""
+            }
+        }
+    )
+    
+    logger.info(f"Account unlocked via master key: {email}")
+    
+    return {
+        "success": True,
+        "message": f"Account {email} has been unlocked",
+        "details": {
+            "lockouts_cleared": lockout_result.deleted_count,
+            "failed_attempts_cleared": activity_result.deleted_count
+        }
+    }
+
+
+@router.post("/admin/reset-password")
+async def admin_reset_password(data: ResetPasswordRequest):
+    """
+    Emergency endpoint to reset a user's password.
+    Use this after deployment if you need to reset admin password.
+    
+    Required: master_key must match MASTER_UNLOCK_KEY environment variable
+    """
+    # Verify master key
+    if data.master_key != MASTER_UNLOCK_KEY:
+        logger.warning(f"Invalid master key attempt for password reset: {data.email}")
+        raise HTTPException(status_code=403, detail="Invalid master key")
+    
+    email = data.email.lower()
+    
+    # Check if user exists
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Hash new password
+    hashed_password = hash_password(data.new_password)
+    
+    # Update password and unlock account
+    await db.users.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "password": hashed_password,
+                "locked": False,
+                "lockUntil": None,
+                "lockedUntil": None,
+                "failedLoginAttempts": 0,
+                "accountLocked": False,
+                "passwordChangedAt": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Clear lockouts
+    await db.account_lockouts.delete_many({"email": email})
+    await db.login_activity.delete_many({
+        "identifier": email,
+        "status": "FAILED"
+    })
+    
+    logger.info(f"Password reset via master key: {email}")
+    
+    return {
+        "success": True,
+        "message": f"Password reset for {email}. Account has been unlocked."
+    }
+
+
+@router.get("/admin/check-lock-status/{email}")
+async def check_lock_status(email: str, master_key: str):
+    """
+    Check if an account is locked and get details.
+    
+    Required: master_key query parameter must match MASTER_UNLOCK_KEY
+    """
+    if master_key != MASTER_UNLOCK_KEY:
+        raise HTTPException(status_code=403, detail="Invalid master key")
+    
+    email = email.lower()
+    
+    # Check user
+    user = await db.users.find_one({"email": email}, {"_id": 0, "password": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check lockout record
+    lockout = await db.account_lockouts.find_one({"email": email}, {"_id": 0})
+    
+    # Count failed attempts
+    failed_count = await db.login_activity.count_documents({
+        "identifier": email,
+        "status": "FAILED"
+    })
+    
+    return {
+        "email": email,
+        "user_exists": True,
+        "user_role": user.get("role"),
+        "lockout_record": lockout,
+        "failed_attempts_count": failed_count,
+        "user_lock_flags": {
+            "locked": user.get("locked", False),
+            "lockUntil": user.get("lockUntil"),
+            "accountLocked": user.get("accountLocked", False),
+            "failedLoginAttempts": user.get("failedLoginAttempts", 0)
+        }
+    }
