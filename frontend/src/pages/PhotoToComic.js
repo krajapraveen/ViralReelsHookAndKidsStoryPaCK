@@ -416,6 +416,8 @@ export default function PhotoToComic() {
 
   // Generate comic strip
   const generateStrip = async () => {
+    console.log('generateStrip called'); // Debug log
+    
     if (!photo) {
       toast.error('Please upload a photo first');
       return;
@@ -439,6 +441,8 @@ export default function PhotoToComic() {
     }
     
     const cost = calculateCost();
+    console.log('Cost:', cost, 'Credits:', credits); // Debug log
+    
     if (credits < cost) {
       toast.error(`Insufficient credits. Need ${cost} credits.`);
       setShowUpsell(true);
@@ -450,6 +454,8 @@ export default function PhotoToComic() {
     stopPolling();
     setLoading(true);
     toastShownRef.current = {}; // Reset toast tracking for new generation
+    
+    console.log('Starting generation...'); // Debug log
     
     try {
       const formData = new FormData();
