@@ -408,6 +408,8 @@ export default function StoryGenerator() {
                 status={polling ? 'Creating your story pack...' : 'Starting generation...'}
                 estimatedTime="30-90 seconds"
                 onCancel={() => toast.info('Generation in progress - please wait')}
+                currentFeature="/app/stories"
+                showExploreFeatures={true}
               />
             )}
             {!loading && !result && <div className="text-center py-12 text-slate-400"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-600" /><p>Your story pack will appear here</p></div>}
