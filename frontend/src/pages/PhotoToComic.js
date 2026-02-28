@@ -893,12 +893,21 @@ export default function PhotoToComic() {
                 </div>
               )}
               
-              {/* Download Button */}
+              {/* Download with Expiry Warning */}
               {job.status === 'COMPLETED' && job.resultUrl && (
-                <div className="flex gap-2">
-                  <Button onClick={handleDownload} className="flex-1 bg-purple-600 hover:bg-purple-700">
-                    <Download className="w-4 h-4 mr-2" /> Download
-                  </Button>
+                <DownloadWithExpiry
+                  downloadUrl={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
+                  filename={`comic_avatar_${job.id}.png`}
+                  fileType="image"
+                  onExpired={() => {
+                    toast.warning('Your download has expired. Please generate again.');
+                  }}
+                />
+              )}
+              
+              {/* Share Button */}
+              {job.status === 'COMPLETED' && job.resultUrl && (
+                <div className="flex justify-center">
                   <ShareCreation 
                     contentType="comic_avatar"
                     contentId={job.id}
