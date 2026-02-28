@@ -145,7 +145,11 @@ export function NotificationProvider({ children }) {
       ...notification
     };
 
-    setNotifications(prev => [newNotification, ...prev].slice(0, 50));
+    setNotifications(prev => {
+      const updated = [newNotification, ...prev].slice(0, 50);
+      notificationsRef.current = updated; // Keep ref in sync
+      return updated;
+    });
     setUnreadCount(prev => prev + 1);
 
     // Show toast for important notifications
