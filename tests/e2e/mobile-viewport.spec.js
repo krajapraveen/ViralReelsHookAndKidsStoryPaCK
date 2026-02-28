@@ -203,8 +203,9 @@ test.describe('Mobile My Downloads', () => {
     // Check page title
     await expect(page.locator('text=My Downloads')).toBeVisible({ timeout: 10000 });
     
-    // Check filter is accessible
-    await expect(page.locator('text=All Downloads').or(page.locator('[role="combobox"]'))).toBeVisible();
+    // Check filter is accessible - use first() to avoid strict mode
+    const filterEl = page.locator('[role="combobox"]').first();
+    await expect(filterEl).toBeVisible({ timeout: 5000 });
     
     await page.screenshot({ path: 'test-results/mobile-my-downloads.png' });
     
