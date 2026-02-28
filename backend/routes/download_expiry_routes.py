@@ -19,12 +19,59 @@ router = APIRouter(prefix="/downloads", tags=["Downloads"])
 
 @router.get("/my-downloads")
 async def get_my_downloads(user: dict = Depends(get_current_user)):
-    """Get all active downloads for current user"""
+    """Get all active downloads for current user plus completed generation jobs"""
+    downloads = []
+    
+    # Get from temporary_downloads collection
     service = get_download_service(db)
-    downloads = await service.get_user_downloads(user["id"])
+    temp_downloads = await service.get_user_downloads(user["id"])
+    downloads.extend(temp_downloads)
+    
+    # Also get from completed generation jobs (last 24 hours)
+    from datetime import timedelta
+    one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+    
+    # Get completed comic jobs
+    comic_jobs = await db.photo_to_comic_jobs.find({
+        "userId": user["id"],
+        "status": "COMPLETED",
+        "createdAt": {"$gte": one_day_ago.isoformat()}
+    }, {"_id": 0}).sort("createdAt", -1).limit(20).to_list(20)
+    
+    for job in comic_jobs:
+        # For comic avatar
+        if job.get("resultUrl"):
+            downloads.append({
+                "id": f"job_{job.get('id')}",
+                "filename": f"comic_{job.get('mode', 'avatar')}_{job.get('id', '')[:8]}.png",
+                "file_type": "image/png",
+                "feature": job.get("mode", "comic_avatar"),
+                "created_at": job.get("createdAt"),
+                "expires_at": None,
+                "downloaded": False,
+                "preview_url": job.get("resultUrl") if job.get("resultUrl", "").startswith("data:") else None,
+                "download_url": job.get("resultUrl")
+            })
+        
+        # For comic strip panels
+        if job.get("panels"):
+            for i, panel in enumerate(job.get("panels", [])):
+                if panel.get("imageUrl"):
+                    downloads.append({
+                        "id": f"job_{job.get('id')}_panel_{i+1}",
+                        "filename": f"comic_strip_panel_{i+1}_{job.get('id', '')[:8]}.png",
+                        "file_type": "image/png",
+                        "feature": "comic_strip",
+                        "created_at": job.get("createdAt"),
+                        "expires_at": None,
+                        "downloaded": False,
+                        "preview_url": panel.get("imageUrl") if panel.get("imageUrl", "").startswith("data:") else None,
+                        "download_url": panel.get("imageUrl")
+                    })
     
     return {
         "downloads": downloads,
+        "total": len(downloads),
         "expiry_minutes": DOWNLOAD_EXPIRY_MINUTES,
         "message": f"Downloads expire {DOWNLOAD_EXPIRY_MINUTES} minutes after creation"
     }
