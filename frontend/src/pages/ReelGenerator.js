@@ -484,6 +484,8 @@ export default function ReelGenerator() {
                 status="Generating your reel script..."
                 estimatedTime="10-30 seconds"
                 onCancel={() => toast.info('Generation in progress - please wait')}
+                currentFeature="/app/reel"
+                showExploreFeatures={true}
               />
             )}
             
