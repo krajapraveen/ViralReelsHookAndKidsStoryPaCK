@@ -111,6 +111,7 @@ class DownloadExpiryService:
         await self.db.temporary_downloads.insert_one(download_record)
         
         return {
+            "id": download_id,
             "download_id": download_id,
             "expires_at": expires_at.isoformat(),
             "expires_in_seconds": DOWNLOAD_EXPIRY_MINUTES * 60,
