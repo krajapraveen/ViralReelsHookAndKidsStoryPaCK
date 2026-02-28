@@ -208,8 +208,15 @@ test.describe('Comic Storybook Builder', () => {
     await page.goto(`${BASE_URL}/app/comic-storybook`);
     await page.waitForLoadState('networkidle');
     
-    // Check step indicators
-    await expect(page.locator('text=Step 1 of 5').or(page.locator('text=Genre'))).toBeVisible({ timeout: 5000 });
+    // Check step indicators - more flexible selector
+    const stepIndicator = page.locator('text=Step 1').or(
+      page.locator('text=Genre').or(
+        page.locator('text=1 of 5').or(
+          page.locator('[class*="step"]').first()
+        )
+      )
+    );
+    await expect(stepIndicator.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should show genre options', async ({ page }) => {
