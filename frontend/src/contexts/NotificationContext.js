@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import api from '../utils/api';
 
 // Notification types
 const NOTIFICATION_TYPES = {
@@ -14,28 +15,91 @@ const NOTIFICATION_TYPES = {
 // Create context
 const NotificationContext = createContext(null);
 
+// Polling interval (30 seconds)
+const POLL_INTERVAL = 30000;
+
 // Notification provider
 export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
+  const pollIntervalRef = useRef(null);
+  const lastPollRef = useRef(null);
 
-  // Load notifications from localStorage on mount
-  useEffect(() => {
+  // Check if user is authenticated
+  const isAuthenticated = () => {
+    return !!localStorage.getItem('token');
+  };
+
+  // Fetch notifications from backend
+  const fetchNotifications = useCallback(async () => {
+    if (!isAuthenticated()) return;
+    
     try {
-      const saved = localStorage.getItem('creatorstudio_notifications');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Filter out expired notifications (older than 24 hours)
-        const now = Date.now();
-        const valid = parsed.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
-        setNotifications(valid);
-        setUnreadCount(valid.filter(n => !n.read).length);
+      const response = await api.get('/api/notifications?limit=50');
+      const { notifications: backendNotifications, unread_count } = response.data;
+      
+      // Merge backend notifications with local ones
+      if (backendNotifications && backendNotifications.length > 0) {
+        setNotifications(prev => {
+          // Create a map of existing notification IDs
+          const existingIds = new Set(prev.map(n => n.id));
+          
+          // Convert backend notifications to frontend format
+          const formattedBackend = backendNotifications.map(n => ({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            read: n.read,
+            timestamp: new Date(n.created_at).getTime(),
+            feature: n.feature,
+            downloadUrl: n.download_url,
+            downloadId: n.download_id,
+            actionUrl: n.action_url,
+            expiresAt: n.expires_at,
+            color: n.type === 'generation_failed' ? 'red' : 
+                   n.type === 'download_ready' ? 'blue' : 'green'
+          }));
+          
+          // Add new notifications from backend that we don't have
+          const newFromBackend = formattedBackend.filter(n => !existingIds.has(n.id));
+          
+          // Show toast for new unread notifications
+          newFromBackend.filter(n => !n.read).forEach(n => {
+            if (n.type === 'generation_complete' || n.type === 'download_ready') {
+              toast.success(n.title, { description: n.message });
+            }
+          });
+          
+          return [...newFromBackend, ...prev].slice(0, 50);
+        });
+        
+        setUnreadCount(unread_count);
       }
-    } catch (e) {
-      console.error('Failed to load notifications:', e);
+      
+      lastPollRef.current = Date.now();
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
     }
   }, []);
+
+  // Start polling when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated()) {
+      // Initial fetch
+      fetchNotifications();
+      
+      // Start polling
+      pollIntervalRef.current = setInterval(fetchNotifications, POLL_INTERVAL);
+    }
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [fetchNotifications]);
 
   // Save notifications to localStorage when they change
   useEffect(() => {
