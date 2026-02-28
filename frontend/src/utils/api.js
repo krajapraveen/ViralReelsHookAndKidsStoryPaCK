@@ -1,32 +1,36 @@
 import axios from 'axios';
 
-// FORCE correct API URL at runtime - ignore env variable on production
+// USE RELATIVE URLs - This ALWAYS works regardless of deployment
+// The browser will automatically use the current domain
 const getApiBaseUrl = () => {
-  // Check if we're running in browser
+  // Check if we're in browser
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+    const origin = window.location.origin;
     
-    // PRODUCTION: Always use same origin for visionary-suite.com
-    if (hostname === 'visionary-suite.com' || hostname === 'www.visionary-suite.com') {
-      console.log('PRODUCTION detected - using visionary-suite.com');
-      return 'https://visionary-suite.com';
-    }
-    
-    // PREVIEW: Use the preview URL
-    if (hostname.includes('preview.emergentagent.com')) {
-      console.log('PREVIEW detected - using', window.location.origin);
-      return window.location.origin;
+    // For production domains, use same origin (relative URLs)
+    if (hostname === 'visionary-suite.com' || 
+        hostname === 'www.visionary-suite.com' ||
+        hostname.includes('emergentagent.com') ||
+        hostname.includes('emergent.host')) {
+      console.log('Using same-origin API calls from:', origin);
+      return origin; // Use the CURRENT page's origin
     }
   }
   
-  // Fallback to env variable or localhost
-  const envUrl = process.env.REACT_APP_BACKEND_URL;
-  console.log('Using env URL:', envUrl || 'http://localhost:8001');
-  return envUrl || 'http://localhost:8001';
+  // Local development
+  return process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 };
 
-const API_BASE_URL = getApiBaseUrl();
-console.log('=== API Base URL Set To:', API_BASE_URL, '===');
+// CRITICAL: Use window.location.origin directly for production
+const isProduction = typeof window !== 'undefined' && 
+  (window.location.hostname === 'visionary-suite.com' || 
+   window.location.hostname === 'www.visionary-suite.com');
+
+const API_BASE_URL = isProduction ? window.location.origin : getApiBaseUrl();
+
+console.log('=== FINAL API URL:', API_BASE_URL, '===');
+console.log('=== Current hostname:', typeof window !== 'undefined' ? window.location.hostname : 'SSR', '===');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
