@@ -13,8 +13,8 @@ const TEST_USERS = {
     password: 'Password123!'
   },
   admin: {
-    email: 'admin@creatorstudio.ai',
-    password: 'Cr3@t0rStud!o#2026'
+    email: 'krajapraveen.katta@creatorstudio.ai',
+    password: 'Onemanarmy@1979#'
   }
 };
 
