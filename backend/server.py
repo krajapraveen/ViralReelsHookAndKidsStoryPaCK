@@ -276,9 +276,25 @@ if cors_origins_env == '*':
 else:
     # Parse comma-separated list of origins
     ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
-    # Always include auth provider
-    if "https://auth.emergentagent.com" not in ALLOWED_ORIGINS:
-        ALLOWED_ORIGINS.append("https://auth.emergentagent.com")
+
+# Always include critical domains for production
+CRITICAL_ORIGINS = [
+    "https://visionary-suite.com",
+    "https://www.visionary-suite.com",
+    "https://auth.emergentagent.com",
+    "https://studio-deploy-2.emergent.host",
+    "http://localhost:3000",
+    "http://localhost:8001"
+]
+
+# Add critical origins if not using wildcard
+if ALLOWED_ORIGINS != ['*']:
+    for origin in CRITICAL_ORIGINS:
+        if origin not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(origin)
+else:
+    # Even with wildcard, explicitly list for preflight requests
+    ALLOWED_ORIGINS = CRITICAL_ORIGINS + ['*']
 
 logger.info(f"CORS configured with origins: {ALLOWED_ORIGINS}")
 
