@@ -236,7 +236,7 @@ async def security_headers_middleware(request: Request, call_next):
     if path.startswith("/api/static/"):
         # Allow downloads and image display for static files
         response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
-        response.headers["Access-Control-Allow-Origin"] = "*"
+        # Don't set CORS here - let CORSMiddleware handle it
         return response
     
     # Basic Security Headers
