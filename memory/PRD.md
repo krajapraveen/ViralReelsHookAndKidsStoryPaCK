@@ -3,7 +3,63 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
-## Latest Session Changes (2026-02-27)
+## Latest Session Changes (2026-02-28)
+
+### ✅ ENHANCED WAITING EXPERIENCE
+
+**Feature:** Users see "explore other features" suggestion when generation takes time
+
+**Implementation:**
+- Elapsed time timer showing MM:SS format
+- "We'll notify you when ready" banner appears after 10 seconds
+- "Explore while you wait" grid with 6 feature shortcuts after 15 seconds
+- Generation continues in background when user navigates
+- Fun facts rotation every 12 seconds
+
+**Files Modified:**
+- `/app/frontend/src/components/WaitingWithGames.js`
+
+**New Props:**
+- `currentFeature` - Excludes current page from suggestions
+- `showExploreFeatures` - Toggle explore section visibility
+
+**Test Status:** PASSED - All conditional rendering verified
+
+---
+
+### ✅ 5-MINUTE DOWNLOAD EXPIRY SYSTEM
+
+**Feature:** Downloads auto-delete after 5 minutes with countdown warnings
+
+**Frontend Component (`DownloadWithExpiry.js`):**
+- Real-time countdown timer (MM:SS format)
+- Progress bar with color transitions (green > amber > red)
+- Warning toast at 60 seconds remaining
+- Critical warning at 30 seconds remaining
+- "Download Expired" state after timeout
+- Multiple download attempts allowed before expiry
+
+**Backend Service (`download_expiry_service.py`):**
+- Background cleanup loop every 60 seconds
+- Auto-delete expired files from disk and database
+- User download tracking (count, timestamps)
+- Premium extension feature (add 5 more minutes)
+
+**API Endpoints:**
+| Endpoint | Description |
+|----------|-------------|
+| GET `/api/downloads/my-downloads` | List active downloads with remaining time |
+| GET `/api/downloads/{id}` | Get download info and validate access |
+| GET `/api/downloads/{id}/file` | Download the actual file |
+| POST `/api/downloads/{id}/extend` | Extend expiry (premium users) |
+| DELETE `/api/downloads/{id}` | Manual deletion |
+| GET `/api/downloads/admin/stats` | Download statistics (admin) |
+
+**Test Status:** PASSED - 11/11 backend tests, all endpoints working
+
+---
+
+## Previous Session Changes (2026-02-27)
 
 ### ✅ UNIFIED DARK BACKGROUND (ALL PAGES)
 
