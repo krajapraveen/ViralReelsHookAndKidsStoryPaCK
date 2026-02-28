@@ -926,6 +926,7 @@ export default function PhotoReactionGIF() {
         onClose={() => setShowRating(false)}
         featureKey="reaction_gif"
         relatedRequestId={job?.id}
+        onSubmitSuccess={() => setShowRating(false)}
       />
       
       <UpsellModal
