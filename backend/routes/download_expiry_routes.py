@@ -123,7 +123,8 @@ async def delete_download(download_id: str, user: dict = Depends(get_current_use
 @router.get("/admin/stats")
 async def get_download_stats(user: dict = Depends(get_current_user)):
     """Get download statistics (admin only)"""
-    if user.get("role") not in ["admin", "superadmin"]:
+    user_role = (user.get("role") or "").upper()
+    if user_role not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     service = get_download_service(db)
