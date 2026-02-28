@@ -416,21 +416,27 @@ export default function PhotoToComic() {
 
   // Generate comic strip
   const generateStrip = async () => {
-    console.log('generateStrip called'); // Debug log
+    console.log('=== GENERATE STRIP CLICKED ===');
+    
+    // Show immediate feedback
+    toast.info('Starting generation...');
     
     if (!photo) {
       toast.error('Please upload a photo first');
+      console.log('ERROR: No photo');
       return;
     }
     
     if (!storyPrompt.trim()) {
       toast.error('Please describe your comic story');
+      console.log('ERROR: No story');
       return;
     }
     
     // Validate story prompt
     if (!validateContent(storyPrompt)) {
       toast.error('Please remove copyrighted references from your story');
+      console.log('ERROR: Content validation failed');
       return;
     }
     
@@ -441,7 +447,7 @@ export default function PhotoToComic() {
     }
     
     const cost = calculateCost();
-    console.log('Cost:', cost, 'Credits:', credits); // Debug log
+    console.log('Cost:', cost, 'Credits:', credits);
     
     if (credits < cost) {
       toast.error(`Insufficient credits. Need ${cost} credits.`);
@@ -455,7 +461,7 @@ export default function PhotoToComic() {
     setLoading(true);
     toastShownRef.current = {}; // Reset toast tracking for new generation
     
-    console.log('Starting generation...'); // Debug log
+    console.log('Sending API request...');
     
     try {
       const formData = new FormData();
@@ -471,6 +477,7 @@ export default function PhotoToComic() {
       formData.append('hd_export', addOns.hd_export);
       formData.append('timestamp', Date.now().toString()); // Prevent caching
       
+      console.log('Calling API...');
       const res = await api.post('/api/photo-to-comic/generate', formData, {
         headers: { 
           'Content-Type': 'multipart/form-data',
@@ -478,6 +485,7 @@ export default function PhotoToComic() {
         }
       });
       
+      console.log('API Response:', res.data);
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Comic strip generation started!');
       
@@ -488,8 +496,9 @@ export default function PhotoToComic() {
       setPollingIntervalState(interval);
       
     } catch (e) {
+      console.error('Generation error:', e);
       setLoading(false);
-      const errorMsg = e.response?.data?.detail || 'Generation failed';
+      const errorMsg = e.response?.data?.detail || e.message || 'Generation failed';
       if (errorMsg.includes('Copyrighted') || errorMsg.includes('not allowed')) {
         setContentError({ blocked: true, suggestion: errorMsg });
       }
