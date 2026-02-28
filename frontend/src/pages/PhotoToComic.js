@@ -1445,6 +1445,7 @@ export default function PhotoToComic() {
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full px-4 py-2">
                 <span className="text-purple-300 font-medium">{credits.toLocaleString()} Credits</span>
               </div>
+              <NotificationBell />
             </div>
           </div>
         </div>
