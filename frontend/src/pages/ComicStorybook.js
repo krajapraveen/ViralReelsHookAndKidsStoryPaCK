@@ -564,35 +564,16 @@ export default function ComicStorybook() {
                     )}
                   </div>
                   
-                  {/* Enhanced Progress Bar */}
+                  {/* Enhanced Progress Bar - Show WaitingWithGames */}
                   {(currentJob.status === 'PROCESSING' || currentJob.status === 'QUEUED') && (
-                    <div className="space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-400">Progress</span>
-                        <span className="text-amber-400 font-bold">{currentJob.progress || 0}%</span>
-                      </div>
-                      <div className="relative h-4 bg-slate-700 rounded-full overflow-hidden">
-                        <div 
-                          className="absolute top-0 left-0 h-full bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-full transition-all duration-500"
-                          style={{ width: `${currentJob.progress || 0}%` }}
-                        />
-                      </div>
-                      
-                      {/* Step Indicators */}
-                      <div className="flex justify-between text-xs text-slate-500 mt-2">
-                        <span className={currentJob.progress >= 5 ? 'text-green-400' : ''}>Read</span>
-                        <span className={currentJob.progress >= 15 ? 'text-green-400' : ''}>Parse</span>
-                        <span className={currentJob.progress >= 50 ? 'text-green-400' : ''}>Illustrate</span>
-                        <span className={currentJob.progress >= 90 ? 'text-green-400' : ''}>Layout</span>
-                        <span className={currentJob.progress >= 95 ? 'text-green-400' : ''}>PDF</span>
-                        <span className={currentJob.progress >= 100 ? 'text-green-400' : ''}>Done</span>
-                      </div>
-                      
-                      <p className="text-sm text-slate-400 text-center mt-2 flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                        {currentJob.progressMessage || 'Processing...'}
-                      </p>
-                    </div>
+                    <WaitingWithGames 
+                      progress={currentJob.progress || 0}
+                      status={currentJob.progressMessage || (currentJob.status === 'QUEUED' ? 'In queue - preparing your storybook...' : 'Creating your comic storybook...')}
+                      estimatedTime="2-5 minutes"
+                      onCancel={() => toast.info('Generation in progress - please wait')}
+                      currentFeature="/app/comic-storybook"
+                      showExploreFeatures={true}
+                    />
                   )}
                   
                   {currentJob.status === 'COMPLETED' && currentJob.pdfUrl && (
