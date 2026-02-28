@@ -39,42 +39,37 @@ export function NotificationProvider({ children }) {
       const response = await api.get('/api/notifications?limit=50');
       const { notifications: backendNotifications, unread_count } = response.data;
       
-      // Merge backend notifications with local ones
-      if (backendNotifications && backendNotifications.length > 0) {
-        setNotifications(prev => {
-          // Create a map of existing notification IDs
-          const existingIds = new Set(prev.map(n => n.id));
-          
-          // Convert backend notifications to frontend format
-          const formattedBackend = backendNotifications.map(n => ({
-            id: n.id,
-            type: n.type,
-            title: n.title,
-            message: n.message,
-            read: n.read,
-            timestamp: new Date(n.created_at).getTime(),
-            feature: n.feature,
-            downloadUrl: n.download_url,
-            downloadId: n.download_id,
-            actionUrl: n.action_url,
-            expiresAt: n.expires_at,
-            color: n.type === 'generation_failed' ? 'red' : 
-                   n.type === 'download_ready' ? 'blue' : 'green'
-          }));
-          
-          // Add new notifications from backend that we don't have
-          const newFromBackend = formattedBackend.filter(n => !existingIds.has(n.id));
-          
-          // Show toast for new unread notifications
-          newFromBackend.filter(n => !n.read).forEach(n => {
+      // Update with backend notifications
+      if (backendNotifications) {
+        // Convert backend notifications to frontend format
+        const formattedBackend = backendNotifications.map(n => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          read: n.read,
+          timestamp: new Date(n.created_at).getTime(),
+          feature: n.feature,
+          downloadUrl: n.download_url,
+          downloadId: n.download_id,
+          actionUrl: n.action_url,
+          expiresAt: n.expires_at,
+          color: n.type === 'generation_failed' ? 'red' : 
+                 n.type === 'download_ready' ? 'blue' : 'green'
+        }));
+        
+        // Check for new notifications (for toast)
+        if (lastPollRef.current) {
+          const existingIds = new Set(notifications.map(n => n.id));
+          const newNotifications = formattedBackend.filter(n => !existingIds.has(n.id) && !n.read);
+          newNotifications.forEach(n => {
             if (n.type === 'generation_complete' || n.type === 'download_ready') {
               toast.success(n.title, { description: n.message });
             }
           });
-          
-          return [...newFromBackend, ...prev].slice(0, 50);
-        });
+        }
         
+        setNotifications(formattedBackend);
         setUnreadCount(unread_count);
       }
       
@@ -82,7 +77,7 @@ export function NotificationProvider({ children }) {
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     }
-  }, []);
+  }, [notifications]);
 
   // Start polling when user is authenticated
   useEffect(() => {
