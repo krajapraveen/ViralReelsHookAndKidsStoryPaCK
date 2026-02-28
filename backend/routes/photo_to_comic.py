@@ -31,6 +31,37 @@ from services.watermark_service import add_diagonal_watermark, should_apply_wate
 
 router = APIRouter(prefix="/photo-to-comic", tags=["Photo to Comic"])
 
+
+# OPTIONS handler for CORS preflight requests
+@router.options("/generate")
+async def options_generate():
+    """Handle CORS preflight for generate endpoint"""
+    from fastapi.responses import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With, Accept, Origin",
+            "Access-Control-Max-Age": "600"
+        }
+    )
+
+
+@router.options("/job/{job_id}")
+async def options_job():
+    """Handle CORS preflight for job status endpoint"""
+    from fastapi.responses import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Max-Age": "600"
+        }
+    )
+
 # ============================================
 # BLOCKED COPYRIGHT KEYWORDS (Case-insensitive)
 # ============================================
