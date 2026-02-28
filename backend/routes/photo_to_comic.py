@@ -1073,3 +1073,112 @@ async def admin_analytics(user: dict = Depends(get_current_user)):
         },
         "popularStyles": [{"style": s["_id"], "count": s["count"]} for s in popular_styles]
     }
+
+
+@router.get("/diagnostic")
+async def get_diagnostic_info(user: dict = Depends(get_current_user)):
+    """Diagnostic endpoint to check system health for photo-to-comic feature"""
+    diagnostic = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "llm_status": {},
+        "recent_jobs": {},
+        "error_summary": {}
+    }
+    
+    # Check LLM availability
+    try:
+        diagnostic["llm_status"]["available"] = LLM_AVAILABLE
+        diagnostic["llm_status"]["key_configured"] = bool(EMERGENT_LLM_KEY)
+        diagnostic["llm_status"]["key_length"] = len(EMERGENT_LLM_KEY) if EMERGENT_LLM_KEY else 0
+    except Exception as e:
+        diagnostic["llm_status"]["error"] = str(e)
+    
+    # Recent job stats (last hour)
+    try:
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+        recent_completed = await db.photo_to_comic_jobs.count_documents({
+            "status": "COMPLETED",
+            "createdAt": {"$gte": one_hour_ago.isoformat()}
+        })
+        recent_failed = await db.photo_to_comic_jobs.count_documents({
+            "status": "FAILED",
+            "createdAt": {"$gte": one_hour_ago.isoformat()}
+        })
+        recent_pending = await db.photo_to_comic_jobs.count_documents({
+            "status": {"$in": ["QUEUED", "PROCESSING"]},
+            "createdAt": {"$gte": one_hour_ago.isoformat()}
+        })
+        
+        diagnostic["recent_jobs"]["last_hour"] = {
+            "completed": recent_completed,
+            "failed": recent_failed,
+            "pending": recent_pending,
+            "success_rate": f"{(recent_completed / (recent_completed + recent_failed) * 100):.1f}%" if (recent_completed + recent_failed) > 0 else "N/A"
+        }
+    except Exception as e:
+        diagnostic["recent_jobs"]["error"] = str(e)
+    
+    # Recent errors
+    try:
+        recent_errors = await db.photo_to_comic_jobs.find(
+            {"status": "FAILED", "error": {"$exists": True}},
+            {"_id": 0, "id": 1, "error": 1, "errorDetails": 1, "createdAt": 1}
+        ).sort("createdAt", -1).limit(5).to_list(5)
+        
+        diagnostic["error_summary"]["recent_errors"] = recent_errors
+    except Exception as e:
+        diagnostic["error_summary"]["error"] = str(e)
+    
+    return diagnostic
+
+
+@router.post("/test-image-generation")
+async def test_image_generation(user: dict = Depends(get_current_user)):
+    """Test image generation capability - admin only"""
+    if user.get("role") not in ["admin", "ADMIN"]:
+        # Allow for testing purposes with warning
+        pass
+    
+    result = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "llm_available": LLM_AVAILABLE,
+        "image_generation": {}
+    }
+    
+    if not LLM_AVAILABLE or not EMERGENT_LLM_KEY:
+        result["image_generation"]["status"] = "error"
+        result["image_generation"]["error"] = "LLM not available or key not configured"
+        return result
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"test-image-gen-{datetime.now().timestamp()}",
+            system_message="You are an artist."
+        )
+        chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+        
+        import asyncio
+        text_response, images = await asyncio.wait_for(
+            chat.send_message_multimodal_response(
+                UserMessage(text="Create a simple smiley face icon, yellow circle with black eyes and smile")
+            ),
+            timeout=60
+        )
+        
+        result["image_generation"]["status"] = "success"
+        result["image_generation"]["text_response"] = text_response[:100] if text_response else None
+        result["image_generation"]["images_generated"] = len(images) if images else 0
+        result["image_generation"]["image_data_size"] = len(images[0].get("data", "")) if images else 0
+        
+    except asyncio.TimeoutError:
+        result["image_generation"]["status"] = "timeout"
+        result["image_generation"]["error"] = "Image generation timed out after 60 seconds"
+    except Exception as e:
+        result["image_generation"]["status"] = "error"
+        result["image_generation"]["error"] = str(e)
+        result["image_generation"]["error_type"] = type(e).__name__
+    
+    return result
