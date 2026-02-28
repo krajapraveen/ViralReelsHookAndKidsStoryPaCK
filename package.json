@@ -1,4 +1,16 @@
 {
+  "name": "creatorstudio-ai",
+  "version": "1.0.0",
+  "description": "CreatorStudio AI - Full-stack SaaS platform for creative content generation",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:chromium": "npx playwright test --project=chromium",
+    "test:firefox": "npx playwright test --project=firefox",
+    "test:mobile": "npx playwright test --project=mobile-chrome",
+    "test:smoke": "npx playwright test --grep 'should login|should load|health'",
+    "test:report": "npx playwright show-report",
+    "test:ui": "npx playwright test --ui"
+  },
   "dependencies": {
     "jszip": "^3.10.1"
   },
