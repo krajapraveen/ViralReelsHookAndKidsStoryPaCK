@@ -190,6 +190,9 @@ function App() {
       {/* Bedtime Story Builder */}
       <Route path="/app/bedtime-story-builder" element={isAuthenticated ? <BedtimeStoryBuilder /> : <Navigate to="/login" />} />
       <Route path="/app/bedtime-stories" element={isAuthenticated ? <BedtimeStoryBuilder /> : <Navigate to="/login" />} />
+      {/* My Downloads */}
+      <Route path="/app/downloads" element={isAuthenticated ? <MyDownloads /> : <Navigate to="/login" />} />
+      <Route path="/app/my-downloads" element={isAuthenticated ? <MyDownloads /> : <Navigate to="/login" />} />
       {/* NEW 5 TEMPLATE-BASED FEATURES */}
       <Route path="/app/thumbnail-generator" element={isAuthenticated ? <YouTubeThumbnailGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/brand-story-builder" element={isAuthenticated ? <BrandStoryBuilder /> : <Navigate to="/login" />} />
