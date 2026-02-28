@@ -537,6 +537,11 @@ async def startup():
         await db.coloring_book_exports.create_index("userId")
         await db.coloring_book_exports.create_index([("userId", 1), ("createdAt", -1)])
         
+        # Notification indexes
+        await db.notifications.create_index("user_id")
+        await db.notifications.create_index([("user_id", 1), ("read", 1)])
+        await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+        
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
