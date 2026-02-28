@@ -723,15 +723,16 @@ export default function PhotoReactionGIF() {
                   </span>
                 </div>
                 
-                {/* Progress */}
+                {/* Progress - Show WaitingWithGames during processing */}
                 {(job.status === 'PROCESSING' || job.status === 'QUEUED') && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Progress</span>
-                      <span className="text-pink-400">{job.progress || 0}%</span>
-                    </div>
-                    <Progress value={job.progress || 0} className="h-2" />
-                  </div>
+                  <WaitingWithGames 
+                    progress={job.progress || 0}
+                    status={job.progressMessage || (job.status === 'QUEUED' ? 'In queue - your GIF is being prepared...' : 'Creating your reaction GIF...')}
+                    estimatedTime="30-60 seconds"
+                    onCancel={() => toast.info('Generation in progress - please wait')}
+                    currentFeature="/app/gif-maker"
+                    showExploreFeatures={true}
+                  />
                 )}
                 
                 {/* Result GIF */}
