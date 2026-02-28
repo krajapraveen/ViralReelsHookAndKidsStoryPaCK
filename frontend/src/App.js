@@ -68,6 +68,8 @@ import InstagramBioGenerator from './pages/InstagramBioGenerator';
 import CommentReplyBank from './pages/CommentReplyBank';
 // BEDTIME STORY BUILDER
 import BedtimeStoryBuilder from './pages/BedtimeStoryBuilder';
+// MY DOWNLOADS
+import MyDownloads from './pages/MyDownloads';
 // NEW 5 TEMPLATE-BASED FEATURES
 import YouTubeThumbnailGenerator from './pages/YouTubeThumbnailGenerator';
 import BrandStoryBuilder from './pages/BrandStoryBuilder';
