@@ -443,11 +443,13 @@ async def cashfree_webhook(request: Request):
                 
                 raise HTTPException(status_code=403, detail="Invalid signature")
         
-        # Parse webhook data
-        webhook_data = json.loads(body_str)
-        event_type = webhook_data.get("type", "")
-        
+        # webhook_data already parsed above
         logger.info(f"Received Cashfree webhook: {event_type}")
+        
+        # Handle test events
+        if is_test_event:
+            logger.info("Cashfree test webhook received - responding with success")
+            return {"status": "ok", "message": "Test webhook received successfully"}
         
         # Track webhook event for monitoring
         if MONITORING_ENABLED:
