@@ -146,7 +146,7 @@ function NotificationItem({ notification, onRead, onRemove, onAction }) {
   );
 }
 
-// Main notification center component
+// Main notification center component (dropdown panel)
 export default function NotificationCenter() {
   const {
     notifications,
@@ -165,6 +165,11 @@ export default function NotificationCenter() {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (panelRef.current && !panelRef.current.contains(event.target)) {
+        // Check if click is on the bell button
+        const bellButton = document.querySelector('[data-testid="notification-bell-btn"]');
+        if (bellButton && bellButton.contains(event.target)) {
+          return;
+        }
         setIsOpen(false);
       }
     };
@@ -178,27 +183,14 @@ export default function NotificationCenter() {
     };
   }, [isOpen, setIsOpen]);
 
-  return (
-    <div className="relative" ref={panelRef}>
-      {/* Bell Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 hover:bg-slate-800 rounded-lg transition-colors"
-        data-testid="notification-bell"
-      >
-        <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-indigo-400' : 'text-slate-400'}`} />
-        
-        {/* Badge */}
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white animate-pulse">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+  if (!isOpen) return null;
 
-      {/* Notification Panel */}
-      {isOpen && (
-        <div className="absolute right-0 top-12 w-96 max-h-[500px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+  return (
+    <div 
+      ref={panelRef}
+      className="absolute right-0 top-12 w-96 max-h-[500px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden"
+      data-testid="notification-panel"
+    >
           {/* Header */}
           <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50">
             <div>
