@@ -8,7 +8,7 @@ const cashfreeLatency = new Trend("cashfree_latency");
 const orderCreated = new Counter("orders_created");
 const webhookProcessed = new Counter("webhooks_processed");
 
-const BASE = __ENV.BASE_URL || "https://downloads-recovery.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://visionary-qa.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

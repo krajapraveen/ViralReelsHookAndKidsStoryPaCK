@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://downloads-recovery.preview.emergentagent.com';
+const BACKEND_URL = 'https://visionary-qa.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

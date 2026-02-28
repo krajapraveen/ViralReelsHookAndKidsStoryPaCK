@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://downloads-recovery.preview.emergentagent.com
+**Platform URL:** https://visionary-qa.preview.emergentagent.com
 
 ---
 

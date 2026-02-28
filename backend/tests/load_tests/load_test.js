@@ -26,7 +26,7 @@ const carouselTime = new Trend('carousel_generation_time');
 const apiCalls = new Counter('api_calls');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://downloads-recovery.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://visionary-qa.preview.emergentagent.com';
 
 // Test scenarios configuration
 export const options = {
