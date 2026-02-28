@@ -16,7 +16,7 @@ from services.content_protection_service import (
     get_video_streaming_service
 )
 
-router = APIRouter(prefix="/api/content-protection", tags=["Content Protection"])
+router = APIRouter(prefix="/content-protection", tags=["Content Protection"])
 
 
 # Request/Response Models
