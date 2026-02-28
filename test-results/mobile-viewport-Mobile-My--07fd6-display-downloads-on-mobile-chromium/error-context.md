@@ -1,0 +1,55 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - link [ref=e7] [cursor=pointer]:
+            - /url: /app
+            - img [ref=e8]
+          - generic [ref=e10]:
+            - heading "My Downloads" [level=1] [ref=e11]:
+              - img [ref=e12]
+              - text: My Downloads
+            - paragraph [ref=e14]: Your saved generated content
+        - button "Refresh" [ref=e15] [cursor=pointer]:
+          - img
+          - text: Refresh
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - img [ref=e19]
+          - textbox "Search downloads..." [ref=e22]
+        - combobox [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic: All Downloads
+          - img [ref=e26]
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - img [ref=e31]
+          - heading "2/27/2026" [level=3] [ref=e33]
+          - generic [ref=e34]: ( 1 items)
+        - generic [ref=e38]:
+          - img [ref=e41]
+          - generic [ref=e45]:
+            - heading "comic_avatar_925fd205.png" [level=4] [ref=e47]
+            - paragraph [ref=e48]: avatar
+          - generic [ref=e49]:
+            - button "Download" [ref=e51] [cursor=pointer]:
+              - img
+              - text: Download
+            - button [ref=e52] [cursor=pointer]:
+              - img
+      - generic [ref=e54]:
+        - img [ref=e55]
+        - generic [ref=e57]:
+          - heading "Download Expiry Notice" [level=4] [ref=e58]
+          - paragraph [ref=e59]: Downloads are available for 5 minutes after generation. Make sure to save your files before they expire. We'll notify you when your content is ready for download.
+  - button [ref=e60] [cursor=pointer]:
+    - img [ref=e61]
+  - button "Share your feedback" [ref=e64] [cursor=pointer]:
+    - img [ref=e65]
+  - region "Notifications alt+T"
+```

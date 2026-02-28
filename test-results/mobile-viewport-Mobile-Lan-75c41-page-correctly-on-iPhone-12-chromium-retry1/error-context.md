@@ -1,0 +1,103 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e7]
+          - generic [ref=e9]: CreatorStudio AI
+        - button [ref=e10] [cursor=pointer]:
+          - img [ref=e12]
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - img [ref=e16]
+        - generic [ref=e18]: AI-Powered Content Creation
+      - heading "Generate viral reels + kids story videos + much more in minutes" [level=1] [ref=e19]:
+        - text: Generate viral reels +
+        - text: kids story videos + much more
+        - text: in minutes
+      - paragraph [ref=e20]: Hooks, scripts, captions, hashtags — complete kids story video packs with scene prompts and voiceovers, content repurposing tools, thumbnail text generators, content calendars, carousel makers, and so much more. Everything you need to create viral content.
+      - button "Try Free Demo" [ref=e22] [cursor=pointer]:
+        - img
+        - text: Try Free Demo
+      - generic [ref=e23]:
+        - link "Generate a Reel Now" [ref=e24] [cursor=pointer]:
+          - /url: /app/reels
+          - button "Generate a Reel Now" [ref=e25]:
+            - img
+            - text: Generate a Reel Now
+        - link "Create Kids Story Pack" [ref=e26] [cursor=pointer]:
+          - /url: /app/stories
+          - button "Create Kids Story Pack" [ref=e27]:
+            - img
+            - text: Create Kids Story Pack
+      - generic [ref=e28]:
+        - generic [ref=e29]:
+          - generic [ref=e30]: 5-10s
+          - generic [ref=e31]: Reel Generation
+        - generic [ref=e32]:
+          - generic [ref=e33]: 30-90s
+          - generic [ref=e34]: Story Pack
+        - generic [ref=e35]:
+          - generic [ref=e36]: 100 Free
+          - generic [ref=e37]: Credits on Signup
+    - generic [ref=e40]:
+      - generic [ref=e41]:
+        - img [ref=e43]
+        - heading "Viral Reel Scripts" [level=3] [ref=e46]
+        - paragraph [ref=e47]: Get 5 hooks, full script, captions, hashtags, and b-roll ideas in seconds. Perfect for Instagram, YouTube Shorts, and TikTok.
+        - list [ref=e48]:
+          - listitem [ref=e49]:
+            - img [ref=e50]
+            - generic [ref=e52]: Instant generation (5-10 seconds)
+          - listitem [ref=e53]:
+            - img [ref=e54]
+            - generic [ref=e57]: Multiple niches & tones
+          - listitem [ref=e58]:
+            - img [ref=e59]
+            - generic [ref=e62]: Optimized for retention
+      - generic [ref=e63]:
+        - img [ref=e65]
+        - heading "Kids Story Video Packs" [level=3] [ref=e67]
+        - paragraph [ref=e68]: Complete production packages with scene breakdowns, image prompts, voiceover scripts, and YouTube optimization.
+        - list [ref=e69]:
+          - listitem [ref=e70]:
+            - img [ref=e71]
+            - generic [ref=e73]: 8-12 scene options
+          - listitem [ref=e74]:
+            - img [ref=e75]
+            - generic [ref=e78]: Safe & age-appropriate
+          - listitem [ref=e79]:
+            - img [ref=e80]
+            - generic [ref=e83]: YouTube title, description & tags
+    - generic [ref=e85]:
+      - heading "Start Creating Today" [level=2] [ref=e86]
+      - paragraph [ref=e87]: Get 100 free credits on signup. No credit card required.
+      - link "Get Started Free" [ref=e88] [cursor=pointer]:
+        - /url: /signup
+        - button "Get Started Free" [ref=e89]
+    - contentinfo [ref=e90]:
+      - generic [ref=e92]:
+        - generic [ref=e93]:
+          - img [ref=e94]
+          - generic [ref=e96]: CreatorStudio AI
+        - generic [ref=e97]:
+          - img [ref=e98]
+          - generic [ref=e100]: Protected by OWASP Standards
+          - img [ref=e101]
+        - generic [ref=e104]:
+          - link "Pricing" [ref=e105] [cursor=pointer]:
+            - /url: /pricing
+          - link "Reviews" [ref=e106] [cursor=pointer]:
+            - /url: /reviews
+          - link "Contact" [ref=e107] [cursor=pointer]:
+            - /url: /contact
+        - paragraph [ref=e108]: © 2026 Visionary Suite. All rights reserved.
+  - button [ref=e109] [cursor=pointer]:
+    - img [ref=e110]
+  - button "Share your feedback" [ref=e113] [cursor=pointer]:
+    - img [ref=e114]
+  - region "Notifications alt+T"
+```
