@@ -30,6 +30,9 @@ export default function ComicStorybook() {
   const [userPlan, setUserPlan] = useState('free');
   const navigate = useNavigate();
   
+  // Notifications
+  const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
+  
   // Input state
   const [inputMethod, setInputMethod] = useState('text');
   const [storyText, setStoryText] = useState('');
