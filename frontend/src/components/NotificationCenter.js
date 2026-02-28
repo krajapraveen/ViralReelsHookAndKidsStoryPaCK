@@ -260,8 +260,6 @@ export default function NotificationCenter() {
               </Link>
             </div>
           )}
-        </div>
-      )}
     </div>
   );
 }
