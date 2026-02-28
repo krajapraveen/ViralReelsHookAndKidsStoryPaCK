@@ -21,6 +21,7 @@ import { StylePreviewModal, STYLE_PREVIEWS } from '../components/StylePreview';
 import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
+import { useNotifications } from '../contexts/NotificationContext';
 
 // Copyright blocked keywords (case-insensitive, substring match)
 const BLOCKED_KEYWORDS = [
