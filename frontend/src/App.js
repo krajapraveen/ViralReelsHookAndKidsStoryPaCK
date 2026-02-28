@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { NotificationProvider } from './contexts/NotificationContext';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -100,6 +101,7 @@ function App() {
   }
 
   return (
+    <NotificationProvider>
     <TourProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -207,6 +209,7 @@ function App() {
       {/* Feedback Widget - Collect user suggestions */}
       <FeedbackWidget />
     </TourProvider>
+    </NotificationProvider>
   );
 }
 
