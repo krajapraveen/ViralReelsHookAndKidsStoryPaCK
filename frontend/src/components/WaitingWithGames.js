@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Loader2, Sparkles, Lightbulb, Puzzle, Gamepad2, Quote, Brain, RefreshCw, Trophy, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { 
+  Loader2, Sparkles, Lightbulb, Puzzle, Gamepad2, Quote, Brain, 
+  RefreshCw, Trophy, Star, Bell, ExternalLink, Clock, ArrowRight,
+  Palette, Film, BookOpen, Image, Zap, Gift
+} from 'lucide-react';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 
