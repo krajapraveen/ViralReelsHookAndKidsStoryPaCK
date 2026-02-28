@@ -866,6 +866,8 @@ export default function PhotoToComic() {
                   status={job.status === 'QUEUED' ? 'In queue...' : 'Creating your comic avatar...'}
                   estimatedTime="30-60 seconds"
                   onCancel={() => toast.info('Generation in progress - please wait')}
+                  currentFeature="/app/comix-ai"
+                  showExploreFeatures={true}
                 />
               ) : (
                 <>
