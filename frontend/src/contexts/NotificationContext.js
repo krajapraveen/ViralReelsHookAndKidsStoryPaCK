@@ -79,14 +79,42 @@ export function NotificationProvider({ children }) {
     }
   }, [notifications]);
 
+  // Track authentication state change
+  const [isAuth, setIsAuth] = useState(isAuthenticated());
+  
+  // Listen for storage events (token changes)
+  useEffect(() => {
+    const checkAuth = () => {
+      const authenticated = isAuthenticated();
+      if (authenticated !== isAuth) {
+        setIsAuth(authenticated);
+      }
+    };
+    
+    // Check periodically for auth changes
+    const authCheckInterval = setInterval(checkAuth, 1000);
+    
+    // Also listen for storage events
+    window.addEventListener('storage', checkAuth);
+    
+    return () => {
+      clearInterval(authCheckInterval);
+      window.removeEventListener('storage', checkAuth);
+    };
+  }, [isAuth]);
+
   // Start polling when user is authenticated
   useEffect(() => {
-    if (isAuthenticated()) {
+    if (isAuth) {
       // Initial fetch
       fetchNotifications();
       
       // Start polling
       pollIntervalRef.current = setInterval(fetchNotifications, POLL_INTERVAL);
+    } else {
+      // Clear notifications when logged out
+      setNotifications([]);
+      setUnreadCount(0);
     }
     
     return () => {
@@ -94,7 +122,7 @@ export function NotificationProvider({ children }) {
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [fetchNotifications]);
+  }, [isAuth, fetchNotifications]);
 
   // Save notifications to localStorage when they change
   useEffect(() => {
