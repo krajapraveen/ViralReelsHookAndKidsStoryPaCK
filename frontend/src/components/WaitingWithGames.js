@@ -395,8 +395,60 @@ export default function WaitingWithGames({
           <span className="text-white font-medium">{status}</span>
         </div>
         <Progress value={progress} className="h-2 mb-2" />
-        <p className="text-slate-400 text-sm">Estimated time: {estimatedTime}</p>
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-400">Estimated: {estimatedTime}</span>
+          <span className="text-slate-500 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}
+          </span>
+        </div>
       </div>
+
+      {/* Notification Banner - We'll notify you when ready */}
+      {showNotification && showExploreFeatures && (
+        <div className="mb-6 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl">
+          <div className="flex items-start gap-3">
+            <Bell className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-indigo-300 font-medium text-sm mb-1">
+                We'll notify you when your content is ready!
+              </p>
+              <p className="text-slate-400 text-xs">
+                Feel free to explore other features. You'll receive a notification once 
+                your generation is complete and ready for download.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Explore Other Features */}
+      {showExploreFeatures && elapsedTime >= 15 && (
+        <div className="mb-6 p-4 bg-slate-800/50 border border-slate-700 rounded-xl">
+          <h4 className="text-white font-medium text-sm mb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            Explore while you wait
+          </h4>
+          <div className="grid grid-cols-3 gap-2">
+            {OTHER_FEATURES
+              .filter(f => f.path !== currentFeature)
+              .slice(0, 6)
+              .map((feature, idx) => (
+                <Link
+                  key={idx}
+                  to={feature.path}
+                  className="flex flex-col items-center p-2 bg-slate-700/50 hover:bg-slate-700 rounded-lg transition-colors group"
+                >
+                  <feature.icon className={`w-5 h-5 ${feature.color} group-hover:scale-110 transition-transform`} />
+                  <span className="text-xs text-slate-300 mt-1 text-center">{feature.name}</span>
+                </Link>
+              ))}
+          </div>
+          <p className="text-xs text-slate-500 mt-3 text-center">
+            Your current generation will continue in the background
+          </p>
+        </div>
+      )}
 
       {/* Score Display */}
       {score > 0 && (
