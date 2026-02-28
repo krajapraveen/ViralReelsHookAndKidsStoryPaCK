@@ -662,6 +662,15 @@ async def startup():
     except Exception as e:
         logger.warning(f"Worker system initialization warning: {e}")
     
+    # Initialize download expiry service
+    try:
+        from services.download_expiry_service import get_download_service
+        download_service = get_download_service(db)
+        await download_service.start()
+        logger.info("Download expiry service started (5-minute expiry)")
+    except Exception as e:
+        logger.warning(f"Download expiry service warning: {e}")
+    
     # Create performance indexes
     try:
         await create_performance_indexes()
