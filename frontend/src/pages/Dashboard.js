@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Sparkles, Video, BookOpen, Clock, LogOut, CreditCard, History as HistoryIcon, Coins, Shield, Lightbulb, Lock, User, Copyright, Wand2, Library, Receipt, Palette, Film, Calendar, Type, Crown, BarChart3, HelpCircle, TrendingUp, Flame, Gift, ChevronRight, Image as ImageIcon, Users, MessageSquare, Moon } from 'lucide-react';
 import HelpGuide from '../components/HelpGuide';
 import CreditStatusBadge from '../components/CreditStatusBadge';
+import NotificationBell from '../components/NotificationBell';
 
 export default function Dashboard() {
   const [credits, setCredits] = useState(0);
@@ -112,6 +113,8 @@ export default function Dashboard() {
               credits={credits} 
               onCreditsUpdate={(newBalance) => setCredits(newBalance)} 
             />
+            
+            <NotificationBell />
             
             <Button variant="ghost" onClick={handleLogout} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="logout-btn">
               <LogOut className="w-4 h-4" />
