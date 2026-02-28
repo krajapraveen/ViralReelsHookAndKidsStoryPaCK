@@ -1170,6 +1170,8 @@ export default function ComicStorybookBuilder() {
                       // Could add cancel logic here
                       toast.info('Generation in progress - please wait');
                     }}
+                    currentFeature="/app/comic-storybook"
+                    showExploreFeatures={true}
                   />
                 ) : (
                   <>
