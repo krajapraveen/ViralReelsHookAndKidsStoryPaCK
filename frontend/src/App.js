@@ -17,6 +17,7 @@ import Contact from './pages/Contact';
 import Reviews from './pages/Reviews';
 import PrivacySettings from './pages/PrivacySettings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 import AutomationDashboard from './pages/AutomationDashboard';
 import Profile from './pages/Profile';
 import CopyrightInfo from './pages/CopyrightInfo';
