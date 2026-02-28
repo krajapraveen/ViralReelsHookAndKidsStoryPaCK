@@ -735,14 +735,21 @@ Format as JSON array:
                         "dialogue": scene.get("dialogue") if include_dialogue else None
                     }
                     
-                    img_chat = LlmChat(
-                        api_key=EMERGENT_LLM_KEY,
-                        session_id=f"comic-strip-panel-{job_id}-{i}",
-                        system_message="You are a comic artist. Create original characters. Maintain character consistency."
-                    )
-                    img_chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                    # Try image generation with timeout and retry
+                    image_generated = False
+                    retry_count = 0
+                    max_retries = 2
                     
-                    panel_prompt = f"""Create comic panel {i+1} of {panel_count}.
+                    while not image_generated and retry_count < max_retries:
+                        try:
+                            img_chat = LlmChat(
+                                api_key=EMERGENT_LLM_KEY,
+                                session_id=f"comic-strip-panel-{job_id}-{i}-{retry_count}",
+                                system_message="You are a comic artist. Create original characters. Maintain character consistency."
+                            )
+                            img_chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                            
+                            panel_prompt = f"""Create comic panel {i+1} of {panel_count}.
 
 Scene: {scene.get('scene', '')}
 Style: {SAFE_STYLES[style]['prompt']}
@@ -755,44 +762,66 @@ IMPORTANT:
 - Panel {i+1} of {panel_count} in the story sequence
 
 AVOID: {negative_prompt}"""
-                    
-                    msg = UserMessage(
-                        text=panel_prompt,
-                        file_contents=[ImageContent(photo_b64)]
-                    )
-                    
-                    text_response, images = await img_chat.send_message_multimodal_response(msg)
-                    
-                    if images and len(images) > 0:
-                        img_data = images[0]
-                        image_bytes = base64.b64decode(img_data['data'])
-                        
-                        # Apply watermark for free users
-                        user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
-                        user_plan = user_data.get("plan", "free") if user_data else "free"
-                        
-                        if should_apply_watermark(user_plan):
-                            config = get_watermark_config("COMIC")
-                            image_bytes = add_diagonal_watermark(
-                                image_bytes,
-                                text=config["text"],
-                                opacity=config["opacity"],
-                                font_size=config["font_size"],
-                                spacing=config["spacing"]
+                            
+                            msg = UserMessage(
+                                text=panel_prompt,
+                                file_contents=[ImageContent(photo_b64)]
                             )
-                        
-                        import hashlib
-                        filename = f"comic_strip_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:16]}.png"
-                        filepath = f"/app/backend/static/generated/{filename}"
-                        
-                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                        
-                        with open(filepath, 'wb') as f:
-                            f.write(image_bytes)
-                        
-                        panel_data["imageUrl"] = f"/api/static/generated/{filename}"
-                    else:
-                        panel_data["imageUrl"] = f"https://placehold.co/800x600/6b21a8/white?text=Panel+{i+1}"
+                            
+                            # Add timeout for image generation
+                            import asyncio
+                            try:
+                                text_response, images = await asyncio.wait_for(
+                                    img_chat.send_message_multimodal_response(msg),
+                                    timeout=120  # 2 minute timeout per panel
+                                )
+                            except asyncio.TimeoutError:
+                                logger.warning(f"Panel {i+1} generation timed out, retry {retry_count+1}")
+                                retry_count += 1
+                                continue
+                            
+                            if images and len(images) > 0:
+                                img_data = images[0]
+                                image_bytes = base64.b64decode(img_data['data'])
+                                
+                                # Apply watermark for free users
+                                user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
+                                user_plan = user_data.get("plan", "free") if user_data else "free"
+                                
+                                if should_apply_watermark(user_plan):
+                                    config = get_watermark_config("COMIC")
+                                    image_bytes = add_diagonal_watermark(
+                                        image_bytes,
+                                        text=config["text"],
+                                        opacity=config["opacity"],
+                                        font_size=config["font_size"],
+                                        spacing=config["spacing"]
+                                    )
+                                
+                                import hashlib
+                                filename = f"comic_strip_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:16]}.png"
+                                filepath = f"/app/backend/static/generated/{filename}"
+                                
+                                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                                
+                                with open(filepath, 'wb') as f:
+                                    f.write(image_bytes)
+                                
+                                panel_data["imageUrl"] = f"/api/static/generated/{filename}"
+                                image_generated = True
+                                logger.info(f"Panel {i+1} generated successfully for job {job_id}")
+                            else:
+                                logger.warning(f"No images returned for panel {i+1}, retry {retry_count+1}")
+                                retry_count += 1
+                                
+                        except Exception as panel_error:
+                            logger.error(f"Panel {i+1} generation error (retry {retry_count}): {panel_error}")
+                            retry_count += 1
+                    
+                    # Use placeholder if all retries failed
+                    if not image_generated:
+                        logger.warning(f"Using placeholder for panel {i+1} after {max_retries} retries")
+                        panel_data["imageUrl"] = f"https://placehold.co/800x600/6b21a8/white?text=Panel+{i+1}+Generation+Pending"
                     
                     panels.append(panel_data)
                     
