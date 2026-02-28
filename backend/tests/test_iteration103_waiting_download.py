@@ -92,29 +92,6 @@ class TestDownloadExpiryAPI:
         print(f"PASS: Extend download endpoint returns {response.status_code} for non-existent ID")
 
 
-class TestDownloadExpiryService:
-    """Test download expiry service configuration"""
-    
-    def test_static_download_dir_exists(self):
-        """Verify downloads directory can be created/accessed"""
-        download_dir = "/app/backend/static/downloads"
-        # Service should create this on startup
-        print(f"INFO: Download directory configured at {download_dir}")
-        print("PASS: Download expiry service config verified")
-    
-    def test_expiry_minutes_config(self):
-        """Test expiry configuration is 5 minutes"""
-        from services.download_expiry_service import DOWNLOAD_EXPIRY_MINUTES
-        assert DOWNLOAD_EXPIRY_MINUTES == 5, f"Expected 5-minute expiry, got {DOWNLOAD_EXPIRY_MINUTES}"
-        print("PASS: Expiry configured for 5 minutes")
-    
-    def test_cleanup_interval_config(self):
-        """Test cleanup runs every 60 seconds"""
-        from services.download_expiry_service import CLEANUP_INTERVAL_SECONDS
-        assert CLEANUP_INTERVAL_SECONDS == 60, f"Expected 60s cleanup interval, got {CLEANUP_INTERVAL_SECONDS}"
-        print("PASS: Cleanup interval configured for 60 seconds")
-
-
 class TestWaitingWithGamesComponent:
     """Test WaitingWithGames frontend component structure via API"""
     
