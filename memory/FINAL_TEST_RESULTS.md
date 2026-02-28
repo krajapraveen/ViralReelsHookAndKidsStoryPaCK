@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://worker-scaling.preview.emergentagent.com
+**Website:** https://downloads-recovery.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

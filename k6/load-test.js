@@ -44,7 +44,7 @@ export const options = {
 };
 
 // Base URL from environment or default
-const BASE_URL = __ENV.BASE_URL || 'https://worker-scaling.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://downloads-recovery.preview.emergentagent.com';
 
 // Test user credentials
 const TEST_USER = {

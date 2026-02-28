@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://worker-scaling.preview.emergentagent.com
+**Environment:** https://downloads-recovery.preview.emergentagent.com
 
 ---
 
