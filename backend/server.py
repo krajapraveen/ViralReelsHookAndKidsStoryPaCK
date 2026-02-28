@@ -97,6 +97,9 @@ from routes.user_routes import router as user_profile_router
 # HEALTH AND MONITORING
 from routes.health_routes import router as health_router
 
+# CONTENT PROTECTION (PDF Flattening & Video Streaming)
+from routes.content_protection_routes import router as content_protection_router
+
 # NEW REBUILT FEATURES
 from routes.story_episode_creator import router as story_episode_creator_router
 from routes.content_challenge_planner import router as content_challenge_planner_router
