@@ -272,13 +272,8 @@ async def security_headers_middleware(request: Request, call_next):
     
     return response
 
-# CORS Configuration - Read from environment variable for deployment flexibility
-cors_origins_env = os.environ.get('CORS_ORIGINS', '*')
-if cors_origins_env == '*':
-    ALLOWED_ORIGINS = ['*']
-else:
-    # Parse comma-separated list of origins
-    ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+# CORS Configuration - Restricted to specific allowed origins for security
+cors_origins_env = os.environ.get('CORS_ORIGINS', '')
 
 # Always include critical domains for production
 CRITICAL_ORIGINS = [
@@ -286,18 +281,18 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
+    "https://downloads-recovery.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
 
-# Add critical origins if not using wildcard
-if ALLOWED_ORIGINS != ['*']:
-    for origin in CRITICAL_ORIGINS:
-        if origin not in ALLOWED_ORIGINS:
-            ALLOWED_ORIGINS.append(origin)
+# Build allowed origins list - NO wildcards for security
+if cors_origins_env:
+    # Parse comma-separated list of additional origins
+    additional_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip() and origin.strip() != '*']
+    ALLOWED_ORIGINS = list(set(CRITICAL_ORIGINS + additional_origins))
 else:
-    # Even with wildcard, explicitly list for preflight requests
-    ALLOWED_ORIGINS = CRITICAL_ORIGINS + ['*']
+    ALLOWED_ORIGINS = CRITICAL_ORIGINS
 
 logger.info(f"CORS configured with origins: {ALLOWED_ORIGINS}")
 
