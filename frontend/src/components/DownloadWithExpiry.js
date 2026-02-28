@@ -9,6 +9,7 @@ const EXPIRY_SECONDS = EXPIRY_MINUTES * 60;
 
 export default function DownloadWithExpiry({ 
   downloadUrl,
+  downloadId,
   filename,
   fileType = 'file',
   onExpired,
@@ -16,7 +17,15 @@ export default function DownloadWithExpiry({
   expiresInSeconds = EXPIRY_SECONDS,
   showWarning = true
 }) {
-  const [remainingSeconds, setRemainingSeconds] = useState(expiresInSeconds);
+  const [remainingSeconds, setRemainingSeconds] = useState(() => {
+    // Calculate remaining time from expiresAt if provided
+    if (expiresAt) {
+      const expiryTime = new Date(expiresAt).getTime();
+      const remaining = Math.floor((expiryTime - Date.now()) / 1000);
+      return Math.max(0, remaining);
+    }
+    return expiresInSeconds;
+  });
   const [downloaded, setDownloaded] = useState(false);
   const [expired, setExpired] = useState(false);
 
