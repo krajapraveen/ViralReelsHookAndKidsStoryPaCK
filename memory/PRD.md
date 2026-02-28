@@ -644,7 +644,7 @@ visionary-suite.com
 ---
 
 ## Test Credentials
-- **Admin**: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
+- **Admin**: `krajapraveen.katta@creatorstudio.ai` / `Onemanarmy@1979#`
 - **Demo**: `demo@example.com` / `Password123!`
 
 **Last Updated:** 2026-02-27
