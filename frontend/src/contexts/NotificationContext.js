@@ -257,6 +257,7 @@ export function NotificationProvider({ children }) {
     notifyGenerationComplete,
     notifyGenerationFailed,
     notifyDownloadReady,
+    refetchNotifications: fetchNotifications,
     NOTIFICATION_TYPES
   };
 
