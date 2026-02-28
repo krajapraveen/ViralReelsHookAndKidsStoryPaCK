@@ -120,6 +120,44 @@ async def delete_download(download_id: str, user: dict = Depends(get_current_use
     return {"success": True, "message": "Download deleted"}
 
 
+@router.get("/{download_id}/url")
+async def get_download_url(download_id: str, user: dict = Depends(get_current_user)):
+    """Get the download URL for a file"""
+    service = get_download_service(db)
+    download = await service.get_download(download_id, user["id"])
+    
+    if not download:
+        raise HTTPException(status_code=404, detail="Download not found")
+    
+    if download.get("expired"):
+        raise HTTPException(status_code=410, detail="Download has expired. Please generate again.")
+    
+    # Return the download URL
+    file_path = download.get("file_path", "")
+    if file_path.startswith("http"):
+        return {"url": file_path, "expires_at": download.get("expires_at")}
+    
+    # Return API URL for local files
+    return {
+        "url": f"/api/downloads/{download_id}/file",
+        "expires_at": download.get("expires_at")
+    }
+
+
+@router.post("/{download_id}/mark-downloaded")
+async def mark_as_downloaded(download_id: str, user: dict = Depends(get_current_user)):
+    """Mark a download as downloaded"""
+    result = await db.temporary_downloads.update_one(
+        {"id": download_id, "user_id": user["id"]},
+        {"$set": {"downloaded": True, "downloaded_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Download not found")
+    
+    return {"success": True, "message": "Download marked as downloaded"}
+
+
 @router.get("/admin/stats")
 async def get_download_stats(user: dict = Depends(get_current_user)):
     """Get download statistics (admin only)"""
