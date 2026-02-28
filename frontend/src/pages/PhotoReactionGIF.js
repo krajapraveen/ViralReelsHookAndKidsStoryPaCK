@@ -216,15 +216,34 @@ export default function PhotoReactionGIF() {
         
         if (res.data.status === 'COMPLETED') {
           toast.success('Your reaction GIF is ready!');
+          
+          // Send notification
+          notifyGenerationComplete({
+            feature: 'reaction_gif',
+            featureName: 'Reaction GIF',
+            jobId: jobId,
+            downloadUrl: res.data.resultUrl,
+            actionUrl: '/app/reaction-gifs'
+          });
+          refetchNotifications?.();
+          
           setTimeout(() => setShowRating(true), 2000);
         } else {
           toast.error('Generation failed. Please try again.');
+          
+          // Send failure notification
+          notifyGenerationFailed({
+            feature: 'reaction_gif',
+            featureName: 'Reaction GIF',
+            jobId: jobId,
+            error: res.data.error || 'Generation failed'
+          });
         }
       }
     } catch (e) {
       console.error('Poll error:', e);
     }
-  }, [pollingInterval]);
+  }, [pollingInterval, notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
 
   // Generate GIF
   const generateGIF = async () => {
