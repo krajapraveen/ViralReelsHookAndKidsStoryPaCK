@@ -313,6 +313,7 @@ async def submit_rating(
         
         rating = {
             "rating_id": str(uuid.uuid4()),
+            "ratingId": str(uuid.uuid4()),  # Also set camelCase for index compatibility
             "user_id": user["id"],
             "session_id": session_id,
             "feature_key": data.feature_key,
