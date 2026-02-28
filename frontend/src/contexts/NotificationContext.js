@@ -25,6 +25,7 @@ export function NotificationProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const pollIntervalRef = useRef(null);
   const lastPollRef = useRef(null);
+  const notificationsRef = useRef([]); // Use ref to track current notifications without causing re-renders
 
   // Check if user is authenticated
   const isAuthenticated = () => {
@@ -58,9 +59,9 @@ export function NotificationProvider({ children }) {
                  n.type === 'download_ready' ? 'blue' : 'green'
         }));
         
-        // Check for new notifications (for toast)
+        // Check for new notifications (for toast) - use ref to avoid stale closure
         if (lastPollRef.current) {
-          const existingIds = new Set(notifications.map(n => n.id));
+          const existingIds = new Set(notificationsRef.current.map(n => n.id));
           const newNotifications = formattedBackend.filter(n => !existingIds.has(n.id) && !n.read);
           newNotifications.forEach(n => {
             if (n.type === 'generation_complete' || n.type === 'download_ready') {
@@ -69,6 +70,8 @@ export function NotificationProvider({ children }) {
           });
         }
         
+        // Update ref and state
+        notificationsRef.current = formattedBackend;
         setNotifications(formattedBackend);
         setUnreadCount(unread_count);
       }
@@ -77,7 +80,7 @@ export function NotificationProvider({ children }) {
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     }
-  }, [notifications]);
+  }, []); // No dependencies - use refs for mutable data
 
   // Track authentication state change
   const [isAuth, setIsAuth] = useState(isAuthenticated());
