@@ -5,39 +5,43 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 
 ## Latest Session Changes (2026-02-28)
 
-### ✅ PRODUCTION STABILIZATION VERIFIED (Iteration 107-108)
+### ✅ PRODUCTION STABILIZATION VERIFIED (Iteration 107-109)
+
+**Session 109 Completed Tasks:**
+
+1. **Production 502 Error Investigation**
+   - Root cause: nginx misconfiguration redirecting to port 8080 instead of proxying
+   - Documentation: `/app/docs/PRODUCTION_502_FIX.md`
+   - Fix requires server-side nginx configuration update
+
+2. **Mobile Viewport Tests Created**
+   - File: `/app/tests/e2e/mobile-viewport.spec.js`
+   - 16 tests covering iPhone 12, iPhone SE, Pixel 5, Galaxy S8
+   - Tests: Landing, Login, Dashboard, Photo to Comic, Downloads, Profile, Reel Generator, Comic Storybook
+
+3. **PDF Flattening & Video Streaming Protection**
+   - Services: `/app/backend/services/content_protection_service.py`
+   - Routes: `/app/backend/routes/content_protection_routes.py`
+   - PDF: Flattening, encryption, watermarking
+   - Video: HLS streaming, token auth, watermarking
+   - API: `/api/content-protection/pdf/*`, `/api/content-protection/video/*`
+
+4. **Admin Credentials Updated**
+   - New: `krajapraveen.katta@creatorstudio.ai`
+
+5. **CI/CD Pipeline for Playwright**
+   - Updated: `/app/.github/workflows/playwright.yml`
+   - Scripts: `npm run test`, `npm run test:smoke`
 
 **Regression Testing Results:**
 - Production Tests: 95% PASS
 - Preview Tests: 100% PASS
-- Playwright Automated Tests: 28/31 PASS (90%)
+- Playwright Tests: 28/31 PASS (90%)
+- Mobile Tests: 13/16 PASS (81%)
 
-**Issues Resolved:**
-1. **CORS Errors** - Fixed via dynamic API URL configuration
-2. **Broken Image Links** - Fixed with base64 data URL storage
-3. **Empty Downloads Page** - Fixed by querying job collections
-
-**New Comic Generation Test (VERIFIED):**
-- Job ID: 6a87fee1-2dcc-4818-bfa8-38c6a34c6913
-- Result: BASE64 DATA URL (1,056,382 chars)
-- Status: COMPLETED on production
-
-**All Features Verified Working:**
-- Login (demo/admin) ✅
-- Dashboard with credits + notification bell ✅
-- Photo to Comic page ✅
-- My Downloads page ✅
-- Comic Storybook Builder ✅
-- Reel Generator ✅
-- Profile page ✅
-- Notification system ✅
-
-**Automated Playwright Tests Created:**
-- `/app/tests/e2e/critical-flows.spec.js` - 31 tests
-- Covers: Auth, Dashboard, Photo to Comic, Downloads, Profile, Notifications, API health
-
-**Known Issue (Production):**
-- `/api/downloads/my-downloads` returns 500 on direct API call (page still works in browser)
+**Known Production Issue:**
+- nginx redirecting `/api/*` to `http://visionary-suite.com:8080/` instead of proxying
+- See `/app/docs/PRODUCTION_502_FIX.md` for fix instructions
 
 ---
 
