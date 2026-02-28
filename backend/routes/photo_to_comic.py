@@ -558,7 +558,25 @@ AVOID: {negative_prompt}"""
         # Deduct credits
         await deduct_credits(user_id, cost, f"Comic Avatar: {job_id[:8]}")
         
-        # Update job
+        # Register download with expiry service
+        download_id = None
+        expires_at = None
+        try:
+            from services.download_expiry_service import get_download_service
+            download_service = get_download_service(db)
+            download_info = await download_service.register_download(
+                user_id=user_id,
+                file_path=result_url,  # Could be local path or URL
+                original_filename=f"comic_avatar_{job_id[:8]}.png",
+                file_type="image/png",
+                feature="comic_avatar"
+            )
+            download_id = download_info.get("id")
+            expires_at = download_info.get("expires_at")
+        except Exception as dl_error:
+            logger.warning(f"Failed to register download expiry: {dl_error}")
+        
+        # Update job with download ID
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -567,6 +585,8 @@ AVOID: {negative_prompt}"""
                 "progressMessage": "Complete!",
                 "resultUrl": result_url,
                 "resultUrls": result_urls,
+                "downloadId": download_id,
+                "expiresAt": expires_at,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )
@@ -579,7 +599,9 @@ AVOID: {negative_prompt}"""
                 user_id=user_id,
                 feature="comic_avatar",
                 job_id=job_id,
-                download_url=result_url
+                download_url=result_url,
+                download_id=download_id,
+                expires_at=expires_at
             )
         except Exception as notif_error:
             logger.warning(f"Failed to send notification: {notif_error}")
