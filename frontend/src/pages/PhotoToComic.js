@@ -311,16 +311,37 @@ export default function PhotoToComic() {
           toastShownRef.current[jobId] = true;
           if (res.data.status === 'COMPLETED') {
             toast.success('Your comic character is ready!');
+            
+            // Trigger notification for completed generation
+            notifyGenerationComplete({
+              feature: mode === 'avatar' ? 'comic_avatar' : 'comic_strip',
+              featureName: mode === 'avatar' ? 'Comic Avatar' : 'Comic Strip',
+              jobId: jobId,
+              downloadUrl: res.data.resultUrl,
+              actionUrl: '/app/comix-ai'
+            });
+            
+            // Refetch notifications to sync
+            refetchNotifications?.();
+            
             setTimeout(() => setShowRating(true), 2000);
           } else {
             toast.error('Generation failed. Please try again.');
+            
+            // Trigger notification for failed generation
+            notifyGenerationFailed({
+              feature: mode === 'avatar' ? 'comic_avatar' : 'comic_strip',
+              featureName: mode === 'avatar' ? 'Comic Avatar' : 'Comic Strip',
+              jobId: jobId,
+              error: res.data.error || 'Generation failed'
+            });
           }
         }
       }
     } catch (e) {
       console.error('Poll error:', e);
     }
-  }, [stopPolling]);
+  }, [stopPolling, mode, notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
 
   // Generate comic avatar
   const generateAvatar = async () => {
