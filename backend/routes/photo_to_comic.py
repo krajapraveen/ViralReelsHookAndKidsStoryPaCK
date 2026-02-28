@@ -867,10 +867,21 @@ AVOID: {negative_prompt}"""
             logger.warning(f"Failed to send notification: {notif_error}")
         
     except Exception as e:
-        logger.error(f"Comic strip processing error: {e}")
+        error_msg = str(e)
+        logger.error(f"Comic strip processing error for job {job_id}: {error_msg}", exc_info=True)
+        
+        # Store detailed error in job
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "FAILED", "error": str(e)}}
+            {"$set": {
+                "status": "FAILED", 
+                "error": error_msg,
+                "errorDetails": {
+                    "type": type(e).__name__,
+                    "message": error_msg,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            }}
         )
         
         # Auto-refund on generation failure
