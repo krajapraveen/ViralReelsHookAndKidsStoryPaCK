@@ -138,21 +138,35 @@ export function NotificationProvider({ children }) {
   }, []);
 
   // Mark notification as read
-  const markAsRead = useCallback((notificationId) => {
+  const markAsRead = useCallback(async (notificationId) => {
     setNotifications(prev => prev.map(n => 
       n.id === notificationId ? { ...n, read: true } : n
     ));
     setUnreadCount(prev => Math.max(0, prev - 1));
+    
+    // Sync with backend
+    try {
+      await api.post(`/api/notifications/${notificationId}/read`);
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
   }, []);
 
   // Mark all as read
-  const markAllAsRead = useCallback(() => {
+  const markAllAsRead = useCallback(async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
+    
+    // Sync with backend
+    try {
+      await api.post('/api/notifications/mark-all-read');
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
   }, []);
 
   // Remove notification
-  const removeNotification = useCallback((notificationId) => {
+  const removeNotification = useCallback(async (notificationId) => {
     setNotifications(prev => {
       const notification = prev.find(n => n.id === notificationId);
       if (notification && !notification.read) {
@@ -160,12 +174,26 @@ export function NotificationProvider({ children }) {
       }
       return prev.filter(n => n.id !== notificationId);
     });
+    
+    // Sync with backend
+    try {
+      await api.delete(`/api/notifications/${notificationId}`);
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+    }
   }, []);
 
   // Clear all notifications
-  const clearAll = useCallback(() => {
+  const clearAll = useCallback(async () => {
     setNotifications([]);
     setUnreadCount(0);
+    
+    // Sync with backend
+    try {
+      await api.delete('/api/notifications');
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+    }
   }, []);
 
   // Notify generation complete
