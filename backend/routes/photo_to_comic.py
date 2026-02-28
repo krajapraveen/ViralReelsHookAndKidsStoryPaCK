@@ -829,16 +829,9 @@ AVOID: {negative_prompt}"""
                                         spacing=config["spacing"]
                                     )
                                 
-                                import hashlib
-                                filename = f"comic_strip_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:16]}.png"
-                                filepath = f"/app/backend/static/generated/{filename}"
-                                
-                                os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                                
-                                with open(filepath, 'wb') as f:
-                                    f.write(image_bytes)
-                                
-                                panel_data["imageUrl"] = f"/api/static/generated/{filename}"
+                                # Store as base64 data URL (works in all environments)
+                                image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                                panel_data["imageUrl"] = f"data:image/png;base64,{image_b64}"
                                 image_generated = True
                                 logger.info(f"Panel {i+1} generated successfully for job {job_id}")
                             else:
