@@ -635,6 +635,8 @@ export default function GifMaker() {
                       status={currentJob.progressMessage || (currentJob.status === 'QUEUED' ? 'In queue...' : 'Creating your GIF...')}
                       estimatedTime="30-60 seconds"
                       onCancel={() => toast.info('Generation in progress - please wait')}
+                      currentFeature="/app/gif-maker"
+                      showExploreFeatures={true}
                     />
                   ) : (
                     <>
