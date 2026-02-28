@@ -69,8 +69,14 @@ export default function RatingModal({
       });
       
       toast.success('Thank you for your feedback!');
-      onSubmitSuccess();
+      
+      // Always close the modal first
       onClose();
+      
+      // Then call success callback if provided
+      if (onSubmitSuccess) {
+        onSubmitSuccess();
+      }
       
       // Reset state
       setRating(0);
@@ -78,7 +84,10 @@ export default function RatingModal({
       setComment('');
       setShowReasonForm(false);
     } catch (error) {
+      console.error('Rating submission error:', error);
       toast.error(error.response?.data?.detail || 'Failed to submit feedback');
+      // Still close modal on error to prevent user being stuck
+      onClose();
     } finally {
       setIsSubmitting(false);
     }
