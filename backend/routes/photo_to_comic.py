@@ -564,16 +564,9 @@ AVOID: {negative_prompt}"""
                                 spacing=config["spacing"]
                             )
                         
-                        import hashlib
-                        filename = f"comic_avatar_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:16]}.png"
-                        filepath = f"/app/backend/static/generated/{filename}"
-                        
-                        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                        
-                        with open(filepath, 'wb') as f:
-                            f.write(image_bytes)
-                        
-                        url = f"/api/static/generated/{filename}"
+                        # Store as base64 data URL (works in all environments)
+                        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                        url = f"data:image/png;base64,{image_b64}"
                         result_urls.append(url)
                         if i == 0:
                             result_url = url
