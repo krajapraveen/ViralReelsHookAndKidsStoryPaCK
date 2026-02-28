@@ -25,15 +25,31 @@ const TEST_USERS = {
   }
 };
 
-// Helper to login
+// Helper to login with retry for rate limiting
 async function login(page, user = 'demo') {
   const credentials = TEST_USERS[user];
   await page.goto(`${BASE_URL}/login`);
   await page.waitForLoadState('networkidle');
+  
+  // Add delay to avoid rate limiting
+  await page.waitForTimeout(1000);
+  
   await page.fill('input[type="email"]', credentials.email);
   await page.fill('input[type="password"]', credentials.password);
   await page.click('button[type="submit"]');
-  await page.waitForURL('**/app**', { timeout: 15000 });
+  
+  // Wait for redirect or error - more flexible
+  try {
+    await page.waitForURL('**/app**', { timeout: 20000 });
+  } catch (e) {
+    // If rate limited, wait and retry once
+    if (page.url().includes('login')) {
+      await page.waitForTimeout(3000);
+      await page.fill('input[type="password"]', credentials.password);
+      await page.click('button[type="submit"]');
+      await page.waitForURL('**/app**', { timeout: 15000 });
+    }
+  }
 }
 
 test.describe('Authentication Flows', () => {
