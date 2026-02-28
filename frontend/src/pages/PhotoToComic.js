@@ -1312,11 +1312,14 @@ export default function PhotoToComic() {
           </div>
           
           <Button 
-            onClick={generateStrip}
+            onClick={() => {
+              console.log('Button clicked!');
+              generateStrip();
+            }}
             disabled={loading || credits < calculateCost()}
             className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 cursor-pointer z-10 relative"
             data-testid="generate-strip-btn"
-            style={{ pointerEvents: 'auto' }}
+            type="button"
           >
             {loading ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
