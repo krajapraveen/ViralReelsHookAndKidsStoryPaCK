@@ -102,7 +102,9 @@ export default function WaitingWithGames({
   progress = 0, 
   status = "Generating...", 
   estimatedTime = "30-60 seconds",
-  onCancel 
+  onCancel,
+  showExploreFeatures = true,
+  currentFeature = null // To exclude current feature from suggestions
 }) {
   const [activeGame, setActiveGame] = useState('quotes');
   const [currentQuote, setCurrentQuote] = useState(QUOTES[0]);
@@ -116,6 +118,23 @@ export default function WaitingWithGames({
   const [memoryPhase, setMemoryPhase] = useState('watch'); // 'watch' | 'play'
   const [showingPattern, setShowingPattern] = useState(false);
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showNotification, setShowNotification] = useState(false);
+
+  // Track elapsed time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Show "explore other features" notification after 10 seconds
+  useEffect(() => {
+    if (elapsedTime >= 10 && !showNotification) {
+      setShowNotification(true);
+    }
+  }, [elapsedTime, showNotification]);
 
   // Rotate quotes every 8 seconds
   useEffect(() => {
