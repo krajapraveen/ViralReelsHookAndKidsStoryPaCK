@@ -16,6 +16,7 @@ import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
 import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
+import DownloadWithExpiry from '../components/DownloadWithExpiry';
 
 // ============================================
 // COPYRIGHT BLOCKED KEYWORDS
