@@ -40,7 +40,7 @@ async def options_generate():
     return Response(
         status_code=200,
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": "https://www.visionary-suite.com",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With, Accept, Origin",
             "Access-Control-Max-Age": "600"
@@ -55,7 +55,7 @@ async def options_job():
     return Response(
         status_code=200,
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": "https://www.visionary-suite.com",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "Authorization, Content-Type",
             "Access-Control-Max-Age": "600"
