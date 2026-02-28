@@ -123,6 +123,9 @@ export default function PhotoReactionGIF() {
   const [job, setJob] = useState(null);
   const [pollingInterval, setPollingIntervalState] = useState(null);
   
+  // Notifications
+  const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
+  
   // Modals
   const [showRating, setShowRating] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
