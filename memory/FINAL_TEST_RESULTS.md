@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://qa-hardening-1.preview.emergentagent.com
+**Website:** https://worker-scaling.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

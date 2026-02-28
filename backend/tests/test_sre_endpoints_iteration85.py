@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://qa-hardening-1.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://worker-scaling.preview.emergentagent.com').rstrip('/')
 
 class TestSREPublicEndpoints:
     """Public SRE endpoints (no auth required)"""

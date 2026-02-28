@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://qa-hardening-1.preview.emergentagent.com
+**Platform URL:** https://worker-scaling.preview.emergentagent.com
 
 ---
 
