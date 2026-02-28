@@ -925,8 +925,10 @@ export default function PhotoToComic() {
               {job.status === 'COMPLETED' && job.resultUrl && (
                 <DownloadWithExpiry
                   downloadUrl={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
+                  downloadId={job.downloadId}
                   filename={`comic_avatar_${job.id}.png`}
                   fileType="image"
+                  expiresAt={job.expiresAt}
                   onExpired={() => {
                     toast.warning('Your download has expired. Please generate again.');
                   }}
