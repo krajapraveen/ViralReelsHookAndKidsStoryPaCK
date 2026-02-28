@@ -410,6 +410,7 @@ api_router.include_router(download_expiry_router)
 api_router.include_router(notification_router)
 api_router.include_router(user_profile_router)
 api_router.include_router(health_router)
+api_router.include_router(content_protection_router)
 
 # Include API router in app
 app.include_router(api_router)
