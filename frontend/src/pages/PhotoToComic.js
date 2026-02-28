@@ -1345,17 +1345,16 @@ export default function PhotoToComic() {
                 </span>
               </div>
               
+              {/* WaitingWithGames during processing */}
               {(job.status === 'PROCESSING' || job.status === 'QUEUED') && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Progress</span>
-                    <span className="text-pink-400">{job.progress || 0}%</span>
-                  </div>
-                  <Progress value={job.progress || 0} className="h-2" />
-                  {job.progressMessage && (
-                    <p className="text-xs text-slate-500">{job.progressMessage}</p>
-                  )}
-                </div>
+                <WaitingWithGames 
+                  progress={job.progress || 0}
+                  status={job.progressMessage || (job.status === 'QUEUED' ? 'In queue - preparing your comic strip...' : 'Creating your comic strip...')}
+                  estimatedTime="2-5 minutes for comic strips"
+                  onCancel={() => toast.info('Generation in progress - please wait')}
+                  currentFeature="/app/photo-to-comic"
+                  showExploreFeatures={true}
+                />
               )}
               
               {/* Panel Results */}
