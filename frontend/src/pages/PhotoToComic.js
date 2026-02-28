@@ -142,6 +142,9 @@ export default function PhotoToComic() {
   const [credits, setCredits] = useState(0);
   const [userPlan, setUserPlan] = useState('free');
   
+  // Notifications
+  const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
+  
   // Mode selection: 'avatar' or 'strip'
   const [mode, setMode] = useState(null);
   
