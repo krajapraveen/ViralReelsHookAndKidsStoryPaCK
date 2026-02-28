@@ -802,6 +802,19 @@ AVOID: {negative_prompt}"""
             }}
         )
         
+        # Send notification to user
+        try:
+            from services.notification_service import get_notification_service
+            notification_service = get_notification_service(db)
+            await notification_service.notify_generation_complete(
+                user_id=user_id,
+                feature="comic_strip",
+                job_id=job_id,
+                download_url=panels[0]["imageUrl"] if panels else None
+            )
+        except Exception as notif_error:
+            logger.warning(f"Failed to send notification: {notif_error}")
+        
     except Exception as e:
         logger.error(f"Comic strip processing error: {e}")
         await db.photo_to_comic_jobs.update_one(
@@ -810,12 +823,28 @@ AVOID: {negative_prompt}"""
         )
         
         # Auto-refund on generation failure
+        refund_issued = False
         try:
             from services.auto_refund import handle_generation_failure
             await handle_generation_failure(db, user_id, "comic_strip", str(e))
+            refund_issued = True
             logger.info(f"Auto-refund processed for failed comic strip: {job_id}")
         except Exception as refund_error:
             logger.error(f"Auto-refund failed: {refund_error}")
+        
+        # Send failure notification
+        try:
+            from services.notification_service import get_notification_service
+            notification_service = get_notification_service(db)
+            await notification_service.notify_generation_failed(
+                user_id=user_id,
+                feature="comic_strip",
+                job_id=job_id,
+                error_message=str(e),
+                refund_issued=refund_issued
+            )
+        except Exception as notif_error:
+            logger.warning(f"Failed to send failure notification: {notif_error}")
 
 
 @router.get("/job/{job_id}")
