@@ -571,6 +571,19 @@ AVOID: {negative_prompt}"""
             }}
         )
         
+        # Send notification to user
+        try:
+            from services.notification_service import get_notification_service
+            notification_service = get_notification_service(db)
+            await notification_service.notify_generation_complete(
+                user_id=user_id,
+                feature="comic_avatar",
+                job_id=job_id,
+                download_url=result_url
+            )
+        except Exception as notif_error:
+            logger.warning(f"Failed to send notification: {notif_error}")
+        
     except Exception as e:
         logger.error(f"Comic avatar processing error: {e}")
         await db.photo_to_comic_jobs.update_one(
