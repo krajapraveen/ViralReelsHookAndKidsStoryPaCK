@@ -207,6 +207,8 @@ function App() {
       {/* TEMPLATE LEADERBOARD */}
       <Route path="/app/admin/leaderboard" element={isAuthenticated ? <TemplateLeaderboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/terms-of-service" element={<TermsOfService />} />
       </Routes>
       
       {/* AI Chatbot - Available on all pages */}
