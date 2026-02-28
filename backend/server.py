@@ -91,6 +91,9 @@ from routes.referral import router as referral_router
 from routes.comic_storybook_v2 import router as comic_storybook_v2_router
 from routes.reaction_gif import router as reaction_gif_router
 
+# USER PROFILE ROUTES
+from routes.user_routes import router as user_profile_router
+
 # NEW REBUILT FEATURES
 from routes.story_episode_creator import router as story_episode_creator_router
 from routes.content_challenge_planner import router as content_challenge_planner_router
