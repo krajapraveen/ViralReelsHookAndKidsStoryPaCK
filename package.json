@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "CreatorStudio AI - Full-stack SaaS platform for creative content generation",
   "scripts": {
-    "test": "npx playwright test",
+    "test": "npx playwright test --project=chromium",
+    "test:all": "npx playwright test",
     "test:chromium": "npx playwright test --project=chromium",
     "test:firefox": "npx playwright test --project=firefox",
     "test:mobile": "npx playwright test --project=mobile-chrome",
-    "test:smoke": "npx playwright test --grep 'should login|should load|health'",
+    "test:smoke": "npx playwright test --project=chromium --grep 'should login|should load|health' --workers=1",
     "test:report": "npx playwright show-report",
     "test:ui": "npx playwright test --ui"
   },
