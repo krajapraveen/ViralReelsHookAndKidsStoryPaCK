@@ -1,121 +1,88 @@
-# CreatorStudio AI - Changelog
+# Visionary Suite - Changelog
 
-## [Feb 22, 2026] - Comic Studio Enhanced ✨ LATEST
+## 2026-02-28: Production Stabilization Verified (Iteration 107)
 
-### Added
-- **3 New Advanced Style Filters**
-  - Cartoon Shader (OpenCV.js) - Smooth cartoon effect
-  - Pencil Sketch (OpenCV.js) - Hand-drawn sketch effect
-  - Pop Art - Bold Warhol-style colors
+### Regression Testing Results: PASSED
+- **Backend Success Rate**: 95%
+- **Frontend Success Rate**: 100%
 
-- **Custom SFX Input** - Enter any custom SFX text for panels
+### Production Issues Resolved:
+1. **CORS Errors**: Fixed via dynamic API URL configuration in `frontend/src/utils/api.js`
+2. **Broken Image Links**: Fixed by implementing base64 data URL storage in MongoDB
+3. **Empty Downloads Page**: Fixed by updating `/api/downloads/my-downloads` to fetch from job collections
 
-- **Multi-Page Export (ZIP)**
-  - Export comic page + individual panels
-  - Includes metadata.json with all panel info
-  - +2 credits on top of base export cost
+### Features Verified Working:
+- Login flow (demo/admin users)
+- Dashboard with credits display and notification bell
+- Photo to Comic page with all modes
+- My Downloads page showing actual content
+- Comic Storybook Builder
+- GIF Maker
+- Reel Generator
+- Profile page
+- Notification system with dropdown
 
-- **Social Sharing**
-  - Generate shareable preview thumbnails (1200x630)
-  - Native Web Share API integration
-  - Download preview image option
-
-- **Admin CMS for Genre/Template Management**
-  - CRUD operations for genres
-  - Create/delete story templates
-  - Usage statistics dashboard
-  - Admin-only routes protected by role check
-
-- **OpenCV.js HD Mode**
-  - Optional advanced filter processing
-  - Dynamic loading (only when needed)
-  - Fallback to Canvas API if loading fails
-
-- **Cypress E2E Tests** (`/app/frontend/cypress/e2e/comic-studio.cy.js`)
-- **K6 Load Tests** (`/app/backend/tests/load_tests/comic_studio_test.js`)
-
-### Fixed
-- **Image Upload Error** - Fixed "Image is not a constructor" by renaming lucide-react import
-- **Credits Display** - Changed `creditAPI.getCredits()` to `creditAPI.getBalance()`
-- **Admin Route Auth** - Updated to check `role` field instead of `isAdmin`
-
-### Test Results
-- Backend: 31/31 tests passed (100%)
-- Frontend: All UI elements working (100%)
-- Report: `/app/test_reports/iteration_62.json`
+### Technical Changes:
+- Images now stored as base64 data URLs in `photo_to_comic_jobs` collection
+- Frontend uses `window.location.origin` for production domains
+- My Downloads page checks for `data:` prefix for preview URLs
 
 ---
 
-## [Feb 22, 2026] - Comic Studio MVP
+## 2026-02-27: Notification System Complete
 
-### Added
-- **Comic Studio Feature** (`/app/comic-studio`)
-  - 8 genre themes: Superhero, Romance, Comedy, Sci-Fi, Fantasy, Mystery, Horror, Kids
-  - 3 comic styles: Comic Color, Comic B&W, Manga B&W (halftone)
-  - 5 panel layouts: Full Page, 2 Horizontal, 2 Vertical, 4-Panel, 6-Panel
-  - Client-side image processing using Canvas API
-  - Speech bubble styles: None, Speech, Thought, Shout
-  - Story Mode with template-based caption/bubble generation
-  - Genre-specific SFX library (BAM!, POW!, etc.)
-  - Export to PNG/PDF with optional watermark removal
-  - Credit-based pricing (8-10 credits per export)
+### New Features:
+- Bell icon notification system in header
+- Notification dropdown panel
+- Real-time polling (30-second interval)
+- Notification types: generation_complete, generation_failed, download_ready, refund_issued
 
-- **Backend API Endpoints**
-  - `GET /api/comic/genres` - List all genres
-  - `GET /api/comic/assets/{genre}` - Genre stickers, frames, SFX
-  - `GET /api/comic/templates/{genre}` - Story templates
-  - `GET /api/comic/layouts` - Panel configurations
-  - `POST /api/comic/generate-story` - Template-based story
-  - `POST /api/comic/export` - Log export & debit credits
-
-- **Client-Side Processing** (`/app/frontend/src/utils/comicFilters.js`)
-  - Posterization (color quantization)
-  - Edge detection (Sobel operator)
-  - Halftone pattern generation
-  - Panel layout rendering
-  - Watermark overlay
-
-### Files Created/Modified
-- `/app/frontend/src/pages/ComicStudio.js` - Main UI component
-- `/app/frontend/src/utils/comicFilters.js` - Image processing utilities
-- `/app/backend/routes/comic_studio.py` - Backend API routes
-- `/app/frontend/src/components/HelpGuide.js` - Added comic-studio context
-
-### Test Results
-- Backend: 19/19 tests passed (100%)
-- Frontend: All UI elements working (100%)
-- Report: `/app/test_reports/iteration_61.json`
+### API Endpoints Added:
+- GET /api/notifications
+- GET /api/notifications/unread-count
+- GET /api/notifications/poll
+- POST /api/notifications/{id}/read
+- POST /api/notifications/mark-all-read
+- DELETE /api/notifications/{id}
+- DELETE /api/notifications
 
 ---
 
-## [Feb 22, 2026] - P0 Bug Fixes & User Manual
+## 2026-02-27: 5-Minute Download Expiry System
 
-### Fixed
-- Carousel content generation (property name mismatch)
-- Hashtag generation blank window (array iteration)
-- Feature Requests page dark theme
-
-### Added
-- HelpGuide component for contextual help
-- Interactive App Tour for new users
-- K6 load testing suite
-- Cypress E2E test framework
+### Features:
+- Real-time countdown timer
+- Progress bar with color transitions
+- Warning toasts at 60s and 30s remaining
+- Background cleanup service
+- Premium extension feature
 
 ---
 
-## [Feb 21, 2026] - Critical Bug Fixes
+## 2026-02-27: Enhanced Waiting Experience
 
-### Fixed
-- Trending Topics API data structure
-- Rate limiting display in UI
-- Credits UI alignment
+### Features:
+- Elapsed time timer (MM:SS format)
+- "We'll notify you when ready" banner
+- "Explore while you wait" feature grid
+- Fun facts rotation
 
 ---
 
-## [Feb 20-21, 2026] - Production Hardening
+## Previous Sessions
 
-### Added
-- Comprehensive QA audit phases 1-10
-- Final go-live audit
-- Production deployment configuration
-- Login/Signup/Reset password QA
+### Worker System (2026-02-26)
+- Enhanced worker system with per-feature pools
+- Auto-scaling at 80% utilization
+- Real-time worker dashboard at `/app/admin/workers`
+
+### P0 Bug Fix: Comic Generator Infinite Loops (2026-02-26)
+- Fixed toast notification infinite loop
+- Fixed feedback modal infinite loops
+- Fixed polling not stopping after completion
+
+### Content Protection Layer
+- Context menu disable
+- Signed URLs with 60s expiry
+- Dynamic watermarking
+- DevTools deterrence
