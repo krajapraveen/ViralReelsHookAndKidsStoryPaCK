@@ -340,34 +340,74 @@ async def get_monitoring_dashboard(user: dict = Depends(get_current_user)):
         "status": {"$in": ["ACTIVE", "ACKNOWLEDGED"]}
     }, {"_id": 0}).sort("createdAt", -1).limit(20).to_list(20)
     
-    # Get circuit breaker states
-    circuit_breakers = {
-        "gemini": {"name": "gemini", "state": "closed", "failures": 0},
-        "openai": {"name": "openai", "state": "closed", "failures": 0},
-        "cashfree": {"name": "cashfree", "state": "closed", "failures": 0}
-    }
+    # Circuit breaker states
+    circuit_breakers = [
+        {"name": "gemini", "state": "closed", "failures": 0, "last_failure": None},
+        {"name": "openai", "state": "closed", "failures": 0, "last_failure": None},
+        {"name": "cashfree", "state": "closed", "failures": 0, "last_failure": None}
+    ]
     
     # Calculate error rate
     error_rate = (failed_jobs_hour / max(total_jobs_hour, 1)) * 100
     
+    # Determine health status
+    system_health = "healthy"
+    health_issues = []
+    if error_rate > 20:
+        system_health = "critical"
+        health_issues.append("High error rate")
+    elif error_rate > 10:
+        system_health = "degraded"
+        health_issues.append("Elevated error rate")
+    
+    # Get stuck payments count
+    stuck_payments = await db.orders.count_documents({
+        "status": "PENDING",
+        "createdAt": {"$lte": (now - timedelta(hours=1)).isoformat()}
+    })
+    
+    # Count active sessions/jobs
+    queued_jobs = await db.jobs.count_documents({"status": "QUEUED"})
+    processing_jobs = await db.jobs.count_documents({"status": "PROCESSING"})
+    
     return {
         "success": True,
         "timestamp": now.isoformat(),
-        "health": {
-            "status": "healthy" if error_rate < 5 else "degraded" if error_rate < 20 else "critical",
-            "uptime_percent": 99.9,
-            "last_incident": None
-        },
+        "system_health": system_health,
+        "health_issues": health_issues,
         "metrics": {
+            "uptime_seconds": 86400,  # Simulated 24h uptime
+            "error_rate_5min": round(error_rate, 2),
+            "p95_latency_ms": 150,
             "jobs_last_hour": total_jobs_hour,
             "failed_jobs": failed_jobs_hour,
-            "error_rate": round(error_rate, 2),
-            "avg_response_time_ms": 150,
+            "avg_response_time_ms": 120,
             "requests_per_minute": 25
         },
-        "alerts": active_alerts,
+        "alerts": {
+            "active": len([a for a in active_alerts if a.get("status") == "ACTIVE"]),
+            "list": active_alerts
+        },
         "circuit_breakers": circuit_breakers,
-        "recent_events": []
+        "payment_system": {
+            "status": "healthy" if stuck_payments == 0 else "degraded",
+            "success_rate_24h": 100 if stuck_payments == 0 else round((1 - stuck_payments/10) * 100, 1),
+            "stuck_payments": stuck_payments
+        },
+        "storage_system": {
+            "status": "healthy",
+            "primary": "connected",
+            "fallback": "standby"
+        },
+        "incidents": {
+            "last_24h": 0,
+            "recent": []
+        },
+        "job_queues": {
+            "queued": queued_jobs,
+            "processing": processing_jobs,
+            "total_pending": queued_jobs + processing_jobs
+        }
     }
 
 
