@@ -24,7 +24,7 @@ const ScalingDashboard = () => {
   const fetchScalingData = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API}/api/scaling/dashboard`, {
+      const response = await fetch(`${API}/api/admin/system/scaling/dashboard`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -53,7 +53,7 @@ const ScalingDashboard = () => {
     setIsScaling(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API}/api/scaling/manual`, {
+      const response = await fetch(`${API}/api/admin/system/scaling/manual`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -296,7 +296,7 @@ const SelfHealingDashboard = () => {
   const fetchDashboard = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API}/api/monitoring/dashboard`, {
+      const response = await fetch(`${API}/api/admin/system/monitoring/dashboard`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -340,7 +340,7 @@ const SelfHealingDashboard = () => {
   const acknowledgeAlert = async (alertId) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${API}/api/monitoring/alerts/${alertId}/acknowledge`, {
+      await fetch(`${API}/api/admin/system/monitoring/alerts/${alertId}/acknowledge`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
