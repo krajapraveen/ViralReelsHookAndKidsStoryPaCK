@@ -463,6 +463,108 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
         {"_id": 0}
     ).sort("createdAt", -1).limit(5).to_list(length=5)
     
+    # =========================================================================
+    # FEATURE USAGE ANALYTICS (for FeaturesTab)
+    # =========================================================================
+    # Get feature usage from generations collection
+    feature_pipeline = [
+        {"$match": {"createdAt": {"$gte": start_iso}}},
+        {"$group": {"_id": "$type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    feature_counts = await db.generations.aggregate(feature_pipeline).to_list(20)
+    
+    # Also get GenStudio job types
+    genstudio_feature_pipeline = [
+        {"$match": {"createdAt": {"$gte": start_iso}}},
+        {"$group": {"_id": "$jobType", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    genstudio_counts = await db.genstudio_jobs.aggregate(genstudio_feature_pipeline).to_list(20)
+    
+    # Combine all feature usage
+    all_features = []
+    for f in feature_counts:
+        if f.get("_id"):
+            all_features.append({"feature": f["_id"], "count": f["count"]})
+    for f in genstudio_counts:
+        if f.get("_id"):
+            all_features.append({"feature": f["_id"], "count": f["count"]})
+    
+    # Sort by count
+    all_features.sort(key=lambda x: x["count"], reverse=True)
+    
+    # Calculate percentages
+    total_feature_count = sum(f["count"] for f in all_features) or 1
+    feature_percentages = [
+        {"feature": f["feature"], "percentage": round((f["count"] / total_feature_count) * 100, 1)}
+        for f in all_features
+    ]
+    
+    # Get unique users per feature
+    unique_users_pipeline = [
+        {"$match": {"createdAt": {"$gte": start_iso}}},
+        {"$group": {"_id": "$type", "uniqueUsers": {"$addToSet": "$userId"}}},
+        {"$project": {"feature": "$_id", "uniqueUsers": {"$size": "$uniqueUsers"}}}
+    ]
+    unique_users_by_feature = await db.generations.aggregate(unique_users_pipeline).to_list(20)
+    
+    # =========================================================================
+    # PAYMENT ANALYTICS (for PaymentsTab)
+    # =========================================================================
+    # Transaction summary
+    total_transactions = await db.orders.count_documents({"createdAt": {"$gte": start_iso}})
+    successful_transactions = await db.orders.count_documents({"status": "PAID", "createdAt": {"$gte": start_iso}})
+    failed_transactions = await db.orders.count_documents({"status": {"$in": ["FAILED", "CANCELLED"]}, "createdAt": {"$gte": start_iso}})
+    pending_transactions = await db.orders.count_documents({"status": "PENDING", "createdAt": {"$gte": start_iso}})
+    
+    success_rate = round((successful_transactions / total_transactions * 100), 1) if total_transactions > 0 else 0
+    
+    # Plan breakdown
+    plan_pipeline = [
+        {"$match": {"status": "PAID", "createdAt": {"$gte": start_iso}}},
+        {"$group": {
+            "_id": "$product",
+            "count": {"$sum": 1},
+            "revenue": {"$sum": "$amount"}
+        }},
+        {"$sort": {"revenue": -1}}
+    ]
+    plan_breakdown = await db.orders.aggregate(plan_pipeline).to_list(10)
+    formatted_plan_breakdown = [
+        {"productName": p["_id"] or "Unknown", "count": p["count"], "revenue": p["revenue"]}
+        for p in plan_breakdown if p.get("_id")
+    ]
+    
+    # Failure reasons
+    failure_pipeline = [
+        {"$match": {"status": {"$in": ["FAILED", "CANCELLED"]}, "createdAt": {"$gte": start_iso}}},
+        {"$group": {"_id": "$failureReason", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    failure_reasons = await db.orders.aggregate(failure_pipeline).to_list(10)
+    formatted_failures = [
+        {"reason": f["_id"] or "Unknown", "count": f["count"]}
+        for f in failure_reasons
+    ]
+    
+    # Daily revenue trend
+    daily_revenue_trend = []
+    for i in range(10):
+        day = end_date - timedelta(days=9-i)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
+        day_pipeline = [
+            {"$match": {"status": "PAID", "createdAt": {"$gte": day_start.isoformat(), "$lte": day_end.isoformat()}}},
+            {"$group": {"_id": None, "revenue": {"$sum": "$amount"}, "count": {"$sum": 1}}}
+        ]
+        day_result = await db.orders.aggregate(day_pipeline).to_list(1)
+        daily_revenue_trend.append({
+            "date": day.strftime("%m/%d"),
+            "revenue": day_result[0]["revenue"] if day_result else 0,
+            "count": day_result[0]["count"] if day_result else 0
+        })
+    
     return {
         "success": True,
         "data": {
@@ -510,7 +612,15 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
             "payments": {
                 "successful": successful_payments,
                 "failed": failed_payments,
-                "refunded": refunded_payments
+                "refunded": refunded_payments,
+                "totalTransactions": total_transactions,
+                "successfulTransactions": successful_transactions,
+                "failedTransactions": failed_transactions,
+                "pendingTransactions": pending_transactions,
+                "successRate": success_rate,
+                "planBreakdown": formatted_plan_breakdown,
+                "failureReasons": formatted_failures,
+                "dailyRevenueTrend": daily_revenue_trend
             },
             "visitors": {
                 "uniqueVisitors": total_users,
@@ -526,6 +636,11 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
                 "npsScore": nps_score,
                 "ratingDistribution": rating_distribution,
                 "recentReviews": formatted_reviews
+            },
+            "featureUsage": {
+                "topFeatures": all_features[:10],
+                "featurePercentages": feature_percentages[:10],
+                "uniqueUsersPerFeature": unique_users_by_feature
             },
             "recentActivity": {
                 "recentUsers": recent_users_list[:5],
