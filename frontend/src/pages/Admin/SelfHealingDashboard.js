@@ -354,7 +354,7 @@ const SelfHealingDashboard = () => {
   const resolveAlert = async (alertId) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${API}/api/monitoring/alerts/${alertId}/resolve`, {
+      await fetch(`${API}/api/admin/system/monitoring/alerts/${alertId}/resolve`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -368,7 +368,7 @@ const SelfHealingDashboard = () => {
   const resetCircuitBreaker = async (name) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${API}/api/monitoring/circuit-breakers/${name}/reset`, {
+      await fetch(`${API}/api/admin/system/monitoring/circuit-breakers/${name}/reset`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
