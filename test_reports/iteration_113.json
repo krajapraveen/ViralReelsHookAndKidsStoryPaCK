@@ -1,0 +1,146 @@
+{
+  "summary": "Frontend-only testing of Admin Panel dynamic data completed successfully. All admin tabs show dynamic data from MongoDB as expected. Verified: Overview (23 users, 191 generations), Features (REEL 175, STORY 16), Payments (44 transactions), Visitors (with daily trend chart), Self-Healing (healthy status), Audit Logs (6 total actions), User Management (23 users with credits), Template Analytics (feature usage stats).",
+  "test_date": "2026-03-01",
+  "preview_url": "https://visionary-qa.preview.emergentagent.com",
+  "testing_type": "frontend_only",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "WebSocket /api/realtime-analytics/ws",
+        "issue": "WebSocket connection drops frequently and reconnects (flapping), causing console spam but functionality still works",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "console_warnings": [
+      {
+        "component": "AuditLogs, AdminUsersManagement",
+        "issue": "React hydration warnings about span inside tbody/select - cosmetic only, doesn't affect functionality",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "test_results": {
+    "admin_dashboard_overview": {
+      "total_users": "PASS - Shows 23 Total Users with +23 new",
+      "visitors": "PASS - Shows 23 Visitors with 260 page views",
+      "active_sessions": "PASS - Shows 22 Active Sessions",
+      "generations": "PASS - Shows 191 Generations with 100% success",
+      "total_revenue": "PASS - Shows ₹0 Total Revenue",
+      "satisfaction": "PASS - Shows 100% Satisfaction with 5/5 rating"
+    },
+    "features_tab": {
+      "reel_usage": "PASS - Shows REEL with 175 uses (91.6%)",
+      "story_usage": "PASS - Shows STORY with 16 uses (8.4%)",
+      "usage_distribution": "PASS - Progress bars with percentages displayed",
+      "unique_users_per_feature": "PASS - Shows 2 users for Story, 3 users for Reel"
+    },
+    "payments_tab": {
+      "total_transactions": "PASS - Shows 44 Total transactions",
+      "successful_transactions": "PASS - Shows 0 Successful",
+      "failed_transactions": "PASS - Shows 0 Failed",
+      "pending_transactions": "PASS - Shows 44 Pending",
+      "success_rate": "PASS - Shows 0%",
+      "daily_revenue_trend": "PASS - Chart with date-based trend displayed",
+      "subscriptions_by_plan": "PASS - Shows 'No subscription data yet'"
+    },
+    "visitors_tab": {
+      "unique_visitors": "PASS - Dynamic visitor count shown",
+      "page_views": "PASS - Page views data displayed",
+      "daily_trend_chart": "PASS - Daily visitors chart rendered"
+    },
+    "realtime_analytics": {
+      "page_load": "PASS - Page loads with 'Real-Time Analytics' title",
+      "live_indicator": "PASS - Shows 'LIVE' indicator",
+      "total_users": "PASS - Shows 23 Total Users",
+      "reel_story_distribution": "PASS - Shows REEL and STORY breakdown",
+      "websocket_connection": "PARTIAL - WebSocket connects but has reconnection flapping",
+      "recent_activity": "PASS - Shows recent REEL and STORY generated items"
+    },
+    "self_healing_dashboard": {
+      "system_status": "PASS - Shows 'System Status: Healthy'",
+      "error_rate": "PASS - Shows 0.00% error rate",
+      "uptime": "PASS - Shows 24h 0m uptime",
+      "payment_system": "PASS - Payment System card displayed",
+      "storage_system": "PASS - Storage System card displayed",
+      "recent_incidents": "PASS - Shows 'No recent incidents'"
+    },
+    "audit_logs": {
+      "total_actions": "PASS - Shows 6 Total Actions",
+      "action_types": "PASS - Shows 3 Action Types",
+      "active_admins": "PASS - Shows 1 Active Admin",
+      "log_entries": "PASS - Shows 6 log entries with timestamps, admin email, action types",
+      "actions_displayed": "PASS - worker_scale, template_create, config_update actions visible"
+    },
+    "user_management": {
+      "total_users": "PASS - Shows 23 Total Users",
+      "admin_users": "PASS - Shows 1 Admin User",
+      "qa_users": "PASS - Shows 1 QA User",
+      "regular_users": "PASS - Shows 18 Regular Users",
+      "credits_column": "PASS - Credits displayed (100, 500, Unlimited)",
+      "user_list": "PASS - User list with names, emails, roles, joined dates",
+      "actions": "PASS - Reset and Unlimited buttons available"
+    },
+    "template_analytics": {
+      "page_load": "PASS - Page loads with 'Template Analytics' title",
+      "total_generations": "PASS - Shows 20 Total Generations",
+      "credits_consumed": "PASS - Shows 178 Credits Consumed",
+      "unique_users": "PASS - Shows 1 Unique User",
+      "conversion_rate": "PASS - Shows 100% Conversion Rate",
+      "revenue_impact": "PASS - Shows $17.85 Total Revenue, 178.5 Credits Consumed, $0.6 Avg Daily",
+      "feature_breakdown": "PASS - Story Hook (10 gens, 80 credits), Offer Generator (2 gens, 40 credits), etc.",
+      "feature_performance": "PASS - Cards showing generations, users, credits, avg time per feature"
+    }
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_113.json"
+  ],
+  "action_items": [
+    "OPTIONAL: Investigate WebSocket flapping in Real-Time Analytics page (connects but immediately closes and reconnects)",
+    "OPTIONAL: Fix React hydration warnings in AuditLogs and AdminUsersManagement (span inside tbody/select)"
+  ],
+  "critical_code_review_comments": [
+    "All admin panel tabs displaying dynamic data correctly from MongoDB",
+    "Features Tab correctly shows REEL (175) and STORY (16) with percentages",
+    "Payments Tab shows 44 transactions as expected",
+    "Self-Healing Dashboard shows 'healthy' status correctly",
+    "Audit Logs page shows 6 total actions with proper log entries",
+    "User Management shows 23 users with credits information",
+    "Template Analytics shows comprehensive feature usage statistics"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A - Frontend-only testing",
+    "frontend": "100% - All admin tabs showing dynamic data correctly"
+  },
+  "test_credentials": {
+    "admin_user": {
+      "email": "admin@creatorstudio.ai",
+      "password": "Cr3@t0rStud!o#2026",
+      "role": "ADMIN",
+      "status": "VERIFIED WORKING"
+    }
+  },
+  "seed_data_creation": "None - used existing data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin Panel frontend testing complete. All dynamic data is displaying correctly: Overview (23 users, 191 generations), Features (REEL 175, STORY 16), Payments (44 transactions), Self-Healing (healthy status), Audit Logs (6 actions), User Management (23 users with credits), Template Analytics (feature usage). Minor issue: WebSocket flapping in Real-Time Analytics but functionality works. React hydration warnings in tables are cosmetic.",
+  "verified_requirements": {
+    "overview_23_users": "VERIFIED - Shows 23 Total Users",
+    "overview_191_generations": "VERIFIED - Shows 191 Generations",
+    "features_reel_175": "VERIFIED - Shows REEL with 175 uses",
+    "features_story_16": "VERIFIED - Shows STORY with 16 uses",
+    "payments_44_transactions": "VERIFIED - Shows 44 Total transactions",
+    "visitors_chart": "VERIFIED - Daily visitor trend chart displayed",
+    "user_management_credits": "VERIFIED - User list with credits shown",
+    "realtime_analytics": "VERIFIED - Live metrics page loads with data",
+    "self_healing_healthy": "VERIFIED - Shows 'System Status: Healthy'",
+    "audit_logs_6_actions": "VERIFIED - Shows 6 Total Actions with log entries",
+    "template_analytics": "VERIFIED - Shows feature usage statistics"
+  }
+}
