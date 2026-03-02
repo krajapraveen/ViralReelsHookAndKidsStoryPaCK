@@ -793,6 +793,12 @@ async def job_worker_loop():
 @app.on_event("shutdown")
 async def shutdown():
     """Application shutdown"""
+    # Stop daily report scheduler
+    try:
+        stop_scheduler()
+    except Exception as e:
+        logger.warning(f"Daily report scheduler shutdown warning: {e}")
+    
     # Shutdown auto-scaling engine
     try:
         await shutdown_priority_scaling()
