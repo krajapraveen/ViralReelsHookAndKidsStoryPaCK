@@ -773,6 +773,14 @@ async def startup():
     except Exception as e:
         logger.warning(f"Daily report scheduler warning: {e}")
     
+    # Start Environment Monitor Scheduler
+    try:
+        MONGO_URL = os.environ.get("MONGO_URL", "")
+        start_env_scheduler(db, DB_NAME, MONGO_URL)
+        logger.info("Environment monitor scheduler started (checks every 5 minutes)")
+    except Exception as e:
+        logger.warning(f"Environment monitor scheduler warning: {e}")
+    
     logger.info("CreatorStudio API ready!")
 
 
