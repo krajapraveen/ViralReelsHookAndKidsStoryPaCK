@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { 
   Sparkles, Users, CreditCard, FileText, ArrowLeft, 
   Eye, Star, RefreshCw, Activity, DollarSign, LogOut, Coins, Shield, BarChart3,
-  AlertTriangle, Trophy, ClipboardList
+  AlertTriangle, Trophy, ClipboardList, Database
 } from 'lucide-react';
 
 // Import tab components
