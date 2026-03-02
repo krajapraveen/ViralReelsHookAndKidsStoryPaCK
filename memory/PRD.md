@@ -5,6 +5,26 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 
 ## Latest Session Changes (2026-03-02)
 
+### ✅ COMIC STORY BUILDER ROUTE FIX
+- **Issue:** UAT reported blank page at `/app/comic-story-builder`
+- **Root Cause:** Route didn't exist - correct route is `/app/comic-storybook`
+- **Fix:** Added alias route `/app/comic-story-builder` → `ComicStorybookBuilder`
+- **Status:** WORKING - Feature fully functional with 5-step wizard
+
+### ✅ SESSION TIMEOUT EXTENDED
+- **Previous:** 7 days (168 hours)
+- **New:** 30 days (720 hours)
+- **File:** `backend/shared.py` - `JWT_EXPIRATION_HOURS`
+- **Reason:** Better UX, reduce login friction
+
+### ✅ UAT PHASE 8 - ASSET LICENSING AUDIT COMPLETE
+- **Fonts:** Google Fonts (Inter, Outfit) - OFL License ✅
+- **Icons:** Lucide React - ISC License ✅
+- **AI Content:** Copyright protection via BLOCKED_KEYWORDS ✅
+- **Legal Pages:** ToS, Privacy Policy, Copyright Info ✅
+- **NPM Packages:** All permissive licenses (MIT, ISC, Apache) ✅
+- **Report:** `/app/test_reports/asset_licensing_audit_20260302.md`
+
 ### ✅ DATABASE ENVIRONMENT MONITORING WITH AUTO-RECONNECT
 
 **New Admin Page:** `/app/admin/environment-monitor`
