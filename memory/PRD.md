@@ -5,6 +5,37 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 
 ## Latest Session Changes (2026-03-02)
 
+### ✅ PRODUCTION ACCOUNT LOCK MANAGEMENT VERIFIED
+
+**Account Lock/Unlock works on Production:** `www.visionary-suite.com`
+- ✅ All 23 users accessible via API
+- ✅ Lock/Unlock individual users
+- ✅ Bulk lock/unlock
+- ✅ Auto-lock configuration
+- ✅ Lock history
+
+---
+
+### ✅ RATE LIMITING REMOVED FOR ADMIN/DEMO/QA USERS
+
+**Users Exempt from Rate Limiting & Account Lockout:**
+- ADMIN users
+- DEMO users
+- QA users
+- SUPERADMIN users
+
+**What was changed:**
+1. `security.py` - Rate limit dependency now checks JWT for user role and skips exempt roles
+2. `routes/login_activity.py` - `is_account_locked()` and `record_failed_attempt()` now skip lockout for exempt roles
+3. `routes/auth.py` - Login rate limit increased to 100/minute (account lockout handles security)
+
+**Test Results:**
+- 15 rapid admin logins → All HTTP 200 ✅
+- 10 failed admin password attempts → "999 attempts remaining" (never locks) ✅
+- Correct password after failures → Login success ✅
+
+---
+
 ### ✅ WEEKLY/MONTHLY SUMMARY REPORTS IN IST
 
 **Automated Report Schedule (Indian Standard Time):**
