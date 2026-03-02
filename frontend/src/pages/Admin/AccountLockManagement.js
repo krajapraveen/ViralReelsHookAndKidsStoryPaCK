@@ -49,8 +49,15 @@ const AccountLockManagement = () => {
     const headers = { 'Authorization': `Bearer ${token}` };
 
     try {
+      // Build query params properly
+      const params = new URLSearchParams();
+      if (filterLocked !== null) params.append('filter_locked', filterLocked.toString());
+      if (search) params.append('search', search);
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
       const [usersRes, lockedRes, configRes, historyRes] = await Promise.all([
-        fetch(`${API_URL}/api/account-management/users?filter_locked=${filterLocked !== null ? filterLocked : ''}&search=${search}`, { headers }),
+        fetch(`${API_URL}/api/account-management/users${queryString}`, { headers }),
         fetch(`${API_URL}/api/account-management/currently-locked`, { headers }),
         fetch(`${API_URL}/api/account-management/auto-lock/config`, { headers }),
         fetch(`${API_URL}/api/account-management/lockout-history?days=30`, { headers })
