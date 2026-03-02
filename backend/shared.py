@@ -36,7 +36,7 @@ db = client[db_name]
 # Security configurations
 JWT_SECRET = os.environ.get('JWT_SECRET', 'creatorstudio-dev-secret-change-in-prod')
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 168  # 7 days
+JWT_EXPIRATION_HOURS = 720  # 30 days (extended for better UX)
 
 # File expiry (security) - 3 minutes as per security requirements
 FILE_EXPIRY_MINUTES = 3
