@@ -238,6 +238,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Audit Logs</span>
               </Button>
             </Link>
+            <Link to="/app/admin/environment-monitor">
+              <Button variant="outline" size="sm" className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20" data-testid="env-monitor-btn">
+                <Database className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">DB Monitor</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}
