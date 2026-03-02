@@ -77,12 +77,33 @@ class InMemoryRateLimiter:
 # Global rate limiter instance
 rate_limiter = InMemoryRateLimiter()
 
+# User roles exempt from rate limiting
+RATE_LIMIT_EXEMPT_ROLES = {"ADMIN", "DEMO", "QA", "SUPERADMIN"}
+
+
 def create_rate_limit_dependency(max_requests: int, window_seconds: int):
     """
     Factory function to create rate limit dependencies for specific endpoints.
+    Admin, Demo, and QA users are exempt from rate limiting.
     Usage: @router.post("/endpoint", dependencies=[Depends(create_rate_limit_dependency(10, 60))])
     """
     async def rate_limit_check(request: Request):
+        # Check if user is authenticated and has exempt role
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            try:
+                token = auth_header.split(" ")[1]
+                # Decode JWT to check user role
+                import jwt
+                payload = jwt.decode(token, options={"verify_signature": False})
+                user_role = payload.get("role", "").upper()
+                
+                # Skip rate limiting for exempt roles
+                if user_role in RATE_LIMIT_EXEMPT_ROLES:
+                    return True
+            except Exception:
+                pass  # If token decode fails, apply rate limiting
+        
         # Get client IP - check X-Forwarded-For header for proxy/k8s environments
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
