@@ -358,7 +358,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
 
 
 @router.post("/login")
-@limiter.limit("10/minute")
+@limiter.limit("100/minute")  # Increased limit - account lockout handles security for regular users
 async def login(request: Request, data: UserLogin):
     """Login with email and password"""
     from routes.login_activity import (
