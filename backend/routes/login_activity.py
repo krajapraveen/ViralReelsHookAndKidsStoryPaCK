@@ -914,10 +914,26 @@ MAX_FAILED_ATTEMPTS = 5  # Lock after 5 failed attempts
 LOCKOUT_DURATION_MINUTES = 30  # Lock for 30 minutes
 
 
+# User roles exempt from login rate limiting and account lockout
+LOGIN_EXEMPT_ROLES = {"ADMIN", "DEMO", "QA", "SUPERADMIN"}
+
+
+async def get_user_role(email: str) -> str:
+    """Get user role from database"""
+    user = await db.users.find_one({"email": email.lower()}, {"_id": 0, "role": 1})
+    return user.get("role", "").upper() if user else ""
+
+
 async def is_account_locked(email: str) -> tuple:
     """Check if account is locked due to failed attempts
     Returns: (is_locked, remaining_minutes, attempts_count)
+    Note: Admin, Demo, and QA users are exempt from lockout
     """
+    # Check if user role is exempt
+    user_role = await get_user_role(email)
+    if user_role in LOGIN_EXEMPT_ROLES:
+        return False, 0, 0  # Never locked for exempt roles
+    
     # Check for existing lockout
     lockout = await db.account_lockouts.find_one({"email": email.lower()}, {"_id": 0})
     
@@ -946,7 +962,13 @@ async def is_account_locked(email: str) -> tuple:
 async def record_failed_attempt(email: str) -> tuple:
     """Record a failed login attempt and check if account should be locked
     Returns: (should_lock, remaining_attempts)
+    Note: Admin, Demo, and QA users are exempt from lockout
     """
+    # Check if user role is exempt
+    user_role = await get_user_role(email)
+    if user_role in LOGIN_EXEMPT_ROLES:
+        return False, 999  # Never lock for exempt roles
+    
     is_locked, remaining, attempts = await is_account_locked(email)
     
     if is_locked:
