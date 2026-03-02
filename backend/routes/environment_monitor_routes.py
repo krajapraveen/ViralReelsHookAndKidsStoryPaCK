@@ -1,6 +1,6 @@
 """
 Database Environment Monitoring Routes
-API endpoints for monitoring database environment and triggering alerts
+API endpoints for monitoring database environment and triggering alerts/fixes
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
 from datetime import datetime, timezone, timedelta
@@ -95,6 +95,58 @@ async def check_production_environment(
     }
 
 
+@router.post("/reconnect-production")
+async def reconnect_to_production(
+    user: dict = Depends(get_current_user)
+):
+    """
+    Manually trigger reconnection to production database.
+    This will update .env and restart the backend service.
+    """
+    require_admin(user)
+    
+    monitor = get_monitor()
+    
+    logger.info(f"Production reconnection triggered by {user.get('email')}")
+    
+    result = await monitor.manual_reconnect_to_production()
+    
+    # Log the action
+    await db.admin_audit_log.insert_one({
+        "action": "MANUAL_DB_RECONNECT",
+        "triggered_by": user.get("id"),
+        "user_email": user.get("email"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "result": result
+    })
+    
+    return {
+        "success": result.get("success", False),
+        "message": result.get("message", result.get("error", "Unknown error")),
+        "details": result
+    }
+
+
+@router.post("/toggle-auto-fix")
+async def toggle_auto_fix(
+    enabled: bool = True,
+    user: dict = Depends(get_current_user)
+):
+    """Enable or disable automatic database reconnection"""
+    require_admin(user)
+    
+    monitor = get_monitor()
+    monitor.auto_fix_enabled = enabled
+    
+    logger.info(f"Auto-fix {'enabled' if enabled else 'disabled'} by {user.get('email')}")
+    
+    return {
+        "success": True,
+        "auto_fix_enabled": monitor.auto_fix_enabled,
+        "message": f"Automatic database reconnection {'enabled' if enabled else 'disabled'}"
+    }
+
+
 @router.get("/alerts")
 async def get_environment_alerts(
     days: int = 30,
@@ -115,6 +167,25 @@ async def get_environment_alerts(
         "period_days": days,
         "total_alerts": len(alerts),
         "alerts": alerts
+    }
+
+
+@router.get("/fix-history")
+async def get_fix_history(
+    days: int = 30,
+    user: dict = Depends(get_current_user)
+):
+    """Get history of database reconnection attempts"""
+    require_admin(user)
+    
+    monitor = get_monitor()
+    fixes = await monitor.get_fix_history(days)
+    
+    return {
+        "success": True,
+        "period_days": days,
+        "total_fixes": len(fixes),
+        "fixes": fixes
     }
 
 
@@ -187,6 +258,15 @@ async def send_test_alert(user: dict = Depends(get_current_user)):
                         <p><strong>Timestamp:</strong> {datetime.now(timezone.utc).isoformat()}</p>
                         <p><strong>Triggered By:</strong> {user.get('email')}</p>
                     </div>
+                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #f59e0b;">
+                        <p><strong>Auto-Fix Feature:</strong> ENABLED</p>
+                        <p>If a database mismatch is detected, the system will:</p>
+                        <ol>
+                            <li>Send an alert email with a "Fix Now" button</li>
+                            <li>Show an alert in the Admin Panel</li>
+                            <li>Attempt automatic reconnection to Production DB</li>
+                        </ol>
+                    </div>
                     <p style="color: #6b7280; font-size: 12px;">
                         The monitoring system will alert you if www.visionary-suite.com connects to a QA or Preview database.
                     </p>
@@ -232,6 +312,7 @@ async def environment_health_check():
         "database": env_info["database_name"],
         "environment": env_info["detected_environment"],
         "is_production": env_info["is_production_db"],
+        "auto_fix_enabled": monitor.auto_fix_enabled,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "1.0.0"
+        "version": "2.0.0"
     }
