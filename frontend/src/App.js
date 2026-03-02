@@ -89,6 +89,8 @@ import WorkerDashboard from './pages/admin/WorkerDashboard';
 import DailyReportDashboard from './pages/Admin/DailyReportDashboard';
 // ACCOUNT LOCK MANAGEMENT
 import AccountLockManagement from './pages/Admin/AccountLockManagement';
+// ENVIRONMENT MONITOR
+import EnvironmentMonitor from './pages/Admin/EnvironmentMonitor';
 import './App.css';
 
 function App() {
