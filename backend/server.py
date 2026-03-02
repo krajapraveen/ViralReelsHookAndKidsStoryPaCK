@@ -154,6 +154,9 @@ from services.priority_scaling_service import initialize_priority_scaling, shutd
 from routes.daily_report_routes import router as daily_report_router
 from services.daily_report_scheduler import start_scheduler, stop_scheduler
 
+# Account Lock Management
+from routes.account_lock_routes import router as account_lock_router
+
 # Performance and stability module
 from performance import (
     PerformanceMiddleware,
