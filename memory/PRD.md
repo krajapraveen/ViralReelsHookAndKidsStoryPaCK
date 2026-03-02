@@ -5,6 +5,65 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 
 ## Latest Session Changes (2026-03-02)
 
+### ✅ DATABASE ENVIRONMENT MONITORING WITH AUTO-RECONNECT
+
+**New Admin Page:** `/app/admin/environment-monitor`
+
+**Features Implemented:**
+1. **Real-time Environment Status Dashboard**
+   - Shows current database: `creatorstudio_production`
+   - Detected environment: `PRODUCTION`
+   - Connection type: Localhost/Cloud
+   - Alerts count in last 30 days
+   - Health status indicator (HEALTHY/WARNING)
+
+2. **Automatic Database Mismatch Detection**
+   - Scheduler runs every 5 minutes
+   - Detects if www.visionary-suite.com connects to QA/Preview database
+   - Severity levels: CRITICAL (QA/Preview DB), HIGH (Localhost)
+
+3. **Email Alerts with Action Button**
+   - Recipients: krajapraveen@gmail.com, krajapraveen@visionary-suite.com
+   - HTML email with "Open Admin Panel & Fix Now" button
+   - Includes mismatch type, severity, database info
+   - 15-minute cooldown between duplicate alerts
+
+4. **Automatic Database Reconnection (Auto-Fix)**
+   - Updates `.env` file with correct DB_NAME
+   - Restarts backend service via supervisorctl
+   - Logs all fix attempts to database
+   - Can be enabled/disabled from admin panel
+
+5. **Manual Reconnection Button**
+   - "Reconnect to Production DB" button in Quick Actions panel
+   - Confirmation prompt before action
+   - Displays success/failure toast notifications
+
+6. **Fix History & Audit Trail**
+   - Reconnection History (last 30 days)
+   - Shows action type, timestamp, status, target DB
+
+**New Files Created:**
+- `backend/services/database_environment_monitor.py` (updated with auto-reconnect)
+- `backend/services/environment_monitor_scheduler.py`
+- `backend/routes/environment_monitor_routes.py` (added reconnect-production endpoint)
+- `frontend/src/pages/Admin/EnvironmentMonitor.js`
+
+**API Endpoints:**
+- `GET /api/environment-monitor/status` - Current status
+- `GET /api/environment-monitor/health-check` - Public health check
+- `POST /api/environment-monitor/check-production` - Manual check
+- `POST /api/environment-monitor/reconnect-production` - Trigger reconnection
+- `POST /api/environment-monitor/toggle-auto-fix?enabled=true/false`
+- `GET /api/environment-monitor/alerts?days=30` - Alert history
+- `GET /api/environment-monitor/fix-history?days=30` - Fix history
+- `POST /api/environment-monitor/test-alert` - Send test alert
+
+**Admin Dashboard Integration:**
+- Added "DB Monitor" button in Admin Dashboard header (emerald color)
+
+---
+
 ### ✅ PRODUCTION ACCOUNT LOCK MANAGEMENT VERIFIED
 
 **Account Lock/Unlock works on Production:** `www.visionary-suite.com`
