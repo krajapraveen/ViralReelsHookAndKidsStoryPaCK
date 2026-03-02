@@ -7,11 +7,13 @@ import { Sparkles, Video, BookOpen, Clock, LogOut, CreditCard, History as Histor
 import HelpGuide from '../components/HelpGuide';
 import CreditStatusBadge from '../components/CreditStatusBadge';
 import NotificationBell from '../components/NotificationBell';
+import DailyRewardsModal from '../components/DailyRewardsModal';
 
 export default function Dashboard() {
   const [credits, setCredits] = useState(0);
   const [user, setUser] = useState(null);
   const [recentGenerations, setRecentGenerations] = useState([]);
+  const [showDailyRewards, setShowDailyRewards] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -101,6 +103,17 @@ export default function Dashboard() {
                 </Button>
               </Link>
             )}
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowDailyRewards(true)}
+              className="border-orange-500/50 text-orange-300 hover:bg-orange-500/20 animate-pulse"
+              data-testid="daily-rewards-btn"
+            >
+              <Gift className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Daily Reward</span>
+            </Button>
             
             <Link to="/app/profile">
               <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800" data-testid="profile-btn">
@@ -527,6 +540,9 @@ export default function Dashboard() {
       
       {/* Help Guide */}
       <HelpGuide pageId="dashboard" />
+      
+      {/* Daily Rewards Modal */}
+      <DailyRewardsModal isOpen={showDailyRewards} onClose={() => setShowDailyRewards(false)} />
       
       {/* Footer Security Badge */}
       <footer className="border-t border-slate-800/50 py-4 mt-8">

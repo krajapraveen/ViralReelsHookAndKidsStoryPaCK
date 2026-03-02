@@ -91,6 +91,9 @@ from routes.referral import router as referral_router
 from routes.comic_storybook_v2 import router as comic_storybook_v2_router
 from routes.reaction_gif import router as reaction_gif_router
 
+# DAILY REWARDS & GAMIFICATION
+from routes.daily_rewards_routes import router as daily_rewards_router
+
 # USER PROFILE ROUTES
 from routes.user_routes import router as user_profile_router
 
@@ -426,6 +429,9 @@ api_router.include_router(account_lock_router)
 
 # Environment Monitoring
 api_router.include_router(environment_monitor_router)
+
+# Daily Rewards & Gamification
+api_router.include_router(daily_rewards_router)
 
 # Include API router in app
 app.include_router(api_router)
