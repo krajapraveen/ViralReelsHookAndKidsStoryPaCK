@@ -424,6 +424,9 @@ api_router.include_router(daily_report_router)
 # Account Lock Management
 api_router.include_router(account_lock_router)
 
+# Environment Monitoring
+api_router.include_router(environment_monitor_router)
+
 # Include API router in app
 app.include_router(api_router)
 
