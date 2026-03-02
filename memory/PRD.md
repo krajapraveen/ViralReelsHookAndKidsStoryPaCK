@@ -3,7 +3,56 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
-## Latest Session Changes (2026-03-02) - DAILY VISITOR REPORT SYSTEM
+## Latest Session Changes (2026-03-02)
+
+### ✅ WEEKLY/MONTHLY SUMMARY REPORTS IN IST
+
+**Automated Report Schedule (Indian Standard Time):**
+| Report | Schedule | Time |
+|--------|----------|------|
+| Daily | Every day | **11:59 PM IST** |
+| Weekly | Every Monday | **6:00 AM IST** |
+| Monthly | 1st of month | **6:00 AM IST** |
+
+**Recipients:** krajapraveen@gmail.com, krajapraveen@visionary-suite.com
+
+**Weekly/Monthly Reports Include:**
+- User Growth Summary (new users, retention rate)
+- Revenue Summary (total revenue, orders, paying customers)
+- Feature Usage Analytics (top features, success rates, credits)
+- Security Summary (failed logins, lockouts, suspicious IPs)
+- Top Performers (users by activity)
+
+**Test Reports Sent:** ✅ Weekly and Monthly reports successfully sent
+
+---
+
+### ✅ ACCOUNT LOCK MANAGEMENT SYSTEM
+
+**New Admin Page:** `/app/admin/account-locks`
+
+**Features:**
+- View all users with lock status (23 users)
+- Individual Lock/Unlock with reason and optional duration
+- Bulk Lock/Unlock multiple users
+- Auto-Lock Protection configuration
+- Lock history and audit trail
+- Search and filter users (by locked status, by name/email)
+- Tabs: Users, Locked, History
+
+**Auto-Lock Configuration:**
+- Max Failed Attempts: 5
+- Lockout Duration: 30 minutes
+- Suspicious IP Threshold: 10
+
+**New Files Created:**
+- `backend/routes/account_lock_routes.py`
+- `backend/services/periodic_report_service.py`
+- `frontend/src/pages/Admin/AccountLockManagement.js`
+
+---
+
+## Previous Session (2026-03-02) - DAILY VISITOR REPORT SYSTEM
 
 ### ✅ DAILY VISITOR REPORT EMAIL AUTOMATION IMPLEMENTED
 
