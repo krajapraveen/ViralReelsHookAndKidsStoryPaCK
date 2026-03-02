@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Test Suite 1: Public Pages & Authentication
  */
 
-const BASE_URL = 'https://visionary-qa.preview.emergentagent.com';
+const BASE_URL = 'https://stability-shield.preview.emergentagent.com';
 
 // Test credentials
 const DEMO_USER = {

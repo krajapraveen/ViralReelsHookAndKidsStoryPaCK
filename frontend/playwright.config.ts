@@ -17,7 +17,7 @@ export default defineConfig({
   ],
   
   use: {
-    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://visionary-qa.preview.emergentagent.com',
+    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://stability-shield.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

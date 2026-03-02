@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Tests for form validation, error handling, session expiration, etc.
  */
 
-const BASE_URL = 'https://visionary-qa.preview.emergentagent.com';
+const BASE_URL = 'https://stability-shield.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

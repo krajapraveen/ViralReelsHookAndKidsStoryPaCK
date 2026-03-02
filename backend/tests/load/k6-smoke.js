@@ -9,7 +9,7 @@ const loginSuccess = new Counter("login_success");
 const loginFailure = new Counter("login_failure");
 
 // Configuration
-const BASE = __ENV.BASE_URL || "https://visionary-qa.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://stability-shield.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

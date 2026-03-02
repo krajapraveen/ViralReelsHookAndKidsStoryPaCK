@@ -8,7 +8,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://visionary-qa.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://stability-shield.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_USERS = {

@@ -7,7 +7,7 @@ import requests
 import os
 
 # Use production backend URL
-BASE_URL = "https://visionary-qa.preview.emergentagent.com"
+BASE_URL = "https://stability-shield.preview.emergentagent.com"
 
 class TestAPIHealth:
     """API Health and Basic Connectivity Tests"""

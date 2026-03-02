@@ -52,7 +52,7 @@ jobs:
         run: |
           npx playwright test --project=mobile-deep
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://visionary-qa.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://stability-shield.preview.emergentagent.com' }}
           VIEWPORT: ${{ matrix.viewport }}
 
       - name: 📸 Upload Screenshots

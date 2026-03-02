@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://visionary-qa.preview.emergentagent.com/  
+**URL Tested:** https://stability-shield.preview.emergentagent.com/  
 **Environment:** Desktop Chrome + Mobile Responsive (375px)
 
 ---
