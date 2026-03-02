@@ -87,6 +87,8 @@ import TemplateLeaderboard from './pages/Admin/TemplateLeaderboard';
 import WorkerDashboard from './pages/admin/WorkerDashboard';
 // DAILY REPORT DASHBOARD
 import DailyReportDashboard from './pages/Admin/DailyReportDashboard';
+// ACCOUNT LOCK MANAGEMENT
+import AccountLockManagement from './pages/Admin/AccountLockManagement';
 import './App.css';
 
 function App() {
