@@ -208,6 +208,8 @@ function App() {
       <Route path="/app/admin/audit-logs" element={isAuthenticated ? <AdminAuditLogs /> : <Navigate to="/login" />} />
       {/* TEMPLATE LEADERBOARD */}
       <Route path="/app/admin/leaderboard" element={isAuthenticated ? <TemplateLeaderboard /> : <Navigate to="/login" />} />
+      {/* DAILY REPORT DASHBOARD */}
+      <Route path="/app/admin/daily-report" element={isAuthenticated ? <DailyReportDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />
