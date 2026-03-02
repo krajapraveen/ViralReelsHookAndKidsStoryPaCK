@@ -820,6 +820,12 @@ async def shutdown():
     except Exception as e:
         logger.warning(f"Daily report scheduler shutdown warning: {e}")
     
+    # Stop environment monitor scheduler
+    try:
+        stop_env_scheduler()
+    except Exception as e:
+        logger.warning(f"Environment monitor scheduler shutdown warning: {e}")
+    
     # Shutdown auto-scaling engine
     try:
         await shutdown_priority_scaling()
