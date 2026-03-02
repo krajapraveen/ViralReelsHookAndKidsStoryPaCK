@@ -85,6 +85,8 @@ import AdminAuditLogs from './pages/Admin/AuditLogs';
 import TemplateLeaderboard from './pages/Admin/TemplateLeaderboard';
 // WORKER DASHBOARD
 import WorkerDashboard from './pages/admin/WorkerDashboard';
+// DAILY REPORT DASHBOARD
+import DailyReportDashboard from './pages/Admin/DailyReportDashboard';
 import './App.css';
 
 function App() {
