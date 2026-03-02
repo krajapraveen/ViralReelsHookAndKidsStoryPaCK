@@ -417,6 +417,9 @@ api_router.include_router(content_protection_router)
 # Daily Report Service
 api_router.include_router(daily_report_router)
 
+# Account Lock Management
+api_router.include_router(account_lock_router)
+
 # Include API router in app
 app.include_router(api_router)
 
