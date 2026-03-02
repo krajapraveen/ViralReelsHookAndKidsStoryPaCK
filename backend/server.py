@@ -150,6 +150,10 @@ from routes.notification_routes import router as notification_router
 from services.self_healing_middleware import SelfHealingMiddleware
 from services.priority_scaling_service import initialize_priority_scaling, shutdown_priority_scaling
 
+# Daily Report Service
+from routes.daily_report_routes import router as daily_report_router
+from services.daily_report_scheduler import start_scheduler, stop_scheduler
+
 # Performance and stability module
 from performance import (
     PerformanceMiddleware,
