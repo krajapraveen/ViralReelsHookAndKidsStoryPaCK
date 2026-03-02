@@ -753,6 +753,13 @@ async def startup():
     except Exception as e:
         logger.warning(f"Performance maintenance loop warning: {e}")
     
+    # Start Daily Report Scheduler
+    try:
+        start_scheduler(db)
+        logger.info("Daily report scheduler started (sends at 23:55 UTC)")
+    except Exception as e:
+        logger.warning(f"Daily report scheduler warning: {e}")
+    
     logger.info("CreatorStudio API ready!")
 
 
