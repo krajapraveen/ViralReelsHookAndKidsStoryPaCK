@@ -157,6 +157,10 @@ from services.daily_report_scheduler import start_scheduler, stop_scheduler
 # Account Lock Management
 from routes.account_lock_routes import router as account_lock_router
 
+# Environment Monitoring
+from routes.environment_monitor_routes import router as environment_monitor_router
+from services.environment_monitor_scheduler import start_env_scheduler, stop_env_scheduler
+
 # Performance and stability module
 from performance import (
     PerformanceMiddleware,
