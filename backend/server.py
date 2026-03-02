@@ -30,7 +30,7 @@ logger = logging.getLogger("creatorstudio")
 
 # Import shared modules
 from shared import (
-    db, client, hash_password, FILE_EXPIRY_MINUTES, get_admin_user
+    db, client, hash_password, FILE_EXPIRY_MINUTES, get_admin_user, db_name as DB_NAME
 )
 
 # Import security modules
