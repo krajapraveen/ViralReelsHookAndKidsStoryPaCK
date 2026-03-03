@@ -151,32 +151,52 @@ async def get_active_users(user: dict = Depends(get_current_user)):
     """
     require_admin(user)
     
-    fifteen_mins_ago = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
-    
-    active_sessions = await db.user_sessions.find(
-        {"last_active": {"$gte": fifteen_mins_ago}},
-        {"_id": 0}
-    ).sort("last_active", -1).to_list(100)
-    
-    # Enrich with user details
-    enriched = []
-    for session in active_sessions:
-        user_data = await db.users.find_one({"id": session.get("user_id")})
-        enriched.append({
-            "user_id": session.get("user_id"),
-            "email": session.get("user_email"),
-            "name": user_data.get("name") if user_data else "Unknown",
-            "last_active": session.get("last_active"),
-            "last_page": session.get("last_page"),
-            "ip_address": session.get("ip_address"),
-            "status": "online"
-        })
-    
-    return {
-        "success": True,
-        "count": len(enriched),
-        "active_users": enriched
-    }
+    try:
+        fifteen_mins_ago = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
+        
+        active_sessions = await db.user_sessions.find(
+            {"last_active": {"$gte": fifteen_mins_ago}},
+            {"_id": 0}
+        ).sort("last_active", -1).to_list(100)
+        
+        # Enrich with user details
+        enriched = []
+        for session in active_sessions:
+            try:
+                user_data = await db.users.find_one({"id": session.get("user_id")})
+                enriched.append({
+                    "user_id": session.get("user_id"),
+                    "email": session.get("user_email"),
+                    "name": user_data.get("name") if user_data else "Unknown",
+                    "last_active": session.get("last_active"),
+                    "last_page": session.get("last_page"),
+                    "ip_address": session.get("ip_address"),
+                    "status": "online"
+                })
+            except Exception:
+                enriched.append({
+                    "user_id": session.get("user_id"),
+                    "email": session.get("user_email"),
+                    "name": "Unknown",
+                    "last_active": session.get("last_active"),
+                    "last_page": session.get("last_page"),
+                    "ip_address": session.get("ip_address"),
+                    "status": "online"
+                })
+        
+        return {
+            "success": True,
+            "count": len(enriched),
+            "active_users": enriched
+        }
+    except Exception as e:
+        logger.error(f"Active users error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "count": 0,
+            "active_users": []
+        }
 
 
 @router.get("/user-activity-log")
@@ -222,45 +242,62 @@ async def get_login_history(
     """
     require_admin(user)
     
-    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    
-    logins = await db.login_activity.find(
-        {"timestamp": {"$gte": start_date}},
-        {"_id": 0}
-    ).sort("timestamp", -1).limit(500).to_list(500)
-    
-    # Group by user for summary
-    user_logins = {}
-    for login in logins:
-        email = login.get("email", "unknown")
-        if email not in user_logins:
-            user_logins[email] = {
-                "email": email,
-                "name": login.get("user_name", "Unknown"),
-                "login_count": 0,
-                "last_login": login.get("timestamp"),
-                "locations": set(),
-                "ips": set()
-            }
-        user_logins[email]["login_count"] += 1
-        if login.get("ip_address"):
-            user_logins[email]["ips"].add(login.get("ip_address"))
-        if login.get("location"):
-            user_logins[email]["locations"].add(login.get("location"))
-    
-    # Convert sets to lists for JSON
-    for email in user_logins:
-        user_logins[email]["locations"] = list(user_logins[email]["locations"])
-        user_logins[email]["ips"] = list(user_logins[email]["ips"])
-    
-    return {
-        "success": True,
-        "period_days": days,
-        "total_logins": len(logins),
-        "unique_users": len(user_logins),
-        "logins": logins[:100],  # Recent 100
-        "user_summary": list(user_logins.values())
-    }
+    try:
+        start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        
+        logins = await db.login_activity.find(
+            {"timestamp": {"$gte": start_date}},
+            {"_id": 0}
+        ).sort("timestamp", -1).limit(500).to_list(500)
+        
+        # Group by user for summary
+        user_logins = {}
+        for login in logins:
+            email = login.get("email", login.get("identifier", "unknown"))
+            if email not in user_logins:
+                user_logins[email] = {
+                    "email": email,
+                    "name": login.get("user_name", "Unknown"),
+                    "login_count": 0,
+                    "last_login": login.get("timestamp"),
+                    "locations": set(),
+                    "ips": set()
+                }
+            user_logins[email]["login_count"] += 1
+            if login.get("ip_address"):
+                user_logins[email]["ips"].add(login.get("ip_address"))
+            if login.get("location"):
+                user_logins[email]["locations"].add(login.get("location"))
+            # Also check city/region/country fields
+            location_parts = [login.get("city"), login.get("region"), login.get("country")]
+            location_str = ", ".join(filter(None, location_parts))
+            if location_str:
+                user_logins[email]["locations"].add(location_str)
+        
+        # Convert sets to lists for JSON
+        for email in user_logins:
+            user_logins[email]["locations"] = list(user_logins[email]["locations"])
+            user_logins[email]["ips"] = list(user_logins[email]["ips"])
+        
+        return {
+            "success": True,
+            "period_days": days,
+            "total_logins": len(logins),
+            "unique_users": len(user_logins),
+            "logins": logins[:100],  # Recent 100
+            "user_summary": list(user_logins.values())
+        }
+    except Exception as e:
+        logger.error(f"Login history error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "period_days": days,
+            "total_logins": 0,
+            "unique_users": 0,
+            "logins": [],
+            "user_summary": []
+        }
 
 
 @router.get("/feature-usage")
@@ -469,57 +506,89 @@ async def get_dashboard_summary(user: dict = Depends(get_current_user)):
     """
     require_admin(user)
     
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    week_ago = (now - timedelta(days=7)).isoformat()
-    month_ago = (now - timedelta(days=30)).isoformat()
-    
-    # Active users (last 15 mins)
-    fifteen_mins_ago = (now - timedelta(minutes=15)).isoformat()
-    active_users = await db.user_sessions.count_documents({
-        "last_active": {"$gte": fifteen_mins_ago}
-    })
-    
-    # Today's logins
-    today_logins = await db.login_activity.count_documents({
-        "timestamp": {"$gte": today_start}
-    })
-    
-    # Today's generations
-    today_reels = await db.reel_generator_jobs.count_documents({
-        "created_at": {"$gte": today_start}
-    })
-    today_stories = await db.story_generator_jobs.count_documents({
-        "created_at": {"$gte": today_start}
-    })
-    
-    # New users this week
-    new_users_week = await db.users.count_documents({
-        "created_at": {"$gte": week_ago}
-    })
-    
-    # Total users
-    total_users = await db.users.count_documents({})
-    
-    # Get recent activity
-    recent_activity = await db.user_activity_log.find(
-        {},
-        {"_id": 0}
-    ).sort("timestamp", -1).limit(20).to_list(20)
-    
-    return {
-        "success": True,
-        "timestamp": now.isoformat(),
-        "real_time": {
-            "active_users_now": active_users,
-            "today_logins": today_logins,
-            "today_generations": today_reels + today_stories
-        },
-        "totals": {
-            "total_users": total_users,
-            "new_users_this_week": new_users_week,
-            "today_reels": today_reels,
-            "today_stories": today_stories
-        },
-        "recent_activity": recent_activity
-    }
+    try:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        week_ago = (now - timedelta(days=7)).isoformat()
+        
+        # Active users (last 15 mins) - with timeout protection
+        fifteen_mins_ago = (now - timedelta(minutes=15)).isoformat()
+        try:
+            active_users = await db.user_sessions.count_documents({
+                "last_active": {"$gte": fifteen_mins_ago}
+            })
+        except Exception:
+            active_users = 0
+        
+        # Today's logins - with timeout protection
+        try:
+            today_logins = await db.login_activity.count_documents({
+                "timestamp": {"$gte": today_start}
+            })
+        except Exception:
+            today_logins = 0
+        
+        # Today's generations - with timeout protection
+        try:
+            today_reels = await db.reel_generator_jobs.count_documents({
+                "created_at": {"$gte": today_start}
+            })
+        except Exception:
+            today_reels = 0
+            
+        try:
+            today_stories = await db.story_generator_jobs.count_documents({
+                "created_at": {"$gte": today_start}
+            })
+        except Exception:
+            today_stories = 0
+        
+        # New users this week - with timeout protection
+        try:
+            new_users_week = await db.users.count_documents({
+                "created_at": {"$gte": week_ago}
+            })
+        except Exception:
+            new_users_week = 0
+        
+        # Total users
+        try:
+            total_users = await db.users.count_documents({})
+        except Exception:
+            total_users = 0
+        
+        # Get recent activity - with limit and timeout protection
+        try:
+            recent_activity = await db.user_activity_log.find(
+                {},
+                {"_id": 0}
+            ).sort("timestamp", -1).limit(20).to_list(20)
+        except Exception:
+            recent_activity = []
+        
+        return {
+            "success": True,
+            "timestamp": now.isoformat(),
+            "real_time": {
+                "active_users_now": active_users,
+                "today_logins": today_logins,
+                "today_generations": today_reels + today_stories
+            },
+            "totals": {
+                "total_users": total_users,
+                "new_users_this_week": new_users_week,
+                "today_reels": today_reels,
+                "today_stories": today_stories
+            },
+            "recent_activity": recent_activity
+        }
+    except Exception as e:
+        logger.error(f"Dashboard summary error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "real_time": {"active_users_now": 0, "today_logins": 0, "today_generations": 0},
+            "totals": {"total_users": 0, "new_users_this_week": 0, "today_reels": 0, "today_stories": 0},
+            "recent_activity": []
+        }

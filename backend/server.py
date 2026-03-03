@@ -595,6 +595,15 @@ async def startup():
         await db.notifications.create_index([("user_id", 1), ("read", 1)])
         await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
         
+        # Live Stats & User Activity indexes (CRITICAL for admin panel performance)
+        await db.user_sessions.create_index([("last_active", -1)])
+        await db.user_activity_log.create_index([("timestamp", -1)])
+        await db.user_activity_log.create_index([("user_id", 1), ("timestamp", -1)])
+        await db.reel_generator_jobs.create_index([("created_at", -1)])
+        await db.reel_generator_jobs.create_index([("user_id", 1), ("created_at", -1)])
+        await db.story_generator_jobs.create_index([("created_at", -1)])
+        await db.story_generator_jobs.create_index([("user_id", 1), ("created_at", -1)])
+        
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
