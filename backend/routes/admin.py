@@ -54,6 +54,68 @@ class ResetVerificationRequest(BaseModel):
     reason: str = Field(min_length=5, max_length=500, default="Admin reset for re-verification")
 
 
+async def send_verification_email_for_reset(email: str, token: str, name: str):
+    """Send verification email via SendGrid for admin-reset users"""
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail, Email
+        
+        api_key = os.environ.get("SENDGRID_API_KEY")
+        if not api_key:
+            logger.warning("SendGrid API key not configured - cannot send verification email")
+            return False
+        
+        frontend_url = os.environ.get("FRONTEND_URL", "https://visionary-suite.com")
+        verify_url = f"{frontend_url}/verify-email?token={token}"
+        
+        # Use verified sender identity
+        from_email = Email(
+            email=os.environ.get("SENDGRID_FROM_EMAIL", "krajapraveen@visionary-suite.com"),
+            name="CreatorStudio AI"
+        )
+        
+        message = Mail(
+            from_email=from_email,
+            to_emails=email,
+            subject="Action Required: Verify Your Email - CreatorStudio AI",
+            html_content=f"""
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; padding: 40px; border-radius: 16px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #818cf8; margin: 0;">CreatorStudio AI</h1>
+                </div>
+                <div style="background: #1e293b; padding: 30px; border-radius: 12px;">
+                    <h2 style="color: #f1f5f9; margin-top: 0;">Hi {name}!</h2>
+                    <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
+                        Your account requires email verification to unlock your <strong style="color: #fbbf24;">20 free credits</strong>.
+                    </p>
+                    <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
+                        Please click the button below to verify your email address and start creating amazing content!
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{verify_url}" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
+                            Verify Email & Unlock Credits
+                        </a>
+                    </div>
+                    <p style="color: #64748b; font-size: 14px;">
+                        This link will expire in 24 hours. After verification, you'll receive 20 credits immediately and 80 more over the next 7 days!
+                    </p>
+                </div>
+                <p style="color: #475569; font-size: 12px; text-align: center; margin-top: 30px;">
+                    © 2026 Visionary Suite. All rights reserved.
+                </p>
+            </div>
+            """
+        )
+        
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(message)
+        logger.info(f"Verification email sent to {email} - Status: {response.status_code}")
+        return response.status_code in [200, 201, 202]
+    except Exception as e:
+        logger.error(f"Failed to send verification email to {email}: {e}")
+        return False
+
+
 @router.post("/users/reset-verification")
 @limiter.limit("30/minute")
 async def reset_user_verification(
@@ -74,6 +136,8 @@ async def reset_user_verification(
         
         old_credits = user.get("credits", 0)
         old_verified = user.get("emailVerified", False)
+        user_email = user.get("email", "")
+        user_name = user.get("name", "User")
         
         # Generate new verification token
         import secrets
@@ -98,6 +162,9 @@ async def reset_user_verification(
             }
         )
         
+        # SEND VERIFICATION EMAIL
+        email_sent = await send_verification_email_for_reset(user_email, verification_token, user_name)
+        
         # Log the reset
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
@@ -120,22 +187,24 @@ async def reset_user_verification(
             "action": "RESET_USER_VERIFICATION",
             "details": {
                 "user_id": data.user_id,
-                "user_email": user.get("email"),
+                "user_email": user_email,
                 "old_credits": old_credits,
                 "old_verified": old_verified,
-                "reason": data.reason
+                "reason": data.reason,
+                "email_sent": email_sent
             },
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
         
-        logger.info(f"Admin {admin.get('email')} reset verification for {user.get('email')}: credits {old_credits} -> 0, verified: {old_verified} -> False")
+        logger.info(f"Admin {admin.get('email')} reset verification for {user_email}: credits {old_credits} -> 0, verified: {old_verified} -> False, email_sent: {email_sent}")
         
         return {
             "success": True,
-            "message": "User verification status reset. User must verify email to unlock credits.",
-            "user_email": user.get("email"),
+            "message": f"User verification status reset. {'Verification email sent!' if email_sent else 'Email could not be sent - check SendGrid config.'}",
+            "user_email": user_email,
             "old_credits": old_credits,
             "old_verified": old_verified,
+            "email_sent": email_sent,
             "new_state": {
                 "emailVerified": False,
                 "credits": 0,

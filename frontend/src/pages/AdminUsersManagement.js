@@ -140,7 +140,12 @@ export default function AdminUsersManagement() {
         reason: verificationResetReason
       });
       
-      toast.success(`Verification reset for ${selectedUser.email}. User must verify email to unlock credits.`);
+      const emailSent = response.data.email_sent;
+      if (emailSent) {
+        toast.success(`Verification reset for ${selectedUser.email}. Verification email sent!`);
+      } else {
+        toast.warning(`Verification reset for ${selectedUser.email}. Email could not be sent - user may need to request resend.`);
+      }
       setShowVerificationModal(false);
       setSelectedUser(null);
       setVerificationResetReason('Admin reset for re-verification');
