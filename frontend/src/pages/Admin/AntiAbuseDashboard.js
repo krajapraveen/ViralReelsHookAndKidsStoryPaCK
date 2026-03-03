@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, Shield, RefreshCw, Mail, Globe, Smartphone, Fingerprint,
-  AlertTriangle, CheckCircle, XCircle, Clock, Users, Ban
+  AlertTriangle, CheckCircle, XCircle, Clock, Users, Ban, Lock
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -171,11 +171,39 @@ const AntiAbuseDashboard = () => {
               <Clock className="w-8 h-8 text-blue-500" />
               <div>
                 <p className="text-sm text-blue-600">Credit Release</p>
-                <p className="text-lg font-bold text-blue-700">20 + 80/7d</p>
+                <p className="text-lg font-bold text-blue-700">0 → 20 → 80</p>
               </div>
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* New Email Verification Layer */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-amber-500 rounded-lg">
+            <Mail className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-amber-800">NEW: Email Verification Required</h3>
+            <p className="text-sm text-amber-700">Users must verify email within 24 hours to unlock credits. No credits given until verified.</p>
+          </div>
+          <Badge className="bg-amber-500 text-white">ACTIVE</Badge>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-4 text-center">
+          <div className="bg-white/50 rounded-lg p-2">
+            <p className="text-2xl font-bold text-amber-600">0</p>
+            <p className="text-xs text-amber-700">Credits on Signup</p>
+          </div>
+          <div className="bg-white/50 rounded-lg p-2">
+            <p className="text-2xl font-bold text-green-600">20</p>
+            <p className="text-xs text-green-700">After Email Verified</p>
+          </div>
+          <div className="bg-white/50 rounded-lg p-2">
+            <p className="text-2xl font-bold text-blue-600">+80</p>
+            <p className="text-xs text-blue-700">Over 7 Days</p>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -205,6 +233,14 @@ const AntiAbuseDashboard = () => {
               <CardDescription>Multi-layer abuse prevention system</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border-2 border-amber-300">
+                <Mail className="w-5 h-5 text-amber-600 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-amber-800">Email Verification Required (NEW)</h4>
+                  <p className="text-sm text-amber-700">0 credits until email verified. Must verify within 24 hours or lose access.</p>
+                </div>
+              </div>
+
               <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg">
                 <Mail className="w-5 h-5 text-red-500 mt-0.5" />
                 <div>

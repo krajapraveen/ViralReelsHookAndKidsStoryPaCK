@@ -316,9 +316,9 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
         verification_token = generate_verification_token()
         token_expiry = datetime.now(timezone.utc) + timedelta(hours=24)
         
-        # Create user with INITIAL credits (not full 100)
-        # Full credits released over time via delayed credit system
-        initial_credits = anti_abuse.get_initial_credits()  # 20 credits initially
+        # Create user with ZERO credits until email is verified
+        # Credits are released ONLY after email verification
+        # This prevents abuse from unverified accounts
         
         user_id = str(uuid.uuid4())
         user = {
@@ -327,14 +327,17 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "name": clean_name,
             "password": hash_password(data.password),
             "role": "user",
-            "credits": initial_credits,
+            "credits": 0,  # ZERO credits until email verified
+            "pending_credits": 20,  # Credits waiting for email verification
             "emailVerified": False,
             "verificationToken": verification_token,
             "verificationTokenExpiry": token_expiry.isoformat(),
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "lastLogin": datetime.now(timezone.utc).isoformat(),
             "ip_address": ip_address,
-            "has_delayed_credits": True
+            "has_delayed_credits": True,
+            "credits_locked": True,  # Credits locked until email verified
+            "credits_lock_reason": "email_verification_required"
         }
         
         # Check if first user - make admin (with full credits)
@@ -356,26 +359,26 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             phone_number=phone_number
         )
         
-        # Log initial credit grant
+        # Log pending credit (will be released after email verification)
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
             "userId": user_id,
-            "amount": user["credits"],
-            "type": "SIGNUP_BONUS",
-            "description": f"Welcome bonus credits ({initial_credits} initial, remaining released over 7 days)",
+            "amount": 0,
+            "type": "SIGNUP_PENDING",
+            "description": "Credits pending email verification (20 credits will be released after verification)",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
-        # Send verification email in background
+        # Send verification email in background (CRITICAL - must verify to get credits)
         background_tasks.add_task(send_verification_email, clean_email, verification_token, clean_name)
         
         # Send welcome email in background
         from services.welcome_email_service import send_welcome_email
-        background_tasks.add_task(send_welcome_email, clean_email, clean_name, user["credits"])
+        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 0)  # 0 credits until verified
         
         token = create_token(user_id, user["role"])
         
-        logger.info(f"New user registered: {clean_email} from IP: {ip_address}")
+        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - Credits locked until email verified")
         
         return {
             "token": token,
@@ -385,13 +388,17 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
                 "name": user["name"],
                 "role": user["role"],
                 "credits": user["credits"],
-                "emailVerified": user["emailVerified"]
+                "emailVerified": user["emailVerified"],
+                "credits_locked": True,
+                "pending_credits": user.get("pending_credits", 20)
             },
-            "message": f"Registration successful! You've received {initial_credits} credits. Additional bonus credits will be released over the next 7 days. Please check your email to verify your account.",
-            "delayed_credits_info": {
-                "initial_credits": initial_credits,
-                "pending_credits": 80,
-                "release_period_days": 7
+            "message": "Registration successful! Please verify your email within 24 hours to unlock your 20 free credits. Check your inbox for the verification link.",
+            "email_verification_required": True,
+            "credits_info": {
+                "current_credits": 0,
+                "pending_credits": 20,
+                "verification_deadline_hours": 24,
+                "message": "Verify your email to unlock credits"
             }
         }
     except HTTPException:
@@ -781,7 +788,7 @@ async def change_password(data: PasswordChange, user: dict = Depends(get_current
 
 @router.post("/verify-email")
 async def verify_email(data: VerifyEmailRequest):
-    """Verify user email with token"""
+    """Verify user email with token and release pending credits"""
     try:
         # Find user with this token
         user = await db.users.find_one({
@@ -796,34 +803,79 @@ async def verify_email(data: VerifyEmailRequest):
         if expiry:
             expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
             if datetime.now(timezone.utc) > expiry_dt:
-                raise HTTPException(status_code=400, detail="Verification token has expired. Please request a new one.")
+                # Mark user as verification expired - they lose pending credits
+                await db.users.update_one(
+                    {"id": user["id"]},
+                    {
+                        "$set": {
+                            "verification_expired": True,
+                            "pending_credits": 0,
+                            "credits_lock_reason": "verification_expired"
+                        }
+                    }
+                )
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Verification token has expired. Your pending credits have been forfeited. Please contact support or create a new account."
+                )
         
         # Check if already verified
         if user.get("emailVerified"):
             return {"success": True, "message": "Email already verified", "alreadyVerified": True}
         
-        # Mark email as verified
+        # Get pending credits to release
+        pending_credits = user.get("pending_credits", 20)
+        current_credits = user.get("credits", 0)
+        new_credits = current_credits + pending_credits
+        
+        # Mark email as verified and RELEASE CREDITS
         await db.users.update_one(
             {"id": user["id"]},
             {
                 "$set": {
                     "emailVerified": True,
-                    "emailVerifiedAt": datetime.now(timezone.utc).isoformat()
+                    "emailVerifiedAt": datetime.now(timezone.utc).isoformat(),
+                    "credits": new_credits,
+                    "credits_locked": False,
+                    "credits_lock_reason": None
                 },
                 "$unset": {
                     "verificationToken": "",
-                    "verificationTokenExpiry": ""
+                    "verificationTokenExpiry": "",
+                    "pending_credits": ""
                 }
             }
         )
         
-        logger.info(f"Email verified for user {user['id']}")
+        # Log credit release
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": user["id"],
+            "amount": pending_credits,
+            "type": "SIGNUP_BONUS",
+            "description": f"Welcome bonus credits released after email verification",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Setup delayed credits for remaining 80 credits
+        from services.anti_abuse_service import get_anti_abuse_service
+        anti_abuse = get_anti_abuse_service(db)
+        await anti_abuse.setup_delayed_credits(user["id"], user["email"])
+        
+        logger.info(f"Email verified for user {user['id']} - Released {pending_credits} credits")
         
         return {
             "success": True,
-            "message": "Email verified successfully! You can now login.",
-            "email": user["email"]
+            "message": f"Email verified successfully! {pending_credits} credits have been added to your account. You'll receive 80 more credits over the next 7 days.",
+            "email": user["email"],
+            "credits_released": pending_credits,
+            "new_balance": new_credits
         }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email verification error: {e}")
+        raise HTTPException(status_code=500, detail="Verification failed")
     except HTTPException:
         raise
     except Exception as e:

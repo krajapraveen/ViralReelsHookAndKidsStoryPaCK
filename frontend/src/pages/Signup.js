@@ -332,7 +332,7 @@ export default function Signup({ setAuth }) {
               <Gift className="w-5 h-5" />
               <p className="font-medium">100 free credits on signup!</p>
             </div>
-            <p className="text-slate-500 text-xs mt-1">20 credits now + 80 bonus over 7 days</p>
+            <p className="text-slate-500 text-xs mt-1">Verify your email to unlock 20 credits + 80 bonus over 7 days</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5" data-testid="signup-form">

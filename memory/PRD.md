@@ -16,8 +16,19 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 2. 🌐 **IP Address Limiting** - Maximum 2 accounts per IP per month
 3. 🔍 **Device Fingerprinting** - Tracks browser fingerprint (canvas, WebGL, fonts, screen) - 1 account per device
 4. 📱 **Phone Verification** - Optional OTP verification for high-risk signups
-5. ⏰ **Delayed Credit Release** - 20 credits on signup, 80 more released over 7 days
+5. ⏰ **Delayed Credit Release** - Credits released gradually over 7 days
 6. 📋 **Blocked Signup Logging** - All blocked attempts logged with reason
+7. ✉️ **EMAIL VERIFICATION REQUIRED (NEW)** - ZERO credits until email verified within 24 hours
+
+**Credit Release Flow (Updated):**
+| Step | Action | Credits |
+|------|--------|---------|
+| 1 | Signup | 0 (locked) |
+| 2 | Email Verified (within 24h) | +20 |
+| 3 | Days 1-7 | +80 gradually |
+| **Total** | | **100 credits** |
+
+If email NOT verified within 24 hours → Pending credits forfeited
 
 **Admin Dashboard:** `/app/admin/anti-abuse`
 - Real-time protection status

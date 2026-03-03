@@ -76,9 +76,11 @@ DISPOSABLE_EMAIL_DOMAINS = {
 # Configuration
 MAX_ACCOUNTS_PER_IP_PER_MONTH = 2
 MAX_ACCOUNTS_PER_DEVICE = 1
-INITIAL_CREDITS = 20  # Give only 20 credits initially
+INITIAL_CREDITS = 0  # ZERO credits until email verified
+PENDING_CREDITS = 20  # Credits released after email verification
 DELAYED_CREDITS = 80  # Remaining 80 released over time
 DELAYED_CREDIT_DAYS = 7  # Release over 7 days
+EMAIL_VERIFICATION_DEADLINE_HOURS = 24  # Must verify within 24 hours
 
 
 class AntiAbuseService:
@@ -244,8 +246,12 @@ class AntiAbuseService:
     # ==================== DELAYED CREDIT RELEASE ====================
     
     def get_initial_credits(self) -> int:
-        """Get the number of credits to give on signup"""
+        """Get the number of credits to give on signup (ZERO until email verified)"""
         return INITIAL_CREDITS
+    
+    def get_pending_credits(self) -> int:
+        """Get the number of credits pending email verification"""
+        return PENDING_CREDITS
     
     async def setup_delayed_credits(self, user_id: str, email: str):
         """Setup delayed credit release schedule"""

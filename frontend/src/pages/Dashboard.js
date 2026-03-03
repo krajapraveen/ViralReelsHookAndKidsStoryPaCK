@@ -8,6 +8,8 @@ import HelpGuide from '../components/HelpGuide';
 import CreditStatusBadge from '../components/CreditStatusBadge';
 import NotificationBell from '../components/NotificationBell';
 import DailyRewardsModal from '../components/DailyRewardsModal';
+import EmailVerificationBanner from '../components/EmailVerificationBanner';
+import DelayedCreditsBanner from '../components/DelayedCreditsBanner';
 
 export default function Dashboard() {
   const [credits, setCredits] = useState(0);
@@ -138,6 +140,12 @@ export default function Dashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        {/* Email Verification Banner - Shows if email not verified */}
+        <EmailVerificationBanner user={user} onVerified={() => fetchData()} />
+        
+        {/* Delayed Credits Banner - Shows pending bonus credits */}
+        <DelayedCreditsBanner onCreditsAdded={(newBalance) => setCredits(newBalance)} />
+        
         <div className="mb-8 sm:mb-12">
           <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2" data-testid="dashboard-welcome">Welcome back{user?.name ? `, ${user.name}` : ''}!</h1>
           <p className="text-slate-400 text-base sm:text-lg">What would you like to create today?</p>
