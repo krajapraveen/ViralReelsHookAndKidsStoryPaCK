@@ -441,6 +441,10 @@ api_router.include_router(live_stats_router)
 from routes.system_health_routes import router as system_health_router
 api_router.include_router(system_health_router)
 
+# Anti-Abuse Protection
+from routes.anti_abuse_routes import router as anti_abuse_router
+api_router.include_router(anti_abuse_router)
+
 # Include API router in app
 app.include_router(api_router)
 

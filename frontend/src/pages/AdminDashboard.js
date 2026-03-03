@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { 
   Sparkles, Users, CreditCard, FileText, ArrowLeft, 
   Eye, Star, RefreshCw, Activity, DollarSign, LogOut, Coins, Shield, BarChart3,
-  AlertTriangle, Trophy, ClipboardList, Database, Radio, HeartPulse
+  AlertTriangle, Trophy, ClipboardList, Database, Radio, HeartPulse, ShieldAlert
 } from 'lucide-react';
 
 // Import tab components
@@ -254,6 +254,12 @@ export default function AdminDashboard() {
               <Button variant="outline" size="sm" className="border-red-500/50 text-red-300 hover:bg-red-500/20" data-testid="system-health-btn">
                 <HeartPulse className="w-4 h-4 mr-2" />
                 <span className="hidden sm:inline">System Health</span>
+              </Button>
+            </Link>
+            <Link to="/app/admin/anti-abuse">
+              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="anti-abuse-btn">
+                <ShieldAlert className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Anti-Abuse</span>
               </Button>
             </Link>
             <select 

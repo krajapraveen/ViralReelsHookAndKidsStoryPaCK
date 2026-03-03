@@ -95,6 +95,8 @@ import EnvironmentMonitor from './pages/Admin/EnvironmentMonitor';
 import UserActivityDashboard from './pages/Admin/UserActivityDashboard';
 // SYSTEM HEALTH DASHBOARD
 import SystemHealthDashboard from './pages/Admin/SystemHealthDashboard';
+// ANTI-ABUSE DASHBOARD
+import AntiAbuseDashboard from './pages/Admin/AntiAbuseDashboard';
 import './App.css';
 
 function App() {
@@ -227,6 +229,8 @@ function App() {
       <Route path="/app/admin/user-activity" element={isAuthenticated ? <UserActivityDashboard /> : <Navigate to="/login" />} />
       {/* SYSTEM HEALTH DASHBOARD */}
       <Route path="/app/admin/system-health" element={isAuthenticated ? <SystemHealthDashboard /> : <Navigate to="/login" />} />
+      {/* ANTI-ABUSE DASHBOARD */}
+      <Route path="/app/admin/anti-abuse" element={isAuthenticated ? <AntiAbuseDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />

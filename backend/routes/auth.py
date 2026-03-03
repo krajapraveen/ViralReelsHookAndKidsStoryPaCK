@@ -257,7 +257,7 @@ async def send_password_reset_email(email: str, token: str, name: str):
 @router.post("/register")
 @limiter.limit("5/minute")
 async def register(request: Request, data: UserCreate, background_tasks: BackgroundTasks):
-    """Register a new user with validation, CAPTCHA verification, and email verification"""
+    """Register a new user with validation, CAPTCHA verification, anti-abuse checks, and email verification"""
     try:
         # Verify CAPTCHA first
         captcha_token = getattr(data, 'captcha_token', None) or request.headers.get('X-Captcha-Token', '')
@@ -276,6 +276,32 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             raise HTTPException(status_code=400, detail=email_result)
         clean_email = email_result
         
+        # ==================== ANTI-ABUSE CHECKS ====================
+        from services.anti_abuse_service import get_anti_abuse_service
+        anti_abuse = get_anti_abuse_service(db)
+        
+        # Get client IP
+        ip_address = request.headers.get("X-Forwarded-For", request.client.host)
+        if "," in ip_address:
+            ip_address = ip_address.split(",")[0].strip()
+        
+        # Get fingerprint and phone from request body (optional)
+        fingerprint_data = getattr(data, 'fingerprint', None)
+        phone_number = getattr(data, 'phone_number', None)
+        
+        # Validate against anti-abuse rules
+        is_valid, abuse_message, abuse_details = await anti_abuse.validate_signup(
+            email=clean_email,
+            ip_address=ip_address,
+            fingerprint_data=fingerprint_data,
+            phone_number=phone_number
+        )
+        
+        if not is_valid:
+            logger.warning(f"Signup blocked by anti-abuse: {clean_email} - {abuse_message}")
+            raise HTTPException(status_code=400, detail=abuse_message)
+        # ==================== END ANTI-ABUSE CHECKS ====================
+        
         # Validate password strength
         is_valid, error_message = validate_password_strength(data.password)
         if not is_valid:
@@ -290,7 +316,10 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
         verification_token = generate_verification_token()
         token_expiry = datetime.now(timezone.utc) + timedelta(hours=24)
         
-        # Create user
+        # Create user with INITIAL credits (not full 100)
+        # Full credits released over time via delayed credit system
+        initial_credits = anti_abuse.get_initial_credits()  # 20 credits initially
+        
         user_id = str(uuid.uuid4())
         user = {
             "id": user_id,
@@ -298,22 +327,34 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "name": clean_name,
             "password": hash_password(data.password),
             "role": "user",
-            "credits": 100,
+            "credits": initial_credits,
             "emailVerified": False,
             "verificationToken": verification_token,
             "verificationTokenExpiry": token_expiry.isoformat(),
             "createdAt": datetime.now(timezone.utc).isoformat(),
-            "lastLogin": datetime.now(timezone.utc).isoformat()
+            "lastLogin": datetime.now(timezone.utc).isoformat(),
+            "ip_address": ip_address,
+            "has_delayed_credits": True
         }
         
-        # Check if first user - make admin
+        # Check if first user - make admin (with full credits)
         user_count = await db.users.count_documents({})
         if user_count == 0:
             user["role"] = "ADMIN"
             user["credits"] = 10000
             user["emailVerified"] = True  # Admin auto-verified
+            user["has_delayed_credits"] = False
         
         await db.users.insert_one(user)
+        
+        # Record anti-abuse data
+        await anti_abuse.record_signup(
+            user_id=user_id,
+            email=clean_email,
+            ip_address=ip_address,
+            fingerprint_data=fingerprint_data,
+            phone_number=phone_number
+        )
         
         # Log initial credit grant
         await db.credit_ledger.insert_one({
@@ -321,7 +362,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "userId": user_id,
             "amount": user["credits"],
             "type": "SIGNUP_BONUS",
-            "description": "Welcome bonus credits",
+            "description": f"Welcome bonus credits ({initial_credits} initial, remaining released over 7 days)",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
@@ -334,7 +375,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
         
         token = create_token(user_id, user["role"])
         
-        logger.info(f"New user registered: {clean_email}")
+        logger.info(f"New user registered: {clean_email} from IP: {ip_address}")
         
         return {
             "token": token,
@@ -346,7 +387,12 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
                 "credits": user["credits"],
                 "emailVerified": user["emailVerified"]
             },
-            "message": "Registration successful! Please check your email to verify your account."
+            "message": f"Registration successful! You've received {initial_credits} credits. Additional bonus credits will be released over the next 7 days. Please check your email to verify your account.",
+            "delayed_credits_info": {
+                "initial_credits": initial_credits,
+                "pending_credits": 80,
+                "release_period_days": 7
+            }
         }
     except HTTPException:
         raise

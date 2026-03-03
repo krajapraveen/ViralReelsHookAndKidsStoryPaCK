@@ -4,8 +4,9 @@ import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { authAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, User, Check, X, Shield } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, User, Check, X, Shield, Gift } from 'lucide-react';
 import api from '../utils/api';
+import { collectFingerprint } from '../utils/fingerprint';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -231,15 +232,34 @@ export default function Signup({ setAuth }) {
     setLoading(true);
 
     try {
+      // Collect device fingerprint for anti-abuse protection
+      let fingerprint = null;
+      try {
+        fingerprint = await collectFingerprint();
+      } catch (e) {
+        console.warn('Fingerprint collection failed:', e);
+      }
+      
       const response = await authAPI.register({ 
         name: name.trim(), 
         email: email.trim().toLowerCase(), 
         password,
-        captcha_token: captchaToken
+        captcha_token: captchaToken,
+        fingerprint: fingerprint
       });
       localStorage.setItem('token', response.data.token);
       setAuth(true);
-      toast.success('Account created! You have 100 free credits.');
+      
+      // Show appropriate message based on credit system
+      const delayedInfo = response.data.delayed_credits_info;
+      if (delayedInfo) {
+        toast.success(`Account created! You have ${delayedInfo.initial_credits} credits now. ${delayedInfo.pending_credits} more credits will be released over ${delayedInfo.release_period_days} days!`, {
+          duration: 6000
+        });
+      } else {
+        toast.success('Account created! Check your dashboard for credits.');
+      }
+      
       navigate('/app', { replace: true });
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Signup failed. Please try again.';
@@ -251,6 +271,15 @@ export default function Signup({ setAuth }) {
           window.hcaptcha.reset();
           setCaptchaToken('');
         }
+      // Handle disposable email error
+      } else if (errorMessage.toLowerCase().includes('disposable') || errorMessage.toLowerCase().includes('not allowed')) {
+        toast.error('Please use a valid email address. Temporary/disposable emails are not allowed.', { duration: 5000 });
+      // Handle IP limit error
+      } else if (errorMessage.toLowerCase().includes('ip') || errorMessage.toLowerCase().includes('maximum')) {
+        toast.error('Too many accounts created from your network. Please try again later or contact support.', { duration: 5000 });
+      // Handle device limit error
+      } else if (errorMessage.toLowerCase().includes('device')) {
+        toast.error('This device already has an account. Please login instead.', { duration: 5000 });
       // Handle duplicate email error
       } else if (errorMessage.toLowerCase().includes('email') && errorMessage.toLowerCase().includes('exist')) {
         toast.error('An account with this email already exists. Please login or use a different email.');
@@ -299,7 +328,11 @@ export default function Signup({ setAuth }) {
               <span className="text-2xl font-bold text-white">CreatorStudio AI</span>
             </div>
             <h2 className="text-3xl font-bold text-white mb-2">Get Started Free</h2>
-            <p className="text-slate-400">100 free credits on signup</p>
+            <div className="flex items-center justify-center gap-2 text-emerald-400">
+              <Gift className="w-5 h-5" />
+              <p className="font-medium">100 free credits on signup!</p>
+            </div>
+            <p className="text-slate-500 text-xs mt-1">20 credits now + 80 bonus over 7 days</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5" data-testid="signup-form">
