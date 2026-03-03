@@ -45,7 +45,16 @@ from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
 
 # Cashfree Configuration - Select credentials based on environment
-CASHFREE_ENVIRONMENT = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION")
+# Force PRODUCTION for visionary-suite.com domain
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
+IS_PRODUCTION_DOMAIN = "visionary-suite.com" in FRONTEND_URL
+
+# Default to PRODUCTION if on production domain, otherwise use env variable
+if IS_PRODUCTION_DOMAIN:
+    CASHFREE_ENVIRONMENT = "PRODUCTION"
+    logger.info("Production domain detected - forcing PRODUCTION Cashfree environment")
+else:
+    CASHFREE_ENVIRONMENT = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION")
 
 # Use sandbox credentials for TEST environment, production credentials otherwise
 if CASHFREE_ENVIRONMENT == "TEST":
@@ -201,7 +210,8 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         )
         
         # Create order meta with return URL
-        frontend_url = os.environ.get("FRONTEND_URL", "https://activity-tracker-197.preview.emergentagent.com")
+        # Use production URL as default if FRONTEND_URL is not set
+        frontend_url = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
         order_meta = OrderMeta(
             return_url=f"{frontend_url}/app/billing?order_id={order_id}&gateway=cashfree",
             notify_url=f"{frontend_url}/api/cashfree/webhook"

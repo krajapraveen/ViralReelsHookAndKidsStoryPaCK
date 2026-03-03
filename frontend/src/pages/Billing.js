@@ -54,8 +54,11 @@ export default function Billing() {
         return;
       }
       
-      // Load Cashfree checkout
-      const cashfree = await loadCashfreeCheckout();
+      // Get the environment from backend response to ensure frontend matches
+      const cashfreeEnv = response.data.environment === 'production' ? 'production' : 'sandbox';
+      
+      // Load Cashfree checkout with matching environment
+      const cashfree = await loadCashfreeCheckout(cashfreeEnv);
       
       if (cashfree) {
         const checkoutOptions = {
@@ -90,18 +93,18 @@ export default function Billing() {
     }
   };
   
-  // Load Cashfree checkout script
-  const loadCashfreeCheckout = () => {
+  // Load Cashfree checkout script with dynamic environment
+  const loadCashfreeCheckout = (env = 'production') => {
     return new Promise((resolve) => {
       if (window.Cashfree) {
-        resolve(window.Cashfree({ mode: "production" }));
+        resolve(window.Cashfree({ mode: env }));
         return;
       }
       
       const script = document.createElement('script');
       script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
       script.onload = () => {
-        resolve(window.Cashfree({ mode: "production" }));
+        resolve(window.Cashfree({ mode: env }));
       };
       script.onerror = () => {
         toast.error('Failed to load payment gateway');
