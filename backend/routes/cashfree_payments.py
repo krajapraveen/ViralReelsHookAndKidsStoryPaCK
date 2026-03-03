@@ -44,19 +44,25 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
 
-# Cashfree Configuration - Select credentials based on environment
-# Force PRODUCTION for visionary-suite.com domain
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
-IS_PRODUCTION_DOMAIN = "visionary-suite.com" in FRONTEND_URL
+# Cashfree Configuration - ALWAYS use PRODUCTION for live site
+# Only use TEST if explicitly set AND not on production domain
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
+CASHFREE_ENV_SETTING = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION")
 
-# Default to PRODUCTION if on production domain, otherwise use env variable
-if IS_PRODUCTION_DOMAIN:
-    CASHFREE_ENVIRONMENT = "PRODUCTION"
-    logger.info("Production domain detected - forcing PRODUCTION Cashfree environment")
+# FORCE PRODUCTION MODE - This is a production app, always use production Cashfree
+# Only allow TEST mode if EXPLICITLY set AND FRONTEND_URL is a preview/test domain
+IS_PREVIEW_DOMAIN = "preview.emergentagent.com" in FRONTEND_URL
+IS_TEST_EXPLICITLY_SET = CASHFREE_ENV_SETTING == "TEST"
+
+if IS_PREVIEW_DOMAIN and IS_TEST_EXPLICITLY_SET:
+    CASHFREE_ENVIRONMENT = "TEST"
+    logger.info("Preview domain with TEST setting - using SANDBOX mode")
 else:
-    CASHFREE_ENVIRONMENT = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION")
+    # DEFAULT: Always use PRODUCTION for the live site
+    CASHFREE_ENVIRONMENT = "PRODUCTION"
+    logger.info("Using PRODUCTION Cashfree environment")
 
-# Use sandbox credentials for TEST environment, production credentials otherwise
+# Use sandbox credentials ONLY for TEST environment
 if CASHFREE_ENVIRONMENT == "TEST":
     CASHFREE_APP_ID = os.environ.get("CASHFREE_SANDBOX_APP_ID")
     CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SANDBOX_SECRET_KEY")
