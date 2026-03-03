@@ -39,7 +39,7 @@ export default function AuthCallback({ setAuth }) {
         
         toast.success(`Welcome, ${user.name}!`);
         
-        // Navigate to dashboard
+        // Navigate to dashboard immediately
         navigate('/app', { replace: true });
         
       } catch (error) {
@@ -49,14 +49,16 @@ export default function AuthCallback({ setAuth }) {
       }
     };
 
+    // Process immediately
     processAuth();
   }, [location, navigate, setAuth]);
 
+  // Minimal loading screen without any branding
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
       <div className="text-center">
-        <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-white text-lg">Completing authentication...</p>
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+        <p className="text-slate-400 text-sm">Signing you in...</p>
       </div>
     </div>
   );
