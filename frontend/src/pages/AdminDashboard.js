@@ -179,9 +179,9 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <Link to="/app/admin/users">
-              <Button variant="outline" size="sm" className="border-yellow-500/50 text-yellow-300 hover:bg-yellow-500/20">
-                <Coins className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">User Credits</span>
+              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="user-management-btn">
+                <Users className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">User Management</span>
               </Button>
             </Link>
             <Link to="/app/admin/login-activity">
