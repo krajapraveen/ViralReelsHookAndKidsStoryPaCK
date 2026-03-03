@@ -221,6 +221,127 @@ async def reset_user_verification(
 
 
 # =============================================================================
+# USER MANAGEMENT - MANUAL VERIFY (Skip Email Verification)
+# =============================================================================
+class ManualVerifyRequest(BaseModel):
+    user_id: str
+    credits_to_grant: int = Field(default=100, ge=0, le=1000000)
+    reason: str = Field(min_length=5, max_length=500, default="Admin manual verification")
+
+
+@router.post("/users/manual-verify")
+@limiter.limit("30/minute")
+async def manual_verify_user(
+    request: Request,
+    data: ManualVerifyRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Manually verify a user's email without requiring them to click a verification link.
+    This bypasses the email verification process entirely.
+    Use when: SendGrid limits exceeded, user can't receive emails, or for testing.
+    """
+    try:
+        # Find user
+        user = await db.users.find_one({"id": data.user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_email = user.get("email", "")
+        old_credits = user.get("credits", 0)
+        old_verified = user.get("emailVerified", False)
+        
+        # If already verified, just update credits if needed
+        if old_verified:
+            if data.credits_to_grant > 0 and old_credits != data.credits_to_grant:
+                await db.users.update_one(
+                    {"id": data.user_id},
+                    {"$set": {"credits": data.credits_to_grant}}
+                )
+                return {
+                    "success": True,
+                    "message": f"User already verified. Credits updated to {data.credits_to_grant}.",
+                    "user_email": user_email,
+                    "was_already_verified": True,
+                    "credits_granted": data.credits_to_grant
+                }
+            return {
+                "success": True,
+                "message": "User is already verified.",
+                "user_email": user_email,
+                "was_already_verified": True,
+                "credits_granted": old_credits
+            }
+        
+        # Manually verify the user
+        await db.users.update_one(
+            {"id": data.user_id},
+            {
+                "$set": {
+                    "emailVerified": True,
+                    "credits": data.credits_to_grant,
+                    "credits_locked": False,
+                    "manual_verification_at": datetime.now(timezone.utc).isoformat(),
+                    "manual_verification_by": admin["id"],
+                    "manual_verification_reason": data.reason
+                },
+                "$unset": {
+                    "pending_credits": "",
+                    "credits_lock_reason": "",
+                    "verificationToken": "",
+                    "verificationTokenExpiry": ""
+                }
+            }
+        )
+        
+        # Log the manual verification
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": data.user_id,
+            "amount": data.credits_to_grant,
+            "type": "ADMIN_MANUAL_VERIFY",
+            "description": f"Manual verification by admin: {data.reason}. Granted {data.credits_to_grant} credits.",
+            "adminId": admin["id"],
+            "adminEmail": admin.get("email", ""),
+            "oldCredits": old_credits,
+            "newCredits": data.credits_to_grant,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Audit log
+        await db.admin_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "admin_id": admin["id"],
+            "admin_email": admin.get("email", ""),
+            "action": "MANUAL_VERIFY_USER",
+            "details": {
+                "user_id": data.user_id,
+                "user_email": user_email,
+                "old_credits": old_credits,
+                "credits_granted": data.credits_to_grant,
+                "reason": data.reason
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Admin {admin.get('email')} manually verified {user_email}: granted {data.credits_to_grant} credits")
+        
+        return {
+            "success": True,
+            "message": f"User manually verified! Granted {data.credits_to_grant} credits.",
+            "user_email": user_email,
+            "was_already_verified": False,
+            "credits_granted": data.credits_to_grant
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in manual verification: {e}")
+        raise HTTPException(status_code=500, detail="Failed to manually verify user")
+
+
+# =============================================================================
 # USER MANAGEMENT - RESET CREDITS
 # =============================================================================
 @router.post("/users/reset-credits")

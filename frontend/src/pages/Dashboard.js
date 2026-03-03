@@ -140,8 +140,8 @@ export default function Dashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        {/* Email Verification Banner - Shows if email not verified */}
-        <EmailVerificationBanner user={user} onVerified={() => fetchData()} />
+        {/* Email Verification Banner - DISABLED (SendGrid limits exceeded) */}
+        {/* <EmailVerificationBanner user={user} onVerified={() => fetchData()} /> */}
         
         {/* Delayed Credits Banner - Shows pending bonus credits */}
         <DelayedCreditsBanner onCreditsAdded={(newBalance) => setCredits(newBalance)} />

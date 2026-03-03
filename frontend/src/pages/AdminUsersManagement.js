@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, RefreshCw, Search, Users, Coins, UserPlus, Edit, 
   Shield, ShieldCheck, ChevronLeft, ChevronRight, X, Check,
-  Mail, AlertTriangle, RotateCcw, CheckCircle, XCircle, Send
+  Mail, AlertTriangle, RotateCcw, CheckCircle, XCircle, Send, UserCheck
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -22,14 +22,19 @@ export default function AdminUsersManagement() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showManualVerifyModal, setShowManualVerifyModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [resettingVerification, setResettingVerification] = useState(false);
+  const [manualVerifying, setManualVerifying] = useState(false);
   
   // Reset credits form
   const [resetData, setResetData] = useState({ credits: 100, reason: '' });
   
   // Reset verification form
   const [verificationResetReason, setVerificationResetReason] = useState('Admin reset for re-verification');
+  
+  // Manual verify form
+  const [manualVerifyData, setManualVerifyData] = useState({ credits: 100, reason: 'Admin manual verification' });
   
   // Create user form
   const [createData, setCreateData] = useState({
@@ -154,6 +159,32 @@ export default function AdminUsersManagement() {
       toast.error(error.response?.data?.detail || 'Failed to reset verification');
     } finally {
       setResettingVerification(false);
+    }
+  };
+
+  const handleManualVerify = async () => {
+    if (!manualVerifyData.reason || manualVerifyData.reason.length < 5) {
+      toast.error('Please provide a reason (min 5 characters)');
+      return;
+    }
+    
+    setManualVerifying(true);
+    try {
+      const response = await api.post('/api/admin/users/manual-verify', {
+        user_id: selectedUser.id,
+        credits_to_grant: manualVerifyData.credits,
+        reason: manualVerifyData.reason
+      });
+      
+      toast.success(response.data.message || `${selectedUser.email} has been manually verified!`);
+      setShowManualVerifyModal(false);
+      setSelectedUser(null);
+      setManualVerifyData({ credits: 100, reason: 'Admin manual verification' });
+      fetchUsers(pagination.page);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to manually verify user');
+    } finally {
+      setManualVerifying(false);
     }
   };
 
@@ -357,8 +388,24 @@ export default function AdminUsersManagement() {
                           >
                             <Edit className="w-3 h-3 mr-1" /> Credits
                           </Button>
-                          {/* Show Reset Verification button for legacy or unverified users with credits */}
-                          {(user.emailVerified !== true && user.credits > 0) || (user.emailVerified === undefined) ? (
+                          {/* Show Manual Verify button for unverified users */}
+                          {user.emailVerified !== true && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setManualVerifyData({ credits: 100, reason: 'Admin manual verification' });
+                                setShowManualVerifyModal(true);
+                              }}
+                              className="border-green-500/50 text-green-400 hover:bg-green-500/20 text-xs"
+                              data-testid={`manual-verify-${user.id}`}
+                            >
+                              <UserCheck className="w-3 h-3 mr-1" /> Verify
+                            </Button>
+                          )}
+                          {/* Show Reset Verification button for verified users (to revoke verification) */}
+                          {user.emailVerified === true && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -369,15 +416,15 @@ export default function AdminUsersManagement() {
                               className="border-amber-500/50 text-amber-400 hover:bg-amber-500/20 text-xs"
                               data-testid={`reset-verification-${user.id}`}
                             >
-                              <RotateCcw className="w-3 h-3 mr-1" /> Reset Verify
+                              <RotateCcw className="w-3 h-3 mr-1" /> Revoke
                             </Button>
-                          ) : null}
+                          )}
                           {user.credits < 999999999 && (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setUnlimitedCredits(user)}
-                              className="border-green-500/50 text-green-400 hover:bg-green-500/20 text-xs"
+                              className="border-blue-500/50 text-blue-400 hover:bg-blue-500/20 text-xs"
                             >
                               Unlimited
                             </Button>
@@ -639,6 +686,110 @@ export default function AdminUsersManagement() {
                   ) : (
                     <>
                       <RotateCcw className="w-4 h-4 mr-2" /> Reset Verification
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Verify Modal */}
+      {showManualVerifyModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowManualVerifyModal(false)}>
+          <div 
+            className="bg-slate-800 rounded-xl max-w-md w-full p-6 border border-green-500/50"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="manual-verify-modal"
+          >
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-green-400" /> Manual Verify User
+            </h3>
+            
+            {/* Info Banner */}
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-green-200 text-sm font-medium">This will instantly:</p>
+                  <ul className="text-green-200/80 text-xs mt-1 space-y-1 list-disc ml-4">
+                    <li>Mark user as <span className="font-bold">Email Verified</span></li>
+                    <li>Grant specified credits immediately</li>
+                    <li>Unlock all features for this user</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-slate-400 mb-4">
+              Manually verifying <span className="text-white font-medium">{selectedUser.email}</span>
+            </p>
+            
+            <div className="bg-slate-700/50 rounded-lg p-3 mb-4">
+              <p className="text-slate-400 text-xs mb-1">Current Status:</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-slate-500">Credits:</span>
+                  <span className="text-white ml-2">{formatCredits(selectedUser.credits || 0)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Verified:</span>
+                  <span className={`ml-2 ${selectedUser.emailVerified ? 'text-green-400' : 'text-amber-400'}`}>
+                    {selectedUser.emailVerified === true ? 'Yes' : 'No'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-slate-400 text-sm mb-1 block">Credits to Grant</label>
+                <Input
+                  type="number"
+                  value={manualVerifyData.credits}
+                  onChange={(e) => setManualVerifyData({ ...manualVerifyData, credits: parseInt(e.target.value) || 0 })}
+                  className="bg-slate-700 border-slate-600 text-white"
+                  min={0}
+                  max={1000000}
+                  data-testid="manual-verify-credits"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 text-sm mb-1 block">Reason *</label>
+                <Input
+                  value={manualVerifyData.reason}
+                  onChange={(e) => setManualVerifyData({ ...manualVerifyData, reason: e.target.value })}
+                  className="bg-slate-700 border-slate-600 text-white"
+                  placeholder="e.g., SendGrid limit exceeded, user request..."
+                  data-testid="manual-verify-reason"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 border-slate-600" 
+                  onClick={() => {
+                    setShowManualVerifyModal(false);
+                    setSelectedUser(null);
+                    setManualVerifyData({ credits: 100, reason: 'Admin manual verification' });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-green-600 hover:bg-green-700" 
+                  onClick={handleManualVerify}
+                  disabled={manualVerifying}
+                  data-testid="confirm-manual-verify"
+                >
+                  {manualVerifying ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="w-4 h-4 mr-2" /> Verify User
                     </>
                   )}
                 </Button>

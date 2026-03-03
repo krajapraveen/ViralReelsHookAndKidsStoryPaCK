@@ -317,8 +317,10 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
         token_expiry = datetime.now(timezone.utc) + timedelta(hours=24)
         
         # Create user with ZERO credits until email is verified
-        # Credits are released ONLY after email verification
-        # This prevents abuse from unverified accounts
+        # ==========================================
+        # EMAIL VERIFICATION DISABLED (Temporary)
+        # Users get credits immediately on signup
+        # ==========================================
         
         user_id = str(uuid.uuid4())
         user = {
@@ -327,26 +329,21 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "name": clean_name,
             "password": hash_password(data.password),
             "role": "user",
-            "credits": 0,  # ZERO credits until email verified
-            "pending_credits": 20,  # Credits waiting for email verification
-            "emailVerified": False,
-            "verificationToken": verification_token,
-            "verificationTokenExpiry": token_expiry.isoformat(),
+            "credits": 100,  # Full credits immediately (verification disabled)
+            "emailVerified": True,  # Auto-verified (verification disabled)
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "lastLogin": datetime.now(timezone.utc).isoformat(),
             "ip_address": ip_address,
-            "has_delayed_credits": True,
-            "credits_locked": True,  # Credits locked until email verified
-            "credits_lock_reason": "email_verification_required"
+            "has_delayed_credits": False,
+            "credits_locked": False,
+            "verification_disabled_signup": True  # Flag to track users who signed up when verification was disabled
         }
         
-        # Check if first user - make admin (with full credits)
+        # Check if first user - make admin (with extra credits)
         user_count = await db.users.count_documents({})
         if user_count == 0:
             user["role"] = "ADMIN"
             user["credits"] = 10000
-            user["emailVerified"] = True  # Admin auto-verified
-            user["has_delayed_credits"] = False
         
         await db.users.insert_one(user)
         
@@ -359,26 +356,23 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             phone_number=phone_number
         )
         
-        # Log pending credit (will be released after email verification)
+        # Log credit grant
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
             "userId": user_id,
-            "amount": 0,
-            "type": "SIGNUP_PENDING",
-            "description": "Credits pending email verification (20 credits will be released after verification)",
+            "amount": 100,
+            "type": "SIGNUP_BONUS",
+            "description": "Welcome bonus - 100 free credits on signup",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
-        # Send verification email in background (CRITICAL - must verify to get credits)
-        background_tasks.add_task(send_verification_email, clean_email, verification_token, clean_name)
-        
         # Send welcome email in background
         from services.welcome_email_service import send_welcome_email
-        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 0)  # 0 credits until verified
+        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 100)
         
         token = create_token(user_id, user["role"])
         
-        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - Credits locked until email verified")
+        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - Granted 100 credits (verification disabled)")
         
         return {
             "token": token,
@@ -388,17 +382,14 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
                 "name": user["name"],
                 "role": user["role"],
                 "credits": user["credits"],
-                "emailVerified": user["emailVerified"],
-                "credits_locked": True,
-                "pending_credits": user.get("pending_credits", 20)
+                "emailVerified": True,
+                "credits_locked": False
             },
-            "message": "Registration successful! Please verify your email within 24 hours to unlock your 20 free credits. Check your inbox for the verification link.",
-            "email_verification_required": True,
+            "message": "Registration successful! You have been granted 100 free credits to start creating.",
+            "email_verification_required": False,
             "credits_info": {
-                "current_credits": 0,
-                "pending_credits": 20,
-                "verification_deadline_hours": 24,
-                "message": "Verify your email to unlock credits"
+                "current_credits": 100,
+                "message": "Enjoy your free credits!"
             }
         }
     except HTTPException:
