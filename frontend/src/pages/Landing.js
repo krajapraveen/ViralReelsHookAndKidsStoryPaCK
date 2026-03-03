@@ -8,18 +8,37 @@ import {
 } from 'lucide-react';
 import DemoReelGenerator from '../components/DemoReelGenerator';
 
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
 export default function Landing() {
   const [showDemo, setShowDemo] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [liveUsers, setLiveUsers] = useState(47);
-  const [recentGenerations, setRecentGenerations] = useState(1247);
+  const [contentCreated, setContentCreated] = useState(12784);
 
-  // Simulate live activity
+  // Fetch real stats from API every minute
   useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveUsers(prev => Math.max(35, prev + Math.floor(Math.random() * 5) - 2));
-      setRecentGenerations(prev => prev + Math.floor(Math.random() * 3));
-    }, 5000);
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/live-stats/public`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.stats) {
+            setLiveUsers(data.stats.creators_online);
+            setContentCreated(data.stats.content_created_today);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch live stats:', error);
+      }
+    };
+
+    // Fetch immediately
+    fetchStats();
+    
+    // Then fetch every 60 seconds
+    const interval = setInterval(fetchStats, 60000);
+    
     return () => clearInterval(interval);
   }, []);
 
@@ -45,7 +64,7 @@ export default function Landing() {
           <span className="hidden sm:inline">•</span>
           <span className="hidden sm:flex items-center gap-1">
             <Flame className="w-4 h-4" />
-            {recentGenerations.toLocaleString()} pieces of content created today
+            {contentCreated.toLocaleString()} pieces of content created today
           </span>
         </div>
       </div>

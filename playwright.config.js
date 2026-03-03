@@ -2,7 +2,7 @@
 // CreatorStudio AI E2E Tests
 import { defineConfig, devices } from '@playwright/test';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://stability-shield.preview.emergentagent.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://activity-tracker-197.preview.emergentagent.com';
 
 export default defineConfig({
   testDir: './tests/e2e',

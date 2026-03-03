@@ -295,7 +295,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://stability-shield.preview.emergentagent.com",
+    "https://activity-tracker-197.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
@@ -432,6 +432,10 @@ api_router.include_router(environment_monitor_router)
 
 # Daily Rewards & Gamification
 api_router.include_router(daily_rewards_router)
+
+# Live Stats & User Activity Tracking
+from routes.live_stats_routes import router as live_stats_router
+api_router.include_router(live_stats_router)
 
 # Include API router in app
 app.include_router(api_router)

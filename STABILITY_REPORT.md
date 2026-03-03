@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://stability-shield.preview.emergentagent.com
+API URL: https://activity-tracker-197.preview.emergentagent.com
 ```
 
 ### Results Summary

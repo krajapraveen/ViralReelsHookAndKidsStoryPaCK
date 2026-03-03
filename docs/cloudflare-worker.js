@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://stability-shield.preview.emergentagent.com';
+const BACKEND_URL = 'https://activity-tracker-197.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

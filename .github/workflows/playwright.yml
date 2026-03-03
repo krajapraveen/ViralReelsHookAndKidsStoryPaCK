@@ -18,7 +18,7 @@ on:
           - production
 
 env:
-  PREVIEW_URL: https://stability-shield.preview.emergentagent.com
+  PREVIEW_URL: https://activity-tracker-197.preview.emergentagent.com
   PRODUCTION_URL: https://visionary-suite.com
 
 jobs:

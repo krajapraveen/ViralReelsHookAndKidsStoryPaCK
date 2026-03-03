@@ -3,7 +3,76 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
-## Latest Session Changes (2026-03-02)
+## Latest Session Changes (2026-03-03)
+
+### ✅ USER ACTIVITY DASHBOARD & DYNAMIC LANDING PAGE STATS
+
+**Problem:** Admin panel feels static, no real-time user activity view. Landing page stats are hardcoded.
+
+**Solution Implemented:**
+
+#### 1. User Activity Dashboard (NEW ADMIN PAGE)
+**Route:** `/app/admin/user-activity`
+
+**Real-time Stats Cards:**
+- Online Now (active users in last 15 minutes)
+- Today's Logins
+- Today's Generations
+- New Users This Week
+
+**Dashboard Tabs:**
+1. **Realtime** - Who's Online Right Now
+   - User name, email, last active time, current page, IP address, online status
+   
+2. **Logins** - Login History (Last 30 Days)
+   - User, email, date & time, **location** (city, region, country), IP address, device type, status (SUCCESS/FAIL)
+   - User Login Summary with login count per user
+   
+3. **New Users** - New Signups (Last 30 Days)
+   - Name, email, signup date, credits, reels/stories generated, last login, IP address
+   
+4. **Generations** - Content Generation Report (Last 7 Days)
+   - Total generations, successful, failed, success rate
+   - Job details: type (reel/story), user, topic, timestamp, output status
+   
+5. **Experience** - User Experience Ratings
+   - Feature usage stats (Reel Generator, Story Generator)
+   - User ratings with star display
+
+**Auto-refresh:** Every 60 seconds
+
+**Admin Dashboard Integration:**
+- Added "Live Activity" button (green, pulsing) in Admin Dashboard header
+
+#### 2. Dynamic Landing Page Stats
+**Route:** `/` (Landing Page)
+
+**Live Activity Banner (Green Bar):**
+- "X creators online now" - fetched from API
+- "Y pieces of content created today" - fetched from API
+
+**Auto-refresh:** Every 60 seconds
+
+**API Endpoint:** `GET /api/live-stats/public`
+
+**Files Modified:**
+- `frontend/src/App.js` - Added UserActivityDashboard route
+- `frontend/src/pages/AdminDashboard.js` - Added Live Activity button
+- `frontend/src/pages/Landing.js` - Already had dynamic stats implementation
+
+**API Endpoints:**
+- `GET /api/live-stats/public` - Public stats (creators online, content created)
+- `GET /api/live-stats/dashboard-summary` - Admin dashboard summary
+- `GET /api/live-stats/active-users` - Currently online users (Admin)
+- `GET /api/live-stats/login-history` - Login history with location (Admin)
+- `GET /api/live-stats/new-users` - New user signups (Admin)
+- `GET /api/live-stats/generation-report` - Generation job details (Admin)
+- `GET /api/live-stats/feature-usage` - Feature usage stats (Admin)
+- `POST /api/live-stats/track-activity` - Track user activity
+
+---
+
+## Previous Session Changes (2026-03-02)
 
 ### ✅ USER ATTRACTION & CONVERSION GROWTH SYSTEM
 

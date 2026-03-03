@@ -23,7 +23,7 @@ const throughput = new Counter('throughput');
 const activeUsers = new Gauge('active_users');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://stability-shield.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://activity-tracker-197.preview.emergentagent.com';
 
 // Test configuration for large-scale testing
 export const options = {

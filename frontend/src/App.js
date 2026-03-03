@@ -91,6 +91,8 @@ import DailyReportDashboard from './pages/Admin/DailyReportDashboard';
 import AccountLockManagement from './pages/Admin/AccountLockManagement';
 // ENVIRONMENT MONITOR
 import EnvironmentMonitor from './pages/Admin/EnvironmentMonitor';
+// USER ACTIVITY DASHBOARD
+import UserActivityDashboard from './pages/Admin/UserActivityDashboard';
 import './App.css';
 
 function App() {
@@ -219,6 +221,8 @@ function App() {
       <Route path="/app/admin/account-locks" element={isAuthenticated ? <AccountLockManagement /> : <Navigate to="/login" />} />
       {/* ENVIRONMENT MONITOR */}
       <Route path="/app/admin/environment-monitor" element={isAuthenticated ? <EnvironmentMonitor /> : <Navigate to="/login" />} />
+      {/* USER ACTIVITY DASHBOARD */}
+      <Route path="/app/admin/user-activity" element={isAuthenticated ? <UserActivityDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />
