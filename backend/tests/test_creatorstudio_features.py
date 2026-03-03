@@ -7,7 +7,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://activity-tracker-197.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://legacy-user-fix.preview.emergentagent.com')
 
 class TestContentFiltering:
     """Test content filtering for inappropriate words"""

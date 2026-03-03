@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://activity-tracker-197.preview.emergentagent.com
+**Platform URL:** https://legacy-user-fix.preview.emergentagent.com
 
 ---
 

@@ -5,6 +5,44 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 
 ## Latest Session Changes (2026-03-03)
 
+### ✅ ADMIN USER RESET VERIFICATION FEATURE (NEW - 2026-03-03)
+
+**Problem:** Legacy user accounts created before the email verification feature was deployed have credits but no verification prompt. These accounts bypass the email verification flow entirely.
+
+**Solution:** Admin tool to reset a user's verification status, allowing admins to fix legacy accounts without direct database access.
+
+**What it does:**
+1. Sets user credits to **0**
+2. Sets pending_credits to **20** (will be released after email verification)
+3. Sets emailVerified to **false**
+4. Sets credits_locked to **true**
+5. Generates a new verification token (24-hour expiry)
+6. User must verify email to unlock credits
+
+**Admin Dashboard Updates:**
+- New "Verified" column in User Management table (`/app/admin/users`)
+- Verification status badges: "Verified" (green), "Pending" (amber), "Legacy" (gray)
+- "Reset Verify" button for legacy/unverified users with credits
+- Reset Verification modal with warning and confirmation
+
+**API Endpoint:**
+- `POST /api/admin/users/reset-verification` - Reset user verification status
+  - Requires: `user_id`, `reason` (min 5 chars)
+  - Returns: old state, new state, success message
+
+**Files Updated:**
+- `backend/routes/admin.py` - Added `reset_user_verification` endpoint
+- `frontend/src/pages/AdminUsersManagement.js` - Added Verified column, Reset Verify button, and modal
+
+**Use Case:**
+When a user like `rajapraveenkatta@gmail.com` was created on production before the email verification feature, the admin can:
+1. Go to `/app/admin/users`
+2. Search for the user
+3. Click "Reset Verify"
+4. User will receive a new verification email and must verify to get credits
+
+---
+
 ### ✅ ANTI-ABUSE PROTECTION SYSTEM (NEW)
 
 **Problem:** Users creating multiple accounts with different emails to abuse free credits.

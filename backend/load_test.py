@@ -23,7 +23,7 @@ from typing import List, Dict, Any
 from collections import defaultdict
 
 # Configuration
-API_URL = os.environ.get("API_URL", "https://activity-tracker-197.preview.emergentagent.com")
+API_URL = os.environ.get("API_URL", "https://legacy-user-fix.preview.emergentagent.com")
 TEST_USER_EMAIL = "demo@example.com"
 TEST_USER_PASSWORD = "Password123!"
 

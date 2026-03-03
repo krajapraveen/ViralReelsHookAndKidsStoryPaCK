@@ -47,6 +47,111 @@ class BulkResetCreditsRequest(BaseModel):
 
 
 # =============================================================================
+# USER MANAGEMENT - RESET VERIFICATION STATUS
+# =============================================================================
+class ResetVerificationRequest(BaseModel):
+    user_id: str
+    reason: str = Field(min_length=5, max_length=500, default="Admin reset for re-verification")
+
+
+@router.post("/users/reset-verification")
+@limiter.limit("30/minute")
+async def reset_user_verification(
+    request: Request,
+    data: ResetVerificationRequest,
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Reset a user's email verification status and credits.
+    This is used to fix legacy accounts that were created before the email verification feature.
+    The user will need to verify their email again to unlock credits.
+    """
+    try:
+        # Find user
+        user = await db.users.find_one({"id": data.user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        old_credits = user.get("credits", 0)
+        old_verified = user.get("emailVerified", False)
+        
+        # Generate new verification token
+        import secrets
+        verification_token = secrets.token_urlsafe(32)
+        token_expiry = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        
+        # Reset user to pending verification state
+        await db.users.update_one(
+            {"id": data.user_id},
+            {
+                "$set": {
+                    "emailVerified": False,
+                    "credits": 0,
+                    "pending_credits": 20,
+                    "credits_locked": True,
+                    "credits_lock_reason": "email_verification_required",
+                    "verificationToken": verification_token,
+                    "verificationTokenExpiry": token_expiry,
+                    "verification_reset_at": datetime.now(timezone.utc).isoformat(),
+                    "verification_reset_by": admin["id"]
+                }
+            }
+        )
+        
+        # Log the reset
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": data.user_id,
+            "amount": -old_credits,
+            "type": "ADMIN_VERIFICATION_RESET",
+            "description": f"Verification reset by admin: {data.reason}. Credits will be restored after email verification.",
+            "adminId": admin["id"],
+            "adminEmail": admin.get("email", ""),
+            "oldCredits": old_credits,
+            "newCredits": 0,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Audit log
+        await db.admin_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "admin_id": admin["id"],
+            "admin_email": admin.get("email", ""),
+            "action": "RESET_USER_VERIFICATION",
+            "details": {
+                "user_id": data.user_id,
+                "user_email": user.get("email"),
+                "old_credits": old_credits,
+                "old_verified": old_verified,
+                "reason": data.reason
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Admin {admin.get('email')} reset verification for {user.get('email')}: credits {old_credits} -> 0, verified: {old_verified} -> False")
+        
+        return {
+            "success": True,
+            "message": "User verification status reset. User must verify email to unlock credits.",
+            "user_email": user.get("email"),
+            "old_credits": old_credits,
+            "old_verified": old_verified,
+            "new_state": {
+                "emailVerified": False,
+                "credits": 0,
+                "pending_credits": 20,
+                "credits_locked": True
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting verification: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset verification status")
+
+
+# =============================================================================
 # USER MANAGEMENT - RESET CREDITS
 # =============================================================================
 @router.post("/users/reset-credits")

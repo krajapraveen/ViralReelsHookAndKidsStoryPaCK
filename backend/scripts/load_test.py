@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 # Configuration
-BASE_URL = "https://activity-tracker-197.preview.emergentagent.com"
+BASE_URL = "https://legacy-user-fix.preview.emergentagent.com"
 CONCURRENT_USERS = 50  # Reduced for better stability
 TEST_DURATION_SECONDS = 30  # Shorter test
 DEMO_EMAIL = "demo@example.com"

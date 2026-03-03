@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://activity-tracker-197.preview.emergentagent.com
+**Website:** https://legacy-user-fix.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

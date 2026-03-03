@@ -8,7 +8,7 @@ import * as path from 'path';
  * Viewports: iPhone SE (375px), iPhone 12 (390px), iPad (768px)
  */
 
-const BASE_URL = 'https://activity-tracker-197.preview.emergentagent.com';
+const BASE_URL = 'https://legacy-user-fix.preview.emergentagent.com';
 const SCREENSHOT_DIR = '/app/playwright-tests/mobile-screenshots';
 
 const DEMO_USER = {

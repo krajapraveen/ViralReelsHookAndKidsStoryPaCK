@@ -328,3 +328,130 @@ async def get_anti_abuse_stats(user: dict = Depends(get_current_user)):
             "ip_records_30d": ip_count
         }
     }
+
+
+
+class ResetUserVerificationRequest(BaseModel):
+    email: str
+
+
+@router.post("/admin/reset-user-verification")
+async def reset_user_verification(
+    data: ResetUserVerificationRequest,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Admin endpoint to reset a user's email verification status
+    This locks their credits until they verify their email
+    """
+    # Check admin
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    email = data.email.lower().strip()
+    
+    # Find the user
+    target_user = await db.users.find_one({"email": email})
+    if not target_user:
+        raise HTTPException(status_code=404, detail=f"User with email '{email}' not found")
+    
+    # Don't allow resetting admin accounts
+    if target_user.get("role", "").upper() in ["ADMIN", "SUPERADMIN"]:
+        raise HTTPException(status_code=400, detail="Cannot reset verification for admin accounts")
+    
+    # Store old values for logging
+    old_credits = target_user.get("credits", 0)
+    old_verified = target_user.get("emailVerified", False)
+    
+    # Generate new verification token
+    import uuid
+    from datetime import timedelta
+    verification_token = str(uuid.uuid4())
+    token_expiry = datetime.now(timezone.utc) + timedelta(hours=24)
+    
+    # Reset user verification status
+    result = await db.users.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "emailVerified": False,
+                "credits": 0,
+                "pending_credits": 20,
+                "credits_locked": True,
+                "credits_lock_reason": "email_verification_required",
+                "verificationToken": verification_token,
+                "verificationTokenExpiry": token_expiry.isoformat()
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to update user")
+    
+    # Log this action
+    await db.admin_audit_log.insert_one({
+        "action": "reset_user_verification",
+        "admin_id": user["id"],
+        "admin_email": user.get("email"),
+        "target_email": email,
+        "old_values": {
+            "credits": old_credits,
+            "emailVerified": old_verified
+        },
+        "new_values": {
+            "credits": 0,
+            "emailVerified": False,
+            "pending_credits": 20,
+            "credits_locked": True
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    logger.info(f"Admin {user.get('email')} reset verification for {email}")
+    
+    return {
+        "success": True,
+        "message": f"User '{email}' verification has been reset",
+        "user_email": email,
+        "old_credits": old_credits,
+        "new_credits": 0,
+        "pending_credits": 20,
+        "action": "User must now verify email to unlock 20 credits"
+    }
+
+
+@router.get("/admin/user-verification-status")
+async def get_user_verification_status(
+    email: str,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Admin endpoint to check a user's verification status
+    """
+    # Check admin
+    if user.get("role", "").upper() not in ["ADMIN", "SUPERADMIN"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    email = email.lower().strip()
+    
+    # Find the user
+    target_user = await db.users.find_one(
+        {"email": email},
+        {"_id": 0, "password": 0, "verificationToken": 0}
+    )
+    
+    if not target_user:
+        raise HTTPException(status_code=404, detail=f"User with email '{email}' not found")
+    
+    return {
+        "success": True,
+        "user": {
+            "email": target_user.get("email"),
+            "name": target_user.get("name"),
+            "credits": target_user.get("credits", 0),
+            "emailVerified": target_user.get("emailVerified", False),
+            "credits_locked": target_user.get("credits_locked", False),
+            "pending_credits": target_user.get("pending_credits", 0),
+            "createdAt": target_user.get("createdAt")
+        }
+    }

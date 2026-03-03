@@ -10,7 +10,7 @@
  */
 import { test, expect, devices } from '@playwright/test';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://activity-tracker-197.preview.emergentagent.com';
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://legacy-user-fix.preview.emergentagent.com';
 
 const TEST_USER = {
   email: 'demo@example.com',

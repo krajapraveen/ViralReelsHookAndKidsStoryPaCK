@@ -54,7 +54,7 @@
     }
   },
   "test_config": {
-    "api_url": "https://activity-tracker-197.preview.emergentagent.com",
+    "api_url": "https://legacy-user-fix.preview.emergentagent.com",
     "start_time": "2026-02-26T07:33:40.487538+00:00",
     "end_time": "2026-02-26T07:34:16.046587+00:00"
   },

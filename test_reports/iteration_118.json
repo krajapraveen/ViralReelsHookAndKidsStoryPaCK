@@ -1,0 +1,113 @@
+{
+  "summary": "Admin User Reset Verification feature fully tested. Backend: All 12 API tests passed (reset-verification, users/list, users/{id}). Frontend: All UI components working - Verified column displays correctly with 'Verified', 'Pending', 'Legacy' statuses; Reset Verify buttons appear for appropriate users; Reset Verification modal opens and contains all expected elements.",
+  
+  "test_date": "2026-03-03",
+  "preview_url": "https://legacy-user-fix.preview.emergentagent.com",
+  "testing_type": "both - Backend API + Frontend UI",
+  "overall_result": "PASS",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Users Management", "issues": ["Minor: React hydration warning in console (span in tbody) - cosmetic, doesn't affect functionality"]}
+    ]
+  },
+  
+  "features_tested": {
+    "backend": [
+      {
+        "endpoint": "POST /api/admin/users/reset-verification",
+        "status": "PASS",
+        "tests": [
+          "Requires admin authentication (401 without auth)",
+          "Returns 404 for non-existent user",
+          "Validates reason field minimum length (422 for short reason)",
+          "Successfully resets user: sets credits=0, pending_credits=20, emailVerified=false, credits_locked=true"
+        ]
+      },
+      {
+        "endpoint": "GET /api/admin/users/list",
+        "status": "PASS",
+        "tests": [
+          "Returns 200 with users array",
+          "Contains pagination information",
+          "Users have emailVerified, pending_credits, credits_locked fields",
+          "Supports role filter and search parameters"
+        ]
+      },
+      {
+        "endpoint": "GET /api/admin/users/{user_id}",
+        "status": "PASS",
+        "tests": [
+          "Returns 200 with user details for valid user",
+          "Returns 404 for non-existent user"
+        ]
+      }
+    ],
+    "frontend": [
+      {
+        "component": "Admin Users Management Page",
+        "status": "PASS",
+        "tests": [
+          "Page loads at /app/admin/users",
+          "Table has Verified column header",
+          "Verification status badges display (Verified=green, Pending=amber, Legacy=gray)",
+          "Reset Verify buttons appear for users with credits who are not verified or legacy"
+        ]
+      },
+      {
+        "component": "Reset Verification Modal",
+        "status": "PASS",
+        "tests": [
+          "Modal opens when clicking Reset Verify button",
+          "Contains warning banner with bullet points",
+          "Shows current user status (credits, verified)",
+          "Has reason input field with default value",
+          "Has Cancel and Reset Verification buttons",
+          "data-testid attributes are properly set"
+        ]
+      }
+    ]
+  },
+  
+  "test_report_links": [
+    "/app/backend/tests/test_admin_user_reset_verification_iteration118.py",
+    "/app/test_reports/pytest/pytest_admin_user_reset_verification_iteration118.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [
+    "Reset verification endpoint properly resets user to pending verification state",
+    "Audit logging is implemented for verification resets",
+    "Credit ledger records the reset transaction",
+    "UI correctly shows verification status with color-coded badges",
+    "Modal has clear warning about what the action will do"
+  ],
+  
+  "updated_files": [
+    "/app/backend/tests/test_admin_user_reset_verification_iteration118.py"
+  ],
+  
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (All UI components verified)"
+  },
+  
+  "test_credentials": {
+    "admin_email": "krajapraveen.katta@creatorstudio.ai",
+    "admin_password": "Onemanarmy@1979#"
+  },
+  
+  "seed_data_creation": "None - used existing users in database for testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  
+  "context_for_next_testing_agent": "Admin User Reset Verification feature is fully functional. Backend POST /api/admin/users/reset-verification endpoint resets user verification status (sets credits=0, pending_credits=20, emailVerified=false, credits_locked=true). Frontend UI at /app/admin/users shows Verified column with status badges and Reset Verify buttons. Modal opens correctly and contains all expected elements. One minor React hydration warning in console about span in tbody - cosmetic issue only."
+}

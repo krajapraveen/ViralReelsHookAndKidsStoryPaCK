@@ -3,7 +3,7 @@
 
 **Report Generated:** February 27, 2026  
 **Report Version:** 1.0  
-**Test Environment:** https://activity-tracker-197.preview.emergentagent.com
+**Test Environment:** https://legacy-user-fix.preview.emergentagent.com
 
 ---
 

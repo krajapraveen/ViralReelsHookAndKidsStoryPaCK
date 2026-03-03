@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Test Suite 1: Public Pages & Authentication
  */
 
-const BASE_URL = 'https://activity-tracker-197.preview.emergentagent.com';
+const BASE_URL = 'https://legacy-user-fix.preview.emergentagent.com';
 
 // Test credentials
 const DEMO_USER = {

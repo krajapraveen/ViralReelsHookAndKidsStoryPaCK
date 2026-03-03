@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, RefreshCw, Search, Users, Coins, UserPlus, Edit, 
-  Shield, ShieldCheck, ChevronLeft, ChevronRight, X, Check
+  Shield, ShieldCheck, ChevronLeft, ChevronRight, X, Check,
+  Mail, AlertTriangle, RotateCcw, CheckCircle, XCircle, Send
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -20,10 +21,15 @@ export default function AdminUsersManagement() {
   // Modals
   const [showResetModal, setShowResetModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [resettingVerification, setResettingVerification] = useState(false);
   
   // Reset credits form
   const [resetData, setResetData] = useState({ credits: 100, reason: '' });
+  
+  // Reset verification form
+  const [verificationResetReason, setVerificationResetReason] = useState('Admin reset for re-verification');
   
   // Create user form
   const [createData, setCreateData] = useState({
@@ -118,6 +124,31 @@ export default function AdminUsersManagement() {
       fetchUsers(pagination.page);
     } catch (error) {
       toast.error('Failed to set unlimited credits');
+    }
+  };
+
+  const handleResetVerification = async () => {
+    if (!verificationResetReason || verificationResetReason.length < 5) {
+      toast.error('Please provide a reason (min 5 characters)');
+      return;
+    }
+    
+    setResettingVerification(true);
+    try {
+      const response = await api.post('/api/admin/users/reset-verification', {
+        user_id: selectedUser.id,
+        reason: verificationResetReason
+      });
+      
+      toast.success(`Verification reset for ${selectedUser.email}. User must verify email to unlock credits.`);
+      setShowVerificationModal(false);
+      setSelectedUser(null);
+      setVerificationResetReason('Admin reset for re-verification');
+      fetchUsers(pagination.page);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to reset verification');
+    } finally {
+      setResettingVerification(false);
     }
   };
 
@@ -236,6 +267,7 @@ export default function AdminUsersManagement() {
                 <tr className="bg-slate-700/50">
                   <th className="text-left p-4 text-slate-300 font-medium">User</th>
                   <th className="text-left p-4 text-slate-300 font-medium">Role</th>
+                  <th className="text-left p-4 text-slate-300 font-medium">Verified</th>
                   <th className="text-left p-4 text-slate-300 font-medium">Credits</th>
                   <th className="text-left p-4 text-slate-300 font-medium">Joined</th>
                   <th className="text-left p-4 text-slate-300 font-medium">Actions</th>
@@ -244,14 +276,14 @@ export default function AdminUsersManagement() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-400">
+                    <td colSpan={6} className="p-8 text-center text-slate-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
                       Loading...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-400">
+                    <td colSpan={6} className="p-8 text-center text-slate-400">
                       No users found
                     </td>
                   </tr>
@@ -272,18 +304,41 @@ export default function AdminUsersManagement() {
                         </span>
                       </td>
                       <td className="p-4">
+                        {user.emailVerified === true ? (
+                          <span className="flex items-center gap-1 text-green-400 text-sm">
+                            <CheckCircle className="w-4 h-4" />
+                            Verified
+                          </span>
+                        ) : user.emailVerified === false ? (
+                          <span className="flex items-center gap-1 text-amber-400 text-sm">
+                            <AlertTriangle className="w-4 h-4" />
+                            Pending
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-slate-400 text-sm">
+                            <XCircle className="w-4 h-4" />
+                            Legacy
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4">
                         <div className="flex items-center gap-2">
                           <Coins className="w-4 h-4 text-yellow-400" />
                           <span className={`font-medium ${user.credits >= 999999999 ? 'text-green-400' : 'text-white'}`}>
                             {formatCredits(user.credits || 0)}
                           </span>
+                          {user.pending_credits > 0 && (
+                            <span className="text-xs text-amber-400">
+                              (+{user.pending_credits} pending)
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="p-4 text-slate-400 text-sm">
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Button
                             variant="outline"
                             size="sm"
@@ -293,9 +348,25 @@ export default function AdminUsersManagement() {
                               setShowResetModal(true);
                             }}
                             className="border-slate-600 text-slate-300 hover:text-white text-xs"
+                            data-testid={`reset-credits-${user.id}`}
                           >
-                            <Edit className="w-3 h-3 mr-1" /> Reset
+                            <Edit className="w-3 h-3 mr-1" /> Credits
                           </Button>
+                          {/* Show Reset Verification button for legacy or unverified users with credits */}
+                          {(user.emailVerified !== true && user.credits > 0) || (user.emailVerified === undefined) ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowVerificationModal(true);
+                              }}
+                              className="border-amber-500/50 text-amber-400 hover:bg-amber-500/20 text-xs"
+                              data-testid={`reset-verification-${user.id}`}
+                            >
+                              <RotateCcw className="w-3 h-3 mr-1" /> Reset Verify
+                            </Button>
+                          ) : null}
                           {user.credits < 999999999 && (
                             <Button
                               variant="outline"
@@ -472,6 +543,99 @@ export default function AdminUsersManagement() {
                 </Button>
                 <Button className="flex-1 bg-purple-600 hover:bg-purple-700" onClick={handleCreateUser}>
                   <UserPlus className="w-4 h-4 mr-2" /> Create User
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Verification Modal */}
+      {showVerificationModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowVerificationModal(false)}>
+          <div 
+            className="bg-slate-800 rounded-xl max-w-md w-full p-6 border border-amber-500/50"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="reset-verification-modal"
+          >
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Mail className="w-5 h-5 text-amber-400" /> Reset Email Verification
+            </h3>
+            
+            {/* Warning Banner */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-amber-200 text-sm font-medium">This action will:</p>
+                  <ul className="text-amber-200/80 text-xs mt-1 space-y-1 list-disc ml-4">
+                    <li>Set credits to <span className="font-bold">0</span></li>
+                    <li>Set pending credits to <span className="font-bold">20</span></li>
+                    <li>Require email verification to unlock credits</li>
+                    <li>Send a new verification email</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-slate-400 mb-4">
+              Resetting verification for <span className="text-white font-medium">{selectedUser.email}</span>
+            </p>
+            
+            <div className="bg-slate-700/50 rounded-lg p-3 mb-4">
+              <p className="text-slate-400 text-xs mb-1">Current Status:</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-slate-500">Credits:</span>
+                  <span className="text-white ml-2">{formatCredits(selectedUser.credits || 0)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Verified:</span>
+                  <span className={`ml-2 ${selectedUser.emailVerified ? 'text-green-400' : 'text-amber-400'}`}>
+                    {selectedUser.emailVerified === true ? 'Yes' : selectedUser.emailVerified === false ? 'No' : 'Unknown'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-slate-400 text-sm mb-1 block">Reason for Reset *</label>
+                <Input
+                  value={verificationResetReason}
+                  onChange={(e) => setVerificationResetReason(e.target.value)}
+                  className="bg-slate-700 border-slate-600 text-white"
+                  placeholder="e.g., Legacy account fix, User requested re-verification..."
+                  data-testid="verification-reset-reason"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 border-slate-600" 
+                  onClick={() => {
+                    setShowVerificationModal(false);
+                    setSelectedUser(null);
+                    setVerificationResetReason('Admin reset for re-verification');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-amber-600 hover:bg-amber-700" 
+                  onClick={handleResetVerification}
+                  disabled={resettingVerification}
+                  data-testid="confirm-reset-verification"
+                >
+                  {resettingVerification ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4 mr-2" /> Reset Verification
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
