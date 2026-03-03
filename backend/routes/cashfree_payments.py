@@ -44,35 +44,16 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
 
-# Cashfree Configuration - ALWAYS use PRODUCTION for live site
-# Only use TEST if explicitly set AND not on production domain
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
-CASHFREE_ENV_SETTING = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION")
+# Cashfree Configuration - HARDCODED PRODUCTION MODE
+# This is a production payment system - NEVER use sandbox/test
+CASHFREE_ENVIRONMENT = "PRODUCTION"  # HARDCODED - DO NOT CHANGE
+logger.info("Cashfree PRODUCTION mode - HARDCODED")
 
-# FORCE PRODUCTION MODE - This is a production app, always use production Cashfree
-# Only allow TEST mode if EXPLICITLY set AND FRONTEND_URL is a preview/test domain
-IS_PREVIEW_DOMAIN = "preview.emergentagent.com" in FRONTEND_URL
-IS_TEST_EXPLICITLY_SET = CASHFREE_ENV_SETTING == "TEST"
-
-if IS_PREVIEW_DOMAIN and IS_TEST_EXPLICITLY_SET:
-    CASHFREE_ENVIRONMENT = "TEST"
-    logger.info("Preview domain with TEST setting - using SANDBOX mode")
-else:
-    # DEFAULT: Always use PRODUCTION for the live site
-    CASHFREE_ENVIRONMENT = "PRODUCTION"
-    logger.info("Using PRODUCTION Cashfree environment")
-
-# Use sandbox credentials ONLY for TEST environment
-if CASHFREE_ENVIRONMENT == "TEST":
-    CASHFREE_APP_ID = os.environ.get("CASHFREE_SANDBOX_APP_ID")
-    CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SANDBOX_SECRET_KEY")
-    CASHFREE_WEBHOOK_SECRET = os.environ.get("CASHFREE_SANDBOX_WEBHOOK_SECRET")
-    logger.info("Using Cashfree SANDBOX credentials")
-else:
-    CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID")
-    CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY")
-    CASHFREE_WEBHOOK_SECRET = os.environ.get("CASHFREE_WEBHOOK_SECRET")
-    logger.info("Using Cashfree PRODUCTION credentials")
+# Always use PRODUCTION credentials
+CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID")
+CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY")
+CASHFREE_WEBHOOK_SECRET = os.environ.get("CASHFREE_WEBHOOK_SECRET")
+logger.info(f"Using Cashfree PRODUCTION credentials - App ID: {CASHFREE_APP_ID[:10] if CASHFREE_APP_ID else 'NOT SET'}...")
 
 # Initialize Cashfree client
 cashfree_client = None
