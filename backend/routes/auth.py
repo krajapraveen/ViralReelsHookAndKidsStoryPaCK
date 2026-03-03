@@ -707,16 +707,35 @@ async def google_callback(request: Request, data: GoogleCallback):
 @router.get("/me")
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user info"""
+    # For legacy accounts without emailVerified field, assume verified if they have credits
+    # or if they're admin/have been using the platform
+    email_verified = user.get("emailVerified", False)
+    credits = user.get("credits", 0)
+    credits_locked = user.get("credits_locked", False)
+    
+    # Legacy account check: If user has credits and no credits_locked flag, they're verified
+    # This handles accounts created before the email verification requirement
+    if not email_verified and credits > 0 and not credits_locked:
+        email_verified = True
+    
+    # Admin accounts are always considered verified
+    if user.get("role", "").upper() in ["ADMIN", "SUPERADMIN"]:
+        email_verified = True
+        credits_locked = False
+    
     return {
         "id": user["id"],
         "email": user.get("email", ""),
         "name": user.get("name", ""),
         "role": user.get("role", "user"),
-        "credits": user.get("credits", 0),
+        "credits": credits,
         "createdAt": user.get("createdAt"),
         "subscription": user.get("subscription"),
         "plan": user.get("plan", "free"),
-        "tourCompleted": user.get("tourCompleted", False)
+        "tourCompleted": user.get("tourCompleted", False),
+        "emailVerified": email_verified,
+        "credits_locked": credits_locked,
+        "pending_credits": user.get("pending_credits", 0)
     }
 
 

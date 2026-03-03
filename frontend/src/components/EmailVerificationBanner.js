@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Mail, Clock, AlertTriangle, Send, CheckCircle, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mail, Clock, AlertTriangle, Send, CheckCircle, X, Gift } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -11,15 +11,63 @@ import api from '../utils/api';
 const EmailVerificationBanner = ({ user, onVerified }) => {
   const [sending, setSending] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(null);
+  const [checking, setChecking] = useState(true);
+
+  // Check verification status on mount and periodically
+  useEffect(() => {
+    checkVerificationStatus();
+    
+    // Check every 5 seconds in case user verifies in another tab
+    const interval = setInterval(checkVerificationStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkVerificationStatus = async () => {
+    try {
+      const response = await api.get('/api/auth/me');
+      if (response.data) {
+        const userData = response.data.user || response.data;
+        setVerificationStatus({
+          emailVerified: userData.emailVerified === true,
+          credits: userData.credits || 0,
+          pendingCredits: userData.pending_credits || 0,
+          creditsLocked: userData.credits_locked === true
+        });
+        
+        // If email is now verified, call the callback
+        if (userData.emailVerified === true && onVerified) {
+          onVerified();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check verification status:', error);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // Multiple checks to determine if email is verified:
+  // 1. user.emailVerified === true
+  // 2. user has credits > 0 (credits are only given after verification)
+  // 3. verificationStatus from API check
+  const isEmailVerified = 
+    user?.emailVerified === true || 
+    (user?.credits > 0 && !user?.credits_locked) ||
+    verificationStatus?.emailVerified === true ||
+    (verificationStatus?.credits > 0 && !verificationStatus?.creditsLocked);
 
   // Don't show if email is verified or user dismissed
-  if (!user || user.emailVerified || dismissed) {
+  if (!user || isEmailVerified || dismissed) {
     return null;
   }
 
-  // Check if credits are locked
-  const creditsLocked = user.credits_locked || user.credits === 0;
-  const pendingCredits = user.pending_credits || 20;
+  // Still checking, show nothing yet
+  if (checking) {
+    return null;
+  }
+
+  const pendingCredits = user.pending_credits || verificationStatus?.pendingCredits || 20;
 
   const handleResendVerification = async () => {
     setSending(true);
@@ -38,7 +86,7 @@ const EmailVerificationBanner = ({ user, onVerified }) => {
   };
 
   return (
-    <div className="bg-gradient-to-r from-amber-900/40 to-orange-900/40 border-2 border-amber-500/50 rounded-xl p-4 mb-6 relative animate-pulse-slow">
+    <div className="bg-gradient-to-r from-amber-900/40 to-orange-900/40 border-2 border-amber-500/50 rounded-xl p-4 mb-6 relative" data-testid="email-verification-banner">
       <button 
         onClick={() => setDismissed(true)}
         className="absolute top-2 right-2 text-amber-300/50 hover:text-amber-200 p-1"
@@ -126,7 +174,7 @@ const EmailVerificationBanner = ({ user, onVerified }) => {
           
           <div className="flex items-center gap-2 opacity-50">
             <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center">
-              <span className="text-xs text-gray-400">🎁</span>
+              <Gift className="w-3 h-3 text-gray-400" />
             </div>
             <span className="text-gray-400">Get Credits</span>
           </div>
