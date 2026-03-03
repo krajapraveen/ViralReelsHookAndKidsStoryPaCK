@@ -93,6 +93,8 @@ import AccountLockManagement from './pages/Admin/AccountLockManagement';
 import EnvironmentMonitor from './pages/Admin/EnvironmentMonitor';
 // USER ACTIVITY DASHBOARD
 import UserActivityDashboard from './pages/Admin/UserActivityDashboard';
+// SYSTEM HEALTH DASHBOARD
+import SystemHealthDashboard from './pages/Admin/SystemHealthDashboard';
 import './App.css';
 
 function App() {
@@ -223,6 +225,8 @@ function App() {
       <Route path="/app/admin/environment-monitor" element={isAuthenticated ? <EnvironmentMonitor /> : <Navigate to="/login" />} />
       {/* USER ACTIVITY DASHBOARD */}
       <Route path="/app/admin/user-activity" element={isAuthenticated ? <UserActivityDashboard /> : <Navigate to="/login" />} />
+      {/* SYSTEM HEALTH DASHBOARD */}
+      <Route path="/app/admin/system-health" element={isAuthenticated ? <SystemHealthDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />

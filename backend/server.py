@@ -437,6 +437,10 @@ api_router.include_router(daily_rewards_router)
 from routes.live_stats_routes import router as live_stats_router
 api_router.include_router(live_stats_router)
 
+# System Health Dashboard
+from routes.system_health_routes import router as system_health_router
+api_router.include_router(system_health_router)
+
 # Include API router in app
 app.include_router(api_router)
 
