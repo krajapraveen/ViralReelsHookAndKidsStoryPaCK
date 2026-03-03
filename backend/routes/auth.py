@@ -707,21 +707,22 @@ async def google_callback(request: Request, data: GoogleCallback):
 @router.get("/me")
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user info"""
-    # For legacy accounts without emailVerified field, assume verified if they have credits
-    # or if they're admin/have been using the platform
+    # Get email verification status directly from database
     email_verified = user.get("emailVerified", False)
     credits = user.get("credits", 0)
     credits_locked = user.get("credits_locked", False)
+    pending_credits = user.get("pending_credits", 0)
     
-    # Legacy account check: If user has credits and no credits_locked flag, they're verified
-    # This handles accounts created before the email verification requirement
-    if not email_verified and credits > 0 and not credits_locked:
-        email_verified = True
+    # STRICT CHECK: Only consider verified if explicitly set to True
+    # Do NOT assume verified based on credits (this was causing the bug)
     
-    # Admin accounts are always considered verified
+    # Only Admin/SuperAdmin accounts created before the feature are auto-verified
     if user.get("role", "").upper() in ["ADMIN", "SUPERADMIN"]:
-        email_verified = True
-        credits_locked = False
+        # Check if this is a legacy admin (created before email verification feature)
+        # by checking if they don't have the credits_locked field at all
+        if "credits_locked" not in user and "pending_credits" not in user:
+            email_verified = True
+            credits_locked = False
     
     return {
         "id": user["id"],
@@ -735,7 +736,7 @@ async def get_me(user: dict = Depends(get_current_user)):
         "tourCompleted": user.get("tourCompleted", False),
         "emailVerified": email_verified,
         "credits_locked": credits_locked,
-        "pending_credits": user.get("pending_credits", 0)
+        "pending_credits": pending_credits
     }
 
 

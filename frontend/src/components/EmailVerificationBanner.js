@@ -47,15 +47,11 @@ const EmailVerificationBanner = ({ user, onVerified }) => {
     }
   };
 
-  // Multiple checks to determine if email is verified:
-  // 1. user.emailVerified === true
-  // 2. user has credits > 0 (credits are only given after verification)
-  // 3. verificationStatus from API check
+  // STRICT CHECK: Only hide banner if emailVerified is explicitly TRUE
+  // Do NOT assume verified based on credits (this was causing bugs)
   const isEmailVerified = 
     user?.emailVerified === true || 
-    (user?.credits > 0 && !user?.credits_locked) ||
-    verificationStatus?.emailVerified === true ||
-    (verificationStatus?.credits > 0 && !verificationStatus?.creditsLocked);
+    verificationStatus?.emailVerified === true;
 
   // Don't show if email is verified or user dismissed
   if (!user || isEmailVerified || dismissed) {
