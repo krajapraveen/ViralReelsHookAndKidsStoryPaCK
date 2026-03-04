@@ -216,8 +216,12 @@ export default function UserAnalyticsDashboard() {
                 <SelectItem value="all" className="text-white">All Features</SelectItem>
                 <SelectItem value="reel_generator" className="text-white">Reel Generator</SelectItem>
                 <SelectItem value="story_pack" className="text-white">Story Pack</SelectItem>
-                <SelectItem value="comix_ai" className="text-white">Comix AI</SelectItem>
+                <SelectItem value="genstudio" className="text-white">GenStudio</SelectItem>
+                <SelectItem value="photo_to_comic" className="text-white">Photo to Comic</SelectItem>
+                <SelectItem value="comic_storybook" className="text-white">Comic Storybook</SelectItem>
                 <SelectItem value="gif_maker" className="text-white">GIF Maker</SelectItem>
+                <SelectItem value="coloring_book" className="text-white">Coloring Book</SelectItem>
+                <SelectItem value="creator_tools" className="text-white">Creator Tools</SelectItem>
               </SelectContent>
             </Select>
 

@@ -721,9 +721,15 @@ async def get_feature_happiness_report(
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     
+    # Features to exclude (removed from the platform)
+    excluded_features = ["comix", "comix_ai", "test_comix", "test comix ai", "Test Comix Ai"]
+    
     # Get feature event aggregates
     pipeline = [
-        {"$match": {"created_at": {"$gte": cutoff}}},
+        {"$match": {
+            "created_at": {"$gte": cutoff},
+            "feature_key": {"$nin": excluded_features}
+        }},
         {"$group": {
             "_id": "$feature_key",
             "total_events": {"$sum": 1},
@@ -737,7 +743,10 @@ async def get_feature_happiness_report(
     
     # Get ratings per feature
     rating_pipeline = [
-        {"$match": {"created_at": {"$gte": cutoff}, "feature_key": {"$ne": None}}},
+        {"$match": {
+            "created_at": {"$gte": cutoff}, 
+            "feature_key": {"$ne": None, "$nin": excluded_features}
+        }},
         {"$group": {
             "_id": "$feature_key",
             "avg_rating": {"$avg": "$rating"},
@@ -772,6 +781,11 @@ async def get_feature_happiness_report(
     for stat in event_stats:
         feature_key = stat["_id"]
         if not feature_key:
+            continue
+        
+        # Skip excluded/removed features (case-insensitive check)
+        feature_lower = feature_key.lower()
+        if 'comix' in feature_lower:
             continue
         
         total = stat["total_events"]
