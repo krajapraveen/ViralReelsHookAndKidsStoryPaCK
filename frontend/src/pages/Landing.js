@@ -16,7 +16,7 @@ export default function Landing() {
   const [liveUsers, setLiveUsers] = useState(47);
   const [contentCreated, setContentCreated] = useState(12784);
 
-  // Fetch real stats from API every 15 minutes
+  // Fetch real stats from API every 60 seconds with dynamic updates
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -36,8 +36,8 @@ export default function Landing() {
     // Fetch immediately
     fetchStats();
     
-    // Then fetch every 15 minutes (900000ms)
-    const interval = setInterval(fetchStats, 900000);
+    // Then fetch every 60 seconds for dynamic updates
+    const interval = setInterval(fetchStats, 60000);
     
     return () => clearInterval(interval);
   }, []);

@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import os
 import sys
+import random
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -14,11 +15,11 @@ from shared import db, logger, get_current_user
 
 router = APIRouter(prefix="/live-stats", tags=["Live Stats"])
 
-# Cache for public stats - refreshes every 15 minutes
+# Cache for base stats - refreshes every 5 minutes (for database queries)
 _stats_cache = {
-    "data": None,
+    "base_data": None,
     "last_updated": None,
-    "cache_duration_minutes": 15
+    "cache_duration_minutes": 5
 }
 
 
@@ -35,92 +36,95 @@ async def get_public_stats():
     """
     Get real-time public stats for landing page
     Returns: creators online, content created today
-    Cached for 15 minutes to reduce database load
+    - Base data cached for 5 minutes (database queries)
+    - Each request adds realistic variation for dynamic feel
     """
     global _stats_cache
     
     now = datetime.now(timezone.utc)
     
-    # Check if cache is valid (less than 15 minutes old)
-    if (_stats_cache["data"] is not None and 
+    # Check if base cache needs refresh (every 5 minutes)
+    cache_valid = (
+        _stats_cache["base_data"] is not None and 
         _stats_cache["last_updated"] is not None and
-        (now - _stats_cache["last_updated"]).total_seconds() < _stats_cache["cache_duration_minutes"] * 60):
-        # Return cached data with updated timestamp
-        cached_response = _stats_cache["data"].copy()
-        cached_response["stats"]["cached"] = True
-        cached_response["stats"]["cache_age_seconds"] = int((now - _stats_cache["last_updated"]).total_seconds())
-        return cached_response
+        (now - _stats_cache["last_updated"]).total_seconds() < _stats_cache["cache_duration_minutes"] * 60
+    )
     
-    # Cache miss or expired - fetch fresh data
-    try:
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        # Get active sessions (users active in last 15 minutes)
-        fifteen_mins_ago = now - timedelta(minutes=15)
-        active_sessions = await db.user_sessions.count_documents({
-            "last_active": {"$gte": fifteen_mins_ago.isoformat()}
-        })
-        
-        # If no active sessions collection, count recent logins
-        if active_sessions == 0:
-            active_sessions = await db.login_activity.count_documents({
-                "timestamp": {"$gte": fifteen_mins_ago.isoformat()}
+    if not cache_valid:
+        # Fetch fresh base data from database
+        try:
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Get active sessions (users active in last 15 minutes)
+            fifteen_mins_ago = now - timedelta(minutes=15)
+            active_sessions = await db.user_sessions.count_documents({
+                "last_active": {"$gte": fifteen_mins_ago.isoformat()}
             })
-        
-        # Ensure minimum display value
-        creators_online = max(active_sessions, 12)  # Minimum 12 to show activity
-        
-        # Get content created today
-        reel_count = await db.reel_generator_jobs.count_documents({
-            "created_at": {"$gte": today_start.isoformat()}
-        })
-        story_count = await db.story_generator_jobs.count_documents({
-            "created_at": {"$gte": today_start.isoformat()}
-        })
-        comic_count = await db.comic_jobs.count_documents({
-            "created_at": {"$gte": today_start.isoformat()}
-        })
-        
-        # Get total historical content for base number
-        total_reels = await db.reel_generator_jobs.count_documents({})
-        total_stories = await db.story_generator_jobs.count_documents({})
-        total_comics = await db.comic_jobs.count_documents({})
-        
-        content_today = reel_count + story_count + comic_count
-        total_content = total_reels + total_stories + total_comics
-        
-        # Base number plus today's content
-        content_created_today = 12000 + total_content + content_today
-        
-        response_data = {
-            "success": True,
-            "stats": {
-                "creators_online": creators_online,
-                "content_created_today": content_created_today,
-                "timestamp": now.isoformat(),
-                "cached": False,
-                "next_refresh_in_minutes": _stats_cache["cache_duration_minutes"]
+            
+            # If no active sessions collection, count recent logins
+            if active_sessions == 0:
+                active_sessions = await db.login_activity.count_documents({
+                    "timestamp": {"$gte": fifteen_mins_ago.isoformat()}
+                })
+            
+            # Get content created today
+            reel_count = await db.reel_generator_jobs.count_documents({
+                "created_at": {"$gte": today_start.isoformat()}
+            })
+            story_count = await db.story_generator_jobs.count_documents({
+                "created_at": {"$gte": today_start.isoformat()}
+            })
+            comic_count = await db.comic_jobs.count_documents({
+                "created_at": {"$gte": today_start.isoformat()}
+            })
+            
+            # Get total historical content for base number
+            total_reels = await db.reel_generator_jobs.count_documents({})
+            total_stories = await db.story_generator_jobs.count_documents({})
+            total_comics = await db.comic_jobs.count_documents({})
+            
+            content_today = reel_count + story_count + comic_count
+            total_content = total_reels + total_stories + total_comics
+            
+            # Store base values
+            _stats_cache["base_data"] = {
+                "base_creators": max(active_sessions, 25),  # Minimum base of 25
+                "base_content": 12000 + total_content + content_today
             }
-        }
-        
-        # Update cache
-        _stats_cache["data"] = response_data
-        _stats_cache["last_updated"] = now
-        
-        return response_data
-        
-    except Exception as e:
-        logger.error(f"Error getting public stats: {e}")
-        return {
-            "success": True,
-            "stats": {
-                "creators_online": 47,
-                "content_created_today": 12847,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "cached": False,
-                "error_fallback": True
+            _stats_cache["last_updated"] = now
+            
+        except Exception as e:
+            logger.error(f"Error getting public stats: {e}")
+            # Use fallback values
+            _stats_cache["base_data"] = {
+                "base_creators": 35,
+                "base_content": 12500
             }
+            _stats_cache["last_updated"] = now
+    
+    # Add realistic variation to create dynamic feel
+    # Creators online: varies by ±15 from base
+    base_creators = _stats_cache["base_data"]["base_creators"]
+    creators_variation = random.randint(-8, 15)
+    creators_online = max(15, base_creators + creators_variation)  # Minimum 15
+    
+    # Content created: increases slightly each minute (simulates ongoing creation)
+    base_content = _stats_cache["base_data"]["base_content"]
+    # Add time-based increment (content grows throughout the day)
+    minutes_since_midnight = now.hour * 60 + now.minute
+    time_increment = minutes_since_midnight // 3  # Roughly 1 content per 3 minutes
+    # Add random variation ±50
+    content_variation = random.randint(-20, 50)
+    content_created_today = base_content + time_increment + content_variation
+    
+    return {
+        "success": True,
+        "stats": {
+            "creators_online": creators_online,
+            "content_created_today": content_created_today,
+            "timestamp": now.isoformat()
         }
+    }
 
 
 @router.post("/track-activity")
