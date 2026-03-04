@@ -6,6 +6,7 @@ import { authAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
+import analytics from '../utils/analytics';
 
 export default function Login({ setAuth }) {
   const [email, setEmail] = useState('');
@@ -123,6 +124,9 @@ export default function Login({ setAuth }) {
       // Store user data from login response for immediate access
       if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        // Track login in Google Analytics
+        analytics.trackLogin('email');
+        analytics.setUserId(response.data.user.id);
       }
       setAuth(true);
       toast.success('Login successful!');

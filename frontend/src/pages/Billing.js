@@ -5,6 +5,7 @@ import { Coins, Sparkles, Check, Star, Zap, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { paymentAPI, creditAPI } from '../utils/api';
 import HelpGuide from '../components/HelpGuide';
+import analytics from '../utils/analytics';
 
 export default function Billing() {
   const [products, setProducts] = useState([]);
@@ -45,6 +46,15 @@ export default function Billing() {
 
   const handlePurchase = async (productId) => {
     setLoading({...loading, [productId]: true});
+    
+    // Find product details for analytics
+    const product = products.find(p => p.id === productId);
+    const productName = product?.name || productId;
+    const productPrice = product?.price || 0;
+    
+    // Track checkout start
+    analytics.trackPurchaseStart(productName, productPrice, 'INR');
+    
     try {
       // Use Cashfree API
       const response = await api.post('/api/cashfree/create-order', { productId, currency: 'INR' });
@@ -74,6 +84,8 @@ export default function Billing() {
             try {
               const verifyRes = await api.post('/api/cashfree/verify', { order_id: response.data.orderId });
               if (verifyRes.data.success) {
+                // Track successful purchase
+                analytics.trackPurchaseComplete(productName, productPrice, 'INR', response.data.orderId);
                 toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added.`);
                 fetchData();
               } else {

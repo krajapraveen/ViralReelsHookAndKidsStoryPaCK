@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, User, Check, X, Shield, Gift } from 'lucide-react';
 import api from '../utils/api';
 import { collectFingerprint } from '../utils/fingerprint';
+import analytics from '../utils/analytics';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -249,6 +250,10 @@ export default function Signup({ setAuth }) {
       });
       localStorage.setItem('token', response.data.token);
       setAuth(true);
+      
+      // Track signup in Google Analytics
+      analytics.trackSignup('email');
+      analytics.setUserId(response.data.user?.id);
       
       // Show appropriate message based on credit system
       const delayedInfo = response.data.delayed_credits_info;
