@@ -18,6 +18,7 @@ export default function Login({ setAuth }) {
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState(''); // Inline error message
   const forgotEmailInputRef = useRef(null);
   const forgotPasswordLinkRef = useRef(null);
   const navigate = useNavigate();
@@ -78,23 +79,32 @@ export default function Login({ setAuth }) {
   const handleEmailChange = (e) => {
     const value = e.target.value;
     setEmail(value);
-    // Clear error when user starts typing
+    // Clear errors when user starts typing
     if (errors.email) {
       setErrors(prev => ({ ...prev, email: '' }));
+    }
+    if (loginError) {
+      setLoginError('');
     }
   };
 
   const handlePasswordChange = (e) => {
     const value = e.target.value;
     setPassword(value);
-    // Clear error when user starts typing
+    // Clear errors when user starts typing
     if (errors.password) {
       setErrors(prev => ({ ...prev, password: '' }));
+    }
+    if (loginError) {
+      setLoginError('');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Clear previous login error
+    setLoginError('');
     
     // Validate all fields
     const emailError = validateEmail(email);
@@ -123,15 +133,20 @@ export default function Login({ setAuth }) {
       
       // Handle account lockout (HTTP 423)
       if (status === 423) {
-        toast.error(message || 'Account temporarily locked. Please try again later.');
+        const errorMsg = message || 'Account temporarily locked. Please try again later.';
+        setLoginError(errorMsg);
+        toast.error(errorMsg);
       }
       // Handle remaining attempts warning
       else if (message.includes('attempts remaining')) {
+        setLoginError(message);
         toast.error(message);
       }
       // Generic error message to not reveal if email exists
       else {
-        toast.error('Invalid email or password. Please try again.');
+        const errorMsg = 'Invalid email or password. Please try again.';
+        setLoginError(errorMsg);
+        toast.error(errorMsg);
       }
     } finally {
       setLoading(false);
@@ -309,6 +324,16 @@ export default function Login({ setAuth }) {
                 </p>
               )}
             </div>
+
+            {/* Inline Login Error Message */}
+            {loginError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-3" data-testid="login-error-message">
+                <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-red-400 text-xs font-bold">!</span>
+                </div>
+                <p className="text-red-400 text-sm">{loginError}</p>
+              </div>
+            )}
 
             <Button
               type="submit"

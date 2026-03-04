@@ -26,6 +26,7 @@ import CreatorTools from './pages/CreatorTools';
 import PaymentHistory from './pages/PaymentHistory';
 import VerifyEmail from './pages/VerifyEmail';
 import ResetPassword from './pages/ResetPassword';
+import ForgotPassword from './pages/ForgotPassword';
 // New Feature Pages
 import CreatorProTools from './pages/CreatorProTools';
 import TwinFinder from './pages/TwinFinder';
@@ -128,6 +129,7 @@ function App() {
         <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         
         {/* Public Share Page - No auth required */}
         <Route path="/share/:shareId" element={<SharePage />} />
