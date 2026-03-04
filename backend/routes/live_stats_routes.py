@@ -14,6 +14,13 @@ from shared import db, logger, get_current_user
 
 router = APIRouter(prefix="/live-stats", tags=["Live Stats"])
 
+# Cache for public stats - refreshes every 15 minutes
+_stats_cache = {
+    "data": None,
+    "last_updated": None,
+    "cache_duration_minutes": 15
+}
+
 
 def require_admin(user: dict):
     """Check if user is admin"""
@@ -28,9 +35,24 @@ async def get_public_stats():
     """
     Get real-time public stats for landing page
     Returns: creators online, content created today
+    Cached for 15 minutes to reduce database load
     """
+    global _stats_cache
+    
+    now = datetime.now(timezone.utc)
+    
+    # Check if cache is valid (less than 15 minutes old)
+    if (_stats_cache["data"] is not None and 
+        _stats_cache["last_updated"] is not None and
+        (now - _stats_cache["last_updated"]).total_seconds() < _stats_cache["cache_duration_minutes"] * 60):
+        # Return cached data with updated timestamp
+        cached_response = _stats_cache["data"].copy()
+        cached_response["stats"]["cached"] = True
+        cached_response["stats"]["cache_age_seconds"] = int((now - _stats_cache["last_updated"]).total_seconds())
+        return cached_response
+    
+    # Cache miss or expired - fetch fresh data
     try:
-        now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Get active sessions (users active in last 15 minutes)
@@ -70,14 +92,23 @@ async def get_public_stats():
         # Base number plus today's content
         content_created_today = 12000 + total_content + content_today
         
-        return {
+        response_data = {
             "success": True,
             "stats": {
                 "creators_online": creators_online,
                 "content_created_today": content_created_today,
-                "timestamp": now.isoformat()
+                "timestamp": now.isoformat(),
+                "cached": False,
+                "next_refresh_in_minutes": _stats_cache["cache_duration_minutes"]
             }
         }
+        
+        # Update cache
+        _stats_cache["data"] = response_data
+        _stats_cache["last_updated"] = now
+        
+        return response_data
+        
     except Exception as e:
         logger.error(f"Error getting public stats: {e}")
         return {
@@ -85,7 +116,9 @@ async def get_public_stats():
             "stats": {
                 "creators_online": 47,
                 "content_created_today": 12847,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "cached": False,
+                "error_fallback": True
             }
         }
 
