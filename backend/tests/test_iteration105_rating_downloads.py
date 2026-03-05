@@ -14,7 +14,7 @@ import os
 import json
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://legacy-user-fix.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://growth-preview-11.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER = {

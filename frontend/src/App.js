@@ -98,6 +98,10 @@ import UserActivityDashboard from './pages/Admin/UserActivityDashboard';
 import SystemHealthDashboard from './pages/Admin/SystemHealthDashboard';
 // ANTI-ABUSE DASHBOARD
 import AntiAbuseDashboard from './pages/Admin/AntiAbuseDashboard';
+// BLOG FOR SEO
+import Blog from './pages/Blog';
+// LIVE CHAT WIDGET
+import LiveChatWidget from './components/LiveChatWidget';
 import './App.css';
 
 function App() {
@@ -124,6 +128,8 @@ function App() {
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/reviews" element={<Reviews />} />
+        <Route path="/blog" element={<Blog />} />
+        <Route path="/blog/:slug" element={<Blog />} />
         <Route path="/login" element={<Login setAuth={setIsAuthenticated} />} />
         <Route path="/signup" element={<Signup setAuth={setIsAuthenticated} />} />
         <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
@@ -243,6 +249,9 @@ function App() {
       
       {/* Feedback Widget - Collect user suggestions */}
       <FeedbackWidget />
+      
+      {/* Live Chat Widget - Support chat */}
+      <LiveChatWidget />
     </TourProvider>
     </NotificationProvider>
   );

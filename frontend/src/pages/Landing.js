@@ -47,11 +47,7 @@ export default function Landing() {
     return () => clearInterval(interval);
   }, []);
 
-  const testimonials = [
-    { name: "Sarah K.", role: "Content Creator", text: "Made 3 viral reels in my first week! The hooks are insanely good.", rating: 5, avatar: "S" },
-    { name: "Mike R.", role: "YouTube Dad", text: "My kids story channel grew from 0 to 10K subscribers using this tool.", rating: 5, avatar: "M" },
-    { name: "Priya S.", role: "Social Media Manager", text: "Saves me 5+ hours every week. The content calendar feature is a game changer.", rating: 5, avatar: "P" },
-  ];
+  // Testimonials are now dynamically loaded from API in the Testimonials component
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -248,38 +244,6 @@ export default function Landing() {
               <div className="text-3xl font-bold text-orange-400 mb-1">50K+</div>
               <div className="text-slate-400 text-sm">Content Created</div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Social Proof Testimonials */}
-      <section className="py-16 px-4 bg-black/30">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-4">
-            Loved by Creators Worldwide
-          </h2>
-          <p className="text-slate-400 text-center mb-12">See what our community is saying</p>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 hover:border-indigo-500/50 transition-all hover:scale-105">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                  ))}
-                </div>
-                <p className="text-slate-300 mb-6 italic">"{testimonial.text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
-                    {testimonial.avatar}
-                  </div>
-                  <div>
-                    <div className="text-white font-semibold">{testimonial.name}</div>
-                    <div className="text-slate-400 text-sm">{testimonial.role}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -508,6 +472,7 @@ export default function Landing() {
             
             <div className="flex items-center gap-6 text-slate-400">
               <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+              <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
               <Link to="/reviews" className="hover:text-white transition-colors">Reviews</Link>
               <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
               <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy</Link>

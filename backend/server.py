@@ -295,7 +295,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://legacy-user-fix.preview.emergentagent.com",
+    "https://growth-preview-11.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
@@ -444,6 +444,18 @@ api_router.include_router(system_health_router)
 # Anti-Abuse Protection
 from routes.anti_abuse_routes import router as anti_abuse_router
 api_router.include_router(anti_abuse_router)
+
+# Organic Reviews System
+from routes.reviews import router as reviews_router
+api_router.include_router(reviews_router)
+
+# Watermark Service for Social Sharing
+from routes.watermark import router as watermark_router
+api_router.include_router(watermark_router)
+
+# Blog/Content Pages for SEO
+from routes.blog import router as blog_router
+api_router.include_router(blog_router)
 
 # Include API router in app
 app.include_router(api_router)

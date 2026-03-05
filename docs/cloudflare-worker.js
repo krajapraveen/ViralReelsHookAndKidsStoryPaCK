@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://legacy-user-fix.preview.emergentagent.com';
+const BACKEND_URL = 'https://growth-preview-11.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

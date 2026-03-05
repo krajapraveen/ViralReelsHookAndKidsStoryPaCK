@@ -36,61 +36,14 @@ export default function Reviews() {
     ));
   };
 
-  // Default reviews if none from API
-  const defaultReviews = [
-    {
-      id: 1,
-      name: 'Priya Sharma',
-      rating: 5,
-      message: 'CreatorStudio AI has completely transformed my content creation workflow. The reel scripts are incredibly engaging and save me hours of brainstorming!',
-      createdAt: '2026-02-10',
-      type: 'review'
-    },
-    {
-      id: 2,
-      name: 'Rahul Verma',
-      rating: 5,
-      message: 'The kids story generator is amazing! My YouTube channel for children has grown 10x since I started using it. Highly recommended!',
-      createdAt: '2026-02-08',
-      type: 'review'
-    },
-    {
-      id: 3,
-      name: 'Anita Desai',
-      rating: 4,
-      message: 'Great tool for content creators. The AI-generated hooks are viral-worthy. Would love to see more language options in the future.',
-      createdAt: '2026-02-05',
-      type: 'review'
-    },
-    {
-      id: 4,
-      name: 'Vikram Singh',
-      rating: 5,
-      message: 'Best investment for my social media business. The ROI is incredible - I generate weeks worth of content in just hours!',
-      createdAt: '2026-02-03',
-      type: 'review'
-    },
-    {
-      id: 5,
-      name: 'Meera Patel',
-      rating: 5,
-      message: 'The PDF export feature for story packs is so professional. My clients love the quality of content I deliver now.',
-      createdAt: '2026-02-01',
-      type: 'review'
-    },
-    {
-      id: 6,
-      name: 'Arjun Kapoor',
-      rating: 4,
-      message: 'Excellent platform! The 100 free credits let me try everything before committing. Now I\'m a happy subscriber.',
-      createdAt: '2026-01-28',
-      type: 'review'
-    }
-  ];
+  // Reviews are now fetched from API - no fake defaults
+  const defaultReviews = [];
 
   const displayReviews = reviews.length > 0 ? reviews : defaultReviews;
 
-  const avgRating = displayReviews.reduce((acc, r) => acc + r.rating, 0) / displayReviews.length;
+  const avgRating = displayReviews.length > 0 
+    ? displayReviews.reduce((acc, r) => acc + r.rating, 0) / displayReviews.length 
+    : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
@@ -152,6 +105,32 @@ export default function Reviews() {
         </div>
 
         {/* Reviews Grid */}
+        {displayReviews.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <MessageSquare className="w-10 h-10 text-slate-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-4">Be the First to Share Your Experience!</h3>
+            <p className="text-slate-400 mb-8 max-w-md mx-auto">
+              We're building a community of creators. Try our tools and share your honest feedback to help others discover what's possible!
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link to="/signup">
+                <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 px-8">
+                  Get Started Free
+                </Button>
+              </Link>
+              <Button 
+                onClick={() => setShowFeedbackForm(true)}
+                variant="outline"
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Write a Review
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {displayReviews.map((review) => (
             <div 
@@ -184,6 +163,7 @@ export default function Reviews() {
             </div>
           ))}
         </div>
+        )}
 
         {/* CTA Section */}
         <div className="mt-16 text-center">

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://legacy-user-fix.preview.emergentagent.com
+**Platform URL:** https://growth-preview-11.preview.emergentagent.com
 
 ---
 

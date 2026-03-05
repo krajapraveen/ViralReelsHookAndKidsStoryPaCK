@@ -186,7 +186,7 @@ public class EmailService {
                             </div>
                         </div>
                         
-                        <a href="https://legacy-user-fix.preview.emergentagent.com/app" class="cta-button">
+                        <a href="https://growth-preview-11.preview.emergentagent.com/app" class="cta-button">
                             Start Creating →
                         </a>
                     </div>
@@ -244,7 +244,7 @@ public class EmailService {
                             <div class="feature-desc">Create complete story video packages with scenes, narration, and YouTube metadata (6-8 credits)</div>
                         </div>
                         
-                        <a href="https://legacy-user-fix.preview.emergentagent.com/app" class="cta-button">
+                        <a href="https://growth-preview-11.preview.emergentagent.com/app" class="cta-button">
                             Start Creating →
                         </a>
                     </div>
@@ -289,7 +289,7 @@ public class EmailService {
                             <div style="font-size: 36px; font-weight: bold;">%d</div>
                         </div>
                         
-                        <a href="https://legacy-user-fix.preview.emergentagent.com/pricing" class="cta-button">
+                        <a href="https://growth-preview-11.preview.emergentagent.com/pricing" class="cta-button">
                             Get More Credits →
                         </a>
                     </div>
