@@ -7,12 +7,16 @@ import {
   Instagram, Youtube, Twitter, ChevronDown
 } from 'lucide-react';
 import DemoReelGenerator from '../components/DemoReelGenerator';
+import ProductShowcase from '../components/ProductShowcase';
+import Testimonials from '../components/Testimonials';
+import DemoVideoPlayer from '../components/DemoVideoPlayer';
 import analytics from '../utils/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function Landing() {
   const [showDemo, setShowDemo] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [liveUsers, setLiveUsers] = useState(47);
   const [contentCreated, setContentCreated] = useState(12784);
@@ -53,6 +57,9 @@ export default function Landing() {
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
       {/* Demo Modal */}
       <DemoReelGenerator isOpen={showDemo} onClose={() => setShowDemo(false)} />
+      
+      {/* Video Player Modal */}
+      <DemoVideoPlayer isOpen={showVideoPlayer} onClose={() => setShowVideoPlayer(false)} />
       
       {/* Live Activity Banner */}
       <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-green-600 to-emerald-600 text-white text-center py-2 text-sm font-medium">
@@ -210,15 +217,14 @@ export default function Landing() {
               size="lg" 
               variant="outline"
               onClick={() => {
-                analytics.trackCTAClick('Watch Demo', 'hero_section');
-                analytics.trackVideoPlay('Landing Page Demo', 'hero_section');
-                setShowDemo(true);
+                analytics.trackCTAClick('Watch Demo Video', 'hero_section');
+                setShowVideoPlayer(true);
               }}
               className="w-full sm:w-auto border-2 border-white/20 text-white hover:bg-white/10 rounded-full px-6 py-4 text-base" 
               data-testid="hero-demo-btn"
             >
               <Play className="w-5 h-5 mr-2" />
-              Watch Demo (No Signup Required)
+              Watch 60-Second Demo
             </Button>
           </div>
 
@@ -371,6 +377,25 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Product Showcase - Auto-playing Feature Demo */}
+      <section className="py-20 px-4 bg-gradient-to-b from-transparent via-indigo-950/30 to-transparent">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 rounded-full px-4 py-2 mb-4">
+              <Play className="w-4 h-4 text-indigo-400" />
+              <span className="text-indigo-400 font-medium text-sm">See It In Action</span>
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Powerful Features, Simple Interface
+            </h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+              Watch how easy it is to create viral content with our AI-powered tools
+            </p>
+          </div>
+          <ProductShowcase />
+        </div>
+      </section>
+
       {/* Platform Support */}
       <section className="py-16 px-4 bg-black/30">
         <div className="max-w-4xl mx-auto text-center">
@@ -432,6 +457,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Testimonials Section */}
+      <Testimonials />
 
       {/* Final CTA Section */}
       <section className="py-20 px-4">
