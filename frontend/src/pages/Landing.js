@@ -7,6 +7,7 @@ import {
   Instagram, Youtube, Twitter, ChevronDown
 } from 'lucide-react';
 import DemoReelGenerator from '../components/DemoReelGenerator';
+import analytics from '../utils/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -195,6 +196,7 @@ export default function Landing() {
                 size="lg" 
                 className="w-full sm:w-auto bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 hover:from-orange-600 hover:via-pink-600 hover:to-purple-600 text-white rounded-full px-8 py-6 text-lg shadow-2xl shadow-pink-500/30 hover:scale-105 transition-all font-bold" 
                 data-testid="hero-signup-btn"
+                onClick={() => analytics.trackCTAClick('Start Free - Get 100 Credits', 'hero_section')}
               >
                 <Gift className="w-5 h-5 mr-2" />
                 Start Free - Get 100 Credits
@@ -207,7 +209,11 @@ export default function Landing() {
             <Button 
               size="lg" 
               variant="outline"
-              onClick={() => setShowDemo(true)}
+              onClick={() => {
+                analytics.trackCTAClick('Watch Demo', 'hero_section');
+                analytics.trackVideoPlay('Landing Page Demo', 'hero_section');
+                setShowDemo(true);
+              }}
               className="w-full sm:w-auto border-2 border-white/20 text-white hover:bg-white/10 rounded-full px-6 py-4 text-base" 
               data-testid="hero-demo-btn"
             >
@@ -415,7 +421,10 @@ export default function Landing() {
               ))}
             </div>
             <Link to="/signup">
-              <Button className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full px-8 py-4 text-lg font-bold">
+              <Button 
+                className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full px-8 py-4 text-lg font-bold"
+                onClick={() => analytics.trackCTAClick('Start Earning Now', 'referral_section')}
+              >
                 Start Earning Now
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
@@ -438,7 +447,12 @@ export default function Landing() {
             Get 100 free credits on signup. No credit card required. Start creating in 30 seconds.
           </p>
           <Link to="/signup">
-            <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 hover:from-orange-600 hover:via-pink-600 hover:to-purple-600 text-white rounded-full px-12 py-6 text-lg shadow-2xl shadow-pink-500/30 hover:scale-105 transition-all font-bold" data-testid="cta-signup-btn">
+            <Button 
+              size="lg" 
+              className="w-full sm:w-auto bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 hover:from-orange-600 hover:via-pink-600 hover:to-purple-600 text-white rounded-full px-12 py-6 text-lg shadow-2xl shadow-pink-500/30 hover:scale-105 transition-all font-bold" 
+              data-testid="cta-signup-btn"
+              onClick={() => analytics.trackCTAClick('Claim Your 100 Free Credits', 'final_cta_section')}
+            >
               <Gift className="w-5 h-5 mr-2" />
               Claim Your 100 Free Credits
               <ArrowRight className="w-5 h-5 ml-2" />

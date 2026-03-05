@@ -84,6 +84,60 @@ export const analytics = {
     });
   },
 
+  // Button Click Tracking (for CTAs)
+  trackButtonClick: (buttonName, location = 'unknown') => {
+    trackEvent('button_click', {
+      button_name: buttonName,
+      location: location,
+    });
+  },
+
+  // CTA Click Tracking
+  trackCTAClick: (ctaText, ctaLocation) => {
+    trackEvent('cta_click', {
+      cta_text: ctaText,
+      cta_location: ctaLocation,
+    });
+  },
+
+  // Form Submission Tracking
+  trackFormSubmit: (formName, success = true) => {
+    trackEvent('form_submit', {
+      form_name: formName,
+      success: success,
+    });
+  },
+
+  // Video Tracking
+  trackVideoPlay: (videoTitle, videoLocation = 'unknown') => {
+    trackEvent('video_start', {
+      video_title: videoTitle,
+      video_location: videoLocation,
+    });
+  },
+
+  trackVideoComplete: (videoTitle, watchPercentage = 100) => {
+    trackEvent('video_complete', {
+      video_title: videoTitle,
+      watch_percentage: watchPercentage,
+    });
+  },
+
+  // Landing Page Specific Events
+  trackLandingAction: (action, element) => {
+    trackEvent('landing_page_action', {
+      action: action,
+      element: element,
+    });
+  },
+
+  // Scroll Depth Tracking
+  trackScrollDepth: (percentage) => {
+    trackEvent('scroll_depth', {
+      depth_percentage: percentage,
+    });
+  },
+
   // Page Views (automatic, but can be called manually for SPAs)
   trackPageView: (pagePath, pageTitle) => {
     trackEvent('page_view', {
