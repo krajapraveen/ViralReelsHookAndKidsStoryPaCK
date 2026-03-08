@@ -165,6 +165,9 @@ from routes.account_lock_routes import router as account_lock_router
 from routes.environment_monitor_routes import router as environment_monitor_router
 from services.environment_monitor_scheduler import start_env_scheduler, stop_env_scheduler
 
+# WebSocket Real-Time Progress
+from routes.websocket_progress import router as websocket_progress_router
+
 # Performance and stability module
 from performance import (
     PerformanceMiddleware,
@@ -497,6 +500,9 @@ api_router.include_router(blog_router)
 
 # Include API router in app
 app.include_router(api_router)
+
+# WebSocket endpoint (no /api prefix - direct mount)
+app.include_router(websocket_progress_router)
 
 # ==================== STATIC FILE SERVING ====================
 

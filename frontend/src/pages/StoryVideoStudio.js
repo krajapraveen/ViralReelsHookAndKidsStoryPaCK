@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -9,6 +9,8 @@ import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import analytics from '../utils/analytics';
+import useWebSocketProgress from '../hooks/useWebSocketProgress';
+import { RealTimeProgressPanel } from '../components/RealTimeProgressPanel';
 import { 
   ArrowLeft, Upload, Wand2, Loader2, Film, Image, Mic, 
   Play, Users, BookOpen, Sparkles, ChevronRight, ChevronDown,
@@ -16,7 +18,8 @@ import {
   AlertTriangle, CheckCircle, Palette, Music, Video, Pause,
   Volume2, Maximize, Settings, RefreshCw, LayoutTemplate,
   Gamepad2, Share2, Facebook, Twitter, MessageCircle, Linkedin,
-  Mail, Trophy, HelpCircle, Puzzle, Brain, Lightbulb, Copy
+  Mail, Trophy, HelpCircle, Puzzle, Brain, Lightbulb, Copy,
+  Wifi, WifiOff
 } from 'lucide-react';
 
 const AGE_GROUPS = [
@@ -102,6 +105,40 @@ export default function StoryVideoStudio() {
   // NEW: Social Sharing state
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareLinks, setShareLinks] = useState({});
+  
+  // NEW: WebSocket Real-Time Progress
+  const [currentJobId, setCurrentJobId] = useState(null);
+  const [wsProgress, setWsProgress] = useState(null);
+  
+  // WebSocket progress callbacks
+  const handleWsProgress = useCallback((data) => {
+    setWsProgress(data);
+    // Show toast for key milestones
+    if (data.current_step === 1 && data.stage !== 'complete') {
+      toast.info(`${data.message}`);
+    }
+  }, []);
+  
+  const handleWsComplete = useCallback((data) => {
+    setWsProgress({ ...data, status: 'completed' });
+    toast.success('🎉 ' + (data.message || 'Generation complete!'));
+  }, []);
+  
+  const handleWsError = useCallback((data) => {
+    setWsProgress({ ...data, status: 'failed' });
+    toast.error(data.message || 'Generation failed');
+  }, []);
+  
+  // WebSocket hook
+  const { 
+    isConnected: wsConnected, 
+    subscribeToJob 
+  } = useWebSocketProgress(
+    currentJobId,
+    handleWsProgress,
+    handleWsComplete,
+    handleWsError
+  );
   
   // Fetch styles and pricing on mount
   useEffect(() => {
@@ -605,6 +642,16 @@ export default function StoryVideoStudio() {
                 {idx < 7 && <div className={`w-4 h-0.5 ${step > idx + 1 ? 'bg-green-500' : 'bg-slate-700'}`} />}
               </div>
             ))}
+          </div>
+          
+          {/* WebSocket Status Indicator */}
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+              wsConnected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/50 text-slate-400'
+            }`}>
+              {wsConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {wsConnected ? 'Live' : 'Offline'}
+            </div>
           </div>
         </div>
       </header>
@@ -1385,26 +1432,29 @@ export default function StoryVideoStudio() {
               )}
             </Button>
             
-            {/* Render Progress */}
-            {renderJob && renderJob.status !== 'COMPLETED' && (
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Rendering Progress</h3>
-                  <span className={`px-3 py-1 rounded-full text-sm ${
-                    renderJob.status === 'PROCESSING' ? 'bg-blue-500/20 text-blue-400' :
-                    renderJob.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                    'bg-amber-500/20 text-amber-400'
-                  }`}>
-                    {renderJob.status}
-                  </span>
-                </div>
-                <Progress value={renderJob.progress || 0} className="h-3" />
-                <p className="text-sm text-slate-400 mt-2">{renderJob.progress || 0}% complete</p>
-                {renderJob.error && (
-                  <p className="text-red-400 text-sm mt-2">{renderJob.error}</p>
-                )}
-              </div>
-            )}
+            {/* Render Progress - Now with Real-Time WebSocket Updates */}
+            {(renderJob && renderJob.status !== 'COMPLETED') || wsProgress ? (
+              <RealTimeProgressPanel
+                progress={wsProgress || {
+                  stage: renderJob?.status === 'PROCESSING' ? 'video_assembly' : 'preparing',
+                  progress: renderJob?.progress || 0,
+                  current_step: 1,
+                  total_steps: 1,
+                  message: renderJob?.status === 'PROCESSING' ? 'Rendering video...' : 'Preparing...',
+                  status: renderJob?.status === 'FAILED' ? 'failed' : 
+                          renderJob?.status === 'COMPLETED' ? 'completed' : 'running',
+                  estimated_remaining: renderJob?.progress ? `~${Math.max(5, Math.floor((100 - renderJob.progress) / 10))}s` : null
+                }}
+                title="Video Generation Progress"
+                steps={[
+                  { stage: 'scene_generation', label: 'Generating Scenes', detail: '' },
+                  { stage: 'image_generation', label: 'Creating Scene Images', detail: '' },
+                  { stage: 'voice_generation', label: 'Recording Narration', detail: '' },
+                  { stage: 'video_assembly', label: 'Rendering Final Video', detail: '' }
+                ]}
+                className="mb-6"
+              />
+            ) : null}
             
             {/* NEW: Waiting Games - Shows during video rendering */}
             {renderJob && renderJob.status !== 'COMPLETED' && renderJob.status !== 'FAILED' && (
