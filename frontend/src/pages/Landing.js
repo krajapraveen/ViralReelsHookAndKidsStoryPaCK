@@ -14,12 +14,44 @@ import analytics from '../utils/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+// A/B Test Variations for Landing Page
+const LANDING_VARIATIONS = {
+  A: {
+    headline: "Go Viral on Social Media Without Being Creative",
+    subheadline: "AI writes your hooks, scripts, captions & hashtags. Generate complete kids story video packs. Create 30-day content calendars. All in under 60 seconds.",
+    ctaText: "Get 100 FREE Credits",
+    ctaColor: "from-indigo-500 to-purple-500"
+  },
+  B: {
+    headline: "Create Viral Content in 60 Seconds with AI",
+    subheadline: "No creative skills needed. Our AI generates scroll-stopping reels, kids stories, and content calendars that actually work. Join 5,000+ creators today.",
+    ctaText: "Start Creating Free",
+    ctaColor: "from-green-500 to-emerald-500"
+  }
+};
+
 export default function Landing() {
   const [showDemo, setShowDemo] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [liveUsers, setLiveUsers] = useState(47);
   const [contentCreated, setContentCreated] = useState(12784);
+  const [abVariant, setAbVariant] = useState('A');
+  const [variation, setVariation] = useState(LANDING_VARIATIONS.A);
+
+  // Initialize A/B test and track funnel
+  useEffect(() => {
+    // Initialize session for tracking
+    analytics.initSession();
+    
+    // Get A/B test variant
+    const variant = analytics.initABTest('landing_page_2026');
+    setAbVariant(variant);
+    setVariation(LANDING_VARIATIONS[variant] || LANDING_VARIATIONS.A);
+    
+    // Track funnel step: Landing View
+    analytics.trackFunnelStep('landing_view', { ab_variant: variant });
+  }, []);
 
   // Fetch real stats from API every 60 seconds with dynamic updates
   useEffect(() => {
@@ -46,6 +78,13 @@ export default function Landing() {
     
     return () => clearInterval(interval);
   }, []);
+
+  // Track CTA click for A/B test conversion
+  const handleCTAClick = (ctaLocation) => {
+    analytics.trackExperimentConversion('landing_page_2026', abVariant, 'cta_click');
+    analytics.trackFunnelStep('signup_start', { ab_variant: abVariant, cta_location: ctaLocation });
+    analytics.trackCTAClick(variation.ctaText, ctaLocation);
+  };
 
   // Testimonials are now dynamically loaded from API in the Testimonials component
 
@@ -159,6 +198,13 @@ export default function Landing() {
       {/* Hero Section */}
       <section className="pt-40 pb-16 px-4">
         <div className="max-w-7xl mx-auto text-center">
+          {/* A/B Test Indicator (only visible in dev) */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="fixed top-20 right-4 z-50 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-300">
+              A/B Test: Variant {abVariant}
+            </div>
+          )}
+          
           {/* Trust Badges */}
           <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
             <div className="inline-flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-full px-4 py-2">
@@ -175,16 +221,17 @@ export default function Landing() {
             </div>
           </div>
           
+          {/* A/B Tested Headline */}
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white mb-6 tracking-tight leading-tight">
-            Go Viral on Social Media<br />
+            {variation.headline.split(' ').slice(0, -2).join(' ')}<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-pink-400 to-purple-400">
-              Without Being Creative
+              {variation.headline.split(' ').slice(-2).join(' ')}
             </span>
           </h1>
           
+          {/* A/B Tested Subheadline */}
           <p className="text-base sm:text-lg md:text-xl text-slate-300 max-w-3xl mx-auto mb-6 px-4">
-            AI writes your hooks, scripts, captions & hashtags. Generate complete kids story video packs. 
-            Create 30-day content calendars. <span className="text-white font-semibold">All in under 60 seconds.</span>
+            {variation.subheadline}
           </p>
 
           {/* Urgency Banner */}
@@ -193,16 +240,16 @@ export default function Landing() {
             <span className="text-red-400 font-bold">LIMITED: Get 100 FREE credits today (worth ₹500)</span>
           </div>
 
+          {/* A/B Tested CTA Button */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-6 px-4">
-            <Link to="/signup" className="w-full sm:w-auto">
+            <Link to="/signup" className="w-full sm:w-auto" onClick={() => handleCTAClick('hero_primary')}>
               <Button 
                 size="lg" 
-                className="w-full sm:w-auto bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 hover:from-orange-600 hover:via-pink-600 hover:to-purple-600 text-white rounded-full px-8 py-6 text-lg shadow-2xl shadow-pink-500/30 hover:scale-105 transition-all font-bold" 
+                className={`w-full sm:w-auto bg-gradient-to-r ${variation.ctaColor} hover:opacity-90 text-white rounded-full px-8 py-6 text-lg shadow-2xl shadow-pink-500/30 hover:scale-105 transition-all font-bold`}
                 data-testid="hero-signup-btn"
-                onClick={() => analytics.trackCTAClick('Start Free - Get 100 Credits', 'hero_section')}
               >
                 <Gift className="w-5 h-5 mr-2" />
-                Start Free - Get 100 Credits
+                {variation.ctaText}
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>

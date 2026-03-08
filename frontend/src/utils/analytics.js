@@ -4,6 +4,18 @@
 // Debug mode - set to true to log events to console
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
+// A/B Test configuration - stored in localStorage
+const getABTestVariant = (testName) => {
+  const key = `ab_test_${testName}`;
+  let variant = localStorage.getItem(key);
+  if (!variant) {
+    // Randomly assign variant A or B (50/50 split)
+    variant = Math.random() < 0.5 ? 'A' : 'B';
+    localStorage.setItem(key, variant);
+  }
+  return variant;
+};
+
 // Helper function to track events
 export const trackEvent = (eventName, parameters = {}) => {
   if (typeof window !== 'undefined' && window.gtag) {
@@ -392,7 +404,146 @@ export const analytics = {
       content: ['generate_content', 'generation_complete', 'download', 'share'],
       engagement: ['button_click', 'cta_click', 'form_submit', 'scroll_depth', 'page_view'],
       blog: ['blog_view', 'blog_read_complete'],
+      funnel: ['funnel_step', 'funnel_complete', 'funnel_abandon'],
+      abtest: ['experiment_view', 'experiment_conversion'],
       errors: ['error', 'generation_error']
+    };
+  },
+
+  // ============================================
+  // A/B TESTING SYSTEM
+  // ============================================
+
+  // Get or assign A/B test variant
+  getABVariant: (testName) => {
+    return getABTestVariant(testName);
+  },
+
+  // Track when user sees an A/B test variant
+  trackExperimentView: (experimentName, variant) => {
+    trackEvent('experiment_view', {
+      experiment_name: experimentName,
+      variant: variant,
+      timestamp: new Date().toISOString()
+    });
+  },
+
+  // Track when user converts on an A/B test
+  trackExperimentConversion: (experimentName, variant, conversionType = 'primary') => {
+    trackEvent('experiment_conversion', {
+      experiment_name: experimentName,
+      variant: variant,
+      conversion_type: conversionType,
+      timestamp: new Date().toISOString()
+    });
+  },
+
+  // Initialize A/B test and track view
+  initABTest: (testName) => {
+    const variant = getABTestVariant(testName);
+    trackEvent('experiment_view', {
+      experiment_name: testName,
+      variant: variant,
+      timestamp: new Date().toISOString()
+    });
+    return variant;
+  },
+
+  // ============================================
+  // FUNNEL TRACKING SYSTEM
+  // ============================================
+
+  // Predefined funnel steps
+  FUNNEL_STEPS: {
+    LANDING_VIEW: { step: 1, name: 'landing_view', label: 'Visited Landing Page' },
+    SIGNUP_START: { step: 2, name: 'signup_start', label: 'Started Signup' },
+    SIGNUP_COMPLETE: { step: 3, name: 'signup_complete', label: 'Completed Signup' },
+    FIRST_GENERATION: { step: 4, name: 'first_generation', label: 'First Content Generation' },
+    FIRST_DOWNLOAD: { step: 5, name: 'first_download', label: 'First Download' },
+    PRICING_VIEW: { step: 6, name: 'pricing_view', label: 'Viewed Pricing' },
+    CHECKOUT_START: { step: 7, name: 'checkout_start', label: 'Started Checkout' },
+    PURCHASE_COMPLETE: { step: 8, name: 'purchase_complete', label: 'Completed Purchase' }
+  },
+
+  // Track funnel step progression
+  trackFunnelStep: (stepName, additionalParams = {}) => {
+    const funnelData = JSON.parse(localStorage.getItem('funnel_data') || '{}');
+    const timestamp = new Date().toISOString();
+    
+    // Record step if not already completed
+    if (!funnelData[stepName]) {
+      funnelData[stepName] = {
+        completed_at: timestamp,
+        step_number: Object.keys(funnelData).length + 1
+      };
+      localStorage.setItem('funnel_data', JSON.stringify(funnelData));
+    }
+
+    trackEvent('funnel_step', {
+      step_name: stepName,
+      step_number: funnelData[stepName]?.step_number || Object.keys(funnelData).length,
+      is_first_time: !funnelData[stepName],
+      funnel_progress: Object.keys(funnelData).length,
+      session_id: sessionStorage.getItem('session_id') || 'unknown',
+      ...additionalParams
+    });
+  },
+
+  // Track funnel completion
+  trackFunnelComplete: (funnelName = 'main_conversion') => {
+    const funnelData = JSON.parse(localStorage.getItem('funnel_data') || '{}');
+    const stepsCompleted = Object.keys(funnelData).length;
+    
+    trackEvent('funnel_complete', {
+      funnel_name: funnelName,
+      steps_completed: stepsCompleted,
+      completion_time: new Date().toISOString(),
+      funnel_data: JSON.stringify(funnelData)
+    });
+  },
+
+  // Track funnel abandonment
+  trackFunnelAbandon: (lastStep, reason = 'unknown') => {
+    const funnelData = JSON.parse(localStorage.getItem('funnel_data') || '{}');
+    
+    trackEvent('funnel_abandon', {
+      last_step: lastStep,
+      steps_completed: Object.keys(funnelData).length,
+      abandon_reason: reason,
+      funnel_data: JSON.stringify(funnelData)
+    });
+  },
+
+  // Get current funnel progress
+  getFunnelProgress: () => {
+    return JSON.parse(localStorage.getItem('funnel_data') || '{}');
+  },
+
+  // Reset funnel (for testing)
+  resetFunnel: () => {
+    localStorage.removeItem('funnel_data');
+  },
+
+  // ============================================
+  // SESSION TRACKING
+  // ============================================
+
+  // Initialize session for funnel tracking
+  initSession: () => {
+    if (!sessionStorage.getItem('session_id')) {
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      sessionStorage.setItem('session_id', sessionId);
+      sessionStorage.setItem('session_start', new Date().toISOString());
+    }
+    return sessionStorage.getItem('session_id');
+  },
+
+  // Get session data
+  getSessionData: () => {
+    return {
+      session_id: sessionStorage.getItem('session_id'),
+      session_start: sessionStorage.getItem('session_start'),
+      funnel_progress: JSON.parse(localStorage.getItem('funnel_data') || '{}')
     };
   }
 };

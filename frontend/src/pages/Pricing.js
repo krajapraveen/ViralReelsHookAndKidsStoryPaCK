@@ -30,6 +30,8 @@ export default function Pricing() {
   useEffect(() => {
     fetchProducts();
     fetchExchangeRates();
+    // Track funnel step - Pricing view
+    analytics.trackFunnelStep('pricing_view');
   }, []);
 
   // Track view_item_list when products are loaded

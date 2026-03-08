@@ -75,6 +75,63 @@ This guide helps you create audiences and conversion goals in GA4 for Visionary 
 
 ---
 
+## How to Create Missing Events in GA4
+
+If events are showing "No stream data detected", you need to create them manually:
+
+### Step 1: Navigate to Events
+1. Go to [Google Analytics](https://analytics.google.com)
+2. Select your property
+3. Go to **Configure → Events**
+4. Click **Create event**
+
+### Step 2: Create Each Missing Event
+For each missing event (login, generate_content, download):
+
+1. **Event name**: Enter the exact event name (e.g., `login`)
+2. **Matching conditions**: Leave empty to match all
+3. Click **Create**
+
+### Events to Create:
+| Event Name | Description |
+|------------|-------------|
+| `login` | User login tracking |
+| `generate_content` | Content generation tracking |
+| `download` | Content download tracking |
+| `funnel_step` | Funnel progress tracking |
+| `experiment_view` | A/B test view tracking |
+| `experiment_conversion` | A/B test conversion tracking |
+
+---
+
+## How to Mark Events as Key Events
+
+1. Go to **Configure → Events**
+2. Find the event (e.g., `sign_up`, `purchase`, `begin_checkout`)
+3. Toggle the **Mark as key event** switch ON
+4. The event will now appear in conversions reports
+
+### Recommended Key Events:
+- `sign_up` ✓
+- `purchase` ✓
+- `begin_checkout` ✓
+- `login`
+- `generate_content`
+- `download`
+
+---
+
+## How to Create Audiences in GA4
+
+### Step 1: Access Audiences
+1. Go to [Google Analytics](https://analytics.google.com)
+2. Select your property: **Visionary Suite**
+3. Click **Configure** (left sidebar)
+4. Click **Audiences**
+5. Click **New audience**
+
+---
+
 ### Audience 1: Paid Users
 **Purpose:** Users who have made at least one purchase
 

@@ -4,7 +4,8 @@ import { Button } from '../../components/ui/button';
 import { 
   ArrowLeft, Send, CheckCircle, XCircle, RefreshCw, 
   Activity, BarChart3, Users, ShoppingCart, Download, 
-  UserPlus, LogIn, Eye, MousePointer, FileText
+  UserPlus, LogIn, Eye, MousePointer, FileText, Beaker, 
+  GitBranch, TrendingUp, Target
 } from 'lucide-react';
 import analytics from '../../utils/analytics';
 
@@ -138,6 +139,35 @@ export default function GA4EventTester() {
       action: () => {
         analytics.trackBlogView('test-article', 'Test Article Title', 'Test Category');
         addResult('blog_view', 'Article: test-article', true);
+      }
+    },
+    {
+      name: 'funnel_step',
+      icon: TrendingUp,
+      description: 'Funnel step tracking',
+      action: () => {
+        analytics.trackFunnelStep('landing_view', { source: 'test' });
+        addResult('funnel_step', 'Step: landing_view', true);
+      }
+    },
+    {
+      name: 'experiment_view',
+      icon: Beaker,
+      description: 'A/B test view',
+      action: () => {
+        const variant = analytics.getABVariant('test_experiment');
+        analytics.trackExperimentView('test_experiment', variant);
+        addResult('experiment_view', `Experiment: test_experiment (Variant ${variant})`, true);
+      }
+    },
+    {
+      name: 'experiment_conversion',
+      icon: Target,
+      description: 'A/B test conversion',
+      action: () => {
+        const variant = analytics.getABVariant('test_experiment');
+        analytics.trackExperimentConversion('test_experiment', variant, 'cta_click');
+        addResult('experiment_conversion', `Conversion: test_experiment (Variant ${variant})`, true);
       }
     }
   ];

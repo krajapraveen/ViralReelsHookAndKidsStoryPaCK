@@ -258,6 +258,8 @@ export default function GifMaker() {
       
       // Track GIF generation in Google Analytics
       analytics.trackGeneration('gif_maker', pricing.generate);
+      // Track funnel step - First generation
+      analytics.trackFunnelStep('first_generation', { feature: 'gif_maker' });
       
       // Start fresh polling
       isPollingRef.current = true;
@@ -281,6 +283,8 @@ export default function GifMaker() {
         
         // Track download in Google Analytics
         analytics.trackDownload('gif', 'gif_maker');
+        // Track funnel step - First download
+        analytics.trackFunnelStep('first_download', { feature: 'gif_maker' });
         
         // Trigger download
         const url = response.data.downloadUrl?.startsWith('http') ? response.data.downloadUrl : `${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`;

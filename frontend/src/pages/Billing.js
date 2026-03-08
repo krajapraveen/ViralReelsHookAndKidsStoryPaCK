@@ -60,8 +60,9 @@ export default function Billing() {
       category: product?.type === 'SUBSCRIPTION' ? 'subscription' : 'credit_pack'
     };
     
-    // Track checkout start with enhanced e-commerce
+    // Track checkout start with enhanced e-commerce and funnel
     analytics.trackBeginCheckout(item, 'INR');
+    analytics.trackFunnelStep('checkout_start', { product_id: productId, product_name: productName });
     
     try {
       // Use Cashfree API
@@ -98,6 +99,13 @@ export default function Billing() {
               if (verifyRes.data.success) {
                 // Track successful purchase with enhanced e-commerce
                 analytics.trackPurchase(response.data.orderId, item, 'INR');
+                // Track funnel completion
+                analytics.trackFunnelStep('purchase_complete', { 
+                  order_id: response.data.orderId, 
+                  product_name: productName,
+                  amount: productPrice 
+                });
+                analytics.trackFunnelComplete('main_conversion');
                 toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added.`);
                 fetchData();
               } else {

@@ -27,6 +27,9 @@ export default function Signup({ setAuth }) {
 
   // Load CAPTCHA config on mount
   useEffect(() => {
+    // Track funnel step - Signup page view
+    analytics.trackFunnelStep('signup_start');
+    
     const loadCaptchaConfig = async () => {
       try {
         const response = await api.get('/api/auth/captcha-config');
@@ -254,6 +257,9 @@ export default function Signup({ setAuth }) {
       // Track signup in Google Analytics
       analytics.trackSignup('email');
       analytics.setUserId(response.data.user?.id);
+      
+      // Track funnel step - Signup complete
+      analytics.trackFunnelStep('signup_complete', { method: 'email' });
       
       // Show appropriate message based on credit system
       const delayedInfo = response.data.delayed_credits_info;
