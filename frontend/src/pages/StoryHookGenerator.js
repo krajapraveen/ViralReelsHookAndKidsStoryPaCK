@@ -305,7 +305,7 @@ const StoryHookGenerator = () => {
 
         {/* Footer */}
         <div className="text-center mt-8 text-slate-500 text-xs">
-          Copyright 2026 CreatorStudio AI. All rights reserved.
+          Copyright 2026 Visionary Suite. All rights reserved.
         </div>
       </div>
       

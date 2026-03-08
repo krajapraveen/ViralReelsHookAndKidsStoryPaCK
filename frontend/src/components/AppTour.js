@@ -11,7 +11,7 @@ const TourContext = createContext(null);
 const TOUR_STEPS = [
   {
     id: 'welcome',
-    title: 'Welcome to CreatorStudio AI!',
+    title: 'Welcome to Visionary Suite!',
     content: "Let's take a quick tour to help you get started with creating viral content. This will only take about 2 minutes.",
     target: null,
     page: '/app',

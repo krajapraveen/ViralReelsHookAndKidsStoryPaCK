@@ -77,7 +77,7 @@ export default function ForgotPassword() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <Sparkles className="w-8 h-8 text-indigo-400" />
-          <span className="text-2xl font-bold text-white">CreatorStudio AI</span>
+          <span className="text-2xl font-bold text-white">Visionary Suite</span>
         </div>
 
         {/* Forgot Password Card */}

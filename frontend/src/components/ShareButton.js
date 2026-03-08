@@ -30,7 +30,7 @@ export default function ShareButton({ type, title, preview }) {
     ctx.fillText(type === 'REEL' ? '🎬 Viral Reel Script' : '📖 Kids Story Pack', 60, 100);
 
     ctx.font = '32px Inter';
-    ctx.fillText(title || 'Generated with CreatorStudio AI', 60, 160);
+    ctx.fillText(title || 'Generated with Visionary Suite', 60, 160);
 
     // Preview text
     if (preview) {
@@ -45,7 +45,7 @@ export default function ShareButton({ type, title, preview }) {
     // Branding
     ctx.font = 'bold 28px Inter';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('✨ CreatorStudio AI', 60, 580);
+    ctx.fillText('✨ Visionary Suite', 60, 580);
 
     return canvas.toDataURL('image/png');
   };
@@ -60,13 +60,13 @@ export default function ShareButton({ type, title, preview }) {
   };
 
   const handleCopyLink = () => {
-    const shareText = `I just created an amazing ${type === 'REEL' ? 'reel script' : 'story pack'} with CreatorStudio AI! 🚀\n\nGenerate yours: ${window.location.origin}`;
+    const shareText = `I just created an amazing ${type === 'REEL' ? 'reel script' : 'story pack'} with Visionary Suite! 🚀\n\nGenerate yours: ${window.location.origin}`;
     navigator.clipboard.writeText(shareText);
     toast.success('Share text copied to clipboard!');
   };
 
   const getShareText = () => {
-    return `I just created an amazing ${type === 'REEL' ? 'reel script' : 'story pack'} with CreatorStudio AI! 🚀`;
+    return `I just created an amazing ${type === 'REEL' ? 'reel script' : 'story pack'} with Visionary Suite! 🚀`;
   };
 
   const getShareUrl = () => {
@@ -121,7 +121,7 @@ export default function ShareButton({ type, title, preview }) {
                 <div className="font-bold text-lg">
                   {type === 'REEL' ? 'Viral Reel Script' : 'Kids Story Pack'}
                 </div>
-                <div className="text-sm mt-2 opacity-90">Generated with CreatorStudio AI</div>
+                <div className="text-sm mt-2 opacity-90">Generated with Visionary Suite</div>
               </div>
             </div>
           </div>

@@ -42,7 +42,7 @@ export default function TermsOfService() {
                   1. Acceptance of Terms
                 </h2>
                 <p className="text-slate-300 leading-relaxed">
-                  By accessing or using CreatorStudio AI ("the Service"), operated by Visionary Suite ("we," "our," or "us"), 
+                  By accessing or using Visionary Suite ("the Service"), operated by Visionary Suite ("we," "our," or "us"), 
                   you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our Service.
                 </p>
               </section>
@@ -53,7 +53,7 @@ export default function TermsOfService() {
                   2. Description of Service
                 </h2>
                 <p className="text-slate-300 leading-relaxed mb-4">
-                  CreatorStudio AI provides AI-powered content creation tools including but not limited to:
+                  Visionary Suite provides AI-powered content creation tools including but not limited to:
                 </p>
                 <ul className="list-disc list-inside text-slate-300 space-y-2 ml-4">
                   <li>Reel Script Generator</li>

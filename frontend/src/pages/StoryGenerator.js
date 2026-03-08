@@ -235,7 +235,7 @@ export default function StoryGenerator() {
     const downloadContent = (isFreeTier && withWatermark) 
       ? { 
           ...result, 
-          watermark: '⚡ Made with CreatorStudio AI - Upgrade to remove watermark',
+          watermark: '⚡ Made with Visionary Suite - Upgrade to remove watermark',
           free_tier: true 
         }
       : result;
@@ -419,7 +419,7 @@ export default function StoryGenerator() {
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-purple-300 font-medium text-sm">⚡ Made with CreatorStudio AI</p>
+                    <p className="text-purple-300 font-medium text-sm">⚡ Made with Visionary Suite</p>
                     <p className="text-purple-400 text-xs mt-1">
                       Free tier content includes watermark. <Link to="/pricing" className="underline font-medium hover:text-purple-300">Upgrade</Link> to remove watermarks.
                     </p>

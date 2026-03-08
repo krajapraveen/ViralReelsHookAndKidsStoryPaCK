@@ -42,9 +42,9 @@ export default function PrivacyPolicy() {
                   1. Introduction
                 </h2>
                 <p className="text-slate-300 leading-relaxed">
-                  Welcome to CreatorStudio AI, a service provided by Visionary Suite ("we," "our," or "us"). 
+                  Welcome to Visionary Suite, a service provided by Visionary Suite ("we," "our," or "us"). 
                   This Privacy Policy explains how we collect, use, disclose, and safeguard your information 
-                  when you use our AI-powered content creation platform. By using CreatorStudio AI, you agree 
+                  when you use our AI-powered content creation platform. By using Visionary Suite, you agree 
                   to the collection and use of information in accordance with this policy.
                 </p>
               </section>
@@ -170,7 +170,7 @@ export default function PrivacyPolicy() {
               <section>
                 <h2 className="text-xl font-bold text-white mb-4">9. Children's Privacy</h2>
                 <p className="text-slate-300 leading-relaxed">
-                  CreatorStudio AI is not intended for users under 13 years of age. We do not knowingly 
+                  Visionary Suite is not intended for users under 13 years of age. We do not knowingly 
                   collect personal information from children. If you believe we have collected data from 
                   a child, please contact us immediately.
                 </p>
@@ -196,7 +196,7 @@ export default function PrivacyPolicy() {
                 <div className="space-y-2 text-slate-300">
                   <p><strong>Email:</strong> <a href="mailto:krajapraveen@visionary-suite.com" className="text-indigo-400 hover:text-indigo-300">krajapraveen@visionary-suite.com</a></p>
                   <p><strong>Company:</strong> Visionary Suite</p>
-                  <p><strong>Service:</strong> CreatorStudio AI</p>
+                  <p><strong>Service:</strong> Visionary Suite</p>
                 </div>
                 <p className="text-slate-500 text-sm mt-4">
                   We aim to respond to all privacy inquiries within 30 days.

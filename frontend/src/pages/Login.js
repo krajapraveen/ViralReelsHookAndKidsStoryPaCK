@@ -233,7 +233,7 @@ export default function Login({ setAuth }) {
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 mb-4">
               <Sparkles className="w-8 h-8 text-indigo-500" />
-              <span className="text-2xl font-bold text-white">CreatorStudio AI</span>
+              <span className="text-2xl font-bold text-white">Visionary Suite</span>
             </div>
             <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
             <p className="text-slate-400">Login to continue creating</p>

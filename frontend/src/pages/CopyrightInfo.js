@@ -36,7 +36,7 @@ export default function CopyrightInfo() {
       icon: AlertTriangle,
       color: "amber",
       items: [
-        { label: "Platform Branding", desc: "Do not claim to be CreatorStudio AI or use our branding without permission." },
+        { label: "Platform Branding", desc: "Do not claim to be Visionary Suite or use our branding without permission." },
         { label: "Harmful Content", desc: "Generated content must not be used for illegal or harmful purposes." },
         { label: "Misrepresentation", desc: "Do not claim AI-generated content was created by humans for deceptive purposes." },
         { label: "Copyright Infringement", desc: "Do not use our tools to intentionally copy or infringe on others' copyrights." }
@@ -46,11 +46,11 @@ export default function CopyrightInfo() {
 
   const faqs = [
     {
-      q: "Can I sell story books created with CreatorStudio AI?",
+      q: "Can I sell story books created with Visionary Suite?",
       a: "Yes! Stories generated through our platform are yours to publish and sell. Many users create children's books, coloring books, and educational materials using our story generator."
     },
     {
-      q: "Do I need to credit CreatorStudio AI?",
+      q: "Do I need to credit Visionary Suite?",
       a: "No attribution is required. However, you're welcome to mention us if you'd like to support our platform."
     },
     {
@@ -211,7 +211,7 @@ export default function CopyrightInfo() {
               <strong>AI Limitations:</strong> While we strive to generate original content, AI systems may occasionally produce outputs similar to existing works. Users are responsible for ensuring their use of generated content doesn't infringe on third-party rights.
             </p>
             <p>
-              <strong>Platform Rights:</strong> CreatorStudio AI retains the right to use anonymized, aggregated data to improve our services. We do not claim ownership of individual user-generated content.
+              <strong>Platform Rights:</strong> Visionary Suite retains the right to use anonymized, aggregated data to improve our services. We do not claim ownership of individual user-generated content.
             </p>
             <p>
               <strong>Updates:</strong> This policy may be updated periodically. Continued use of our services constitutes acceptance of any changes.

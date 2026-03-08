@@ -86,7 +86,7 @@ export default function UserManual() {
                 <BookOpen className="w-8 h-8 text-purple-400" />
                 <div>
                   <h1 className="text-xl font-bold text-white">User Manual</h1>
-                  <p className="text-xs text-slate-400">Complete guide to CreatorStudio AI</p>
+                  <p className="text-xs text-slate-400">Complete guide to Visionary Suite</p>
                 </div>
               </div>
             </div>

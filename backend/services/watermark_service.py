@@ -17,7 +17,7 @@ LOGO_PATH = "/app/backend/static/logo_watermark.png"
 
 def add_diagonal_watermark(
     image_bytes: bytes, 
-    text: str = "CREATORSTUDIO AI", 
+    text: str = "VISIONARY SUITE", 
     opacity: float = 0.15,
     font_size: int = 40,
     spacing: int = 200
@@ -142,8 +142,8 @@ def add_logo_watermark(
         except:
             font = ImageFont.load_default()
         
-        # Draw "CREATORSTUDIO AI" text in logo
-        text = "CREATORSTUDIO AI"
+        # Draw "VISIONARY SUITE" text in logo
+        text = "VISIONARY SUITE"
         bbox = draw.textbbox((0, 0), text, font=font)
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
@@ -211,7 +211,7 @@ def add_logo_watermark(
 
 def add_watermark_to_base64(
     base64_image: str, 
-    text: str = "CREATORSTUDIO AI",
+    text: str = "VISIONARY SUITE",
     opacity: float = 0.15
 ) -> str:
     """
@@ -273,37 +273,37 @@ def should_apply_watermark(user: dict) -> bool:
 # Watermark configurations for different content types
 WATERMARK_CONFIGS = {
     "REEL": {
-        "text": "CREATORSTUDIO AI",
+        "text": "VISIONARY SUITE",
         "opacity": 0.12,
         "font_size": 35,
         "spacing": 180
     },
     "COMIC": {
-        "text": "CREATORSTUDIO AI",
+        "text": "VISIONARY SUITE",
         "opacity": 0.15,
         "font_size": 40,
         "spacing": 200
     },
     "GIF": {
-        "text": "CREATORSTUDIO AI",
+        "text": "VISIONARY SUITE",
         "opacity": 0.12,
         "font_size": 30,
         "spacing": 150
     },
     "STORY": {
-        "text": "CREATORSTUDIO AI",
+        "text": "VISIONARY SUITE",
         "opacity": 0.10,
         "font_size": 45,
         "spacing": 220
     },
     "COLORING_BOOK": {
-        "text": "CREATORSTUDIO AI",
+        "text": "VISIONARY SUITE",
         "opacity": 0.15,
         "font_size": 40,
         "spacing": 200
     },
     "STORYBOOK": {
-        "text": "CREATORSTUDIO AI",
+        "text": "VISIONARY SUITE",
         "opacity": 0.12,
         "font_size": 38,
         "spacing": 190

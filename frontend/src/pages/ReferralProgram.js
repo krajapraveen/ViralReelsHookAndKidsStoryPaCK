@@ -66,7 +66,7 @@ export default function ReferralProgram() {
   const shareReferralLink = () => {
     if (navigator.share && referralData?.link) {
       navigator.share({
-        title: 'Join CreatorStudio AI',
+        title: 'Join Visionary Suite',
         text: `Sign up with my referral link and get ${referralData?.tier?.referee_bonus || 25} free credits!`,
         url: referralData.link
       });

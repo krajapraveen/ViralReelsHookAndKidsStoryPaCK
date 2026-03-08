@@ -376,7 +376,7 @@ export default function ColoringBookGenerator() {
         doc.setFontSize(8);
         doc.setTextColor(150);
         doc.text(`Page ${currentPage}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
-        doc.text('CreatorStudio AI', pageWidth - margin, pageHeight - 8, { align: 'right' });
+        doc.text('Visionary Suite', pageWidth - margin, pageHeight - 8, { align: 'right' });
       };
       
       // COVER PAGE
@@ -1079,7 +1079,7 @@ export default function ColoringBookGenerator() {
           <p className="text-xs text-slate-500 text-center">
             <strong>Disclaimer:</strong> Upload only images you own or have permission to use. 
             Do not use copyrighted characters (Disney, Marvel, etc.). 
-            All templates are original creations by CreatorStudio AI.
+            All templates are original creations by Visionary Suite.
           </p>
         </div>
       </main>

@@ -423,7 +423,7 @@ export default function Profile() {
             App Tour
           </h3>
           <p className="text-sm text-slate-400 mb-4">
-            Need a refresher on how to use CreatorStudio? Replay the interactive tour to learn about all features.
+            Need a refresher on how to use Visionary Suite? Replay the interactive tour to learn about all features.
           </p>
           <Button 
             onClick={() => {

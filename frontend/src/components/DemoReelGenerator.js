@@ -75,7 +75,7 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
   const downloadJSON = () => {
     const watermarkedResult = {
       ...result,
-      watermark: '⚡ Generated with CreatorStudio AI - Get full access at creatorstudio.ai',
+      watermark: '⚡ Generated with Visionary Suite - Get full access at creatorstudio.ai',
       demo_version: true
     };
     const blob = new Blob([JSON.stringify(watermarkedResult, null, 2)], { type: 'application/json' });
@@ -337,7 +337,7 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
                   {/* Watermark Banner */}
                   <div className="bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/30 rounded-xl p-3 text-center">
                     <p className="text-purple-200 text-sm font-medium">
-                      ⚡ Made with CreatorStudio AI - Demo Version
+                      ⚡ Made with Visionary Suite - Demo Version
                     </p>
                   </div>
 

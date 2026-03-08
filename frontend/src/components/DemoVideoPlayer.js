@@ -190,7 +190,7 @@ export default function DemoVideoPlayer({ isOpen, onClose }) {
 
         {/* Title */}
         <div className="text-center mt-4">
-          <h3 className="text-white text-xl font-semibold">See CreatorStudio AI in Action</h3>
+          <h3 className="text-white text-xl font-semibold">See Visionary Suite in Action</h3>
           <p className="text-white/60 text-sm mt-1">Watch how easy it is to create viral content</p>
         </div>
       </div>

@@ -17,7 +17,7 @@ export default function UpgradeModal({ isOpen, onClose, onDownloadWithWatermark 
 
         <div className="py-4">
           <p className="text-slate-600 mb-6">
-            Your download will include a <span className="font-semibold text-purple-600">"Made with CreatorStudio AI"</span> watermark. 
+            Your download will include a <span className="font-semibold text-purple-600">"Made with Visionary Suite"</span> watermark. 
             Upgrade to get watermark-free downloads!
           </p>
 

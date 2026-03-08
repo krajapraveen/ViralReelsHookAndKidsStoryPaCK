@@ -93,7 +93,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400" />
-            <span className="text-lg sm:text-xl font-bold text-white">CreatorStudio AI</span>
+            <span className="text-lg sm:text-xl font-bold text-white">Visionary Suite</span>
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4">

@@ -54,7 +54,7 @@ export default function VerifyEmail() {
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-10 shadow-2xl text-center">
           <div className="inline-flex items-center gap-2 mb-8">
             <Sparkles className="w-8 h-8 text-indigo-500" />
-            <span className="text-2xl font-bold text-white">CreatorStudio AI</span>
+            <span className="text-2xl font-bold text-white">Visionary Suite</span>
           </div>
           
           {status === 'verifying' && (

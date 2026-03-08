@@ -8,7 +8,7 @@ export default function AIChatbot() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hi! 👋 I'm your CreatorStudio AI Assistant. I can help you with:\n\n• Understanding our features\n• Pricing & credits info\n• Tips for creating content\n• Any questions about the platform\n\nHow can I help you today?"
+      content: "Hi! 👋 I'm your Visionary Suite Assistant. I can help you with:\n\n• Understanding our features\n• Pricing & credits info\n• Tips for creating content\n• Any questions about the platform\n\nHow can I help you today?"
     }
   ]);
   const [input, setInput] = useState('');

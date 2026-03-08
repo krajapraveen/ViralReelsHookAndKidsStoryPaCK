@@ -58,7 +58,7 @@ export default function Reviews() {
               <span className="text-white font-bold text-xl">C</span>
             </div>
             <span className="text-xl font-bold text-white">
-              CreatorStudio AI
+              Visionary Suite
             </span>
           </Link>
           <div className="flex gap-3">
@@ -85,7 +85,7 @@ export default function Reviews() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-white mb-4">Customer Reviews</h1>
           <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-6">
-            See what our users are saying about CreatorStudio AI
+            See what our users are saying about Visionary Suite
           </p>
           
           {/* Rating Summary */}
@@ -185,7 +185,7 @@ export default function Reviews() {
       <footer className="bg-slate-900 text-white py-8 mt-16">
         <div className="max-w-6xl mx-auto px-4 text-center">
           <p className="text-slate-400">
-            © 2026 CreatorStudio AI by Visionary Suite. All rights reserved.
+            © 2026 Visionary Suite by Visionary Suite. All rights reserved.
           </p>
         </div>
       </footer>

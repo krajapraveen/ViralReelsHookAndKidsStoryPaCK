@@ -19,7 +19,7 @@ export default function SocialShareDownload({
   const [copied, setCopied] = useState(false);
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const shareText = `Check out what I created with CreatorStudio AI: ${title}`;
+  const shareText = `Check out what I created with Visionary Suite: ${title}`;
 
   const handleDownloadWithWatermark = async () => {
     if (!imageUrl || !watermarkEnabled) {

@@ -418,7 +418,7 @@ const HELP_CONTENT = {
   },
   'default': {
     title: 'Help Guide',
-    description: 'Get help with CreatorStudio AI features.',
+    description: 'Get help with Visionary Suite features.',
     credits: 'N/A',
     steps: [
       'Navigate to the feature you need help with',
