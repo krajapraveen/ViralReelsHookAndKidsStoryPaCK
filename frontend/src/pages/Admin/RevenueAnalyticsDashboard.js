@@ -88,6 +88,7 @@ export default function RevenueAnalyticsDashboard() {
   const [topUsers, setTopUsers] = useState([]);
   const [locationData, setLocationData] = useState([]);
   const [popularProducts, setPopularProducts] = useState([]);
+  const [pendingAnalysis, setPendingAnalysis] = useState(null);
   
   // UI states
   const [activeTab, setActiveTab] = useState('overview');
@@ -181,13 +182,14 @@ export default function RevenueAnalyticsDashboard() {
       if (dateRange.end) params.append('end_date', dateRange.end);
       const queryString = params.toString() ? `?${params.toString()}` : '';
 
-      const [summaryRes, subsRes, topupsRes, topUsersRes, locationRes, productsRes] = await Promise.all([
+      const [summaryRes, subsRes, topupsRes, topUsersRes, locationRes, productsRes, pendingRes] = await Promise.all([
         fetchWithAuth(`${API_URL}/api/revenue-analytics/summary${queryString}`),
         fetchWithAuth(`${API_URL}/api/revenue-analytics/subscriptions${queryString}`),
         fetchWithAuth(`${API_URL}/api/revenue-analytics/topups${queryString}`),
         fetchWithAuth(`${API_URL}/api/revenue-analytics/top-users?limit=10`),
         fetchWithAuth(`${API_URL}/api/revenue-analytics/by-location`),
-        fetchWithAuth(`${API_URL}/api/revenue-analytics/popular-products`)
+        fetchWithAuth(`${API_URL}/api/revenue-analytics/popular-products`),
+        fetchWithAuth(`${API_URL}/api/revenue-analytics/pending-analysis`)
       ]);
 
       if (summaryRes.success) setSummary(summaryRes.summary);
@@ -196,6 +198,7 @@ export default function RevenueAnalyticsDashboard() {
       if (topUsersRes.success) setTopUsers(topUsersRes.topUsers);
       if (locationRes.success) setLocationData(locationRes.locationBreakdown);
       if (productsRes.success) setPopularProducts(productsRes.popularProducts);
+      if (pendingRes.success) setPendingAnalysis(pendingRes.analysis);
 
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -331,6 +334,7 @@ export default function RevenueAnalyticsDashboard() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: PieChart },
     { id: 'transactions', label: 'Transactions', icon: CreditCard },
+    { id: 'pending', label: 'Pending Analysis', icon: Clock },
     { id: 'trends', label: 'Trends', icon: TrendingUp },
     { id: 'top-users', label: 'Top Users', icon: Users },
     { id: 'location', label: 'By Location', icon: Globe }
@@ -594,14 +598,11 @@ export default function RevenueAnalyticsDashboard() {
                   <table className="w-full">
                     <thead>
                       <tr className="text-left text-slate-400 border-b border-slate-700">
-                        <th className="pb-3 font-medium">Order ID</th>
                         <th className="pb-3 font-medium">User</th>
                         <th className="pb-3 font-medium">Product</th>
                         <th className="pb-3 font-medium">Amount</th>
                         <th className="pb-3 font-medium">Status</th>
-                        <th className="pb-3 font-medium">Type</th>
-                        <th className="pb-3 font-medium">Location</th>
-                        <th className="pb-3 font-medium">Device</th>
+                        <th className="pb-3 font-medium min-w-[280px]">Reason / Description</th>
                         <th className="pb-3 font-medium">Date</th>
                         <th className="pb-3 font-medium">Actions</th>
                       </tr>
@@ -609,9 +610,6 @@ export default function RevenueAnalyticsDashboard() {
                     <tbody>
                       {transactions.map((tx) => (
                         <tr key={tx.orderId} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                          <td className="py-3 font-mono text-sm text-slate-300">
-                            {tx.orderId?.substring(0, 15)}...
-                          </td>
                           <td className="py-3">
                             <button
                               onClick={() => fetchUserHistory(tx.userId)}
@@ -632,29 +630,44 @@ export default function RevenueAnalyticsDashboard() {
                           <td className="py-3">
                             <StatusBadge status={tx.status} />
                           </td>
+                          {/* NEW: Reason/Description Column */}
                           <td className="py-3">
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              tx.transactionType === 'subscription' 
-                                ? 'bg-blue-500/20 text-blue-400' 
-                                : 'bg-purple-500/20 text-purple-400'
-                            }`}>
-                              {tx.transactionType}
-                              {tx.isRenewal && ' (Renewal)'}
-                            </span>
-                          </td>
-                          <td className="py-3">
-                            <div className="flex items-center gap-1">
-                              <Globe className="w-3 h-3 text-slate-400" />
-                              <span className="text-sm">
-                                {tx.location?.city || tx.location?.country || 'Unknown'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3">
-                            <DeviceIcon type={tx.deviceType} />
+                            {tx.statusInfo ? (
+                              <div className={`p-2 rounded-lg text-sm ${
+                                tx.statusInfo.severity === 'error' ? 'bg-red-500/10 border border-red-500/30' :
+                                tx.statusInfo.severity === 'warning' ? 'bg-amber-500/10 border border-amber-500/30' :
+                                tx.statusInfo.severity === 'success' ? 'bg-emerald-500/10 border border-emerald-500/30' :
+                                'bg-slate-700/30 border border-slate-600/30'
+                              }`}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  {tx.statusInfo.severity === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
+                                  {tx.statusInfo.severity === 'warning' && <AlertCircle className="w-4 h-4 text-amber-400" />}
+                                  {tx.statusInfo.severity === 'success' && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+                                  {tx.statusInfo.severity === 'info' && <Clock className="w-4 h-4 text-blue-400" />}
+                                  <span className={`font-semibold ${
+                                    tx.statusInfo.severity === 'error' ? 'text-red-400' :
+                                    tx.statusInfo.severity === 'warning' ? 'text-amber-400' :
+                                    tx.statusInfo.severity === 'success' ? 'text-emerald-400' :
+                                    'text-blue-400'
+                                  }`}>
+                                    {tx.statusInfo.reason}
+                                  </span>
+                                  <span className="text-xs text-slate-500">({tx.statusInfo.time_context})</span>
+                                </div>
+                                <p className="text-slate-300 text-xs leading-relaxed">{tx.statusInfo.description}</p>
+                                {tx.statusInfo.action_needed && tx.status !== 'PAID' && (
+                                  <p className="mt-1 text-xs text-slate-400 italic">
+                                    <span className="text-amber-400">Action:</span> {tx.statusInfo.action_needed}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 text-sm">-</span>
+                            )}
                           </td>
                           <td className="py-3 text-sm text-slate-400">
-                            {new Date(tx.createdAt).toLocaleDateString()}
+                            <div>{new Date(tx.createdAt).toLocaleDateString()}</div>
+                            <div className="text-xs">{new Date(tx.createdAt).toLocaleTimeString()}</div>
                           </td>
                           <td className="py-3">
                             <button
@@ -698,6 +711,112 @@ export default function RevenueAnalyticsDashboard() {
                     </button>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Pending Analysis Tab */}
+            {activeTab === 'pending' && (
+              <div>
+                {pendingAnalysis ? (
+                  <div className="space-y-6">
+                    {/* Pending Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <Clock className="w-6 h-6 text-amber-400" />
+                          <h3 className="text-lg font-semibold text-amber-400">Total Pending</h3>
+                        </div>
+                        <p className="text-3xl font-bold">₹{pendingAnalysis.totalAmount?.toLocaleString()}</p>
+                        <p className="text-sm text-slate-400">{pendingAnalysis.totalPending} payments waiting</p>
+                      </div>
+                      
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <XCircle className="w-6 h-6 text-red-400" />
+                          <h3 className="text-lg font-semibold text-red-400">Abandoned</h3>
+                        </div>
+                        <p className="text-3xl font-bold">₹{pendingAnalysis.categories?.abandoned?.amount?.toLocaleString()}</p>
+                        <p className="text-sm text-slate-400">{pendingAnalysis.categories?.abandoned?.count} checkouts (&gt;7 days)</p>
+                      </div>
+                      
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <AlertCircle className="w-6 h-6 text-blue-400" />
+                          <h3 className="text-lg font-semibold text-blue-400">In Progress</h3>
+                        </div>
+                        <p className="text-3xl font-bold">₹{pendingAnalysis.categories?.recent?.amount?.toLocaleString()}</p>
+                        <p className="text-sm text-slate-400">{pendingAnalysis.categories?.recent?.count} recent checkouts</p>
+                      </div>
+                    </div>
+
+                    {/* Category Sections */}
+                    {['abandoned', 'stale', 'recent'].map((category) => {
+                      const cat = pendingAnalysis.categories?.[category];
+                      if (!cat || cat.count === 0) return null;
+                      
+                      const categoryColors = {
+                        abandoned: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', icon: XCircle },
+                        stale: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', icon: Clock },
+                        recent: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', icon: AlertCircle }
+                      };
+                      const colors = categoryColors[category];
+                      const CategoryIcon = colors.icon;
+                      
+                      return (
+                        <div key={category} className={`${colors.bg} border ${colors.border} rounded-xl p-6`}>
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <CategoryIcon className={`w-6 h-6 ${colors.text}`} />
+                              <div>
+                                <h3 className={`text-lg font-semibold ${colors.text} capitalize`}>{category} Payments</h3>
+                                <p className="text-sm text-slate-400">{cat.description}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-xl font-bold ${colors.text}`}>₹{cat.amount?.toLocaleString()}</p>
+                              <p className="text-sm text-slate-400">{cat.count} payments</p>
+                            </div>
+                          </div>
+                          
+                          {/* Action Recommendation */}
+                          <div className="mb-4 p-3 bg-slate-800/50 rounded-lg">
+                            <p className="text-sm"><span className="text-amber-400 font-semibold">Recommended Action:</span> {cat.action}</p>
+                          </div>
+                          
+                          {/* Payment List */}
+                          <div className="space-y-3 max-h-60 overflow-y-auto">
+                            {cat.payments?.map((payment, idx) => (
+                              <div key={idx} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg hover:bg-slate-700/50 transition-colors">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-semibold">{payment.userName}</p>
+                                    <span className="text-xs text-slate-500">({payment.ageDays} days ago)</span>
+                                  </div>
+                                  <p className="text-sm text-slate-400">{payment.userEmail}</p>
+                                  <p className="text-xs text-slate-500 mt-1">{payment.productName || payment.productId}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className={`text-lg font-bold ${colors.text}`}>₹{payment.amount?.toLocaleString()}</p>
+                                  <button
+                                    onClick={() => fetchUserHistory(payment.userId)}
+                                    className="text-xs text-emerald-400 hover:underline"
+                                  >
+                                    View User History
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-400">
+                    <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No pending payments found</p>
+                  </div>
+                )}
               </div>
             )}
 

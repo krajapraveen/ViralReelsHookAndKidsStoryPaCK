@@ -53,6 +53,128 @@ async def get_user_location(user_id: str) -> dict:
     return {"location": {}, "ip_address": None, "device_type": None}
 
 
+def get_payment_status_description(order: dict, user: dict = None) -> dict:
+    """
+    Generate user-friendly description for payment status
+    Returns dict with reason, description, and action_needed
+    """
+    status = order.get("status", "").upper()
+    product_id = order.get("productId", "")
+    product_name = order.get("productName", product_id)
+    user_name = user.get("name", "Unknown User") if user else "Unknown User"
+    user_email = order.get("userEmail") or (user.get("email") if user else "Unknown")
+    amount = order.get("amount", 0) / 100
+    created_at = order.get("createdAt", "")
+    failure_reason = order.get("failureReason", "")
+    gateway = order.get("gateway", "cashfree")
+    
+    # Calculate time since created
+    time_info = ""
+    try:
+        created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+        time_diff = datetime.now(timezone.utc) - created_dt
+        if time_diff.days > 0:
+            time_info = f"{time_diff.days} days ago"
+        elif time_diff.seconds > 3600:
+            time_info = f"{time_diff.seconds // 3600} hours ago"
+        else:
+            time_info = f"{time_diff.seconds // 60} minutes ago"
+    except:
+        time_info = "recently"
+    
+    # Determine product type
+    if product_id in ["weekly", "monthly", "quarterly", "yearly"]:
+        product_type = "subscription"
+        product_display = f"{product_id.capitalize()} Subscription"
+    elif product_id in ["starter", "creator", "pro"]:
+        product_type = "topup"
+        product_display = f"{product_id.capitalize()} Credit Pack"
+    else:
+        product_type = "other"
+        product_display = product_name or "Unknown Product"
+    
+    result = {
+        "status": status,
+        "reason": "",
+        "description": "",
+        "action_needed": "",
+        "user_context": f"{user_name} ({user_email})",
+        "product_context": product_display,
+        "amount_context": f"₹{amount:,.2f}",
+        "time_context": time_info,
+        "severity": "info"
+    }
+    
+    if status == "PENDING":
+        # Analyze why payment is pending
+        if time_info and "days" in time_info:
+            days = int(time_info.split()[0])
+            if days > 7:
+                result["reason"] = "Abandoned Checkout"
+                result["description"] = f"{user_name} started buying {product_display} ({time_info}) but never completed payment. They may have had second thoughts or faced payment issues."
+                result["action_needed"] = "Consider sending a reminder email or offering a discount to recover this sale."
+                result["severity"] = "warning"
+            elif days > 1:
+                result["reason"] = "Payment Not Completed"
+                result["description"] = f"{user_name} initiated {product_display} purchase {time_info} but payment is still pending. User may have closed browser or had payment gateway issues."
+                result["action_needed"] = "Check if user needs assistance. They may have faced payment errors."
+                result["severity"] = "warning"
+            else:
+                result["reason"] = "Awaiting Payment"
+                result["description"] = f"{user_name} started buying {product_display} {time_info}. Payment is in progress through {gateway.capitalize()}."
+                result["action_needed"] = "Wait for payment gateway callback. If still pending after 24 hours, investigate."
+                result["severity"] = "info"
+        else:
+            result["reason"] = "Payment Initiated"
+            result["description"] = f"{user_name} just started purchasing {product_display}. Waiting for payment confirmation from {gateway.capitalize()}."
+            result["action_needed"] = "No action needed yet. Payment should complete shortly."
+            result["severity"] = "info"
+    
+    elif status == "FAILED":
+        result["severity"] = "error"
+        if failure_reason:
+            result["reason"] = "Payment Failed"
+            result["description"] = f"{user_name} tried to buy {product_display} but payment failed. Gateway error: {failure_reason}"
+            result["action_needed"] = "Reach out to user and help them retry. Check if their card/UPI has issues."
+        else:
+            result["reason"] = "Payment Declined"
+            result["description"] = f"{user_name}'s payment for {product_display} was declined by the payment gateway."
+            result["action_needed"] = "Contact user to try again with a different payment method."
+    
+    elif status == "CANCELLED":
+        result["severity"] = "warning"
+        result["reason"] = "User Cancelled"
+        result["description"] = f"{user_name} cancelled the payment for {product_display} during checkout."
+        result["action_needed"] = "Follow up with user to understand why they cancelled. May need support."
+    
+    elif status == "REFUNDED":
+        result["severity"] = "info"
+        refund_amount = order.get("refundAmount", amount)
+        result["reason"] = "Payment Refunded"
+        result["description"] = f"₹{refund_amount:,.2f} was refunded to {user_name} for {product_display}."
+        result["action_needed"] = "No action needed. Refund processed successfully."
+    
+    elif status == "PARTIALLY_REFUNDED":
+        result["severity"] = "info"
+        refund_amount = order.get("refundAmount", 0)
+        result["reason"] = "Partial Refund"
+        result["description"] = f"₹{refund_amount:,.2f} was partially refunded to {user_name} for {product_display}."
+        result["action_needed"] = "Verify if full refund was needed or partial was correct."
+    
+    elif status == "PAID":
+        result["severity"] = "success"
+        result["reason"] = "Payment Successful"
+        result["description"] = f"{user_name} successfully purchased {product_display}."
+        result["action_needed"] = "None - payment completed successfully!"
+    
+    else:
+        result["reason"] = f"Status: {status}"
+        result["description"] = f"Order from {user_name} for {product_display} has status: {status}"
+        result["action_needed"] = "Investigate this status in payment gateway dashboard."
+    
+    return result
+
+
 # =============================================================================
 # SUMMARY DASHBOARD ENDPOINT
 # =============================================================================
@@ -197,6 +319,103 @@ async def get_revenue_summary(
         }
     except Exception as e:
         logger.error(f"Revenue summary error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# PENDING PAYMENTS ANALYSIS
+# =============================================================================
+
+@router.get("/pending-analysis")
+async def get_pending_payments_analysis(
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Get detailed analysis of all pending payments with user-friendly explanations
+    """
+    try:
+        # Get all pending orders
+        pending_orders = await db.orders.find(
+            {"status": "PENDING"},
+            {"_id": 0}
+        ).sort("createdAt", -1).to_list(100)
+        
+        # Categorize pending payments
+        abandoned = []  # > 7 days old
+        stale = []  # 1-7 days old
+        recent = []  # < 1 day old
+        
+        total_amount = 0
+        
+        for order in pending_orders:
+            user_id = order.get("userId")
+            user = await db.users.find_one({"id": user_id}, {"_id": 0, "name": 1, "email": 1})
+            
+            status_info = get_payment_status_description(order, user)
+            
+            # Calculate age
+            try:
+                created_dt = datetime.fromisoformat(order.get("createdAt", "").replace('Z', '+00:00'))
+                age_days = (datetime.now(timezone.utc) - created_dt).days
+            except:
+                age_days = 0
+            
+            amount = order.get("amount", 0) / 100
+            total_amount += amount
+            
+            payment_info = {
+                "orderId": order.get("order_id", order.get("id")),
+                "userId": user_id,
+                "userName": user.get("name") if user else "Unknown",
+                "userEmail": order.get("userEmail") or (user.get("email") if user else "Unknown"),
+                "productId": order.get("productId"),
+                "productName": order.get("productName"),
+                "amount": amount,
+                "currency": order.get("currency", "INR"),
+                "createdAt": order.get("createdAt"),
+                "ageDays": age_days,
+                "statusInfo": status_info
+            }
+            
+            if age_days > 7:
+                abandoned.append(payment_info)
+            elif age_days >= 1:
+                stale.append(payment_info)
+            else:
+                recent.append(payment_info)
+        
+        return {
+            "success": True,
+            "analysis": {
+                "totalPending": len(pending_orders),
+                "totalAmount": round(total_amount, 2),
+                "categories": {
+                    "abandoned": {
+                        "count": len(abandoned),
+                        "amount": round(sum(p["amount"] for p in abandoned), 2),
+                        "description": "Checkouts abandoned over 7 days ago. Users likely had second thoughts or faced issues.",
+                        "action": "Send reminder emails with discount codes to recover these sales.",
+                        "payments": abandoned
+                    },
+                    "stale": {
+                        "count": len(stale),
+                        "amount": round(sum(p["amount"] for p in stale), 2),
+                        "description": "Payments started 1-7 days ago but never completed.",
+                        "action": "Reach out to users to see if they need help completing payment.",
+                        "payments": stale
+                    },
+                    "recent": {
+                        "count": len(recent),
+                        "amount": round(sum(p["amount"] for p in recent), 2),
+                        "description": "Recent checkouts in progress. Payment may complete soon.",
+                        "action": "No immediate action needed. Wait for payment gateway callback.",
+                        "payments": recent
+                    }
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Pending analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -475,6 +694,9 @@ async def get_transactions(
             })
             is_renewal = previous_order is not None
             
+            # Get user-friendly status description
+            status_info = get_payment_status_description(order, user)
+            
             enriched_transactions.append({
                 "orderId": order.get("order_id", order.get("id")),
                 "cfOrderId": order.get("cf_order_id"),
@@ -489,6 +711,7 @@ async def get_transactions(
                 "currency": order.get("currency", "INR"),
                 "credits": order.get("credits", 0),
                 "status": order.get("status"),
+                "statusInfo": status_info,  # NEW: User-friendly status description
                 "gateway": order.get("gateway", "cashfree"),
                 "createdAt": order.get("createdAt"),
                 "paidAt": order.get("paidAt"),
