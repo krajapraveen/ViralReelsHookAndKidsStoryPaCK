@@ -2,7 +2,7 @@
 # CreatorStudio AI - Load Test Script
 # Run: chmod +x load_test.sh && ./load_test.sh
 
-API_URL="${1:-https://smart-download-3.preview.emergentagent.com}"
+API_URL="${1:-https://analytics-events.preview.emergentagent.com}"
 CONCURRENT_USERS="${2:-100}"
 DURATION="${3:-30}"
 

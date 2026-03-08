@@ -17,7 +17,7 @@ export default defineConfig({
   ],
   
   use: {
-    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://smart-download-3.preview.emergentagent.com',
+    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://analytics-events.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

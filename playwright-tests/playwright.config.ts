@@ -12,7 +12,7 @@ export default defineConfig({
     ['html', { open: 'never' }]
   ],
   use: {
-    baseURL: 'https://smart-download-3.preview.emergentagent.com',
+    baseURL: 'https://analytics-events.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'off',

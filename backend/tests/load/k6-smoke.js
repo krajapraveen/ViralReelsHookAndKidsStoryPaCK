@@ -9,7 +9,7 @@ const loginSuccess = new Counter("login_success");
 const loginFailure = new Counter("login_failure");
 
 // Configuration
-const BASE = __ENV.BASE_URL || "https://smart-download-3.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://analytics-events.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

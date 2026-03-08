@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import analytics from '../utils/analytics';
 
 export default function AuthCallback({ setAuth }) {
   const navigate = useNavigate();
@@ -31,6 +32,12 @@ export default function AuthCallback({ setAuth }) {
         
         // Store token
         localStorage.setItem('token', token);
+        
+        // Track Google sign-in/sign-up in Google Analytics
+        analytics.trackSignup('google');
+        if (user?.id) {
+          analytics.setUserId(user.id);
+        }
         
         // Set authentication state
         if (setAuth) {

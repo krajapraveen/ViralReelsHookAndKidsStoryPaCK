@@ -23,6 +23,7 @@ import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import NotificationBell from '../components/NotificationBell';
 import { useNotifications } from '../contexts/NotificationContext';
+import analytics from '../utils/analytics';
 
 // Copyright blocked keywords (case-insensitive, substring match)
 const BLOCKED_KEYWORDS = [
@@ -398,6 +399,9 @@ export default function PhotoToComic() {
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
+      // Track comic avatar generation in Google Analytics
+      analytics.trackGeneration('comic_avatar', calculateCost());
+      
       // Start fresh polling using refs
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(res.data.jobId), 2000);
@@ -489,6 +493,9 @@ export default function PhotoToComic() {
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Comic strip generation started!');
       
+      // Track comic strip generation in Google Analytics
+      analytics.trackGeneration('comic_strip', calculateCost());
+      
       // Start fresh polling using refs
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(res.data.jobId), 2000);
@@ -514,6 +521,9 @@ export default function PhotoToComic() {
       const res = await api.post(`/api/photo-to-comic/download/${job.id}`);
       if (res.data.success) {
         toast.success(res.data.alreadyPurchased ? 'Re-downloading...' : `Downloaded! ${res.data.creditsDeducted || 0} credits used`);
+        
+        // Track download in Google Analytics
+        analytics.trackDownload('image', mode === 'avatar' ? 'comic_avatar' : 'comic_strip');
         
         res.data.downloadUrls?.forEach((url, i) => {
           const fullUrl = url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;

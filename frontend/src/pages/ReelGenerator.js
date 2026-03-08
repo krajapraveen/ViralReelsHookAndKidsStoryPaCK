@@ -18,6 +18,7 @@ import ReelProgressBar from '../components/ReelProgressBar';
 import HelpGuide from '../components/HelpGuide';
 import RatingModal from '../components/RatingModal';
 import WaitingWithGames from '../components/WaitingWithGames';
+import analytics from '../utils/analytics';
 
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(0);
@@ -124,6 +125,9 @@ export default function ReelGenerator() {
       setCredits(response.data.remainingCredits || credits - 1);
       setLastGenerationId(response.data.generationId || null);
       toast.success('Reel script generated successfully!');
+      
+      // Track reel generation in Google Analytics
+      analytics.trackGeneration('reel_generator', 10);
       
       // Show rating modal after successful generation (with delay)
       setTimeout(() => {

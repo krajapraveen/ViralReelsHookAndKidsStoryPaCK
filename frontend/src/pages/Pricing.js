@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { paymentAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Check, Sparkles, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import analytics from '../utils/analytics';
 
 export default function Pricing() {
   const [products, setProducts] = useState([]);
@@ -77,6 +78,12 @@ export default function Pricing() {
       toast.error('Please login to purchase');
       navigate('/login');
       return;
+    }
+
+    // Track begin_checkout event in Google Analytics
+    const product = [...subscriptions, ...packs].find(p => p.id === productId);
+    if (product) {
+      analytics.trackPurchaseStart(product.name, product.priceInr || product.price, 'INR');
     }
 
     // Redirect to billing page for secure payment processing

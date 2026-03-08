@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://smart-download-3.preview.emergentagent.com
+**Website:** https://analytics-events.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

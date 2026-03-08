@@ -15,6 +15,7 @@ import ShareButton from '../components/ShareButton';
 import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
+import analytics from '../utils/analytics';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
@@ -169,6 +170,9 @@ export default function StoryGenerator() {
         setGenerationId(response.data.generationId);
         setCredits(response.data.remainingCredits || credits - cost);
         toast.success('Story pack generated successfully!');
+        
+        // Track story generation in Google Analytics
+        analytics.trackGeneration('story_generator', cost);
       } else {
         // Fallback to polling if still processing
         setGenerationId(response.data.generationId);

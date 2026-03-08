@@ -5,7 +5,7 @@ import { test, expect, Page } from '@playwright/test';
  * Tests interactive elements, forms, tabs, modals on mobile
  */
 
-const BASE_URL = 'https://smart-download-3.preview.emergentagent.com';
+const BASE_URL = 'https://analytics-events.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

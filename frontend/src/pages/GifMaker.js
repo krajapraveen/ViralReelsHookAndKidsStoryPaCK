@@ -14,6 +14,7 @@ import VariationSelector from '../components/VariationSelector';
 import PremiumLock, { PremiumBanner } from '../components/PremiumLock';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
+import analytics from '../utils/analytics';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(0);
@@ -255,6 +256,9 @@ export default function GifMaker() {
       setCurrentJob({ id: response.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
+      // Track GIF generation in Google Analytics
+      analytics.trackGeneration('gif_maker', pricing.generate);
+      
       // Start fresh polling
       isPollingRef.current = true;
       const interval = setInterval(() => pollJobStatus(response.data.jobId), 2000);
@@ -274,6 +278,9 @@ export default function GifMaker() {
       
       if (response.data.success) {
         toast.success(response.data.alreadyPurchased ? 'Re-downloading...' : `Downloaded! ${response.data.creditsDeducted} credits used`);
+        
+        // Track download in Google Analytics
+        analytics.trackDownload('gif', 'gif_maker');
         
         // Trigger download
         const url = response.data.downloadUrl?.startsWith('http') ? response.data.downloadUrl : `${process.env.REACT_APP_BACKEND_URL}${response.data.downloadUrl}`;
