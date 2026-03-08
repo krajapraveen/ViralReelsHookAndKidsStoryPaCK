@@ -487,6 +487,10 @@ api_router.include_router(story_video_analytics_router)
 from routes.story_video_preview import router as story_video_preview_router
 api_router.include_router(story_video_preview_router)
 
+# Story Video Templates, Social Sharing & Waiting Games
+from routes.story_video_templates import router as story_video_templates_router
+api_router.include_router(story_video_templates_router)
+
 # Blog Content for SEO
 from routes.blog_content import router as blog_router
 api_router.include_router(blog_router)

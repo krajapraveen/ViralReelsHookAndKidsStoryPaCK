@@ -131,8 +131,21 @@ async def check_and_deduct_credits(user_id: str, amount: int, description: str) 
 # PHASE 2: IMAGE GENERATION
 # =============================================================================
 
+# Universal negative prompts for all image generation
+UNIVERSAL_NEGATIVE_PROMPTS = """
+copyrighted character, trademarked character, brand logo, company logo,
+Disney character, Marvel character, DC Comics character, Nintendo character,
+Pixar character, DreamWorks character, Warner Bros character,
+Mickey Mouse, Spider-Man, Batman, Superman, Harry Potter, Pokemon,
+celebrity face, real person, famous person, recognizable person,
+nsfw, nudity, violence, gore, blood, weapons, drugs, alcohol,
+hate symbols, scary content, horror, disturbing content,
+blurry, low quality, pixelated, distorted, deformed, bad anatomy,
+watermark, signature, text overlay, logo overlay
+""".strip().replace("\n", " ")
+
 async def generate_image_openai(prompt: str, negative_prompt: str, style: str) -> str:
-    """Generate image using OpenAI GPT Image 1"""
+    """Generate image using OpenAI GPT Image 1 with universal negative prompts"""
     from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
     import base64
     
@@ -140,8 +153,11 @@ async def generate_image_openai(prompt: str, negative_prompt: str, style: str) -
     if not api_key:
         raise HTTPException(status_code=500, detail="Image generation API key not configured")
     
-    # Combine prompt with style and negative
-    full_prompt = f"{prompt}. Style: {style}. Avoid: {negative_prompt[:200]}"
+    # Combine custom negative prompt with universal negative prompts
+    combined_negative = f"{negative_prompt}. {UNIVERSAL_NEGATIVE_PROMPTS}"
+    
+    # Build full prompt with style and negative
+    full_prompt = f"{prompt}. Style: {style}. IMPORTANT - Avoid these: {combined_negative[:400]}"
     
     try:
         image_gen = OpenAIImageGeneration(api_key=api_key)
@@ -168,7 +184,7 @@ async def generate_image_openai(prompt: str, negative_prompt: str, style: str) -
         raise HTTPException(status_code=500, detail=f"OpenAI image generation failed: {str(e)}")
 
 async def generate_image_gemini(prompt: str, negative_prompt: str, style: str) -> str:
-    """Generate image using Gemini Nano Banana"""
+    """Generate image using Gemini Nano Banana with universal negative prompts"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     import base64
     
@@ -176,7 +192,10 @@ async def generate_image_gemini(prompt: str, negative_prompt: str, style: str) -
     if not api_key:
         raise HTTPException(status_code=500, detail="Image generation API key not configured")
     
-    full_prompt = f"Create an image: {prompt}. Style: {style}. IMPORTANT: Do NOT include: {negative_prompt[:200]}"
+    # Combine custom negative prompt with universal negative prompts
+    combined_negative = f"{negative_prompt}. {UNIVERSAL_NEGATIVE_PROMPTS}"
+    
+    full_prompt = f"Create an image: {prompt}. Style: {style}. CRITICAL - Do NOT include any of these: {combined_negative[:400]}"
     
     try:
         chat = LlmChat(
