@@ -18,7 +18,7 @@ import time
 import base64
 from io import BytesIO
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://growth-preview-11.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://review-blog-chat.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "demo@example.com"

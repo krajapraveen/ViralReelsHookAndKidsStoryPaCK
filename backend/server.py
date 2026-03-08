@@ -295,7 +295,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://growth-preview-11.preview.emergentagent.com",
+    "https://review-blog-chat.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
@@ -456,6 +456,10 @@ api_router.include_router(watermark_router)
 # Blog/Content Pages for SEO
 from routes.blog import router as blog_router
 api_router.include_router(blog_router)
+
+# Revenue Analytics Dashboard
+from routes.revenue_analytics import router as revenue_analytics_router
+api_router.include_router(revenue_analytics_router)
 
 # Include API router in app
 app.include_router(api_router)

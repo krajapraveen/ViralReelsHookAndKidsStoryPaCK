@@ -41,7 +41,7 @@
         <!-- Security Headers via Meta Tags -->
         <meta http-equiv="X-Content-Type-Options" content="nosniff" />
         <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://sdk.cashfree.com https://assets.emergent.sh https://cdn.tailwindcss.com https://us.i.posthog.com https://*.posthog.com https://www.googletagmanager.com https://www.google-analytics.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://sdk.cashfree.com https://*.cashfree.com; worker-src 'self' blob:;" />
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://assets.emergent.sh https://cdn.tailwindcss.com https://us.i.posthog.com https://*.posthog.com https://www.googletagmanager.com https://www.google-analytics.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; frame-src 'self' https://sdk.cashfree.com https://*.cashfree.com; worker-src 'self' blob:;" />
         <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
         <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
         
@@ -65,7 +65,7 @@
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
         <title>CreatorStudio AI | Generate viral reels + kids story videos</title>
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <!-- Razorpay removed - using Cashfree for production payments -->
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
         <!--

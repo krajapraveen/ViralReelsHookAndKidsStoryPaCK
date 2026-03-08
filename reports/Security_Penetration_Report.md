@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://growth-preview-11.preview.emergentagent.com
+**Environment:** https://review-blog-chat.preview.emergentagent.com
 
 ---
 

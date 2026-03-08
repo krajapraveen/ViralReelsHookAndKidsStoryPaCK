@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Tests for form validation, error handling, session expiration, etc.
  */
 
-const BASE_URL = 'https://growth-preview-11.preview.emergentagent.com';
+const BASE_URL = 'https://review-blog-chat.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

@@ -44,7 +44,7 @@ export const options = {
 };
 
 // Base URL from environment or default
-const BASE_URL = __ENV.BASE_URL || 'https://growth-preview-11.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://review-blog-chat.preview.emergentagent.com';
 
 // Test user credentials
 const TEST_USER = {

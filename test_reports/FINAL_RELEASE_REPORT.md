@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://growth-preview-11.preview.emergentagent.com  
+**Base URL:** https://review-blog-chat.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---

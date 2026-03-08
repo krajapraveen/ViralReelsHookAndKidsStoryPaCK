@@ -262,6 +262,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Anti-Abuse</span>
               </Button>
             </Link>
+            <Link to="/app/admin/revenue">
+              <Button variant="outline" size="sm" className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20" data-testid="revenue-analytics-btn">
+                <DollarSign className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Revenue</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}

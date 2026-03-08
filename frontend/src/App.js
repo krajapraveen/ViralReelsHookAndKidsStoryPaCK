@@ -98,6 +98,8 @@ import UserActivityDashboard from './pages/Admin/UserActivityDashboard';
 import SystemHealthDashboard from './pages/Admin/SystemHealthDashboard';
 // ANTI-ABUSE DASHBOARD
 import AntiAbuseDashboard from './pages/Admin/AntiAbuseDashboard';
+// REVENUE ANALYTICS DASHBOARD
+import RevenueAnalyticsDashboard from './pages/Admin/RevenueAnalyticsDashboard';
 // BLOG FOR SEO
 import Blog from './pages/Blog';
 // LIVE CHAT WIDGET
@@ -239,6 +241,9 @@ function App() {
       <Route path="/app/admin/system-health" element={isAuthenticated ? <SystemHealthDashboard /> : <Navigate to="/login" />} />
       {/* ANTI-ABUSE DASHBOARD */}
       <Route path="/app/admin/anti-abuse" element={isAuthenticated ? <AntiAbuseDashboard /> : <Navigate to="/login" />} />
+      {/* REVENUE ANALYTICS DASHBOARD */}
+      <Route path="/app/admin/revenue" element={isAuthenticated ? <RevenueAnalyticsDashboard /> : <Navigate to="/login" />} />
+      <Route path="/app/admin/revenue-analytics" element={isAuthenticated ? <RevenueAnalyticsDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />

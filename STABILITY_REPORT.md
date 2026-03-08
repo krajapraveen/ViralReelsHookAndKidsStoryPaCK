@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://growth-preview-11.preview.emergentagent.com
+API URL: https://review-blog-chat.preview.emergentagent.com
 ```
 
 ### Results Summary

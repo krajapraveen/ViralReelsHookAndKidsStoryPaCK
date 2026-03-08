@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Test Suite 4: API Tests & Mobile Responsiveness
  */
 
-const BASE_URL = 'https://growth-preview-11.preview.emergentagent.com';
+const BASE_URL = 'https://review-blog-chat.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

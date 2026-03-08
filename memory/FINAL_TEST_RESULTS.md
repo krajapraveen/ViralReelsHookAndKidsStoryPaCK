@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://growth-preview-11.preview.emergentagent.com
+**Website:** https://review-blog-chat.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

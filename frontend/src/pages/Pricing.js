@@ -79,48 +79,8 @@ export default function Pricing() {
       return;
     }
 
-    setLoading({...loading, [productId]: true});
-    try {
-      const response = await paymentAPI.createOrder(productId, selectedCurrency);
-      
-      const options = {
-        key: response.data.keyId,
-        amount: response.data.amount,
-        currency: response.data.currency,
-        order_id: response.data.orderId,
-        name: 'CreatorStudio AI',
-        description: 'Credits Purchase',
-        handler: async (paymentResponse) => {
-          try {
-            await paymentAPI.verifyPayment({
-              razorpayOrderId: paymentResponse.razorpay_order_id,
-              razorpayPaymentId: paymentResponse.razorpay_payment_id,
-              razorpaySignature: paymentResponse.razorpay_signature
-            });
-            toast.success('Payment successful! Credits added to your account.');
-            // Store that user has purchased
-            localStorage.setItem('has_purchased', 'true');
-            navigate('/app');
-          } catch (error) {
-            toast.error('Payment verification failed');
-          }
-        },
-        prefill: {
-          email: localStorage.getItem('userEmail') || ''
-        },
-        theme: { color: '#6366f1' }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function (response) {
-        toast.error('Payment failed: ' + response.error.description);
-      });
-      rzp.open();
-    } catch (error) {
-      toast.error('Failed to create order. Please login first.');
-    } finally {
-      setLoading({...loading, [productId]: false});
-    }
+    // Redirect to billing page for secure payment processing
+    navigate('/app/billing');
   };
 
   const subscriptions = products.filter(p => p.type === 'SUBSCRIPTION');

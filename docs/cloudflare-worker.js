@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://growth-preview-11.preview.emergentagent.com';
+const BACKEND_URL = 'https://review-blog-chat.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

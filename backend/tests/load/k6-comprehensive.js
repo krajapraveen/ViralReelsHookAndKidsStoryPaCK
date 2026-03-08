@@ -14,7 +14,7 @@ const loginSuccess = new Counter('login_success');
 const generationSuccess = new Counter('generation_success');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://growth-preview-11.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://review-blog-chat.preview.emergentagent.com';
 
 export const options = {
   scenarios: {
