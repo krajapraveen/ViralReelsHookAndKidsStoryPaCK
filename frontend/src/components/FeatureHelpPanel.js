@@ -186,7 +186,7 @@ export const FEATURE_HELP_CONFIG = {
     creditsRequired: 5,
     steps: [
       "Upload a clear photo with a visible face",
-      "Select your preferred comic style (Anime, Disney, etc.)",
+      "Select your preferred comic style (Anime, Storybook, etc.)",
       "Click Generate and wait for the magic!",
       "Download your comic character"
     ],
