@@ -122,7 +122,13 @@ export default function StoryVideoStudio() {
   const handleWsComplete = useCallback((data) => {
     setWsProgress({ ...data, status: 'completed' });
     toast.success('🎉 ' + (data.message || 'Generation complete!'));
-  }, []);
+    
+    // Auto-redirect to downloads page after completion
+    setTimeout(() => {
+      toast.info('Redirecting to your downloads...');
+      navigate('/app/downloads');
+    }, 2000);
+  }, [navigate]);
   
   const handleWsError = useCallback((data) => {
     setWsProgress({ ...data, status: 'failed' });
@@ -582,6 +588,12 @@ export default function StoryVideoStudio() {
             toast.success('Video rendered successfully!');
             setLoading(false);
             setStep(8);
+            
+            // Auto-redirect to downloads page after 2 seconds
+            setTimeout(() => {
+              toast.info('Redirecting to your downloads...');
+              navigate('/app/downloads');
+            }, 2000);
           } else if (res.data.job.status === 'FAILED') {
             toast.error('Video rendering failed: ' + (res.data.job.error || 'Unknown error'));
             setLoading(false);

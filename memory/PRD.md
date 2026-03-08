@@ -32,6 +32,21 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
    - **Stages:** preparing → composing → audio_sync → music → rendering
    - **Verified:** WebSocket connection attempts visible in console logs
 
+4. **Auto-Redirect to Downloads on Completion** ✅
+   - **Enhancement:** Added automatic navigation to `/app/downloads` when video generation completes
+   - **File:** `/app/frontend/src/pages/StoryVideoStudio.js`
+   - **Implementation:** 2-second delay after completion toast, then redirect
+   - **Works via:** Both WebSocket completion events and polling fallback
+
+### E2E Story Video Flow Tested:
+| Step | Status | Details |
+|------|--------|---------|
+| Project Create | ✅ PASS | Creates draft with story text, title, style |
+| Scene Generation | ✅ PASS | 6 scenes generated with GPT-5.2 |
+| Character Extraction | ✅ PASS | Ruby character with appearance, clothing, voice |
+| Visual Prompts | ✅ PASS | Detailed prompts with style injection |
+| Voice Scripts | ✅ PASS | Narration + dialogues with emotion tags |
+
 ### Test Results (Iteration 131):
 | Category | Pass Rate | Notes |
 |----------|-----------|-------|
