@@ -100,6 +100,8 @@ import SystemHealthDashboard from './pages/Admin/SystemHealthDashboard';
 import AntiAbuseDashboard from './pages/Admin/AntiAbuseDashboard';
 // REVENUE ANALYTICS DASHBOARD
 import RevenueAnalyticsDashboard from './pages/Admin/RevenueAnalyticsDashboard';
+// MONITORING DASHBOARD
+import MonitoringDashboard from './pages/Admin/MonitoringDashboard';
 // BLOG FOR SEO
 import Blog from './pages/Blog';
 // LIVE CHAT WIDGET
@@ -185,7 +187,7 @@ function App() {
       <Route path="/app/subscription" element={isAuthenticated ? <SubscriptionManagement /> : <Navigate to="/login" />} />
       <Route path="/app/analytics" element={isAuthenticated ? <AnalyticsDashboard /> : <Navigate to="/login" />} />
       {/* Admin Routes */}
-      <Route path="/app/admin/monitoring" element={isAuthenticated ? <AdminMonitoring /> : <Navigate to="/login" />} />
+      <Route path="/app/admin/performance" element={isAuthenticated ? <AdminMonitoring /> : <Navigate to="/login" />} />
       <Route path="/app/admin/login-activity" element={isAuthenticated ? <AdminLoginActivity /> : <Navigate to="/login" />} />
       <Route path="/app/admin/users" element={isAuthenticated ? <AdminUsersManagement /> : <Navigate to="/login" />} />
       <Route path="/app/admin/self-healing" element={isAuthenticated ? <SelfHealingDashboard /> : <Navigate to="/login" />} />
@@ -244,6 +246,8 @@ function App() {
       {/* REVENUE ANALYTICS DASHBOARD */}
       <Route path="/app/admin/revenue" element={isAuthenticated ? <RevenueAnalyticsDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/admin/revenue-analytics" element={isAuthenticated ? <RevenueAnalyticsDashboard /> : <Navigate to="/login" />} />
+      {/* MONITORING DASHBOARD */}
+      <Route path="/app/admin/monitoring" element={isAuthenticated ? <MonitoringDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />

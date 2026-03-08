@@ -12,7 +12,7 @@ export default defineConfig({
     ['html', { open: 'never' }]
   ],
   use: {
-    baseURL: 'https://review-blog-chat.preview.emergentagent.com',
+    baseURL: 'https://smart-download-3.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'off',

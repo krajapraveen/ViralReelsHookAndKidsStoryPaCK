@@ -9,7 +9,7 @@ from datetime import datetime
 import re
 
 # Base URL
-BASE_URL = "https://review-blog-chat.preview.emergentagent.com"
+BASE_URL = "https://smart-download-3.preview.emergentagent.com"
 
 # Test credentials
 ADMIN_CREDS = {"email": "admin@creatorstudio.ai", "password": "Cr3@t0rStud!o#2026"}

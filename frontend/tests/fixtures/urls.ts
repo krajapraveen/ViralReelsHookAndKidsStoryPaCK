@@ -1,4 +1,4 @@
-export const BASE = process.env.BASE_URL ?? "https://review-blog-chat.preview.emergentagent.com";
+export const BASE = process.env.BASE_URL ?? "https://smart-download-3.preview.emergentagent.com";
 
 export const URLS = {
   // Public pages

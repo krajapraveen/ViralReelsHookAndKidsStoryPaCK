@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Download, AlertTriangle, CheckCircle, Trash2, ExternalLink } from 'lucide-react';
+import { Clock, Download, AlertTriangle, CheckCircle, Trash2, ExternalLink, Crown, ShieldOff, Shield, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { toast } from 'sonner';
 
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 const EXPIRY_MINUTES = 5;
 const EXPIRY_SECONDS = EXPIRY_MINUTES * 60;
 
@@ -15,7 +16,9 @@ export default function DownloadWithExpiry({
   onExpired,
   expiresAt,
   expiresInSeconds = EXPIRY_SECONDS,
-  showWarning = true
+  showWarning = true,
+  contentType = 'COMIC', // For watermark service
+  enableSmartDownload = true // Enable watermark-aware downloads
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState(() => {
     // Calculate remaining time from expiresAt if provided
@@ -28,6 +31,39 @@ export default function DownloadWithExpiry({
   });
   const [downloaded, setDownloaded] = useState(false);
   const [expired, setExpired] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [shouldWatermark, setShouldWatermark] = useState(null);
+
+  // Check watermark status on mount
+  useEffect(() => {
+    if (enableSmartDownload) {
+      checkWatermarkStatus();
+    }
+  }, [enableSmartDownload]);
+
+  const checkWatermarkStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setShouldWatermark(true);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/watermark/should-apply`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setShouldWatermark(data.shouldApply);
+      } else {
+        setShouldWatermark(true);
+      }
+    } catch (error) {
+      console.error('Error checking watermark status:', error);
+      setShouldWatermark(true);
+    }
+  };
 
   // Countdown timer
   useEffect(() => {
@@ -74,11 +110,78 @@ export default function DownloadWithExpiry({
     return 'bg-red-500';
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    setIsDownloading(true);
     setDownloaded(true);
-    toast.success('Download started!');
-    // Trigger actual download
-    window.open(downloadUrl, '_blank');
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // If smart download is enabled and user needs watermark, use watermark service
+      if (enableSmartDownload && shouldWatermark) {
+        // Fetch the image
+        const imageResponse = await fetch(downloadUrl);
+        const imageBlob = await imageResponse.blob();
+        
+        // Send to watermark service
+        const formData = new FormData();
+        formData.append('file', imageBlob, filename);
+        
+        const watermarkResponse = await fetch(
+          `${API_URL}/api/watermark/download-with-watermark?content_type=${contentType}`,
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+          }
+        );
+        
+        if (watermarkResponse.ok) {
+          const downloadBlob = await watermarkResponse.blob();
+          const watermarkApplied = watermarkResponse.headers.get('X-Watermark-Applied');
+          
+          // Trigger download
+          const url = URL.createObjectURL(downloadBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          if (watermarkApplied === 'true') {
+            toast.info('Watermark added. Upgrade to remove watermarks!', {
+              action: {
+                label: 'Upgrade',
+                onClick: () => window.location.href = '/app/billing'
+              }
+            });
+          } else {
+            toast.success('Download started!');
+          }
+        } else {
+          // Fallback to direct download
+          window.open(downloadUrl, '_blank');
+          toast.success('Download started!');
+        }
+      } else {
+        // Premium user or smart download disabled - direct download
+        window.open(downloadUrl, '_blank');
+        if (shouldWatermark === false) {
+          toast.success('Premium download - no watermark!');
+        } else {
+          toast.success('Download started!');
+        }
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      // Fallback to direct download
+      window.open(downloadUrl, '_blank');
+      toast.success('Download started!');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   if (expired) {
@@ -161,19 +264,52 @@ export default function DownloadWithExpiry({
       </div>
 
       {/* Download Button */}
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2">
         <Button 
           onClick={handleDownload}
           className={`flex-1 ${
-            remainingSeconds < 60 
-              ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
-              : 'bg-indigo-600 hover:bg-indigo-700'
+            shouldWatermark === false 
+              ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+              : remainingSeconds < 60 
+                ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                : 'bg-indigo-600 hover:bg-indigo-700'
           }`}
-          disabled={expired}
+          disabled={expired || isDownloading}
         >
-          <Download className="w-4 h-4 mr-2" />
-          {downloaded ? 'Download Again' : 'Download Now'}
+          {isDownloading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Processing...
+            </>
+          ) : shouldWatermark === false ? (
+            <>
+              <Crown className="w-4 h-4 mr-2" />
+              {downloaded ? 'Download Again (No Watermark)' : 'Download (No Watermark)'}
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4 mr-2" />
+              {downloaded ? 'Download Again' : 'Download Now'}
+            </>
+          )}
         </Button>
+        
+        {/* Watermark status indicator */}
+        {shouldWatermark !== null && enableSmartDownload && (
+          <div className="flex items-center justify-center gap-2 text-xs">
+            {shouldWatermark ? (
+              <span className="text-slate-400 flex items-center gap-1">
+                <ShieldOff className="w-3 h-3" />
+                Free download with watermark
+              </span>
+            ) : (
+              <span className="text-amber-400 flex items-center gap-1">
+                <Shield className="w-3 h-3" />
+                Premium: No watermark
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Download count indicator */}

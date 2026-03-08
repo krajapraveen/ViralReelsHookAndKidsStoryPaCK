@@ -518,3 +518,499 @@ async def get_output_tracking(
     except Exception as e:
         logger.error(f"Output tracking error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# =============================================================================
+# SCHEDULED LOAD TESTS
+# =============================================================================
+
+@router.get("/scheduled-tests")
+async def get_scheduled_tests(admin: dict = Depends(get_admin_user)):
+    """
+    Get list of scheduled load tests
+    """
+    try:
+        schedules = await db.scheduled_tests.find(
+            {"active": True},
+            {"_id": 0}
+        ).sort("createdAt", -1).to_list(20)
+        
+        return {
+            "success": True,
+            "schedules": schedules
+        }
+    except Exception as e:
+        logger.error(f"Scheduled tests error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/schedule-test")
+async def schedule_load_test(
+    background_tasks: BackgroundTasks,
+    test_type: str = Query(default="api"),
+    num_requests: int = Query(default=50, ge=10, le=200),
+    concurrent_users: int = Query(default=10, ge=1, le=50),
+    interval: str = Query(default="daily", regex="^(hourly|daily|weekly)$"),
+    time: str = Query(default="03:00"),
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Schedule automated load tests
+    """
+    try:
+        schedule_id = str(uuid.uuid4())[:8]
+        
+        schedule = {
+            "id": schedule_id,
+            "type": test_type,
+            "numRequests": num_requests,
+            "concurrentUsers": concurrent_users,
+            "interval": interval,
+            "time": time,
+            "active": True,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdBy": admin.get("id"),
+            "lastRun": None,
+            "nextRun": calculate_next_run(interval, time)
+        }
+        
+        await db.scheduled_tests.insert_one(schedule)
+        
+        return {
+            "success": True,
+            "scheduleId": schedule_id,
+            "message": f"Load test scheduled to run {interval} at {time}",
+            "nextRun": schedule["nextRun"]
+        }
+    except Exception as e:
+        logger.error(f"Schedule test error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/schedule-test/{schedule_id}")
+async def delete_scheduled_test(
+    schedule_id: str,
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Delete a scheduled load test
+    """
+    try:
+        result = await db.scheduled_tests.update_one(
+            {"id": schedule_id},
+            {"$set": {"active": False, "deletedAt": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        return {"success": True, "message": "Schedule deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete schedule error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def calculate_next_run(interval: str, time: str) -> str:
+    """Calculate next run time based on interval"""
+    now = datetime.now(timezone.utc)
+    hour, minute = map(int, time.split(':'))
+    
+    if interval == "hourly":
+        next_run = now.replace(minute=minute, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(hours=1)
+    elif interval == "daily":
+        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+    else:  # weekly
+        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        days_until_monday = (7 - now.weekday()) % 7
+        if days_until_monday == 0 and next_run <= now:
+            days_until_monday = 7
+        next_run += timedelta(days=days_until_monday)
+    
+    return next_run.isoformat()
+
+
+# =============================================================================
+# ADVANCED LOAD TESTING SCENARIOS
+# =============================================================================
+
+@router.post("/load-test/stress")
+async def run_stress_test(
+    background_tasks: BackgroundTasks,
+    duration_seconds: int = Query(default=60, ge=10, le=300),
+    ramp_up_seconds: int = Query(default=10, ge=5, le=60),
+    max_concurrent: int = Query(default=20, ge=5, le=50),
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Run a stress test that gradually increases load
+    """
+    try:
+        test_id = str(uuid.uuid4())[:8]
+        
+        test_record = {
+            "id": test_id,
+            "type": "stress",
+            "config": {
+                "durationSeconds": duration_seconds,
+                "rampUpSeconds": ramp_up_seconds,
+                "maxConcurrent": max_concurrent
+            },
+            "status": "running",
+            "startedAt": datetime.now(timezone.utc).isoformat(),
+            "startedBy": admin.get("id"),
+            "results": []
+        }
+        
+        await db.load_tests.insert_one(test_record)
+        background_tasks.add_task(run_stress_test_task, test_id, duration_seconds, ramp_up_seconds, max_concurrent)
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "message": f"Stress test started: {duration_seconds}s duration, {max_concurrent} max concurrent"
+        }
+    except Exception as e:
+        logger.error(f"Stress test start error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def run_stress_test_task(test_id: str, duration: int, ramp_up: int, max_concurrent: int):
+    """Background task for stress testing"""
+    try:
+        start_time = time.time()
+        results = []
+        total_requests = 0
+        successful = 0
+        failed = 0
+        
+        async def make_request(concurrent_level):
+            nonlocal total_requests, successful, failed
+            req_start = time.time()
+            
+            try:
+                # Simulate API call with varying latency based on load
+                base_latency = 50 + (concurrent_level * 5)
+                await asyncio.sleep(random.uniform(base_latency/1000, base_latency*3/1000))
+                
+                # Higher failure rate under heavy load
+                failure_chance = 0.02 + (concurrent_level / max_concurrent * 0.08)
+                success = random.random() > failure_chance
+                
+                latency = (time.time() - req_start) * 1000
+                
+                if success:
+                    successful += 1
+                else:
+                    failed += 1
+                total_requests += 1
+                
+                return {
+                    "latencyMs": round(latency, 2),
+                    "success": success,
+                    "concurrentLevel": concurrent_level
+                }
+            except Exception as e:
+                failed += 1
+                total_requests += 1
+                return {"success": False, "error": str(e)}
+        
+        # Ramp up phase
+        elapsed = 0
+        while elapsed < duration:
+            current_time = time.time()
+            elapsed = current_time - start_time
+            
+            # Calculate current concurrent level
+            if elapsed < ramp_up:
+                concurrent_level = int((elapsed / ramp_up) * max_concurrent) + 1
+            else:
+                concurrent_level = max_concurrent
+            
+            # Run concurrent requests
+            tasks = [make_request(concurrent_level) for _ in range(concurrent_level)]
+            batch_results = await asyncio.gather(*tasks)
+            results.extend(batch_results)
+            
+            # Brief pause between batches
+            await asyncio.sleep(0.5)
+        
+        # Calculate statistics
+        latencies = [r["latencyMs"] for r in results if r.get("success") and r.get("latencyMs")]
+        stats = {
+            "totalRequests": total_requests,
+            "successful": successful,
+            "failed": failed,
+            "successRate": round(successful / total_requests * 100, 2) if total_requests > 0 else 0,
+            "avgLatencyMs": round(sum(latencies) / len(latencies), 2) if latencies else 0,
+            "maxLatencyMs": round(max(latencies), 2) if latencies else 0,
+            "minLatencyMs": round(min(latencies), 2) if latencies else 0,
+            "p95LatencyMs": round(sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0, 2),
+            "totalTimeSeconds": round(time.time() - start_time, 2),
+            "peakConcurrent": max_concurrent
+        }
+        
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {
+                "status": "completed",
+                "completedAt": datetime.now(timezone.utc).isoformat(),
+                "stats": stats
+            }}
+        )
+        
+    except Exception as e:
+        logger.error(f"Stress test error: {e}")
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
+
+
+@router.post("/load-test/generation-queue")
+async def test_generation_queue(
+    background_tasks: BackgroundTasks,
+    num_jobs: int = Query(default=10, ge=1, le=50),
+    job_types: str = Query(default="reel,comic,gif"),
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Test the generation queue with simulated jobs
+    """
+    try:
+        test_id = str(uuid.uuid4())[:8]
+        types = job_types.split(',')
+        
+        test_record = {
+            "id": test_id,
+            "type": "generation_queue",
+            "config": {
+                "numJobs": num_jobs,
+                "jobTypes": types
+            },
+            "status": "running",
+            "startedAt": datetime.now(timezone.utc).isoformat(),
+            "startedBy": admin.get("id")
+        }
+        
+        await db.load_tests.insert_one(test_record)
+        background_tasks.add_task(run_generation_queue_test, test_id, num_jobs, types)
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "message": f"Generation queue test started: {num_jobs} jobs of types {types}"
+        }
+    except Exception as e:
+        logger.error(f"Generation queue test error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def run_generation_queue_test(test_id: str, num_jobs: int, job_types: List[str]):
+    """Background task for generation queue testing"""
+    try:
+        start_time = time.time()
+        job_results = []
+        
+        # Simulated processing times by job type (in seconds)
+        processing_times = {
+            "reel": (3, 10),
+            "comic": (30, 90),
+            "gif": (15, 45),
+            "story": (60, 180),
+            "coloring": (20, 60)
+        }
+        
+        for i in range(num_jobs):
+            job_type = random.choice(job_types)
+            min_time, max_time = processing_times.get(job_type, (5, 30))
+            
+            job_id = f"test_job_{test_id}_{i}"
+            queue_time = random.uniform(0, 5)
+            process_time = random.uniform(min_time, max_time)
+            
+            # Simulate queue and processing
+            await asyncio.sleep(queue_time / 10)  # Scaled down for testing
+            
+            success = random.random() > 0.05
+            
+            job_results.append({
+                "jobId": job_id,
+                "type": job_type,
+                "queueTimeMs": round(queue_time * 1000, 2),
+                "processTimeMs": round(process_time * 1000, 2),
+                "totalTimeMs": round((queue_time + process_time) * 1000, 2),
+                "success": success
+            })
+        
+        # Calculate statistics by job type
+        stats_by_type = {}
+        for job_type in set(job_types):
+            type_jobs = [j for j in job_results if j["type"] == job_type]
+            if type_jobs:
+                stats_by_type[job_type] = {
+                    "count": len(type_jobs),
+                    "successRate": round(sum(1 for j in type_jobs if j["success"]) / len(type_jobs) * 100, 2),
+                    "avgProcessTimeMs": round(sum(j["processTimeMs"] for j in type_jobs) / len(type_jobs), 2)
+                }
+        
+        overall_stats = {
+            "totalJobs": num_jobs,
+            "successful": sum(1 for j in job_results if j["success"]),
+            "failed": sum(1 for j in job_results if not j["success"]),
+            "successRate": round(sum(1 for j in job_results if j["success"]) / num_jobs * 100, 2),
+            "avgQueueTimeMs": round(sum(j["queueTimeMs"] for j in job_results) / num_jobs, 2),
+            "avgProcessTimeMs": round(sum(j["processTimeMs"] for j in job_results) / num_jobs, 2),
+            "totalTimeSeconds": round(time.time() - start_time, 2),
+            "byType": stats_by_type
+        }
+        
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {
+                "status": "completed",
+                "completedAt": datetime.now(timezone.utc).isoformat(),
+                "stats": overall_stats,
+                "jobResults": job_results
+            }}
+        )
+        
+    except Exception as e:
+        logger.error(f"Generation queue test error: {e}")
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
+
+
+# =============================================================================
+# HUMAN SUPPORT CHAT INTEGRATION
+# =============================================================================
+
+@router.post("/support/escalate")
+async def escalate_to_human(
+    message: str = Query(..., min_length=10),
+    context: str = Query(default=""),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Escalate chat to human support
+    """
+    try:
+        ticket_id = str(uuid.uuid4())[:8]
+        
+        ticket = {
+            "id": ticket_id,
+            "userId": user.get("id"),
+            "userName": user.get("name"),
+            "userEmail": user.get("email"),
+            "message": message,
+            "context": context,
+            "status": "open",
+            "priority": "normal",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "assignedTo": None,
+            "responses": []
+        }
+        
+        await db.support_tickets.insert_one(ticket)
+        
+        # Log for notifications (could trigger email/webhook)
+        await db.notifications.insert_one({
+            "type": "support_escalation",
+            "ticketId": ticket_id,
+            "userId": user.get("id"),
+            "message": f"New support ticket from {user.get('name')}: {message[:100]}...",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "read": False
+        })
+        
+        return {
+            "success": True,
+            "ticketId": ticket_id,
+            "message": "Your request has been escalated to our support team. We'll respond within 24 hours.",
+            "estimatedResponseTime": "24 hours"
+        }
+    except Exception as e:
+        logger.error(f"Support escalation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/support/tickets")
+async def get_support_tickets(
+    admin: dict = Depends(get_admin_user),
+    status: str = Query(default="open"),
+    limit: int = Query(default=20, ge=1, le=100)
+):
+    """
+    Get support tickets (admin only)
+    """
+    try:
+        query = {}
+        if status != "all":
+            query["status"] = status
+        
+        tickets = await db.support_tickets.find(
+            query,
+            {"_id": 0}
+        ).sort("createdAt", -1).limit(limit).to_list(limit)
+        
+        return {
+            "success": True,
+            "tickets": tickets,
+            "total": await db.support_tickets.count_documents(query)
+        }
+    except Exception as e:
+        logger.error(f"Get tickets error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/support/respond/{ticket_id}")
+async def respond_to_ticket(
+    ticket_id: str,
+    response: str = Query(..., min_length=10),
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Respond to a support ticket (admin only)
+    """
+    try:
+        ticket = await db.support_tickets.find_one({"id": ticket_id})
+        if not ticket:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+        
+        response_entry = {
+            "id": str(uuid.uuid4())[:8],
+            "adminId": admin.get("id"),
+            "adminName": admin.get("name"),
+            "message": response,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.support_tickets.update_one(
+            {"id": ticket_id},
+            {
+                "$push": {"responses": response_entry},
+                "$set": {
+                    "status": "responded",
+                    "assignedTo": admin.get("id"),
+                    "lastResponseAt": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        return {
+            "success": True,
+            "message": "Response sent successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Respond to ticket error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

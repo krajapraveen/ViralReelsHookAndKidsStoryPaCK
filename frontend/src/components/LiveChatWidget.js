@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Minimize2, Maximize2, Bot, User, Sparkles, HelpCircle, Phone, Mail, Clock, ExternalLink, ChevronRight, Zap, BookOpen, Video, Image, Palette } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Maximize2, Bot, User, Sparkles, HelpCircle, Phone, Mail, Clock, ExternalLink, ChevronRight, Zap, BookOpen, Video, Image, Palette, UserCheck, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -233,6 +234,10 @@ export default function LiveChatWidget() {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showEscalation, setShowEscalation] = useState(false);
+  const [escalationMessage, setEscalationMessage] = useState('');
+  const [isEscalating, setIsEscalating] = useState(false);
+  const [unansweredCount, setUnansweredCount] = useState(0);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -298,12 +303,25 @@ export default function LiveChatWidget() {
     
     setTimeout(() => {
       const response = findResponse(text);
+      
+      // Track if this is a generic/fallback response
+      const isGenericResponse = response.message.includes("I'm here to help! Try asking about:");
+      if (isGenericResponse) {
+        setUnansweredCount(prev => prev + 1);
+      } else {
+        setUnansweredCount(0);
+      }
+      
+      // After 2 unanswered questions, suggest human support
+      const shouldSuggestHuman = unansweredCount >= 1 && isGenericResponse;
+      
       const botMessage = {
         id: Date.now() + 1,
         type: 'bot',
         text: response.message,
         link: response.link,
         suggestions: response.suggestions,
+        showHumanOption: shouldSuggestHuman,
         timestamp: new Date()
       };
 
@@ -314,6 +332,51 @@ export default function LiveChatWidget() {
         setUnreadCount(prev => prev + 1);
       }
     }, thinkingTime);
+  };
+
+  const handleEscalateToHuman = async () => {
+    if (!escalationMessage.trim()) {
+      toast.error('Please describe your issue');
+      return;
+    }
+
+    setIsEscalating(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const conversationContext = messages.map(m => `${m.type}: ${m.text}`).join('\n');
+      
+      const response = await fetch(`${API_URL}/api/monitoring/support/escalate?message=${encodeURIComponent(escalationMessage)}&context=${encodeURIComponent(conversationContext)}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          type: 'bot',
+          text: `Your request has been sent to our human support team (Ticket #${data.ticketId}). We'll respond within 24 hours via email.\n\nIn the meantime, you can continue asking questions here or check our User Manual for more help.`,
+          link: { text: "View User Manual", url: "/user-manual" },
+          isHumanEscalation: true,
+          timestamp: new Date()
+        }]);
+        
+        setShowEscalation(false);
+        setEscalationMessage('');
+        toast.success('Support request submitted!');
+      } else {
+        toast.error('Failed to submit request. Please try again.');
+      }
+    } catch (error) {
+      console.error('Escalation error:', error);
+      toast.error('Connection error. Please try again.');
+    } finally {
+      setIsEscalating(false);
+    }
   };
 
   const handleQuickReply = (reply) => {
@@ -460,6 +523,31 @@ export default function LiveChatWidget() {
                           </div>
                         </div>
                       )}
+                      
+                      {/* Human Support Option */}
+                      {message.showHumanOption && (
+                        <div className="mt-3 pt-3 border-t border-amber-500/30">
+                          <div className="flex items-center gap-2 text-amber-400 text-xs mb-2">
+                            <AlertCircle className="w-3 h-3" />
+                            Can't find what you need?
+                          </div>
+                          <button
+                            onClick={() => setShowEscalation(true)}
+                            className="flex items-center gap-2 px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs transition-colors w-full justify-center"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                            Talk to Human Support
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Human Escalation Confirmation */}
+                      {message.isHumanEscalation && (
+                        <div className="mt-2 flex items-center gap-2 text-emerald-400 text-xs">
+                          <UserCheck className="w-3 h-3" />
+                          Human support notified
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -541,6 +629,14 @@ export default function LiveChatWidget() {
                   Email Support
                 </a>
                 <span className="text-slate-700">|</span>
+                <button 
+                  onClick={() => setShowEscalation(true)}
+                  className="flex items-center gap-1 hover:text-amber-400 transition-colors"
+                >
+                  <UserCheck className="w-3 h-3" />
+                  Human Support
+                </button>
+                <span className="text-slate-700">|</span>
                 <a href="/user-manual" className="flex items-center gap-1 hover:text-emerald-400 transition-colors">
                   <BookOpen className="w-3 h-3" />
                   User Manual
@@ -550,6 +646,76 @@ export default function LiveChatWidget() {
           </>
         )}
       </div>
+      
+      {/* Human Support Escalation Modal */}
+      {showEscalation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center">
+                <UserCheck className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold">Talk to Human Support</h3>
+                <p className="text-slate-400 text-sm">We'll respond within 24 hours</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">
+                  Describe your issue or question
+                </label>
+                <textarea
+                  value={escalationMessage}
+                  onChange={(e) => setEscalationMessage(e.target.value)}
+                  placeholder="Please describe what you need help with..."
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[120px] resize-none"
+                  data-testid="escalation-message"
+                />
+              </div>
+              
+              <div className="bg-slate-700/50 rounded-lg p-3 text-xs text-slate-400">
+                <p className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  Response time: Within 24 hours via email
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <Button
+                onClick={() => {
+                  setShowEscalation(false);
+                  setEscalationMessage('');
+                }}
+                variant="outline"
+                className="flex-1 border-slate-600"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEscalateToHuman}
+                disabled={isEscalating || !escalationMessage.trim()}
+                className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+                data-testid="submit-escalation-btn"
+              >
+                {isEscalating ? (
+                  <>
+                    <Clock className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send to Support
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

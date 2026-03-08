@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://review-blog-chat.preview.emergentagent.com
+**Platform URL:** https://smart-download-3.preview.emergentagent.com
 
 ---
 
