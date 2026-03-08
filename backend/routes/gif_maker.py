@@ -693,7 +693,7 @@ Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}"""
                     gif_path = f"/app/backend/static/generated/{gif_filename}"
                     
                     if await create_gif_optimized(frames, gif_path, duration):
-                        result_url = f"/api/static/generated/{gif_filename}"
+                        result_url = f"/static/generated/{gif_filename}"
                         
             except Exception as e:
                 logger.error(f"GIF generation error: {e}")
@@ -708,7 +708,7 @@ Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}"""
                 gif_path = f"/app/backend/static/generated/{gif_filename}"
                 
                 if await create_bounce_gif_fast(photo_content, gif_path, emotion):
-                    result_url = f"/api/static/generated/{gif_filename}"
+                    result_url = f"/static/generated/{gif_filename}"
             except Exception as e:
                 logger.error(f"Fallback GIF error: {e}")
         
@@ -730,7 +730,7 @@ Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}"""
                 "progress": 100,
                 "progressMessage": "Complete!",
                 "resultUrl": result_url,
-                "frames": [f"/api/static/generated/{os.path.basename(f)}" for f in frames] if frames else [result_url],
+                "frames": [f"/static/generated/{os.path.basename(f)}" for f in frames] if frames else [result_url],
                 "downloadUrl": result_url,
                 "downloaded": False,
                 "downloadCost": GIF_CREDITS["download"],
