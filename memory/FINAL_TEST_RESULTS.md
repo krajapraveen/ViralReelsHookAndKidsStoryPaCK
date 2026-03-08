@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://analytics-events.preview.emergentagent.com
+**Website:** https://story-video-builder.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

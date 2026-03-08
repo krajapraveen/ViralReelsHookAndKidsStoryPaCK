@@ -296,7 +296,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://analytics-events.preview.emergentagent.com",
+    "https://story-video-builder.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
@@ -470,6 +470,10 @@ api_router.include_router(monitoring_router)
 # Story → Images → Video Studio (NEW FEATURE)
 from routes.story_video_studio import router as story_video_studio_router
 api_router.include_router(story_video_studio_router)
+
+# Story Video Generation - Phase 2, 3, 4
+from routes.story_video_generation import router as story_video_generation_router
+api_router.include_router(story_video_generation_router)
 
 # Include API router in app
 app.include_router(api_router)

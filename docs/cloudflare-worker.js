@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://analytics-events.preview.emergentagent.com';
+const BACKEND_URL = 'https://story-video-builder.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

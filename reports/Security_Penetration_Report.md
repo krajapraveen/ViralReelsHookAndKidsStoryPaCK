@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://analytics-events.preview.emergentagent.com
+**Environment:** https://story-video-builder.preview.emergentagent.com
 
 ---
 

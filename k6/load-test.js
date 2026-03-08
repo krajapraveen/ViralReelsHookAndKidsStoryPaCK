@@ -44,7 +44,7 @@ export const options = {
 };
 
 // Base URL from environment or default
-const BASE_URL = __ENV.BASE_URL || 'https://analytics-events.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://story-video-builder.preview.emergentagent.com';
 
 // Test user credentials
 const TEST_USER = {
