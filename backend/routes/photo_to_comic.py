@@ -548,7 +548,18 @@ AVOID: {negative_prompt}"""
                     
                     if images and len(images) > 0:
                         img_data = images[0]
-                        image_bytes = base64.b64decode(img_data['data'])
+                        # Handle both dict format and raw base64 string
+                        if isinstance(img_data, dict):
+                            image_bytes = base64.b64decode(img_data.get('data', ''))
+                        elif isinstance(img_data, str):
+                            # Already base64 string
+                            image_bytes = base64.b64decode(img_data)
+                        else:
+                            image_bytes = img_data if isinstance(img_data, bytes) else b''
+                        
+                        if not image_bytes:
+                            logger.warning(f"Empty image data for variation {i+1}")
+                            continue
                         
                         # Apply watermark for free users
                         user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})

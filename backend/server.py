@@ -45,7 +45,8 @@ from slowapi.errors import RateLimitExceeded
 from routes.auth import router as auth_router
 from routes.credits import router as credits_router
 from routes.generation import router as generate_router
-from routes.payments import router as payments_router
+# Old Razorpay payments router removed - using Cashfree only
+# from routes.payments import router as payments_router
 from routes.feedback import router as feedback_router
 from routes.admin import router as admin_router
 from routes.health import router as health_router
@@ -329,7 +330,8 @@ api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
 api_router.include_router(credits_router)
 api_router.include_router(generate_router)
-api_router.include_router(payments_router)
+# Old Razorpay router removed
+# api_router.include_router(payments_router)
 api_router.include_router(feedback_router)
 api_router.include_router(admin_router)
 api_router.include_router(health_router)
