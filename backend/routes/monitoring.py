@@ -138,7 +138,7 @@ async def get_system_health(admin: dict = Depends(get_admin_user)):
         try:
             await db.command("ping")
             db_healthy = True
-        except:
+        except Exception:
             db_healthy = False
         
         # Credit consumption rate
@@ -175,7 +175,7 @@ async def get_system_health(admin: dict = Depends(get_admin_user)):
         try:
             pending_count = await db.generation_jobs.count_documents({"status": "pending"})
             queue_health = "healthy" if pending_count < 50 else "busy" if pending_count < 200 else "overloaded"
-        except:
+        except Exception:
             queue_health = "unknown"
         
         if queue_health == "overloaded":
@@ -258,8 +258,6 @@ async def run_load_test(test_id: str, test_type: str, num_requests: int, concurr
         start_time = time.time()
         
         async def make_test_request(request_num):
-            req_start = time.time()
-            
             try:
                 # Simulate different test types
                 if test_type == "api":
@@ -887,6 +885,328 @@ async def run_generation_queue_test(test_id: str, num_jobs: int, job_types: List
             {"id": test_id},
             {"$set": {"status": "failed", "error": str(e)}}
         )
+
+
+# =============================================================================
+# SPIKE & SOAK TESTING SCENARIOS
+# =============================================================================
+
+@router.post("/load-test/spike")
+async def run_spike_test(
+    background_tasks: BackgroundTasks,
+    baseline_concurrent: int = Query(default=5, ge=1, le=20),
+    spike_concurrent: int = Query(default=50, ge=10, le=100),
+    spike_duration_seconds: int = Query(default=30, ge=10, le=120),
+    cooldown_seconds: int = Query(default=30, ge=10, le=60),
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Run a spike test - sudden increase in load then return to baseline
+    Tests how system handles sudden traffic bursts
+    """
+    try:
+        test_id = str(uuid.uuid4())[:8]
+        
+        test_record = {
+            "id": test_id,
+            "type": "spike",
+            "config": {
+                "baselineConcurrent": baseline_concurrent,
+                "spikeConcurrent": spike_concurrent,
+                "spikeDurationSeconds": spike_duration_seconds,
+                "cooldownSeconds": cooldown_seconds
+            },
+            "status": "running",
+            "startedAt": datetime.now(timezone.utc).isoformat(),
+            "startedBy": admin.get("id")
+        }
+        
+        await db.load_tests.insert_one(test_record)
+        background_tasks.add_task(
+            run_spike_test_task, 
+            test_id, 
+            baseline_concurrent, 
+            spike_concurrent, 
+            spike_duration_seconds,
+            cooldown_seconds
+        )
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "message": f"Spike test started: {baseline_concurrent}→{spike_concurrent}→{baseline_concurrent} concurrent"
+        }
+    except Exception as e:
+        logger.error(f"Spike test start error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def run_spike_test_task(
+    test_id: str, 
+    baseline: int, 
+    spike: int, 
+    spike_duration: int,
+    cooldown: int
+):
+    """Background task for spike testing"""
+    try:
+        start_time = time.time()
+        results = []
+        phases = []
+        
+        async def make_request(concurrent_level, phase):
+            req_start = time.time()
+            try:
+                # Simulate API call - higher latency during spike
+                if phase == "spike":
+                    base_latency = 100 + (concurrent_level * 3)
+                else:
+                    base_latency = 50 + (concurrent_level * 2)
+                
+                await asyncio.sleep(random.uniform(base_latency/1000, base_latency*2/1000))
+                
+                # Higher failure rate during spike
+                failure_chance = 0.02 if phase != "spike" else 0.05 + (concurrent_level / spike * 0.1)
+                success = random.random() > failure_chance
+                latency = (time.time() - req_start) * 1000
+                
+                return {
+                    "latencyMs": round(latency, 2),
+                    "success": success,
+                    "phase": phase,
+                    "concurrentLevel": concurrent_level
+                }
+            except Exception as e:
+                return {"success": False, "error": str(e), "phase": phase}
+        
+        # Phase 1: Baseline (10 seconds warmup)
+        phases.append({"name": "baseline_warmup", "duration": 10})
+        for _ in range(10):
+            tasks = [make_request(baseline, "baseline") for _ in range(baseline)]
+            batch_results = await asyncio.gather(*tasks)
+            results.extend(batch_results)
+            await asyncio.sleep(1)
+        
+        # Phase 2: Spike
+        phases.append({"name": "spike", "duration": spike_duration})
+        spike_start = time.time()
+        while time.time() - spike_start < spike_duration:
+            tasks = [make_request(spike, "spike") for _ in range(spike)]
+            batch_results = await asyncio.gather(*tasks)
+            results.extend(batch_results)
+            await asyncio.sleep(0.5)
+        
+        # Phase 3: Cooldown
+        phases.append({"name": "cooldown", "duration": cooldown})
+        cooldown_start = time.time()
+        while time.time() - cooldown_start < cooldown:
+            tasks = [make_request(baseline, "cooldown") for _ in range(baseline)]
+            batch_results = await asyncio.gather(*tasks)
+            results.extend(batch_results)
+            await asyncio.sleep(1)
+        
+        # Calculate statistics per phase
+        phase_stats = {}
+        for phase in ["baseline", "spike", "cooldown"]:
+            phase_results = [r for r in results if r.get("phase") == phase]
+            if phase_results:
+                latencies = [r["latencyMs"] for r in phase_results if r.get("success") and r.get("latencyMs")]
+                phase_stats[phase] = {
+                    "requests": len(phase_results),
+                    "successful": sum(1 for r in phase_results if r.get("success")),
+                    "failed": sum(1 for r in phase_results if not r.get("success")),
+                    "successRate": round(sum(1 for r in phase_results if r.get("success")) / len(phase_results) * 100, 2),
+                    "avgLatencyMs": round(sum(latencies) / len(latencies), 2) if latencies else 0,
+                    "maxLatencyMs": round(max(latencies), 2) if latencies else 0
+                }
+        
+        overall_stats = {
+            "totalRequests": len(results),
+            "successful": sum(1 for r in results if r.get("success")),
+            "failed": sum(1 for r in results if not r.get("success")),
+            "successRate": round(sum(1 for r in results if r.get("success")) / len(results) * 100, 2) if results else 0,
+            "totalTimeSeconds": round(time.time() - start_time, 2),
+            "phaseStats": phase_stats,
+            "spikeImpact": {
+                "latencyIncrease": round(
+                    (phase_stats.get("spike", {}).get("avgLatencyMs", 0) / 
+                     max(phase_stats.get("baseline", {}).get("avgLatencyMs", 1), 1) - 1) * 100, 2
+                ),
+                "successRateDrop": round(
+                    phase_stats.get("baseline", {}).get("successRate", 100) - 
+                    phase_stats.get("spike", {}).get("successRate", 100), 2
+                )
+            }
+        }
+        
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {
+                "status": "completed",
+                "completedAt": datetime.now(timezone.utc).isoformat(),
+                "stats": overall_stats
+            }}
+        )
+        
+    except Exception as e:
+        logger.error(f"Spike test error: {e}")
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
+
+
+@router.post("/load-test/soak")
+async def run_soak_test(
+    background_tasks: BackgroundTasks,
+    concurrent_users: int = Query(default=10, ge=5, le=30),
+    duration_minutes: int = Query(default=5, ge=1, le=30),
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    Run a soak test - sustained load over extended period
+    Tests system stability and memory leaks over time
+    """
+    try:
+        test_id = str(uuid.uuid4())[:8]
+        
+        test_record = {
+            "id": test_id,
+            "type": "soak",
+            "config": {
+                "concurrentUsers": concurrent_users,
+                "durationMinutes": duration_minutes
+            },
+            "status": "running",
+            "startedAt": datetime.now(timezone.utc).isoformat(),
+            "startedBy": admin.get("id")
+        }
+        
+        await db.load_tests.insert_one(test_record)
+        background_tasks.add_task(run_soak_test_task, test_id, concurrent_users, duration_minutes)
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "message": f"Soak test started: {concurrent_users} users for {duration_minutes} minutes"
+        }
+    except Exception as e:
+        logger.error(f"Soak test start error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def run_soak_test_task(test_id: str, concurrent: int, duration_minutes: int):
+    """Background task for soak testing"""
+    try:
+        start_time = time.time()
+        duration_seconds = duration_minutes * 60
+        results = []
+        time_buckets = []  # Track metrics over time
+        
+        async def make_request():
+            req_start = time.time()
+            try:
+                # Consistent load - simulate slight degradation over time
+                elapsed_minutes = (time.time() - start_time) / 60
+                # Gradually increase latency to simulate memory issues
+                degradation_factor = 1 + (elapsed_minutes / duration_minutes * 0.3)
+                base_latency = 80 * degradation_factor
+                
+                await asyncio.sleep(random.uniform(base_latency/1000, base_latency*2/1000))
+                
+                # Slight increase in failure rate over time
+                failure_chance = 0.01 + (elapsed_minutes / duration_minutes * 0.02)
+                success = random.random() > failure_chance
+                latency = (time.time() - req_start) * 1000
+                
+                return {
+                    "latencyMs": round(latency, 2),
+                    "success": success,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        
+        bucket_interval = 30  # Track metrics every 30 seconds
+        last_bucket_time = start_time
+        bucket_results = []
+        
+        while time.time() - start_time < duration_seconds:
+            # Make requests
+            tasks = [make_request() for _ in range(concurrent)]
+            batch_results = await asyncio.gather(*tasks)
+            results.extend(batch_results)
+            bucket_results.extend(batch_results)
+            
+            # Check if we should create a time bucket
+            if time.time() - last_bucket_time >= bucket_interval:
+                if bucket_results:
+                    latencies = [r["latencyMs"] for r in bucket_results if r.get("success") and r.get("latencyMs")]
+                    time_buckets.append({
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "elapsedMinutes": round((time.time() - start_time) / 60, 2),
+                        "requests": len(bucket_results),
+                        "successRate": round(sum(1 for r in bucket_results if r.get("success")) / len(bucket_results) * 100, 2),
+                        "avgLatencyMs": round(sum(latencies) / len(latencies), 2) if latencies else 0
+                    })
+                bucket_results = []
+                last_bucket_time = time.time()
+            
+            await asyncio.sleep(1)
+        
+        # Calculate overall statistics
+        latencies = [r["latencyMs"] for r in results if r.get("success") and r.get("latencyMs")]
+        
+        # Analyze degradation over time
+        if len(time_buckets) >= 2:
+            first_bucket = time_buckets[0]
+            last_bucket = time_buckets[-1]
+            latency_degradation = round(
+                (last_bucket["avgLatencyMs"] / max(first_bucket["avgLatencyMs"], 1) - 1) * 100, 2
+            )
+            success_rate_change = round(
+                first_bucket["successRate"] - last_bucket["successRate"], 2
+            )
+        else:
+            latency_degradation = 0
+            success_rate_change = 0
+        
+        overall_stats = {
+            "totalRequests": len(results),
+            "successful": sum(1 for r in results if r.get("success")),
+            "failed": sum(1 for r in results if not r.get("success")),
+            "successRate": round(sum(1 for r in results if r.get("success")) / len(results) * 100, 2) if results else 0,
+            "avgLatencyMs": round(sum(latencies) / len(latencies), 2) if latencies else 0,
+            "maxLatencyMs": round(max(latencies), 2) if latencies else 0,
+            "minLatencyMs": round(min(latencies), 2) if latencies else 0,
+            "p95LatencyMs": round(sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0, 2),
+            "totalTimeMinutes": round((time.time() - start_time) / 60, 2),
+            "requestsPerMinute": round(len(results) / max((time.time() - start_time) / 60, 1), 2),
+            "timeBuckets": time_buckets,
+            "degradationAnalysis": {
+                "latencyDegradationPercent": latency_degradation,
+                "successRateDropPercent": success_rate_change,
+                "isStable": latency_degradation < 20 and success_rate_change < 2
+            }
+        }
+        
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {
+                "status": "completed",
+                "completedAt": datetime.now(timezone.utc).isoformat(),
+                "stats": overall_stats
+            }}
+        )
+        
+    except Exception as e:
+        logger.error(f"Soak test error: {e}")
+        await db.load_tests.update_one(
+            {"id": test_id},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
+
+
 
 
 # =============================================================================

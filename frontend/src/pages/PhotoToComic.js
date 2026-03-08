@@ -944,6 +944,8 @@ export default function PhotoToComic() {
                   filename={`comic_avatar_${job.id}.png`}
                   fileType="image"
                   expiresAt={job.expiresAt}
+                  contentType="COMIC"
+                  enableSmartDownload={true}
                   onExpired={() => {
                     toast.warning('Your download has expired. Please generate again.');
                   }}

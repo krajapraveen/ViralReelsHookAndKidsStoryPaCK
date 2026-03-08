@@ -14,6 +14,7 @@ import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
 import WaitingWithGames from '../components/WaitingWithGames';
+import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import { useNotifications } from '../contexts/NotificationContext';
 
 // ============================================
@@ -768,29 +769,29 @@ export default function PhotoReactionGIF() {
                       />
                     </div>
                     
-                    {/* Free user watermark notice */}
-                    {userPlan === 'free' && !job.purchased ? (
-                      <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-xl p-4 text-center">
-                        <p className="text-yellow-400 font-medium mb-2">Preview (Watermarked)</p>
-                        <Button 
-                          onClick={() => setShowUpsell(true)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
-                        >
-                          <Crown className="w-4 h-4 mr-2" /> Remove Watermark & Download
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Button onClick={handleDownload} className="flex-1 bg-pink-600 hover:bg-pink-700">
-                          <Download className="w-4 h-4 mr-2" /> Download
-                        </Button>
-                        <ShareCreation 
-                          contentType="reaction_gif"
-                          contentId={job.id}
-                          previewUrl={job.resultUrl}
-                        />
-                      </div>
-                    )}
+                    {/* Smart Download with Watermark Support */}
+                    <DownloadWithExpiry
+                      downloadUrl={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
+                      downloadId={job.downloadId}
+                      filename={`reaction_gif_${job.id}.gif`}
+                      fileType="image"
+                      expiresAt={job.expiresAt}
+                      contentType="GIF"
+                      enableSmartDownload={true}
+                      showWarning={true}
+                      onExpired={() => {
+                        toast.warning('Your download has expired. Please generate again.');
+                      }}
+                    />
+                    
+                    {/* Share Button */}
+                    <div className="flex justify-center">
+                      <ShareCreation 
+                        contentType="reaction_gif"
+                        contentId={job.id}
+                        previewUrl={job.resultUrl}
+                      />
+                    </div>
                   </div>
                 )}
                 

@@ -1191,40 +1191,38 @@ export default function ComicStorybookBuilder() {
                 {/* Download Buttons */}
                 {job.status === 'COMPLETED' && (
                   <div className="space-y-3 mt-6">
-                    {userPlan === 'free' && !job.purchased ? (
-                      <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-xl p-4 text-center">
-                        <p className="text-yellow-400 font-medium mb-2">Preview Only (Watermarked)</p>
-                        <p className="text-slate-400 text-sm mb-3">Upgrade to download full comic book</p>
-                        <Button 
-                          onClick={() => setShowUpsell(true)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
-                        >
-                          <Crown className="w-4 h-4 mr-2" /> Remove Watermark & Download
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Button 
-                          onClick={() => handleDownload('pdf')}
-                          className="w-full bg-purple-600 hover:bg-purple-700"
-                        >
-                          <Download className="w-4 h-4 mr-2" /> Download PDF
-                        </Button>
-                        {selectedAddOns.hd_print && (
-                          <Button 
-                            onClick={() => handleDownload('print')}
-                            variant="outline"
-                            className="w-full border-slate-600 text-slate-300"
-                          >
-                            <Download className="w-4 h-4 mr-2" /> Download Print Version
-                          </Button>
-                        )}
-                        <ShareCreation 
-                          contentType="comic_storybook"
-                          contentId={job.id}
-                        />
-                      </>
+                    {/* Smart Download with Watermark Support */}
+                    {job.resultUrl && (
+                      <DownloadWithExpiry
+                        downloadUrl={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
+                        downloadId={job.downloadId}
+                        filename={`comic_storybook_${job.id}.pdf`}
+                        fileType="document"
+                        expiresAt={job.expiresAt}
+                        contentType="STORYBOOK"
+                        enableSmartDownload={true}
+                        showWarning={true}
+                        onExpired={() => {
+                          toast.warning('Your download has expired. Please generate again.');
+                        }}
+                      />
                     )}
+                    
+                    {/* Print Version (if HD print add-on selected) */}
+                    {selectedAddOns.hd_print && (
+                      <Button 
+                        onClick={() => handleDownload('print')}
+                        variant="outline"
+                        className="w-full border-slate-600 text-slate-300"
+                      >
+                        <Download className="w-4 h-4 mr-2" /> Download Print Version
+                      </Button>
+                    )}
+                    
+                    <ShareCreation 
+                      contentType="comic_storybook"
+                      contentId={job.id}
+                    />
                   </div>
                 )}
               </div>

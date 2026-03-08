@@ -525,7 +525,9 @@ export default function MonitoringDashboard() {
                   <option value="api">API Endpoint Test</option>
                   <option value="generation">Generation Queue Test</option>
                   <option value="concurrent">Concurrent User Test</option>
-                  <option value="stress">Stress Test (Heavy Load)</option>
+                  <option value="stress">Stress Test (Gradual Ramp)</option>
+                  <option value="spike">Spike Test (Sudden Burst)</option>
+                  <option value="soak">Soak Test (Extended Duration)</option>
                 </select>
               </div>
               

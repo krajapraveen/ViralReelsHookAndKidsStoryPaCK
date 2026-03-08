@@ -14,6 +14,7 @@ import UpgradeModal from '../components/UpgradeModal';
 import ShareButton from '../components/ShareButton';
 import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
+import DownloadWithExpiry from '../components/DownloadWithExpiry';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
