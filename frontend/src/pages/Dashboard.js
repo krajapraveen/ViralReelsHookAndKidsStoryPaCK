@@ -226,6 +226,32 @@ export default function Dashboard() {
           </Link>
         </div>
 
+        {/* STORY TO VIDEO STUDIO - NEW FEATURE */}
+        <Link to="/app/story-video-studio">
+          <div className="relative bg-gradient-to-r from-rose-600 via-pink-600 to-fuchsia-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/30 mb-4 sm:mb-6" data-testid="quick-action-story-video">
+            <div className="absolute top-3 right-3 flex items-center gap-1 bg-yellow-500 text-black text-xs px-2 py-1 rounded-full font-bold">
+              <Sparkles className="w-3 h-3" />
+              NEW
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 rounded-xl p-3">
+                <Video className="w-8 h-8" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl sm:text-2xl font-bold mb-1">Story to Video Studio</h2>
+                <p className="text-white/80 text-sm">Transform any story into a fully animated video with AI-generated scenes, images, voice narration & music</p>
+                <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                  <span className="bg-white/20 rounded-full px-3 py-1">🎬 6 Video Styles</span>
+                  <span className="bg-white/20 rounded-full px-3 py-1">📝 8 Templates</span>
+                  <span className="bg-white/20 rounded-full px-3 py-1">🎤 AI Voice</span>
+                  <span className="bg-white/20 rounded-full px-3 py-1">🎵 Background Music</span>
+                  <span className="bg-yellow-400/20 text-yellow-300 rounded-full px-3 py-1">⚡ Real-time Progress</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Link>
+
         {/* Creator Boost Pack - Bundled Small Tools */}
         <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6">
           <div className="flex items-center justify-between mb-4">
