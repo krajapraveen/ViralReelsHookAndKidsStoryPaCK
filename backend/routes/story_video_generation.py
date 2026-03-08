@@ -15,10 +15,13 @@ import shutil
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Depends
 from pydantic import BaseModel
 import aiohttp
 import aiofiles
+
+# Import shared utilities
+from shared import db, get_current_user
 
 # =============================================================================
 # CONFIGURATION FLAGS
@@ -40,11 +43,6 @@ MUSIC_DIR = Path("/app/backend/static/music")
 MUSIC_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(prefix="/story-video-studio/generation", tags=["Story Video Generation"])
-
-# Import shared database
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared import db
 
 # =============================================================================
 # PYDANTIC MODELS
@@ -88,12 +86,22 @@ CREDIT_COSTS = {
 
 async def check_and_deduct_credits(user_id: str, amount: int, description: str) -> bool:
     """Check if user has enough credits and deduct them BEFORE processing"""
-    user = await db.users.find_one({"id": user_id})
+    from bson import ObjectId
+    
+    # Try to find user by various ID formats
+    user = None
+    try:
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+    except Exception:
+        pass
+    
+    if not user:
+        user = await db.users.find_one({"id": user_id})
     if not user:
         user = await db.users.find_one({"_id": user_id})
     
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=f"User not found with id: {user_id}")
     
     current_credits = user.get("credits", 0)
     if current_credits < amount:
@@ -203,12 +211,13 @@ async def generate_image_gemini(prompt: str, negative_prompt: str, style: str) -
 async def generate_scene_images(
     request: ImageGenerationRequest,
     background_tasks: BackgroundTasks,
-    user_id: str = None
+    current_user: dict = Depends(get_current_user)
 ):
     """Generate images for scenes (Phase 2) - Credits deducted BEFORE generation"""
     
+    user_id = current_user.get("id") or current_user.get("_id")
     if not user_id:
-        user_id = "test_user"
+        raise HTTPException(status_code=401, detail="User not authenticated")
     
     # Get project
     project = await db.story_projects.find_one({"project_id": request.project_id})
@@ -384,12 +393,13 @@ async def get_voice_config():
 @router.post("/voices")
 async def generate_scene_voices(
     request: VoiceGenerationRequest,
-    user_id: str = None
+    current_user: dict = Depends(get_current_user)
 ):
     """Generate voices for scenes (Phase 3) - Credits deducted BEFORE generation"""
     
+    user_id = current_user.get("id") or str(current_user.get("_id"))
     if not user_id:
-        user_id = "test_user"
+        raise HTTPException(status_code=401, detail="User not authenticated")
     
     # Check voice provider mode
     if VOICE_PROVIDER_MODE == "BYO_USER_KEY" and not request.user_api_key:
@@ -510,6 +520,11 @@ async def get_audio_duration(audio_path: str) -> float:
 # BACKGROUND MUSIC (PIXABAY - ROYALTY FREE)
 # =============================================================================
 
+# Pixabay API configuration
+PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
+PIXABAY_AUDIO_API = "https://pixabay.com/api/videos/"  # Pixabay uses videos API for audio
+
+# Default curated tracks (fallback if API unavailable)
 PIXABAY_MUSIC_SAMPLES = [
     {
         "id": "soft_piano",
@@ -558,35 +573,103 @@ PIXABAY_MUSIC_SAMPLES = [
     },
 ]
 
+async def search_pixabay_music(query: str, category: str = None, per_page: int = 10) -> list:
+    """Search Pixabay for royalty-free music"""
+    if not PIXABAY_API_KEY:
+        return []
+    
+    # Map our categories to Pixabay search terms
+    category_mapping = {
+        "bedtime": "calm relaxing sleep",
+        "adventure": "adventure epic action",
+        "fantasy": "fantasy magical mystical",
+        "kids": "kids children happy playful",
+        "cinematic": "cinematic dramatic emotional"
+    }
+    
+    search_query = query or category_mapping.get(category, "background music")
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Pixabay doesn't have a dedicated audio API, so we use curated results
+            # The API key validates we're authenticated
+            url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q={search_query}&audio_type=music&per_page={per_page}"
+            
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    # Note: Pixabay's free API doesn't return audio directly
+                    # We'd need their full API or use pre-curated tracks
+                    return []
+    except Exception as e:
+        print(f"Pixabay API error: {e}")
+    
+    return []
+
+@router.get("/music/search")
+async def search_music(
+    query: str = None,
+    category: str = None,
+    per_page: int = 10
+):
+    """Search for royalty-free music from Pixabay"""
+    
+    # For now, return filtered curated tracks based on category
+    tracks = PIXABAY_MUSIC_SAMPLES.copy()
+    
+    if category and category != "all":
+        tracks = [t for t in tracks if t.get("category") == category]
+    
+    if query:
+        query_lower = query.lower()
+        tracks = [t for t in tracks if query_lower in t.get("name", "").lower() or query_lower in t.get("category", "").lower()]
+    
+    return {
+        "success": True,
+        "query": query,
+        "category": category,
+        "music_tracks": tracks[:per_page],
+        "total": len(tracks),
+        "source": "pixabay_curated",
+        "api_key_configured": bool(PIXABAY_API_KEY)
+    }
+
 @router.get("/music/library")
-async def get_music_library():
+async def get_music_library(category: str = None):
     """Get available royalty-free background music"""
     
     # Get user-uploaded music
     user_music = await db.user_music.find({}).to_list(length=100)
     
-    # Combine with Pixabay samples
+    # Start with Pixabay curated samples
     all_music = PIXABAY_MUSIC_SAMPLES.copy()
     
-    for um in user_music:
-        all_music.append({
-            "id": str(um.get("_id")),
-            "name": um.get("name"),
-            "duration": um.get("duration", 0),
-            "category": "user_upload",
-            "url": um.get("url"),
-            "source": "user_upload",
-            "license": "User uploaded - user confirms they have rights to use"
-        })
+    # Filter by category if specified
+    if category and category not in ["all", "user_upload"]:
+        all_music = [t for t in all_music if t.get("category") == category]
+    
+    # Add user-uploaded music
+    if category in [None, "all", "user_upload"]:
+        for um in user_music:
+            all_music.append({
+                "id": str(um.get("_id")),
+                "name": um.get("name"),
+                "duration": um.get("duration", 0),
+                "category": "user_upload",
+                "url": um.get("url"),
+                "source": "user_upload",
+                "license": "User uploaded - user confirms they have rights to use"
+            })
     
     return {
         "success": True,
         "music_tracks": all_music,
-        "categories": ["bedtime", "adventure", "fantasy", "kids", "cinematic", "user_upload"],
+        "categories": ["all", "bedtime", "adventure", "fantasy", "kids", "cinematic", "user_upload"],
         "license_info": {
             "pixabay": "Pixabay License - Free for commercial use, no attribution required. See: https://pixabay.com/service/license/",
             "user_upload": "User is responsible for ensuring they have rights to use uploaded music"
-        }
+        },
+        "api_key_configured": bool(PIXABAY_API_KEY)
     }
 
 @router.post("/music/upload")
@@ -658,12 +741,13 @@ async def upload_music(
 async def assemble_video(
     request: VideoAssemblyRequest,
     background_tasks: BackgroundTasks,
-    user_id: str = None
+    current_user: dict = Depends(get_current_user)
 ):
     """Assemble final video from images, voices, and music (Phase 4)"""
     
+    user_id = current_user.get("id") or str(current_user.get("_id"))
     if not user_id:
-        user_id = "test_user"
+        raise HTTPException(status_code=401, detail="User not authenticated")
     
     # Get project
     project = await db.story_projects.find_one({"project_id": request.project_id})
