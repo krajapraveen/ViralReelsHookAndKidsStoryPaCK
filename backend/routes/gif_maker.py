@@ -956,10 +956,16 @@ async def process_gif_batch(batch_id: str, photo_content: bytes, emotions: list,
                             continue
                         
                         # Apply watermark for free users
-                        user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
-                        user_plan = user_data.get("plan", "free") if user_data else "free"
+                        try:
+                            user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
+                            if user_data and isinstance(user_data, dict):
+                                user_plan = user_data.get("plan", "free")
+                            else:
+                                user_plan = "free"
+                        except:
+                            user_plan = "free"
                         
-                        if should_apply_watermark(user_plan):
+                        if should_apply_watermark({"plan": user_plan}):
                             config = get_watermark_config("GIF")
                             image_bytes = add_diagonal_watermark(
                                 image_bytes,

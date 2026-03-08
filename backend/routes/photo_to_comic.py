@@ -546,14 +546,40 @@ AVOID: {negative_prompt}"""
                     
                     text_response, images = await chat.send_message_multimodal_response(msg)
                     
+                    logger.info(f"LLM response - text: {type(text_response)}, images: {type(images)}, images_len: {len(images) if images else 0}")
+                    
                     if images and len(images) > 0:
                         img_data = images[0]
+                        logger.info(f"Image data type: {type(img_data)}, keys: {img_data.keys() if isinstance(img_data, dict) else 'N/A'}")
+                        
                         # Handle both dict format and raw base64 string
                         if isinstance(img_data, dict):
-                            image_bytes = base64.b64decode(img_data.get('data', ''))
+                            # Try different possible keys for image data
+                            raw_data = img_data.get('data') or img_data.get('b64_json') or img_data.get('image') or img_data.get('url', '')
+                            if raw_data:
+                                if raw_data.startswith('data:'):
+                                    base64_data = raw_data.split(',')[1] if ',' in raw_data else raw_data
+                                    image_bytes = base64.b64decode(base64_data)
+                                elif raw_data.startswith('http'):
+                                    # It's a URL, download it
+                                    import aiohttp
+                                    async with aiohttp.ClientSession() as session:
+                                        async with session.get(raw_data) as resp:
+                                            image_bytes = await resp.read()
+                                else:
+                                    image_bytes = base64.b64decode(raw_data)
+                            else:
+                                logger.warning(f"No image data found in dict: {list(img_data.keys())}")
+                                image_bytes = b''
                         elif isinstance(img_data, str):
-                            # Already base64 string
-                            image_bytes = base64.b64decode(img_data)
+                            # Could be base64 or a URL - check if it starts with data URL prefix
+                            if img_data.startswith('data:'):
+                                # Extract base64 from data URL
+                                base64_data = img_data.split(',')[1] if ',' in img_data else img_data
+                                image_bytes = base64.b64decode(base64_data)
+                            else:
+                                # Raw base64 string
+                                image_bytes = base64.b64decode(img_data)
                         else:
                             image_bytes = img_data if isinstance(img_data, bytes) else b''
                         
@@ -562,10 +588,17 @@ AVOID: {negative_prompt}"""
                             continue
                         
                         # Apply watermark for free users
-                        user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
-                        user_plan = user_data.get("plan", "free") if user_data else "free"
+                        try:
+                            user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
+                            if user_data and isinstance(user_data, dict):
+                                user_plan = user_data.get("plan", "free")
+                            else:
+                                user_plan = "free"
+                        except Exception as e:
+                            logger.warning(f"Error fetching user plan: {e}")
+                            user_plan = "free"
                         
-                        if should_apply_watermark(user_plan):
+                        if should_apply_watermark({"plan": user_plan}):
                             config = get_watermark_config("COMIC")
                             image_bytes = add_diagonal_watermark(
                                 image_bytes,
@@ -583,7 +616,9 @@ AVOID: {negative_prompt}"""
                             result_url = url
                 
             except Exception as e:
+                import traceback
                 logger.error(f"Comic avatar generation error: {e}")
+                logger.error(f"Full traceback: {traceback.format_exc()}")
         
         # Placeholder if no results
         if not result_url:
@@ -817,13 +852,29 @@ AVOID: {negative_prompt}"""
                             
                             if images and len(images) > 0:
                                 img_data = images[0]
-                                image_bytes = base64.b64decode(img_data['data'])
+                                # Handle both dict format and raw base64 string
+                                if isinstance(img_data, dict):
+                                    raw_data = img_data.get('data') or img_data.get('b64_json') or img_data.get('image') or ''
+                                    image_bytes = base64.b64decode(raw_data) if raw_data else b''
+                                elif isinstance(img_data, str):
+                                    image_bytes = base64.b64decode(img_data)
+                                else:
+                                    image_bytes = img_data if isinstance(img_data, bytes) else b''
+                                
+                                if not image_bytes:
+                                    continue
                                 
                                 # Apply watermark for free users
-                                user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
-                                user_plan = user_data.get("plan", "free") if user_data else "free"
+                                try:
+                                    user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
+                                    if user_data and isinstance(user_data, dict):
+                                        user_plan = user_data.get("plan", "free")
+                                    else:
+                                        user_plan = "free"
+                                except:
+                                    user_plan = "free"
                                 
-                                if should_apply_watermark(user_plan):
+                                if should_apply_watermark({"plan": user_plan}):
                                     config = get_watermark_config("COMIC")
                                     image_bytes = add_diagonal_watermark(
                                         image_bytes,
