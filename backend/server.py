@@ -475,6 +475,14 @@ api_router.include_router(story_video_studio_router)
 from routes.story_video_generation import router as story_video_generation_router
 api_router.include_router(story_video_generation_router)
 
+# Story Video FAST Generation - Parallel Processing Engine
+from routes.story_video_fast import router as story_video_fast_router
+api_router.include_router(story_video_fast_router)
+
+# Blog Content for SEO
+from routes.blog_content import router as blog_router
+api_router.include_router(blog_router)
+
 # Include API router in app
 app.include_router(api_router)
 

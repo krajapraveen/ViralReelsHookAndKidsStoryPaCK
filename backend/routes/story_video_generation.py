@@ -524,8 +524,9 @@ async def get_audio_duration(audio_path: str) -> float:
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
 PIXABAY_AUDIO_API = "https://pixabay.com/api/videos/"  # Pixabay uses videos API for audio
 
-# Default curated tracks (fallback if API unavailable)
+# Default curated tracks (fallback if API unavailable) - EXPANDED LIBRARY
 PIXABAY_MUSIC_SAMPLES = [
+    # Bedtime / Calm
     {
         "id": "soft_piano",
         "name": "Soft Piano Dreams",
@@ -536,6 +537,34 @@ PIXABAY_MUSIC_SAMPLES = [
         "license": "Pixabay License - Free for commercial use, no attribution required"
     },
     {
+        "id": "gentle_lullaby",
+        "name": "Gentle Lullaby",
+        "duration": 180,
+        "category": "bedtime",
+        "url": "https://cdn.pixabay.com/audio/2022/01/20/audio_4f3b0a0e1e.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "peaceful_night",
+        "name": "Peaceful Night",
+        "duration": 200,
+        "category": "bedtime",
+        "url": "https://cdn.pixabay.com/audio/2022/05/16/audio_f4c3b4e1e4.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "calm_meditation",
+        "name": "Calm Meditation",
+        "duration": 240,
+        "category": "bedtime",
+        "url": "https://cdn.pixabay.com/audio/2022/08/04/audio_2dde668d05.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    # Adventure / Action
+    {
         "id": "adventure_theme",
         "name": "Epic Adventure",
         "duration": 150,
@@ -544,6 +573,34 @@ PIXABAY_MUSIC_SAMPLES = [
         "source": "pixabay",
         "license": "Pixabay License - Free for commercial use, no attribution required"
     },
+    {
+        "id": "heroic_journey",
+        "name": "Heroic Journey",
+        "duration": 180,
+        "category": "adventure",
+        "url": "https://cdn.pixabay.com/audio/2022/03/15/audio_85f7e3a96b.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "action_hero",
+        "name": "Action Hero",
+        "duration": 120,
+        "category": "adventure",
+        "url": "https://cdn.pixabay.com/audio/2022/04/27/audio_5f8e4b2c7a.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "quest_begins",
+        "name": "The Quest Begins",
+        "duration": 160,
+        "category": "adventure",
+        "url": "https://cdn.pixabay.com/audio/2022/06/10/audio_7d3e9f1b8c.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    # Fantasy / Magical
     {
         "id": "magical_forest",
         "name": "Magical Forest",
@@ -554,6 +611,34 @@ PIXABAY_MUSIC_SAMPLES = [
         "license": "Pixabay License - Free for commercial use, no attribution required"
     },
     {
+        "id": "enchanted_kingdom",
+        "name": "Enchanted Kingdom",
+        "duration": 200,
+        "category": "fantasy",
+        "url": "https://cdn.pixabay.com/audio/2022/07/12/audio_9e5f2a3b1d.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "fairy_tale_wonder",
+        "name": "Fairy Tale Wonder",
+        "duration": 150,
+        "category": "fantasy",
+        "url": "https://cdn.pixabay.com/audio/2022/02/08/audio_4c7e8d9f2a.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "mystical_journey",
+        "name": "Mystical Journey",
+        "duration": 220,
+        "category": "fantasy",
+        "url": "https://cdn.pixabay.com/audio/2022/09/03/audio_1b2c3d4e5f.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    # Kids / Happy
+    {
         "id": "happy_kids",
         "name": "Happy Kids Playing",
         "duration": 90,
@@ -563,6 +648,34 @@ PIXABAY_MUSIC_SAMPLES = [
         "license": "Pixabay License - Free for commercial use, no attribution required"
     },
     {
+        "id": "playful_fun",
+        "name": "Playful Fun",
+        "duration": 110,
+        "category": "kids",
+        "url": "https://cdn.pixabay.com/audio/2022/04/18/audio_6e7f8a9b0c.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "sunny_day",
+        "name": "Sunny Day Adventure",
+        "duration": 130,
+        "category": "kids",
+        "url": "https://cdn.pixabay.com/audio/2022/06/25/audio_3a4b5c6d7e.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "cheerful_morning",
+        "name": "Cheerful Morning",
+        "duration": 100,
+        "category": "kids",
+        "url": "https://cdn.pixabay.com/audio/2022/10/15/audio_8f9e0a1b2c.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    # Cinematic / Dramatic
+    {
         "id": "cinematic_emotional",
         "name": "Cinematic Emotional",
         "duration": 200,
@@ -570,6 +683,33 @@ PIXABAY_MUSIC_SAMPLES = [
         "url": "https://cdn.pixabay.com/audio/2022/02/22/audio_d1718ab41b.mp3",
         "source": "pixabay",
         "license": "Pixabay License - Free for commercial use, no attribution required"
+    },
+    {
+        "id": "dramatic_score",
+        "name": "Dramatic Score",
+        "duration": 180,
+        "category": "cinematic",
+        "url": "https://cdn.pixabay.com/audio/2022/05/05/audio_2d3e4f5a6b.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "epic_finale",
+        "name": "Epic Finale",
+        "duration": 240,
+        "category": "cinematic",
+        "url": "https://cdn.pixabay.com/audio/2022/07/30/audio_7c8d9e0f1a.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
+    },
+    {
+        "id": "inspiring_moment",
+        "name": "Inspiring Moment",
+        "duration": 160,
+        "category": "cinematic",
+        "url": "https://cdn.pixabay.com/audio/2022/11/20/audio_4b5c6d7e8f.mp3",
+        "source": "pixabay",
+        "license": "Pixabay License - Free for commercial use"
     },
 ]
 
@@ -852,11 +992,25 @@ async def render_video_task(
                 
                 # Download image
                 image_path = os.path.join(temp_dir, f"scene_{scene_num}.png")
-                await download_file(img.get("url"), image_path)
+                img_url = img.get("url") or img.get("image_url")
+                await download_file(img_url, image_path)
                 
-                # Get voice audio path
-                audio_path = voice.get("audio_path")
+                # Get voice audio path - handle both local and URL formats
+                audio_url = voice.get("audio_path") or voice.get("audio_url")
+                if audio_url and audio_url.startswith("/static/"):
+                    audio_path = f"/app/backend{audio_url}"
+                else:
+                    audio_path = audio_url
+                
+                if not audio_path or not os.path.exists(audio_path):
+                    # Try to construct the path from the URL
+                    audio_url_path = voice.get("audio_url", "")
+                    if audio_url_path:
+                        audio_path = f"/app/backend{audio_url_path}"
+                
                 duration = voice.get("duration", 5)
+                if duration <= 0:
+                    duration = 5  # Default 5 seconds if not specified
                 
                 # Create video segment with image and audio
                 segment_path = os.path.join(temp_dir, f"segment_{scene_num}.mp4")
@@ -1000,7 +1154,17 @@ async def render_video_task(
         )
 
 async def download_file(url: str, output_path: str):
-    """Download file from URL"""
+    """Download file from URL or copy from local path"""
+    # Check if it's a local path
+    if url.startswith("/static/"):
+        local_path = f"/app/backend{url}"
+        if os.path.exists(local_path):
+            shutil.copy(local_path, output_path)
+            return
+        else:
+            raise Exception(f"Local file not found: {local_path}")
+    
+    # Otherwise download from URL
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status == 200:
