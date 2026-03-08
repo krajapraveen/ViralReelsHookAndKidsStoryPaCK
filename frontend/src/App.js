@@ -18,6 +18,7 @@ import Reviews from './pages/Reviews';
 import PrivacySettings from './pages/PrivacySettings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import CookiePolicy from './pages/CookiePolicy';
 import AutomationDashboard from './pages/AutomationDashboard';
 import Profile from './pages/Profile';
 import CopyrightInfo from './pages/CopyrightInfo';
@@ -110,6 +111,7 @@ import GA4EventTester from './pages/Admin/GA4EventTester';
 import Blog from './pages/Blog';
 // LIVE CHAT WIDGET
 import LiveChatWidget from './components/LiveChatWidget';
+import CookieConsent from './components/CookieConsent';
 import './App.css';
 
 function App() {
@@ -257,6 +259,7 @@ function App() {
       {/* GA4 EVENT TESTER */}
       <Route path="/app/admin/ga4-tester" element={isAuthenticated ? <GA4EventTester /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/cookie-policy" element={<CookiePolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />
       </Routes>
@@ -269,6 +272,9 @@ function App() {
       
       {/* Live Chat Widget - Support chat */}
       <LiveChatWidget />
+      
+      {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
+      <CookieConsent />
     </TourProvider>
     </NotificationProvider>
   );
