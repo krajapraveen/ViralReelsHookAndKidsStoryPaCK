@@ -372,6 +372,59 @@ async def generate_scene_images(
         "images": generated_images
     }
 
+@router.get("/images/{project_id}")
+async def get_project_images(
+    project_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all generated images for a project"""
+    # Check project exists and belongs to user
+    project = await db.story_projects.find_one({"project_id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Fetch scene assets (images) - get latest per scene
+    all_images = await db.scene_assets.find(
+        {"project_id": project_id, "asset_type": "image"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Deduplicate - keep only the latest image per scene
+    seen_scenes = set()
+    images = []
+    for img in all_images:
+        scene_num = img.get("scene_number")
+        if scene_num not in seen_scenes:
+            seen_scenes.add(scene_num)
+            images.append({
+                "scene_number": scene_num,
+                "image_url": img.get("url"),
+                "provider": img.get("provider", "openai"),
+                "created_at": img.get("created_at")
+            })
+    
+    # Sort by scene number
+    images.sort(key=lambda x: x.get("scene_number", 0))
+    
+    # If no images in scene_assets, check for legacy storage
+    if not images:
+        # Try to find images in project scenes
+        scenes = project.get("scenes", [])
+        for scene in scenes:
+            if scene.get("image_url"):
+                images.append({
+                    "scene_number": scene.get("scene_number"),
+                    "image_url": scene.get("image_url"),
+                    "provider": scene.get("image_provider", "unknown")
+                })
+    
+    return {
+        "success": True,
+        "project_id": project_id,
+        "images": images,
+        "count": len(images)
+    }
+
 # =============================================================================
 # PHASE 3: VOICE GENERATION
 # =============================================================================

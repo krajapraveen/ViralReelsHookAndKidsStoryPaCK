@@ -19,7 +19,7 @@ import {
   Volume2, Maximize, Settings, RefreshCw, LayoutTemplate,
   Gamepad2, Share2, Facebook, Twitter, MessageCircle, Linkedin,
   Mail, Trophy, HelpCircle, Puzzle, Brain, Lightbulb, Copy,
-  Wifi, WifiOff
+  Wifi, WifiOff, ImageOff
 } from 'lucide-react';
 
 const AGE_GROUPS = [
@@ -155,6 +155,38 @@ export default function StoryVideoStudio() {
     fetchTemplates();
     analytics.trackFunnelStep('story_video_studio_view');
   }, []);
+  
+  // Load existing images when project changes and has images_generated status
+  useEffect(() => {
+    if (project?.project_id && 
+        ['images_generated', 'voices_generated', 'video_rendered'].includes(project?.status)) {
+      loadProjectImages(project.project_id);
+    }
+  }, [project?.project_id, project?.status]);
+  
+  const loadProjectImages = async (projectId) => {
+    try {
+      const res = await api.get(`/api/story-video-studio/generation/images/${projectId}`);
+      if (res.data.success && res.data.images?.length > 0) {
+        // Map scene_assets format to frontend format
+        const images = res.data.images.map(img => ({
+          scene_number: img.scene_number,
+          image_url: img.url || img.image_url,
+          provider: img.provider || 'openai'
+        }));
+        setGeneratedImages(images);
+        
+        // Set step based on project status if not already set
+        if (project?.status === 'images_generated' && step < 5) {
+          setStep(5);
+        } else if (project?.status === 'voices_generated' && step < 6) {
+          setStep(6);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load project images:', error);
+    }
+  };
   
   const fetchStyles = async () => {
     try {
@@ -1218,16 +1250,29 @@ export default function StoryVideoStudio() {
                       src={`${process.env.REACT_APP_BACKEND_URL}${img.image_url}`}
                       alt={`Scene ${img.scene_number}`}
                       className="w-full aspect-video object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
                     />
-                  ) : img.error ? (
-                    <div className="w-full aspect-video bg-red-500/20 flex items-center justify-center">
+                  ) : null}
+                  <div 
+                    className="w-full aspect-video bg-slate-700/50 items-center justify-center flex-col gap-2 text-center p-4"
+                    style={{ display: img.image_url ? 'none' : 'flex' }}
+                  >
+                    {img.error ? (
                       <p className="text-red-400 text-sm">{img.error}</p>
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-video bg-slate-700 flex items-center justify-center">
+                    ) : img.image_url ? (
+                      <>
+                        <ImageOff className="w-8 h-8 text-slate-500" />
+                        <p className="text-slate-400 text-xs">Image unavailable</p>
+                        <p className="text-slate-500 text-xs">Try regenerating</p>
+                      </>
+                    ) : (
                       <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-                    </div>
-                  )}
+                    )}
+                  </div>
                   <div className="p-3">
                     <p className="text-white font-medium">Scene {img.scene_number}</p>
                     <p className="text-xs text-slate-400">{img.provider}</p>
