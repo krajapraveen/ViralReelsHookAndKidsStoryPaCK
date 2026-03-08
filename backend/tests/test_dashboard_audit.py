@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://story-video-builder.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://narrative-visuals-6.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "admin@creatorstudio.ai"
@@ -280,7 +280,7 @@ class TestHealthAndInfrastructure:
     def test_cors_headers(self):
         """CORS headers present"""
         response = requests.options(f"{BASE_URL}/api/auth/login", headers={
-            "Origin": "https://story-video-builder.preview.emergentagent.com",
+            "Origin": "https://narrative-visuals-6.preview.emergentagent.com",
             "Access-Control-Request-Method": "POST"
         })
         # Should not be blocked

@@ -14,7 +14,9 @@ import {
   Play, Users, BookOpen, Sparkles, ChevronRight, ChevronDown,
   FileText, Download, Edit, Trash2, Eye, Clock, Coins,
   AlertTriangle, CheckCircle, Palette, Music, Video, Pause,
-  Volume2, Maximize, Settings, RefreshCw
+  Volume2, Maximize, Settings, RefreshCw, LayoutTemplate,
+  Gamepad2, Share2, Facebook, Twitter, MessageCircle, Linkedin,
+  Mail, Trophy, HelpCircle, Puzzle, Brain, Lightbulb, Copy
 } from 'lucide-react';
 
 const AGE_GROUPS = [
@@ -80,12 +82,34 @@ export default function StoryVideoStudio() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   
+  // NEW: Templates state
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templateCustomizations, setTemplateCustomizations] = useState({});
+  
+  // NEW: Waiting Games state
+  const [showGames, setShowGames] = useState(false);
+  const [triviaQuestions, setTriviaQuestions] = useState([]);
+  const [currentTriviaIndex, setCurrentTriviaIndex] = useState(0);
+  const [triviaScore, setTriviaScore] = useState(0);
+  const [wordPuzzle, setWordPuzzle] = useState(null);
+  const [puzzleGuess, setPuzzleGuess] = useState('');
+  const [riddle, setRiddle] = useState(null);
+  const [riddleGuess, setRiddleGuess] = useState('');
+  const [gameTab, setGameTab] = useState('trivia');
+  
+  // NEW: Social Sharing state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLinks, setShareLinks] = useState({});
+  
   // Fetch styles and pricing on mount
   useEffect(() => {
     fetchStyles();
     fetchPricing();
     fetchVoiceConfig();
     fetchMusicLibrary();
+    fetchTemplates();
     analytics.trackFunnelStep('story_video_studio_view');
   }, []);
   
@@ -131,6 +155,163 @@ export default function StoryVideoStudio() {
     } catch (error) {
       console.error('Failed to fetch music library:', error);
     }
+  };
+  
+  // NEW: Fetch templates
+  const fetchTemplates = async () => {
+    try {
+      const res = await api.get('/api/story-video-studio/templates/list');
+      if (res.data.success) {
+        setTemplates(res.data.templates);
+      }
+    } catch (error) {
+      console.error('Failed to fetch templates:', error);
+    }
+  };
+  
+  // NEW: Select template and pre-fill form
+  const selectTemplate = (template) => {
+    setSelectedTemplate(template);
+    setTemplateCustomizations(template.fill_in_blanks);
+    setAgeGroup(template.age_group);
+    setStyleId(template.style);
+    setTitle(template.name);
+    setShowTemplates(false);
+    toast.success(`Template "${template.name}" selected! Customize it below.`);
+  };
+  
+  // NEW: Generate story from template
+  const generateFromTemplate = async () => {
+    if (!selectedTemplate) return;
+    
+    setLoading(true);
+    try {
+      const res = await api.post('/api/story-video-studio/templates/generate-from-template', {
+        template_id: selectedTemplate.template_id,
+        customizations: templateCustomizations
+      });
+      
+      if (res.data.success) {
+        setStoryText(res.data.generated_story);
+        toast.success('Story generated from template!');
+      }
+    } catch (error) {
+      toast.error('Failed to generate from template');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // NEW: Fetch waiting games
+  const fetchTrivia = async () => {
+    try {
+      const res = await api.get('/api/story-video-studio/templates/waiting-games/trivia?count=5');
+      if (res.data.success) {
+        setTriviaQuestions(res.data.questions);
+        setCurrentTriviaIndex(0);
+        setTriviaScore(0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch trivia:', error);
+    }
+  };
+  
+  const fetchWordPuzzle = async () => {
+    try {
+      const res = await api.get('/api/story-video-studio/templates/waiting-games/word-puzzle');
+      if (res.data.success) {
+        setWordPuzzle(res.data);
+        setPuzzleGuess('');
+      }
+    } catch (error) {
+      console.error('Failed to fetch word puzzle:', error);
+    }
+  };
+  
+  const fetchRiddle = async () => {
+    try {
+      const res = await api.get('/api/story-video-studio/templates/waiting-games/riddle');
+      if (res.data.success) {
+        setRiddle(res.data);
+        setRiddleGuess('');
+      }
+    } catch (error) {
+      console.error('Failed to fetch riddle:', error);
+    }
+  };
+  
+  // NEW: Check trivia answer
+  const checkTriviaAnswer = async (answerIndex) => {
+    try {
+      const res = await api.post(`/api/story-video-studio/templates/waiting-games/trivia/check?question_id=${currentTriviaIndex}&answer_index=${answerIndex}`);
+      if (res.data.correct) {
+        setTriviaScore(prev => prev + 1);
+        toast.success('Correct! 🎉');
+      } else {
+        toast.error(`Wrong! The answer was: ${res.data.correct_answer}`);
+      }
+      
+      if (currentTriviaIndex < triviaQuestions.length - 1) {
+        setCurrentTriviaIndex(prev => prev + 1);
+      } else {
+        toast.success(`Game over! Your score: ${triviaScore + (res.data.correct ? 1 : 0)}/${triviaQuestions.length}`);
+        fetchTrivia(); // Reload for new game
+      }
+    } catch (error) {
+      toast.error('Failed to check answer');
+    }
+  };
+  
+  // NEW: Check word puzzle
+  const checkWordPuzzle = async () => {
+    if (!wordPuzzle || !puzzleGuess) return;
+    
+    try {
+      const res = await api.post(`/api/story-video-studio/templates/waiting-games/word-puzzle/check?scrambled=${wordPuzzle.scrambled}&guess=${puzzleGuess}`);
+      if (res.data.correct) {
+        toast.success('Correct! 🎉 Great job!');
+        fetchWordPuzzle();
+      } else {
+        toast.error(`Not quite! The answer was: ${res.data.answer}`);
+      }
+    } catch (error) {
+      toast.error('Failed to check puzzle');
+    }
+  };
+  
+  // NEW: Social sharing
+  const shareVideo = async (platform) => {
+    if (!project?.final_video_url && !renderJob?.output_url) {
+      toast.error('Video not ready for sharing');
+      return;
+    }
+    
+    const videoId = renderJob?.job_id || project?.project_id;
+    
+    try {
+      const res = await api.post('/api/story-video-studio/templates/share', {
+        video_id: videoId,
+        platform: platform
+      });
+      
+      if (res.data.success) {
+        setShareLinks(res.data.share_links);
+        if (res.data.share_links[platform]) {
+          window.open(res.data.share_links[platform], '_blank');
+          toast.success(`Opening ${platform} share dialog...`);
+        }
+      }
+    } catch (error) {
+      toast.error('Failed to generate share link');
+    }
+  };
+  
+  // NEW: Copy share link
+  const copyShareLink = () => {
+    const videoId = renderJob?.job_id || project?.project_id;
+    const shareUrl = `${window.location.origin}/shared/video/${videoId}`;
+    navigator.clipboard.writeText(shareUrl);
+    toast.success('Link copied to clipboard!');
   };
   
   const handleFileUpload = async (e) => {
@@ -463,6 +644,98 @@ export default function StoryVideoStudio() {
                 </div>
               </div>
             )}
+            
+            {/* NEW: Video Templates Browser */}
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <LayoutTemplate className="w-5 h-5 text-amber-400" />
+                  Quick Start with Templates
+                </h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTemplates(!showTemplates)}
+                  className="text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
+                  data-testid="browse-templates-btn"
+                >
+                  {showTemplates ? 'Hide Templates' : 'Browse Templates'}
+                </Button>
+              </div>
+              
+              {showTemplates && (
+                <div className="space-y-4">
+                  <p className="text-slate-400 text-sm">Choose a pre-made story template and customize it to your needs!</p>
+                  
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {templates.map(template => (
+                      <button
+                        key={template.template_id}
+                        onClick={() => selectTemplate(template)}
+                        className={`p-4 rounded-lg border-2 text-left transition-all ${
+                          selectedTemplate?.template_id === template.template_id
+                            ? 'border-amber-500 bg-amber-500/20'
+                            : 'border-slate-600 bg-slate-900/30 hover:border-amber-400/50'
+                        }`}
+                        data-testid={`template-${template.template_id}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+                            {template.age_group}
+                          </span>
+                          <span className="text-xs text-slate-500">{template.scene_count} scenes</span>
+                        </div>
+                        <h4 className="font-medium text-white">{template.name}</h4>
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{template.description}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs px-2 py-0.5 bg-slate-700/50 text-slate-400 rounded">
+                            {template.style}
+                          </span>
+                          <span className="text-xs text-slate-500">{template.duration_estimate}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Template Customization */}
+                  {selectedTemplate && (
+                    <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                      <h4 className="font-medium text-amber-400 mb-3 flex items-center gap-2">
+                        <Edit className="w-4 h-4" />
+                        Customize "{selectedTemplate.name}"
+                      </h4>
+                      <div className="grid md:grid-cols-2 gap-3">
+                        {Object.entries(selectedTemplate.fill_in_blanks).map(([key, defaultValue]) => (
+                          <div key={key}>
+                            <label className="block text-xs text-slate-400 mb-1 capitalize">
+                              {key.replace(/_/g, ' ')}
+                            </label>
+                            <Input
+                              value={templateCustomizations[key] || defaultValue}
+                              onChange={(e) => setTemplateCustomizations(prev => ({
+                                ...prev,
+                                [key]: e.target.value
+                              }))}
+                              className="bg-slate-900/50 border-slate-600 text-white text-sm h-9"
+                              placeholder={defaultValue}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        onClick={generateFromTemplate}
+                        disabled={loading}
+                        className="mt-4 bg-amber-500 hover:bg-amber-600 text-black"
+                        data-testid="generate-from-template-btn"
+                      >
+                        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+                        Generate Story from Template
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             
             <div className="grid lg:grid-cols-2 gap-8">
               {/* Story Input */}
@@ -1132,6 +1405,159 @@ export default function StoryVideoStudio() {
                 )}
               </div>
             )}
+            
+            {/* NEW: Waiting Games - Shows during video rendering */}
+            {renderJob && renderJob.status !== 'COMPLETED' && renderJob.status !== 'FAILED' && (
+              <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/30 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Gamepad2 className="w-5 h-5 text-purple-400" />
+                    Play While You Wait!
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowGames(!showGames);
+                      if (!showGames && triviaQuestions.length === 0) {
+                        fetchTrivia();
+                        fetchWordPuzzle();
+                        fetchRiddle();
+                      }
+                    }}
+                    className="text-purple-400 border-purple-400/30"
+                    data-testid="toggle-games-btn"
+                  >
+                    {showGames ? 'Hide Games' : 'Play Games'}
+                  </Button>
+                </div>
+                
+                {showGames && (
+                  <div className="space-y-4">
+                    {/* Game Tabs */}
+                    <div className="flex gap-2">
+                      {[
+                        { id: 'trivia', label: 'Trivia', icon: Brain },
+                        { id: 'puzzle', label: 'Word Puzzle', icon: Puzzle },
+                        { id: 'riddle', label: 'Riddles', icon: Lightbulb }
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setGameTab(tab.id)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                            gameTab === tab.id 
+                              ? 'bg-purple-500 text-white' 
+                              : 'bg-slate-800/50 text-slate-400 hover:text-white'
+                          }`}
+                          data-testid={`game-tab-${tab.id}`}
+                        >
+                          <tab.icon className="w-4 h-4" />
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {/* Trivia Game */}
+                    {gameTab === 'trivia' && triviaQuestions.length > 0 && (
+                      <div className="bg-slate-900/50 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm text-slate-400">
+                            Question {currentTriviaIndex + 1} of {triviaQuestions.length}
+                          </span>
+                          <span className="flex items-center gap-1 text-amber-400">
+                            <Trophy className="w-4 h-4" />
+                            Score: {triviaScore}
+                          </span>
+                        </div>
+                        <p className="text-white font-medium mb-4">
+                          {triviaQuestions[currentTriviaIndex]?.question}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {triviaQuestions[currentTriviaIndex]?.options?.map((option, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => checkTriviaAnswer(idx)}
+                              className="p-3 rounded-lg bg-slate-800/50 hover:bg-purple-500/30 text-white text-left transition-colors"
+                              data-testid={`trivia-option-${idx}`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Word Puzzle Game */}
+                    {gameTab === 'puzzle' && wordPuzzle && (
+                      <div className="bg-slate-900/50 rounded-lg p-4">
+                        <p className="text-slate-400 text-sm mb-2">Unscramble the word:</p>
+                        <p className="text-3xl font-bold text-purple-400 tracking-widest mb-4 text-center">
+                          {wordPuzzle.scrambled}
+                        </p>
+                        <p className="text-slate-500 text-sm mb-4">
+                          Hint: {wordPuzzle.hint} ({wordPuzzle.length} letters)
+                        </p>
+                        <div className="flex gap-2">
+                          <Input
+                            value={puzzleGuess}
+                            onChange={(e) => setPuzzleGuess(e.target.value.toUpperCase())}
+                            placeholder="Your answer..."
+                            className="bg-slate-800/50 border-slate-600 text-white uppercase"
+                            onKeyDown={(e) => e.key === 'Enter' && checkWordPuzzle()}
+                            data-testid="puzzle-input"
+                          />
+                          <Button onClick={checkWordPuzzle} className="bg-purple-500 hover:bg-purple-600">
+                            Check
+                          </Button>
+                          <Button variant="outline" onClick={fetchWordPuzzle}>
+                            Skip
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Riddle Game */}
+                    {gameTab === 'riddle' && riddle && (
+                      <div className="bg-slate-900/50 rounded-lg p-4">
+                        <p className="text-white font-medium mb-4 text-lg">
+                          "{riddle.riddle}"
+                        </p>
+                        <div className="flex gap-2">
+                          <Input
+                            value={riddleGuess}
+                            onChange={(e) => setRiddleGuess(e.target.value)}
+                            placeholder="Your answer..."
+                            className="bg-slate-800/50 border-slate-600 text-white"
+                            data-testid="riddle-input"
+                          />
+                          <Button 
+                            onClick={async () => {
+                              try {
+                                const res = await api.post(`/api/story-video-studio/templates/waiting-games/riddle/check?riddle_text=${encodeURIComponent(riddle.riddle)}&guess=${encodeURIComponent(riddleGuess)}`);
+                                if (res.data.correct) {
+                                  toast.success('Correct! 🎉');
+                                  fetchRiddle();
+                                } else {
+                                  toast.error(`The answer was: ${res.data.answer}`);
+                                }
+                              } catch (err) {
+                                toast.error('Failed to check');
+                              }
+                            }}
+                            className="bg-purple-500 hover:bg-purple-600"
+                          >
+                            Check
+                          </Button>
+                          <Button variant="outline" onClick={fetchRiddle}>
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         
@@ -1256,6 +1682,70 @@ export default function StoryVideoStudio() {
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 text-center">
                 <p className="text-2xl font-bold text-yellow-400">{project.credits_spent || 0}</p>
                 <p className="text-slate-400 text-sm">Credits Used</p>
+              </div>
+            </div>
+            
+            {/* NEW: Social Sharing Section */}
+            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/30 p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-blue-400" />
+                Share Your Video
+              </h3>
+              <p className="text-slate-400 text-sm mb-4">
+                Proud of your creation? Share it with the world!
+              </p>
+              
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => shareVideo('facebook')}
+                  className="bg-[#1877F2] hover:bg-[#166FE5] text-white"
+                  data-testid="share-facebook"
+                >
+                  <Facebook className="w-4 h-4 mr-2" />
+                  Facebook
+                </Button>
+                <Button
+                  onClick={() => shareVideo('twitter')}
+                  className="bg-[#1DA1F2] hover:bg-[#1A8CD8] text-white"
+                  data-testid="share-twitter"
+                >
+                  <Twitter className="w-4 h-4 mr-2" />
+                  Twitter
+                </Button>
+                <Button
+                  onClick={() => shareVideo('whatsapp')}
+                  className="bg-[#25D366] hover:bg-[#22C35E] text-white"
+                  data-testid="share-whatsapp"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  WhatsApp
+                </Button>
+                <Button
+                  onClick={() => shareVideo('linkedin')}
+                  className="bg-[#0A66C2] hover:bg-[#095CB8] text-white"
+                  data-testid="share-linkedin"
+                >
+                  <Linkedin className="w-4 h-4 mr-2" />
+                  LinkedIn
+                </Button>
+                <Button
+                  onClick={() => shareVideo('email')}
+                  variant="outline"
+                  className="border-slate-600 text-white hover:bg-slate-800"
+                  data-testid="share-email"
+                >
+                  <Mail className="w-4 h-4 mr-2" />
+                  Email
+                </Button>
+                <Button
+                  onClick={copyShareLink}
+                  variant="outline"
+                  className="border-slate-600 text-white hover:bg-slate-800"
+                  data-testid="copy-link"
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy Link
+                </Button>
               </div>
             </div>
             

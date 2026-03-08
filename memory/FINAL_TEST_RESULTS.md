@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://story-video-builder.preview.emergentagent.com
+**Website:** https://narrative-visuals-6.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

@@ -764,20 +764,25 @@ async def get_download_info(
 # BETA TESTER ENDPOINTS
 # =============================================================================
 
+class BetaInviteRequest(BaseModel):
+    emails: List[str]
+
 @router.post("/beta-testers/invite")
 async def invite_beta_testers(
-    emails: List[str],
+    request: BetaInviteRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """Invite beta testers (admin only)"""
     
-    if not current_user.get("is_admin"):
+    # Check both is_admin flag and role
+    is_admin = current_user.get("is_admin") or current_user.get("role") == "ADMIN"
+    if not is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     test_flow_url = "/api/story-video-studio/analytics/test-flow"
     
     invitations = []
-    for email in emails:
+    for email in request.emails:
         invite_doc = {
             "email": email,
             "invite_code": str(uuid.uuid4())[:8],

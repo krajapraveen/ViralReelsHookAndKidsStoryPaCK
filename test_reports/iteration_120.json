@@ -2,7 +2,7 @@
   "summary": "Iteration 120 - Revenue Analytics Dashboard & Watermark Service Testing. All 25 backend tests passed (3 skipped due to test user unavailable). Frontend Revenue Analytics Dashboard fully functional with all 5 tabs, export buttons, filters, and admin navigation working correctly.",
   
   "test_date": "2026-03-08",
-  "preview_url": "https://story-video-builder.preview.emergentagent.com",
+  "preview_url": "https://narrative-visuals-6.preview.emergentagent.com",
   "testing_type": "both - Backend API + Frontend UI",
   "overall_result": "PASS",
   

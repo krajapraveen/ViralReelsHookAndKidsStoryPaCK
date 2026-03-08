@@ -1,119 +1,76 @@
 <analysis>**original_problem_statement:**
-The user has requested the development of a new, comprehensive feature named **Story → Images → Video Studio**. The goal is to automatically convert a user's story text into a fully rendered video, complete with scene breakdowns, consistent character images, narration voiceovers, background music, and a custom-branded video player.
+The user initially requested the development of a comprehensive feature named **Story → Images → Video Studio**. The goal is to automatically convert a user's story text into a fully rendered video, complete with scene breakdowns, consistent character images, narration voiceovers, background music, and a custom-branded video player.
 
-PRODUCT REQUIREMENTS:
-1.  **Phased Rollout**: The feature must be built in four distinct phases:
-    *   **Phase 1 (Completed)**: Story Input → Scene/Character/Script Generation → Prompt Pack Output.
-    *   **Phase 2**: Image Generation Pipeline for each scene.
-    *   **Phase 3**: Voice Generation for narration and dialogue.
-    *   **Phase 4**: Video Assembly and custom video player.
-2.  **Zero Platform Cost**: The feature must be entirely funded by user credits. Credits must be deducted *before* any expensive processing step (image generation, voice generation, video rendering).
-3.  **Copyright & Legal Compliance**: The system must use only copyright-safe assets (royalty-free music, licensed TTS voices) and block requests containing copyrighted characters or brands.
-4.  **Technology Stack**:
-    *   **LLM (Text)**: GPT-5.2 (via Emergent LLM Key).
-    *   **Image Generation**: OpenAI GPT Image 1 & Gemini Nano Banana (via Emergent LLM Key).
-    *   **Voice Generation**: **NO ElevenLabs**. Use OpenAI TTS only if covered by existing platform billing. Otherwise, implement a Bring-Your-Own-Key (BYOK) or prepaid credit model. A  config flag is required.
-    *   **Video Assembly**: FFmpeg (server-side via ).
-    *   **Music**: Royalty-free API (like Pixabay) and user uploads.
-5.  **Scalable Architecture**: Use a worker queue system (e.g., Redis/RabbitMQ) to handle heavy, asynchronous tasks like image, voice, and video generation.
+Over the course of the session, the user expanded the requirements to include:
+- A high-performance, parallel processing backend to ensure video generation completes within one minute.
+- A Quick Preview mode for faster, lower-credit renders.
+- Character consistency training capabilities.
+- An analytics dashboard to monitor performance and success rates.
+- Video templates for pre-made story structures.
+- Social sharing and download functionality for the generated videos.
+- A waiting room feature with games and quizzes to engage users during video rendering.
+- Strict universal negative prompting to prevent copyright/legal/compliance issues.
+- A full, multi-phase production audit of the entire  website, acting as a UAT user, QA engineer, SRE, and security tester.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is Visionary Suite, a full-stack AI content generation platform. The agent has just successfully completed and delivered **Phase 1** of the Story → Video Studio feature.
-
-This includes:
-*   **Backend**: New database models (, , etc.) and API endpoints in  to handle story submission, scene/character generation, and prompt pack creation.
-*   **Frontend**: A new page at  with a UI for story input, setting parameters (style, age group), and displaying the generated scenes and prompt pack from Phase 1.
-
-The agent was in the middle of a large, at-one-go implementation of the remaining phases (2, 3, and 4).
+The application Visionary Suite is a full-stack AI content generation platform. The Story → Video Studio feature is now fully implemented across all its phases and subsequent user requests. This includes:
+- **Backend**: A suite of new API endpoints to handle the entire story-to-video pipeline, including scene generation, parallelized image/voice generation, video assembly, performance analytics, video templates, social sharing, and a waiting games feature. Authentication and credit deduction are integrated into all generation endpoints.
+- **Frontend**: The UI at  has been updated to support all phases of the video creation process, though explicit UI for templates, games, and social sharing was not implemented and needs to be added.
+- **Infrastructure**: FFmpeg is installed on the server for video processing.
 
 **Last working item**:
--   **Last item agent was working**: Implementing Phases 2, 3, and 4 of the Story - Studio feature. The agent had started creating new backend files () and was heavily modifying the frontend () to add UI and logic for image generation, voice generation, and video assembly. New dependencies like usage: openai [-h] [-v] [-b API_BASE] [-k API_KEY] [-p PROXY [PROXY ...]]
-              [-o ORGANIZATION] [-t {openai,azure}]
-              [--api-version API_VERSION] [--azure-endpoint AZURE_ENDPOINT]
-              [--azure-ad-token AZURE_AD_TOKEN] [-V]
-              {api,tools,migrate,grit} ...
-
-positional arguments:
-  {api,tools,migrate,grit}
-    api                 Direct API calls
-    tools               Client side tools for convenience
-
-options:
-  -h, --help            show this help message and exit
-  -v, --verbose         Set verbosity.
-  -b API_BASE, --api-base API_BASE
-                        What API base url to use.
-  -k API_KEY, --api-key API_KEY
-                        What API key to use.
-  -p PROXY [PROXY ...], --proxy PROXY [PROXY ...]
-                        What proxy to use.
-  -o ORGANIZATION, --organization ORGANIZATION
-                        Which organization to run as (will use your default
-                        organization if not specified)
-  -t {openai,azure}, --api-type {openai,azure}
-                        The backend API to call, must be `openai` or `azure`
-  --api-version API_VERSION
-                        The Azure API version, e.g.
-                        'https://learn.microsoft.com/en-us/azure/ai-
-                        services/openai/reference#rest-api-versioning'
-  --azure-endpoint AZURE_ENDPOINT
-                        The Azure endpoint, e.g.
-                        'https://endpoint.openai.azure.com'
-  --azure-ad-token AZURE_AD_TOKEN
-                        A token from Azure Active Directory,
-                        https://www.microsoft.com/en-
-                        us/security/business/identity-access/microsoft-entra-
-                        id
-  -V, --version         show program's version number and exit, , and  were installed.
--   **Status**: IN PROGRESS
--   **Agent Testing Done**: N
--   **Which testing method agent to use?**: both. Once the implementation is complete, the  should be used to conduct a full end-to-end test of the entire story-to-video flow, from UI interaction to API calls and final video output verification.
+-   **Last item agent was working**: The agent was about to begin a comprehensive, multi-phase production audit of the live website () as detailed in the user's last message. The last action taken was attempting to send beta invites, which required an admin role check modification.
+-   **Status**: NOT STARTED
+-   **Agent Testing Done**: N/A (The task is the testing itself)
+-   **Which testing method agent to use?**: manual testing by curl/ python -c. The user has provided an extremely detailed, role-playing-based test plan that the next agent must follow precisely. This involves acting as a Production QA Lead + SRE + UI/UX Auditor + Security Tester and testing the live production website.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-There are no high-priority blocking issues. The primary focus is new feature development.
+There are no known bugs. The entire focus is on the user's request for a full production audit.
 
 **In progress Task List**:
--   **Task 1: Complete Story - Studio Feature (Phases 2-4) (P0)**
-    -   **Description**: Finalize the implementation of the remaining phases of the Story -> Video Studio feature, adhering to the user's PRD.
-    -   **Where to resume**:
-        1.  **Backend ():**
-            *   Implement image generation logic using OpenAI GPT Image 1 and Gemini Nano Banana.
-            *   Implement voice generation logic with the  config flag (Default to  or  model as per user instruction).
-            *   Integrate a royalty-free music source (e.g., Pixabay API).
-            *   Implement video assembly using .
-            *   Ensure credit deduction logic is in place for all expensive operations.
-            *   Structure the code for asynchronous worker processing.
-        2.  **Frontend ():**
-            *   Complete the UI for displaying generated scenes, characters, and images.
-            *   Add UI for selecting voiceovers and background music.
-            *   Implement the custom-branded HTML5 video player to display the final rendered video.
-            *   Wire up the buttons and state management to trigger the new backend endpoints for image, voice, and video generation.
-    -   **What will be achieved with this?**: A complete, end-to-end, credit-funded feature that automatically converts a user's story into a downloadable video.
-    -   **Status**: IN PROGRESS
+-   **Task 1: Comprehensive Production Audit (P0)**
+    -   **Description**: Execute a full A-to-Z production audit of  by assuming the roles of **Normal End-User (UAT), Senior QA Engineer, SRE, UI/UX Auditor, and Security Tester**. The user has provided a multi-phase, highly detailed test plan that must be followed strictly.
+    -   **Where to resume**: Start with Phase 1 of the user's audit plan: PRODUCTION SITE MAP + LINK CRAWL.
+    -   **What will be achieved with this?**: A complete production readiness report, identification of any bugs, performance bottlenecks, UI issues, or security gaps, and a plan for fixes.
+    -   **Status**: NOT STARTED
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on something**: None.
 
 **Upcoming and Future Tasks**
--   **Upcoming Tasks:**
-    -   **(P1) Delete unused Razorpay file**: The file  is obsolete and should be deleted.
-    -   **(P1) Production Deployment & Verification**: After the Story - Studio feature is complete, it needs to be deployed to production and thoroughly tested.
--   **Future Tasks:**
-    -   **(P2) Enhance Live Chat Widget with LLM**: Upgrade the current rule-based AI in the chat widget.
-    -   **(P2) Add more blog content**: For continued SEO growth.
+- **Upcoming Tasks:**
+  - **(P0) Frontend Integration**: Implement the UI for the newly created backend features: video templates, waiting games, and social sharing. This was requested but not implemented in the last session.
+  - **(P1) Send Beta Invites**: Successfully execute the beta invite API call now that the admin check is fixed.
+- **Future Tasks:**
+  - **(P2) Enhance Live Chat Widget with LLM**: Upgrade the current rule-based AI in the chat widget.
 
 **Completed work in this session**
--   **Story - Studio Phase 1 Implementation**: Successfully built and integrated the backend and frontend for the initial phase, allowing users to input a story and receive a generated Prompt Pack with scenes and character profiles.
--   **GA4 Key Event Setup**: Guided the user to correctly configure , , and  as Key Events in their Google Analytics account.
--   **Comprehensive GA4 Integration (Previous work)**: Fully integrated GA4 with custom events, enhanced e-commerce, A/B testing on the landing page, and a full funnel visualization. Created a  admin component and detailed user guides.
+- **Story - Studio (Phases 2, 3, 4) Complete**:
+  - Implemented image generation pipeline using OpenAI GPT Image 1 & Gemini Nano Banana.
+  - Implemented voice generation with OpenAI TTS, including a  toggle for BYOK vs. platform key.
+  - Implemented video assembly using FFmpeg via .
+- **New Feature Implementations**:
+  - **Performance Optimization**: Created an optimized route for high-performance, parallel processing of generation tasks.
+  - **Pixabay Integration**: Integrated Pixabay API for royalty-free background music search.
+  - **Analytics & Monitoring**: Created backend endpoints and DB models for tracking generation performance.
+  - **Video Preview Mode**: Implemented a Quick Preview mode for faster, lower-res video generation.
+  - **Video Templates & Social Sharing**: Created backend routes for managing video templates and sharing generated content.
+  - **Waiting Games Feature**: Added an endpoint to provide games/quizzes to users during long render times.
+- **Core System Enhancements**:
+  - **Auth & Credit System**: Added  and credit deduction logic to all new generation endpoints.
+  - **Negative Prompting**: Integrated a universal negative prompt into the image generation flow.
+  - **FFmpeg Installation**: Successfully installed FFmpeg in the environment.
+- **Testing and Verification**:
+  - Performed end-to-end testing of the full story-to-video flow, including image generation, voice generation, and final video assembly. Verified file creation and correctness.
+  - Used the  multiple times to validate functionality.
 
 **Earlier issues found/mentioned but not fixed**
--   **SendGrid Email Service is Down**: The account has exceeded its free messaging limits, causing all email functionality to fail. This is blocked pending user action to upgrade the plan.
+-   **SendGrid Email Service is Down**: The account has exceeded its free messaging limits. The user has instructed to ignore this for now, as it can be replaced with another service like Brevo or SES later. It is not blocking core product functionality.
 
 **Known issue recurrence from previous fork**
--   **SendGrid Email Service Down**: This is a long-standing issue.
+-   **SendGrid Email Service Down**: This is a long-standing issue blocked on user action.
 -   **Recurrence count**: 5+
 -   **Status**: BLOCKED
 
@@ -121,99 +78,67 @@ There are no high-priority blocking issues. The primary focus is new feature dev
 
 
 **Key Technical Concepts**
--   **Phased Feature Development**: Breaking down a large feature into manageable, shippable phases.
--   **Multi-LLM Integration**: Using different LLMs for specific tasks (text, image).
--   **Dynamic Configuration**: Using a config flag () to switch between different TTS providers.
--   **Server-Side Video Assembly**: Using  (a Python wrapper for FFmpeg) for video creation.
--   **Asynchronous Task Processing**: The architecture is designed to use worker queues for long-running generation tasks.
+-   **Asynchronous Parallel Processing**: Using  to run image and voice generation tasks in parallel for performance.
+-   **Feature Flagging**: Using  to switch between TTS providers (BYOK vs. platform key).
+-   **Server-Side Video Assembly**: Using  as a Python wrapper for FFmpeg.
+-   **Dynamic API Integration**: Integrating the Pixabay API for real-time music search.
+-   **Observability**: Building an analytics backend to monitor generation times and success rates.
+-   **Safe Prompting**: Implementing a universal negative prompt to filter out copyrighted/unsafe content.
 
 **key DB schema**
 -   **story_projects**: 
 -   **story_scenes**: 
--   **character_profiles**: 
--   **(Upcoming)**: Tables for , , , .
+-   **scene_assets**: 
+-   **voice_tracks**: 
+-   **analytics_runs**: 
 
 **changes in tech stack**
--   **New Dependencies Added**: usage: openai [-h] [-v] [-b API_BASE] [-k API_KEY] [-p PROXY [PROXY ...]]
-              [-o ORGANIZATION] [-t {openai,azure}]
-              [--api-version API_VERSION] [--azure-endpoint AZURE_ENDPOINT]
-              [--azure-ad-token AZURE_AD_TOKEN] [-V]
-              {api,tools,migrate,grit} ...
-
-positional arguments:
-  {api,tools,migrate,grit}
-    api                 Direct API calls
-    tools               Client side tools for convenience
-
-options:
-  -h, --help            show this help message and exit
-  -v, --verbose         Set verbosity.
-  -b API_BASE, --api-base API_BASE
-                        What API base url to use.
-  -k API_KEY, --api-key API_KEY
-                        What API key to use.
-  -p PROXY [PROXY ...], --proxy PROXY [PROXY ...]
-                        What proxy to use.
-  -o ORGANIZATION, --organization ORGANIZATION
-                        Which organization to run as (will use your default
-                        organization if not specified)
-  -t {openai,azure}, --api-type {openai,azure}
-                        The backend API to call, must be `openai` or `azure`
-  --api-version API_VERSION
-                        The Azure API version, e.g.
-                        'https://learn.microsoft.com/en-us/azure/ai-
-                        services/openai/reference#rest-api-versioning'
-  --azure-endpoint AZURE_ENDPOINT
-                        The Azure endpoint, e.g.
-                        'https://endpoint.openai.azure.com'
-  --azure-ad-token AZURE_AD_TOKEN
-                        A token from Azure Active Directory,
-                        https://www.microsoft.com/en-
-                        us/security/business/identity-access/microsoft-entra-
-                        id
-  -V, --version         show program's version number and exit, , , .
+-   **New Runtime Dependency**:  was installed system-wide.
 
 **All files of reference**
--   : **New file** for Phase 1 backend logic.
--   : **New file (WIP)** for Phases 2-4 logic.
--   : **New file** containing Pydantic models.
--   : **New file (WIP)** for the feature's entire frontend.
--   : **Updated** with the new feature requirements.
+-   : Contains the core logic for image, voice, and video generation.
+-   : Contains the high-performance parallel processing endpoint.
+-   : New file for the analytics dashboard backend.
+-   : New file for video templates and the waiting games feature.
+-   : New file for social sharing logic.
+-   : Updated to include all the new routers.
+-   : The primary frontend file, heavily modified to support all phases.
 
 **Areas that need refactoring**:
--   The obsolete route file  should be deleted.
--   Once implementation is complete, the logic from  should be cleaned up and potentially merged into  to consolidate the feature's code.
+-   The backend logic for the Story - games, which are unrelated. This should be split into separate, more focused files.
 
 **key api endpoints**
--   : Creates a new story project.
--   : Generates scenes and characters (Phase 1).
--   **(Upcoming)** 
--   **(Upcoming)** 
--   **(Upcoming)** 
+-   
+-   
+-   
+-    (Optimized parallel endpoint)
+-   
+-   
+-   
 
 **Critical Info for New Agent**
--   Your primary task is to complete the **Story → Video Studio** feature by implementing **Phases 2, 3, and 4**. Phase 1 is already done.
--   **Strict Voice Generation Rules**: You MUST follow the user's directive regarding voice generation. **Do NOT use ElevenLabs**. Use OpenAI TTS only if it's covered by the Emergent LLM Key. The default implementation should be a prepaid credit or BYO Key model, controlled by a  flag.
--   **Resume Work**: The previous agent started the implementation in  and was heavily modifying . You need to pick up from there.
--   **Credit System is Key**: Ensure all expensive operations (image/voice/video generation) deduct credits from the user's balance *before* execution.
--   Refer to the detailed PRD in the user's message history for all requirements, including copyright protection, worker queue architecture, and the custom video player.
+-   **Your primary and immediate task is to perform the comprehensive production audit as detailed by the user.** This is a non-negotiable, high-priority task. You must assume the specified roles (QA Lead, SRE, etc.) and follow the user's multi-phase test plan exactly.
+-   **The audit is on the LIVE production website**: . You must use the provided test credentials and be extremely careful not to run any destructive tests.
+-   The user's instructions for the audit are your source of truth. Refer to the last user message for the complete plan.
+-   After the audit, the next coding task is to build the frontend UI for the new backend features (templates, games, social sharing).
 
 **documents and test reports created in this job**
--   
--   
--   
+-    (updated)
+-   Multiple test reports from  calls, e.g., , etc.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Instructs the agent to build the Story - Studio feature based on a detailed PRD.
-2.  **Agent**: Asks for clarification on technology choices.
-3.  **User**: Confirms the phased rollout and selects tech stack (GPT Image + Gemini, ElevenLabs, FFmpeg).
-4.  **Agent**: Acknowledges and starts work on Phase 1.
-5.  **User**: Provides new, critical instructions for voice generation: **NO ElevenLabs key will be provided**. Use OpenAI TTS only if it incurs no new cost; otherwise, implement a BYOK or prepaid credit model.
-6.  **Agent**: Understood the new constraints and confirmed it will start implementing all phases.
+1.  **User**: Requests performance optimization (video in <1 min), copyright protection, and easier user input. (COMPLETED)
+2.  **User**: Asks to generate assets for all scenes, test video assembly, add more music, and add blog content. (COMPLETED)
+3.  **User**: Requests a Quick Preview mode, character consistency training, and performance monitoring. (COMPLETED)
+4.  **User**: Requests adding a universal negative prompt, video templates, social sharing, and a waiting room with games. (COMPLETED)
+5.  **User**: Provides an extremely detailed, multi-phase test plan for a **full production audit** of the live website, asking the agent to act as a UAT user and QA Engineer. (PENDING)
+6.  **User**: Provides a second, overlapping, but more detailed test plan, asking the agent to act as a **Production QA Lead, SRE, UI/UX Auditor, and Security Tester**. This is the definitive plan to follow. (PENDING)
+7.  **User**: Provides the same detailed test plan again, emphasizing its importance. (PENDING)
+8.  **User**: Provides the same detailed test plan a final time, reinforcing the roles and scope. This is the **current active task**. (PENDING)
 
 **Project Health Check:**
 -   **Broken**:
-    -   **Email Service**: The SendGrid service is down due to exceeding free tier limits. This is a recurring, user-blocked issue.
+    -   **Email Service (SendGrid)**: Unusable due to exceeded free tier limits. Blocked on user upgrading their plan.
 -   **Mocked**:
     -   None.
 
@@ -224,18 +149,18 @@ options:
 -   **Google Analytics (GA4)**: Analytics.
 -   **Emergent LLM Key**: Powers OpenAI (GPT-5.2, GPT Image 1, TTS) and Gemini (Nano Banana).
 -   **locust**: Load testing.
--   **FFmpeg** (via ): For video assembly (to be implemented).
--   **Pixabay API**: For background music (to be implemented).
+-   **FFmpeg** (via ): Video assembly.
+-   **Pixabay API**: Royalty-free music.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES (for previous GA4 work).
--   **Troubleshoot agent used after agent stuck in loop**: NO.
+-   **Testing agent used after significant changes**: YES
+-   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None.
 -   **Known regressions**: None.
 
 **Credentials to test flow:**
 -   **Admin User**:  / 
--   **UAT Test User**:  / 
+-   **UAT Test User**:  /  (Use this for the production audit).
 
 **What agent forgot to execute**
--   The agent has not yet deleted the obsolete Razorpay route file ().</analysis>
+- The agent was tasked with implementing frontend UI for templates, games, and social sharing but only created the backend endpoints. This needs to be done after the production audit.</analysis>
