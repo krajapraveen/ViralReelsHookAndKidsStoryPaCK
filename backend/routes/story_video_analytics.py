@@ -92,9 +92,50 @@ async def get_analytics_dashboard(
     days: int = Query(default=7, le=90),
     current_user: dict = Depends(get_admin_user)
 ):
-    """Get analytics dashboard for admins"""
+    """Get comprehensive analytics dashboard for admins"""
     
     start_date = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    # Get Daily Active Users (DAU)
+    dau_pipeline = [
+        {"$match": {"created_at": {"$gte": start_date}}},
+        {"$group": {
+            "_id": {
+                "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+                "user_id": "$user_id"
+            }
+        }},
+        {"$group": {
+            "_id": "$_id.date",
+            "unique_users": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    dau_data = await db.story_video_metrics.aggregate(dau_pipeline).to_list(100)
+    
+    # Get Credit Usage by Day
+    credit_pipeline = [
+        {"$match": {"created_at": {"$gte": start_date}, "metric_type": {"$in": ["image_generation", "voice_generation", "video_assembly"]}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+            "total_credits": {"$sum": {"$ifNull": ["$metadata.credits_spent", 0]}},
+            "operations": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    credit_usage = await db.story_video_metrics.aggregate(credit_pipeline).to_list(100)
+    
+    # Get Feature Usage breakdown
+    feature_pipeline = [
+        {"$match": {"created_at": {"$gte": start_date}}},
+        {"$group": {
+            "_id": "$metric_type",
+            "count": {"$sum": 1},
+            "avg_duration": {"$avg": "$duration_ms"}
+        }},
+        {"$sort": {"count": -1}}
+    ]
+    feature_usage = await db.story_video_metrics.aggregate(feature_pipeline).to_list(20)
     
     # Get metrics by type
     pipeline = [
@@ -156,6 +197,9 @@ async def get_analytics_dashboard(
             "failed_requests": total_requests - total_successful,
             "success_rate": round(overall_success_rate, 2)
         },
+        "daily_active_users": dau_data,
+        "credit_usage": credit_usage,
+        "feature_usage": feature_usage,
         "metrics_by_type": [
             {
                 "type": m["_id"],
