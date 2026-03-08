@@ -214,8 +214,10 @@ async def generate_scene_images(
     current_user: dict = Depends(get_current_user)
 ):
     """Generate images for scenes (Phase 2) - Credits deducted BEFORE generation"""
+    import time
+    start_time = time.time()
     
-    user_id = current_user.get("id") or current_user.get("_id")
+    user_id = current_user.get("id") or str(current_user.get("_id"))
     if not user_id:
         raise HTTPException(status_code=401, detail="User not authenticated")
     
@@ -309,11 +311,31 @@ async def generate_scene_images(
         }
     )
     
+    # Record metrics
+    duration_ms = int((time.time() - start_time) * 1000)
+    try:
+        from routes.story_video_analytics import record_metric
+        await record_metric(
+            metric_type="image_generation",
+            project_id=request.project_id,
+            user_id=str(user_id),
+            duration_ms=duration_ms,
+            success=True,
+            metadata={
+                "provider": request.provider,
+                "scenes_count": len(scenes_to_generate),
+                "successful_images": len([i for i in generated_images if "image_url" in i])
+            }
+        )
+    except Exception:
+        pass  # Don't fail if metrics recording fails
+    
     return {
         "success": True,
         "project_id": request.project_id,
         "images_generated": len([i for i in generated_images if "image_url" in i]),
         "credits_spent": total_cost,
+        "duration_ms": duration_ms,
         "images": generated_images
     }
 

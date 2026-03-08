@@ -124,6 +124,45 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 - `VOICE_PROVIDER_MODE`: PREPAID_ONLY (default)
 - `ffmpeg`: Installed ✅
 
+### ✅ PREVIEW MODE (NEW - 2026-03-08)
+
+**Quick Preview System - 70% Credit Savings**
+- Endpoint: `/api/story-video-studio/preview/generate`
+- Features:
+  - Lower resolution images (faster generation)
+  - Preview voices with standard quality
+  - 70% credit savings vs full quality
+  - 24-hour preview expiration
+  - Approve and upgrade to full quality
+
+**Preview Pricing:**
+| Operation | Preview | Full Quality | Savings |
+|-----------|---------|--------------|---------|
+| Image/Scene | 3 | 10 | 70% |
+| Voice/Min | 3 | 10 | 70% |
+| Video Render | 5 | 20 | 75% |
+
+### ✅ CHARACTER CONSISTENCY TRAINING (NEW - 2026-03-08)
+
+**Custom Character Training System**
+- Endpoint: `/api/story-video-studio/preview/characters/train`
+- Features:
+  - Detailed character profile definition
+  - Physical appearance, clothing, accessories
+  - Color palette specification
+  - Reference image upload (optional)
+  - Consistency prompt generation
+
+### ✅ PERFORMANCE MONITORING (NEW - 2026-03-08)
+
+**Admin Analytics Dashboard**
+- Endpoint: `/api/story-video-studio/analytics/dashboard`
+- Tracks: image_generation, voice_generation, video_assembly, preview_generation
+
+**User Testing System**
+- 7-step guided test flow with tracking
+- Test run creation and feedback submission
+
 ---
 
 ## Session Summary (2026-03-08) - GA4 Event Verification & Documentation

@@ -479,6 +479,14 @@ api_router.include_router(story_video_generation_router)
 from routes.story_video_fast import router as story_video_fast_router
 api_router.include_router(story_video_fast_router)
 
+# Story Video Analytics & Performance Monitoring
+from routes.story_video_analytics import router as story_video_analytics_router
+api_router.include_router(story_video_analytics_router)
+
+# Story Video Preview Mode & Character Consistency
+from routes.story_video_preview import router as story_video_preview_router
+api_router.include_router(story_video_preview_router)
+
 # Blog Content for SEO
 from routes.blog_content import router as blog_router
 api_router.include_router(blog_router)
