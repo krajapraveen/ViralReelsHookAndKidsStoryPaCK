@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { 
   ArrowLeft, Calendar, Eye, Tag, Clock, Search, ChevronRight,
   Sparkles, BookOpen, Share2, Twitter, Facebook, Linkedin
 } from 'lucide-react';
+import analytics from '../utils/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -244,10 +245,29 @@ function BlogPost() {
   const navigate = useNavigate();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
+  const startTimeRef = useRef(null);
+  const hasTrackedViewRef = useRef(false);
 
   useEffect(() => {
     fetchPost();
-  }, [slug]);
+    startTimeRef.current = Date.now();
+    
+    // Track read completion on scroll to bottom
+    const handleScroll = () => {
+      const scrollHeight = document.documentElement.scrollHeight;
+      const scrollTop = window.scrollY;
+      const clientHeight = window.innerHeight;
+      
+      if (scrollTop + clientHeight >= scrollHeight - 100 && post && !hasTrackedViewRef.current) {
+        hasTrackedViewRef.current = true;
+        const readTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        analytics.trackBlogReadComplete(slug, readTime);
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [slug, post]);
 
   const fetchPost = async () => {
     try {
@@ -255,6 +275,10 @@ function BlogPost() {
       if (response.ok) {
         const data = await response.json();
         setPost(data.post);
+        // Track blog view
+        if (data.post) {
+          analytics.trackBlogView(slug, data.post.title, data.post.category);
+        }
       } else {
         navigate('/blog');
       }

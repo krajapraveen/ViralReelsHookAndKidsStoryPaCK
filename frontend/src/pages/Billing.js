@@ -52,8 +52,16 @@ export default function Billing() {
     const productName = product?.name || productId;
     const productPrice = product?.price || 0;
     
-    // Track checkout start
-    analytics.trackPurchaseStart(productName, productPrice, 'INR');
+    // Create item object for enhanced e-commerce
+    const item = {
+      id: productId,
+      name: productName,
+      price: productPrice,
+      category: product?.type === 'SUBSCRIPTION' ? 'subscription' : 'credit_pack'
+    };
+    
+    // Track checkout start with enhanced e-commerce
+    analytics.trackBeginCheckout(item, 'INR');
     
     try {
       // Use Cashfree API
@@ -63,6 +71,9 @@ export default function Billing() {
         toast.error('Payment configuration error. Please contact support.');
         return;
       }
+      
+      // Track add_payment_info when payment modal opens
+      analytics.trackAddPaymentInfo(item, 'cashfree', 'INR');
       
       // Get the environment from backend response to ensure frontend matches
       const cashfreeEnv = response.data.environment === 'production' ? 'production' : 'sandbox';
@@ -79,13 +90,14 @@ export default function Billing() {
         cashfree.checkout(checkoutOptions).then(async (result) => {
           if (result.error) {
             toast.error('Payment failed: ' + result.error.message);
+            analytics.trackError('payment_failed', result.error.message, 'billing');
           } else if (result.paymentDetails) {
             // Verify payment
             try {
               const verifyRes = await api.post('/api/cashfree/verify', { order_id: response.data.orderId });
               if (verifyRes.data.success) {
-                // Track successful purchase
-                analytics.trackPurchaseComplete(productName, productPrice, 'INR', response.data.orderId);
+                // Track successful purchase with enhanced e-commerce
+                analytics.trackPurchase(response.data.orderId, item, 'INR');
                 toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added.`);
                 fetchData();
               } else {
@@ -100,6 +112,7 @@ export default function Billing() {
     } catch (error) {
       console.error('Order creation error:', error);
       toast.error(error.response?.data?.detail || 'Failed to create order');
+      analytics.trackError('order_creation_failed', error.message, 'billing');
     } finally {
       setLoading({...loading, [productId]: false});
     }

@@ -32,6 +32,19 @@ export default function Pricing() {
     fetchExchangeRates();
   }, []);
 
+  // Track view_item_list when products are loaded
+  useEffect(() => {
+    if (products.length > 0) {
+      const items = products.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.priceInr || p.price,
+        category: p.type === 'SUBSCRIPTION' ? 'subscription' : 'credit_pack'
+      }));
+      analytics.trackViewItemList('Pricing Page', items);
+    }
+  }, [products]);
+
   const fetchProducts = async () => {
     try {
       const response = await paymentAPI.getProducts();
@@ -80,10 +93,20 @@ export default function Pricing() {
       return;
     }
 
-    // Track begin_checkout event in Google Analytics
+    // Find the product
     const product = [...subscriptions, ...packs].find(p => p.id === productId);
     if (product) {
-      analytics.trackPurchaseStart(product.name, product.priceInr || product.price, 'INR');
+      const item = {
+        id: product.id,
+        name: product.name,
+        price: product.priceInr || product.price,
+        category: product.type === 'SUBSCRIPTION' ? 'subscription' : 'credit_pack'
+      };
+      
+      // Track enhanced e-commerce events
+      analytics.trackSelectItem('Pricing Page', item);
+      analytics.trackAddToCart(item, 'INR');
+      analytics.trackBeginCheckout(item, 'INR');
     }
 
     // Redirect to billing page for secure payment processing

@@ -8,25 +8,70 @@ This guide helps you create audiences and conversion goals in GA4 for Visionary 
 
 ## Custom Events Now Tracked
 
+### Authentication Events
 | Event Name | When Fired | Parameters |
 |------------|------------|------------|
 | `sign_up` | User registers (email or Google) | `method` (email/google) |
 | `login` | User logs in | `method` (email/google) |
-| `begin_checkout` | User clicks Subscribe/Buy on Pricing page | `currency`, `value`, `items` |
-| `purchase` | Payment completed via Cashfree | `transaction_id`, `currency`, `value`, `items` |
-| `generate_content` | User generates any content | `feature` (gif_maker/comic_avatar/comic_strip/reel_generator/story_generator), `credits_used` |
-| `download` | User downloads generated content | `content_type`, `feature` |
+| `logout` | User logs out | - |
+
+### Enhanced E-Commerce Events (GA4 Standard)
+| Event Name | When Fired | Parameters |
+|------------|------------|------------|
+| `view_item_list` | User views pricing page | `item_list_name`, `items[]` |
+| `view_item` | User views product details | `currency`, `value`, `items[]` |
+| `select_item` | User clicks on a product | `item_list_name`, `items[]` |
+| `add_to_cart` | User selects plan to purchase | `currency`, `value`, `items[]` |
+| `begin_checkout` | User starts payment | `currency`, `value`, `items[]` |
+| `add_payment_info` | User enters payment details | `payment_type`, `currency`, `value` |
+| `purchase` | Payment completed | `transaction_id`, `currency`, `value`, `items[]` |
+| `refund` | Refund processed | `transaction_id`, `value` |
+
+### Content Events
+| Event Name | When Fired | Parameters |
+|------------|------------|------------|
+| `generate_content` | User starts generation | `feature`, `credits_used` |
+| `generation_complete` | Generation finishes | `feature`, `success` |
+| `download` | User downloads content | `content_type`, `feature` |
+
+### Engagement Events
+| Event Name | When Fired | Parameters |
+|------------|------------|------------|
+| `button_click` | CTA clicked | `button_name`, `location` |
+| `cta_click` | Call-to-action clicked | `cta_text`, `cta_location` |
+| `form_submit` | Form submitted | `form_name`, `success` |
+| `scroll_depth` | Scroll milestone | `depth_percentage` |
+| `share` | Content shared | `method`, `content_type` |
+
+### Blog Events
+| Event Name | When Fired | Parameters |
+|------------|------------|------------|
+| `blog_view` | Article opened | `article_slug`, `article_title`, `category` |
+| `blog_read_complete` | Article fully read | `article_slug`, `read_time_seconds` |
+
+### Error Events
+| Event Name | When Fired | Parameters |
+|------------|------------|------------|
+| `error` | General error | `error_type`, `error_message`, `location` |
+| `generation_error` | Generation failed | `feature`, `error_message` |
 
 ---
 
-## How to Create Audiences in GA4
+## How to Verify Events are Working
 
-### Step 1: Access Audiences
+### Option 1: Use the GA4 Event Tester (Admin Tool)
+1. Login to Visionary Suite as admin
+2. Go to `/app/admin/ga4-tester`
+3. Click "Check Status" to verify GA4 is loaded
+4. Click individual event buttons to fire test events
+5. Open GA4 Realtime to verify receipt
+
+### Option 2: GA4 Realtime Report
 1. Go to [Google Analytics](https://analytics.google.com)
 2. Select your property: **Visionary Suite**
-3. Click **Configure** (left sidebar)
-4. Click **Audiences**
-5. Click **New audience**
+3. Go to **Reports → Realtime**
+4. Perform actions on the website
+5. Watch events appear in realtime (5-30 second delay)
 
 ---
 

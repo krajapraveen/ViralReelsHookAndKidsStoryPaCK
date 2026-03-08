@@ -102,6 +102,8 @@ import AntiAbuseDashboard from './pages/Admin/AntiAbuseDashboard';
 import RevenueAnalyticsDashboard from './pages/Admin/RevenueAnalyticsDashboard';
 // MONITORING DASHBOARD
 import MonitoringDashboard from './pages/Admin/MonitoringDashboard';
+// GA4 EVENT TESTER
+import GA4EventTester from './pages/Admin/GA4EventTester';
 // BLOG FOR SEO
 import Blog from './pages/Blog';
 // LIVE CHAT WIDGET
@@ -248,6 +250,8 @@ function App() {
       <Route path="/app/admin/revenue-analytics" element={isAuthenticated ? <RevenueAnalyticsDashboard /> : <Navigate to="/login" />} />
       {/* MONITORING DASHBOARD */}
       <Route path="/app/admin/monitoring" element={isAuthenticated ? <MonitoringDashboard /> : <Navigate to="/login" />} />
+      {/* GA4 EVENT TESTER */}
+      <Route path="/app/admin/ga4-tester" element={isAuthenticated ? <GA4EventTester /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />
