@@ -467,6 +467,10 @@ api_router.include_router(revenue_analytics_router)
 from routes.monitoring import router as monitoring_router
 api_router.include_router(monitoring_router)
 
+# Story → Images → Video Studio (NEW FEATURE)
+from routes.story_video_studio import router as story_video_studio_router
+api_router.include_router(story_video_studio_router)
+
 # Include API router in app
 app.include_router(api_router)
 

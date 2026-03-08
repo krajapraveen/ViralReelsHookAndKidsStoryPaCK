@@ -48,6 +48,8 @@ import ComicStorybook from './pages/ComicStorybook';
 import ComicStorybookBuilder from './pages/ComicStorybookBuilder';
 import RealtimeAnalytics from './pages/RealtimeAnalytics';
 import SelfHealingDashboard from './pages/Admin/SelfHealingDashboard';
+// Story → Video Studio (NEW)
+import StoryVideoStudio from './pages/StoryVideoStudio';
 import UserAnalyticsDashboard from './pages/Admin/UserAnalyticsDashboard';
 import SharePage from './pages/SharePage';
 import ReferralProgram from './pages/ReferralProgram';
@@ -174,6 +176,8 @@ function App() {
       <Route path="/app/twinfinder" element={isAuthenticated ? <TwinFinder /> : <Navigate to="/login" />} />
       {/* Coloring Book Wizard - Complete 5-Step Rebuild */}
       <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBookWizard /> : <Navigate to="/login" />} />
+      {/* Story → Video Studio (NEW) */}
+      <Route path="/app/story-video-studio" element={isAuthenticated ? <StoryVideoStudio /> : <Navigate to="/login" />} />
       {/* New Standalone Apps */}
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
