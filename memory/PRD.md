@@ -46,6 +46,23 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 | Character Extraction | ✅ PASS | Ruby character with appearance, clothing, voice |
 | Visual Prompts | ✅ PASS | Detailed prompts with style injection |
 | Voice Scripts | ✅ PASS | Narration + dialogues with emotion tags |
+| Image Generation | ✅ PASS | 6 images via OpenAI GPT Image 1 (60 credits) |
+| Voice Generation | ✅ PASS | 6 voice tracks via OpenAI TTS (10 credits) |
+| Video Assembly | ✅ PASS | 34.6s 1080p video with FFmpeg (20 credits) |
+
+### "Ruby the Brave Rabbit" Video Stats:
+- **Duration**: 34.6 seconds
+- **Resolution**: 1920x1080 (Full HD)
+- **File Size**: 4.0 MB
+- **Format**: MP4 (H.264 + AAC)
+- **Total Credits**: 135 credits
+- **Project ID**: f9ca0a1c-bc3d-4309-97c3-473cb532b758
+
+### Test User Account Created:
+- **Email**: test@visionary-suite.com
+- **Password**: Test@2026#
+- **Credits**: 500
+- **User ID**: ea3b038c-d523-4a49-9fa5-e00c761fa4aa
 
 ### Test Results (Iteration 131):
 | Category | Pass Rate | Notes |
