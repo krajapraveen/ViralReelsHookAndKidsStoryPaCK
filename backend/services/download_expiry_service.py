@@ -67,8 +67,17 @@ class DownloadExpiryService:
         deleted_count = 0
         for download in expired:
             try:
-                # Delete file from disk
-                file_path = Path(download.get("file_path", ""))
+                file_path_str = download.get("file_path", "")
+                
+                # Skip if file_path is a base64 data URL (not an actual file)
+                if not file_path_str or file_path_str.startswith("data:"):
+                    # Just remove from database, no file to delete
+                    await self.db.temporary_downloads.delete_one({"_id": download["_id"]})
+                    deleted_count += 1
+                    continue
+                
+                # Delete file from disk if it's a valid path
+                file_path = Path(file_path_str)
                 if file_path.exists():
                     file_path.unlink()
                     deleted_count += 1
@@ -78,6 +87,11 @@ class DownloadExpiryService:
                 
             except Exception as e:
                 logger.error(f"Failed to delete expired download {download.get('id')}: {e}")
+                # Still try to remove from database to prevent repeated errors
+                try:
+                    await self.db.temporary_downloads.delete_one({"_id": download["_id"]})
+                except Exception:
+                    pass
         
         if deleted_count > 0:
             logger.info(f"Cleaned up {deleted_count} expired downloads")

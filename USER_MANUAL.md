@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://narrative-visuals-6.preview.emergentagent.com
+**Platform URL:** https://story-to-video-dev.preview.emergentagent.com
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://narrative-visuals-6.preview.emergentagent.com)
+**Environment:** Preview (https://story-to-video-dev.preview.emergentagent.com)
 
 ---
 

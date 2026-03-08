@@ -54,7 +54,7 @@
     }
   },
   "test_config": {
-    "api_url": "https://narrative-visuals-6.preview.emergentagent.com",
+    "api_url": "https://story-to-video-dev.preview.emergentagent.com",
     "start_time": "2026-02-26T07:36:58.993152+00:00",
     "end_time": "2026-02-26T07:37:34.456538+00:00"
   },

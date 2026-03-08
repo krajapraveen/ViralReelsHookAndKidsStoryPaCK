@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://narrative-visuals-6.preview.emergentagent.com
+API URL: https://story-to-video-dev.preview.emergentagent.com
 ```
 
 ### Results Summary

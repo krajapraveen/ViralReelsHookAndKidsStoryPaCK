@@ -23,6 +23,20 @@ import aiofiles
 # Import shared utilities
 from shared import db, get_current_user
 
+# Import WebSocket progress broadcaster
+try:
+    from routes.websocket_progress import (
+        broadcast_video_progress,
+        broadcast_completion,
+        broadcast_error
+    )
+    WS_AVAILABLE = True
+except ImportError:
+    WS_AVAILABLE = False
+    async def broadcast_video_progress(*args, **kwargs): pass
+    async def broadcast_completion(*args, **kwargs): pass
+    async def broadcast_error(*args, **kwargs): pass
+
 # =============================================================================
 # CONFIGURATION FLAGS
 # =============================================================================
@@ -778,7 +792,6 @@ async def search_pixabay_music(query: str, category: str = None, per_page: int =
             
             async with session.get(url) as response:
                 if response.status == 200:
-                    data = await response.json()
                     # Note: Pixabay's free API doesn't return audio directly
                     # We'd need their full API or use pre-curated tracks
                     return []
@@ -1010,12 +1023,20 @@ async def render_video_task(
 ):
     """Background task to render video using FFmpeg"""
     
+    # Get user_id from render job for WebSocket updates
+    job = await db.render_jobs.find_one({"job_id": job_id})
+    user_id = job.get("user_id") if job else None
+    
     try:
         # Update status to processing
         await db.render_jobs.update_one(
             {"job_id": job_id},
             {"$set": {"status": "PROCESSING", "progress": 10}}
         )
+        
+        # Broadcast: Starting video assembly
+        if WS_AVAILABLE and user_id:
+            await broadcast_video_progress(job_id, user_id, "preparing", 10)
         
         # Create temp directory for processing
         temp_dir = tempfile.mkdtemp()
@@ -1027,9 +1048,17 @@ async def render_video_task(
             
             # Download images and prepare video segments
             segments = []
+            total_scenes = len(scene_images)
             
             for i, (img, voice) in enumerate(zip(scene_images, voice_tracks)):
                 scene_num = img.get("scene_number", i + 1)
+                
+                # Broadcast: Processing scene
+                if WS_AVAILABLE and user_id:
+                    await broadcast_video_progress(
+                        job_id, user_id, "composing", 
+                        10 + int((i / total_scenes) * 50)
+                    )
                 
                 # Download image
                 image_path = os.path.join(temp_dir, f"scene_{scene_num}.png")
@@ -1088,6 +1117,10 @@ async def render_video_task(
                 for seg in segments:
                     f.write(f"file '{seg}'\n")
             
+            # Broadcast: Audio sync phase
+            if WS_AVAILABLE and user_id:
+                await broadcast_video_progress(job_id, user_id, "audio_sync", 70)
+            
             # Concatenate all segments
             concat_output = os.path.join(temp_dir, "concat_video.mp4")
             cmd = [
@@ -1104,6 +1137,10 @@ async def render_video_task(
                 {"job_id": job_id},
                 {"$set": {"progress": 75}}
             )
+            
+            # Broadcast: Adding music phase
+            if WS_AVAILABLE and user_id:
+                await broadcast_video_progress(job_id, user_id, "music", 75)
             
             # Add background music if specified
             final_video = concat_output
@@ -1133,6 +1170,10 @@ async def render_video_task(
                 {"job_id": job_id},
                 {"$set": {"progress": 85}}
             )
+            
+            # Broadcast: Rendering final video
+            if WS_AVAILABLE and user_id:
+                await broadcast_video_progress(job_id, user_id, "rendering", 85)
             
             # Add watermark if required
             output_filename = f"{project_id}_final.mp4"
@@ -1177,11 +1218,23 @@ async def render_video_task(
                 }
             )
             
+            # Broadcast: Completion
+            if WS_AVAILABLE and user_id:
+                await broadcast_completion(
+                    job_id, user_id, "Video",
+                    result_url=f"/static/generated/{output_filename}",
+                    metadata={"project_id": project_id}
+                )
+            
         finally:
             # Cleanup temp directory
             shutil.rmtree(temp_dir, ignore_errors=True)
             
     except Exception as e:
+        # Broadcast: Error
+        if WS_AVAILABLE and user_id:
+            await broadcast_error(job_id, user_id, str(e), stage="video_assembly")
+        
         # Update job as failed
         await db.render_jobs.update_one(
             {"job_id": job_id},

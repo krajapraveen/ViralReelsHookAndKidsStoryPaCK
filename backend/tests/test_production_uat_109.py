@@ -7,7 +7,7 @@ import requests
 import os
 
 # Use production backend URL
-BASE_URL = "https://narrative-visuals-6.preview.emergentagent.com"
+BASE_URL = "https://story-to-video-dev.preview.emergentagent.com"
 
 class TestAPIHealth:
     """API Health and Basic Connectivity Tests"""

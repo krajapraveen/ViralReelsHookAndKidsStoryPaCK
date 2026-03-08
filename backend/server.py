@@ -299,7 +299,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://narrative-visuals-6.preview.emergentagent.com",
+    "https://story-to-video-dev.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]

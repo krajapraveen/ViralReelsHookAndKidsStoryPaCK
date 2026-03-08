@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://narrative-visuals-6.preview.emergentagent.com';
+const BACKEND_URL = 'https://story-to-video-dev.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

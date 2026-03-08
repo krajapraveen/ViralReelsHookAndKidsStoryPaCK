@@ -168,10 +168,12 @@ async def delete_download(download_id: str, user: dict = Depends(get_current_use
     if not download:
         raise HTTPException(status_code=404, detail="Download not found")
     
-    # Delete file
-    file_path = Path(download.get("file_path", ""))
-    if file_path.exists():
-        file_path.unlink()
+    # Delete file only if it's a real file path (not base64 data URL)
+    file_path_str = download.get("file_path", "")
+    if file_path_str and not file_path_str.startswith("data:"):
+        file_path = Path(file_path_str)
+        if file_path.exists():
+            file_path.unlink()
     
     # Remove from database
     await db.temporary_downloads.delete_one({"id": download_id})

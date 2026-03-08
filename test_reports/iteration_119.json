@@ -2,7 +2,7 @@
   "summary": "Iteration 119 - Full testing of new features: Fake testimonials removed, Live Chat Widget, Blog with 3 seeded posts, Organic Reviews system, Watermark API. All 20 backend tests passed. All frontend features working correctly.",
   
   "test_date": "2026-03-05",
-  "preview_url": "https://narrative-visuals-6.preview.emergentagent.com",
+  "preview_url": "https://story-to-video-dev.preview.emergentagent.com",
   "testing_type": "both - Backend API + Frontend UI",
   "overall_result": "PASS",
   
