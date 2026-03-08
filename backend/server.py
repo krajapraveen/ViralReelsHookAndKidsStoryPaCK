@@ -304,11 +304,15 @@ CRITICAL_ORIGINS = [
     "http://localhost:8001"
 ]
 
-# Build allowed origins list - NO wildcards for security
+# Build allowed origins list
 if cors_origins_env:
-    # Parse comma-separated list of additional origins
-    additional_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip() and origin.strip() != '*']
-    ALLOWED_ORIGINS = list(set(CRITICAL_ORIGINS + additional_origins))
+    # Allow wildcard for development/testing
+    if cors_origins_env.strip() == '*':
+        ALLOWED_ORIGINS = ['*']
+    else:
+        # Parse comma-separated list of additional origins
+        additional_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+        ALLOWED_ORIGINS = list(set(CRITICAL_ORIGINS + additional_origins))
 else:
     ALLOWED_ORIGINS = CRITICAL_ORIGINS
 
