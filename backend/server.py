@@ -461,6 +461,10 @@ api_router.include_router(blog_router)
 from routes.revenue_analytics import router as revenue_analytics_router
 api_router.include_router(revenue_analytics_router)
 
+# Monitoring & Load Testing
+from routes.monitoring import router as monitoring_router
+api_router.include_router(monitoring_router)
+
 # Include API router in app
 app.include_router(api_router)
 
