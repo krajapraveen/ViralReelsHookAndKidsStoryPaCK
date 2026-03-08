@@ -1028,6 +1028,33 @@ async def assemble_video(
     if not voice_tracks:
         raise HTTPException(status_code=400, detail="No voice tracks found. Generate voices first.")
     
+    # Pre-flight check: Verify that image and audio files exist
+    missing_files = []
+    for img in scene_images:
+        img_url = img.get("url") or img.get("image_url")
+        if img_url and img_url.startswith("/static/"):
+            local_path = f"/app/backend{img_url}"
+            if not os.path.exists(local_path):
+                missing_files.append(f"Scene {img.get('scene_number')} image")
+    
+    for voice in voice_tracks:
+        audio_url = voice.get("audio_path") or voice.get("audio_url")
+        if audio_url and audio_url.startswith("/static/"):
+            local_path = f"/app/backend{audio_url}"
+            if not os.path.exists(local_path):
+                missing_files.append(f"Scene {voice.get('scene_number')} audio")
+    
+    if missing_files:
+        # Refund credits since we can't proceed
+        await db.users.update_one(
+            {"id": user_id},
+            {"$inc": {"credits": total_cost}}
+        )
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Some files are missing and need to be regenerated: {', '.join(missing_files[:5])}{'...' if len(missing_files) > 5 else ''}. Please regenerate images/voices for this project."
+        )
+    
     # Create render job
     job_id = str(uuid.uuid4())
     render_job = {
@@ -1302,14 +1329,37 @@ async def render_video_task(
 
 async def download_file(url: str, output_path: str):
     """Download file from URL or copy from local path"""
+    import os
+    
     # Check if it's a local path
     if url.startswith("/static/"):
         local_path = f"/app/backend{url}"
         if os.path.exists(local_path):
             shutil.copy(local_path, output_path)
             return
-        else:
-            raise Exception(f"Local file not found: {local_path}")
+        
+        # Local file not found - try downloading from the public URL
+        # Get the backend URL from environment
+        backend_url = os.environ.get("BACKEND_PUBLIC_URL", "")
+        if not backend_url:
+            # Try to construct from common patterns
+            backend_url = os.environ.get("REACT_APP_BACKEND_URL", "")
+        
+        if backend_url:
+            full_url = f"{backend_url}{url}"
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(full_url) as response:
+                        if response.status == 200:
+                            content = await response.read()
+                            async with aiofiles.open(output_path, "wb") as f:
+                                await f.write(content)
+                            return
+            except Exception:
+                pass
+        
+        # If still not found, raise a helpful error
+        raise Exception(f"Image file not found. Please regenerate the images for this project. (File: {url})")
     
     # Otherwise download from URL
     async with aiohttp.ClientSession() as session:
