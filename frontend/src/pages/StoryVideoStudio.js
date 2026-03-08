@@ -1243,6 +1243,15 @@ export default function StoryVideoStudio() {
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {/* Expiry Warning */}
+              {generatedImages.length > 0 && (
+                <div className="col-span-full mb-2 bg-amber-500/20 border border-amber-500/30 rounded-lg p-3 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                  <p className="text-amber-200 text-sm">
+                    <strong>Download within 5 minutes!</strong> Generated files are automatically deleted to save space.
+                  </p>
+                </div>
+              )}
               {generatedImages.map((img, idx) => (
                 <div key={idx} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
                   {img.image_url ? (
@@ -1671,6 +1680,19 @@ export default function StoryVideoStudio() {
         {/* Step 8: Final Video Player */}
         {step === 8 && project?.final_video_url && (
           <div className="space-y-6">
+            {/* Urgent Download Warning */}
+            <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 animate-pulse" data-testid="video-expiry-warning">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
+                <div>
+                  <h3 className="text-red-400 font-bold text-lg">Download Now! File expires in 5 minutes</h3>
+                  <p className="text-red-200/80 text-sm">
+                    Your video will be automatically deleted to save server space. Download immediately!
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-white">{project.title}</h2>

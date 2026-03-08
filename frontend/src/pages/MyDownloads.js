@@ -198,6 +198,19 @@ export default function MyDownloads() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Important Warning Banner */}
+        <div className="mb-6 bg-amber-500/20 border border-amber-500/50 rounded-xl p-4" data-testid="expiry-warning-banner">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-amber-400 font-semibold text-lg">Important: 5-Minute Download Window</h3>
+              <p className="text-amber-200/80 text-sm mt-1">
+                All generated files (images, videos, audio, PDFs) are automatically deleted after <strong>5 minutes</strong> to save server space. 
+                Please download your files immediately after generation. Expired files cannot be recovered.
+              </p>
+            </div>
+          </div>
+        </div>
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
           <div className="flex-1 relative">

@@ -808,6 +808,14 @@ async def startup():
     except Exception as e:
         logger.warning(f"Download expiry service warning: {e}")
     
+    # Initialize generated files cleanup service
+    try:
+        from services.generated_files_cleanup import start_cleanup_service
+        await start_cleanup_service(db)
+        logger.info("Generated files cleanup service started (5-minute expiry)")
+    except Exception as e:
+        logger.warning(f"Generated files cleanup service warning: {e}")
+    
     # Create performance indexes
     try:
         await create_performance_indexes()
@@ -918,6 +926,13 @@ async def shutdown():
         await shutdown_priority_scaling()
     except Exception as e:
         logger.warning(f"Auto-scaling shutdown warning: {e}")
+    
+    # Stop generated files cleanup service
+    try:
+        from services.generated_files_cleanup import stop_cleanup_service
+        await stop_cleanup_service()
+    except Exception as e:
+        logger.warning(f"Generated files cleanup service shutdown warning: {e}")
     
     client.close()
     logger.info("CreatorStudio API shutdown")

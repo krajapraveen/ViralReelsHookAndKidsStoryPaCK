@@ -89,6 +89,49 @@ async def get_my_downloads(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to fetch downloads: {str(e)}")
 
 
+@router.get("/file-expiry/{file_name}")
+async def get_file_expiry(file_name: str, user: dict = Depends(get_current_user)):
+    """Get expiry information for a generated file"""
+    try:
+        from services.generated_files_cleanup import get_cleanup_service
+        cleanup_service = get_cleanup_service()
+        if cleanup_service:
+            expiry_info = await cleanup_service.get_file_expiry_info(file_name)
+            return {
+                "success": True,
+                "file_name": file_name,
+                **expiry_info,
+                "warning": "Files are automatically deleted after 5 minutes. Download now!"
+            }
+    except Exception:
+        pass
+    
+    return {
+        "success": False,
+        "file_name": file_name,
+        "is_expired": True,
+        "message": "File not found or already expired"
+    }
+
+
+@router.get("/cleanup-stats")
+async def get_cleanup_stats(user: dict = Depends(get_current_user)):
+    """Get generated files cleanup statistics"""
+    try:
+        from services.generated_files_cleanup import get_cleanup_service
+        cleanup_service = get_cleanup_service()
+        if cleanup_service:
+            stats = await cleanup_service.get_stats()
+            return {
+                "success": True,
+                **stats
+            }
+    except Exception:
+        pass
+    
+    return {"success": False, "message": "Cleanup service not available"}
+
+
 @router.get("/{download_id}")
 async def get_download_info(download_id: str, user: dict = Depends(get_current_user)):
     """Get download info and remaining time"""
