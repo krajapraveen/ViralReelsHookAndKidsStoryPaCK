@@ -3,7 +3,37 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
-## LATEST UPDATE: 2026-03-08 (Session 4 - Bug Fixes & UX Enhancements)
+## LATEST UPDATE: 2026-03-09 (Session 5 - P0 Video Generation Bug Fix)
+
+### ✅ CRITICAL BUG FIX COMPLETED
+
+**Issue:** Video generation failing on production with "File not found" errors
+**Root Cause:** The `download_file` function could not access files when:
+  - Files were generated on preview server but accessed from production
+  - Files were deleted by the 30-minute cleanup service before video assembly
+**Fix Applied:**
+1. Enhanced `download_file` function to try multiple URL sources in sequence:
+   - Local file path (`/app/backend/static/...`)
+   - `BACKEND_PUBLIC_URL` environment variable
+   - `FRONTEND_URL` environment variable  
+   - Preview URL fallback
+2. Unified audio file handling to use `download_file` for consistency
+3. Added automatic credit refund on video generation failure
+4. Added `BACKEND_PUBLIC_URL` to backend `.env`
+
+**Files Modified:**
+- `/app/backend/routes/story_video_generation.py` - download_file function, render_video_task error handling
+- `/app/backend/.env` - Added BACKEND_PUBLIC_URL
+
+**Verified:** Full E2E video generation test passed:
+- Image Generation: ✅
+- Voice Generation: ✅
+- Video Assembly: ✅ (13 seconds, 1.3 MB output)
+- FFmpeg: ✅ Re-installed
+
+---
+
+## Previous Session: 2026-03-08 (Session 4 - Bug Fixes & UX Enhancements)
 
 ### ✅ BUG FIXES COMPLETED
 
