@@ -3,37 +3,79 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
-## LATEST UPDATE: 2026-03-09 (Session 5 - MAJOR ARCHITECTURE UPGRADE)
+## LATEST UPDATE: 2026-03-09 (Session 5 - PERFORMANCE OPTIMIZATION)
 
-### 🎉 TWO CRITICAL FIXES COMPLETED
+### 🚀 COMPREHENSIVE PERFORMANCE OPTIMIZATION COMPLETED
 
-#### Fix 1: Images Not Displaying in Frontend
-**Problem:** Images showing "unavailable" on production because frontend was prepending `REACT_APP_BACKEND_URL` to R2 cloud URLs, creating invalid URLs like `https://visionary-suite.com/https://pub-xxx.r2.dev/...`
+#### 1. Detailed Timing Instrumentation Added
+Every stage of video generation now logs timing:
+- Request received
+- Asset downloads (image, audio)
+- FFmpeg encoding per scene
+- Video concatenation
+- Watermark addition
+- R2 upload
 
-**Solution:** Updated all frontend components to detect R2 URLs (starting with `http`) and use them directly without prefix:
-- `/app/frontend/src/pages/StoryVideoStudio.js` - Image display, video player, audio player
-- `/app/frontend/src/pages/Profile.js` - Download links
-- `/app/frontend/src/pages/StoryGenerator.js` - Scene images
+**Sample Timing Breakdown (1-scene video):**
+```
+download_image_scene_1: 960ms
+download_audio_scene_1: 339ms
+ffmpeg_encode_scene_1: 2888ms
+concat_segments: 81ms
+add_watermark: 609ms
+upload_to_r2: 3059ms
+TOTAL: 11,649ms (~12 seconds)
+```
 
-#### Fix 2: Video Generation Too Slow (2-3 mins → 6 seconds!)
-**Problem:** Video rendering took 2-3 minutes due to:
-- 1080p resolution (Full HD)
-- Complex zoompan effects
-- No encoding preset optimization
+#### 2. Presigned URLs for Direct Browser Upload/Download
+New API endpoints bypass backend for large file transfers:
+- `POST /api/story-video-studio/generation/storage/presigned-upload` - Direct browser → R2 upload
+- `POST /api/story-video-studio/generation/storage/presigned-download` - Direct R2 → browser download
+- `GET /api/story-video-studio/generation/storage/download/{project_id}/{filename}` - Get CDN URL
 
-**Solution:** Optimized FFmpeg settings:
-- Resolution: 1920x1080 → 1280x720 (720p) 
-- Encoding: default → `ultrafast` preset
-- Video bitrate: unlimited → 1500k
-- Audio bitrate: 192k → 128k
-- Removed zoompan effect
+**Benefits:**
+- Removes backend from file transfer path
+- Enables parallel uploads from browser
+- CDN-cached downloads
 
-**Results:**
+#### 3. Multipart Upload for Large Files (>5MB)
+- Automatically uses multipart for videos
+- Parallel chunk uploads
+- Progress callback support
+- Better reliability for large files
+
+#### 4. Cache-Optimized Headers
+All assets now have proper cache headers:
+- Images/Audio/Video: `Cache-Control: public, max-age=31536000, immutable` (1 year)
+- Thumbnails: `Cache-Control: public, max-age=86400` (1 day)
+
+#### 5. Enhanced WebSocket Progress
+More detailed progress stages during video assembly:
+- "Downloading assets from cloud..."
+- "Encoding video segments..."
+- "Concatenating video..."
+- "Uploading to cloud storage..."
+- "Finalizing video..."
+
+### Performance Results
 | Metric | Before | After |
 |--------|--------|-------|
-| Render Time | 2-3 minutes | **6 seconds** |
-| File Size | 1.2MB | **620KB** |
+| Video Render | 2-3 min | **~12 seconds** |
+| Video File Size | 1.2MB | **620KB** |
 | Resolution | 1080p | 720p |
+| Storage | Local | R2 Cloud + CDN |
+
+---
+
+### 🎉 PREVIOUS: CRITICAL FIXES COMPLETED
+
+#### Fix 1: Images Not Displaying in Frontend
+**Problem:** Frontend prepending backend URL to R2 URLs
+**Solution:** Detect full URLs and use directly
+
+#### Fix 2: Video Generation Speed
+**Problem:** 1080p + zoompan + slow encoding
+**Solution:** 720p + ultrafast preset + no zoompan
 
 ---
 

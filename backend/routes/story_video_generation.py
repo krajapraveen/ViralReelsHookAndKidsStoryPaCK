@@ -1181,7 +1181,20 @@ async def render_video_task(
     background_music_id: Optional[str],
     music_volume: float
 ):
-    """Background task to render video using FFmpeg"""
+    """Background task to render video using FFmpeg - with detailed timing logs"""
+    import time
+    
+    # Timing tracker
+    timings = {
+        "task_started": time.time(),
+        "stages": {}
+    }
+    
+    def log_timing(stage: str, start_time: float):
+        """Log timing for a stage"""
+        duration_ms = (time.time() - start_time) * 1000
+        timings["stages"][stage] = duration_ms
+        logger.info(f"⏱️ VIDEO_TIMING [{stage}]: {duration_ms:.2f}ms")
     
     # Get user_id from render job for WebSocket updates
     job = await db.render_jobs.find_one({"job_id": job_id})
@@ -1210,67 +1223,73 @@ async def render_video_task(
             segments = []
             total_scenes = len(scene_images)
             
+            download_start = time.time()
+            
             for i, (img, voice) in enumerate(zip(scene_images, voice_tracks)):
                 scene_num = img.get("scene_number", i + 1)
+                scene_start = time.time()
                 
                 # Broadcast: Processing scene
                 if WS_AVAILABLE and user_id:
                     await broadcast_video_progress(
                         job_id, user_id, "composing", 
-                        10 + int((i / total_scenes) * 50)
+                        10 + int((i / total_scenes) * 50),
+                        metadata={"stage": f"Downloading scene {scene_num} assets"}
                     )
                 
-                # Download image
+                # Download image with timing
+                img_download_start = time.time()
                 image_path = os.path.join(temp_dir, f"scene_{scene_num}.png")
                 img_url = img.get("url") or img.get("image_url")
                 await download_file(img_url, image_path)
+                log_timing(f"download_image_scene_{scene_num}", img_download_start)
                 
-                # Download voice audio - use download_file for consistent remote/local handling
+                # Download voice audio with timing
+                audio_download_start = time.time()
                 audio_path = os.path.join(temp_dir, f"scene_{scene_num}_audio.mp3")
                 audio_url = voice.get("audio_url") or voice.get("audio_path")
                 
                 if audio_url:
-                    # If it's already a full local path, check if file exists
                     if audio_url.startswith("/app/backend/") and os.path.exists(audio_url):
                         shutil.copy(audio_url, audio_path)
                     else:
-                        # Use download_file for both /static/ paths and URLs
                         await download_file(audio_url, audio_path)
                 else:
                     raise Exception(f"No audio URL found for scene {scene_num}")
+                log_timing(f"download_audio_scene_{scene_num}", audio_download_start)
                 
                 duration = voice.get("duration", 5)
                 if duration <= 0:
-                    duration = 5  # Default 5 seconds if not specified
+                    duration = 5
                 
-                # Create video segment with image and audio - OPTIMIZED for speed
+                # Create video segment with timing
+                ffmpeg_start = time.time()
                 segment_path = os.path.join(temp_dir, f"segment_{scene_num}.mp4")
                 
                 # FFmpeg command optimized for fast, lightweight output
-                # - 720p resolution (faster than 1080p)
-                # - ultrafast preset (10x faster encoding)
-                # - No zoompan effect (much faster)
-                # - Lower bitrate for smaller file size
                 cmd = [
                     "ffmpeg", "-y",
                     "-loop", "1",
                     "-i", image_path,
                     "-i", audio_path,
                     "-c:v", "libx264",
-                    "-preset", "ultrafast",  # MUCH faster encoding
+                    "-preset", "ultrafast",
                     "-tune", "stillimage",
                     "-c:a", "aac",
-                    "-b:a", "128k",  # Reduced audio bitrate
-                    "-b:v", "1500k",  # Target video bitrate for smaller files
+                    "-b:a", "128k",
+                    "-b:v", "1500k",
                     "-pix_fmt", "yuv420p",
-                    "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",  # 720p, no zoompan
+                    "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
                     "-shortest",
-                    "-t", str(duration + 0.5),  # Explicit duration
+                    "-t", str(duration + 0.5),
                     segment_path
                 ]
                 
                 subprocess.run(cmd, capture_output=True, check=True)
+                log_timing(f"ffmpeg_encode_scene_{scene_num}", ffmpeg_start)
                 segments.append(segment_path)
+                
+                log_timing(f"total_scene_{scene_num}", scene_start)
                 
                 # Update progress
                 progress = 10 + int((i + 1) / len(scene_images) * 60)
@@ -1279,7 +1298,10 @@ async def render_video_task(
                     {"$set": {"progress": progress}}
                 )
             
-            # Create concat file
+            log_timing("all_scene_downloads_and_encoding", download_start)
+            
+            # Concatenate segments with timing
+            concat_start = time.time()
             concat_file = os.path.join(temp_dir, "concat.txt")
             with open(concat_file, "w") as f:
                 for seg in segments:
@@ -1287,7 +1309,8 @@ async def render_video_task(
             
             # Broadcast: Audio sync phase
             if WS_AVAILABLE and user_id:
-                await broadcast_video_progress(job_id, user_id, "audio_sync", 70)
+                await broadcast_video_progress(job_id, user_id, "audio_sync", 70, 
+                    metadata={"stage": "Concatenating video segments"})
             
             # Concatenate all segments
             concat_output = os.path.join(temp_dir, "concat_video.mp4")
@@ -1300,6 +1323,7 @@ async def render_video_task(
                 concat_output
             ]
             subprocess.run(cmd, capture_output=True, check=True)
+            log_timing("concat_segments", concat_start)
             
             await db.render_jobs.update_one(
                 {"job_id": job_id},
@@ -1315,6 +1339,7 @@ async def render_video_task(
             if background_music_id:
                 music_track = next((m for m in PIXABAY_MUSIC_SAMPLES if m["id"] == background_music_id), None)
                 if music_track:
+                    music_start = time.time()
                     music_path = os.path.join(temp_dir, "music.mp3")
                     await download_file(music_track["url"], music_path)
                     
@@ -1333,6 +1358,7 @@ async def render_video_task(
                     ]
                     subprocess.run(cmd, capture_output=True, check=True)
                     final_video = video_with_music
+                    log_timing("add_background_music", music_start)
             
             await db.render_jobs.update_one(
                 {"job_id": job_id},
@@ -1341,21 +1367,22 @@ async def render_video_task(
             
             # Broadcast: Rendering final video
             if WS_AVAILABLE and user_id:
-                await broadcast_video_progress(job_id, user_id, "rendering", 85)
+                await broadcast_video_progress(job_id, user_id, "rendering", 85,
+                    metadata={"stage": "Adding watermark and finalizing"})
             
-            # Add watermark if required
+            # Add watermark with timing
+            watermark_start = time.time()
             output_filename = f"{project_id}_final.mp4"
             output_path = str(STATIC_DIR / output_filename)
             
             if include_watermark:
-                # Create watermark text - optimized encoding
                 watermark_text = "visionary-suite.com"
                 cmd = [
                     "ffmpeg", "-y",
                     "-i", final_video,
                     "-vf", f"drawtext=text='{watermark_text}':fontcolor=white@0.5:fontsize=18:x=w-tw-10:y=h-th-10",
                     "-c:v", "libx264",
-                    "-preset", "ultrafast",  # Fast encoding
+                    "-preset", "ultrafast",
                     "-b:v", "1500k",
                     "-c:a", "copy",
                     output_path
@@ -1363,22 +1390,34 @@ async def render_video_task(
                 subprocess.run(cmd, capture_output=True, check=True)
             else:
                 shutil.copy(final_video, output_path)
+            log_timing("add_watermark", watermark_start)
             
-            # Upload final video to R2 cloud storage
+            # Upload final video to R2 cloud storage with timing
+            upload_start = time.time()
             from services.cloudflare_r2_storage import get_r2_storage
             video_url = f"/static/generated/{output_filename}"
             storage_type = "local"
             
+            if WS_AVAILABLE and user_id:
+                await broadcast_video_progress(job_id, user_id, "uploading", 90,
+                    metadata={"stage": "Uploading video to cloud storage"})
+            
             r2_storage = get_r2_storage()
             if r2_storage.is_configured:
-                success, public_url, key = await r2_storage.upload_file(
+                # Use multipart upload for videos
+                success, public_url, key = await r2_storage.upload_file_multipart(
                     output_path, "video", project_id, output_filename
                 )
                 if success:
                     video_url = public_url
                     storage_type = "r2_cloud"
                     logger.info(f"Final video uploaded to R2: {public_url}")
-                    # Keep local file as backup for now, will be cleaned by cleanup service
+            log_timing("upload_to_r2", upload_start)
+            
+            # Log total render time
+            total_render_time = time.time() - timings["task_started"]
+            logger.info(f"⏱️ VIDEO_TIMING [TOTAL_RENDER]: {total_render_time*1000:.2f}ms")
+            logger.info(f"⏱️ VIDEO_TIMING [BREAKDOWN]: {timings['stages']}")
             
             # Update job as completed
             await db.render_jobs.update_one(
@@ -1389,7 +1428,9 @@ async def render_video_task(
                         "progress": 100,
                         "output_url": video_url,
                         "storage_type": storage_type,
-                        "completed_at": datetime.now(timezone.utc)
+                        "completed_at": datetime.now(timezone.utc),
+                        "render_timing_ms": total_render_time * 1000,
+                        "timing_breakdown": timings["stages"]
                     }
                 }
             )
@@ -1635,3 +1676,117 @@ async def get_storage_status(current_user: dict = Depends(get_current_user)):
             "status": "active" if stats["configured"] else "not_configured"
         }
     }
+
+
+# =============================================================================
+# PRESIGNED URL ENDPOINTS (Direct Browser Upload/Download)
+# =============================================================================
+
+class PresignedUploadRequest(BaseModel):
+    asset_type: str  # image, voice, video
+    filename: str
+    project_id: Optional[str] = None
+    content_type: Optional[str] = None
+
+@router.post("/storage/presigned-upload")
+async def get_presigned_upload_url(
+    request: PresignedUploadRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get a presigned URL for direct browser upload to R2.
+    This bypasses the backend for large file uploads, improving performance.
+    
+    Frontend can then:
+    1. Call this endpoint to get upload URL
+    2. PUT the file directly to the presigned URL
+    3. Use the returned public_url to access the file
+    """
+    from services.cloudflare_r2_storage import get_r2_storage
+    
+    r2_storage = get_r2_storage()
+    result = r2_storage.generate_presigned_upload_url(
+        asset_type=request.asset_type,
+        filename=request.filename,
+        project_id=request.project_id,
+        content_type=request.content_type
+    )
+    
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to generate presigned URL")
+    
+    return {
+        "success": True,
+        "presigned": result
+    }
+
+
+class PresignedDownloadRequest(BaseModel):
+    key: str
+    filename: Optional[str] = None
+
+@router.post("/storage/presigned-download")
+async def get_presigned_download_url(
+    request: PresignedDownloadRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get a presigned URL for direct browser download from R2.
+    Use this when you need a temporary download link with a specific filename.
+    """
+    from services.cloudflare_r2_storage import get_r2_storage
+    
+    r2_storage = get_r2_storage()
+    url = r2_storage.generate_presigned_download_url(
+        key=request.key,
+        filename=request.filename
+    )
+    
+    if not url:
+        raise HTTPException(status_code=500, detail="Failed to generate presigned URL")
+    
+    return {
+        "success": True,
+        "download_url": url,
+        "expires_in": 3600
+    }
+
+
+@router.get("/storage/download/{project_id}/{filename}")
+async def get_download_url(
+    project_id: str,
+    filename: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get a direct download URL for a generated file.
+    Returns the public CDN URL for fastest delivery.
+    """
+    from services.cloudflare_r2_storage import get_r2_storage
+    
+    r2_storage = get_r2_storage()
+    
+    # Try to find the file in different asset paths
+    for asset_type in ['video', 'image', 'voice']:
+        key = f"{ASSET_PATHS.get(asset_type, 'misc')}/{project_id}/{filename}"
+        if await r2_storage.file_exists(key):
+            public_url = r2_storage._get_public_url(key)
+            return {
+                "success": True,
+                "url": public_url,
+                "asset_type": asset_type,
+                "cache_status": "cdn_cached"  # Files are served via CDN
+            }
+    
+    raise HTTPException(status_code=404, detail="File not found")
+
+
+# Import ASSET_PATHS at the top of the endpoint
+ASSET_PATHS = {
+    "image": "images",
+    "audio": "audio", 
+    "voice": "audio/voices",
+    "video": "videos",
+    "music": "audio/music",
+    "thumbnail": "thumbnails"
+}

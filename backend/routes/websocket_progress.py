@@ -310,17 +310,25 @@ async def broadcast_video_progress(
     job_id: str,
     user_id: str,
     stage_name: str,
-    progress: int
+    progress: int,
+    metadata: dict = None
 ):
-    """Broadcast video assembly progress"""
+    """Broadcast video assembly progress with optional detailed metadata"""
     stages = {
         "preparing": "Preparing scene assets...",
         "composing": "Composing video frames...",
         "audio_sync": "Synchronizing audio...",
         "music": "Adding background music...",
         "rendering": "Rendering final video...",
-        "encoding": "Encoding and optimizing..."
+        "encoding": "Encoding and optimizing...",
+        "uploading": "Uploading to cloud storage..."
     }
+    
+    # Use custom message from metadata if provided
+    message = stages.get(stage_name, f"Processing: {stage_name}")
+    if metadata and metadata.get("stage"):
+        message = metadata.get("stage")
+    
     await manager.broadcast_progress(
         job_id=job_id,
         user_id=user_id,
@@ -328,7 +336,7 @@ async def broadcast_video_progress(
         progress=progress,
         current_step=progress,
         total_steps=100,
-        message=stages.get(stage_name, f"Processing: {stage_name}"),
+        message=message,
         status="running",
         estimated_remaining=f"~{max(5, (100 - progress) // 10)}s"
     )

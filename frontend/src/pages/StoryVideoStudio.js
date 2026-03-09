@@ -789,14 +789,20 @@ export default function StoryVideoStudio() {
               message={
                 generationStage === 'image_generation' ? 'Generating images...' :
                 generationStage === 'voice_generation' ? 'Creating voice tracks...' :
-                generationStage === 'video_assembly' ? 'Rendering video...' :
+                generationStage === 'video_assembly' ? (
+                  generationProgress < 30 ? 'Downloading assets from cloud...' :
+                  generationProgress < 60 ? 'Encoding video segments...' :
+                  generationProgress < 80 ? 'Concatenating video...' :
+                  generationProgress < 95 ? 'Uploading to cloud storage...' :
+                  'Finalizing video...'
+                ) :
                 'Processing...'
               }
               onTryOtherFeature={handleTryOtherFeature}
               estimatedTime={
                 generationStage === 'image_generation' ? '1-2 minutes' :
                 generationStage === 'voice_generation' ? '30 seconds' :
-                generationStage === 'video_assembly' ? '30-60 seconds' :
+                generationStage === 'video_assembly' ? '15-30 seconds' :
                 null
               }
             />
