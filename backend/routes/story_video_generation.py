@@ -161,9 +161,10 @@ blurry, low quality, pixelated, distorted, deformed, bad anatomy,
 watermark, signature, text overlay, logo overlay
 """.strip().replace("\n", " ")
 
-async def generate_image_openai(prompt: str, negative_prompt: str, style: str) -> str:
-    """Generate image using OpenAI GPT Image 1 with universal negative prompts"""
+async def generate_image_openai(prompt: str, negative_prompt: str, style: str, project_id: str = None) -> str:
+    """Generate image using OpenAI GPT Image 1 with universal negative prompts - uploads to R2 cloud storage"""
     from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+    from services.cloudflare_r2_storage import get_r2_storage
     import base64
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
@@ -185,24 +186,36 @@ async def generate_image_openai(prompt: str, negative_prompt: str, style: str) -
         )
         
         if images and len(images) > 0:
-            # Images are returned as bytes, save to file and return path
             image_bytes = images[0]
             image_id = str(uuid.uuid4())
             image_filename = f"scene_image_{image_id}.png"
-            image_path = STATIC_DIR / image_filename
             
+            # Upload to R2 cloud storage
+            r2_storage = get_r2_storage()
+            if r2_storage.is_configured:
+                success, public_url, key = await r2_storage.upload_bytes(
+                    image_bytes, "image", image_filename, project_id
+                )
+                if success:
+                    logger.info(f"Image uploaded to R2: {public_url}")
+                    return public_url
+                else:
+                    logger.warning("R2 upload failed, falling back to local storage")
+            
+            # Fallback to local storage if R2 not configured or upload failed
+            image_path = STATIC_DIR / image_filename
             with open(image_path, "wb") as f:
                 f.write(image_bytes)
-            
             return f"/static/generated/{image_filename}"
         else:
             raise HTTPException(status_code=500, detail="No image was generated")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OpenAI image generation failed: {str(e)}")
 
-async def generate_image_gemini(prompt: str, negative_prompt: str, style: str) -> str:
-    """Generate image using Gemini Nano Banana with universal negative prompts"""
+async def generate_image_gemini(prompt: str, negative_prompt: str, style: str, project_id: str = None) -> str:
+    """Generate image using Gemini Nano Banana with universal negative prompts - uploads to R2 cloud storage"""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
+    from services.cloudflare_r2_storage import get_r2_storage
     import base64
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
@@ -226,17 +239,28 @@ async def generate_image_gemini(prompt: str, negative_prompt: str, style: str) -
         text, images = await chat.send_message_multimodal_response(msg)
         
         if images and len(images) > 0:
-            # Images are returned as base64 encoded
             image_data = images[0]
             image_bytes = base64.b64decode(image_data['data'])
             
             image_id = str(uuid.uuid4())
             image_filename = f"scene_image_{image_id}.png"
-            image_path = STATIC_DIR / image_filename
             
+            # Upload to R2 cloud storage
+            r2_storage = get_r2_storage()
+            if r2_storage.is_configured:
+                success, public_url, key = await r2_storage.upload_bytes(
+                    image_bytes, "image", image_filename, project_id
+                )
+                if success:
+                    logger.info(f"Image uploaded to R2: {public_url}")
+                    return public_url
+                else:
+                    logger.warning("R2 upload failed, falling back to local storage")
+            
+            # Fallback to local storage
+            image_path = STATIC_DIR / image_filename
             with open(image_path, "wb") as f:
                 f.write(image_bytes)
-            
             return f"/static/generated/{image_filename}"
         else:
             raise HTTPException(status_code=500, detail="No image was generated")
@@ -305,9 +329,9 @@ async def generate_scene_images(
         
         try:
             if request.provider == "gemini":
-                image_url = await generate_image_gemini(full_prompt, negative_prompt, style_prompt)
+                image_url = await generate_image_gemini(full_prompt, negative_prompt, style_prompt, request.project_id)
             else:
-                image_url = await generate_image_openai(full_prompt, negative_prompt, style_prompt)
+                image_url = await generate_image_openai(full_prompt, negative_prompt, style_prompt, request.project_id)
             
             # Store in scene_assets collection
             await db.scene_assets.insert_one({
@@ -316,6 +340,7 @@ async def generate_scene_images(
                 "asset_type": "image",
                 "url": image_url,
                 "provider": request.provider,
+                "storage_type": "r2_cloud" if image_url.startswith("https://pub-") else "local",
                 "created_at": datetime.now(timezone.utc)
             })
             
@@ -569,11 +594,13 @@ async def generate_scene_voices(
     generated_voices = []
     
     async def generate_single_voice(vs):
-        """Generate voice for a single scene"""
+        """Generate voice for a single scene - uploads to R2 cloud storage"""
+        from services.cloudflare_r2_storage import get_r2_storage
+        
         scene_num = vs.get("scene_number")
         narrator_text = vs.get("narrator_text", "")
         
-        # Create output path
+        # Create temporary output path
         output_filename = f"{request.project_id}_scene_{scene_num}_voice.mp3"
         output_path = str(STATIC_DIR / output_filename)
         
@@ -586,20 +613,40 @@ async def generate_scene_voices(
             # Get audio duration
             duration = await get_audio_duration(output_path)
             
+            # Upload to R2 cloud storage
+            audio_url = f"/static/generated/{output_filename}"
+            storage_type = "local"
+            
+            r2_storage = get_r2_storage()
+            if r2_storage.is_configured:
+                success, public_url, key = await r2_storage.upload_file(
+                    output_path, "voice", request.project_id, output_filename
+                )
+                if success:
+                    audio_url = public_url
+                    storage_type = "r2_cloud"
+                    logger.info(f"Voice uploaded to R2: {public_url}")
+                    # Optionally delete local file after successful upload
+                    try:
+                        os.remove(output_path)
+                    except:
+                        pass
+            
             # Store in voice_tracks collection
             await db.voice_tracks.insert_one({
                 "project_id": request.project_id,
                 "scene_number": scene_num,
-                "audio_path": output_path,
-                "audio_url": f"/static/generated/{output_filename}",
+                "audio_path": output_path if storage_type == "local" else None,
+                "audio_url": audio_url,
                 "duration": duration,
                 "voice_id": request.voice_id,
+                "storage_type": storage_type,
                 "created_at": datetime.now(timezone.utc)
             })
             
             return {
                 "scene_number": scene_num,
-                "audio_url": f"/static/generated/{output_filename}",
+                "audio_url": audio_url,
                 "duration": duration,
                 "voice_id": request.voice_id,
                 "generated_at": datetime.now(timezone.utc).isoformat()
@@ -1307,6 +1354,22 @@ async def render_video_task(
             else:
                 shutil.copy(final_video, output_path)
             
+            # Upload final video to R2 cloud storage
+            from services.cloudflare_r2_storage import get_r2_storage
+            video_url = f"/static/generated/{output_filename}"
+            storage_type = "local"
+            
+            r2_storage = get_r2_storage()
+            if r2_storage.is_configured:
+                success, public_url, key = await r2_storage.upload_file(
+                    output_path, "video", project_id, output_filename
+                )
+                if success:
+                    video_url = public_url
+                    storage_type = "r2_cloud"
+                    logger.info(f"Final video uploaded to R2: {public_url}")
+                    # Keep local file as backup for now, will be cleaned by cleanup service
+            
             # Update job as completed
             await db.render_jobs.update_one(
                 {"job_id": job_id},
@@ -1314,7 +1377,8 @@ async def render_video_task(
                     "$set": {
                         "status": "COMPLETED",
                         "progress": 100,
-                        "output_url": f"/static/generated/{output_filename}",
+                        "output_url": video_url,
+                        "storage_type": storage_type,
                         "completed_at": datetime.now(timezone.utc)
                     }
                 }
@@ -1326,7 +1390,8 @@ async def render_video_task(
                 {
                     "$set": {
                         "status": "video_rendered",
-                        "final_video_url": f"/static/generated/{output_filename}",
+                        "final_video_url": video_url,
+                        "storage_type": storage_type,
                         "updated_at": datetime.now(timezone.utc)
                     }
                 }
@@ -1336,8 +1401,8 @@ async def render_video_task(
             if WS_AVAILABLE and user_id:
                 await broadcast_completion(
                     job_id, user_id, "Video",
-                    result_url=f"/static/generated/{output_filename}",
-                    metadata={"project_id": project_id}
+                    result_url=video_url,
+                    metadata={"project_id": project_id, "storage": storage_type}
                 )
             
         finally:
@@ -1404,8 +1469,24 @@ async def render_video_task(
         )
 
 async def download_file(url: str, output_path: str):
-    """Download file from URL or copy from local path - handles both local and remote files"""
+    """Download file from URL or copy from local path - handles R2 cloud, local and remote files"""
     import os
+    
+    # If it's already a full HTTPS URL (including R2 cloud URLs), download directly
+    if url.startswith("https://") or url.startswith("http://"):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                    if response.status == 200:
+                        content = await response.read()
+                        async with aiofiles.open(output_path, "wb") as f:
+                            await f.write(content)
+                        logger.info(f"Downloaded file from URL: {url[:80]}...")
+                        return
+                    else:
+                        raise Exception(f"Failed to download file (HTTP {response.status}): {url}")
+        except aiohttp.ClientError as e:
+            raise Exception(f"Network error downloading file: {url} - {str(e)}")
     
     # Check if it's a local path (starts with /static/ or /api/)
     if url.startswith("/static/") or url.startswith("/api/"):
@@ -1518,5 +1599,29 @@ async def get_video_player_data(project_id: str):
                 "color": "#8B5CF6",
                 "name": "Visionary Suite"
             }
+        }
+    }
+
+
+# =============================================================================
+# STORAGE STATUS ENDPOINT
+# =============================================================================
+
+@router.get("/storage/status")
+async def get_storage_status(current_user: dict = Depends(get_current_user)):
+    """Get cloud storage configuration status"""
+    from services.cloudflare_r2_storage import get_r2_storage
+    
+    r2_storage = get_r2_storage()
+    stats = r2_storage.get_stats()
+    
+    return {
+        "success": True,
+        "storage": {
+            "provider": "cloudflare_r2",
+            "configured": stats["configured"],
+            "bucket": stats["bucket"],
+            "public_url_configured": bool(stats["public_url"]),
+            "status": "active" if stats["configured"] else "not_configured"
         }
     }

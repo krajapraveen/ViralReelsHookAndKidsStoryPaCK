@@ -3,33 +3,70 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
-## LATEST UPDATE: 2026-03-09 (Session 5 - P0 Video Generation Bug Fix)
+## LATEST UPDATE: 2026-03-09 (Session 5 - MAJOR ARCHITECTURE UPGRADE)
 
-### ✅ CRITICAL BUG FIX COMPLETED
+### 🎉 CLOUDFLARE R2 CLOUD STORAGE IMPLEMENTED
 
-**Issue:** Video generation failing on production with "File not found" errors
-**Root Cause:** The `download_file` function could not access files when:
-  - Files were generated on preview server but accessed from production
-  - Files were deleted by the 30-minute cleanup service before video assembly
-**Fix Applied:**
-1. Enhanced `download_file` function to try multiple URL sources in sequence:
-   - Local file path (`/app/backend/static/...`)
-   - `BACKEND_PUBLIC_URL` environment variable
-   - `FRONTEND_URL` environment variable  
-   - Preview URL fallback
-2. Unified audio file handling to use `download_file` for consistency
-3. Added automatic credit refund on video generation failure
-4. Added `BACKEND_PUBLIC_URL` to backend `.env`
+**Problem Solved:** Production video generation was failing because:
+- Files stored on local filesystem couldn't be accessed across different servers
+- Preview and production environments have separate filesystems
+- The 30-minute cleanup service was deleting files before video assembly
 
-**Files Modified:**
-- `/app/backend/routes/story_video_generation.py` - download_file function, render_video_task error handling
-- `/app/backend/.env` - Added BACKEND_PUBLIC_URL
+**Solution Implemented:** Full Cloudflare R2 cloud storage integration:
 
-**Verified:** Full E2E video generation test passed:
-- Image Generation: ✅
-- Voice Generation: ✅
-- Video Assembly: ✅ (13 seconds, 1.3 MB output)
-- FFmpeg: ✅ Re-installed
+1. **Cloud Storage Service** (`/app/backend/services/cloudflare_r2_storage.py`)
+   - New singleton service for R2 operations
+   - Supports upload/download of images, audio, and video
+   - Project-organized bucket structure: `images/{project_id}/`, `audio/voices/{project_id}/`, `videos/{project_id}/`
+
+2. **Image Generation** - Now uploads to R2 Cloud
+   - Both OpenAI GPT Image 1 and Gemini Nano Banana upload to R2
+   - Images accessible via public URL: `https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/images/...`
+
+3. **Voice Generation** - Now uploads to R2 Cloud
+   - OpenAI TTS voices upload to R2
+   - Audio accessible via: `https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/audio/voices/...`
+
+4. **Video Rendering** - Now uploads to R2 Cloud
+   - Final videos upload to R2
+   - Videos accessible via: `https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/...`
+
+5. **Download Function** - Enhanced to handle R2 URLs
+   - Automatically downloads from R2 public URLs during video assembly
+   - Fallback to local storage if R2 unavailable
+
+**R2 Configuration:**
+```
+Account ID: 77f89e95431bdd21ae580784bffb6db1
+Bucket: visionary-suite-assets-prod
+Public URL: https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev
+```
+
+**Files Created/Modified:**
+- `/app/backend/services/cloudflare_r2_storage.py` - NEW: R2 storage service
+- `/app/backend/routes/story_video_generation.py` - Updated image, voice, video generation
+- `/app/backend/.env` - Added R2 credentials
+
+**Verified E2E Test:**
+- ✅ Image Generation → R2 Cloud (2MB image)
+- ✅ Voice Generation → R2 Cloud  
+- ✅ Video Assembly → R2 Cloud (1.2MB video)
+- ✅ Public URLs accessible
+- ✅ 1-year cache headers set
+
+**Benefits:**
+- 🌐 Works across all environments (preview, production, any server)
+- 💰 FREE egress (unlike AWS S3)
+- ⚡ Fast CDN delivery via Cloudflare
+- 🔒 Secure with cache-control headers
+
+---
+
+## Previous Session (Part 1): P0 Video Generation Bug Fix
+
+**Issue:** Video generation failing with "File not found" errors
+**Quick Fix Applied:** Enhanced `download_file` function with URL fallbacks
+**Note:** This was superseded by the R2 cloud storage implementation above
 
 ---
 
