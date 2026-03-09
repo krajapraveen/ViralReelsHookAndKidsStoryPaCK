@@ -160,6 +160,7 @@ function App() {
         <Route path="/app/reel-generator" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
         <Route path="/app/reel" element={isAuthenticated ? <Navigate to="/app/reel-generator" /> : <Navigate to="/login" />} />
       <Route path="/app/stories" element={isAuthenticated ? <StoryGenerator /> : <Navigate to="/login" />} />
+      <Route path="/app/kids-story" element={isAuthenticated ? <StoryGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/story-generator" element={isAuthenticated ? <StoryGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/story" element={isAuthenticated ? <Navigate to="/app/story-generator" /> : <Navigate to="/login" />} />
       <Route path="/app/story-pack" element={isAuthenticated ? <Navigate to="/app/story-generator" /> : <Navigate to="/login" />} />
@@ -213,6 +214,7 @@ function App() {
       <Route path="/app/admin/bio-templates" element={isAuthenticated ? <BioTemplatesAdmin /> : <Navigate to="/login" />} />
       <Route path="/app/admin/workers" element={isAuthenticated ? <WorkerDashboard /> : <Navigate to="/login" />} />
       {/* New Feature Routes */}
+      <Route path="/app/comic" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/comix" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/comix-ai" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/photo-to-comic" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
