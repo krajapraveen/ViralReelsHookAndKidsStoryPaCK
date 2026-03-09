@@ -18,9 +18,9 @@ export const FileExpiryWarning = ({
         <div className="flex items-center gap-3">
           <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
           <div>
-            <h3 className="text-red-400 font-bold text-lg">Download Now! File expires in 5 minutes</h3>
+            <h3 className="text-red-400 font-bold text-lg">Download Now! File expires in 30 minutes</h3>
             <p className="text-red-200/80 text-sm">
-              Your file will be automatically deleted to save server space. Download immediately!
+              Your file will be automatically deleted to save server space. Download before it expires!
             </p>
           </div>
         </div>
@@ -36,7 +36,7 @@ export const FileExpiryWarning = ({
       >
         <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
         <p className="text-amber-200 text-sm">
-          <strong>5-min expiry:</strong> Download files immediately after generation.
+          <strong>30-min expiry:</strong> Download files after generation.
         </p>
       </div>
     );
@@ -53,11 +53,11 @@ export const FileExpiryWarning = ({
         <div>
           <h3 className="text-amber-400 font-semibold text-lg flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            5-Minute Download Window
+            30-Minute Download Window
           </h3>
           <p className="text-amber-200/80 text-sm mt-1">
-            All generated files (images, videos, audio, PDFs) are automatically deleted after <strong>5 minutes</strong> to save server space. 
-            Please download your files immediately after generation. Expired files cannot be recovered.
+            All generated files (images, videos, audio, PDFs) are automatically deleted after <strong>30 minutes</strong> to save server space. 
+            Please download your files after generation. Expired files cannot be recovered.
           </p>
           <div className="flex items-center gap-2 mt-2 text-amber-300 text-xs">
             <Download className="w-3 h-3" />

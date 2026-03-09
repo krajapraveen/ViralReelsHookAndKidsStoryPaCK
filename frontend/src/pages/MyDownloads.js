@@ -203,10 +203,10 @@ export default function MyDownloads() {
           <div className="flex items-start gap-3">
             <AlertCircle className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-amber-400 font-semibold text-lg">Important: 5-Minute Download Window</h3>
+              <h3 className="text-amber-400 font-semibold text-lg">Important: 30-Minute Download Window</h3>
               <p className="text-amber-200/80 text-sm mt-1">
-                All generated files (images, videos, audio, PDFs) are automatically deleted after <strong>5 minutes</strong> to save server space. 
-                Please download your files immediately after generation. Expired files cannot be recovered.
+                All generated files (images, videos, audio, PDFs) are automatically deleted after <strong>30 minutes</strong> to save server space. 
+                Please download your files after generation. Expired files cannot be recovered.
               </p>
             </div>
           </div>

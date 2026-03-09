@@ -4,13 +4,15 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
+import { Progress } from '../components/ui/progress';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
 import { 
   Sparkles, ArrowLeft, User, Mail, Shield, Bell, 
-  CreditCard, Clock, Save, Trash2, Download,
-  Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Play
+  CreditCard, Clock, Save, Trash2, Download, Image, Video, Mic,
+  Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Play,
+  FileText, RefreshCw, Folder, HardDrive, AlertTriangle, XCircle
 } from 'lucide-react';
 import { useAppTour } from '../components/AppTour';
 
@@ -18,12 +20,15 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [savingPrefs, setSavingPrefs] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState('space'); // Default to Users Space
   const [stats, setStats] = useState({ totalGenerations: 0, creditsUsed: 0 });
+  const [userSpace, setUserSpace] = useState({
+    generated: [],
+    downloads: [],
+    pending: [],
+    failed: []
+  });
+  const [loadingSpace, setLoadingSpace] = useState(false);
   const navigate = useNavigate();
   const { restartTour } = useAppTour();
 
@@ -45,13 +50,14 @@ export default function Profile() {
 
   useEffect(() => {
     fetchUserData();
+    fetchUserSpace();
   }, []);
 
   const fetchUserData = async () => {
     try {
       const [userRes, statsRes] = await Promise.all([
         api.get('/api/auth/me'),
-        api.get('/api/generate/generations?page=0&size=1').catch(() => ({ data: { totalElements: 0 } }))
+        api.get('/api/generate?page=0&size=1').catch(() => ({ data: { total: 0 } }))
       ]);
       
       setUser(userRes.data);
@@ -61,48 +67,84 @@ export default function Profile() {
         email: userRes.data.email || ''
       }));
       
-      // Load preferences from API or localStorage
-      try {
-        const prefsRes = await api.get('/api/privacy/my-data');
-        if (prefsRes.data.success && prefsRes.data.data.consent) {
-          const consent = prefsRes.data.data.consent;
-          setPreferences(prev => ({
-            ...prev,
-            marketingEmails: consent.marketing || false,
-            emailNotifications: true
-          }));
-        }
-      } catch (e) {
-        // Fall back to localStorage
-        const savedPrefs = localStorage.getItem('emailPreferences');
-        if (savedPrefs) {
-          setPreferences(JSON.parse(savedPrefs));
-        }
-      }
-      
       setStats({
-        totalGenerations: statsRes.data.totalElements || 0,
+        totalGenerations: statsRes.data.total || 0,
         creditsUsed: 0
       });
     } catch (error) {
       toast.error('Failed to load profile');
-      navigate('/app');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+  const fetchUserSpace = async () => {
+    setLoadingSpace(true);
+    try {
+      // Fetch all user data in parallel
+      const [downloadsRes, projectsRes] = await Promise.all([
+        api.get('/api/downloads/my-downloads').catch(() => ({ data: { downloads: [] } })),
+        api.get('/api/story-video-studio/projects').catch(() => ({ data: { projects: [] } }))
+      ]);
 
+      // Process downloads
+      const downloads = downloadsRes.data.downloads || [];
+      
+      // Process projects to extract generated content
+      const projects = projectsRes.data.projects || [];
+      const generated = [];
+      const pending = [];
+      const failed = [];
+
+      projects.forEach(project => {
+        const item = {
+          id: project.project_id,
+          title: project.title,
+          type: 'story_video',
+          status: project.status,
+          createdAt: project.created_at,
+          thumbnail: project.thumbnail_url
+        };
+
+        if (project.status === 'video_rendered') {
+          generated.push({ ...item, videoUrl: project.final_video_url });
+        } else if (project.status === 'failed' || project.error) {
+          failed.push({ ...item, error: project.error || 'Generation failed' });
+        } else if (['draft', 'scenes_generated', 'images_generated', 'voices_generated'].includes(project.status)) {
+          pending.push(item);
+        }
+      });
+
+      setUserSpace({
+        generated,
+        downloads: downloads.map(d => ({
+          id: d.id,
+          filename: d.filename,
+          fileType: d.file_type,
+          size: d.file_size,
+          createdAt: d.created_at,
+          expiresAt: d.expires_at,
+          downloadUrl: d.download_url,
+          expired: d.expired
+        })),
+        pending,
+        failed
+      });
+    } catch (error) {
+      console.error('Failed to fetch user space:', error);
+    } finally {
+      setLoadingSpace(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
     try {
       await api.put('/api/auth/profile', {
         name: formData.name
       });
-      
+      toast.success('Profile updated successfully');
       setUser(prev => ({ ...prev, name: formData.name }));
-      toast.success('Profile updated successfully!');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to update profile');
     } finally {
@@ -110,459 +152,475 @@ export default function Profile() {
     }
   };
 
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-    
-    if (!formData.currentPassword) {
-      toast.error('Please enter your current password');
-      return;
-    }
-    
-    if (formData.newPassword !== formData.confirmPassword) {
-      toast.error('New passwords do not match');
-      return;
-    }
-    
-    if (formData.newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters');
-      return;
-    }
-
-    setSavingPassword(true);
-    try {
-      const response = await api.put('/api/auth/password', {
-        currentPassword: formData.currentPassword,
-        newPassword: formData.newPassword
-      });
-      
-      if (response.data.success) {
-        toast.success('Password changed successfully!');
-        setFormData(prev => ({
-          ...prev,
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
-        }));
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to change password');
-    } finally {
-      setSavingPassword(false);
-    }
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const handleSavePreferences = async () => {
-    setSavingPrefs(true);
-    try {
-      // Save to API
-      await api.post('/api/privacy/consent', {
-        marketing: preferences.marketingEmails,
-        analytics: true,
-        thirdParty: false
-      });
-      
-      // Also save locally
-      localStorage.setItem('emailPreferences', JSON.stringify(preferences));
-      toast.success('Notification preferences saved!');
-    } catch (error) {
-      // Fall back to local storage only
-      localStorage.setItem('emailPreferences', JSON.stringify(preferences));
-      toast.success('Preferences saved locally');
-    } finally {
-      setSavingPrefs(false);
-    }
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const handleExportData = async () => {
-    try {
-      const response = await api.get('/api/privacy/export');
-      if (response.data.success) {
-        const blob = new Blob([JSON.stringify(response.data.data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `creatorstudio-data-${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Your data has been exported!');
-      }
-    } catch (error) {
-      toast.error('Failed to export data');
-    }
+  const getTimeRemaining = (expiresAt) => {
+    if (!expiresAt) return null;
+    const diff = new Date(expiresAt) - new Date();
+    if (diff <= 0) return 'Expired';
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins} min left`;
+    const hours = Math.floor(mins / 60);
+    return `${hours}h ${mins % 60}m left`;
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      return;
-    }
-    
-    const confirmation = window.prompt('Type DELETE to confirm account deletion:');
-    if (confirmation !== 'DELETE') {
-      toast.error('Account deletion cancelled');
-      return;
-    }
-
-    try {
-      await api.delete('/api/privacy/delete-now');
-      localStorage.removeItem('token');
-      toast.success('Account deleted successfully');
-      navigate('/');
-    } catch (error) {
-      toast.error('Failed to delete account');
-    }
+  const getFileIcon = (type) => {
+    if (type?.includes('image')) return Image;
+    if (type?.includes('video')) return Video;
+    if (type?.includes('audio')) return Mic;
+    return FileText;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mx-auto mb-4" />
-          <p className="text-slate-400">Loading profile...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-purple-950/20 to-slate-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
-      <header className="bg-slate-900/50 backdrop-blur-xl border-b border-slate-800">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-purple-950/20 to-slate-950">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Dashboard
+              <Button variant="ghost" size="icon" className="text-white">
+                <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-indigo-500" />
-              <span className="text-xl font-bold text-white">Profile Settings</span>
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              <User className="w-6 h-6 text-purple-400" />
+              My Profile
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1 bg-purple-500/20 rounded-full flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span className="text-purple-400 font-medium">{user?.credits || 0} Credits</span>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {/* Profile Overview */}
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
-          <div className="flex items-center gap-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-indigo-500/20">
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-            </div>
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold text-white">{user?.name}</h2>
-              <p className="text-slate-400">{user?.email}</p>
-              <div className="flex items-center gap-4 mt-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  user?.role === 'ADMIN' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                }`}>
-                  {user?.role || 'USER'}
-                </span>
-                <span className="text-sm text-slate-500">
-                  Member since {new Date(user?.createdAt || Date.now()).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-indigo-400">{user?.credits || 0}</div>
-              <div className="text-sm text-slate-500">Credits Available</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-slate-900/50 backdrop-blur-xl rounded-xl border border-slate-800 p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center">
-              <Clock className="w-6 h-6 text-indigo-400" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-white">{stats.totalGenerations}</div>
-              <div className="text-sm text-slate-500">Total Generations</div>
-            </div>
-          </div>
-          <div className="bg-slate-900/50 backdrop-blur-xl rounded-xl border border-slate-800 p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
-              <CreditCard className="w-6 h-6 text-purple-400" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-white">{user?.credits || 0}</div>
-              <div className="text-sm text-slate-500">Credits Balance</div>
-            </div>
-          </div>
-          <div className="bg-slate-900/50 backdrop-blur-xl rounded-xl border border-slate-800 p-4 flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-green-400" />
-            </div>
-            <div>
-              <div className="text-lg font-bold text-green-400">Active</div>
-              <div className="text-sm text-slate-500">Account Status</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Update Profile */}
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <User className="w-5 h-5 text-indigo-400" />
-            Profile Information
-          </h3>
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name" className="text-slate-300 mb-2 block">Full Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Your name"
-                  className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500"
-                  data-testid="profile-name-input"
-                />
-              </div>
-              <div>
-                <Label htmlFor="email" className="text-slate-300 mb-2 block">Email Address</Label>
-                <Input
-                  id="email"
-                  value={formData.email}
-                  disabled
-                  className="bg-slate-800/30 border-slate-700 text-slate-400"
-                />
-                <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
-              </div>
-            </div>
-            <Button type="submit" disabled={saving} className="bg-indigo-500 hover:bg-indigo-600 text-white" data-testid="save-profile-btn">
-              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              {saving ? 'Saving...' : 'Save Changes'}
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+          {[
+            { id: 'space', label: 'My Space', icon: Folder },
+            { id: 'profile', label: 'Profile Settings', icon: User },
+            { id: 'security', label: 'Security', icon: Shield },
+            { id: 'notifications', label: 'Notifications', icon: Bell }
+          ].map(tab => (
+            <Button
+              key={tab.id}
+              variant={activeTab === tab.id ? 'default' : 'ghost'}
+              onClick={() => setActiveTab(tab.id)}
+              className={activeTab === tab.id ? 'bg-purple-600' : 'text-slate-400'}
+              data-testid={`tab-${tab.id}`}
+            >
+              <tab.icon className="w-4 h-4 mr-2" />
+              {tab.label}
             </Button>
-          </form>
+          ))}
         </div>
 
-        {/* Change Password */}
-        {!user?.googleId && user?.authProvider !== 'google' && (
-          <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Lock className="w-5 h-5 text-indigo-400" />
-              Change Password
-            </h3>
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <Label htmlFor="currentPassword" className="text-slate-300 mb-2 block">Current Password</Label>
-                <div className="relative">
-                  <Input
-                    id="currentPassword"
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    value={formData.currentPassword}
-                    onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                    placeholder="Enter current password"
-                    className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
-                  >
-                    {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="newPassword" className="text-slate-300 mb-2 block">New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="newPassword"
-                      type={showNewPassword ? 'text' : 'password'}
-                      value={formData.newPassword}
-                      onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                      placeholder="Enter new password"
-                      className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
-                    >
-                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
+        {/* Users Space Tab */}
+        {activeTab === 'space' && (
+          <div className="space-y-8" data-testid="users-space">
+            {/* Stats Overview */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-green-400" />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="confirmPassword" className="text-slate-300 mb-2 block">Confirm New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      value={formData.confirmPassword}
-                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                      placeholder="Confirm new password"
-                      className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500 pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{userSpace.generated.length}</p>
+                    <p className="text-sm text-slate-400">Generated</p>
                   </div>
                 </div>
               </div>
-              <Button type="submit" disabled={savingPassword} variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
-                {savingPassword ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
-                {savingPassword ? 'Changing...' : 'Change Password'}
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                    <Download className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{userSpace.downloads.length}</p>
+                    <p className="text-sm text-slate-400">Downloads</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{userSpace.pending.length}</p>
+                    <p className="text-sm text-slate-400">In Progress</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                    <XCircle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{userSpace.failed.length}</p>
+                    <p className="text-sm text-slate-400">Failed</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Refresh Button */}
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={fetchUserSpace}
+                disabled={loadingSpace}
+                className="border-slate-600 text-slate-300"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${loadingSpace ? 'animate-spin' : ''}`} />
+                Refresh
               </Button>
-            </form>
+            </div>
+
+            {/* Ready for Download Section */}
+            {userSpace.downloads.filter(d => !d.expired).length > 0 && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-green-400 flex items-center gap-2 mb-4">
+                  <CheckCircle className="w-5 h-5" />
+                  Files Ready for Download
+                </h3>
+                <p className="text-green-200/80 text-sm mb-4">
+                  Your files are ready! Download them before they expire.
+                </p>
+                <div className="space-y-3">
+                  {userSpace.downloads.filter(d => !d.expired).map((download) => {
+                    const FileIcon = getFileIcon(download.fileType);
+                    const timeLeft = getTimeRemaining(download.expiresAt);
+                    return (
+                      <div 
+                        key={download.id}
+                        className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <FileIcon className="w-5 h-5 text-green-400" />
+                          <div>
+                            <p className="text-white font-medium">{download.filename}</p>
+                            <p className="text-xs text-slate-400">
+                              {formatFileSize(download.size)} • {timeLeft}
+                            </p>
+                          </div>
+                        </div>
+                        <a 
+                          href={`${process.env.REACT_APP_BACKEND_URL}${download.downloadUrl}`}
+                          download
+                          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Generated Content Section */}
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                <Video className="w-5 h-5 text-purple-400" />
+                Your Generated Content
+              </h3>
+              {userSpace.generated.length === 0 ? (
+                <div className="text-center py-8">
+                  <HardDrive className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                  <p className="text-slate-400">No generated content yet</p>
+                  <Link to="/app/story-video-studio">
+                    <Button className="mt-4 bg-purple-600 hover:bg-purple-700">
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Create Your First Video
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {userSpace.generated.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="flex items-center justify-between p-4 bg-slate-900/50 rounded-lg border border-slate-700/30"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                          <Video className="w-8 h-8 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{item.title}</p>
+                          <p className="text-sm text-slate-400">{formatDate(item.createdAt)}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {item.videoUrl && (
+                          <a 
+                            href={`${process.env.REACT_APP_BACKEND_URL}${item.videoUrl}`}
+                            download
+                            className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* In Progress Section */}
+            {userSpace.pending.length > 0 && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-amber-400 flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5" />
+                  In Progress
+                </h3>
+                <div className="space-y-3">
+                  {userSpace.pending.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+                        <div>
+                          <p className="text-white font-medium">{item.title}</p>
+                          <p className="text-xs text-amber-400 capitalize">{item.status.replace('_', ' ')}</p>
+                        </div>
+                      </div>
+                      <Link to="/app/story-video-studio">
+                        <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-400">
+                          Continue
+                        </Button>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Failed Generations Section */}
+            {userSpace.failed.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-red-400 flex items-center gap-2 mb-4">
+                  <AlertTriangle className="w-5 h-5" />
+                  Failed Generations
+                </h3>
+                <p className="text-red-200/80 text-sm mb-4">
+                  These generations failed. Credits have been refunded automatically.
+                </p>
+                <div className="space-y-3">
+                  {userSpace.failed.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <XCircle className="w-5 h-5 text-red-400" />
+                        <div>
+                          <p className="text-white font-medium">{item.title}</p>
+                          <p className="text-xs text-red-400">{item.error}</p>
+                        </div>
+                      </div>
+                      <Link to="/app/story-video-studio">
+                        <Button variant="outline" size="sm" className="border-red-500/50 text-red-400">
+                          Try Again
+                        </Button>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Info Card */}
+            <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/30">
+              <h4 className="text-white font-medium mb-2 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-blue-400" />
+                Important Information
+              </h4>
+              <ul className="text-sm text-slate-400 space-y-1">
+                <li>• Generated files are available for <strong className="text-amber-400">30 minutes</strong> after creation</li>
+                <li>• Download your files before they expire - expired files cannot be recovered</li>
+                <li>• Failed generations are automatically refunded to your credit balance</li>
+                <li>• Visit the Downloads page for all your files in one place</li>
+              </ul>
+            </div>
           </div>
         )}
 
-        {/* App Tour */}
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Play className="w-5 h-5 text-green-400" />
-            App Tour
-          </h3>
-          <p className="text-sm text-slate-400 mb-4">
-            Need a refresher on how to use Visionary Suite? Replay the interactive tour to learn about all features.
-          </p>
-          <Button 
-            onClick={() => {
-              restartTour();
-              toast.success('Tour started! Follow along to learn the features.');
-            }}
-            className="bg-green-600 hover:bg-green-700"
-            data-testid="replay-tour-btn"
-          >
-            <Play className="w-4 h-4 mr-2" />
-            Replay App Tour
-          </Button>
-        </div>
-
-        {/* Notification Preferences */}
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Bell className="w-5 h-5 text-indigo-400" />
-            Email Notifications
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-3 border-b border-slate-800">
-              <div>
-                <div className="font-medium text-white">All Email Notifications</div>
-                <div className="text-sm text-slate-500">Master toggle for all email notifications</div>
-              </div>
-              <Switch
-                checked={preferences.emailNotifications}
-                onCheckedChange={(checked) => setPreferences({ ...preferences, emailNotifications: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between py-3 border-b border-slate-800">
-              <div>
-                <div className="font-medium text-white">Generation Alerts</div>
-                <div className="text-sm text-slate-500">Get notified when your content is ready</div>
-              </div>
-              <Switch
-                checked={preferences.generationAlerts}
-                onCheckedChange={(checked) => setPreferences({ ...preferences, generationAlerts: checked })}
-                disabled={!preferences.emailNotifications}
-              />
-            </div>
-            <div className="flex items-center justify-between py-3 border-b border-slate-800">
-              <div>
-                <div className="font-medium text-white">Payment Receipts</div>
-                <div className="text-sm text-slate-500">Receive payment confirmations and receipts</div>
-              </div>
-              <Switch
-                checked={preferences.paymentAlerts}
-                onCheckedChange={(checked) => setPreferences({ ...preferences, paymentAlerts: checked })}
-                disabled={!preferences.emailNotifications}
-              />
-            </div>
-            <div className="flex items-center justify-between py-3 border-b border-slate-800">
-              <div>
-                <div className="font-medium text-white">Weekly Digest</div>
-                <div className="text-sm text-slate-500">Weekly summary of your activity</div>
-              </div>
-              <Switch
-                checked={preferences.weeklyDigest}
-                onCheckedChange={(checked) => setPreferences({ ...preferences, weeklyDigest: checked })}
-                disabled={!preferences.emailNotifications}
-              />
-            </div>
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <div className="font-medium text-white">Marketing & Updates</div>
-                <div className="text-sm text-slate-500">Tips, features, and promotional offers</div>
-              </div>
-              <Switch
-                checked={preferences.marketingEmails}
-                onCheckedChange={(checked) => setPreferences({ ...preferences, marketingEmails: checked })}
-                disabled={!preferences.emailNotifications}
-              />
-            </div>
-            <Button onClick={handleSavePreferences} disabled={savingPrefs} variant="outline" size="sm" className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
-              {savingPrefs ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              Save Preferences
-            </Button>
-          </div>
-        </div>
-
-        {/* Data & Privacy */}
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 p-6">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-indigo-400" />
-            Data & Privacy
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-slate-800/30 rounded-xl">
-              <div>
-                <div className="font-medium text-white">Export Your Data</div>
-                <div className="text-sm text-slate-500">Download all your data in JSON format</div>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleExportData} className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white" data-testid="export-data-btn">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
-            <Link to="/app/privacy" className="block">
-              <div className="flex items-center justify-between p-4 bg-slate-800/30 rounded-xl hover:bg-slate-800/50 transition-colors">
+        {/* Profile Settings Tab */}
+        {activeTab === 'profile' && (
+          <div className="max-w-2xl space-y-6">
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+              <h3 className="text-lg font-semibold text-white mb-4">Personal Information</h3>
+              <div className="space-y-4">
                 <div>
-                  <div className="font-medium text-white">Privacy Settings</div>
-                  <div className="text-sm text-slate-500">Manage your privacy preferences</div>
+                  <Label className="text-slate-300">Full Name</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="mt-1 bg-slate-900/50 border-slate-600 text-white"
+                    placeholder="Your name"
+                  />
                 </div>
-                <ArrowLeft className="w-4 h-4 rotate-180 text-slate-400" />
+                <div>
+                  <Label className="text-slate-300">Email Address</Label>
+                  <Input
+                    value={formData.email}
+                    disabled
+                    className="mt-1 bg-slate-900/50 border-slate-600 text-slate-400"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
+                </div>
+                <Button 
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                  className="bg-purple-600 hover:bg-purple-700"
+                  data-testid="save-profile-btn"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save Changes
+                </Button>
               </div>
-            </Link>
-          </div>
-        </div>
+            </div>
 
-        {/* Danger Zone */}
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-red-900/50 p-6">
-          <h3 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            Danger Zone
-          </h3>
-          <div className="p-4 bg-red-950/30 rounded-xl border border-red-900/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-red-300">Delete Account</div>
-                <div className="text-sm text-red-400/70">Permanently delete your account and all data</div>
+            {/* Account Stats */}
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+              <h3 className="text-lg font-semibold text-white mb-4">Account Statistics</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-900/50 rounded-lg p-4">
+                  <p className="text-slate-400 text-sm">Total Generations</p>
+                  <p className="text-2xl font-bold text-white">{stats.totalGenerations}</p>
+                </div>
+                <div className="bg-slate-900/50 rounded-lg p-4">
+                  <p className="text-slate-400 text-sm">Credits Balance</p>
+                  <p className="text-2xl font-bold text-purple-400">{user?.credits || 0}</p>
+                </div>
               </div>
-              <Button 
-                variant="destructive" 
-                size="sm" 
-                onClick={handleDeleteAccount}
-                className="bg-red-600 hover:bg-red-700"
-                data-testid="delete-account-btn"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Account
-              </Button>
             </div>
           </div>
-        </div>
-      </div>
-      
-      {/* Help Guide */}
+        )}
+
+        {/* Security Tab */}
+        {activeTab === 'security' && (
+          <div className="max-w-2xl">
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Lock className="w-5 h-5 text-purple-400" />
+                Change Password
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-slate-300">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={formData.currentPassword}
+                      onChange={(e) => setFormData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      className="mt-1 bg-slate-900/50 border-slate-600 text-white pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-slate-300">New Password</Label>
+                  <Input
+                    type="password"
+                    value={formData.newPassword}
+                    onChange={(e) => setFormData(prev => ({ ...prev, newPassword: e.target.value }))}
+                    className="mt-1 bg-slate-900/50 border-slate-600 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-slate-300">Confirm New Password</Label>
+                  <Input
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    className="mt-1 bg-slate-900/50 border-slate-600 text-white"
+                  />
+                </div>
+                <Button className="bg-purple-600 hover:bg-purple-700">
+                  <Lock className="w-4 h-4 mr-2" />
+                  Update Password
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <div className="max-w-2xl">
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Bell className="w-5 h-5 text-purple-400" />
+                Notification Preferences
+              </h3>
+              <div className="space-y-4">
+                {[
+                  { key: 'emailNotifications', label: 'Email Notifications', desc: 'Receive notifications via email' },
+                  { key: 'generationAlerts', label: 'Generation Alerts', desc: 'Get notified when generations complete' },
+                  { key: 'paymentAlerts', label: 'Payment Alerts', desc: 'Notifications about credits and payments' },
+                  { key: 'marketingEmails', label: 'Marketing Emails', desc: 'Receive tips, updates and offers' },
+                  { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Summary of your weekly activity' }
+                ].map(pref => (
+                  <div key={pref.key} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
+                    <div>
+                      <p className="text-white font-medium">{pref.label}</p>
+                      <p className="text-sm text-slate-400">{pref.desc}</p>
+                    </div>
+                    <Switch
+                      checked={preferences[pref.key]}
+                      onCheckedChange={(checked) => setPreferences(prev => ({ ...prev, [pref.key]: checked }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
       <HelpGuide pageId="profile" />
     </div>
   );

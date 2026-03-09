@@ -1346,7 +1346,7 @@ export default function StoryVideoStudio() {
                 <div className="col-span-full mb-2 bg-amber-500/20 border border-amber-500/30 rounded-lg p-3 flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
                   <p className="text-amber-200 text-sm">
-                    <strong>Download within 5 minutes!</strong> Generated files are automatically deleted to save space.
+                    <strong>Download within 30 minutes!</strong> Generated files are automatically deleted to save space.
                   </p>
                 </div>
               )}
@@ -1783,7 +1783,7 @@ export default function StoryVideoStudio() {
               <div className="flex items-center gap-3">
                 <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
                 <div>
-                  <h3 className="text-red-400 font-bold text-lg">Download Now! File expires in 5 minutes</h3>
+                  <h3 className="text-red-400 font-bold text-lg">Download Now! File expires in 30 minutes</h3>
                   <p className="text-red-200/80 text-sm">
                     Your video will be automatically deleted to save server space. Download immediately!
                   </p>

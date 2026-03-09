@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Configuration
-DOWNLOAD_EXPIRY_MINUTES = 5
+DOWNLOAD_EXPIRY_MINUTES = 30  # Increased from 5 to 30 minutes
 CLEANUP_INTERVAL_SECONDS = 60  # Check for expired files every minute
 DOWNLOADS_DIR = Path("/app/backend/static/downloads")
 

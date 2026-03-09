@@ -13,7 +13,7 @@ import shutil
 logger = logging.getLogger(__name__)
 
 # Configuration
-FILE_EXPIRY_MINUTES = 5
+FILE_EXPIRY_MINUTES = 30  # Increased from 5 to 30 minutes
 CLEANUP_INTERVAL_SECONDS = 60  # Run cleanup every minute
 GENERATED_DIR = Path("/app/backend/static/generated")
 
