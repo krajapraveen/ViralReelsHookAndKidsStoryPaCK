@@ -1,7 +1,7 @@
 {
   "timestamp": "2026-02-20T21:15:08.208797",
   "config": {
-    "base_url": "https://story-to-video-dev.preview.emergentagent.com",
+    "base_url": "https://story-to-video-35.preview.emergentagent.com",
     "concurrent_users": 200,
     "duration_seconds": 120
   },

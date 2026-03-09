@@ -2,37 +2,42 @@
 The user's core objective is to build a comprehensive AI content platform, Visionary Suite. The primary feature is the Story → Images → Video Studio, which automatically converts text stories into videos with images, voiceovers, and music.
 
 Recent user requests included:
-1.  A comprehensive, multi-phase production audit of the live website (), which has been completed.
-2.  Adding a missing Story to Video feature card to the application's main dashboard. (Completed)
-3.  Implementing a WebSocket-based real-time progress system for generation tasks. (Completed)
-4.  **Resolving a generation failed error in the Story to Video functionality.** (In Progress)
-5.  **Enhancing the Story to Video waiting experience** with detailed, phase-by-phase progress bars, integrated waiting room games/content, and automatic navigation to the downloads page upon completion. (Pending)
+1.  **Navigation & UI/UX:** Fixing a broken back arrow link, creating a comprehensive User Space on the profile page, and implementing an enhanced waiting experience (progress bars, games, quotes) during content generation.
+2.  **Performance:** Speeding up image and voice generation, which was taking too long.
+3.  **Bug Fixes:** Resolving multiple critical issues, including broken images, video generation failures, and profile page loading errors. The failures were often linked to a disconnect between the production and preview environments' file systems.
+4.  **Compliance & Housekeeping:** Adding a GDPR/CCPA cookie consent banner and implementing an aggressive automatic cleanup system for generated files. The initial 5-minute cleanup was too aggressive and had to be adjusted to 30 minutes.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The Visionary Suite is a full-stack application with a React frontend and FastAPI backend. The Story → Video Studio feature is mostly complete, with backend logic for scene breakdown, parallelized image/voice generation (using OpenAI & Gemini), video assembly (FFmpeg), and supporting features like analytics, templates, and social sharing.
+The Visionary Suite is a full-stack application with a React frontend and FastAPI backend. Key features implemented and refined in this session include:
 
-A WebSocket system for real-time progress updates has been implemented, along with the necessary frontend hooks and UI components. The Story to Video feature is now accessible from a card on the main dashboard. A comprehensive production audit was recently performed, and a critical backend outage (502 error) was identified and resolved.
+-   **Story to Video Pipeline:** The core workflow for generating scenes, images (now parallelized), voices (now parallelized), and videos is functional, but has been plagued by environment-specific file access issues.
+-   **Real-time Progress:** A WebSocket system provides granular, real-time progress updates for generation tasks, displayed in a new  component that includes games and quotes.
+-   **User Profile & File Management:** A redesigned User Space on the Profile page () shows generation stats and a gallery of user-generated files.
+-   **File Cleanup Service:** A background service () runs automatically, deleting all generated files older than 30 minutes from the  directory to manage server space.
+-   **Compliance:** A fully functional cookie consent banner and policy page have been added for GDPR/CCPA compliance.
+-   **Error Handling:** The system now includes more robust error handling, including pre-flight checks for file existence before video rendering and user-facing messages about potential refunds on failure.
 
 **Last working item**:
--   **Last item agent was working**: The agent was actively debugging a generation failed error reported by the user for the Story to Video feature. The agent traced the error from a  in  (related to cleanup of expired downloads) back to a likely root cause within the image generation pipeline in .
--   **Status**: IN PROGRESS
+-   **Last item agent was working**: The agent was about to investigate a Generation to video has got failed error reported by the user with a screenshot, indicating a failure on the production environment. This is a recurring type of issue, likely related to file paths and environment differences (preview vs. production).
+-   **Status**: NOT STARTED
 -   **Agent Testing Done**: N
--   **Which testing method agent to use?**: backend testing agent. First, reproduce the failure by running the full Story-to-Video flow. After applying a fix, run the same flow to confirm the bug is resolved, then execute a broader regression test on the feature.
+-   **Which testing method agent to use?**: backend testing agent. The agent must first analyze backend logs on the production server (if possible) or reproduce the issue in the preview environment. The test should involve the full end-to-end video generation flow, paying close attention to how file paths are handled during the video assembly stage.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Story to Video Generation Fails (P0)**
-    -   **Attempted fixes**: No fix has been attempted yet. The agent was in the diagnosis phase, reviewing logs and source code. The error log from  indicates the failure occurs in a cleanup function, but it's likely a symptom of an upstream problem where an expected data structure is .
+-   **Issue 1: Video Generation Fails on Production (P0)**
+    -   **Attempted fixes**: Previous fixes involved making the file download utility more robust by trying to fetch from the backend URL if a local file is not found, and adding pre-flight checks. However, the issue persists.
     -   **Next debug checklist**:
-        1.  Examine  to understand how image generation results are created and passed.
-        2.  Trace the lifecycle of a  download record to see why it might be  when the  function in  is called.
-        3.  Add logging in the generation pipeline to inspect the data being passed between functions.
-        4.  Write a minimal script to trigger only the story-to-video generation to reliably reproduce the error.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical bug blocking the core functionality of the Story to Video Studio feature. Fixing it will restore the primary user workflow.
-    -   **Status**: IN PROGRESS
-    -   **Is recurring issue?**: N
+        1.  Analyze backend logs () for the specific error message related to the failed video generation job.
+        2.  Trace the  in .
+        3.  Verify the s for images and audio being passed to FFmpeg. Confirm if they are local paths or URLs.
+        4.  If they are local paths (e.g., ), confirm why the files are not present on the server at render time. Could the 30-minute cleanup service be deleting them too early?
+        5.  If the user is on production, the root cause is almost certainly that the image/voice files were generated on the preview server and do not exist on the production server's filesystem. The fix needs to ensure files are accessible via URL and downloaded by the rendering worker before assembly.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is the application's core feature. Fixing it is critical for user trust and functionality.
+    -   **Status**: NOT STARTED
+    -   **Is recurring issue?**: Y
     -   **Should Test frontend/backend/both after fix?**: backend
     -   **Blocked on other issue**: None
 
@@ -41,22 +46,18 @@ There are no other tasks currently in progress. The focus is entirely on fixing 
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **(P0) Enhance Story to Video Generation UX**: Immediately after fixing the generation bug, implement the user's requested UI/UX improvements.
-        -   **Task**: Send more granular status updates over the existing WebSocket connection from the backend generation pipeline ().
-        -   **Task**: Update the frontend  component to display these detailed, phase-by-phase steps (e.g., Generating Scenes..., Creating Images..., Rendering Video...).
-        -   **Task**: Ensure the  component is displayed prominently during the entire generation process.
-        -   **Task**: Implement a client-side redirect () to the user's profile/downloads page upon receiving the final COMPLETED WebSocket message.
-    -   **(P1) Full End-to-End Test of Story to Video**: After the fix and UX enhancements, perform a comprehensive test of the entire flow: start generation, observe real-time progress, see waiting games, get redirected on completion, and verify the downloaded video is correct.
+    -   **(P1) Automatic Refund on System-Side Failure**: The frontend logic was added, but the backend implementation for automatically processing a credit refund via Cashfree on generation failure needs to be built and verified.
+    -   **(P1) Increase Worker Performance/Load Balancing**: The user requested performance improvements for video rendering. This requires investigation into optimizing FFmpeg parameters or scaling the background worker infrastructure.
 -   **Future Tasks:**
-    -   **(P2) Refactor Backend Video Routes**: Re-evaluate consolidating the various  files into a more cohesive structure for better long-term maintainability.
-    -   **(P2) Enhance Analytics Dashboard**: Build out the frontend for the new analytics metrics (DAU, revenue) that were added to the backend.
-    -   **(P3) Character Consistency Training**: Although the backend is implemented, build a dedicated UI for users to manage and train their character models.
-    -   **(P3) Comprehensive Automated Test Suite**: Create a full suite of automated tests (using ============================= test session starts ==============================
+    -   **(P2) Refactor Backend Video Routes**: Consolidate the various  files for better maintainability.
+    -   **(P2) Enhance Analytics Dashboard UI**: Build out the frontend for the new analytics metrics.
+    -   **(P3) Character Consistency Training UI**: Build the UI for the existing character model management backend.
+    -   **(P3) Comprehensive Automated Test Suite**: Create a full suite of automated tests (============================= test session starts ==============================
 platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 plugins: anyio-4.12.1, locust-2.43.3, asyncio-1.3.0
 asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 2110 items / 4 errors
+collected 2125 items / 4 errors
 
 ==================================== ERRORS ====================================
 ________________ ERROR collecting backend/scripts/load_test.py _________________
@@ -463,8 +464,8 @@ backend/server.py:619
           
     return self.router.on_event(event_type)
 
-backend/server.py:901
-  /app/backend/server.py:901: DeprecationWarning: 
+backend/server.py:909
+  /app/backend/server.py:909: DeprecationWarning: 
           on_event is deprecated, use lifespan event handlers instead.
   
           Read more about it in the
@@ -479,23 +480,27 @@ ERROR backend/tests/test_security_and_expanded_content_iteration93.py - Asser...
 ERROR backend/tests/test_user_analytics_ratings_iteration84.py - AttributeErr...
 ERROR tests/load/load_test.py
 !!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!!
-======================== 94 warnings, 4 errors in 9.37s ======================== for the backend and a testing framework for the frontend) to prevent regressions, as manual testing is becoming time-consuming.
+======================== 94 warnings, 4 errors in 7.79s ========================, etc.) to prevent regressions.
 
 **Completed work in this session**
--   **Production Audit & Recovery**:
-    -   Identified and guided the resolution of a critical 502 Bad Gateway error on the production website, bringing it back online.
-    -   Completed a multi-phase production audit, verifying links, auth, UI, and features.
--   **Feature Implementation & Fixes**:
-    -   Added the Story to Video Studio feature card to the main Dashboard (), making it discoverable.
-    -   Implemented a real-time progress update system using WebSockets (, ).
-    -   Verified that several features flagged as broken by automated tests were working correctly and that the tests were using incorrect API endpoints (e.g., GenStudio, Daily Rewards).
--   **Backend Enhancements**:
-    -   Enhanced the analytics backend () with new models and endpoints for tracking DAU, revenue, and credit usage.
+-   **Critical Bug Fixes**:
+    -   **Broken Images:** Fixed by implementing an API endpoint to fetch existing images for a project on page load and adding a placeholder for unavailable images.
+    -   **Initial Video Generation Failure:** Resolved by installing FFmpeg and fixing an issue where  data URLs were being treated as file paths by a cleanup service.
+    -   **Profile Page Failure:** Fixed a broken API endpoint URL ( -> ) in .
+    -   **Back Arrow Navigation:** Corrected a broken link in the header to point to the correct dashboard route ().
+-   **Feature Implementation & UX**:
+    -   **User Space Profile Page:** Completely redesigned the profile page into a dashboard showing generation stats and a file gallery.
+    -   **Enhanced Waiting Experience:** Created a  component with games, puzzles, and quotes, which is displayed during all generation tasks.
+    -   **Cookie Consent Banner:** Added a GDPR/CCPA compliant cookie banner with granular controls and a corresponding policy page.
+    -   **Auto-Redirect on Completion:** Implemented client-side redirection to the  page after a successful generation.
+-   **Performance & Backend**:
+    -   **Parallel Processing:** Implemented parallel image and voice generation using  to significantly speed up the process.
+    -   **File Cleanup Service:** Implemented a new background service to delete all generated files older than 30 minutes, with corresponding frontend warnings. The initial 5-minute expiry was adjusted as it was too aggressive.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: SendGrid Email Service is Down**
-    -   **Debug checklist**: This is not a code issue. The SendGrid account has exceeded its free plan limits.
-    -   **Why to solve this issue and what will be achieved with this?**: It will re-enable all email-dependent features, like registration confirmation and password resets. It is currently blocked on the user upgrading their SendGrid plan.
+    -   **Debug checklist**: This is a non-code issue. The user's SendGrid account has exceeded its free plan limits.
+    -   **Why to solve this issue and what will be achieved with this?**: It will re-enable all email-dependent features (registration, password resets). It is blocked on the user upgrading their plan.
     -   **Should Test frontend/backend/both after fix?**: backend
     -   **Is recurring issue?**: Y
 
@@ -508,63 +513,112 @@ ERROR tests/load/load_test.py
 
 
 **Key Technical Concepts**
--   **WebSocket Communication**: For real-time, bidirectional client-server messaging to show live progress.
--   **Asynchronous Task Processing**: Backend processes (image/video generation) run asynchronously, with status tracked in the database.
--   **Production Debugging**: Diagnosing live site issues like 502 errors by checking logs and service status.
--   **Modular FastAPI Routers**: The backend is organized into feature-specific route files.
--   **React Hooks & Components**: The frontend is built with reusable components and state management hooks.
+-   **Parallel Processing**: Use of  to speed up I/O-bound tasks like calling external APIs for image and voice generation.
+-   **Background Services**: Implementation of a scheduled background task () that runs independently of API requests to perform system maintenance.
+-   **Environment-Specific Failures**: The recurring challenge of handling file storage and access in a distributed system where preview and production environments have separate filesystems.
+-   **Stateful Frontend Components**: Complex state management in  to track multi-stage generation progress, loading states, and errors.
+-   **Component Reusability**: Creation of reusable components like  and  to apply consistent UX across the application.
 
 **key DB schema**
--   **analytics_runs**: 
--   **analytics_dau**:  (New)
--   **analytics_revenue**:  (New)
--   **analytics_credit_usage**:  (New)
+-   **projects**: 
+-   **scene_assets**: 
+-   **temporary_downloads**: 
 
 **changes in tech stack**
--   usage: websockets [--version | <uri>] library added to  for real-time features.
+-   **FFmpeg** was installed on the system (Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libaacs0 libass9 libasyncns0 libavc1394-0 libavcodec59 libavdevice59
+  libavfilter8 libavformat59 libavutil57 libbdplus0 libblas3 libbluray2
+  libbs2b0 libcaca0 libcdio-cdda2 libcdio-paranoia2 libcdio19 libchromaprint1
+  libcjson1 libcodec2-1.0 libdc1394-25 libdecor-0-0 libdecor-0-plugin-1-cairo
+  libflac12 libflite1 libgfortran5 libgme0 libgsm1 libhwy1 libiec61883-0
+  libjack-jackd2-0 libjxl0.7 liblapack3 liblilv-0-0 libmbedcrypto7 libmp3lame0
+  libmpg123-0 libmysofa1 libnorm1 libogg0 libopenal-data libopenal1
+  libopenjp2-7 libopenmpt0 libopus0 libpgm-5.3-0 libplacebo208
+  libpocketsphinx3 libpostproc56 libpulse0 librabbitmq4 libraw1394-11 librist4
+  librsvg2-2 librsvg2-common librubberband2 libsamplerate0 libsdl2-2.0-0
+  libserd-0-0 libshine3 libslang2 libsnappy1v5 libsndfile1 libsndio7.0
+  libsord-0-0 libsoxr0 libspeex1 libsphinxbase3 libsratom-0-0 libsrt1.5-gnutls
+  libssh-gcrypt-4 libswresample4 libswscale6 libtheora0 libtwolame0
+  libudfread0 libusb-1.0-0 libva-drm2 libva-x11-2 libva2 libvdpau-va-gl1
+  libvdpau1 libvidstab1.1 libvorbis0a libvorbisenc2 libvorbisfile3 libvpx7
+  libvulkan1 libwebpmux3 libx264-164 libxcb-shape0 libxss1 libxv1 libxvidcore4
+  libzimg2 libzmq5 libzvbi-common libzvbi0 mesa-va-drivers mesa-vdpau-drivers
+  mesa-vulkan-drivers ocl-icd-libopencl1 pocketsphinx-en-us va-driver-all
+  vdpau-driver-all
+Suggested packages:
+  ffmpeg-doc libcuda1 libnvcuvid1 libnvidia-encode1 libbluray-bdj jackd2
+  libportaudio2 opus-tools pulseaudio libraw1394-doc librsvg2-bin xdg-utils
+  serdi sndiod sordi speex opencl-icd nvidia-vdpau-driver
+The following NEW packages will be installed:
+  ffmpeg libaacs0 libass9 libasyncns0 libavc1394-0 libavcodec59 libavdevice59
+  libavfilter8 libavformat59 libavutil57 libbdplus0 libblas3 libbluray2
+  libbs2b0 libcaca0 libcdio-cdda2 libcdio-paranoia2 libcdio19 libchromaprint1
+  libcjson1 libcodec2-1.0 libdc1394-25 libdecor-0-0 libdecor-0-plugin-1-cairo
+  libflac12 libflite1 libgfortran5 libgme0 libgsm1 libhwy1 libiec61883-0
+  libjack-jackd2-0 libjxl0.7 liblapack3 liblilv-0-0 libmbedcrypto7 libmp3lame0
+  libmpg123-0 libmysofa1 libnorm1 libogg0 libopenal-data libopenal1
+  libopenjp2-7 libopenmpt0 libopus0 libpgm-5.3-0 libplacebo208
+  libpocketsphinx3 libpostproc56 libpulse0 librabbitmq4 libraw1394-11 librist4
+  librsvg2-2 librsvg2-common librubberband2 libsamplerate0 libsdl2-2.0-0
+  libserd-0-0 libshine3 libslang2 libsnappy1v5 libsndfile1 libsndio7.0
+  libsord-0-0 libsoxr0 libspeex1 libsphinxbase3 libsratom-0-0 libsrt1.5-gnutls
+  libssh-gcrypt-4 libswresample4 libswscale6 libtheora0 libtwolame0
+  libudfread0 libusb-1.0-0 libva-drm2 libva-x11-2 libva2 libvdpau-va-gl1
+  libvdpau1 libvidstab1.1 libvorbis0a libvorbisenc2 libvorbisfile3 libvpx7
+  libvulkan1 libwebpmux3 libx264-164 libxcb-shape0 libxss1 libxv1 libxvidcore4
+  libzimg2 libzmq5 libzvbi-common libzvbi0 mesa-va-drivers mesa-vdpau-drivers
+  mesa-vulkan-drivers ocl-icd-libopencl1 pocketsphinx-en-us va-driver-all
+  vdpau-driver-all
+0 upgraded, 106 newly installed, 0 to remove and 0 not upgraded.
+Need to get 86.6 MB of archives.
+After this operation, 228 MB of additional disk space will be used.
+Do you want to continue? [Y/n] Abort.). No new Python/NPM packages were added, but existing code was significantly refactored.
 
 **All files of reference**
--   : Contains the stack trace for the current P0 bug.
--   : The likely source of the generation failure.
--   : The file where the error is explicitly thrown.
--   : The target for the upcoming UX enhancements.
--   : The UI component to be enhanced for detailed progress.
--   : The backend logic for sending progress updates.
+-   : Contains the core logic for video generation and is the most likely location for the current bug.
+-   : The new service responsible for deleting old files. Its interaction with the generation pipeline should be considered.
+-   : The main frontend page where users interact with the feature and where errors manifest.
+-   : The new User Space which relies on multiple backend services.
+-   : Essential for debugging the current P0 video generation failure.
 
 **Areas that need refactoring**:
--   The backend logic for the Story to Video feature is split across multiple files (, , etc.). This was flagged for future consolidation.
--   The  file still contains unrelated logic for both video templates and waiting games.
+-   The fundamental approach to file handling between environments needs a robust, long-term solution. Instead of relying on shared filesystems (which don't exist between preview/prod), all file access should ideally be abstracted through a service, perhaps using a cloud storage bucket (like S3) as a central repository for all generated assets.
 
 **key api endpoints**
--   : Initiates the video generation workflow.
--   : Polls for project status (legacy, now supplemented by WebSockets).
--   : The new WebSocket endpoint for real-time progress.
--   : The correct, verified endpoint for GenStudio data.
--   : The correct, verified endpoint for daily rewards.
+-   : (New) Fetches all generated images for a project.
+-   : (New) Fetches user's generation history for the User Space.
+-   : (New) Fetches all projects for a user.
+-   : Initiates the final video rendering. This is a critical endpoint to test.
+-   : (New) Parallelized image generation endpoint.
 
 **Critical Info for New Agent**
--   Your immediate and highest priority is to fix the **Story to Video generation failed** bug. Start by analyzing the logs and the suspected files ( and ).
--   Once the bug is fixed, your next task is to implement the user's requested UX enhancements for the generation process using the existing WebSocket infrastructure. This involves sending more detailed progress messages from the backend and rendering them on the frontend.
--   Be aware that the production environment was recently unstable. Verify service health before and after deployments.
--   When encountering test failures, double-check that the test is calling the correct API endpoint. Several bugs in the previous session were simply incorrect test configurations. The backend route definitions in the  directory are the source of truth.
+-   **The HIGHEST priority is the video generation failure.** This is a recurring issue rooted in the application's architecture not properly handling file access across different environments (preview vs. production). The fix is likely not a simple patch but may require ensuring all file operations use full URLs and download files as needed, rather than assuming local file access.
+-   The automatic file cleanup service deletes all generated files after 30 minutes. Be aware of this during testing; long-running generation steps might cause prerequisite files to be deleted before they are used.
+-   The  user was created directly in the database and should be used for testing. The password is .
 
 **documents and test reports created in this job**
 -   
--   
 -    (Updated)
--   Multiple test reports from  are available in .
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Asks to resolve minor test failures and confirm production readiness. (Partially Completed)
-2.  **User**: Confirms the three minor issues (GenStudio, Daily Rewards, Hashtags) are resolved. (Completed)
-3.  **User**: Asks Where is Story to Video new feature which we have added? after not seeing it on the dashboard. (Completed by adding the card)
-4.  **User**: Reports generation failed for Story to Video with a screenshot. (PENDING - This is the current P0 bug)
-5.  **User**: Requests detailed progress bars for each generation phase, entertainment (games, quotes) during waiting, and navigation to the downloads page on completion. (PENDING - This is the upcoming P0 task)
+1.  **User**: Reports Generation to video has got failed. (PENDING - Current P0 Issue)
+2.  **User**: Reports broken images, profile page errors, and requests a User Space. (Completed)
+3.  **User**: Provides a large list of 10 issues including performance, UI/UX during waiting, and bug fixes. (Completed)
+4.  **User**: Requests aggressive 5-minute file cleanup. (Completed, and later adjusted to 30 mins)
+5.  **User**: Reports video generation failure due to Local file not found. (Completed with a partial fix)
+6.  **User**: Reports broken images. (Completed)
+7.  **User**: Requests a cookie consent banner. (Completed)
+8.  **User**: Asks for a full production audit and removal of compliance issues. (Completed)
+9.  **User**: Confirms the full video pipeline is working and asks if the site is production-ready. (This was premature, as issues resurfaced).
+10. **User**: Requests creation of a test user and a full video render test. (Completed)
 
 **Project Health Check:**
 -   **Broken**:
-    -   **Story to Video Feature**: The core generation workflow is non-functional due to a bug.
-    -   **Email Service (SendGrid)**: Unusable due to an account limit issue, blocking email-related features.
+    -   **Video Generation**: The core video rendering part of the Story to Video feature is failing, blocking the main user workflow.
+    -   **Email Service (SendGrid)**: Unusable due to account limits. Blocked on user action.
 -   **Mocked**:
     -   None.
 
@@ -582,13 +636,12 @@ ERROR tests/load/load_test.py
 **Testing status**
 -   **Testing agent used after significant changes**: YES
 -   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: None. Ad-hoc curl commands and the testing agent were used instead.
--   **Known regressions**: The Story to Video generation is a new regression.
+-   **Test files created**: None.
+-   **Known regressions**: Video generation is a critical regression.
 
 **Credentials to test flow:**
 -   **Admin User**:  / 
--   **UAT Test User**:  /  (Note: this account was intermittently rate-limited/locked during previous tests).
+-   **UAT Test User**:  /  (This user now exists and works).
 
 **What agent forgot to execute**
--   The agent was in the middle of diagnosing the Story to Video generation failure and has not yet applied a fix.
--   The implementation of the detailed UX enhancements for the generation process (granular progress bars, etc.) has not been started.</analysis>
+-   The backend implementation for automatically processing a credit refund on system failure was planned but not executed. The frontend shows a message, but the refund itself is not processed.</analysis>

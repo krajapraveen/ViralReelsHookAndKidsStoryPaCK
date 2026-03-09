@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://story-to-video-dev.preview.emergentagent.com
+**Platform URL:** https://story-to-video-35.preview.emergentagent.com
 
 ---
 

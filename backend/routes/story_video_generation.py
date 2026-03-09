@@ -12,6 +12,7 @@ import asyncio
 import subprocess
 import tempfile
 import shutil
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from pathlib import Path
@@ -22,6 +23,8 @@ import aiofiles
 
 # Import shared utilities
 from shared import db, get_current_user
+
+logger = logging.getLogger(__name__)
 
 # Import WebSocket progress broadcaster
 try:
@@ -1175,18 +1178,19 @@ async def render_video_task(
                 img_url = img.get("url") or img.get("image_url")
                 await download_file(img_url, image_path)
                 
-                # Get voice audio path - handle both local and URL formats
-                audio_url = voice.get("audio_path") or voice.get("audio_url")
-                if audio_url and audio_url.startswith("/static/"):
-                    audio_path = f"/app/backend{audio_url}"
-                else:
-                    audio_path = audio_url
+                # Download voice audio - use download_file for consistent remote/local handling
+                audio_path = os.path.join(temp_dir, f"scene_{scene_num}_audio.mp3")
+                audio_url = voice.get("audio_url") or voice.get("audio_path")
                 
-                if not audio_path or not os.path.exists(audio_path):
-                    # Try to construct the path from the URL
-                    audio_url_path = voice.get("audio_url", "")
-                    if audio_url_path:
-                        audio_path = f"/app/backend{audio_url_path}"
+                if audio_url:
+                    # If it's already a full local path, check if file exists
+                    if audio_url.startswith("/app/backend/") and os.path.exists(audio_url):
+                        shutil.copy(audio_url, audio_path)
+                    else:
+                        # Use download_file for both /static/ paths and URLs
+                        await download_file(audio_url, audio_path)
+                else:
+                    raise Exception(f"No audio URL found for scene {scene_num}")
                 
                 duration = voice.get("duration", 5)
                 if duration <= 0:
@@ -1341,9 +1345,50 @@ async def render_video_task(
             shutil.rmtree(temp_dir, ignore_errors=True)
             
     except Exception as e:
+        error_message = str(e)
+        logger.error(f"Video render failed for job {job_id}: {error_message}")
+        
         # Broadcast: Error
         if WS_AVAILABLE and user_id:
-            await broadcast_error(job_id, user_id, str(e), stage="video_assembly")
+            await broadcast_error(job_id, user_id, error_message, stage="video_assembly")
+        
+        # Attempt to refund credits for failed video generation
+        try:
+            # Get the render job to find the cost
+            job_doc = await db.render_jobs.find_one({"job_id": job_id})
+            if job_doc and user_id:
+                # Refund the video render cost
+                refund_amount = CREDIT_COSTS["video_render"]
+                if not job_doc.get("include_watermark", True):
+                    refund_amount += CREDIT_COSTS["watermark_removal"]
+                
+                from bson import ObjectId
+                # Try to find user and refund
+                user = None
+                try:
+                    user = await db.users.find_one({"_id": ObjectId(user_id)})
+                except Exception:
+                    user = await db.users.find_one({"id": user_id})
+                
+                if user:
+                    await db.users.update_one(
+                        {"_id": user.get("_id")},
+                        {
+                            "$inc": {"credits": refund_amount},
+                            "$push": {
+                                "credit_transactions": {
+                                    "amount": refund_amount,
+                                    "description": f"Automatic refund for failed video generation (Job: {job_id[:8]}...)",
+                                    "timestamp": datetime.now(timezone.utc),
+                                    "type": "refund",
+                                    "reason": "generation_failed"
+                                }
+                            }
+                        }
+                    )
+                    logger.info(f"Refunded {refund_amount} credits to user {user_id} for failed job {job_id}")
+        except Exception as refund_error:
+            logger.error(f"Failed to process refund for job {job_id}: {refund_error}")
         
         # Update job as failed
         await db.render_jobs.update_one(
@@ -1351,55 +1396,71 @@ async def render_video_task(
             {
                 "$set": {
                     "status": "FAILED",
-                    "error": str(e),
-                    "completed_at": datetime.now(timezone.utc)
+                    "error": error_message,
+                    "completed_at": datetime.now(timezone.utc),
+                    "credits_refunded": True
                 }
             }
         )
 
 async def download_file(url: str, output_path: str):
-    """Download file from URL or copy from local path"""
+    """Download file from URL or copy from local path - handles both local and remote files"""
     import os
     
-    # Check if it's a local path
-    if url.startswith("/static/"):
+    # Check if it's a local path (starts with /static/ or /api/)
+    if url.startswith("/static/") or url.startswith("/api/"):
         local_path = f"/app/backend{url}"
         if os.path.exists(local_path):
             shutil.copy(local_path, output_path)
             return
         
         # Local file not found - try downloading from the public URL
-        # Get the backend URL from environment
+        # Get the backend URL from environment or use known production URL
         backend_url = os.environ.get("BACKEND_PUBLIC_URL", "")
         if not backend_url:
-            # Try to construct from common patterns
-            backend_url = os.environ.get("REACT_APP_BACKEND_URL", "")
+            backend_url = os.environ.get("FRONTEND_URL", "")  # Use FRONTEND_URL which is set
+        if not backend_url:
+            # Fallback to the known production domain
+            backend_url = "https://www.visionary-suite.com"
         
-        if backend_url:
-            full_url = f"{backend_url}{url}"
+        # Also try preview URL pattern
+        preview_urls = [
+            backend_url,
+            "https://story-to-video-35.preview.emergentagent.com",  # Preview environment
+        ]
+        
+        for base_url in preview_urls:
+            if not base_url:
+                continue
+            full_url = f"{base_url}{url}"
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(full_url) as response:
+                    async with session.get(full_url, timeout=aiohttp.ClientTimeout(total=30)) as response:
                         if response.status == 200:
                             content = await response.read()
                             async with aiofiles.open(output_path, "wb") as f:
                                 await f.write(content)
+                            logger.info(f"Downloaded file from {full_url}")
                             return
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to download from {full_url}: {e}")
+                continue
         
         # If still not found, raise a helpful error
-        raise Exception(f"Image file not found. Please regenerate the images for this project. (File: {url})")
+        raise Exception(f"File not found locally or remotely. Please regenerate the images/voices for this project. (File: {url})")
     
-    # Otherwise download from URL
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                content = await response.read()
-                async with aiofiles.open(output_path, "wb") as f:
-                    await f.write(content)
-            else:
-                raise Exception(f"Failed to download file: {url}")
+    # Otherwise download from full URL
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                if response.status == 200:
+                    content = await response.read()
+                    async with aiofiles.open(output_path, "wb") as f:
+                        await f.write(content)
+                else:
+                    raise Exception(f"Failed to download file (HTTP {response.status}): {url}")
+    except aiohttp.ClientError as e:
+        raise Exception(f"Network error downloading file: {url} - {str(e)}")
 
 @router.get("/video/status/{job_id}")
 async def get_video_status(job_id: str):

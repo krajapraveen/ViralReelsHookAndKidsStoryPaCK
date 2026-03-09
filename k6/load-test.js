@@ -44,7 +44,7 @@ export const options = {
 };
 
 // Base URL from environment or default
-const BASE_URL = __ENV.BASE_URL || 'https://story-to-video-dev.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://story-to-video-35.preview.emergentagent.com';
 
 // Test user credentials
 const TEST_USER = {

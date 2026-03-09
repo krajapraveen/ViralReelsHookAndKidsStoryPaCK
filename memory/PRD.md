@@ -8,7 +8,7 @@ Full-stack SaaS platform for creative content generation with comprehensive moni
 ### ✅ BUG FIXES COMPLETED
 
 **Website:** https://www.visionary-suite.com  
-**Preview URL:** https://story-to-video-dev.preview.emergentagent.com
+**Preview URL:** https://story-to-video-35.preview.emergentagent.com
 **Status:** PRODUCTION READY ✅
 
 ### Critical Bug Fixes (P0):
