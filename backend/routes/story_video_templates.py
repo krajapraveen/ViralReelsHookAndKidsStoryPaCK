@@ -95,7 +95,7 @@ VIDEO_TEMPLATES = [
         "name": "My Superhero Story",
         "description": "Create your own superhero origin story",
         "age_group": "kids_9_12",
-        "style": "comic_book",
+        "style": "comic",
         "duration_estimate": "3-4 minutes",
         "scene_count": 6,
         "structure": [
@@ -145,7 +145,7 @@ VIDEO_TEMPLATES = [
         "name": "Space Explorer",
         "description": "An exciting journey through the stars",
         "age_group": "kids_9_12",
-        "style": "3d_animation",
+        "style": "3d_cartoon",
         "duration_estimate": "3-4 minutes",
         "scene_count": 6,
         "structure": [
@@ -170,7 +170,7 @@ VIDEO_TEMPLATES = [
         "name": "Best Friends Forever",
         "description": "A heartwarming story about friendship",
         "age_group": "all_ages",
-        "style": "cartoon_2d",
+        "style": "anime",
         "duration_estimate": "2-3 minutes",
         "scene_count": 5,
         "structure": [
@@ -194,7 +194,7 @@ VIDEO_TEMPLATES = [
         "name": "Learning Adventure",
         "description": "Educational content wrapped in a fun story",
         "age_group": "kids_5_8",
-        "style": "cartoon_2d",
+        "style": "storybook",
         "duration_estimate": "2-3 minutes",
         "scene_count": 5,
         "structure": [
@@ -240,7 +240,7 @@ VIDEO_TEMPLATES = [
         "name": "Junior Detective",
         "description": "A kid-friendly mystery to solve",
         "age_group": "kids_9_12",
-        "style": "comic_book",
+        "style": "comic",
         "duration_estimate": "3-4 minutes",
         "scene_count": 6,
         "structure": [
@@ -380,7 +380,7 @@ async def get_video_templates(
         "templates": templates,
         "total": len(templates),
         "age_groups": ["toddler", "kids_5_8", "kids_9_12", "teen", "all_ages"],
-        "styles": ["watercolor", "cartoon_2d", "3d_animation", "comic_book", "storybook"]
+        "styles": ["watercolor", "storybook", "3d_cartoon", "comic", "anime", "cinematic"]
     }
 
 # =============================================================================

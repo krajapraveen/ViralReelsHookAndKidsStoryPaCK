@@ -469,6 +469,14 @@ export default function StoryVideoStudio() {
     setLoading(true);
     setGenerationStage('scene_generation');
     try {
+      console.log('Creating project with data:', {
+        story_text: storyText.substring(0, 50) + '...',
+        title: title || 'Untitled Story',
+        language,
+        age_group: ageGroup,
+        style_id: styleId
+      });
+      
       const res = await api.post('/api/story-video-studio/projects/create', {
         story_text: storyText,
         title: title || 'Untitled Story',
@@ -477,13 +485,34 @@ export default function StoryVideoStudio() {
         style_id: styleId
       });
       
+      console.log('Create project response:', res.data);
+      
       if (res.data.success) {
         setProject(res.data.data);
         toast.success('Project created! Analyzing story and generating scenes... This may take 30-60 seconds.');
         await generateScenes(res.data.project_id);
+      } else {
+        console.error('Project creation returned success=false:', res.data);
+        toast.error(res.data.message || res.data.detail || 'Failed to create project');
+        setGenerationStage(null);
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to create project');
+      console.error('Project creation error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      let errorMessage = 'Failed to create project';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
       setGenerationStage(null);
     } finally {
       setLoading(false);
