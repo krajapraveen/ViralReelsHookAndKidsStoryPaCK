@@ -198,10 +198,13 @@ export default function CharacterConsistencyStudio() {
             ) : (
               <div className="space-y-3">
                 {characters.map((char) => (
-                  <button
+                  <div
                     key={char.character_id}
                     onClick={() => setSelectedCharacter(char)}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && setSelectedCharacter(char)}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${
                       selectedCharacter?.character_id === char.character_id
                         ? 'border-purple-500 bg-purple-500/20'
                         : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
@@ -246,7 +249,7 @@ export default function CharacterConsistencyStudio() {
                       </div>
                     </div>
                     <p className="text-sm text-slate-400 mt-2 line-clamp-2">{char.description}</p>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
