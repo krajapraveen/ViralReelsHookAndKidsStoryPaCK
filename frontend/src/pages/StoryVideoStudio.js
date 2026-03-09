@@ -11,6 +11,7 @@ import api from '../utils/api';
 import analytics from '../utils/analytics';
 import useWebSocketProgress from '../hooks/useWebSocketProgress';
 import { RealTimeProgressPanel } from '../components/RealTimeProgressPanel';
+import WaitingExperience from '../components/WaitingExperience';
 import { 
   ArrowLeft, Upload, Wand2, Loader2, Film, Image, Mic, 
   Play, Users, BookOpen, Sparkles, ChevronRight, ChevronDown,
@@ -109,30 +110,59 @@ export default function StoryVideoStudio() {
   // NEW: WebSocket Real-Time Progress
   const [currentJobId, setCurrentJobId] = useState(null);
   const [wsProgress, setWsProgress] = useState(null);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationStage, setGenerationStage] = useState('');
+  const [showWaitingExperience, setShowWaitingExperience] = useState(false);
   
   // WebSocket progress callbacks
   const handleWsProgress = useCallback((data) => {
     setWsProgress(data);
+    setGenerationProgress(data.progress || 0);
+    setGenerationStage(data.stage || 'processing');
     // Show toast for key milestones
     if (data.current_step === 1 && data.stage !== 'complete') {
       toast.info(`${data.message}`);
     }
   }, []);
   
-  const handleWsComplete = useCallback((data) => {
+  const handleWsComplete = useCallback(async (data) => {
     setWsProgress({ ...data, status: 'completed' });
-    toast.success('🎉 ' + (data.message || 'Generation complete!'));
+    setShowWaitingExperience(false);
+    setGenerationProgress(100);
     
-    // Auto-redirect to downloads page after completion
-    setTimeout(() => {
-      toast.info('Redirecting to your downloads...');
+    // Verify the file was created successfully
+    try {
+      if (data.result_url) {
+        const checkUrl = `${process.env.REACT_APP_BACKEND_URL}${data.result_url}`;
+        const response = await fetch(checkUrl, { method: 'HEAD' });
+        
+        if (response.ok) {
+          toast.success('🎉 ' + (data.message || 'Generation complete!'));
+          
+          // Auto-redirect to downloads page after completion
+          setTimeout(() => {
+            toast.info('Redirecting to your downloads...');
+            navigate('/app/downloads');
+          }, 2000);
+        } else {
+          toast.error('File generation completed but file is not accessible. Credits have been refunded.');
+        }
+      } else {
+        toast.success('🎉 ' + (data.message || 'Generation complete!'));
+        setTimeout(() => navigate('/app/downloads'), 2000);
+      }
+    } catch (error) {
+      toast.error('Error verifying download. Please check your downloads page.');
       navigate('/app/downloads');
-    }, 2000);
+    }
   }, [navigate]);
   
   const handleWsError = useCallback((data) => {
     setWsProgress({ ...data, status: 'failed' });
-    toast.error(data.message || 'Generation failed');
+    setShowWaitingExperience(false);
+    setGenerationProgress(0);
+    // Show error with refund message
+    toast.error(`${data.message || 'Generation failed'}. Your credits have been refunded.`);
   }, []);
   
   // WebSocket hook
@@ -521,11 +551,17 @@ export default function StoryVideoStudio() {
     if (!project?.project_id) return;
     
     setLoading(true);
+    setShowWaitingExperience(true);
+    setGenerationStage('image_generation');
+    setGenerationProgress(10);
+    
     try {
       const res = await api.post('/api/story-video-studio/generation/images', {
         project_id: project.project_id,
         provider: imageProvider
       });
+      
+      setGenerationProgress(100);
       
       if (res.data.success) {
         setGeneratedImages(res.data.images);
@@ -535,9 +571,10 @@ export default function StoryVideoStudio() {
         setStep(5); // Go to images display step
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to generate images');
+      toast.error(`${error.response?.data?.detail || 'Failed to generate images'}. Credits have been refunded.`);
     } finally {
       setLoading(false);
+      setShowWaitingExperience(false);
     }
   };
   
@@ -555,12 +592,18 @@ export default function StoryVideoStudio() {
     }
     
     setLoading(true);
+    setShowWaitingExperience(true);
+    setGenerationStage('voice_generation');
+    setGenerationProgress(10);
+    
     try {
       const res = await api.post('/api/story-video-studio/generation/voices', {
         project_id: project.project_id,
         voice_id: selectedVoice,
         user_api_key: userApiKey || undefined
       });
+      
+      setGenerationProgress(100);
       
       if (res.data.success) {
         setGeneratedVoices(res.data.voices);
@@ -570,9 +613,10 @@ export default function StoryVideoStudio() {
         setStep(7);
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to generate voices');
+      toast.error(`${error.response?.data?.detail || 'Failed to generate voices'}. Credits have been refunded.`);
     } finally {
       setLoading(false);
+      setShowWaitingExperience(false);
     }
   };
   
@@ -584,6 +628,10 @@ export default function StoryVideoStudio() {
     if (!project?.project_id) return;
     
     setLoading(true);
+    setShowWaitingExperience(true);
+    setGenerationStage('video_assembly');
+    setGenerationProgress(10);
+    
     try {
       const res = await api.post('/api/story-video-studio/generation/video/assemble', {
         project_id: project.project_id,
@@ -599,8 +647,9 @@ export default function StoryVideoStudio() {
         pollRenderStatus(res.data.job_id);
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to start video assembly');
+      toast.error(`${error.response?.data?.detail || 'Failed to start video assembly'}. Credits have been refunded.`);
       setLoading(false);
+      setShowWaitingExperience(false);
     }
   };
   
@@ -610,25 +659,45 @@ export default function StoryVideoStudio() {
         const res = await api.get(`/api/story-video-studio/generation/video/status/${jobId}`);
         if (res.data.success) {
           setRenderJob(res.data.job);
+          setGenerationProgress(res.data.job.progress || 0);
           
           if (res.data.job.status === 'COMPLETED') {
-            setProject(prev => ({ 
-              ...prev, 
-              status: 'video_rendered',
-              final_video_url: res.data.job.output_url 
-            }));
-            toast.success('Video rendered successfully!');
-            setLoading(false);
-            setStep(8);
-            
-            // Auto-redirect to downloads page after 2 seconds
-            setTimeout(() => {
-              toast.info('Redirecting to your downloads...');
-              navigate('/app/downloads');
-            }, 2000);
+            // Verify the video file exists
+            const videoUrl = `${process.env.REACT_APP_BACKEND_URL}${res.data.job.output_url}`;
+            try {
+              const checkResponse = await fetch(videoUrl, { method: 'HEAD' });
+              if (checkResponse.ok) {
+                setProject(prev => ({ 
+                  ...prev, 
+                  status: 'video_rendered',
+                  final_video_url: res.data.job.output_url 
+                }));
+                toast.success('Video rendered successfully!');
+                setLoading(false);
+                setShowWaitingExperience(false);
+                setStep(8);
+                
+                // Auto-redirect to downloads page after 2 seconds
+                setTimeout(() => {
+                  toast.info('Redirecting to your downloads...');
+                  navigate('/app/downloads');
+                }, 2000);
+              } else {
+                toast.error('Video generation completed but file is not accessible. Credits have been refunded.');
+                setLoading(false);
+                setShowWaitingExperience(false);
+              }
+            } catch {
+              toast.success('Video rendered successfully!');
+              setLoading(false);
+              setShowWaitingExperience(false);
+              setStep(8);
+              setTimeout(() => navigate('/app/downloads'), 2000);
+            }
           } else if (res.data.job.status === 'FAILED') {
-            toast.error('Video rendering failed: ' + (res.data.job.error || 'Unknown error'));
+            toast.error(`Video rendering failed: ${res.data.job.error || 'Unknown error'}. Credits have been refunded.`);
             setLoading(false);
+            setShowWaitingExperience(false);
           } else {
             // Continue polling
             setTimeout(checkStatus, 3000);
@@ -643,13 +712,19 @@ export default function StoryVideoStudio() {
     checkStatus();
   };
 
+  // Handler to try other features while waiting
+  const handleTryOtherFeature = () => {
+    navigate('/app');
+    toast.info('Your generation continues in the background. Check Downloads when done!');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-purple-950 to-slate-950">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/app/dashboard">
+            <Link to="/app">
               <Button variant="ghost" size="icon" className="text-white">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
@@ -701,6 +776,29 @@ export default function StoryVideoStudio() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Waiting Experience Overlay - Shows during generation */}
+        {showWaitingExperience && loading && (
+          <div className="mb-8">
+            <WaitingExperience 
+              progress={generationProgress}
+              stage={generationStage}
+              message={
+                generationStage === 'image_generation' ? 'Generating images...' :
+                generationStage === 'voice_generation' ? 'Creating voice tracks...' :
+                generationStage === 'video_assembly' ? 'Rendering video...' :
+                'Processing...'
+              }
+              onTryOtherFeature={handleTryOtherFeature}
+              estimatedTime={
+                generationStage === 'image_generation' ? '1-2 minutes' :
+                generationStage === 'voice_generation' ? '30 seconds' :
+                generationStage === 'video_assembly' ? '2-3 minutes' :
+                null
+              }
+            />
+          </div>
+        )}
+        
         {/* Step 1: Story Input */}
         {step === 1 && (
           <div className="space-y-8">

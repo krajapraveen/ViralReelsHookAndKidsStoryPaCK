@@ -286,13 +286,13 @@ async def generate_scene_images(
         char_prompt = f"{char.get('name')}: {char.get('appearance')}, wearing {char.get('clothing')}"
         character_bible[char.get("name")] = char_prompt
     
-    # Generate images
+    # Generate images IN PARALLEL for better performance
     generated_images = []
     style_prompt = project.get("style_prompt", "")
     negative_prompt = "copyrighted character, brand name, celebrity, nsfw, violence, gore"
     
-    for scene in scenes_to_generate:
-        # Build full prompt with character consistency
+    async def generate_single_image(scene):
+        """Generate image for a single scene"""
         chars_in_scene = scene.get("characters_in_scene", [])
         char_descriptions = [character_bible.get(c, c) for c in chars_in_scene]
         
@@ -306,15 +306,6 @@ async def generate_scene_images(
             else:
                 image_url = await generate_image_openai(full_prompt, negative_prompt, style_prompt)
             
-            # Save image info
-            image_data = {
-                "scene_number": scene.get("scene_number"),
-                "image_url": image_url,
-                "provider": request.provider,
-                "generated_at": datetime.now(timezone.utc)
-            }
-            generated_images.append(image_data)
-            
             # Store in scene_assets collection
             await db.scene_assets.insert_one({
                 "project_id": request.project_id,
@@ -325,12 +316,38 @@ async def generate_scene_images(
                 "created_at": datetime.now(timezone.utc)
             })
             
+            return {
+                "scene_number": scene.get("scene_number"),
+                "image_url": image_url,
+                "provider": request.provider,
+                "generated_at": datetime.now(timezone.utc).isoformat()
+            }
+            
         except Exception as e:
-            generated_images.append({
+            # Refund credits for failed generation
+            await db.users.update_one(
+                {"id": user_id},
+                {"$inc": {"credits": CREDIT_COSTS["image_per_scene"]}}
+            )
+            return {
                 "scene_number": scene.get("scene_number"),
                 "error": str(e),
                 "provider": request.provider
-            })
+            }
+    
+    # Generate all images in parallel (max 3 concurrent to avoid rate limits)
+    semaphore = asyncio.Semaphore(3)  # Limit concurrent requests
+    
+    async def limited_generate(scene):
+        async with semaphore:
+            return await generate_single_image(scene)
+    
+    # Run all generations in parallel
+    tasks = [limited_generate(scene) for scene in scenes_to_generate]
+    generated_images = await asyncio.gather(*tasks)
+    
+    # Sort by scene number
+    generated_images = sorted(generated_images, key=lambda x: x.get("scene_number", 0))
     
     # Update project status
     await db.story_projects.update_one(
@@ -545,10 +562,11 @@ async def generate_scene_voices(
         f"Voice generation for {len(voice_scripts)} scenes in project {request.project_id}"
     )
     
-    # Generate voices
+    # Generate voices IN PARALLEL for better performance
     generated_voices = []
     
-    for vs in voice_scripts:
+    async def generate_single_voice(vs):
+        """Generate voice for a single scene"""
         scene_num = vs.get("scene_number")
         narrator_text = vs.get("narrator_text", "")
         
@@ -565,15 +583,6 @@ async def generate_scene_voices(
             # Get audio duration
             duration = await get_audio_duration(output_path)
             
-            voice_data = {
-                "scene_number": scene_num,
-                "audio_url": f"/static/generated/{output_filename}",
-                "duration": duration,
-                "voice_id": request.voice_id,
-                "generated_at": datetime.now(timezone.utc)
-            }
-            generated_voices.append(voice_data)
-            
             # Store in voice_tracks collection
             await db.voice_tracks.insert_one({
                 "project_id": request.project_id,
@@ -585,11 +594,32 @@ async def generate_scene_voices(
                 "created_at": datetime.now(timezone.utc)
             })
             
+            return {
+                "scene_number": scene_num,
+                "audio_url": f"/static/generated/{output_filename}",
+                "duration": duration,
+                "voice_id": request.voice_id,
+                "generated_at": datetime.now(timezone.utc).isoformat()
+            }
+            
         except Exception as e:
-            generated_voices.append({
+            return {
                 "scene_number": scene_num,
                 "error": str(e)
-            })
+            }
+    
+    # Generate all voices in parallel (max 3 concurrent)
+    semaphore = asyncio.Semaphore(3)
+    
+    async def limited_generate_voice(vs):
+        async with semaphore:
+            return await generate_single_voice(vs)
+    
+    tasks = [limited_generate_voice(vs) for vs in voice_scripts]
+    generated_voices = await asyncio.gather(*tasks)
+    
+    # Sort by scene number
+    generated_voices = sorted(generated_voices, key=lambda x: x.get("scene_number", 0))
     
     # Update project status
     await db.story_projects.update_one(
