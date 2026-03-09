@@ -467,6 +467,7 @@ export default function StoryVideoStudio() {
     }
     
     setLoading(true);
+    setGenerationStage('scene_generation');
     try {
       const res = await api.post('/api/story-video-studio/projects/create', {
         story_text: storyText,
@@ -478,11 +479,12 @@ export default function StoryVideoStudio() {
       
       if (res.data.success) {
         setProject(res.data.data);
-        toast.success('Project created! Now generating scenes...');
+        toast.success('Project created! Analyzing story and generating scenes... This may take 30-60 seconds.');
         await generateScenes(res.data.project_id);
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create project');
+      setGenerationStage(null);
     } finally {
       setLoading(false);
     }
@@ -490,8 +492,26 @@ export default function StoryVideoStudio() {
   
   const generateScenes = async (projectId) => {
     setLoading(true);
+    setGenerationStage('scene_generation');
+    setShowWaitingExperience(true);
+    setGenerationProgress(10);
+    
     try {
-      const res = await api.post(`/api/story-video-studio/projects/${projectId}/generate-scenes`);
+      console.log('Generating scenes for project:', projectId);
+      
+      // Show progress updates during scene generation
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => Math.min(prev + 5, 85));
+      }, 3000);
+      
+      const res = await api.post(`/api/story-video-studio/projects/${projectId}/generate-scenes`, {}, {
+        timeout: 120000 // 2 minute timeout for scene generation
+      });
+      
+      clearInterval(progressInterval);
+      setGenerationProgress(100);
+      
+      console.log('Scene generation response:', res.data);
       
       if (res.data.success) {
         setProject(prev => ({
@@ -502,9 +522,18 @@ export default function StoryVideoStudio() {
         toast.success(`Generated ${res.data.data.scenes?.length || 0} scenes!`);
         analytics.trackGeneration('story_video_studio', res.data.data.credits_spent);
         setStep(2);
+        setShowWaitingExperience(false);
+        setGenerationStage(null);
+      } else {
+        console.error('Scene generation failed:', res.data);
+        toast.error(res.data.message || 'Failed to generate scenes');
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to generate scenes');
+      console.error('Scene generation error:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Failed to generate scenes. Please try again.';
+      toast.error(errorMessage);
+      setShowWaitingExperience(false);
+      setGenerationStage(null);
     } finally {
       setLoading(false);
     }
@@ -787,6 +816,12 @@ export default function StoryVideoStudio() {
               progress={generationProgress}
               stage={generationStage}
               message={
+                generationStage === 'scene_generation' ? (
+                  generationProgress < 30 ? 'Analyzing your story...' :
+                  generationProgress < 60 ? 'Creating characters and scenes...' :
+                  generationProgress < 85 ? 'Writing dialogue and narration...' :
+                  'Finalizing scene breakdown...'
+                ) :
                 generationStage === 'image_generation' ? 'Generating images...' :
                 generationStage === 'voice_generation' ? 'Creating voice tracks...' :
                 generationStage === 'video_assembly' ? (
@@ -800,6 +835,7 @@ export default function StoryVideoStudio() {
               }
               onTryOtherFeature={handleTryOtherFeature}
               estimatedTime={
+                generationStage === 'scene_generation' ? '30-60 seconds' :
                 generationStage === 'image_generation' ? '1-2 minutes' :
                 generationStage === 'voice_generation' ? '30 seconds' :
                 generationStage === 'video_assembly' ? '15-30 seconds' :
