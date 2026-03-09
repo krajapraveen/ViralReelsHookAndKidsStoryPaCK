@@ -38,8 +38,8 @@ export const useWebSocketProgress = (jobId = null, onProgress = null, onComplete
       wsUrl = `${protocol}//${window.location.host}`;
     }
     
-    // Ensure we use the /api prefix for the WebSocket endpoint
-    let url = `${wsUrl}/api/ws/progress?token=${token}`;
+    // WebSocket endpoint - try without /api prefix first (direct ws route)
+    let url = `${wsUrl}/ws/progress?token=${token}`;
     if (jobId) {
       url += `&job_id=${jobId}`;
     }

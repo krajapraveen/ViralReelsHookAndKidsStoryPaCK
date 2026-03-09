@@ -15,10 +15,12 @@ export default function Reviews() {
 
   const fetchReviews = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/reviews`);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/reviews/approved`);
       if (response.ok) {
         const data = await response.json();
-        setReviews(data);
+        if (data.success && data.reviews) {
+          setReviews(data.reviews);
+        }
       }
     } catch (error) {
       console.log('Could not fetch reviews');
