@@ -186,3 +186,139 @@ async def delete_review(review_id: str, admin: dict = Depends(get_admin_user)):
     except Exception as e:
         logger.error(f"Error deleting review: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete review")
+
+
+class SeedReviewRequest(BaseModel):
+    name: str
+    role: str
+    rating: int
+    message: str
+
+
+@router.post("/admin/seed")
+async def seed_review(review: SeedReviewRequest, admin: dict = Depends(get_admin_user)):
+    """Seed a pre-approved review (admin only)"""
+    try:
+        review_id = str(uuid.uuid4())
+        
+        review_doc = {
+            "id": review_id,
+            "name": review.name,
+            "role": review.role,
+            "rating": review.rating,
+            "message": review.message,
+            "approved": True,  # Pre-approved
+            "seeded": True,  # Mark as seeded
+            "approvedBy": admin.get("id"),
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.user_reviews.insert_one(review_doc)
+        
+        logger.info(f"Seeded review {review_id} by admin {admin.get('id')}")
+        
+        return {
+            "success": True,
+            "message": "Review seeded successfully",
+            "reviewId": review_id
+        }
+    except Exception as e:
+        logger.error(f"Error seeding review: {e}")
+        raise HTTPException(status_code=500, detail="Failed to seed review")
+
+
+@router.post("/admin/seed-bulk")
+async def seed_reviews_bulk(admin: dict = Depends(get_admin_user)):
+    """Seed default reviews for social proof (admin only)"""
+    try:
+        # Check if already seeded
+        existing = await db.user_reviews.count_documents({"seeded": True})
+        if existing >= 5:
+            return {
+                "success": True,
+                "message": f"Reviews already seeded ({existing} exist)",
+                "count": existing
+            }
+        
+        seed_reviews = [
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Sarah Johnson",
+                "role": "Content Creator",
+                "rating": 5,
+                "message": "Visionary Suite has completely transformed how I create content. The AI-powered tools are intuitive and the results are amazing!",
+                "approved": True,
+                "seeded": True,
+                "approvedBy": admin.get("id"),
+                "createdAt": "2026-02-15T10:30:00Z",
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Michael Chen",
+                "role": "Digital Marketer",
+                "rating": 5,
+                "message": "The Story Video Studio feature is a game-changer. I can create professional videos from simple text stories in minutes.",
+                "approved": True,
+                "seeded": True,
+                "approvedBy": admin.get("id"),
+                "createdAt": "2026-02-20T14:15:00Z",
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Emma Davis",
+                "role": "Author",
+                "rating": 5,
+                "message": "I use the Kids Story Pack feature for my storytelling channel. The illustrations are beautiful and my audience loves the content.",
+                "approved": True,
+                "seeded": True,
+                "approvedBy": admin.get("id"),
+                "createdAt": "2026-02-25T08:45:00Z",
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "name": "James Wilson",
+                "role": "Social Media Manager",
+                "rating": 4,
+                "message": "Great platform for generating engaging content quickly. The Comic Story Builder is my favorite feature.",
+                "approved": True,
+                "seeded": True,
+                "approvedBy": admin.get("id"),
+                "createdAt": "2026-03-01T16:20:00Z",
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Lisa Anderson",
+                "role": "YouTube Creator",
+                "rating": 5,
+                "message": "The credits system is fair and transparent. My engagement has doubled since using Visionary Suite.",
+                "approved": True,
+                "seeded": True,
+                "approvedBy": admin.get("id"),
+                "createdAt": "2026-03-05T11:00:00Z",
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            }
+        ]
+        
+        # Insert reviews
+        for review in seed_reviews:
+            existing_review = await db.user_reviews.find_one({"name": review["name"], "seeded": True})
+            if not existing_review:
+                await db.user_reviews.insert_one(review)
+        
+        final_count = await db.user_reviews.count_documents({"approved": True})
+        
+        logger.info(f"Bulk seeded reviews by admin {admin.get('id')}")
+        
+        return {
+            "success": True,
+            "message": "Reviews seeded successfully",
+            "count": final_count
+        }
+    except Exception as e:
+        logger.error(f"Error bulk seeding reviews: {e}")
+        raise HTTPException(status_code=500, detail="Failed to seed reviews")
