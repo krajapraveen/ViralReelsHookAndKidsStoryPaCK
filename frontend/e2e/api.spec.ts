@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
  * API Integration E2E Tests
  */
 test.describe('API Endpoints', () => {
-  const baseURL = process.env.REACT_APP_BACKEND_URL || 'https://story-to-video-35.preview.emergentagent.com';
+  const baseURL = process.env.REACT_APP_BACKEND_URL || 'https://video-factory-46.preview.emergentagent.com';
 
   test('health endpoint returns 200', async ({ request }) => {
     const response = await request.get(`${baseURL}/api/health/`);

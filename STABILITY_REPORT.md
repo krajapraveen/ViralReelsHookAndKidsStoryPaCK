@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://story-to-video-35.preview.emergentagent.com
+API URL: https://video-factory-46.preview.emergentagent.com
 ```
 
 ### Results Summary

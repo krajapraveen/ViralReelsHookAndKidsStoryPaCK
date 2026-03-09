@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Test Suite 4: API Tests & Mobile Responsiveness
  */
 
-const BASE_URL = 'https://story-to-video-35.preview.emergentagent.com';
+const BASE_URL = 'https://video-factory-46.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

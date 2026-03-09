@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://story-to-video-35.preview.emergentagent.com
+**Base URL:** https://video-factory-46.preview.emergentagent.com
 
 ---
 

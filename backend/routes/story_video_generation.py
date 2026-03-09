@@ -161,111 +161,202 @@ blurry, low quality, pixelated, distorted, deformed, bad anatomy,
 watermark, signature, text overlay, logo overlay
 """.strip().replace("\n", " ")
 
-async def generate_image_openai(prompt: str, negative_prompt: str, style: str, project_id: str = None) -> str:
-    """Generate image using OpenAI GPT Image 1 with universal negative prompts - uploads to R2 cloud storage"""
+# =============================================================================
+# IMAGE GENERATION - REBUILT PIPELINE WITH RETRY & MANDATORY R2 UPLOAD
+# =============================================================================
+
+# Maximum retry attempts for image generation
+MAX_IMAGE_RETRY_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 2
+
+async def generate_image_with_retry(
+    prompt: str, 
+    negative_prompt: str, 
+    style: str, 
+    project_id: str,
+    scene_number: int,
+    provider: str = "openai"
+) -> dict:
+    """
+    Generate image with retry logic and mandatory R2 upload.
+    Returns dict with url, storage_type, and metadata.
+    
+    This is the MAIN entry point for all image generation.
+    """
+    import time
+    
+    logger.info(f"[IMAGE GENERATION] Starting for project={project_id}, scene={scene_number}, provider={provider}")
+    
+    last_error = None
+    
+    for attempt in range(1, MAX_IMAGE_RETRY_ATTEMPTS + 1):
+        try:
+            logger.info(f"[IMAGE GENERATION] Attempt {attempt}/{MAX_IMAGE_RETRY_ATTEMPTS} for scene {scene_number}")
+            
+            # Generate image based on provider
+            start_time = time.time()
+            
+            if provider == "gemini":
+                image_bytes, image_id = await _generate_image_gemini_raw(prompt, negative_prompt, style)
+            else:
+                image_bytes, image_id = await _generate_image_openai_raw(prompt, negative_prompt, style)
+            
+            generation_time = time.time() - start_time
+            logger.info(f"[IMAGE GENERATION] Image generated in {generation_time:.2f}s for scene {scene_number}")
+            
+            if not image_bytes:
+                raise Exception("Image generation returned empty bytes")
+            
+            # MANDATORY: Upload to R2 cloud storage
+            logger.info(f"[R2 UPLOAD] Starting upload for scene {scene_number}")
+            upload_start = time.time()
+            
+            from services.cloudflare_r2_storage import get_r2_storage
+            r2_storage = get_r2_storage()
+            
+            if not r2_storage.is_configured:
+                raise Exception("R2 storage is not configured - cannot proceed without cloud storage")
+            
+            image_filename = f"scene_{scene_number}_{image_id}.png"
+            success, public_url, key = await r2_storage.upload_bytes(
+                image_bytes, "image", image_filename, project_id
+            )
+            
+            upload_time = time.time() - upload_start
+            
+            if not success or not public_url:
+                raise Exception(f"R2 upload failed for scene {scene_number}")
+            
+            logger.info(f"[R2 UPLOAD] Success for scene {scene_number} in {upload_time:.2f}s - URL: {public_url[:60]}...")
+            
+            return {
+                "success": True,
+                "url": public_url,
+                "storage_type": "r2_cloud",
+                "scene_number": scene_number,
+                "provider": provider,
+                "generation_time_ms": generation_time * 1000,
+                "upload_time_ms": upload_time * 1000,
+                "attempt": attempt
+            }
+            
+        except Exception as e:
+            last_error = str(e)
+            logger.error(f"[IMAGE GENERATION] Attempt {attempt} failed for scene {scene_number}: {last_error}")
+            
+            if attempt < MAX_IMAGE_RETRY_ATTEMPTS:
+                logger.info(f"[IMAGE GENERATION] Retrying in {RETRY_DELAY_SECONDS}s...")
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
+    
+    # All retries exhausted
+    logger.error(f"[IMAGE GENERATION] All {MAX_IMAGE_RETRY_ATTEMPTS} attempts failed for scene {scene_number}")
+    return {
+        "success": False,
+        "error": f"Image generation failed after {MAX_IMAGE_RETRY_ATTEMPTS} attempts: {last_error}",
+        "scene_number": scene_number,
+        "provider": provider
+    }
+
+
+async def _generate_image_openai_raw(prompt: str, negative_prompt: str, style: str) -> tuple:
+    """
+    Internal function to generate image using OpenAI GPT Image 1.
+    Returns (image_bytes, image_id) tuple.
+    """
     from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-    from services.cloudflare_r2_storage import get_r2_storage
-    import base64
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="Image generation API key not configured")
+        raise Exception("EMERGENT_LLM_KEY not configured")
     
-    # Combine custom negative prompt with universal negative prompts
+    # Combine prompts
     combined_negative = f"{negative_prompt}. {UNIVERSAL_NEGATIVE_PROMPTS}"
-    
-    # Build full prompt with style and negative
     full_prompt = f"{prompt}. Style: {style}. IMPORTANT - Avoid these: {combined_negative[:400]}"
     
-    try:
-        image_gen = OpenAIImageGeneration(api_key=api_key)
-        images = await image_gen.generate_images(
-            prompt=full_prompt,
-            model="gpt-image-1",
-            number_of_images=1
-        )
-        
-        if images and len(images) > 0:
-            image_bytes = images[0]
-            image_id = str(uuid.uuid4())
-            image_filename = f"scene_image_{image_id}.png"
-            
-            # Upload to R2 cloud storage
-            r2_storage = get_r2_storage()
-            if r2_storage.is_configured:
-                success, public_url, key = await r2_storage.upload_bytes(
-                    image_bytes, "image", image_filename, project_id
-                )
-                if success:
-                    logger.info(f"Image uploaded to R2: {public_url}")
-                    return public_url
-                else:
-                    logger.warning("R2 upload failed, falling back to local storage")
-            
-            # Fallback to local storage if R2 not configured or upload failed
-            image_path = STATIC_DIR / image_filename
-            with open(image_path, "wb") as f:
-                f.write(image_bytes)
-            return f"/static/generated/{image_filename}"
-        else:
-            raise HTTPException(status_code=500, detail="No image was generated")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OpenAI image generation failed: {str(e)}")
+    logger.info("[OPENAI] Calling GPT Image 1 API...")
+    
+    image_gen = OpenAIImageGeneration(api_key=api_key)
+    images = await image_gen.generate_images(
+        prompt=full_prompt,
+        model="gpt-image-1",
+        number_of_images=1
+    )
+    
+    if not images or len(images) == 0:
+        raise Exception("OpenAI returned no images")
+    
+    image_bytes = images[0]
+    image_id = str(uuid.uuid4())[:12]
+    
+    logger.info(f"[OPENAI] Image generated successfully, size={len(image_bytes)} bytes")
+    return image_bytes, image_id
 
-async def generate_image_gemini(prompt: str, negative_prompt: str, style: str, project_id: str = None) -> str:
-    """Generate image using Gemini Nano Banana with universal negative prompts - uploads to R2 cloud storage"""
+
+async def _generate_image_gemini_raw(prompt: str, negative_prompt: str, style: str) -> tuple:
+    """
+    Internal function to generate image using Gemini.
+    Returns (image_bytes, image_id) tuple.
+    """
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    from services.cloudflare_r2_storage import get_r2_storage
     import base64
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="Image generation API key not configured")
+        raise Exception("EMERGENT_LLM_KEY not configured")
     
-    # Combine custom negative prompt with universal negative prompts
+    # Combine prompts
     combined_negative = f"{negative_prompt}. {UNIVERSAL_NEGATIVE_PROMPTS}"
+    full_prompt = f"Create an image: {prompt}. Style: {style}. CRITICAL - Do NOT include: {combined_negative[:400]}"
     
-    full_prompt = f"Create an image: {prompt}. Style: {style}. CRITICAL - Do NOT include any of these: {combined_negative[:400]}"
+    logger.info("[GEMINI] Calling Gemini Image API...")
     
-    try:
-        chat = LlmChat(
-            api_key=api_key, 
-            session_id=f"gemini_img_{uuid.uuid4()}", 
-            system_message="You are an image generation assistant. Generate high-quality images."
-        )
-        chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-        
-        msg = UserMessage(text=full_prompt)
-        text, images = await chat.send_message_multimodal_response(msg)
-        
-        if images and len(images) > 0:
-            image_data = images[0]
-            image_bytes = base64.b64decode(image_data['data'])
-            
-            image_id = str(uuid.uuid4())
-            image_filename = f"scene_image_{image_id}.png"
-            
-            # Upload to R2 cloud storage
-            r2_storage = get_r2_storage()
-            if r2_storage.is_configured:
-                success, public_url, key = await r2_storage.upload_bytes(
-                    image_bytes, "image", image_filename, project_id
-                )
-                if success:
-                    logger.info(f"Image uploaded to R2: {public_url}")
-                    return public_url
-                else:
-                    logger.warning("R2 upload failed, falling back to local storage")
-            
-            # Fallback to local storage
-            image_path = STATIC_DIR / image_filename
-            with open(image_path, "wb") as f:
-                f.write(image_bytes)
-            return f"/static/generated/{image_filename}"
-        else:
-            raise HTTPException(status_code=500, detail="No image was generated")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gemini image generation failed: {str(e)}")
+    chat = LlmChat(
+        api_key=api_key, 
+        session_id=f"gemini_img_{uuid.uuid4()}", 
+        system_message="You are an image generation assistant."
+    )
+    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+    
+    msg = UserMessage(text=full_prompt)
+    text, images = await chat.send_message_multimodal_response(msg)
+    
+    if not images or len(images) == 0:
+        raise Exception("Gemini returned no images")
+    
+    image_data = images[0]
+    image_bytes = base64.b64decode(image_data['data'])
+    image_id = str(uuid.uuid4())[:12]
+    
+    logger.info(f"[GEMINI] Image generated successfully, size={len(image_bytes)} bytes")
+    return image_bytes, image_id
+
+
+# Legacy functions for backward compatibility (will redirect to new pipeline)
+async def generate_image_openai(prompt: str, negative_prompt: str, style: str, project_id: str = None) -> str:
+    """Legacy wrapper - redirects to new retry-enabled pipeline"""
+    result = await generate_image_with_retry(
+        prompt, negative_prompt, style, 
+        project_id or "unknown", 
+        scene_number=0, 
+        provider="openai"
+    )
+    if result["success"]:
+        return result["url"]
+    raise HTTPException(status_code=500, detail=result.get("error", "Image generation failed"))
+
+
+async def generate_image_gemini(prompt: str, negative_prompt: str, style: str, project_id: str = None) -> str:
+    """Legacy wrapper - redirects to new retry-enabled pipeline"""
+    result = await generate_image_with_retry(
+        prompt, negative_prompt, style, 
+        project_id or "unknown", 
+        scene_number=0, 
+        provider="gemini"
+    )
+    if result["success"]:
+        return result["url"]
+    raise HTTPException(status_code=500, detail=result.get("error", "Image generation failed"))
+
 
 @router.post("/images")
 async def generate_scene_images(
@@ -313,13 +404,16 @@ async def generate_scene_images(
         char_prompt = f"{char.get('name')}: {char.get('appearance')}, wearing {char.get('clothing')}"
         character_bible[char.get("name")] = char_prompt
     
-    # Generate images IN PARALLEL for better performance
+    # Generate images IN PARALLEL using NEW RETRY-ENABLED PIPELINE
     generated_images = []
     style_prompt = project.get("style_prompt", "")
     negative_prompt = "copyrighted character, brand name, celebrity, nsfw, violence, gore"
     
+    logger.info(f"[STORY PIPELINE] Starting image generation for {len(scenes_to_generate)} scenes")
+    
     async def generate_single_image(scene):
-        """Generate image for a single scene"""
+        """Generate image for a single scene using retry-enabled pipeline"""
+        scene_number = scene.get("scene_number", 0)
         chars_in_scene = scene.get("characters_in_scene", [])
         char_descriptions = [character_bible.get(c, c) for c in chars_in_scene]
         
@@ -327,39 +421,52 @@ async def generate_scene_images(
         if char_descriptions:
             full_prompt += f"Characters: {', '.join(char_descriptions)}. "
         
-        try:
-            if request.provider == "gemini":
-                image_url = await generate_image_gemini(full_prompt, negative_prompt, style_prompt, request.project_id)
-            else:
-                image_url = await generate_image_openai(full_prompt, negative_prompt, style_prompt, request.project_id)
-            
+        logger.info(f"[IMAGE GENERATION] Starting scene {scene_number}")
+        
+        # Use the new retry-enabled pipeline
+        result = await generate_image_with_retry(
+            prompt=full_prompt,
+            negative_prompt=negative_prompt,
+            style=style_prompt,
+            project_id=request.project_id,
+            scene_number=scene_number,
+            provider=request.provider
+        )
+        
+        if result["success"]:
             # Store in scene_assets collection
             await db.scene_assets.insert_one({
                 "project_id": request.project_id,
-                "scene_number": scene.get("scene_number"),
+                "scene_number": scene_number,
                 "asset_type": "image",
-                "url": image_url,
+                "url": result["url"],
                 "provider": request.provider,
-                "storage_type": "r2_cloud" if image_url.startswith("https://pub-") else "local",
+                "storage_type": result.get("storage_type", "r2_cloud"),
+                "generation_time_ms": result.get("generation_time_ms"),
+                "upload_time_ms": result.get("upload_time_ms"),
+                "retry_attempts": result.get("attempt", 1),
                 "created_at": datetime.now(timezone.utc)
             })
             
+            logger.info(f"[IMAGE GENERATION] Scene {scene_number} completed successfully")
+            
             return {
-                "scene_number": scene.get("scene_number"),
-                "image_url": image_url,
+                "scene_number": scene_number,
+                "image_url": result["url"],
                 "provider": request.provider,
+                "storage_type": result.get("storage_type"),
                 "generated_at": datetime.now(timezone.utc).isoformat()
             }
-            
-        except Exception as e:
+        else:
             # Refund credits for failed generation
+            logger.error(f"[IMAGE GENERATION] Scene {scene_number} FAILED: {result.get('error')}")
             await db.users.update_one(
                 {"id": user_id},
                 {"$inc": {"credits": CREDIT_COSTS["image_per_scene"]}}
             )
             return {
-                "scene_number": scene.get("scene_number"),
-                "error": str(e),
+                "scene_number": scene_number,
+                "error": result.get("error", "Image generation failed"),
                 "provider": request.provider
             }
     
@@ -1558,7 +1665,7 @@ async def download_file(url: str, output_path: str):
         # Also try preview URL pattern
         preview_urls = [
             backend_url,
-            "https://story-to-video-35.preview.emergentagent.com",  # Preview environment
+            "https://video-factory-46.preview.emergentagent.com",  # Preview environment
         ]
         
         for base_url in preview_urls:

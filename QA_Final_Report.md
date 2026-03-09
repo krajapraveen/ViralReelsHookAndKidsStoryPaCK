@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Testing Tools**: Playwright v1.58.2, curl, Python concurrent.futures  
-**Base URL**: https://story-to-video-35.preview.emergentagent.com
+**Base URL**: https://video-factory-46.preview.emergentagent.com
 
 ---
 

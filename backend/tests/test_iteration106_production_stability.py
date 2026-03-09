@@ -20,7 +20,7 @@ from datetime import datetime
 # Get the backend URL from environment
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://story-to-video-35.preview.emergentagent.com"
+    BASE_URL = "https://video-factory-46.preview.emergentagent.com"
 
 # Test credentials
 DEMO_EMAIL = "demo@example.com"

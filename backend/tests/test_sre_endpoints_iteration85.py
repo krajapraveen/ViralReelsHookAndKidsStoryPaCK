@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://story-to-video-35.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://video-factory-46.preview.emergentagent.com').rstrip('/')
 
 class TestSREPublicEndpoints:
     """Public SRE endpoints (no auth required)"""

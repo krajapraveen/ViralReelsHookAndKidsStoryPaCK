@@ -14,7 +14,7 @@ import os
 import json
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://story-to-video-35.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://video-factory-46.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER = {
