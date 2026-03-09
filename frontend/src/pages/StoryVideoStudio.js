@@ -854,7 +854,8 @@ export default function StoryVideoStudio() {
                 generationStage === 'image_generation' ? 'Generating images...' :
                 generationStage === 'voice_generation' ? 'Creating voice tracks...' :
                 generationStage === 'video_assembly' ? (
-                  generationProgress < 30 ? 'Downloading assets from cloud...' :
+                  generationProgress < 20 ? 'Preparing video assets...' :
+                  generationProgress < 40 ? 'Downloading assets from cloud...' :
                   generationProgress < 60 ? 'Encoding video segments...' :
                   generationProgress < 80 ? 'Concatenating video...' :
                   generationProgress < 95 ? 'Uploading to cloud storage...' :
@@ -863,6 +864,18 @@ export default function StoryVideoStudio() {
                 'Processing...'
               }
               onTryOtherFeature={handleTryOtherFeature}
+              onRetry={async () => {
+                // Retry the current job
+                if (renderJob?.job_id) {
+                  toast.info('Retrying video generation...');
+                  try {
+                    await api.post(`/api/story-video-studio/generation/video/retry/${renderJob.job_id}`);
+                    toast.success('Retry initiated');
+                  } catch (e) {
+                    toast.error('Retry failed. Please try again.');
+                  }
+                }
+              }}
               estimatedTime={
                 generationStage === 'scene_generation' ? '30-60 seconds' :
                 generationStage === 'image_generation' ? '1-2 minutes' :

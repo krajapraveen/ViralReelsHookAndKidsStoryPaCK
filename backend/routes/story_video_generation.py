@@ -2058,3 +2058,132 @@ async def cancel_stuck_job(
         "message": f"Job {job_id} cancelled and credits refunded"
     }
 
+
+@router.post("/video/retry/{job_id}")
+async def retry_video_job(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    """Retry a stuck or failed video render job"""
+    
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    
+    # Get the job
+    job = await db.render_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Verify ownership
+    if job.get("user_id") != user_id and current_user.get("role") != "ADMIN":
+        raise HTTPException(status_code=403, detail="Not authorized to retry this job")
+    
+    # Check if job can be retried
+    if job.get("status") == "COMPLETED":
+        return {"success": True, "message": "Job already completed", "video_url": job.get("output_url")}
+    
+    # Get project data
+    project = await db.story_projects.find_one({"project_id": job.get("project_id")})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get scene assets
+    scene_images = await db.scene_assets.find({
+        "project_id": job.get("project_id"),
+        "asset_type": "image"
+    }, {"_id": 0}).to_list(100)
+    
+    voice_tracks = await db.scene_assets.find({
+        "project_id": job.get("project_id"),
+        "asset_type": "audio"
+    }, {"_id": 0}).to_list(100)
+    
+    if not scene_images or not voice_tracks:
+        raise HTTPException(status_code=400, detail="Missing scene assets - please regenerate images and voices")
+    
+    # Update job for retry
+    retry_count = job.get("retry_count", 0) + 1
+    await db.render_jobs.update_one(
+        {"job_id": job_id},
+        {
+            "$set": {
+                "status": "RETRYING",
+                "retry_count": retry_count,
+                "retry_initiated_at": datetime.now(timezone.utc),
+                "error": None
+            }
+        }
+    )
+    
+    # Start background rendering using optimized renderer
+    background_tasks.add_task(
+        render_video_optimized,
+        job_id,
+        job.get("project_id"),
+        scene_images,
+        voice_tracks,
+        job.get("include_watermark", True),
+        job.get("background_music_id"),
+        job.get("music_volume", 0.3),
+        user_id
+    )
+    
+    logger.info(f"[VIDEO_RETRY] Job {job_id} retry #{retry_count} initiated by user {user_id}")
+    
+    return {
+        "success": True,
+        "message": f"Retry #{retry_count} initiated",
+        "job_id": job_id,
+        "status": "RETRYING"
+    }
+
+
+@router.get("/video/health/{job_id}")
+async def get_job_health(
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get detailed job health information for debugging"""
+    
+    job = await db.render_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Calculate time since last update
+    created_at = job.get("created_at")
+    updated_at = job.get("updated_at", created_at)
+    
+    now = datetime.now(timezone.utc)
+    
+    if isinstance(created_at, str):
+        created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    if isinstance(updated_at, str):
+        updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    
+    elapsed_seconds = (now - created_at).total_seconds() if created_at else 0
+    stall_seconds = (now - updated_at).total_seconds() if updated_at else 0
+    
+    # Determine health status
+    is_stalled = stall_seconds > 60 and job.get("status") in ["PENDING", "PROCESSING"]
+    is_stuck = stall_seconds > 120 and job.get("status") in ["PENDING", "PROCESSING"]
+    needs_retry = is_stuck and job.get("retry_count", 0) < 3
+    
+    return {
+        "success": True,
+        "job_id": job_id,
+        "status": job.get("status"),
+        "progress": job.get("progress", 0),
+        "health": {
+            "elapsed_seconds": round(elapsed_seconds),
+            "stall_seconds": round(stall_seconds),
+            "is_stalled": is_stalled,
+            "is_stuck": is_stuck,
+            "needs_retry": needs_retry,
+            "retry_count": job.get("retry_count", 0),
+            "max_retries": 3
+        },
+        "timing": job.get("timing_breakdown"),
+        "error": job.get("error"),
+        "output_url": job.get("output_url")
+    }
+

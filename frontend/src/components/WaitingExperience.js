@@ -58,7 +58,10 @@ export default function WaitingExperience({
   stage = 'processing',
   message = 'Processing...',
   onTryOtherFeature,
-  estimatedTime = null
+  estimatedTime = null,
+  onRetry = null,
+  isStalled = false,
+  stallDuration = 0
 }) {
   const [currentQuote, setCurrentQuote] = useState(QUOTES[0]);
   const [activeGame, setActiveGame] = useState(null);
@@ -69,6 +72,33 @@ export default function WaitingExperience({
   const [currentWord, setCurrentWord] = useState('');
   const [mathProblem, setMathProblem] = useState(null);
   const [mathAnswer, setMathAnswer] = useState('');
+  const [lastProgress, setLastProgress] = useState(progress);
+  const [progressStallTime, setProgressStallTime] = useState(0);
+  const [showStallWarning, setShowStallWarning] = useState(false);
+
+  // Detect progress stall (same progress for 60+ seconds)
+  useEffect(() => {
+    if (progress !== lastProgress) {
+      setLastProgress(progress);
+      setProgressStallTime(0);
+      setShowStallWarning(false);
+    }
+  }, [progress, lastProgress]);
+
+  // Track stall duration
+  useEffect(() => {
+    const stallTimer = setInterval(() => {
+      setProgressStallTime(prev => {
+        const newTime = prev + 1;
+        if (newTime >= 60 && !showStallWarning) {
+          setShowStallWarning(true);
+        }
+        return newTime;
+      });
+    }, 1000);
+    
+    return () => clearInterval(stallTimer);
+  }, [showStallWarning]);
 
   // Rotate quotes every 8 seconds
   useEffect(() => {
@@ -160,6 +190,39 @@ export default function WaitingExperience({
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6" data-testid="waiting-experience">
+      {/* Stall Warning */}
+      {(showStallWarning || isStalled) && (
+        <div className="mb-6 p-4 bg-amber-500/20 rounded-lg border border-amber-500/30" data-testid="stall-warning">
+          <div className="flex items-start gap-3">
+            <RefreshCw className="w-5 h-5 text-amber-400 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-amber-300 font-medium">Processing seems slow</h4>
+              <p className="text-amber-200/80 text-sm mt-1">
+                {progressStallTime >= 120 
+                  ? "This is taking longer than expected. The system will auto-retry shortly."
+                  : progressStallTime >= 60
+                    ? "Progress has stalled. Checking connection..."
+                    : "Waiting for server response..."}
+              </p>
+              <p className="text-amber-400/60 text-xs mt-2">
+                Stalled for: {Math.floor(progressStallTime / 60)}m {progressStallTime % 60}s
+              </p>
+              {onRetry && progressStallTime >= 60 && (
+                <Button 
+                  onClick={onRetry}
+                  size="sm"
+                  className="mt-3 bg-amber-600 hover:bg-amber-700"
+                  data-testid="retry-btn"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry Now
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Progress Section */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
@@ -170,6 +233,32 @@ export default function WaitingExperience({
           <span className="text-purple-400 font-bold">{Math.round(progress)}%</span>
         </div>
         <Progress value={progress} className="h-3 bg-slate-700" />
+        
+        {/* Detailed Progress Stages */}
+        <div className="grid grid-cols-6 gap-1 mt-3">
+          {[
+            { name: 'Script', threshold: 5 },
+            { name: 'Scenes', threshold: 15 },
+            { name: 'Images', threshold: 40 },
+            { name: 'Voice', threshold: 60 },
+            { name: 'Render', threshold: 90 },
+            { name: 'Upload', threshold: 100 }
+          ].map((step, idx) => (
+            <div 
+              key={step.name}
+              className={`text-center py-1 rounded text-xs ${
+                progress >= step.threshold 
+                  ? 'bg-green-500/30 text-green-400' 
+                  : progress >= (idx > 0 ? [5, 15, 40, 60, 90, 100][idx-1] : 0)
+                    ? 'bg-purple-500/30 text-purple-400 animate-pulse'
+                    : 'bg-slate-700/30 text-slate-500'
+              }`}
+            >
+              {step.name}
+            </div>
+          ))}
+        </div>
+        
         {estimatedTime && (
           <div className="flex items-center gap-1 mt-2 text-sm text-slate-400">
             <Clock className="w-4 h-4" />
