@@ -386,7 +386,7 @@ export default function Profile() {
                       <div className="flex gap-2">
                         {item.videoUrl && (
                           <a 
-                            href={`${process.env.REACT_APP_BACKEND_URL}${item.videoUrl}`}
+                            href={item.videoUrl?.startsWith('http') ? item.videoUrl : `${process.env.REACT_APP_BACKEND_URL}${item.videoUrl}`}
                             download
                             className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm"
                           >

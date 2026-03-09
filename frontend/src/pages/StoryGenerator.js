@@ -502,7 +502,7 @@ export default function StoryGenerator() {
                         {scene.imageUrl && (
                           <div className="mb-3">
                             <img 
-                              src={`${process.env.REACT_APP_BACKEND_URL}${scene.imageUrl}`}
+                              src={scene.imageUrl?.startsWith('http') ? scene.imageUrl : `${process.env.REACT_APP_BACKEND_URL}${scene.imageUrl}`}
                               alt={`Scene ${idx + 1}`}
                               className="w-full h-48 object-cover rounded-lg shadow-md"
                               data-testid={`scene-image-${idx}`}

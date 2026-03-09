@@ -1243,22 +1243,29 @@ async def render_video_task(
                 if duration <= 0:
                     duration = 5  # Default 5 seconds if not specified
                 
-                # Create video segment with image and audio
+                # Create video segment with image and audio - OPTIMIZED for speed
                 segment_path = os.path.join(temp_dir, f"segment_{scene_num}.mp4")
                 
-                # FFmpeg command to create segment with zoom effect
+                # FFmpeg command optimized for fast, lightweight output
+                # - 720p resolution (faster than 1080p)
+                # - ultrafast preset (10x faster encoding)
+                # - No zoompan effect (much faster)
+                # - Lower bitrate for smaller file size
                 cmd = [
                     "ffmpeg", "-y",
                     "-loop", "1",
                     "-i", image_path,
                     "-i", audio_path,
                     "-c:v", "libx264",
+                    "-preset", "ultrafast",  # MUCH faster encoding
                     "-tune", "stillimage",
                     "-c:a", "aac",
-                    "-b:a", "192k",
+                    "-b:a", "128k",  # Reduced audio bitrate
+                    "-b:v", "1500k",  # Target video bitrate for smaller files
                     "-pix_fmt", "yuv420p",
-                    "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,zoompan=z='min(zoom+0.001,1.2)':d={int(duration*25)}:s=1920x1080",
+                    "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",  # 720p, no zoompan
                     "-shortest",
+                    "-t", str(duration + 0.5),  # Explicit duration
                     segment_path
                 ]
                 
@@ -1341,12 +1348,15 @@ async def render_video_task(
             output_path = str(STATIC_DIR / output_filename)
             
             if include_watermark:
-                # Create watermark text
+                # Create watermark text - optimized encoding
                 watermark_text = "visionary-suite.com"
                 cmd = [
                     "ffmpeg", "-y",
                     "-i", final_video,
-                    "-vf", f"drawtext=text='{watermark_text}':fontcolor=white@0.5:fontsize=24:x=w-tw-10:y=h-th-10",
+                    "-vf", f"drawtext=text='{watermark_text}':fontcolor=white@0.5:fontsize=18:x=w-tw-10:y=h-th-10",
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",  # Fast encoding
+                    "-b:v", "1500k",
                     "-c:a", "copy",
                     output_path
                 ]

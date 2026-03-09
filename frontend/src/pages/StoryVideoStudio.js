@@ -133,7 +133,10 @@ export default function StoryVideoStudio() {
     // Verify the file was created successfully
     try {
       if (data.result_url) {
-        const checkUrl = `${process.env.REACT_APP_BACKEND_URL}${data.result_url}`;
+        // Handle both R2 cloud URLs (full https://) and local paths (/static/...)
+        const checkUrl = data.result_url?.startsWith('http') 
+          ? data.result_url 
+          : `${process.env.REACT_APP_BACKEND_URL}${data.result_url}`;
         const response = await fetch(checkUrl, { method: 'HEAD' });
         
         if (response.ok) {
@@ -662,8 +665,9 @@ export default function StoryVideoStudio() {
           setGenerationProgress(res.data.job.progress || 0);
           
           if (res.data.job.status === 'COMPLETED') {
-            // Verify the video file exists
-            const videoUrl = `${process.env.REACT_APP_BACKEND_URL}${res.data.job.output_url}`;
+            // Verify the video file exists - handle both R2 URLs and local paths
+            const outputUrl = res.data.job.output_url;
+            const videoUrl = outputUrl?.startsWith('http') ? outputUrl : `${process.env.REACT_APP_BACKEND_URL}${outputUrl}`;
             try {
               const checkResponse = await fetch(videoUrl, { method: 'HEAD' });
               if (checkResponse.ok) {
@@ -792,7 +796,7 @@ export default function StoryVideoStudio() {
               estimatedTime={
                 generationStage === 'image_generation' ? '1-2 minutes' :
                 generationStage === 'voice_generation' ? '30 seconds' :
-                generationStage === 'video_assembly' ? '2-3 minutes' :
+                generationStage === 'video_assembly' ? '30-60 seconds' :
                 null
               }
             />
@@ -1350,11 +1354,17 @@ export default function StoryVideoStudio() {
                   </p>
                 </div>
               )}
-              {generatedImages.map((img, idx) => (
+              {generatedImages.map((img, idx) => {
+                // Handle both R2 cloud URLs (full https://) and local paths (/static/...)
+                const imageUrl = img.image_url?.startsWith('http') 
+                  ? img.image_url 
+                  : `${process.env.REACT_APP_BACKEND_URL}${img.image_url}`;
+                
+                return (
                 <div key={idx} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
                   {img.image_url ? (
                     <img 
-                      src={`${process.env.REACT_APP_BACKEND_URL}${img.image_url}`}
+                      src={imageUrl}
                       alt={`Scene ${img.scene_number}`}
                       className="w-full aspect-video object-cover"
                       onError={(e) => {
@@ -1385,7 +1395,7 @@ export default function StoryVideoStudio() {
                     <p className="text-xs text-slate-400">{img.provider}</p>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         )}
@@ -1478,7 +1488,7 @@ export default function StoryVideoStudio() {
                       </div>
                       {voice.audio_url && (
                         <audio controls className="h-8">
-                          <source src={`${process.env.REACT_APP_BACKEND_URL}${voice.audio_url}`} type="audio/mpeg" />
+                          <source src={voice.audio_url?.startsWith('http') ? voice.audio_url : `${process.env.REACT_APP_BACKEND_URL}${voice.audio_url}`} type="audio/mpeg" />
                         </audio>
                       )}
                     </div>
@@ -1802,7 +1812,12 @@ export default function StoryVideoStudio() {
                   Back
                 </Button>
                 <Button 
-                  onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL}${project.final_video_url}`, '_blank')}
+                  onClick={() => {
+                    const videoUrl = project.final_video_url?.startsWith('http') 
+                      ? project.final_video_url 
+                      : `${process.env.REACT_APP_BACKEND_URL}${project.final_video_url}`;
+                    window.open(videoUrl, '_blank');
+                  }}
                   className="bg-green-500 hover:bg-green-600"
                 >
                   <Download className="w-4 h-4 mr-2" />
@@ -1816,7 +1831,7 @@ export default function StoryVideoStudio() {
               <div className="relative aspect-video bg-black">
                 <video
                   ref={videoRef}
-                  src={`${process.env.REACT_APP_BACKEND_URL}${project.final_video_url}`}
+                  src={project.final_video_url?.startsWith('http') ? project.final_video_url : `${process.env.REACT_APP_BACKEND_URL}${project.final_video_url}`}
                   className="w-full h-full"
                   onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
                   onLoadedMetadata={(e) => setDuration(e.target.duration)}
