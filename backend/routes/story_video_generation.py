@@ -484,6 +484,26 @@ async def generate_scene_images(
     # Sort by scene number
     generated_images = sorted(generated_images, key=lambda x: x.get("scene_number", 0))
     
+    # ===== CRITICAL: Update scenes array in project with generated image URLs =====
+    # This ensures data consistency - the project document has the URLs directly
+    for img_result in generated_images:
+        if "image_url" in img_result:
+            scene_num = img_result.get("scene_number")
+            image_url = img_result.get("image_url")
+            
+            # Update the specific scene in the scenes array
+            await db.story_projects.update_one(
+                {"project_id": request.project_id, "scenes.scene_number": scene_num},
+                {
+                    "$set": {
+                        "scenes.$.image_url": image_url,
+                        "scenes.$.image_provider": request.provider,
+                        "scenes.$.image_generated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            )
+            logger.info(f"[DB UPDATE] Saved image URL to project scenes array for scene {scene_num}")
+    
     # Update project status
     await db.story_projects.update_one(
         {"project_id": request.project_id},
@@ -777,6 +797,28 @@ async def generate_scene_voices(
     
     # Sort by scene number
     generated_voices = sorted(generated_voices, key=lambda x: x.get("scene_number", 0))
+    
+    # ===== CRITICAL: Update voice_scripts array in project with generated audio URLs =====
+    # This ensures data consistency - the project document has the URLs directly
+    for voice_result in generated_voices:
+        if "audio_url" in voice_result:
+            scene_num = voice_result.get("scene_number")
+            audio_url = voice_result.get("audio_url")
+            duration = voice_result.get("duration", 0)
+            
+            # Update the specific voice script in the voice_scripts array
+            await db.story_projects.update_one(
+                {"project_id": request.project_id, "voice_scripts.scene_number": scene_num},
+                {
+                    "$set": {
+                        "voice_scripts.$.audio_url": audio_url,
+                        "voice_scripts.$.duration": duration,
+                        "voice_scripts.$.voice_id": request.voice_id,
+                        "voice_scripts.$.voice_generated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            )
+            logger.info(f"[DB UPDATE] Saved audio URL to project voice_scripts array for scene {scene_num}")
     
     # Update project status
     await db.story_projects.update_one(
@@ -1699,7 +1741,7 @@ async def download_file(url: str, output_path: str):
         # Also try preview URL pattern
         preview_urls = [
             backend_url,
-            "https://video-factory-46.preview.emergentagent.com",  # Preview environment
+            "https://pipeline-debug-2.preview.emergentagent.com",  # Preview environment
         ]
         
         for base_url in preview_urls:
@@ -1816,6 +1858,140 @@ async def get_storage_status(current_user: dict = Depends(get_current_user)):
             "public_url_configured": bool(stats["public_url"]),
             "status": "active" if stats["configured"] else "not_configured"
         }
+    }
+
+
+# =============================================================================
+# ASSET VALIDATION ENDPOINT (Pre-flight check before video assembly)
+# =============================================================================
+
+@router.get("/video/validate-assets/{project_id}")
+async def validate_video_assets(
+    project_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Validate all required assets exist before starting video assembly.
+    Returns detailed information about missing or invalid assets.
+    
+    This endpoint helps debug "Retry failed" issues by showing exactly
+    what assets are missing or invalid.
+    """
+    
+    logger.info(f"[VALIDATION] Starting asset validation for project {project_id}")
+    
+    # Get project
+    project = await db.story_projects.find_one({"project_id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    scenes = project.get("scenes", [])
+    voice_scripts = project.get("voice_scripts", [])
+    
+    # Get assets from collections
+    scene_images = await db.scene_assets.find({
+        "project_id": project_id,
+        "asset_type": "image"
+    }, {"_id": 0}).to_list(100)
+    
+    voice_tracks_list = await db.voice_tracks.find({
+        "project_id": project_id
+    }, {"_id": 0}).to_list(100)
+    
+    # Build validation report
+    validation = {
+        "project_id": project_id,
+        "project_status": project.get("status"),
+        "expected_scenes": len(scenes),
+        "expected_voices": len(voice_scripts),
+        "images": {
+            "found_in_collection": len(scene_images),
+            "urls": [],
+            "missing": [],
+            "invalid": []
+        },
+        "voices": {
+            "found_in_collection": len(voice_tracks_list),
+            "urls": [],
+            "missing": [],
+            "invalid": []
+        },
+        "can_render": True,
+        "issues": []
+    }
+    
+    # Check images
+    scene_images_by_num = {img.get("scene_number"): img for img in scene_images}
+    for scene in scenes:
+        scene_num = scene.get("scene_number")
+        if scene_num not in scene_images_by_num:
+            validation["images"]["missing"].append(f"Scene {scene_num}")
+            validation["issues"].append(f"Image missing for scene {scene_num}")
+        else:
+            img = scene_images_by_num[scene_num]
+            img_url = img.get("url") or img.get("image_url")
+            validation["images"]["urls"].append({
+                "scene_number": scene_num,
+                "url": img_url[:100] + "..." if img_url and len(img_url) > 100 else img_url,
+                "storage_type": img.get("storage_type", "unknown")
+            })
+            
+            # Validate URL accessibility (basic check)
+            if not img_url:
+                validation["images"]["invalid"].append(f"Scene {scene_num} has null URL")
+                validation["issues"].append(f"Scene {scene_num} image URL is null")
+            elif not img_url.startswith("https://") and img_url.startswith("/static/"):
+                local_path = f"/app/backend{img_url}"
+                if not os.path.exists(local_path):
+                    validation["images"]["invalid"].append(f"Scene {scene_num} local file not found")
+                    validation["issues"].append(f"Scene {scene_num} image file not found at {local_path}")
+    
+    # Check voices
+    voices_by_num = {v.get("scene_number"): v for v in voice_tracks_list}
+    for vs in voice_scripts:
+        scene_num = vs.get("scene_number")
+        if scene_num not in voices_by_num:
+            validation["voices"]["missing"].append(f"Scene {scene_num}")
+            validation["issues"].append(f"Voice missing for scene {scene_num}")
+        else:
+            voice = voices_by_num[scene_num]
+            audio_url = voice.get("audio_url") or voice.get("audio_path")
+            validation["voices"]["urls"].append({
+                "scene_number": scene_num,
+                "url": audio_url[:100] + "..." if audio_url and len(audio_url) > 100 else audio_url,
+                "duration": voice.get("duration"),
+                "storage_type": voice.get("storage_type", "unknown")
+            })
+            
+            # Validate URL accessibility
+            if not audio_url:
+                validation["voices"]["invalid"].append(f"Scene {scene_num} has null URL")
+                validation["issues"].append(f"Scene {scene_num} audio URL is null")
+            elif not audio_url.startswith("https://") and audio_url.startswith("/static/"):
+                local_path = f"/app/backend{audio_url}"
+                if not os.path.exists(local_path):
+                    validation["voices"]["invalid"].append(f"Scene {scene_num} local file not found")
+                    validation["issues"].append(f"Scene {scene_num} audio file not found at {local_path}")
+    
+    # Determine if rendering is possible
+    if validation["images"]["missing"] or validation["images"]["invalid"]:
+        validation["can_render"] = False
+    if validation["voices"]["missing"] or validation["voices"]["invalid"]:
+        validation["can_render"] = False
+    
+    # Summary
+    validation["summary"] = {
+        "images_ready": len(scene_images) - len(validation["images"]["invalid"]),
+        "voices_ready": len(voice_tracks_list) - len(validation["voices"]["invalid"]),
+        "total_issues": len(validation["issues"]),
+        "status": "ready" if validation["can_render"] else "not_ready"
+    }
+    
+    logger.info(f"[VALIDATION] Completed for project {project_id}: {validation['summary']}")
+    
+    return {
+        "success": True,
+        "validation": validation
     }
 
 
@@ -2065,76 +2241,173 @@ async def retry_video_job(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Retry a stuck or failed video render job"""
+    """Retry a stuck or failed video render job with comprehensive validation"""
     
     user_id = current_user.get("id") or str(current_user.get("_id"))
+    
+    logger.info(f"[RETRY] Retry requested by userId={user_id} jobId={job_id}")
     
     # Get the job
     job = await db.render_jobs.find_one({"job_id": job_id})
     if not job:
+        logger.error(f"[RETRY ERROR] Job not found: {job_id}")
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    logger.info(f"[RETRY] Previous job status={job.get('status')}")
     
     # Verify ownership
     if job.get("user_id") != user_id and current_user.get("role") != "ADMIN":
         raise HTTPException(status_code=403, detail="Not authorized to retry this job")
     
-    # Check if job can be retried
+    # Check if job already completed
     if job.get("status") == "COMPLETED":
         return {"success": True, "message": "Job already completed", "video_url": job.get("output_url")}
     
+    project_id = job.get("project_id")
+    
     # Get project data
-    project = await db.story_projects.find_one({"project_id": job.get("project_id")})
+    project = await db.story_projects.find_one({"project_id": project_id})
     if not project:
+        logger.error(f"[RETRY ERROR] Project not found: {project_id}")
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Get scene assets
+    # ===== ASSET VALIDATION PHASE =====
+    logger.info(f"[ASSET CHECK] Starting asset validation for project {project_id}")
+    
+    # Get scene images from scene_assets collection
     scene_images = await db.scene_assets.find({
-        "project_id": job.get("project_id"),
+        "project_id": project_id,
         "asset_type": "image"
     }, {"_id": 0}).to_list(100)
     
-    voice_tracks = await db.scene_assets.find({
-        "project_id": job.get("project_id"),
-        "asset_type": "audio"
+    # FIXED: Get voice tracks from the CORRECT collection (voice_tracks, not scene_assets)
+    voice_tracks_list = await db.voice_tracks.find({
+        "project_id": project_id
     }, {"_id": 0}).to_list(100)
     
-    if not scene_images or not voice_tracks:
-        raise HTTPException(status_code=400, detail="Missing scene assets - please regenerate images and voices")
+    logger.info(f"[ASSET CHECK] Scene count={len(project.get('scenes', []))}")
+    logger.info(f"[ASSET CHECK] Image URLs found={len(scene_images)}/{len(project.get('scenes', []))}")
+    logger.info(f"[ASSET CHECK] Audio URLs found={len(voice_tracks_list)}/{len(project.get('voice_scripts', []))}")
     
-    # Update job for retry
-    retry_count = job.get("retry_count", 0) + 1
-    await db.render_jobs.update_one(
-        {"job_id": job_id},
-        {
-            "$set": {
-                "status": "RETRYING",
-                "retry_count": retry_count,
-                "retry_initiated_at": datetime.now(timezone.utc),
-                "error": None
+    # Detailed validation
+    missing_assets = []
+    
+    # Check images
+    if not scene_images:
+        missing_assets.append("No images found - please generate images first")
+    else:
+        # Verify each scene has an image
+        scene_numbers_with_images = {img.get("scene_number") for img in scene_images}
+        for scene in project.get("scenes", []):
+            if scene.get("scene_number") not in scene_numbers_with_images:
+                missing_assets.append(f"Scene {scene.get('scene_number')} image missing")
+        
+        # Verify image URLs are valid (R2 cloud URLs should start with https://)
+        for img in scene_images:
+            img_url = img.get("url") or img.get("image_url")
+            if not img_url:
+                missing_assets.append(f"Scene {img.get('scene_number')} has no image URL")
+            elif not img_url.startswith("https://"):
+                # Local file - verify it exists
+                if img_url.startswith("/static/"):
+                    local_path = f"/app/backend{img_url}"
+                    if not os.path.exists(local_path):
+                        missing_assets.append(f"Scene {img.get('scene_number')} image file not found")
+    
+    # Check voices
+    if not voice_tracks_list:
+        missing_assets.append("No voice tracks found - please generate voices first")
+    else:
+        # Verify voice URLs are valid
+        for voice in voice_tracks_list:
+            audio_url = voice.get("audio_url") or voice.get("audio_path")
+            if not audio_url:
+                missing_assets.append(f"Scene {voice.get('scene_number')} has no audio URL")
+            elif not audio_url.startswith("https://"):
+                # Local file - verify it exists
+                if audio_url.startswith("/static/"):
+                    local_path = f"/app/backend{audio_url}"
+                    if not os.path.exists(local_path):
+                        missing_assets.append(f"Scene {voice.get('scene_number')} audio file not found")
+    
+    if missing_assets:
+        error_message = f"Cannot retry: {'; '.join(missing_assets[:3])}"
+        if len(missing_assets) > 3:
+            error_message += f" (and {len(missing_assets) - 3} more issues)"
+        
+        logger.error(f"[RETRY ERROR] {error_message}")
+        raise HTTPException(
+            status_code=400, 
+            detail={
+                "errorCode": "MISSING_ASSETS",
+                "message": error_message,
+                "missingAssets": missing_assets,
+                "suggestion": "Please regenerate the missing images or voices before retrying"
             }
-        }
-    )
+        )
+    
+    logger.info("[ASSET CHECK] All assets validated successfully")
+    
+    # ===== RELEASE OLD JOB LOCK =====
+    # Mark old job as superseded if it's stuck
+    if job.get("status") in ["PROCESSING", "PENDING", "RETRYING"]:
+        logger.info(f"[RETRY] Previous lock released for job {job_id}")
+        await db.render_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"status": "SUPERSEDED", "superseded_at": datetime.now(timezone.utc)}}
+        )
+    
+    # ===== CREATE FRESH JOB =====
+    new_job_id = str(uuid.uuid4())
+    retry_count = job.get("retry_count", 0) + 1
+    
+    new_render_job = {
+        "job_id": new_job_id,
+        "project_id": project_id,
+        "user_id": user_id,
+        "status": "PENDING",
+        "include_watermark": job.get("include_watermark", True),
+        "background_music_id": job.get("background_music_id"),
+        "music_volume": job.get("music_volume", 0.3),
+        "created_at": datetime.now(timezone.utc),
+        "progress": 0,
+        "retry_count": retry_count,
+        "original_job_id": job_id,
+        "retry_initiated_at": datetime.now(timezone.utc)
+    }
+    
+    await db.render_jobs.insert_one(new_render_job)
+    logger.info(f"[RETRY] New job created jobId={new_job_id}")
+    
+    # ===== START RENDER WITH VALIDATED ASSETS =====
+    logger.info("[ASSET CHECK] Manifest creation started")
     
     # Start background rendering using optimized renderer
     background_tasks.add_task(
         render_video_optimized,
-        job_id,
-        job.get("project_id"),
+        new_job_id,
+        project_id,
         scene_images,
-        voice_tracks,
+        voice_tracks_list,
         job.get("include_watermark", True),
         job.get("background_music_id"),
         job.get("music_volume", 0.3),
         user_id
     )
     
-    logger.info(f"[VIDEO_RETRY] Job {job_id} retry #{retry_count} initiated by user {user_id}")
+    logger.info("[QUEUE] Render job enqueued")
+    logger.info(f"[VIDEO_RETRY] Job {new_job_id} (retry #{retry_count} of {job_id}) initiated by user {user_id}")
     
     return {
         "success": True,
-        "message": f"Retry #{retry_count} initiated",
-        "job_id": job_id,
-        "status": "RETRYING"
+        "message": f"Retry #{retry_count} initiated with fresh job",
+        "job_id": new_job_id,
+        "original_job_id": job_id,
+        "status": "PENDING",
+        "assets_validated": {
+            "images": len(scene_images),
+            "voices": len(voice_tracks_list)
+        }
     }
 
 

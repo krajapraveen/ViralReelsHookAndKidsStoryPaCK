@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://video-factory-46.preview.emergentagent.com
+**Platform URL:** https://pipeline-debug-2.preview.emergentagent.com
 
 ---
 

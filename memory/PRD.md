@@ -253,7 +253,7 @@ Public URL: https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev
 ### ✅ BUG FIXES COMPLETED
 
 **Website:** https://www.visionary-suite.com  
-**Preview URL:** https://video-factory-46.preview.emergentagent.com
+**Preview URL:** https://pipeline-debug-2.preview.emergentagent.com
 **Status:** PRODUCTION READY ✅
 
 ### Critical Bug Fixes (P0):

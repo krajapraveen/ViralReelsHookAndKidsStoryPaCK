@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://video-factory-46.preview.emergentagent.com';
+const BACKEND_URL = 'https://pipeline-debug-2.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

@@ -3,7 +3,7 @@
 **Audit Date:** February 21, 2026  
 **Audit Role:** Chief QA Architect + Security Auditor + Performance Engineer + UI Reviewer  
 **Production URL:** https://visionary-suite.com  
-**Preview URL:** https://video-factory-46.preview.emergentagent.com
+**Preview URL:** https://pipeline-debug-2.preview.emergentagent.com
 
 ---
 

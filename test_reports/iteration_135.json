@@ -1,0 +1,74 @@
+{
+  "summary": "Iteration 135 - Story Video Studio P0 Bug Fix Verification. Backend: 18/18 tests passed (100%). All 6 fixes verified in code: (1) retry endpoint now queries voice_tracks collection correctly, (2) retry creates fresh job ID, (3) detailed error messages for missing assets, (4) validate-assets endpoint queries correct collections, (5) image generation saves URLs to scenes array, (6) voice generation saves URLs to voice_scripts array.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_story_video_retry_fixes_iteration135.py",
+    "/app/test_reports/pytest/pytest_story_video_retry_fixes_iteration135.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIX 1 VERIFIED: retry_video_job() line 2283-2286 now queries db.voice_tracks instead of db.scene_assets with asset_type='audio'",
+    "FIX 2 VERIFIED: retry_video_job() line 2361 creates fresh job ID using uuid.uuid4() instead of reusing old corrupted job",
+    "FIX 3 VERIFIED: retry_video_job() lines 2333-2347 return detailed error with errorCode='MISSING_ASSETS' and missingAssets list",
+    "FIX 4 VERIFIED: validate_video_assets() line 1897 queries voice_tracks collection correctly",
+    "FIX 5 VERIFIED: generate_scene_images() lines 487-505 save image URLs to scenes.$.image_url in story_projects",
+    "FIX 6 VERIFIED: generate_scene_voices() lines 801-821 save audio URLs to voice_scripts.$.audio_url in story_projects"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_story_video_retry_fixes_iteration135.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "SKIPPED (backend only testing requested)"
+  },
+  "test_credentials": {
+    "test_user_email": "test@visionary-suite.com",
+    "test_user_password": "Test@2026#"
+  },
+  "seed_data_creation": "None - used existing test user",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "P0 bug fix verified. The Story Video Studio pipeline stalling at 5% was caused by: (1) retry endpoint querying wrong collection (scene_assets instead of voice_tracks) for voice tracks, (2) retry reusing corrupted job IDs. Both fixes have been implemented and verified through code review. Additionally, image and voice generation now correctly save URLs to the project document for data consistency.",
+  "bug_fixes_verified": {
+    "root_cause": "Retry endpoint was querying db.scene_assets with asset_type='audio' for voice tracks, but voices are stored in voice_tracks collection. Also retry was reusing corrupted job IDs.",
+    "fix_1_retry_collection_query": {
+      "location": "line 2283-2286",
+      "before": "db.scene_assets.find({project_id, asset_type: 'audio'})",
+      "after": "db.voice_tracks.find({project_id})",
+      "status": "VERIFIED"
+    },
+    "fix_2_fresh_job_id": {
+      "location": "line 2361",
+      "change": "new_job_id = str(uuid.uuid4())",
+      "status": "VERIFIED"
+    },
+    "fix_3_detailed_error_messages": {
+      "location": "lines 2333-2347",
+      "change": "Returns errorCode='MISSING_ASSETS' with detailed missingAssets list",
+      "status": "VERIFIED"
+    },
+    "fix_4_validate_assets_collection": {
+      "location": "line 1897",
+      "change": "Queries voice_tracks collection correctly",
+      "status": "VERIFIED"
+    },
+    "fix_5_image_url_saving": {
+      "location": "lines 487-505",
+      "change": "Saves image_url to scenes.$ in story_projects",
+      "status": "VERIFIED"
+    },
+    "fix_6_voice_url_saving": {
+      "location": "lines 801-821",
+      "change": "Saves audio_url to voice_scripts.$ in story_projects",
+      "status": "VERIFIED"
+    }
+  }
+}

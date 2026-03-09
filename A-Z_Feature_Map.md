@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Purpose**: Master checklist for Phase 1-7 QA & Performance Testing  
-**Base URL**: https://video-factory-46.preview.emergentagent.com
+**Base URL**: https://pipeline-debug-2.preview.emergentagent.com
 
 ---
 

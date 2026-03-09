@@ -865,14 +865,39 @@ export default function StoryVideoStudio() {
               }
               onTryOtherFeature={handleTryOtherFeature}
               onRetry={async () => {
-                // Retry the current job
+                // Retry the current job with improved error handling
                 if (renderJob?.job_id) {
                   toast.info('Retrying video generation...');
                   try {
-                    await api.post(`/api/story-video-studio/generation/video/retry/${renderJob.job_id}`);
-                    toast.success('Retry initiated');
+                    const response = await api.post(`/api/story-video-studio/generation/video/retry/${renderJob.job_id}`);
+                    const data = response.data;
+                    
+                    // Update to new job ID if a fresh job was created
+                    if (data.job_id && data.job_id !== renderJob.job_id) {
+                      setRenderJob(prev => ({ ...prev, job_id: data.job_id }));
+                      toast.success(`Retry initiated with fresh job (attempt #${data.retry_count || 1})`);
+                    } else {
+                      toast.success('Retry initiated successfully');
+                    }
                   } catch (e) {
-                    toast.error('Retry failed. Please try again.');
+                    // Handle specific error types
+                    const errorData = e.response?.data?.detail;
+                    if (typeof errorData === 'object' && errorData.errorCode) {
+                      // Structured error from backend
+                      if (errorData.errorCode === 'MISSING_ASSETS') {
+                        toast.error(errorData.message, { duration: 6000 });
+                        // Optionally offer to regenerate assets
+                        if (errorData.suggestion) {
+                          toast.info(errorData.suggestion, { duration: 5000 });
+                        }
+                      } else {
+                        toast.error(errorData.message || 'Retry failed');
+                      }
+                    } else if (typeof errorData === 'string') {
+                      toast.error(errorData);
+                    } else {
+                      toast.error('Retry failed. Please try generating a fresh video.');
+                    }
                   }
                 }
               }}

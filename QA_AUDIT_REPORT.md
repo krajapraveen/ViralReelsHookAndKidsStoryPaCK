@@ -2,7 +2,7 @@
 ## CreatorStudio AI - Visionary Suite
 **Audit Date**: 2026-02-26
 **Auditor**: E1 Automated QA System
-**Environment**: https://video-factory-46.preview.emergentagent.com
+**Environment**: https://pipeline-debug-2.preview.emergentagent.com
 
 ---
 

@@ -2,7 +2,7 @@
 // CreatorStudio AI E2E Tests
 import { defineConfig, devices } from '@playwright/test';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://video-factory-46.preview.emergentagent.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://pipeline-debug-2.preview.emergentagent.com';
 
 export default defineConfig({
   testDir: './tests/e2e',
