@@ -19,8 +19,6 @@ export const useWebSocketProgress = (jobId = null, onProgress = null, onComplete
   // Get WebSocket URL from backend URL
   const getWsUrl = useCallback(() => {
     const backendUrl = process.env.REACT_APP_BACKEND_URL || window.location.origin;
-    const wsProtocol = backendUrl.startsWith('https') ? 'wss' : 'ws';
-    const baseUrl = backendUrl.replace(/^https?/, wsProtocol);
     const token = localStorage.getItem('token');
     
     if (!token) {
@@ -28,10 +26,25 @@ export const useWebSocketProgress = (jobId = null, onProgress = null, onComplete
       return null;
     }
     
-    let url = `${baseUrl}/ws/progress?token=${token}`;
+    // Build WebSocket URL - handle both http and https
+    let wsUrl;
+    if (backendUrl.startsWith('https://')) {
+      wsUrl = backendUrl.replace('https://', 'wss://');
+    } else if (backendUrl.startsWith('http://')) {
+      wsUrl = backendUrl.replace('http://', 'ws://');
+    } else {
+      // Fallback for relative URLs
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}`;
+    }
+    
+    // Ensure we use the /api prefix for the WebSocket endpoint
+    let url = `${wsUrl}/api/ws/progress?token=${token}`;
     if (jobId) {
       url += `&job_id=${jobId}`;
     }
+    
+    console.log('WebSocket URL:', url);
     return url;
   }, [jobId]);
 

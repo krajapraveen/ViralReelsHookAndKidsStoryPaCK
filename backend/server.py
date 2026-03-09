@@ -168,6 +168,12 @@ from services.environment_monitor_scheduler import start_env_scheduler, stop_env
 # WebSocket Real-Time Progress
 from routes.websocket_progress import router as websocket_progress_router
 
+# Job Queue Routes
+from routes.job_queue_routes import router as job_queue_router
+
+# Character Consistency Routes  
+from routes.character_routes import router as character_routes_router
+
 # Performance and stability module
 from performance import (
     PerformanceMiddleware,
@@ -502,11 +508,23 @@ api_router.include_router(story_video_templates_router)
 from routes.blog_content import router as blog_router
 api_router.include_router(blog_router)
 
+# Job Queue Routes
+api_router.include_router(job_queue_router)
+
+# Character Consistency Routes
+api_router.include_router(character_routes_router)
+
 # Include API router in app
 app.include_router(api_router)
 
-# WebSocket endpoint (no /api prefix - direct mount)
+# WebSocket endpoint - mount both with and without /api prefix for compatibility
 app.include_router(websocket_progress_router)
+
+# Also mount WebSocket under /api for frontend compatibility
+from fastapi import APIRouter
+ws_api_router = APIRouter(prefix="/api")
+ws_api_router.include_router(websocket_progress_router)
+app.include_router(ws_api_router)
 
 # ==================== STATIC FILE SERVING ====================
 
@@ -875,6 +893,14 @@ async def startup():
         logger.info("Environment monitor scheduler started (checks every 5 minutes)")
     except Exception as e:
         logger.warning(f"Environment monitor scheduler warning: {e}")
+    
+    # Initialize Async Job Queue
+    try:
+        from services.job_queue_service import init_job_queue
+        job_queue = await init_job_queue()
+        logger.info("Async job queue initialized and started")
+    except Exception as e:
+        logger.warning(f"Job queue initialization warning: {e}")
     
     logger.info("CreatorStudio API ready!")
 

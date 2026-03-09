@@ -107,6 +107,10 @@ import RevenueAnalyticsDashboard from './pages/Admin/RevenueAnalyticsDashboard';
 import MonitoringDashboard from './pages/Admin/MonitoringDashboard';
 // GA4 EVENT TESTER
 import GA4EventTester from './pages/Admin/GA4EventTester';
+// STORY VIDEO ANALYTICS DASHBOARD
+import StoryVideoAnalyticsDashboard from './pages/StoryVideoAnalyticsDashboard';
+// CHARACTER CONSISTENCY STUDIO
+import CharacterConsistencyStudio from './pages/CharacterConsistencyStudio';
 // BLOG FOR SEO
 import Blog from './pages/Blog';
 // LIVE CHAT WIDGET
@@ -180,6 +184,11 @@ function App() {
       <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBookWizard /> : <Navigate to="/login" />} />
       {/* Story → Video Studio (NEW) */}
       <Route path="/app/story-video-studio" element={isAuthenticated ? <StoryVideoStudio /> : <Navigate to="/login" />} />
+      {/* Story Video Analytics Dashboard */}
+      <Route path="/app/admin/story-video-analytics" element={isAuthenticated ? <StoryVideoAnalyticsDashboard /> : <Navigate to="/login" />} />
+      {/* Character Consistency Studio */}
+      <Route path="/app/character-studio" element={isAuthenticated ? <CharacterConsistencyStudio /> : <Navigate to="/login" />} />
+      <Route path="/app/story-video-studio/characters" element={isAuthenticated ? <CharacterConsistencyStudio /> : <Navigate to="/login" />} />
       {/* New Standalone Apps */}
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
