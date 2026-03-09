@@ -3,7 +3,40 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with comprehensive monitoring, security, and admin analytics.
 
-## LATEST UPDATE: 2026-03-09 (Session 8 - VIDEO RENDER OPTIMIZATION)
+## LATEST UPDATE: 2026-03-09 (Session 9 - P0 VIDEO PIPELINE FIX)
+
+### ✅ P0 BUG FIX: Video Pipeline Stalling at 5% - RESOLVED
+**Date:** 2026-03-09
+
+### Root Cause Identified and Fixed:
+The "Story to Video" pipeline was stalling at "Preparing video assets..." (5%) because:
+1. **Wrong Collection Query**: The retry endpoint was querying `scene_assets` with `asset_type='audio'` for voice tracks, but voices are stored in the `voice_tracks` collection
+2. **Corrupted Job Reuse**: Retry was reusing the same corrupted job ID instead of creating a fresh one
+3. **Missing Data Persistence**: Image and voice URLs were uploaded to R2 but not saved to the project document
+
+### Fixes Implemented:
+
+| Fix | Location | Description |
+|-----|----------|-------------|
+| 1. Collection Query | Lines 2283-2286 | Changed `db.scene_assets.find({asset_type: 'audio'})` to `db.voice_tracks.find({project_id})` |
+| 2. Fresh Job ID | Line 2361 | Retry now creates `new_job_id = str(uuid.uuid4())` instead of reusing corrupted job |
+| 3. Detailed Errors | Lines 2333-2347 | Returns `errorCode='MISSING_ASSETS'` with specific `missingAssets` list |
+| 4. Validate Endpoint | Line 1897 | New `/video/validate-assets/{project_id}` endpoint for pre-flight checks |
+| 5. Image URL Saving | Lines 487-505 | Image generation now saves URLs to `scenes.$.image_url` in project |
+| 6. Voice URL Saving | Lines 801-821 | Voice generation now saves URLs to `voice_scripts.$.audio_url` in project |
+
+### Files Modified:
+- `/app/backend/routes/story_video_generation.py` - Core fixes for retry logic, validation, and data persistence
+- `/app/frontend/src/pages/StoryVideoStudio.js` - Improved error handling for retry failures
+
+### Test Results:
+- **Backend Tests:** 18/18 passed (100%)
+- **All 6 fixes verified** through code review and unit tests
+- Test report: `/app/test_reports/iteration_135.json`
+
+---
+
+## PREVIOUS: Session 8 - VIDEO RENDER OPTIMIZATION
 
 ### ✅ VIDEO RENDERING FULLY OPTIMIZED
 **Date:** 2026-03-09
