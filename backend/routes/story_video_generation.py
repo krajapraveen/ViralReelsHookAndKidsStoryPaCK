@@ -736,7 +736,7 @@ async def generate_scene_voices(
                     # Optionally delete local file after successful upload
                     try:
                         os.remove(output_path)
-                    except:
+                    except OSError:
                         pass
             
             # Store in voice_tracks collection
@@ -1258,16 +1258,17 @@ async def assemble_video(
     
     await db.render_jobs.insert_one(render_job)
     
-    # Start background rendering
+    # Start background rendering using optimized renderer
     background_tasks.add_task(
-        render_video_task,
+        render_video_optimized,
         job_id,
         request.project_id,
         scene_images,
         voice_tracks,
         request.include_watermark,
         request.background_music_id,
-        request.music_volume
+        request.music_volume,
+        user_id
     )
     
     return {
@@ -1278,6 +1279,39 @@ async def assemble_video(
         "message": "Video rendering started. Check status with /video/status/{job_id}",
         "credits_spent": total_cost
     }
+
+
+async def render_video_optimized(
+    job_id: str,
+    project_id: str,
+    scene_images: List[dict],
+    voice_tracks: List[dict],
+    include_watermark: bool,
+    background_music_id: Optional[str],
+    music_volume: float,
+    user_id: str
+):
+    """Use the optimized video renderer for faster processing"""
+    from services.optimized_video_renderer import get_optimized_renderer
+    
+    renderer = get_optimized_renderer(db)
+    
+    success, video_url, timing = await renderer.render_video(
+        job_id=job_id,
+        project_id=project_id,
+        scene_images=scene_images,
+        voice_tracks=voice_tracks,
+        include_watermark=include_watermark,
+        background_music_id=background_music_id,
+        music_volume=music_volume,
+        user_id=user_id
+    )
+    
+    if success:
+        logger.info(f"[VIDEO_RENDER] Job {job_id} completed successfully: {video_url}")
+    else:
+        logger.error(f"[VIDEO_RENDER] Job {job_id} failed")
+
 
 async def render_video_task(
     job_id: str,
@@ -1897,3 +1931,130 @@ ASSET_PATHS = {
     "music": "audio/music",
     "thumbnail": "thumbnails"
 }
+
+
+# =============================================================================
+# ADMIN VIDEO DIAGNOSTICS PANEL
+# =============================================================================
+
+@router.get("/admin/video-diagnostics")
+async def get_video_diagnostics(
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin panel for video render job diagnostics"""
+    
+    # Check if user is admin
+    if current_user.get("role") != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get recent render jobs
+    jobs = await db.render_jobs.find(
+        {},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    # Calculate statistics
+    total_jobs = await db.render_jobs.count_documents({})
+    completed_jobs = await db.render_jobs.count_documents({"status": "COMPLETED"})
+    failed_jobs = await db.render_jobs.count_documents({"status": "FAILED"})
+    processing_jobs = await db.render_jobs.count_documents({"status": "PROCESSING"})
+    
+    # Get average render times
+    pipeline = [
+        {"$match": {"status": "COMPLETED", "render_timing_ms": {"$exists": True}}},
+        {"$group": {
+            "_id": None,
+            "avg_render_time": {"$avg": "$render_timing_ms"},
+            "min_render_time": {"$min": "$render_timing_ms"},
+            "max_render_time": {"$max": "$render_timing_ms"}
+        }}
+    ]
+    timing_stats = await db.render_jobs.aggregate(pipeline).to_list(1)
+    
+    # Get stuck jobs (processing for more than 10 minutes)
+    from datetime import timedelta
+    ten_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
+    stuck_jobs = await db.render_jobs.find({
+        "status": "PROCESSING",
+        "created_at": {"$lt": ten_mins_ago}
+    }, {"_id": 0, "job_id": 1, "project_id": 1, "created_at": 1}).to_list(100)
+    
+    return {
+        "success": True,
+        "statistics": {
+            "total_jobs": total_jobs,
+            "completed": completed_jobs,
+            "failed": failed_jobs,
+            "processing": processing_jobs,
+            "stuck": len(stuck_jobs),
+            "success_rate": round(completed_jobs / max(total_jobs, 1) * 100, 1)
+        },
+        "timing": {
+            "avg_render_ms": round(timing_stats[0]["avg_render_time"], 0) if timing_stats else 0,
+            "min_render_ms": round(timing_stats[0]["min_render_time"], 0) if timing_stats else 0,
+            "max_render_ms": round(timing_stats[0]["max_render_time"], 0) if timing_stats else 0
+        },
+        "stuck_jobs": stuck_jobs,
+        "recent_jobs": jobs
+    }
+
+
+@router.post("/admin/video-diagnostics/cancel/{job_id}")
+async def cancel_stuck_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Cancel a stuck video render job"""
+    
+    if current_user.get("role") != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    job = await db.render_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Update job as cancelled
+    await db.render_jobs.update_one(
+        {"job_id": job_id},
+        {
+            "$set": {
+                "status": "CANCELLED",
+                "cancelled_at": datetime.now(timezone.utc),
+                "cancelled_by": current_user.get("id")
+            }
+        }
+    )
+    
+    # Refund credits
+    user_id = job.get("user_id")
+    if user_id:
+        refund_amount = CREDIT_COSTS["video_render"]
+        if not job.get("include_watermark", True):
+            refund_amount += CREDIT_COSTS.get("watermark_removal", 10)
+        
+        from bson import ObjectId
+        try:
+            await db.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$inc": {"credits": refund_amount}}
+            )
+        except Exception:
+            await db.users.update_one(
+                {"id": user_id},
+                {"$inc": {"credits": refund_amount}}
+            )
+        
+        await db.credit_transactions.insert_one({
+            "user_id": user_id,
+            "amount": refund_amount,
+            "type": "refund",
+            "description": f"Admin cancelled stuck video job {job_id}",
+            "created_at": datetime.now(timezone.utc)
+        })
+    
+    return {
+        "success": True,
+        "message": f"Job {job_id} cancelled and credits refunded"
+    }
+

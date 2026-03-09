@@ -1,12 +1,12 @@
 {
   "running": true,
-  "started_at": "2026-03-09T12:36:30.722081",
-  "last_health_check": "2026-03-09T14:11:32.294307",
-  "last_recovery": "2026-03-09T13:23:51.522799",
-  "last_validation": "2026-03-09T14:10:25.873004",
-  "last_maintenance": "2026-03-09T13:37:03.865561",
+  "started_at": "2026-03-09T15:19:18.721097",
+  "last_health_check": "2026-03-09T15:25:22.102774",
+  "last_recovery": null,
+  "last_validation": "2026-03-09T15:24:35.731025",
+  "last_maintenance": "2026-03-09T15:19:47.929865",
   "health_status": "critical",
-  "checks_performed": 86,
-  "recoveries_performed": 1,
-  "issues_fixed": 1
+  "checks_performed": 6,
+  "recoveries_performed": 0,
+  "issues_fixed": 0
 }
