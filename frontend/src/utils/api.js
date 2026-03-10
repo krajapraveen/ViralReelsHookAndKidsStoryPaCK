@@ -100,12 +100,12 @@ export const generationAPI = {
 };
 
 export const paymentAPI = {
-  getProducts: () => api.get('/api/payments/products'),
-  getCurrencies: () => api.get('/api/payments/currencies'),
-  getExchangeRate: (currency) => api.get(`/api/payments/exchange-rate/${currency}`),
-  createOrder: (productId, currency = 'INR') => api.post('/api/payments/create-order', { productId, currency }),
-  verifyPayment: (data) => api.post('/api/payments/verify', data),
-  getPaymentHistory: (page = 0, size = 20) => api.get(`/api/payments/history?page=${page}&size=${size}`),
+  getProducts: () => api.get('/api/cashfree/products'),
+  getCurrencies: () => api.get('/api/cashfree/currencies'),
+  getExchangeRate: (currency) => api.get(`/api/cashfree/exchange-rate/${currency}`),
+  createOrder: (productId, currency = 'INR') => api.post('/api/cashfree/create-order', { productId, currency }),
+  verifyPayment: (data) => api.post('/api/cashfree/verify', data),
+  getPaymentHistory: (page = 0, size = 20) => api.get(`/api/cashfree/payments/history?page=${page}&size=${size}`),
 };
 
 // Wallet & Job Pipeline API
