@@ -129,7 +129,9 @@ export default function SubscriptionManagement() {
     );
   }
 
-  const isPaid = currentPlan && currentPlan !== 'free' && currentPlan !== 'demo';
+  // A user is "paid" only if they have an ACTIVE subscription
+  // This prevents showing "Switch to" for admin/demo/free users without subscriptions
+  const isPaid = subscription && subscription.status === 'ACTIVE';
   const currentPlanDetails = plans.find(p => p.key === currentPlan);
 
   return (
