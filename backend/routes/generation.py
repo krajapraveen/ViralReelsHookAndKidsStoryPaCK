@@ -532,8 +532,9 @@ async def demo_reel(data: GenerateReelRequest):
         if len(data.topic) > 500:
             raise HTTPException(status_code=400, detail="Topic must be less than 500 characters")
         
-        topic = data.topic.strip()
-        niche = data.niche or "General"
+        # SECURITY FIX: Sanitize inputs to prevent XSS
+        topic = html.escape(data.topic.strip())
+        niche = html.escape(data.niche or "General")
         
         # Return generated demo data
         return {

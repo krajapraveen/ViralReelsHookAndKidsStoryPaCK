@@ -61,10 +61,13 @@ UNIVERSAL_NEGATIVE_PROMPTS = [
 ]
 
 def check_copyright_violation(text: str) -> Optional[str]:
-    """Check if text contains copyrighted terms"""
+    """Check if text contains copyrighted terms using word boundary matching"""
+    import re
     text_lower = text.lower()
     for term in BLOCKED_TERMS:
-        if term in text_lower:
+        # Use word boundary matching to avoid false positives (e.g., "fluffy" matching "luffy")
+        pattern = r'\b' + re.escape(term) + r'\b'
+        if re.search(pattern, text_lower):
             return f"Copyrighted content detected: '{term}'. Please use original characters and stories."
     return None
 
