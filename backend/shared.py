@@ -183,22 +183,32 @@ async def check_credits(user: dict, amount: int, feature_name: str = "this featu
         )
 
 async def deduct_credits(user_id: str, amount: int, description: str) -> int:
-    """Deduct credits from user and log transaction"""
-    user = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    current_credits = user.get("credits", 0)
-    if current_credits < amount:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {amount}, have {current_credits}")
-    
-    new_balance = current_credits - amount
-    
-    await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"credits": new_balance}}
+    """
+    Atomically deduct credits from user and log transaction.
+    Uses MongoDB's atomic update with $gte condition to prevent race conditions.
+    """
+    # Atomic credit deduction - prevents race conditions
+    # The $gte condition ensures we only deduct if sufficient credits exist
+    result = await db.users.find_one_and_update(
+        {"id": user_id, "credits": {"$gte": amount}},  # Only if credits >= amount
+        {"$inc": {"credits": -amount}},  # Atomic decrement
+        return_document=True
     )
     
+    if not result:
+        # Check if user exists vs insufficient credits
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        current_credits = user.get("credits", 0)
+        raise HTTPException(
+            status_code=402, 
+            detail=f"Insufficient credits. Need {amount}, have {current_credits}"
+        )
+    
+    new_balance = result.get("credits", 0)
+    
+    # Log to credit ledger
     await db.credit_ledger.insert_one({
         "id": str(uuid.uuid4()),
         "userId": user_id,
