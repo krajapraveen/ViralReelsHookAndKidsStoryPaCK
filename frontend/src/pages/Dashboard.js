@@ -226,14 +226,19 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* STORY TO VIDEO STUDIO - NEW FEATURE */}
+        {/* STORY TO VIDEO STUDIO - BETA RELEASE */}
         <Link to="/app/story-video-studio">
-          <div className="relative bg-gradient-to-r from-rose-600 via-pink-600 to-fuchsia-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/30 mb-4 sm:mb-6" data-testid="quick-action-story-video">
-            <div className="absolute top-3 right-3 flex items-center gap-1 bg-yellow-500 text-black text-xs px-2 py-1 rounded-full font-bold">
+          <div className="relative bg-gradient-to-r from-rose-600 via-pink-600 to-fuchsia-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/30 mb-4 sm:mb-6 overflow-hidden" data-testid="quick-action-story-video">
+            {/* Animated background effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 via-transparent to-yellow-500/10 animate-pulse"></div>
+            
+            {/* BETA Badge */}
+            <div className="absolute top-3 right-3 flex items-center gap-1 bg-yellow-500 text-black text-xs px-2 py-1 rounded-full font-bold animate-bounce">
               <Sparkles className="w-3 h-3" />
-              NEW
+              BETA
             </div>
-            <div className="flex items-center gap-4">
+            
+            <div className="relative flex items-center gap-4">
               <div className="bg-white/20 rounded-xl p-3">
                 <Video className="w-8 h-8" />
               </div>
@@ -246,6 +251,26 @@ export default function Dashboard() {
                   <span className="bg-white/20 rounded-full px-3 py-1">🎤 AI Voice</span>
                   <span className="bg-white/20 rounded-full px-3 py-1">🎵 Background Music</span>
                   <span className="bg-yellow-400/20 text-yellow-300 rounded-full px-3 py-1">⚡ Real-time Progress</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Beta Release Notice Label */}
+            <div className="relative mt-4 bg-gradient-to-r from-yellow-500/30 via-amber-500/30 to-orange-500/30 backdrop-blur-sm rounded-xl p-4 border border-yellow-400/50 shadow-lg shadow-yellow-500/20">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 bg-yellow-400 text-black rounded-full p-1.5 animate-pulse">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-yellow-300 font-bold text-sm sm:text-base">🚀 Story To Video – Beta Release Is Here!</span>
+                  </div>
+                  <p className="text-white/90 text-xs sm:text-sm leading-relaxed">
+                    This exciting feature is currently under advanced testing by{' '}
+                    <span className="font-bold text-yellow-300">K. Raja Praveen</span>{' '}
+                    <span className="text-yellow-200/80">(krajapraveen@visionary-suite.com)</span>{' '}
+                    to ensure the best experience. It will be fully available to all users very soon. <span className="text-yellow-300 font-semibold">Stay tuned!</span>
+                  </p>
                 </div>
               </div>
             </div>
