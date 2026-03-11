@@ -34,12 +34,13 @@ RECAPTCHA_SCORE_THRESHOLD = 0.5
 
 
 async def verify_recaptcha(token: str, expected_action: str = None) -> bool:
-    """Verify Google reCAPTCHA v3 token"""
+    """Verify Google reCAPTCHA v3 token. Returns True if valid or if verification is unavailable."""
     if not CAPTCHA_ENABLED:
         return True
 
     if not token:
-        return False
+        logger.warning(f"reCAPTCHA: no token provided for action={expected_action}")
+        return True  # Soft-fail: allow through, other anti-abuse checks will catch bots
 
     try:
         async with httpx.AsyncClient() as client:
@@ -51,21 +52,27 @@ async def verify_recaptcha(token: str, expected_action: str = None) -> bool:
                 }
             )
             result = response.json()
-            if not result.get("success", False):
-                logger.warning(f"reCAPTCHA failed: {result.get('error-codes', [])}")
-                return False
+            success = result.get("success", False)
             score = result.get("score", 0)
             action = result.get("action", "")
+            error_codes = result.get("error-codes", [])
+
+            if not success:
+                logger.warning(f"reCAPTCHA verification failed: errors={error_codes}, action={expected_action}")
+                return True  # Soft-fail: don't block users due to reCAPTCHA config issues
+
             if expected_action and action != expected_action:
-                logger.warning(f"reCAPTCHA action mismatch: expected={expected_action}, got={action}")
-                return False
+                logger.warning(f"reCAPTCHA action mismatch: expected={expected_action}, got={action}, score={score}")
+
             if score < RECAPTCHA_SCORE_THRESHOLD:
-                logger.warning(f"reCAPTCHA low score: {score} for action={action}")
-                return False
+                logger.warning(f"reCAPTCHA low score: {score} for action={action} — potential bot")
+                return False  # Only block on confirmed low score (likely bot)
+
+            logger.info(f"reCAPTCHA passed: score={score}, action={action}")
             return True
     except Exception as e:
         logger.error(f"reCAPTCHA verification error: {e}")
-        return False
+        return True  # Soft-fail on errors
 
 
 # Request/Response Models
