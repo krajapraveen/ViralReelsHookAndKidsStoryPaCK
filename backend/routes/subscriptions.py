@@ -782,6 +782,23 @@ class CreateRecurringSubscriptionRequest(BaseModel):
     customer_phone: Optional[str] = Field(default=None)
 
 
+@router.get("/payments")
+async def get_subscription_payments(user: dict = Depends(get_current_user)):
+    """Get subscription payment history for current user"""
+    payments = await db.orders.find(
+        {"userId": user["id"], "type": "SUBSCRIPTION", "status": "PAID"},
+        {"_id": 0, "order_id": 1, "plan_name": 1, "amount": 1, "credits": 1, "createdAt": 1, "paidAt": 1}
+    ).sort("createdAt", -1).limit(20).to_list(length=20)
+
+    for p in payments:
+        p["credits_added"] = p.get("credits", 0)
+        p["created_at"] = p.get("paidAt") or p.get("createdAt", "")
+        if p.get("amount"):
+            p["amount"] = p["amount"] / 100
+
+    return {"payments": payments}
+
+
 @router.get("/recurring/plans")
 async def get_recurring_plans():
     """Get Cashfree recurring subscription plans"""
