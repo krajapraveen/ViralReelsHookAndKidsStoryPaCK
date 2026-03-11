@@ -59,10 +59,14 @@ async def get_credit_history(
 async def get_balance(user: dict = Depends(get_current_user)):
     """Get current credit balance"""
     user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1, "subscription": 1, "plan": 1})
+    credits_val = user_data.get("credits", 0)
+    plan_val = user_data.get("plan", "free")
     return {
-        "credits": user_data.get("credits", 0),
+        "credits": credits_val,
+        "balance": credits_val,
         "subscription": user_data.get("subscription"),
-        "plan": user_data.get("plan", "free")
+        "plan": plan_val,
+        "isFreeTier": plan_val == "free"
     }
 
 

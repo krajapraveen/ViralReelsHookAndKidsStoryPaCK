@@ -91,8 +91,9 @@ export default function ReelGenerator() {
   const fetchCredits = async () => {
     try {
       const response = await creditAPI.getBalance();
-      setCredits(response.data.balance);
-      setIsFreeTier(response.data.isFreeTier);
+      const data = response.data;
+      setCredits(data.balance ?? data.credits ?? 0);
+      setIsFreeTier(data.isFreeTier ?? (data.plan === 'free'));
     } catch (error) {
       toast.error('Failed to load credits');
     }

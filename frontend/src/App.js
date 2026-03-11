@@ -273,6 +273,8 @@ function App() {
       <Route path="/cookie-policy" element={<CookiePolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />
+      {/* Catch-all 404 - prevents blank pages */}
+      <Route path="*" element={<Navigate to={isAuthenticated ? "/app" : "/"} replace />} />
       </Routes>
       
       {/* AI Chatbot - Available on all pages */}
