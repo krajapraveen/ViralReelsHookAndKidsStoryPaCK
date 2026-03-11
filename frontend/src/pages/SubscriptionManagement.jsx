@@ -50,6 +50,23 @@ export default function SubscriptionManagement() {
     }
   };
 
+  const loadCashfreeCheckout = (env = 'production') => {
+    return new Promise((resolve) => {
+      if (window.Cashfree) {
+        resolve(window.Cashfree({ mode: env }));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+      script.onload = () => resolve(window.Cashfree({ mode: env }));
+      script.onerror = () => {
+        toast.error('Failed to load payment gateway');
+        resolve(null);
+      };
+      document.body.appendChild(script);
+    });
+  };
+
   const handleSubscribe = async (planKey) => {
     setActionLoading(true);
     try {
@@ -57,9 +74,36 @@ export default function SubscriptionManagement() {
         plan_key: planKey
       });
 
-      if (res.data.success && res.data.payment_link) {
-        toast.success('Redirecting to payment...');
-        window.location.href = res.data.payment_link;
+      if (res.data.success && res.data.paymentSessionId) {
+        const cashfreeEnv = res.data.environment === 'production' ? 'production' : 'sandbox';
+        const cashfree = await loadCashfreeCheckout(cashfreeEnv);
+
+        if (cashfree) {
+          cashfree.checkout({
+            paymentSessionId: res.data.paymentSessionId,
+            redirectTarget: "_modal"
+          }).then(async (result) => {
+            if (result.error) {
+              toast.error('Payment failed: ' + result.error.message);
+            } else if (result.paymentDetails) {
+              try {
+                const verifyRes = await api.post('/api/subscriptions/recurring/verify', {
+                  order_id: res.data.orderId
+                });
+                if (verifyRes.data.success) {
+                  toast.success(`${verifyRes.data.plan} plan activated! ${verifyRes.data.creditsAdded} credits added.`);
+                  fetchData();
+                } else {
+                  toast.info(verifyRes.data.message || 'Payment is being processed');
+                }
+              } catch (e) {
+                toast.error('Payment verification failed. Please contact support.');
+              }
+            }
+          });
+        }
+      } else {
+        toast.error(res.data?.detail || res.data?.message || 'Failed to create payment');
       }
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -96,9 +140,37 @@ export default function SubscriptionManagement() {
     setActionLoading(true);
     try {
       const res = await api.post(`/api/subscriptions/recurring/change-plan?new_plan_key=${newPlanKey}`);
-      if (res.data.success && res.data.payment_link) {
-        toast.success('Redirecting to payment for new plan...');
-        window.location.href = res.data.payment_link;
+
+      if (res.data.success && res.data.paymentSessionId) {
+        const cashfreeEnv = res.data.environment === 'production' ? 'production' : 'sandbox';
+        const cashfree = await loadCashfreeCheckout(cashfreeEnv);
+
+        if (cashfree) {
+          cashfree.checkout({
+            paymentSessionId: res.data.paymentSessionId,
+            redirectTarget: "_modal"
+          }).then(async (result) => {
+            if (result.error) {
+              toast.error('Payment failed: ' + result.error.message);
+            } else if (result.paymentDetails) {
+              try {
+                const verifyRes = await api.post('/api/subscriptions/recurring/verify', {
+                  order_id: res.data.orderId
+                });
+                if (verifyRes.data.success) {
+                  toast.success(`Plan changed to ${verifyRes.data.plan}! ${verifyRes.data.creditsAdded} credits added.`);
+                  fetchData();
+                } else {
+                  toast.info(verifyRes.data.message || 'Payment is being processed');
+                }
+              } catch (e) {
+                toast.error('Payment verification failed. Please contact support.');
+              }
+            }
+          });
+        }
+      } else {
+        toast.error('Failed to initiate plan change');
       }
     } catch (error) {
       toast.error('Failed to change plan');
@@ -210,6 +282,7 @@ export default function SubscriptionManagement() {
               <Button
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                 onClick={() => document.getElementById('plans-section').scrollIntoView({ behavior: 'smooth' })}
+                data-testid="upgrade-now-btn"
               >
                 Upgrade Now
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -313,6 +386,7 @@ export default function SubscriptionManagement() {
                         className={`w-full bg-gradient-to-r ${getPlanColor(plan.key)}`}
                         onClick={() => handleChangePlan(plan.key)}
                         disabled={actionLoading}
+                        data-testid={`switch-plan-${plan.key}-btn`}
                       >
                         {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                         Switch to {plan.name}
@@ -322,6 +396,7 @@ export default function SubscriptionManagement() {
                         className={`w-full bg-gradient-to-r ${getPlanColor(plan.key)}`}
                         onClick={() => handleSubscribe(plan.key)}
                         disabled={actionLoading}
+                        data-testid={`subscribe-${plan.key}-btn`}
                       >
                         {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                         Subscribe Now

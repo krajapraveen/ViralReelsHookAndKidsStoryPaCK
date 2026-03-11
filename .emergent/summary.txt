@@ -1,68 +1,77 @@
 <analysis>**original_problem_statement:**
-The user's primary goal is to build and stabilize a comprehensive AI content platform, Visionary Suite. The core feature is the Story → Images → Video Studio. Initially, the work focused on migrating the asset pipeline to Cloudflare R2 to fix critical generation failures and improve performance.
+The user's core objective is to stabilize and scale their AI content platform, Visionary Suite. The project began with fixing a P0 production bug where video generation stalled, which was successfully resolved. Following this, a series of user-reported issues were addressed, including a broken billing page, a critical XSS vulnerability, a credit deduction race condition, and a faulty subscription management UI.
 
-The focus then shifted to a full-scale Production UAT and QA audit of the entire live website (), which involved fixing multiple routing bugs, UI issues, and seeding the production database with reviews.
+The current and most critical problem is a **P0 revenue-blocking issue**: the Cashfree payment gateway is not opening when a user clicks Subscribe Now or Upgrade Now. The backend call to Cashfree's API is failing with a 500 error, preventing all user subscriptions and purchases.
 
-The current and most critical problem is a P0 production-blocking bug: the video generation pipeline gets stuck at 5% (Preparing video assets...) and the user-facing retry mechanism fails, making the main feature of the application unusable.
+Additionally, the user is blocked from deploying any fixes to production because of a platform-level billing issue with their Emergent subscription, which requires support intervention.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack React and FastAPI platform. The entire asset pipeline for images, voices, and videos uses Cloudflare R2 for storage. The production environment has recently been audited and stabilized, with fixes deployed for broken routes (, ), the WebSocket connection path, and the reviews page (which now shows a 4.8/5 rating from seeded data).
+The application is a full-stack platform using React, FastAPI, and MongoDB, with Cloudflare R2 for asset storage. The platform has undergone significant QA and hardening. Key features like the Reel Generator and Kids Story Generator are functional, while the Story to Video Studio is marked as Beta. An admin dashboard provides analytics.
 
-In the preview environment, a sophisticated video rendering optimization and auto-recovery system has been built. This includes detailed timing logs, async job execution via Redis, a  for stalled jobs, and an enhanced frontend  component to show real-time progress and handle stalls. However, this system was built before the true root cause of the current production failure was identified.
+The codebase now includes fixes for a critical XSS vulnerability and a credit deduction race condition. The UI for the billing and subscription management pages has also been repaired. However, the core payment functionality is broken.
 
 **Last working item**:
--   **Last item agent was working**: Debugging a P0 production issue where the Story to Video pipeline stalls at 5% progress (Preparing video assets...). The Retry Now button also fails.
+-   **Last item agent was working**: Debugging a P0 revenue-blocking issue where the Cashfree payment gateway fails to open.
 -   **Status**: IN PROGRESS
--   **Agent's Finding (Root Cause Identified)**: The agent investigated the production database and discovered the exact root cause. The image and voice generation steps successfully create and upload assets to R2, but **they fail to save the resulting R2 URLs back into the database**. The  array inside the  collection contains  and . The subsequent video rendering step (and the retry logic) fails because it cannot find the required asset URLs to begin processing.
+-   **Agent's Finding (Root Cause Identified)**: The agent has confirmed that the frontend correctly calls the backend endpoint (). However, the backend's subsequent API call to the Cashfree service fails, returning a . The root cause is suspected to be invalid API credentials, an incorrect payload structure for the Cashfree API, or a misconfiguration in the user's Cashfree merchant account.
 -   **Agent Testing Done**: N
 -   **Which testing method agent to use?**: backend testing agent
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: (P0) Video Rendering Stalls Due to Missing Asset URLs in DB**
-    -   **Description**: The Story to Video pipeline is blocked on production. It hangs at 5% because the video rendering step cannot find the URLs for the generated images and audio files. The retry mechanism also fails for the same reason.
-    -   **Attempted fixes**: The agent built a comprehensive recovery system, but this was before identifying the data integrity issue.
+-   **Issue 1: (P0) Cashfree Payment Gateway Not Opening**
+    -   **Description**: Clicking Subscribe Now or Upgrade Now does not launch the payment gateway. This is because the backend API call to Cashfree to create a subscription order is failing with a 500 error. This issue blocks all revenue generation.
+    -   **Attempted fixes**: The agent verified the frontend-to-backend API call is correct and reproduced the error by calling the endpoint directly, confirming the failure originates from the Cashfree integration.
     -   **Next debug checklist**:
         1.  Navigate to .
-        2.  Locate the functions responsible for image generation (e.g., ) and voice generation.
-        3.  Within these functions, find the point where assets are uploaded to R2.
-        4.  **Implement the missing logic**: Immediately after a successful R2 upload, execute a MongoDB  operation to save the returned asset URL into the correct  object within the  collection.
-        5.  Add error handling to ensure that if the database update fails, the process is halted and the error is logged correctly.
-        6.  Strengthen the retry endpoint () to first validate that all asset URLs exist, and if not, return a specific error like Cannot retry: Assets are missing. Please regenerate images and voices.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is the main production blocker. Fixing it will restore the application's core functionality.
+        2.  In the  function, add detailed logging to the  block to print the exact request payload sent to Cashfree and the full error response received.
+        3.  Verify that the  and  environment variables are correctly loaded and used.
+        4.  Consult the Cashfree API documentation to ensure the payload structure is correct for the API version being used.
+        5.  Check the Cashfree merchant dashboard for any logs or errors related to these failed API calls.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is the highest priority bug. Fixing it will unblock user subscriptions and purchases, enabling the application's business model.
     -   **Status**: IN PROGRESS
-    -   **Is recurring issue?**: Y
+    -   **Is recurring issue?**: N
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on other issue**: None
 
+-   **Issue 2: (BLOCKED) Subscription Issue for Redeployment**
+    -   **Description**: The user has paid for their Emergent platform subscription, but the Redeploy button still prompts them to subscribe, blocking all production deployments.
+    -   **Next debug checklist**: This is a platform billing issue. The user must resolve it with the Emergent support team.
+    -   **Why fix this issue and what will be achieved with the fix?**: Unblocks the user's ability to deploy critical fixes (like the payment gateway fix) to their live website.
+    -   **Status**: BLOCKED (on user/support action)
+    -   **Is recurring issue?**: Y
+    -   **Should Test frontend/backend/both after fix?**: N/A
+
 **In progress Task List**:
-There are no other tasks in progress. The entire focus is on the P0 issue above.
+-   There are no other active tasks. The entire focus is on the P0 payment gateway issue.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **(P1) Implement Frontend Direct Upload to R2**: Refactor the frontend to use presigned URLs, reducing backend load.
-    -   **(P1) Verify Automatic Refund Logic**: Perform an end-to-end test of the auto-refund service.
+    -   **(P1) Final Production Verification**: After the P0 payment bug is fixed and deployed, run a final, quick verification pass on production to confirm all recent fixes are live and working as expected.
+    -   **(P1) Implement full test coverage for Video Rendering and Payment Webhooks**: Automated tests for these complex, asynchronous areas are still missing.
 -   **Future Tasks:**
-    -   **(P2) Implement Async Job Queue**: The foundation (Redis) is laid, but the full migration of all generation tasks is pending.
-    -   **(P2) Refactor Backend Video Routes**: Consolidate  files.
-    -   **(P2) Enhance Analytics Dashboard UI**: Build out the frontend for the existing analytics endpoints.
-    -   **(P3) Character Consistency Training UI**: Build the frontend for the character model management backend.
+    -   **(P2) Enhance Job Queue & Worker Architecture**: Review and enhance the existing  to ensure it's a robust, horizontally scalable system for all heavy generation tasks, as per the user's architecture request.
+    -   **(P2) Implement File Storage Cleanup Policy**: Create a mechanism to delete old or failed-generation files from Cloudflare R2 to manage storage costs.
+    -   **(P2) Implement Monitoring and Observability**: Integrate tools like Sentry, Prometheus, or Grafana to track application health and performance.
 
 **Completed work in this session**
--   **Production Audit & Stabilization (Deployed)**:
-    -   **UAT/QA**: Completed a full production audit, identifying and fixing multiple issues.
-    -   **Route Fixes**: Repaired the broken  and  routes.
-    -   **Reviews Page Fix**: Created an admin API endpoint to seed reviews and used it to fix the production reviews page, which now correctly displays a 4.8/5 rating.
-    -   **WebSocket Fix**: Corrected the frontend WebSocket connection path to work with the production ingress.
--   **Video Pipeline Resilience (Preview Only)**:
-    -   Implemented a sophisticated auto-recovery system, async job queue with Redis, and detailed progress tracking for video rendering. This code is ready to be integrated once the primary database bug is fixed.
+-   **P0 Video Pipeline Bug Fix**: Resolved the critical bug where video generation stalled by ensuring asset URLs were correctly saved to the database.
+-   **UI Enhancement**: Added a Beta Release label to the Story to Video feature card.
+-   **P0 Billing Page Fix**: Repaired the View Plans page by correcting the frontend API endpoint.
+-   **Deep QA & Security Fixes**:
+    -   Conducted an extensive, evidence-based QA audit as per strict user requirements.
+    -   **Found and Fixed Critical XSS Vulnerability**: Sanitized API output in the reel generator.
+    -   **Fixed Copyright False Positive**: Improved copyright term matching logic.
+-   **Architecture Hardening**:
+    -   **Fixed Credit Deduction Race Condition**: Made the credit deduction function atomic to prevent balance inconsistencies.
+-   **P0 Subscription UI Fix**: Corrected the logic on the subscription management page to show Subscribe Now buttons for non-subscribed users.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: SendGrid Email Service is Down**
-    -   **Debug checklist**: User needs to upgrade their SendGrid plan. This is a non-code issue.
-    -   **Why to solve this issue and what will be achieved with this?**: Re-enables email-dependent features like user verification and notifications.
+    -   **Debug checklist**: This is a non-code issue. The user needs to upgrade their SendGrid plan.
+    -   **Why to solve this issue and what will be achieved with this?**: Re-enables email-dependent features (e.g., user verification).
     -   **Should Test frontend/backend/both after fix?**: backend
     -   **Is recurring issue?**: Y
 
@@ -72,81 +81,936 @@ There are no other tasks in progress. The entire focus is on the P0 issue above.
 -   **Status**: BLOCKED
 
 **Code Architecture**
-
+create-subscription-order
 
 **Key Technical Concepts**
--   **Data Integrity**: The core of the current problem is a failure to maintain data integrity. The application state becomes inconsistent when generated asset URLs are not persisted in the database.
--   **Root Cause Analysis**: The importance of differentiating between symptoms (stalled renderer, failed retry) and the root cause (missing data in the database).
--   **Production vs. Preview Environments**: The critical realization that debugging production issues requires inspecting production data and configurations, as they differ from the preview environment.
+-   **Payment Gateway Integration (Cashfree)**: The current focus is debugging a failing API call to the Cashfree payment gateway, which is returning a 500 error.
+-   **Atomic Operations**: A race condition in the credit deduction logic was fixed by implementing an atomic MongoDB update, a key concept for financial transaction safety.
+-   **Idempotency**: The payment webhook handler was verified to be idempotent, preventing users from being credited twice for a single payment.
+-   **Deep QA & Automated Testing**: The project now includes a suite of ============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+plugins: anyio-4.12.1, locust-2.43.3, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2308 items / 4 errors
+
+==================================== ERRORS ====================================
+________________ ERROR collecting backend/scripts/load_test.py _________________
+import file mismatch:
+imported module 'load_test' has this __file__ attribute:
+  /app/backend/load_test.py
+which is not the same as the test file we want to collect:
+  /app/backend/scripts/load_test.py
+HINT: remove __pycache__ / .pyc files and/or use a unique basename for your test file modules
+_ ERROR collecting backend/tests/test_security_and_expanded_content_iteration93.py _
+backend/tests/test_security_and_expanded_content_iteration93.py:17: in <module>
+    assert BASE_URL, "REACT_APP_BACKEND_URL must be set"
+E   AssertionError: REACT_APP_BACKEND_URL must be set
+E   assert ''
+__ ERROR collecting backend/tests/test_user_analytics_ratings_iteration84.py ___
+backend/tests/test_user_analytics_ratings_iteration84.py:18: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+___________________ ERROR collecting tests/load/load_test.py ___________________
+import file mismatch:
+imported module 'load_test' has this __file__ attribute:
+  /app/backend/load_test.py
+which is not the same as the test file we want to collect:
+  /app/tests/load/load_test.py
+HINT: remove __pycache__ / .pyc files and/or use a unique basename for your test file modules
+=============================== warnings summary ===============================
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/offer_validations_payment_method.py:75
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/offer_validations_payment_method.py:75: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/create_subscription_payment_request_payment_method.py:66
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/create_subscription_payment_request_payment_method.py:66: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/pay_order_request_payment_method.py:78
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/pay_order_request_payment_method.py:78: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/terminal_payment_entity_payment_method.py:78
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/terminal_payment_entity_payment_method.py:78: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:388
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:388: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:545
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:545: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:694
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:694: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:843
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:843: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:992
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:992: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1141
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1141: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1316
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1316: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1474
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1474: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1624
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1624: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1767
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1767: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1923
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1923: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2079
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2079: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2229
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2229: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2377
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2377: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2520
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2520: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2663
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2663: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2812
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2812: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2955
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2955: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3107
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3107: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3263
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3263: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3432
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3432: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3589
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3589: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3745
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3745: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3902
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3902: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4060
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4060: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4216
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4216: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4366
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4366: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4522
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4522: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4671
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4671: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4820
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4820: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4982
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4982: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5145
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5145: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5308
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5308: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5457
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5457: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5613
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5613: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5763
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5763: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5919
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5919: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6082
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6082: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6245
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6245: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6401
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6401: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6551
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6551: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6709
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6709: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6872
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6872: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7028
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7028: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7178
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7178: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7340
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7340: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7503
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7503: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7656
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7656: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7807
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7807: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7954
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7954: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8109
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8109: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8264
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8264: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8419
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8419: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8580
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8580: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8735
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8735: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8882
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8882: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9029
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9029: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9182
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9182: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9330
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9330: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9483
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9483: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9644
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9644: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9810
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9810: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9983
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9983: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10139
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10139: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10295
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10295: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10451
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10451: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10606
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10606: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10763
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10763: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10919
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10919: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11075
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11075: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11231
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11231: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11387
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11387: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11543
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11543: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11692
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11692: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11847
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11847: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12002
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12002: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12157
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12157: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12313
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12313: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12475
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12475: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12637
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12637: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12799
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12799: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+backend/routes/story_series.py:166
+  /app/backend/routes/story_series.py:166: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    characterNames: List[str] = Field(default_factory=list, max_items=5)
+
+backend/routes/challenge_generator.py:207
+  /app/backend/routes/challenge_generator.py:207: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    dayNumbers: List[int] = Field(default_factory=list, max_items=30)
+
+backend/routes/revenue_analytics.py:549
+  /app/backend/routes/revenue_analytics.py:549: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    period: str = Query(default="day", regex="^(day|week|month|year)$"),
+
+backend/routes/monitoring.py:213
+  /app/backend/routes/monitoring.py:213: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    test_type: str = Query(default="api", regex="^(api|generation|concurrent)$"),
+
+backend/routes/monitoring.py:552
+  /app/backend/routes/monitoring.py:552: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    interval: str = Query(default="daily", regex="^(hourly|daily|weekly)$"),
+
+backend/server.py:637
+  /app/backend/server.py:637: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../root/.venv/lib/python3.11/site-packages/fastapi/applications.py:4573
+../root/.venv/lib/python3.11/site-packages/fastapi/applications.py:4573
+  /root/.venv/lib/python3.11/site-packages/fastapi/applications.py:4573: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+backend/server.py:935
+  /app/backend/server.py:935: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR backend/scripts/load_test.py
+ERROR backend/tests/test_security_and_expanded_content_iteration93.py - Asser...
+ERROR backend/tests/test_user_analytics_ratings_iteration84.py - AttributeErr...
+ERROR tests/load/load_test.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!!
+======================== 94 warnings, 4 errors in 8.75s ======================== tests created in response to the user's demand for rigorous, evidence-based quality assurance.
 
 **key DB schema**
--   **projects**: The  array within this collection is the point of failure. Each scene object must have its  and  fields populated after the respective generation steps. Currently, they are being left as .
--   **reviews**: This collection was successfully seeded with 5 reviews on production.
--   **video_render_jobs**: A new collection (used by the preview-only recovery service) for tracking render job progress and status.
-
-**changes in tech stack**
--   **redis**: Added as a dependency for the asynchronous job queue.
+-   **users**: Contains user data, including . The logic operating on this collection was made thread-safe.
+-   **orders**: Stores payment order details from Cashfree, with a  field used to ensure idempotent webhook processing.
+-   **projects**: The  array within this collection now correctly stores asset URLs (, ).
 
 **All files of reference**
--   : **This is the primary file to fix.** The logic that saves image and voice URLs to the database after R2 upload is missing or broken here.
--   : Defines the  and  Pydantic models, showing where the  and  should reside.
--   : Frontend component that initiates generation and retry calls.
--   : UI component that displays progress and stall warnings.
--   : The newly created route containing the successful admin endpoint for seeding reviews.
-
-**Areas that need refactoring**:
--   The image and voice generation functions in  require an immediate and critical fix to ensure they transactionally update the database upon successful asset upload.
+-   : **This is the primary file to fix.** The  endpoint is where the integration with Cashfree is failing.
+-   : Contains the service-level logic that interacts with the Cashfree SDK.
+-   : The page where the user initiates the failing payment flow.
+-   : Where the credit deduction race condition was fixed.
+-   : Where the XSS vulnerability was fixed.
 
 **key api endpoints**
--   : The implementation behind this endpoint successfully generates images but **fails to save the URLs**.
--   : This endpoint successfully generates audio but **fails to save the URLs**.
--   : This endpoint fails because the asset URLs it looks for in the database are .
--   : A new, functional admin endpoint used to seed reviews on production.
+-   : **(FAILING)** This endpoint is supposed to create a payment session with Cashfree but receives a 500 error from the gateway.
+-   : **(WORKING)** Successfully fetches subscription plans and credit packs.
+-   : **(WORKING & SECURED)** Generates reel scripts; an XSS vulnerability was found and fixed here.
 
 **Critical Info for New Agent**
--   **The P0 video stall issue is a DATABASE PROBLEM, not a rendering problem.** Do not investigate FFmpeg, worker capacity, or asset downloads. The root cause is that the  and  fields are not being saved to the  array in the  collection after generation.
--   **Your primary focus must be on **. You need to find where the image/voice assets are uploaded to R2 and immediately add the missing MongoDB  logic to persist the returned URLs.
--   The advanced video recovery system built in the preview environment is sound, but it cannot function until the underlying data integrity issue is resolved. Fix the database save logic first, then you can ensure the recovery system works correctly.
--   All other production routes (, , etc.) have been fixed and deployed. The site is stable except for the Story to Video feature.
+-   **The top priority is the P0 revenue-blocking payment gateway failure.** The  endpoint is returning a  from the Cashfree API. You must investigate this immediately.
+-   **Debugging the Payment Issue**: Start by adding detailed logging in  to capture the exact payload being sent to Cashfree and the full error response. Verify credentials and check the Cashfree merchant dashboard for logs.
+-   **The user cannot deploy your fixes.** They are blocked by a platform-level subscription issue with Emergent. While you work on the payment bug, the user needs to resolve this with Emergent Support.
+-   **Adhere to strict, evidence-based QA.** The user has repeatedly rejected high-level summary reports. Document all testing with detailed steps and screenshots, following the user's provided checklists. The codebase now has a ============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+plugins: anyio-4.12.1, locust-2.43.3, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2308 items / 4 errors
+
+==================================== ERRORS ====================================
+________________ ERROR collecting backend/scripts/load_test.py _________________
+import file mismatch:
+imported module 'load_test' has this __file__ attribute:
+  /app/backend/load_test.py
+which is not the same as the test file we want to collect:
+  /app/backend/scripts/load_test.py
+HINT: remove __pycache__ / .pyc files and/or use a unique basename for your test file modules
+_ ERROR collecting backend/tests/test_security_and_expanded_content_iteration93.py _
+backend/tests/test_security_and_expanded_content_iteration93.py:17: in <module>
+    assert BASE_URL, "REACT_APP_BACKEND_URL must be set"
+E   AssertionError: REACT_APP_BACKEND_URL must be set
+E   assert ''
+__ ERROR collecting backend/tests/test_user_analytics_ratings_iteration84.py ___
+backend/tests/test_user_analytics_ratings_iteration84.py:18: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+___________________ ERROR collecting tests/load/load_test.py ___________________
+import file mismatch:
+imported module 'load_test' has this __file__ attribute:
+  /app/backend/load_test.py
+which is not the same as the test file we want to collect:
+  /app/tests/load/load_test.py
+HINT: remove __pycache__ / .pyc files and/or use a unique basename for your test file modules
+=============================== warnings summary ===============================
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/offer_validations_payment_method.py:75
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/offer_validations_payment_method.py:75: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/create_subscription_payment_request_payment_method.py:66
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/create_subscription_payment_request_payment_method.py:66: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/pay_order_request_payment_method.py:78
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/pay_order_request_payment_method.py:78: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/models/terminal_payment_entity_payment_method.py:78
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/models/terminal_payment_entity_payment_method.py:78: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator('actual_instance')
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:388
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:388: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:545
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:545: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:694
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:694: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:843
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:843: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:992
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:992: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1141
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1141: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1316
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1316: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1474
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1474: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1624
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1624: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1767
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1767: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1923
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:1923: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2079
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2079: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2229
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2229: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2377
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2377: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2520
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2520: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2663
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2663: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2812
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2812: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2955
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:2955: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3107
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3107: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3263
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3263: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3432
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3432: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3589
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3589: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3745
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3745: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3902
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:3902: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4060
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4060: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4216
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4216: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4366
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4366: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4522
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4522: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4671
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4671: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4820
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4820: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4982
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:4982: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5145
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5145: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5308
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5308: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5457
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5457: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5613
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5613: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5763
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5763: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5919
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:5919: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6082
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6082: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6245
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6245: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6401
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6401: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6551
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6551: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6709
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6709: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6872
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:6872: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7028
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7028: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7178
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7178: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7340
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7340: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7503
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7503: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7656
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7656: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7807
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7807: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7954
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:7954: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8109
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8109: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8264
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8264: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8419
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8419: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8580
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8580: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8735
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8735: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8882
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:8882: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9029
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9029: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9182
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9182: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9330
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9330: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9483
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9483: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9644
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9644: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9810
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9810: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9983
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:9983: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10139
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10139: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10295
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10295: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10451
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10451: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10606
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10606: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10763
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10763: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10919
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:10919: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11075
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11075: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11231
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11231: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11387
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11387: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11543
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11543: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11692
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11692: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11847
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:11847: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12002
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12002: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12157
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12157: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12313
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12313: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12475
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12475: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12637
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12637: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+../root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12799
+  /root/.venv/lib/python3.11/site-packages/cashfree_pg/api_client.py:12799: PydanticDeprecatedSince20: The `validate_arguments` method is deprecated; use `validate_call` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validate_arguments
+
+backend/routes/story_series.py:166
+  /app/backend/routes/story_series.py:166: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    characterNames: List[str] = Field(default_factory=list, max_items=5)
+
+backend/routes/challenge_generator.py:207
+  /app/backend/routes/challenge_generator.py:207: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    dayNumbers: List[int] = Field(default_factory=list, max_items=30)
+
+backend/routes/revenue_analytics.py:549
+  /app/backend/routes/revenue_analytics.py:549: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    period: str = Query(default="day", regex="^(day|week|month|year)$"),
+
+backend/routes/monitoring.py:213
+  /app/backend/routes/monitoring.py:213: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    test_type: str = Query(default="api", regex="^(api|generation|concurrent)$"),
+
+backend/routes/monitoring.py:552
+  /app/backend/routes/monitoring.py:552: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    interval: str = Query(default="daily", regex="^(hourly|daily|weekly)$"),
+
+backend/server.py:637
+  /app/backend/server.py:637: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../root/.venv/lib/python3.11/site-packages/fastapi/applications.py:4573
+../root/.venv/lib/python3.11/site-packages/fastapi/applications.py:4573
+  /root/.venv/lib/python3.11/site-packages/fastapi/applications.py:4573: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+backend/server.py:935
+  /app/backend/server.py:935: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR backend/scripts/load_test.py
+ERROR backend/tests/test_security_and_expanded_content_iteration93.py - Asser...
+ERROR backend/tests/test_user_analytics_ratings_iteration84.py - AttributeErr...
+ERROR tests/load/load_test.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!!
+======================== 94 warnings, 4 errors in 6.70s ======================== suite that you should maintain and expand.
 
 **documents and test reports created in this job**
+-   
+-   
+-   
 -    (Updated)
--   Multiple test reports were generated and are available in , such as  and .
 
 **Last 10 User Messages and any pending HUMAN messages**
-10. **User**: Provides admin credentials to allow the agent to seed reviews on production.
-9.  **User**: Asks for step-by-step instructions on how to seed the reviews themselves.
-8.  **User**: Asks which of the proposed review-seeding methods is the best.
-7.  **User**: Deployed the code with the new admin endpoint to production.
-6.  **User**: Reports Retry failed with a screenshot showing the pipeline is stuck at 5% (Preparing video assets...).
-5.  **User**: Provides a very detailed, strict set of instructions for fixing the stalled video pipeline, emphasizing robust retry logic, asset validation, and clear error messaging.
-4.  **User**: Explains the common technical reasons why AI video generators get stuck (asset download failure, worker crash, WebSocket loss).
-3.  **User**: Reports that the video has been stuck rendering for over an hour.
-2.  **User**: States that video rendering is the new bottleneck and gives a detailed request to optimize FFmpeg, add timing logs, implement async execution, and add real progress tracking.
-1.  **User**: Confirms the agent's work is complete and asks if another deployment is needed.
+1.  **User**: Reports Subscribe Now and Upgrade Now buttons are broken and the Cashfree gateway is not opening. (IN PROGRESS)
+2.  **User**: Reported the Switch to... button on the subscription page was failing. (RESOLVED)
+3.  **User**: Requested incremental architecture upgrades for scalability. (ANALYZED)
+4.  **User**: Asked for confirmation on payment webhook safety and file download integrity. (ADDRESSED)
+5.  **User**: Requested more detail on automated test coverage and stability testing. (ADDRESSED)
+6.  **User**: Rejected a QA report and provided a strict master checklist for deep QA. (ADDRESSED)
+7.  **User**: Rejected an earlier QA report as a shallow smoke test. (ADDRESSED)
+8.  **User**: Ordered a strict end-to-end QA audit of the production site. (ADDRESSED)
+9.  **User**: Reported that the View Plans page was not loading. (RESOLVED)
+10. **User**: Reported being blocked from deploying due to a platform subscription issue. (BLOCKED)
 
 **Project Health Check:**
 -   **Broken**:
-    -   **Core Story to Video Pipeline**: The primary feature of the application is non-functional on production due to a critical data integrity bug.
+    -   **Core Payment Flow**: Users cannot subscribe or buy credits. This is a P0 revenue-blocking failure in the Cashfree integration.
 -   **Mocked**:
     -   None.
 
 **3rd Party Integrations**
--   **Cloudflare R2**: Core integration for object storage.
--   **Redis**: New integration for the async job queue.
--   **SendGrid**: Email Service (**UNAVAILABLE/BROKEN** due to user's plan limit).
--   **Emergent LLM Key**: Powers LLM calls.
--   **FFmpeg**: Video processing.
+-   **Cashfree**: Payment Gateway. **(BROKEN)** - The API call to create a subscription order is failing.
+-   **Cloudflare R2**: Object Storage. (Working)
+-   **Redis**: Job Queuing. (Working)
+-   **SendGrid**: Email Service. **(UNAVAILABLE/BLOCKED)** - User's plan needs an upgrade.
+-   **Emergent LLM Key**: LLM access. (Working)
+-   **FFmpeg**: Video processing. (Working)
 
 **Testing status**
--   **Testing agent used after significant changes**: YES (used extensively for the production audit).
+-   **Testing agent used after significant changes**: YES
 -   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: None in the last session.
--   **Known regressions**: The core video generation pipeline, which was previously working, is now failing due to the newly identified database issue.
+-   **Test files created**:
+    -   
+    -   
+-   **Known regressions**: The core payment flow is non-functional.
 
 **Credentials to test flow:**
 -   **UAT Test User**:  / 
 -   **Admin User**:  / 
 
 **What agent forgot to execute**
--   The agent initially diagnosed the video stall issue as a renderer or recovery problem and built a complex system to address it. This was done before thoroughly investigating the state of the data in the production database. A direct inspection of the stuck project document earlier would have revealed the root cause (missing asset URLs) more quickly. The agent course-corrected and found the root cause later in the session.</analysis>
+-   The initial deep QA passes were not thorough enough and missed testing a complete end-to-end payment flow, which would have caught the critical Cashfree integration bug earlier. The issue was only discovered after a direct user report.</analysis>

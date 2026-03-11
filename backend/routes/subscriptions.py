@@ -828,32 +828,190 @@ async def create_recurring_subscription(
     request: CreateRecurringSubscriptionRequest,
     user: dict = Depends(get_current_user)
 ):
-    """Create a new Cashfree recurring subscription"""
-    service = await get_subscription_service(db)
-    
-    existing = await service.get_user_subscription(user["id"])
-    if existing and existing.get("status") == "ACTIVE":
-        raise HTTPException(status_code=400, detail="Already have an active subscription")
-    
-    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "email": 1, "name": 1})
+    """Create a Cashfree payment order for subscription plan"""
+    plan = CF_PLANS.get(request.plan_key)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "email": 1, "name": 1, "phone": 1})
     if not user_data:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    frontend_url = os.environ.get("FRONTEND_URL", "https://creatorstudio.ai")
-    
+
     try:
-        result = await service.create_subscription(
-            user_id=user["id"],
-            plan_key=request.plan_key,
+        from cashfree_pg.api_client import Cashfree as CashfreePG
+        from cashfree_pg.models.create_order_request import CreateOrderRequest
+        from cashfree_pg.models.customer_details import CustomerDetails
+        from cashfree_pg.models.order_meta import OrderMeta
+
+        cf_app_id = os.environ.get("CASHFREE_APP_ID")
+        cf_secret = os.environ.get("CASHFREE_SECRET_KEY")
+        cf_env_str = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION").upper()
+
+        if not cf_app_id or not cf_secret:
+            raise HTTPException(status_code=500, detail="Payment gateway not configured")
+
+        cf_env = CashfreePG.PRODUCTION if cf_env_str == "PRODUCTION" else CashfreePG.SANDBOX
+        client = CashfreePG(XEnvironment=cf_env, XClientId=cf_app_id, XClientSecret=cf_secret)
+
+        order_id = f"sub_{request.plan_key}_{user['id'][:8]}_{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+        amount = float(plan["price_inr"])
+        frontend_url = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
+
+        customer_details = CustomerDetails(
+            customer_id=user["id"],
             customer_email=user_data.get("email", ""),
-            customer_phone=request.customer_phone or "9999999999",
-            customer_name=user_data.get("name", "User"),
-            return_url=f"{frontend_url}/app/billing?subscription=success"
+            customer_phone=request.customer_phone or user_data.get("phone", "9999999999"),
+            customer_name=user_data.get("name", "User")
         )
-        return result
+
+        order_meta = OrderMeta(
+            return_url=f"{frontend_url}/app/subscription?order_id={order_id}&status=success",
+            notify_url=f"{frontend_url}/api/cashfree/webhook"
+        )
+
+        order_request = CreateOrderRequest(
+            order_id=order_id,
+            order_amount=amount,
+            order_currency="INR",
+            customer_details=customer_details,
+            order_meta=order_meta,
+            order_note=f"Subscription: {plan['name']} - {plan['credits_per_cycle']} credits/month"
+        )
+
+        api_version = "2023-08-01"
+        response = client.PGCreateOrder(api_version, order_request, None, None)
+
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to create payment order")
+
+        order_doc = {
+            "id": str(uuid.uuid4()),
+            "userId": user["id"],
+            "userEmail": user_data.get("email", ""),
+            "order_id": response.data.order_id,
+            "cf_order_id": response.data.cf_order_id,
+            "payment_session_id": response.data.payment_session_id,
+            "type": "SUBSCRIPTION",
+            "plan_key": request.plan_key,
+            "plan_name": plan["name"],
+            "amount": int(amount * 100),
+            "currency": "INR",
+            "credits": plan["credits_per_cycle"],
+            "discount_percent": plan.get("discount_percent", 0),
+            "gateway": "cashfree",
+            "status": "PENDING",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.orders.insert_one(order_doc)
+
+        logger.info(f"Subscription order created: {response.data.order_id} for plan {request.plan_key}, user {user['id']}")
+
+        return {
+            "success": True,
+            "orderId": response.data.order_id,
+            "cfOrderId": response.data.cf_order_id,
+            "paymentSessionId": response.data.payment_session_id,
+            "amount": amount,
+            "environment": cf_env_str.lower(),
+            "plan": plan["name"]
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to create recurring subscription: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to create subscription order: {e}")
+        raise HTTPException(status_code=500, detail=f"Payment order failed: {str(e)}")
+
+
+@router.post("/recurring/verify")
+async def verify_subscription_payment(
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Verify subscription payment and activate plan"""
+    data = await request.json()
+    order_id = data.get("order_id")
+    if not order_id:
+        raise HTTPException(status_code=400, detail="order_id required")
+
+    order = await db.orders.find_one(
+        {"order_id": order_id, "userId": user["id"], "type": "SUBSCRIPTION", "gateway": "cashfree"},
+        {"_id": 0}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Subscription order not found")
+
+    if order["status"] == "PAID":
+        return {"success": True, "message": "Subscription already activated"}
+
+    try:
+        from cashfree_pg.api_client import Cashfree as CashfreePG
+
+        cf_app_id = os.environ.get("CASHFREE_APP_ID")
+        cf_secret = os.environ.get("CASHFREE_SECRET_KEY")
+        cf_env_str = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION").upper()
+        cf_env = CashfreePG.PRODUCTION if cf_env_str == "PRODUCTION" else CashfreePG.SANDBOX
+        client = CashfreePG(XEnvironment=cf_env, XClientId=cf_app_id, XClientSecret=cf_secret)
+
+        api_version = "2023-08-01"
+        response = client.PGFetchOrder(api_version, order_id, None)
+
+        if not response.data:
+            raise HTTPException(status_code=400, detail="Could not verify payment")
+
+        order_status = response.data.order_status
+
+        if order_status == "PAID":
+            from shared import add_credits
+
+            plan_key = order.get("plan_key", "creator")
+            credits_to_add = order.get("credits", 0)
+
+            new_balance = await add_credits(
+                user_id=user["id"],
+                amount=credits_to_add,
+                description=f"Subscription: {order.get('plan_name', '')} - {credits_to_add} credits",
+                tx_type="SUBSCRIPTION",
+                order_id=order_id
+            )
+
+            await db.orders.update_one(
+                {"order_id": order_id},
+                {"$set": {"status": "PAID", "paidAt": datetime.now(timezone.utc).isoformat()}}
+            )
+
+            await db.users.update_one(
+                {"id": user["id"]},
+                {"$set": {
+                    "plan": plan_key,
+                    "plan_activated_at": datetime.now(timezone.utc).isoformat(),
+                    "subscription_order_id": order_id
+                }}
+            )
+
+            logger.info(f"Subscription activated: plan={plan_key}, user={user['id']}, credits={credits_to_add}")
+
+            return {
+                "success": True,
+                "message": "Subscription activated!",
+                "plan": plan_key,
+                "creditsAdded": credits_to_add,
+                "newBalance": new_balance
+            }
+        elif order_status == "ACTIVE":
+            return {"success": False, "message": "Payment still pending", "status": order_status}
+        else:
+            await db.orders.update_one(
+                {"order_id": order_id},
+                {"$set": {"status": "FAILED", "failureReason": f"Order status: {order_status}"}}
+            )
+            return {"success": False, "message": f"Payment failed: {order_status}", "status": order_status}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Subscription verification error: {e}")
+        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
 
 @router.post("/recurring/cancel")
@@ -877,21 +1035,94 @@ async def change_recurring_plan(
     new_plan_key: str,
     user: dict = Depends(get_current_user)
 ):
-    """Change Cashfree recurring subscription plan"""
+    """Change subscription plan - creates a new payment order for the new plan"""
     if new_plan_key not in ["creator", "pro", "studio"]:
         raise HTTPException(status_code=400, detail="Invalid plan")
-    
-    service = await get_subscription_service(db)
-    
-    subscription = await service.get_user_subscription(user["id"])
-    if not subscription:
-        raise HTTPException(status_code=404, detail="No active subscription")
-    
+
+    plan = CF_PLANS.get(new_plan_key)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Plan not found")
+
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "email": 1, "name": 1, "phone": 1})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+
     try:
-        return await service.change_plan(user["id"], subscription["subscription_id"], new_plan_key)
+        from cashfree_pg.api_client import Cashfree as CashfreePG
+        from cashfree_pg.models.create_order_request import CreateOrderRequest
+        from cashfree_pg.models.customer_details import CustomerDetails
+        from cashfree_pg.models.order_meta import OrderMeta
+
+        cf_app_id = os.environ.get("CASHFREE_APP_ID")
+        cf_secret = os.environ.get("CASHFREE_SECRET_KEY")
+        cf_env_str = os.environ.get("CASHFREE_ENVIRONMENT", "PRODUCTION").upper()
+        cf_env = CashfreePG.PRODUCTION if cf_env_str == "PRODUCTION" else CashfreePG.SANDBOX
+        client = CashfreePG(XEnvironment=cf_env, XClientId=cf_app_id, XClientSecret=cf_secret)
+
+        order_id = f"upgrade_{new_plan_key}_{user['id'][:8]}_{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+        amount = float(plan["price_inr"])
+        frontend_url = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
+
+        customer_details = CustomerDetails(
+            customer_id=user["id"],
+            customer_email=user_data.get("email", ""),
+            customer_phone=user_data.get("phone", "9999999999"),
+            customer_name=user_data.get("name", "User")
+        )
+        order_meta = OrderMeta(
+            return_url=f"{frontend_url}/app/subscription?order_id={order_id}&status=success",
+            notify_url=f"{frontend_url}/api/cashfree/webhook"
+        )
+        order_request = CreateOrderRequest(
+            order_id=order_id,
+            order_amount=amount,
+            order_currency="INR",
+            customer_details=customer_details,
+            order_meta=order_meta,
+            order_note=f"Plan upgrade to {plan['name']}"
+        )
+
+        api_version = "2023-08-01"
+        response = client.PGCreateOrder(api_version, order_request, None, None)
+
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to create payment order")
+
+        order_doc = {
+            "id": str(uuid.uuid4()),
+            "userId": user["id"],
+            "userEmail": user_data.get("email", ""),
+            "order_id": response.data.order_id,
+            "cf_order_id": response.data.cf_order_id,
+            "payment_session_id": response.data.payment_session_id,
+            "type": "SUBSCRIPTION",
+            "plan_key": new_plan_key,
+            "plan_name": plan["name"],
+            "amount": int(amount * 100),
+            "currency": "INR",
+            "credits": plan["credits_per_cycle"],
+            "discount_percent": plan.get("discount_percent", 0),
+            "gateway": "cashfree",
+            "status": "PENDING",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.orders.insert_one(order_doc)
+
+        return {
+            "success": True,
+            "orderId": response.data.order_id,
+            "cfOrderId": response.data.cf_order_id,
+            "paymentSessionId": response.data.payment_session_id,
+            "amount": amount,
+            "environment": cf_env_str.lower(),
+            "plan": plan["name"]
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to change plan: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to create plan change order: {e}")
+        raise HTTPException(status_code=500, detail=f"Payment order failed: {str(e)}")
 
 
 @router.post("/recurring/webhook")

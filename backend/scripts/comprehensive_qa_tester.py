@@ -26,7 +26,7 @@ import sys
 import os
 
 # Configuration
-API_BASE_URL = os.environ.get('API_BASE_URL', 'https://pipeline-debug-2.preview.emergentagent.com')
+API_BASE_URL = os.environ.get('API_BASE_URL', 'https://subscription-gateway-1.preview.emergentagent.com')
 ADMIN_EMAIL = "admin@creatorstudio.ai"
 ADMIN_PASSWORD = "Cr3@t0rStud!o#2026"
 DEMO_EMAIL = "demo@example.com"
