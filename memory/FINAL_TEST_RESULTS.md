@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://subscription-gateway-1.preview.emergentagent.com
+**Website:** https://generation-hotfix.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

@@ -165,7 +165,7 @@ export default function StoryGenerator() {
       const response = await generationAPI.generateStory(requestData);
       
       // Story generation is now synchronous - get result directly
-      if (response.data.status === 'COMPLETED' && response.data.result) {
+      if ((response.data.status === 'COMPLETED' || response.data.success) && response.data.result) {
         setResult(response.data.result);
         setGenerationId(response.data.generationId);
         setCredits(response.data.remainingCredits || credits - cost);
@@ -173,12 +173,14 @@ export default function StoryGenerator() {
         
         // Track story generation in Google Analytics
         analytics.trackGeneration('story_generator', cost);
-      } else {
+      } else if (response.data.generationId) {
         // Fallback to polling if still processing
         setGenerationId(response.data.generationId);
         setCredits(response.data.remainingCredits || credits - cost);
         setPolling(true);
         toast.success('Story generation started! This may take 30-90 seconds.');
+      } else {
+        throw new Error(response.data.detail || 'Generation failed');
       }
     } catch (error) {
       console.error('Story generation error:', error);

@@ -14,7 +14,7 @@ const loginSuccess = new Counter('login_success');
 const generationSuccess = new Counter('generation_success');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://subscription-gateway-1.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://generation-hotfix.preview.emergentagent.com';
 
 export const options = {
   scenarios: {

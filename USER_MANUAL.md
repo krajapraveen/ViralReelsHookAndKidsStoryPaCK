@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://subscription-gateway-1.preview.emergentagent.com
+**Platform URL:** https://generation-hotfix.preview.emergentagent.com
 
 ---
 

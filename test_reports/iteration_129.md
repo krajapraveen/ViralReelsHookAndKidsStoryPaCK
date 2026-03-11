@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://subscription-gateway-1.preview.emergentagent.com)
+**Environment:** Preview (https://generation-hotfix.preview.emergentagent.com)
 
 ---
 

@@ -495,6 +495,7 @@ async def generate_story(request: Request, data: GenerateStoryRequest, backgroun
         
         return {
             "success": True,
+            "status": "COMPLETED",
             "generationId": generation_id,
             "result": result,
             "creditsUsed": STORY_COST,

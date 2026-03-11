@@ -437,6 +437,8 @@ export default function WaitingWithGames({
                 <Link
                   key={idx}
                   to={feature.path}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex flex-col items-center p-2 bg-slate-700/50 hover:bg-slate-700 rounded-lg transition-colors group"
                 >
                   <feature.icon className={`w-5 h-5 ${feature.color} group-hover:scale-110 transition-transform`} />

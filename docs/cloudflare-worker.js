@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://subscription-gateway-1.preview.emergentagent.com';
+const BACKEND_URL = 'https://generation-hotfix.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {
