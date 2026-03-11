@@ -86,6 +86,12 @@ async def get_reviews():
 async def submit_contact(request: Request, data: ContactMessage):
     """Submit a contact message"""
     try:
+        # Verify reCAPTCHA v3
+        from routes.auth import CAPTCHA_ENABLED, verify_recaptcha
+        captcha_token = request.headers.get('X-Captcha-Token', '')
+        if CAPTCHA_ENABLED and not await verify_recaptcha(captcha_token, expected_action="contact"):
+            raise HTTPException(status_code=400, detail="CAPTCHA verification failed. Please try again.")
+
         contact = {
             "id": str(uuid.uuid4()),
             "name": data.name,
@@ -102,6 +108,8 @@ async def submit_contact(request: Request, data: ContactMessage):
         
         return {"success": True, "message": "Your message has been sent. We'll get back to you soon!"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         await log_exception(
             functionality="contact_form",

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
@@ -8,6 +8,7 @@ import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, User, Check, X, 
 import api from '../utils/api';
 import { collectFingerprint } from '../utils/fingerprint';
 import analytics from '../utils/analytics';
+import { useRecaptcha } from '../hooks/useRecaptcha';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -18,58 +19,11 @@ export default function Signup({ setAuth }) {
   const [errors, setErrors] = useState({ name: '', email: '', password: '' });
   const [touched, setTouched] = useState({ name: false, email: false, password: false });
   const navigate = useNavigate();
-  
-  // CAPTCHA state
-  const [captchaConfig, setCaptchaConfig] = useState({ enabled: false, siteKey: '' });
-  const [captchaToken, setCaptchaToken] = useState('');
-  const [captchaLoaded, setCaptchaLoaded] = useState(false);
-  const captchaRef = useRef(null);
+  const { executeRecaptcha } = useRecaptcha();
 
-  // Load CAPTCHA config on mount
   useEffect(() => {
-    // Track funnel step - Signup page view
     analytics.trackFunnelStep('signup_start');
-    
-    const loadCaptchaConfig = async () => {
-      try {
-        const response = await api.get('/api/auth/captcha-config');
-        setCaptchaConfig(response.data);
-        
-        if (response.data.enabled && response.data.siteKey) {
-          // Load hCaptcha script
-          if (!window.hcaptcha) {
-            const script = document.createElement('script');
-            script.src = 'https://js.hcaptcha.com/1/api.js';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => setCaptchaLoaded(true);
-            document.head.appendChild(script);
-          } else {
-            setCaptchaLoaded(true);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load CAPTCHA config:', error);
-      }
-    };
-    loadCaptchaConfig();
   }, []);
-
-  // Render hCaptcha when loaded
-  useEffect(() => {
-    if (captchaLoaded && captchaConfig.enabled && captchaRef.current && window.hcaptcha) {
-      try {
-        window.hcaptcha.render(captchaRef.current, {
-          sitekey: captchaConfig.siteKey,
-          callback: (token) => setCaptchaToken(token),
-          'expired-callback': () => setCaptchaToken(''),
-          theme: 'dark'
-        });
-      } catch (e) {
-        // Already rendered
-      }
-    }
-  }, [captchaLoaded, captchaConfig]);
 
   // Password requirements check
   const passwordRequirements = useMemo(() => ({
@@ -227,15 +181,12 @@ export default function Signup({ setAuth }) {
       return;
     }
     
-    // Validate CAPTCHA
-    if (captchaConfig.enabled && !captchaToken) {
-      toast.error('Please complete the CAPTCHA verification');
-      return;
-    }
-    
     setLoading(true);
 
     try {
+      // Get reCAPTCHA v3 token (invisible)
+      const captchaToken = await executeRecaptcha('signup');
+
       // Collect device fingerprint for anti-abuse protection
       let fingerprint = null;
       try {
@@ -277,11 +228,6 @@ export default function Signup({ setAuth }) {
       // Handle CAPTCHA error
       if (errorMessage.toLowerCase().includes('captcha')) {
         toast.error('CAPTCHA verification failed. Please try again.');
-        // Reset CAPTCHA
-        if (window.hcaptcha && captchaRef.current) {
-          window.hcaptcha.reset();
-          setCaptchaToken('');
-        }
       // Handle disposable email error
       } else if (errorMessage.toLowerCase().includes('disposable') || errorMessage.toLowerCase().includes('not allowed')) {
         toast.error('Please use a valid email address. Temporary/disposable emails are not allowed.', { duration: 5000 });
@@ -467,23 +413,7 @@ export default function Signup({ setAuth }) {
               )}
             </div>
 
-            {/* CAPTCHA */}
-            {captchaConfig.enabled && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-slate-300 text-sm">
-                  <Shield className="w-4 h-4 text-green-400" />
-                  <span>Security Verification</span>
-                </div>
-                <div 
-                  ref={captchaRef}
-                  className="flex justify-center"
-                  data-testid="captcha-container"
-                />
-                {!captchaToken && (
-                  <p className="text-xs text-slate-500 text-center">Please complete the verification above</p>
-                )}
-              </div>
-            )}
+            {/* Protected by reCAPTCHA v3 (invisible) */}
 
             <Button
               type="submit"

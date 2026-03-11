@@ -25,41 +25,46 @@ from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# CAPTCHA Configuration (using hCaptcha - free tier)
-HCAPTCHA_SECRET = os.environ.get("HCAPTCHA_SECRET", "0x0000000000000000000000000000000000000000")  # Test secret
-HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify"
-CAPTCHA_ENABLED = os.environ.get("CAPTCHA_ENABLED", "true").lower() == "true"
+# Google reCAPTCHA v3 Configuration
+RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", "")
+RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "")
+RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
+CAPTCHA_ENABLED = bool(RECAPTCHA_SECRET_KEY)
+RECAPTCHA_SCORE_THRESHOLD = 0.5
 
 
-async def verify_captcha(token: str) -> bool:
-    """Verify hCaptcha token"""
+async def verify_recaptcha(token: str, expected_action: str = None) -> bool:
+    """Verify Google reCAPTCHA v3 token"""
     if not CAPTCHA_ENABLED:
-        return True  # Skip in development
-    
+        return True
+
     if not token:
         return False
-    
-    # Test mode - accept test token
-    if HCAPTCHA_SECRET == "0x0000000000000000000000000000000000000000":
-        # In test mode, accept any token starting with "10000000-"
-        if token.startswith("10000000-"):
-            return True
-        # Also accept for development
-        return True
-    
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                HCAPTCHA_VERIFY_URL,
+                RECAPTCHA_VERIFY_URL,
                 data={
-                    "secret": HCAPTCHA_SECRET,
+                    "secret": RECAPTCHA_SECRET_KEY,
                     "response": token
                 }
             )
             result = response.json()
-            return result.get("success", False)
+            if not result.get("success", False):
+                logger.warning(f"reCAPTCHA failed: {result.get('error-codes', [])}")
+                return False
+            score = result.get("score", 0)
+            action = result.get("action", "")
+            if expected_action and action != expected_action:
+                logger.warning(f"reCAPTCHA action mismatch: expected={expected_action}, got={action}")
+                return False
+            if score < RECAPTCHA_SCORE_THRESHOLD:
+                logger.warning(f"reCAPTCHA low score: {score} for action={action}")
+                return False
+            return True
     except Exception as e:
-        logger.error(f"CAPTCHA verification failed: {e}")
+        logger.error(f"reCAPTCHA verification error: {e}")
         return False
 
 
@@ -77,17 +82,13 @@ class VerifyEmailRequest(BaseModel):
     token: str
 
 
-# CAPTCHA site key (public key for frontend)
-HCAPTCHA_SITE_KEY = os.environ.get("HCAPTCHA_SITE_KEY", "10000000-ffff-ffff-ffff-000000000001")  # Test key
-
-
 @router.get("/captcha-config")
 async def get_captcha_config():
-    """Get CAPTCHA configuration for frontend"""
+    """Get reCAPTCHA v3 configuration for frontend"""
     return {
         "enabled": CAPTCHA_ENABLED,
-        "provider": "hcaptcha",
-        "siteKey": HCAPTCHA_SITE_KEY
+        "provider": "recaptcha_v3",
+        "siteKey": RECAPTCHA_SITE_KEY
     }
 
 
@@ -259,10 +260,10 @@ async def send_password_reset_email(email: str, token: str, name: str):
 async def register(request: Request, data: UserCreate, background_tasks: BackgroundTasks):
     """Register a new user with validation, CAPTCHA verification, anti-abuse checks, and email verification"""
     try:
-        # Verify CAPTCHA first
+        # Verify reCAPTCHA v3
         captcha_token = getattr(data, 'captcha_token', None) or request.headers.get('X-Captcha-Token', '')
-        if CAPTCHA_ENABLED and not await verify_captcha(captcha_token):
-            raise HTTPException(status_code=400, detail="CAPTCHA verification failed. Please complete the CAPTCHA.")
+        if CAPTCHA_ENABLED and not await verify_recaptcha(captcha_token, expected_action="signup"):
+            raise HTTPException(status_code=400, detail="CAPTCHA verification failed. Please try again.")
         
         # Validate name
         name_valid, name_result = validate_name(data.name)
@@ -443,6 +444,12 @@ async def login(request: Request, data: UserLogin):
                 status_code=423,
                 detail=f"Account temporarily locked due to multiple failed attempts. Try again in {remaining_minutes} minutes."
             )
+
+        # Verify reCAPTCHA after 3+ failed attempts
+        if CAPTCHA_ENABLED and attempts >= 3:
+            captcha_token = getattr(data, 'captcha_token', None) or request.headers.get('X-Captcha-Token', '')
+            if not await verify_recaptcha(captcha_token, expected_action="login"):
+                raise HTTPException(status_code=400, detail="CAPTCHA verification required. Please try again.")
         
         user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
         
@@ -935,6 +942,11 @@ async def resend_verification(request: Request, background_tasks: BackgroundTask
 async def forgot_password(request: Request, data: ForgotPasswordRequest, background_tasks: BackgroundTasks):
     """Request password reset"""
     try:
+        # Verify reCAPTCHA v3
+        captcha_token = request.headers.get('X-Captcha-Token', '')
+        if CAPTCHA_ENABLED and not await verify_recaptcha(captcha_token, expected_action="forgot_password"):
+            return {"success": True, "message": "If an account exists with this email, you will receive a password reset link."}
+
         email = data.email.lower().strip()
         
         # Find user (don't reveal if user exists)

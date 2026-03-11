@@ -5,11 +5,13 @@ import { Input } from '../components/ui/input';
 import { authAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Sparkles, Mail, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
+import { useRecaptcha } from '../hooks/useRecaptcha';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const { executeRecaptcha } = useRecaptcha();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,7 +24,10 @@ export default function ForgotPassword() {
     setLoading(true);
     
     try {
-      await authAPI.forgotPassword({ email });
+      const captchaToken = await executeRecaptcha('forgot_password');
+      await authAPI.forgotPassword({ email }, {
+        headers: { 'X-Captcha-Token': captchaToken }
+      });
       setEmailSent(true);
       toast.success('Password reset email sent!');
     } catch (error) {

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import analytics from '../utils/analytics';
+import { useRecaptcha } from '../hooks/useRecaptcha';
 
 export default function Login({ setAuth }) {
   const [email, setEmail] = useState('');
@@ -19,10 +20,12 @@ export default function Login({ setAuth }) {
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [errors, setErrors] = useState({ email: '', password: '' });
-  const [loginError, setLoginError] = useState(''); // Inline error message
+  const [loginError, setLoginError] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
   const forgotEmailInputRef = useRef(null);
   const forgotPasswordLinkRef = useRef(null);
   const navigate = useNavigate();
+  const { executeRecaptcha } = useRecaptcha();
 
   // Focus email input when modal opens
   useEffect(() => {
@@ -119,7 +122,17 @@ export default function Login({ setAuth }) {
     setLoading(true);
 
     try {
-      const response = await authAPI.login({ email: email.trim().toLowerCase(), password });
+      // Get reCAPTCHA token (always execute, backend enforces only after 3 failures)
+      let captchaToken = '';
+      if (failedAttempts >= 2) {
+        captchaToken = await executeRecaptcha('login');
+      }
+
+      const response = await authAPI.login({ 
+        email: email.trim().toLowerCase(), 
+        password,
+        captcha_token: captchaToken
+      });
       localStorage.setItem('token', response.data.token);
       // Store user data from login response for immediate access
       if (response.data.user) {
@@ -141,13 +154,20 @@ export default function Login({ setAuth }) {
         setLoginError(errorMsg);
         toast.error(errorMsg);
       }
+      // Handle CAPTCHA requirement
+      else if (status === 400 && message.toLowerCase().includes('captcha')) {
+        setLoginError('Security verification required. Please try again.');
+        setFailedAttempts(prev => Math.max(prev, 3));
+      }
       // Handle remaining attempts warning
       else if (message.includes('attempts remaining')) {
+        setFailedAttempts(prev => prev + 1);
         setLoginError(message);
         toast.error(message);
       }
       // Generic error message to not reveal if email exists
       else {
+        setFailedAttempts(prev => prev + 1);
         const errorMsg = 'Invalid email or password. Please try again.';
         setLoginError(errorMsg);
         toast.error(errorMsg);
@@ -173,7 +193,12 @@ export default function Login({ setAuth }) {
     setSendingReset(true);
     
     try {
-      const response = await authAPI.forgotPassword({ email: forgotEmail.trim().toLowerCase() });
+      // Get reCAPTCHA token for forgot password
+      const captchaToken = await executeRecaptcha('forgot_password');
+      
+      const response = await authAPI.forgotPassword({ email: forgotEmail.trim().toLowerCase() }, {
+        headers: { 'X-Captcha-Token': captchaToken }
+      });
       if (response.data.success) {
         setResetSent(true);
         // Don't show specific toast - show generic success in modal

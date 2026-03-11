@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -7,6 +7,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
 import { Mail, Phone, MapPin, Send, Loader2, ArrowLeft, MessageSquare } from 'lucide-react';
+import { useRecaptcha } from '../hooks/useRecaptcha';
 
 export default function Contact() {
   const [loading, setLoading] = useState(false);
@@ -16,6 +17,7 @@ export default function Contact() {
     subject: 'General Inquiry',
     message: ''
   });
+  const { executeRecaptcha } = useRecaptcha();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,9 +29,13 @@ export default function Contact() {
 
     setLoading(true);
     try {
+      const captchaToken = await executeRecaptcha('contact');
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/feedback/contact`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Captcha-Token': captchaToken
+        },
         body: JSON.stringify(formData)
       });
 
