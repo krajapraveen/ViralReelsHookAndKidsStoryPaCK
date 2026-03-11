@@ -2,7 +2,7 @@
 Generation Routes - Reel and Story Generation with ML Threat Detection
 CreatorStudio AI Content Generation
 """
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
 from datetime import datetime, timezone
 from typing import Optional
 import uuid
@@ -99,7 +99,7 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int, use
     import base64
     import asyncio
     
-    max_retries = 3
+    max_retries = 1
     attempt = 0
     last_error = None
     
@@ -107,7 +107,7 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int, use
         try:
             if attempt > 0:
                 logger.info(f"Retrying story image generation for scene {scene_index}, attempt {attempt + 1}")
-                await asyncio.sleep(min(3 * (2 ** attempt), 30))
+                await asyncio.sleep(2)
             
             from emergentintegrations.llm.chat import LlmChat, UserMessage
             
@@ -121,11 +121,22 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int, use
             ).with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
             
             msg = UserMessage(text=full_prompt)
-            text_response, images = await chat.send_message_multimodal_response(msg)
+            text_response, images = await asyncio.wait_for(
+                chat.send_message_multimodal_response(msg),
+                timeout=30.0
+            )
             
             if images and len(images) > 0:
-                # Save image to temp file
-                image_bytes = base64.b64decode(images[0]['data'])
+                # Handle both dict and string image formats
+                img = images[0]
+                if isinstance(img, dict):
+                    img_data = img.get('data', '')
+                elif isinstance(img, str):
+                    img_data = img.split('base64,')[1] if 'base64,' in img else img
+                else:
+                    raise Exception(f"Unexpected image format: {type(img)}")
+
+                image_bytes = base64.b64decode(img_data)
                 
                 # Apply watermark for free users
                 if should_apply_watermark(user_plan):
@@ -156,7 +167,7 @@ async def generate_story_image(prompt: str, story_id: str, scene_index: int, use
             attempt += 1
     
     # All retries exhausted - return None (graceful degradation)
-    logger.error(f"Story image generation failed after {max_retries + 1} attempts for scene {scene_index}: {last_error}")
+    logger.warning(f"Story image generation failed for scene {scene_index}: {last_error}")
     return None
 
 
@@ -210,7 +221,12 @@ async def generate_story_content_inline(data: dict, generate_images: bool = True
             # Generate cover image for the story (with built-in retry in generate_story_image)
             if generate_images and result.get("scenes"):
                 # Generate a cover image based on the story title and synopsis
-                cover_prompt = f"{result.get('title', 'Story')}: {result.get('synopsis', '')}. Main characters: {', '.join([c.get('name', '') for c in result.get('characters', [])])}"
+                characters = result.get('characters', [])
+                char_names = ', '.join([
+                    c.get('name', '') if isinstance(c, dict) else str(c)
+                    for c in characters
+                ]) if characters else ''
+                cover_prompt = f"{result.get('title', 'Story')}: {result.get('synopsis', '')}. Main characters: {char_names}"
                 cover_image_url = await generate_story_image(cover_prompt, unique_id, 0, user_plan)
                 if cover_image_url:
                     result["coverImageUrl"] = cover_image_url
@@ -350,8 +366,44 @@ async def generate_reel(request: Request, data: GenerateReelRequest, user: dict 
         raise HTTPException(status_code=500, detail="Generation failed")
 
 
+async def generate_story_images_background(result: dict, generation_id: str, user_plan: str = "free"):
+    """Generate story images in the background after text has been returned"""
+    try:
+        unique_id = generation_id[:8]
+        updated = False
+
+        if result.get("scenes"):
+            characters = result.get('characters', [])
+            char_names = ', '.join([
+                c.get('name', '') if isinstance(c, dict) else str(c)
+                for c in characters
+            ]) if characters else ''
+            cover_prompt = f"{result.get('title', 'Story')}: {result.get('synopsis', '')}. Main characters: {char_names}"
+            cover_url = await generate_story_image(cover_prompt, unique_id, 0, user_plan)
+            if cover_url:
+                result["coverImageUrl"] = cover_url
+                updated = True
+
+            first_scene = result["scenes"][0]
+            visual_desc = first_scene.get("visualDescription") or first_scene.get("visual_description") or first_scene.get("sceneTitle", "")
+            if visual_desc:
+                scene_url = await generate_story_image(visual_desc, unique_id, 1, user_plan)
+                if scene_url:
+                    first_scene["imageUrl"] = scene_url
+                    updated = True
+
+        if updated:
+            await db.generations.update_one(
+                {"id": generation_id},
+                {"$set": {"outputJson": result, "imagesGenerated": True}}
+            )
+            logger.info(f"Background images generated for story {generation_id}")
+    except Exception as e:
+        logger.error(f"Background image generation failed for {generation_id}: {e}")
+
+
 @router.post("/story")
-async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_current_user)):
+async def generate_story(request: Request, data: GenerateStoryRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Generate a kids story - costs 10 credits"""
     try:
         # ML-based content moderation
@@ -373,16 +425,14 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
         # Check credits
         await check_credits(user, STORY_COST, "story generation")
         
-        # Generate content
+        # Generate content WITHOUT images first (fast, <15s)
         result = None
         generation_error = None
-        
-        # Get user plan for watermark decision
         user_plan = user.get("plan", "free")
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
-                result = await generate_story_content_inline(data.model_dump(), user_plan=user_plan)
+                result = await generate_story_content_inline(data.model_dump(), generate_images=False, user_plan=user_plan)
             except Exception as inline_error:
                 logger.warning(f"Inline story generation failed: {inline_error}")
                 generation_error = str(inline_error)
@@ -433,6 +483,15 @@ async def generate_story(data: GenerateStoryRequest, user: dict = Depends(get_cu
             "completedAt": datetime.now(timezone.utc).isoformat()
         }
         await db.generations.insert_one(generation)
+        
+        # Generate images in background (non-blocking)
+        if LLM_AVAILABLE and EMERGENT_LLM_KEY and result.get("scenes"):
+            background_tasks.add_task(
+                generate_story_images_background,
+                result=result,
+                generation_id=generation_id,
+                user_plan=user_plan
+            )
         
         return {
             "success": True,
