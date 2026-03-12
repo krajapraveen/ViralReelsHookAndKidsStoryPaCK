@@ -132,6 +132,11 @@ export default function Landing() {
                 Reviews
               </Button>
             </Link>
+            <Link to="/blog">
+              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-blog-btn">
+                Blog
+              </Button>
+            </Link>
             <Link to="/user-manual">
               <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-help-btn">
                 Help
@@ -172,6 +177,11 @@ export default function Landing() {
               <Link to="/reviews" onClick={() => setMobileMenuOpen(false)}>
                 <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start">
                   Reviews
+                </Button>
+              </Link>
+              <Link to="/blog" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start">
+                  Blog
                 </Button>
               </Link>
               <Link to="/user-manual" onClick={() => setMobileMenuOpen(false)}>
