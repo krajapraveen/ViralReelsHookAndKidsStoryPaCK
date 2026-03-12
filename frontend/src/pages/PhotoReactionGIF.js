@@ -142,7 +142,7 @@ export default function PhotoReactionGIF() {
   const fetchCredits = async () => {
     try {
       const res = await api.get('/api/credits/balance');
-      setCredits(res.data.credits);
+      setCredits(res.data.balance ?? res.data.credits ?? 0);
     } catch (e) {
       console.error('Failed to fetch credits');
     }
@@ -230,14 +230,19 @@ export default function PhotoReactionGIF() {
           
           setTimeout(() => setShowRating(true), 2000);
         } else {
-          toast.error('Generation failed. Please try again.');
+          const failError = res.data.error || 'Generation failed';
+          if (failError.toLowerCase().includes('budget')) {
+            toast.error('AI service temporarily unavailable. No credits were deducted. Please try again later.');
+          } else {
+            toast.error(`Generation failed. No credits were deducted. Please try again.`);
+          }
           
           // Send failure notification
           notifyGenerationFailed({
             feature: 'reaction_gif',
             featureName: 'Reaction GIF',
             jobId: jobId,
-            error: res.data.error || 'Generation failed'
+            error: failError
           });
         }
       }
@@ -756,6 +761,18 @@ export default function PhotoReactionGIF() {
                     currentFeature="/app/gif-maker"
                     showExploreFeatures={true}
                   />
+                )}
+                
+                {/* Failed State */}
+                {job.status === 'FAILED' && (
+                  <div className="text-center py-8 space-y-4">
+                    <AlertTriangle className="w-16 h-16 mx-auto text-red-400" />
+                    <p className="text-red-400 font-medium">Generation Failed</p>
+                    <p className="text-sm text-slate-400">{job.error || 'An error occurred. No credits were deducted.'}</p>
+                    <Button onClick={resetWizard} className="bg-gradient-to-r from-pink-600 to-purple-600">
+                      Try Again
+                    </Button>
+                  </div>
                 )}
                 
                 {/* Result GIF */}

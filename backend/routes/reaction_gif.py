@@ -279,12 +279,14 @@ async def process_reaction_gif(
         )
         
         results = []
+        real_results = []  # Track only successfully generated images
         style_info = GIF_STYLES.get(style, GIF_STYLES["cartoon_motion"])
         negative_prompt = get_negative_prompt()
         
         # Determine reactions to generate
         reactions_to_generate = [reaction] if mode == "single" else pack_reactions
         total_reactions = len(reactions_to_generate)
+        generation_errors = []
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
@@ -334,10 +336,18 @@ AVOID: {negative_prompt}"""
                     
                     if images and len(images) > 0:
                         img_data = images[0]
-                        image_bytes = base64.b64decode(img_data['data'])
+                        # Handle both dict format {'mime_type':..., 'data':...} and raw base64 string
+                        if isinstance(img_data, dict):
+                            image_bytes = base64.b64decode(img_data['data'])
+                        elif isinstance(img_data, str):
+                            image_bytes = base64.b64decode(img_data)
+                        elif isinstance(img_data, bytes):
+                            image_bytes = img_data
+                        else:
+                            raise ValueError(f"Unexpected image data type: {type(img_data)}")
                         
                         # Apply watermark for free users
-                        if should_apply_watermark(user_plan):
+                        if should_apply_watermark({"plan": user_plan}):
                             config = get_watermark_config("GIF")
                             image_bytes = add_diagonal_watermark(
                                 image_bytes,
@@ -348,7 +358,7 @@ AVOID: {negative_prompt}"""
                             )
                         
                         import hashlib
-                        filename = f"reaction_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:12]}.gif"
+                        filename = f"reaction_{hashlib.md5(f'{job_id}_{i}'.encode()).hexdigest()[:12]}.png"
                         filepath = f"/app/backend/static/generated/{filename}"
                         
                         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -356,55 +366,61 @@ AVOID: {negative_prompt}"""
                             f.write(image_bytes)
                         
                         url = f"/api/static/generated/{filename}"
-                        results.append({
+                        result_entry = {
                             "reaction": react,
                             "emoji": reaction_info["emoji"],
-                            "url": url
-                        })
+                            "url": url,
+                            "generated": True
+                        }
+                        results.append(result_entry)
+                        real_results.append(result_entry)
                     else:
-                        # Placeholder
-                        url = f"https://placehold.co/400x400/ec4899/white?text={reaction_info['emoji']}"
-                        results.append({
-                            "reaction": react,
-                            "emoji": reaction_info["emoji"],
-                            "url": url
-                        })
+                        logger.warning(f"No image returned for reaction {react} in job {job_id}")
+                        generation_errors.append(f"No image returned for {react}")
                         
                 except Exception as e:
-                    logger.error(f"Reaction generation error: {e}")
-                    url = f"https://placehold.co/400x400/ec4899/white?text={reaction_info['emoji']}"
-                    results.append({
-                        "reaction": react,
-                        "emoji": reaction_info["emoji"],
-                        "url": url
-                    })
+                    error_msg = str(e)
+                    logger.error(f"Reaction generation error for {react}: {error_msg}")
+                    generation_errors.append(error_msg)
         else:
-            # Placeholders for all reactions
-            for react in reactions_to_generate:
-                reaction_info = REACTION_TYPES.get(react, REACTION_TYPES["happy"])
-                results.append({
-                    "reaction": react,
-                    "emoji": reaction_info["emoji"],
-                    "url": f"https://placehold.co/400x400/ec4899/white?text={reaction_info['emoji']}"
-                })
+            generation_errors.append("LLM service not available")
         
-        # Deduct credits
-        await deduct_credits(user_id, cost, f"Reaction GIF: {job_id[:8]}")
-        
-        # Update job
-        result_url = results[0]["url"] if results else None
-        
-        await db.reaction_gif_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "status": "COMPLETED",
-                "progress": 100,
-                "progressMessage": "Complete!",
-                "resultUrl": result_url,
-                "results": results,
-                "updatedAt": datetime.now(timezone.utc).isoformat()
-            }}
-        )
+        # Determine final status based on real results
+        if len(real_results) > 0:
+            # At least some images were generated successfully — deduct credits
+            await deduct_credits(user_id, cost, f"Reaction GIF: {job_id[:8]}")
+            
+            result_url = real_results[0]["url"]
+            
+            await db.reaction_gif_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "COMPLETED",
+                    "progress": 100,
+                    "progressMessage": "Complete!",
+                    "resultUrl": result_url,
+                    "results": real_results,
+                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+        else:
+            # No real images generated — do NOT deduct credits, mark as FAILED
+            error_summary = "; ".join(generation_errors[:3]) if generation_errors else "Generation failed"
+            # Detect budget exceeded for user-friendly message
+            if any("budget" in e.lower() for e in generation_errors):
+                error_summary = "AI service budget exceeded. Please contact support or try again later."
+            
+            logger.error(f"Reaction GIF job {job_id} FAILED: {error_summary}")
+            await db.reaction_gif_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "FAILED",
+                    "error": error_summary,
+                    "progress": 0,
+                    "progressMessage": "Generation failed",
+                    "updatedAt": datetime.now(timezone.utc).isoformat()
+                }}
+            )
         
     except Exception as e:
         logger.error(f"Reaction GIF processing error: {e}")

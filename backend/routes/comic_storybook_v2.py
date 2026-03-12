@@ -535,7 +535,7 @@ AVOID: {negative_prompt}"""
                         image_bytes = base64.b64decode(img_data['data'])
                         
                         # Apply watermark for free users
-                        if should_apply_watermark(user_plan):
+                        if should_apply_watermark({"plan": user_plan}):
                             config = get_watermark_config("STORYBOOK")
                             image_bytes = add_diagonal_watermark(
                                 image_bytes,

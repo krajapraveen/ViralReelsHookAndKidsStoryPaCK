@@ -136,7 +136,7 @@ async def save_image_with_watermark(
         user_plan = user_data.get("plan", "free") if user_data else "free"
         
         # Apply watermark for free users
-        if should_apply_watermark(user_plan):
+        if should_apply_watermark({"plan": user_plan}):
             config = get_watermark_config(content_type)
             image_bytes = add_diagonal_watermark(
                 image_bytes,

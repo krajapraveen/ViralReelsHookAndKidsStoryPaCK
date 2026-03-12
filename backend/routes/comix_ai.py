@@ -678,7 +678,7 @@ Make it visually dynamic and engaging, appropriate for all ages."""
                         user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
                         user_plan = user_data.get("plan", "free") if user_data else "free"
                         
-                        if should_apply_watermark(user_plan):
+                        if should_apply_watermark({"plan": user_plan}):
                             config = get_watermark_config("COMIC")
                             image_bytes = add_diagonal_watermark(
                                 image_bytes,
