@@ -1,21 +1,21 @@
 {
   "instagram_reel": {
-    "status": "GENERATING",
-    "path": null,
+    "status": "COMPLETED",
+    "path": "/app/backend/static/generated/visionary_suite_instagram_reel.mp4",
     "error": null,
-    "updated": "2026-03-12 14:19:49"
+    "updated": "2026-03-12 14:30:11"
   },
   "instagram_story": {
-    "status": "GENERATING",
-    "path": null,
+    "status": "COMPLETED",
+    "path": "/app/backend/static/generated/visionary_suite_instagram_story.mp4",
     "error": null,
-    "updated": "2026-03-12 14:19:49"
+    "updated": "2026-03-12 14:30:25"
   },
   "youtube_shorts": {
-    "status": "GENERATING",
-    "path": null,
+    "status": "COMPLETED",
+    "path": "/app/backend/static/generated/visionary_suite_youtube_shorts.mp4",
     "error": null,
-    "updated": "2026-03-12 14:19:49"
+    "updated": "2026-03-12 14:30:52"
   },
   "facebook_reel": {
     "status": "COMPLETED",
