@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://blog-seo-posts.preview.emergentagent.com
+**Platform URL:** https://story-video-fix.preview.emergentagent.com
 
 ---
 

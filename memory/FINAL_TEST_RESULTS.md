@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://blog-seo-posts.preview.emergentagent.com
+**Website:** https://story-video-fix.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

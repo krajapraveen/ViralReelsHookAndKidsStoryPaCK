@@ -81,7 +81,7 @@ async def send_alert_email(alert_type: str, subject: str, message: str):
                 <p style="color: #888; font-size: 12px;">
                     Alert Type: {alert_type}<br>
                     Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}<br>
-                    <a href="https://blog-seo-posts.preview.emergentagent.com/app/admin/realtime-analytics" style="color: #667eea;">View Real-Time Analytics →</a>
+                    <a href="https://story-video-fix.preview.emergentagent.com/app/admin/realtime-analytics" style="color: #667eea;">View Real-Time Analytics →</a>
                 </p>
             </div>
         </div>

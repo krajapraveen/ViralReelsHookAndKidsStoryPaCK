@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://blog-seo-posts.preview.emergentagent.com)
+**Environment:** Preview (https://story-video-fix.preview.emergentagent.com)
 
 ---
 

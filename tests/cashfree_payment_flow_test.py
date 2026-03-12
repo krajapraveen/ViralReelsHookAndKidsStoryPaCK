@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 # Configuration
-API_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://blog-seo-posts.preview.emergentagent.com")
+API_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://story-video-fix.preview.emergentagent.com")
 ADMIN_EMAIL = "admin@creatorstudio.ai"
 ADMIN_PASSWORD = "Cr3@t0rStud!o#2026"
 

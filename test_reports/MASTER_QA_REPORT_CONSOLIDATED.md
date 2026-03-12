@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://blog-seo-posts.preview.emergentagent.com  
+**Base URL:** https://story-video-fix.preview.emergentagent.com  
 **Forks Consolidated:** Current + Previous 5 Forks
 
 ---

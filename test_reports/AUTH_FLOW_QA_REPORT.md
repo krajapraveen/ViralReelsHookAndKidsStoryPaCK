@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://blog-seo-posts.preview.emergentagent.com/login  
+**URL Tested:** https://story-video-fix.preview.emergentagent.com/login  
 **Environment:** Desktop Chrome (1920x800) + Mobile (375x812)
 
 ---

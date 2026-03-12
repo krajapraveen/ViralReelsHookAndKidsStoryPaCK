@@ -1,7 +1,7 @@
 {
   "summary": "Comprehensive UAT and Production Readiness Audit for visionary-qa.preview.emergentagent.com completed. All critical functionalities tested including public pages, authentication, generators, billing, admin panel, and mobile responsiveness. MAJOR FIX VERIFIED: Terms of Service page now has content (8881 chars) - P2 bug from iteration_111 is FIXED.",
   "test_date": "2026-02-28",
-  "preview_url": "https://blog-seo-posts.preview.emergentagent.com",
+  "preview_url": "https://story-video-fix.preview.emergentagent.com",
   "backend_issues": {
     "critical": [],
     "minor": [

@@ -12,7 +12,7 @@ export default defineConfig({
     ['html', { open: 'never' }]
   ],
   use: {
-    baseURL: 'https://blog-seo-posts.preview.emergentagent.com',
+    baseURL: 'https://story-video-fix.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'off',
