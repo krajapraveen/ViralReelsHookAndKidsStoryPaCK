@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, ArrowRight, Upload, Wand2, Camera, Loader2, Download, 
@@ -122,7 +122,8 @@ export default function PhotoReactionGIF() {
   // Generation state
   const [loading, setLoading] = useState(false);
   const [job, setJob] = useState(null);
-  const [pollingInterval, setPollingIntervalState] = useState(null);
+  const pollingRef = useRef(null);
+  const completedJobsRef = useRef(new Set());
   
   // Notifications
   const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
@@ -135,7 +136,7 @@ export default function PhotoReactionGIF() {
     fetchCredits();
     fetchUserPlan();
     return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, []);
 
@@ -210,46 +211,54 @@ export default function PhotoReactionGIF() {
       setJob(res.data);
       
       if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
-        if (pollingInterval) clearInterval(pollingInterval);
-        setPollingIntervalState(null);
+        // Stop polling immediately using ref
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
         setLoading(false);
         fetchCredits();
         
-        if (res.data.status === 'COMPLETED') {
-          toast.success('Your reaction GIF is ready!');
+        // Only show notification ONCE per job using completedJobsRef
+        if (!completedJobsRef.current.has(jobId)) {
+          completedJobsRef.current.add(jobId);
           
-          // Send notification
-          notifyGenerationComplete({
-            feature: 'reaction_gif',
-            featureName: 'Reaction GIF',
-            jobId: jobId,
-            downloadUrl: res.data.resultUrl,
-            actionUrl: '/app/reaction-gifs'
-          });
-          refetchNotifications?.();
-          
-          setTimeout(() => setShowRating(true), 2000);
-        } else {
-          const failError = res.data.error || 'Generation failed';
-          if (failError.toLowerCase().includes('budget')) {
-            toast.error('AI service temporarily unavailable. No credits were deducted. Please try again later.');
+          if (res.data.status === 'COMPLETED') {
+            toast.success('Your reaction GIF is ready!');
+            
+            notifyGenerationComplete({
+              feature: 'reaction_gif',
+              featureName: 'Reaction GIF',
+              jobId: jobId,
+              downloadUrl: res.data.resultUrl,
+              actionUrl: '/app/reaction-gifs',
+              showToast: false
+            });
+            refetchNotifications?.();
+            
+            setTimeout(() => setShowRating(true), 2000);
           } else {
-            toast.error(`Generation failed. No credits were deducted. Please try again.`);
+            const failError = res.data.error || 'Generation failed';
+            if (failError.toLowerCase().includes('budget')) {
+              toast.error('AI service temporarily unavailable. No credits were deducted. Please try again later.');
+            } else {
+              toast.error(`Generation failed. No credits were deducted. Please try again.`);
+            }
+            
+            notifyGenerationFailed({
+              feature: 'reaction_gif',
+              featureName: 'Reaction GIF',
+              jobId: jobId,
+              error: failError,
+              showToast: false
+            });
           }
-          
-          // Send failure notification
-          notifyGenerationFailed({
-            feature: 'reaction_gif',
-            featureName: 'Reaction GIF',
-            jobId: jobId,
-            error: failError
-          });
         }
       }
     } catch (e) {
       console.error('Poll error:', e);
     }
-  }, [pollingInterval, notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
+  }, [notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
 
   // Generate GIF
   const generateGIF = async () => {
@@ -307,8 +316,9 @@ export default function PhotoReactionGIF() {
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Generation started!');
       
-      const interval = setInterval(() => pollJobStatus(res.data.jobId), 2000);
-      setPollingIntervalState(interval);
+      // Clear any existing polling before starting new one
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      pollingRef.current = setInterval(() => pollJobStatus(res.data.jobId), 2000);
       
     } catch (e) {
       setLoading(false);

@@ -570,7 +570,7 @@ async def get_promo_video_status():
         file_size = round(file_path.stat().st_size / (1024 * 1024), 1) if file_exists else 0
         result.append({
             **v,
-            "status": "COMPLETED" if file_exists else s.get("status", "NOT_STARTED"),
+            "status": "COMPLETED" if file_exists else ("FILE_MISSING" if s.get("status") == "COMPLETED" else s.get("status", "NOT_STARTED")),
             "downloadUrl": f"/api/generated/{v['filename']}" if file_exists else None,
             "fileSizeMB": file_size,
             "error": s.get("error"),

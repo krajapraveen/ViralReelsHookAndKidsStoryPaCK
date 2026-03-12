@@ -60,11 +60,15 @@ export function NotificationProvider({ children }) {
         }));
         
         // Check for new notifications (for toast) - use ref to avoid stale closure
+        // Skip generation_complete/generation_failed - those are toasted by the page-level code
         if (lastPollRef.current) {
           const existingIds = new Set(notificationsRef.current.map(n => n.id));
-          const newNotifications = formattedBackend.filter(n => !existingIds.has(n.id) && !n.read);
+          const newNotifications = formattedBackend.filter(n => 
+            !existingIds.has(n.id) && !n.read && 
+            n.type !== 'generation_complete' && n.type !== 'generation_failed'
+          );
           newNotifications.forEach(n => {
-            if (n.type === 'generation_complete' || n.type === 'download_ready') {
+            if (n.type === 'download_ready') {
               toast.success(n.title, { description: n.message });
             }
           });

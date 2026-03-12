@@ -19,7 +19,8 @@ function StatusBadge({ status }) {
   if (status === 'GENERATING') return <span className="flex items-center gap-1 text-amber-400 text-sm font-medium animate-pulse"><Clock className="w-4 h-4 animate-spin" /> Generating...</span>;
   if (status === 'FAILED') return <span className="flex items-center gap-1 text-red-400 text-sm font-medium"><AlertCircle className="w-4 h-4" /> Failed</span>;
   if (status === 'PENDING') return <span className="flex items-center gap-1 text-slate-400 text-sm font-medium"><Clock className="w-4 h-4" /> Queued</span>;
-  return <span className="flex items-center gap-1 text-slate-500 text-sm"><Clock className="w-4 h-4" /> Waiting</span>;
+  if (status === 'FILE_MISSING') return <span className="flex items-center gap-1 text-amber-400 text-sm font-medium"><AlertCircle className="w-4 h-4" /> Needs Redeploy</span>;
+  return <span className="flex items-center gap-1 text-slate-500 text-sm"><Clock className="w-4 h-4" /> Not Generated</span>;
 }
 
 export default function PromoVideos() {
@@ -201,6 +202,10 @@ export default function PromoVideos() {
                         >
                           <Share2 className="w-4 h-4" />
                         </Button>
+                      </div>
+                    ) : video.status === 'COMPLETED' && !video.downloadUrl ? (
+                      <div className="h-10 flex items-center justify-center text-amber-400 text-sm">
+                        Video generated but file not found. Please redeploy or regenerate.
                       </div>
                     ) : (
                       <div className="h-10 flex items-center justify-center text-slate-500 text-sm">
