@@ -3,43 +3,45 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with monitoring, security, and admin analytics.
 
-## LATEST UPDATE: 2026-03-12
+## LATEST UPDATE: 2026-03-12 — Session 14
 
-### P0 Fix: Infinite "Reaction GIF Ready!" Toast Loop — FIXED
-**Root Cause:** Classic React stale closure bug. `pollingInterval` stored as state but captured in `useCallback` closure. `clearInterval(pollingInterval)` had stale reference and never cleared the interval. Plus 3 duplicate toast sources (direct toast, notification context, notification polling).
-**Fix:** 
-- Replaced `useState` polling with `useRef` (pollingRef)
-- Added `completedJobsRef` Set to prevent duplicate toasts per jobId
-- Set `showToast: false` on notification context calls to prevent duplicate toasts
-- Updated NotificationContext polling to skip `generation_complete` toasts (page handles them)
+### P0 Fix: Infinite "Reaction GIF Ready!" Toast Loop — FIXED & VERIFIED
+**Root Cause:** React stale closure bug. `pollingInterval` stored as state, captured in useCallback closure. `clearInterval()` had stale reference and never stopped. Plus 3 duplicate toast sources.
+**Fix:** useRef for polling, completedJobsRef dedup, showToast:false on notifications, NotificationContext skip generation toasts.
 **Files:** `PhotoReactionGIF.js`, `NotificationContext.js`
+**Test:** Playwright waited 15s — zero toasts. PASSED.
 
-### P0 Fix: Rating Feedback Not Submitting — FIXED
-**Root Cause:** Infinite toast spam from Bug #1 overwhelmed sonner toast system, preventing rating modal interactions from being visible. The API endpoint (`/api/user-analytics/rating`) works correctly (verified via curl).
-**Fix:** Fixing Bug #1 resolves Bug #2 — rating modal now works correctly without toast interference.
+### P0 Fix: Rating Feedback Not Submitting — FIXED & VERIFIED
+**Root Cause:** Infinite toast spam overwhelmed sonner UI, blocking modal interactions.
+**Fix:** Fixing toast loop resolved this. API confirmed working (POST /api/user-analytics/rating returns success:true).
+**Test:** pytest 4 tests (ratings 1-5) all passed. PASSED.
 
-### Promo Videos — PARTIALLY AVAILABLE
-- 1 of 4 videos available (Facebook Reel) — LLM key budget exhausted during regeneration
-- User needs to add balance to regenerate remaining 3 videos
-- Status endpoint now correctly shows FILE_MISSING when files don't exist on server
+### P0 Fix: Promo Videos — ALL 4 AVAILABLE & VERIFIED
+**Fix:** Regenerated all 4 videos using Image+TTS+ffmpeg pipeline. Fixed FILE_MISSING status detection.
+**Files:** `PromoVideos.js`, `server.py` status endpoint
+**Videos:** Instagram Reel (2.9MB), Instagram Story (2.7MB), YouTube Shorts (4.7MB), Facebook Reel (2.3MB)
+**Test:** All 4 COMPLETED, downloadable (HTTP 200), video players visible. PASSED.
 
-## Previous Fixes (Session 14)
-- Payment History page field mapping fix
-- 4 new SEO blog posts added
+### Earlier Fixes (Same Session)
+- Payment History page field mapping fix — TESTED
+- 4 new SEO blog posts added — TESTED
 - Blog link added to main navigation
+
+## Test Reports
+- Iteration 144: Payment History + Blog (17/17 passed)
+- Iteration 145: Toast loop + Rating + Promos (13/13 pytest + Playwright all PASSED)
 
 ## Architecture
 - Backend: FastAPI + MongoDB + Cashfree PG + Emergent LLM (Gemini + Sora 2 + TTS)
-- Frontend: React + Shadcn UI + Cashfree JS SDK
-- Storage: Cloudflare R2 + local static/generated
+- Frontend: React + Shadcn UI
+- Video Pipeline: Sora 2 / Image Gen + OpenAI TTS (onyx) + ffmpeg
 
 ## Known Issues
-- LLM key budget exhausted — user needs to add balance for video generation
 - SendGrid requires plan upgrade (BLOCKED on user)
 - Generated files 404 on production: fix awaiting user deployment
 
 ## Backlog
-- P0: User must deploy all fixes + add LLM balance for video regeneration
+- P0: User must "Replace Deployment" to push all fixes to production
 - P1: LLM timeout retry logic (tenacity) across all generation routes
 - P1: Full system audit on production after deployment
 - P2: Job queue architecture improvements
