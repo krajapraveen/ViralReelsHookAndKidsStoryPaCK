@@ -341,7 +341,7 @@ AVOID: {negative_prompt}"""
                     f.write(image_bytes)
                 
                 preview_pages.append({
-                    "url": f"/api/static/generated/{filename}",
+                    "url": f"/api/generated/{filename}",
                     "type": "cover"
                 })
                 
@@ -555,7 +555,7 @@ AVOID: {negative_prompt}"""
                         
                         generated_pages.append({
                             "pageNumber": i + 1,
-                            "imageUrl": f"/api/static/generated/{filename}",
+                            "imageUrl": f"/api/generated/{filename}",
                             "scene": page_content.get('scene', ''),
                             "dialogue": page_content.get('dialogue', '')
                         })
@@ -593,7 +593,7 @@ AVOID: {negative_prompt}"""
         )
         
         # Simple PDF assembly (placeholder for now)
-        pdf_url = f"/api/static/generated/storybook_{job_id[:8]}.pdf"
+        pdf_url = f"/api/generated/storybook_{job_id[:8]}.pdf"
         
         # Deduct credits
         await deduct_credits(user_id, cost, f"Comic Story Book: {job_id[:8]}")
@@ -686,7 +686,7 @@ async def download_comic(
     
     return {
         "success": True,
-        "downloadUrl": job.get("pdfUrl", f"/api/static/generated/storybook_{job_id[:8]}.pdf")
+        "downloadUrl": job.get("pdfUrl", f"/api/generated/storybook_{job_id[:8]}.pdf")
     }
 
 

@@ -513,7 +513,7 @@ Make it original, copyright-free, visually engaging, and appropriate for all age
                             with open(filepath, 'wb') as f:
                                 f.write(image_bytes)
                             
-                            panel_data["imageUrl"] = f"/api/static/generated/{filename}"
+                            panel_data["imageUrl"] = f"/api/generated/{filename}"
                             
                     except Exception as e:
                         logger.error(f"Storybook panel generation error: {e}")

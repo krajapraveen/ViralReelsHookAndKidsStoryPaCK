@@ -289,7 +289,7 @@ async def process_comic_character(job_id: str, photo_content: bytes, prompt: str
                         f.write(image_bytes)
                     
                     # Generate accessible URL
-                    result_url = f"/api/static/generated/{filename}"
+                    result_url = f"/api/generated/{filename}"
                     
             except Exception as e:
                 logger.error(f"Comic character generation error: {e}")
@@ -437,7 +437,7 @@ async def process_comic_panel(job_id: str, prompt: str, user_id: str, cost: int,
                         with open(filepath, 'wb') as f:
                             f.write(image_bytes)
                         
-                        result_urls.append(f"/api/static/generated/{filename}")
+                        result_urls.append(f"/api/generated/{filename}")
                         
             except Exception as e:
                 logger.error(f"Comic panel generation error: {e}")
@@ -697,7 +697,7 @@ Make it visually dynamic and engaging, appropriate for all ages."""
                         with open(filepath, 'wb') as f:
                             f.write(image_bytes)
                         
-                        panel_data["imageUrl"] = f"/api/static/generated/{filename}"
+                        panel_data["imageUrl"] = f"/api/generated/{filename}"
                         
                 except Exception as e:
                     logger.error(f"Panel {i+1} generation error: {e}")

@@ -532,8 +532,19 @@ app.include_router(ws_api_router)
 STATIC_DIR = ROOT_DIR / "static" / "generated"
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
-# Mount static files for serving generated images
-app.mount("/api/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
+# Mount static files for serving generated images at multiple paths for compatibility
+app.mount("/api/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="api_static")
+app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
+
+# Dedicated route for generated files (works regardless of ingress routing)
+from fastapi.responses import FileResponse
+
+@app.get("/api/generated/{filename:path}")
+async def serve_generated_file(filename: str):
+    filepath = ROOT_DIR / "static" / "generated" / filename
+    if filepath.exists() and filepath.is_file():
+        return FileResponse(filepath)
+    raise HTTPException(status_code=404, detail="File not found")
 
 # ==================== ROOT ENDPOINTS ====================
 

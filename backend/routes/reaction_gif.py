@@ -306,14 +306,20 @@ async def process_reaction_gif(
                 )
                 
                 try:
-                    chat = LlmChat(
-                        api_key=EMERGENT_LLM_KEY,
-                        session_id=f"reaction-gif-{job_id}-{i}",
-                        system_message="You are an artist creating fun reaction images. Original content only."
-                    )
-                    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                    image_bytes = None
+                    max_retries = 3
+                    last_error = None
                     
-                    prompt = f"""Transform this person into a fun reaction image.
+                    for attempt in range(max_retries):
+                        try:
+                            chat = LlmChat(
+                                api_key=EMERGENT_LLM_KEY,
+                                session_id=f"reaction-gif-{job_id}-{i}-{attempt}",
+                                system_message="You are an artist creating fun reaction images. Original content only."
+                            )
+                            chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                            
+                            prompt = f"""Transform this person into a fun reaction image.
 
 Reaction: {reaction_info['emoji']} {reaction_info['prompt']}
 Style: {style_info['prompt']}
@@ -326,26 +332,37 @@ Maintain the person's likeness but make it fun and shareable.
 IMPORTANT: Original character design only. No copyrighted content.
 
 AVOID: {negative_prompt}"""
+                            
+                            msg = UserMessage(
+                                text=prompt,
+                                file_contents=[ImageContent(photo_b64)]
+                            )
+                            
+                            _, images = await chat.send_message_multimodal_response(msg)
+                            
+                            if images and len(images) > 0:
+                                img_data = images[0]
+                                if isinstance(img_data, dict):
+                                    image_bytes = base64.b64decode(img_data['data'])
+                                elif isinstance(img_data, str):
+                                    image_bytes = base64.b64decode(img_data)
+                                elif isinstance(img_data, bytes):
+                                    image_bytes = img_data
+                                else:
+                                    raise ValueError(f"Unexpected image data type: {type(img_data)}")
+                                break  # Success — exit retry loop
+                            else:
+                                last_error = f"No image returned (attempt {attempt + 1})"
+                                logger.warning(f"No image returned for {react}, attempt {attempt + 1}/{max_retries}")
+                                
+                        except Exception as retry_err:
+                            last_error = str(retry_err)
+                            logger.warning(f"Retry {attempt + 1}/{max_retries} for {react}: {last_error}")
+                            if attempt < max_retries - 1:
+                                import asyncio
+                                await asyncio.sleep(2 * (attempt + 1))  # Exponential backoff: 2s, 4s
                     
-                    msg = UserMessage(
-                        text=prompt,
-                        file_contents=[ImageContent(photo_b64)]
-                    )
-                    
-                    _, images = await chat.send_message_multimodal_response(msg)
-                    
-                    if images and len(images) > 0:
-                        img_data = images[0]
-                        # Handle both dict format {'mime_type':..., 'data':...} and raw base64 string
-                        if isinstance(img_data, dict):
-                            image_bytes = base64.b64decode(img_data['data'])
-                        elif isinstance(img_data, str):
-                            image_bytes = base64.b64decode(img_data)
-                        elif isinstance(img_data, bytes):
-                            image_bytes = img_data
-                        else:
-                            raise ValueError(f"Unexpected image data type: {type(img_data)}")
-                        
+                    if image_bytes:
                         # Apply watermark for free users
                         if should_apply_watermark({"plan": user_plan}):
                             config = get_watermark_config("GIF")
@@ -365,7 +382,7 @@ AVOID: {negative_prompt}"""
                         with open(filepath, 'wb') as f:
                             f.write(image_bytes)
                         
-                        url = f"/api/static/generated/{filename}"
+                        url = f"/api/generated/{filename}"
                         result_entry = {
                             "reaction": react,
                             "emoji": reaction_info["emoji"],
@@ -375,8 +392,8 @@ AVOID: {negative_prompt}"""
                         results.append(result_entry)
                         real_results.append(result_entry)
                     else:
-                        logger.warning(f"No image returned for reaction {react} in job {job_id}")
-                        generation_errors.append(f"No image returned for {react}")
+                        logger.warning(f"All {max_retries} attempts failed for reaction {react}: {last_error}")
+                        generation_errors.append(last_error or f"Generation failed for {react}")
                         
                 except Exception as e:
                     error_msg = str(e)

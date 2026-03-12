@@ -984,7 +984,7 @@ async def process_gif_batch(batch_id: str, photo_content: bytes, emotions: list,
                         with open(filepath, 'wb') as f:
                             f.write(image_bytes)
                         
-                        result_url = f"/api/static/generated/{filename}"
+                        result_url = f"/api/generated/{filename}"
                         
                 except Exception as e:
                     logger.error(f"Batch GIF error: {e}")
