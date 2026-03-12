@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://generation-hotfix.preview.emergentagent.com
+**Website:** https://blog-seo-posts.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

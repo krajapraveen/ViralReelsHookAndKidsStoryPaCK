@@ -17,7 +17,7 @@ export default defineConfig({
   ],
   
   use: {
-    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://generation-hotfix.preview.emergentagent.com',
+    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://blog-seo-posts.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

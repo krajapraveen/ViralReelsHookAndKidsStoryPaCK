@@ -2,7 +2,7 @@
 ## CreatorStudio AI - Visionary Suite
 **Audit Date**: 2026-02-26
 **Auditor**: E1 Automated QA System
-**Environment**: https://generation-hotfix.preview.emergentagent.com
+**Environment**: https://blog-seo-posts.preview.emergentagent.com
 
 ---
 

@@ -7,7 +7,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://generation-hotfix.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://blog-seo-posts.preview.emergentagent.com')
 
 class TestRecaptchaConfig:
     """Test reCAPTCHA v3 configuration endpoint"""

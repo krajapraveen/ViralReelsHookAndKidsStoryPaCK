@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://generation-hotfix.preview.emergentagent.com  
+**Base URL:** https://blog-seo-posts.preview.emergentagent.com  
 **Testing Type:** Full Stack (QA + Security + Performance)
 
 ---

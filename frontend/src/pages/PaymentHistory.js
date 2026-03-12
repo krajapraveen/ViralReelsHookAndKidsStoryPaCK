@@ -28,16 +28,21 @@ export default function PaymentHistory() {
       setLoading(true);
       const [creditsRes, paymentsRes] = await Promise.all([
         api.get('/api/credits/balance'),
-        api.get(`/api/payments/history?page=${page}&size=10`)
+        api.get(`/api/cashfree/payments/history?skip=${page * 10}&limit=10`)
       ]);
       
-      setCredits(creditsRes.data.balance);
-      setPayments(paymentsRes.data.payments || []);
-      setTotalPages(paymentsRes.data.totalPages || 1);
+      setCredits(creditsRes.data.balance ?? creditsRes.data.credits ?? 0);
+      const paymentList = paymentsRes.data.payments || [];
+      setPayments(paymentList);
+      const total = paymentsRes.data.total || 0;
+      setTotalPages(Math.ceil(total / 10) || 1);
+      
+      const successful = paymentList.filter(p => ['PAID','SUCCESS','COMPLETED'].includes(p.status?.toUpperCase())).length;
+      const totalAmount = paymentList.reduce((sum, p) => ['PAID','SUCCESS','COMPLETED'].includes(p.status?.toUpperCase()) ? sum + (p.amount || 0) : sum, 0);
       setStats({
-        total: paymentsRes.data.total || 0,
-        successful: paymentsRes.data.successful || 0,
-        totalAmount: paymentsRes.data.totalAmount || 0
+        total: total,
+        successful: successful,
+        totalAmount: totalAmount
       });
     } catch (error) {
       toast.error('Failed to load payment history');

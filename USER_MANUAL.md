@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://generation-hotfix.preview.emergentagent.com
+**Platform URL:** https://blog-seo-posts.preview.emergentagent.com
 
 ---
 

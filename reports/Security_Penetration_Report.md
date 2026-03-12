@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://generation-hotfix.preview.emergentagent.com
+**Environment:** https://blog-seo-posts.preview.emergentagent.com
 
 ---
 

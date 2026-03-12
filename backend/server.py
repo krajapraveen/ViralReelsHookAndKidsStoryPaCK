@@ -305,7 +305,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://generation-hotfix.preview.emergentagent.com",
+    "https://blog-seo-posts.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]

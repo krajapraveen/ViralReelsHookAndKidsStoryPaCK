@@ -10,7 +10,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://generation-hotfix.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://blog-seo-posts.preview.emergentagent.com').rstrip('/')
 
 # Admin credentials for testing
 ADMIN_EMAIL = "krajapraveen.katta@creatorstudio.ai"
