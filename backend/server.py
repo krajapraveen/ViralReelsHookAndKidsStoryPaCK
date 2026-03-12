@@ -546,6 +546,38 @@ async def serve_generated_file(filename: str):
         return FileResponse(filepath)
     raise HTTPException(status_code=404, detail="File not found")
 
+
+@app.get("/api/promo-videos/status")
+async def get_promo_video_status():
+    """Get status of promotional video generation"""
+    import json as json_lib
+    status_file = ROOT_DIR / "static" / "generated" / "video_gen_status.json"
+    videos_info = [
+        {"id": "instagram_reel", "label": "Instagram Reel", "filename": "visionary_suite_instagram_reel.mp4", "platform": "Instagram", "format": "Reel (9:16)", "duration": "10s"},
+        {"id": "instagram_story", "label": "Instagram Story", "filename": "visionary_suite_instagram_story.mp4", "platform": "Instagram", "format": "Story (9:16)", "duration": "8s"},
+        {"id": "youtube_shorts", "label": "YouTube Shorts", "filename": "visionary_suite_youtube_shorts.mp4", "platform": "YouTube", "format": "Shorts (9:16)", "duration": "10s"},
+        {"id": "facebook_reel", "label": "Facebook Reel", "filename": "visionary_suite_facebook_reel.mp4", "platform": "Facebook", "format": "Reel (9:16)", "duration": "10s"},
+    ]
+    status_data = {}
+    if status_file.exists():
+        with open(status_file, "r") as f:
+            status_data = json_lib.load(f)
+    result = []
+    for v in videos_info:
+        s = status_data.get(v["id"], {})
+        file_path = ROOT_DIR / "static" / "generated" / v["filename"]
+        file_exists = file_path.exists()
+        file_size = round(file_path.stat().st_size / (1024 * 1024), 1) if file_exists else 0
+        result.append({
+            **v,
+            "status": s.get("status", "NOT_STARTED") if not file_exists else (s.get("status", "COMPLETED")),
+            "downloadUrl": f"/api/generated/{v['filename']}" if file_exists else None,
+            "fileSizeMB": file_size,
+            "error": s.get("error"),
+            "updatedAt": s.get("updated")
+        })
+    return {"videos": result}
+
 # ==================== ROOT ENDPOINTS ====================
 
 @app.get("/")

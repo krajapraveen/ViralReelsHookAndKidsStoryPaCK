@@ -113,6 +113,8 @@ import StoryVideoAnalyticsDashboard from './pages/StoryVideoAnalyticsDashboard';
 import CharacterConsistencyStudio from './pages/CharacterConsistencyStudio';
 // BLOG FOR SEO
 import Blog from './pages/Blog';
+// PROMO VIDEOS
+import PromoVideos from './pages/PromoVideos';
 // LIVE CHAT WIDGET
 import LiveChatWidget from './components/LiveChatWidget';
 import CookieConsent from './components/CookieConsent';
@@ -238,6 +240,7 @@ function App() {
       {/* My Downloads */}
       <Route path="/app/downloads" element={isAuthenticated ? <MyDownloads /> : <Navigate to="/login" />} />
       <Route path="/app/my-downloads" element={isAuthenticated ? <MyDownloads /> : <Navigate to="/login" />} />
+      <Route path="/app/promo-videos" element={isAuthenticated ? <PromoVideos /> : <Navigate to="/login" />} />
       {/* NEW 5 TEMPLATE-BASED FEATURES */}
       <Route path="/app/thumbnail-generator" element={isAuthenticated ? <YouTubeThumbnailGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/brand-story-builder" element={isAuthenticated ? <BrandStoryBuilder /> : <Navigate to="/login" />} />
