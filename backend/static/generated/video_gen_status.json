@@ -1,26 +1,26 @@
 {
   "instagram_reel": {
-    "status": "FAILED",
-    "path": null,
-    "error": "No video bytes returned",
-    "updated": "2026-03-12 07:58:10"
+    "status": "COMPLETED",
+    "path": "/app/backend/static/generated/visionary_suite_instagram_reel.mp4",
+    "error": null,
+    "updated": "2026-03-12 08:30:59"
   },
   "instagram_story": {
     "status": "FAILED",
     "path": null,
-    "error": "No video bytes returned",
-    "updated": "2026-03-12 07:58:10"
+    "error": "Sora 2 returned no video bytes",
+    "updated": "2026-03-12 08:31:40"
   },
   "youtube_shorts": {
-    "status": "FAILED",
+    "status": "GENERATING",
     "path": null,
-    "error": "No video bytes returned",
-    "updated": "2026-03-12 07:58:10"
+    "error": null,
+    "updated": "2026-03-12 08:31:40"
   },
   "facebook_reel": {
-    "status": "FAILED",
-    "path": null,
-    "error": "No video bytes returned",
-    "updated": "2026-03-12 07:58:10"
+    "status": "COMPLETED",
+    "path": "/app/backend/static/generated/visionary_suite_facebook_reel.mp4",
+    "error": null,
+    "updated": "2026-03-12 08:29:53"
   }
 }

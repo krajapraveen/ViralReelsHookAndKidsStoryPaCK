@@ -553,10 +553,10 @@ async def get_promo_video_status():
     import json as json_lib
     status_file = ROOT_DIR / "static" / "generated" / "video_gen_status.json"
     videos_info = [
-        {"id": "instagram_reel", "label": "Instagram Reel", "filename": "visionary_suite_instagram_reel.mp4", "platform": "Instagram", "format": "Reel (9:16)", "duration": "10s"},
+        {"id": "instagram_reel", "label": "Instagram Reel", "filename": "visionary_suite_instagram_reel.mp4", "platform": "Instagram", "format": "Reel (9:16)", "duration": "12s"},
         {"id": "instagram_story", "label": "Instagram Story", "filename": "visionary_suite_instagram_story.mp4", "platform": "Instagram", "format": "Story (9:16)", "duration": "8s"},
-        {"id": "youtube_shorts", "label": "YouTube Shorts", "filename": "visionary_suite_youtube_shorts.mp4", "platform": "YouTube", "format": "Shorts (9:16)", "duration": "10s"},
-        {"id": "facebook_reel", "label": "Facebook Reel", "filename": "visionary_suite_facebook_reel.mp4", "platform": "Facebook", "format": "Reel (9:16)", "duration": "10s"},
+        {"id": "youtube_shorts", "label": "YouTube Shorts", "filename": "visionary_suite_youtube_shorts.mp4", "platform": "YouTube", "format": "Shorts (9:16)", "duration": "12s"},
+        {"id": "facebook_reel", "label": "Facebook Reel", "filename": "visionary_suite_facebook_reel.mp4", "platform": "Facebook", "format": "Reel (9:16)", "duration": "12s"},
     ]
     status_data = {}
     if status_file.exists():
@@ -570,7 +570,7 @@ async def get_promo_video_status():
         file_size = round(file_path.stat().st_size / (1024 * 1024), 1) if file_exists else 0
         result.append({
             **v,
-            "status": s.get("status", "NOT_STARTED") if not file_exists else (s.get("status", "COMPLETED")),
+            "status": "COMPLETED" if file_exists else s.get("status", "NOT_STARTED"),
             "downloadUrl": f"/api/generated/{v['filename']}" if file_exists else None,
             "fileSizeMB": file_size,
             "error": s.get("error"),

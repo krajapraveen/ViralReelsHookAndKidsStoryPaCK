@@ -535,6 +535,11 @@ export default function Dashboard() {
             <Receipt className="w-4 h-4" />
             <span className="text-sm">Payment History</span>
           </Link>
+          <Link to="/app/promo-videos" className="inline-flex items-center gap-2 text-fuchsia-400 hover:text-fuchsia-300 transition-colors font-medium">
+            <Film className="w-4 h-4" />
+            <span className="text-sm">Promo Videos</span>
+            <span className="text-xs bg-fuchsia-500/20 text-fuchsia-300 px-1.5 py-0.5 rounded">NEW</span>
+          </Link>
           <Link to="/user-manual" className="inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors font-medium">
             <HelpCircle className="w-4 h-4" />
             <span className="text-sm">Help & Guides</span>

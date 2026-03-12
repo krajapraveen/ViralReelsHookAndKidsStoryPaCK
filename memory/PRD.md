@@ -3,46 +3,35 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with monitoring, security, and admin analytics.
 
-## LATEST UPDATE: 2026-03-12 — Session 14 (Payment History Fix + Blog SEO Posts)
+## LATEST UPDATE: 2026-03-12 — Session 14
 
-### P0 Fix: Payment History Page — FIXED
-**Root Cause:** Frontend field mapping mismatches with backend response:
-- `payment.orderId` → backend returns `order_id` (snake_case)
-- `payment.product?.name` → backend returns `plan_name`
-- Invoice button color mismatched dark theme
+### P0 Fix: Payment History Page — FIXED & TESTED
+Fixed frontend field mappings to handle backend's snake_case response (`order_id`, `plan_name`, `created_at`). Page displays all transactions correctly.
 
-**Fix:** Updated PaymentHistory.js to handle both camelCase and snake_case fields with fallbacks.
+### Task: 4 New SEO Blog Posts — COMPLETED & TESTED
+Added 4 new SEO-optimized articles (Business Tips, Monetization, Design Tools, Content Creation). Total: 12 blog posts.
 
-### Task: 4 New SEO Blog Posts — COMPLETED
-Added 4 new SEO-optimized articles to MongoDB `blog_posts` collection:
-1. "How AI is Revolutionizing Content Creation for Small Businesses in 2026" (Business Tips)
-2. "10 Ways to Monetize Your Creative Skills with AI Tools" (Monetization)
-3. "AI Photo to Comic: Transform Your Photos into Professional Comic Art" (Design Tools)
-4. "The Ultimate Guide to Creating Viral Reaction GIFs with AI" (Content Creation)
-
-Total blog posts: 12 (8 existing + 4 new)
-
-### Test Results (Iteration 144)
-| Test | Pass | Fail |
-|------|------|------|
-| Backend (pytest) | 17 | 0 |
-| Blog page UI | 6/6 | 0 |
-| Payment History UI | 7/7 | 0 |
-
-## Previous Fixes
-- Session 13: P0 GIF Generation Failure, Watermark Crash, Blank Pages
-- Sessions 11-12: Cashfree PG, Story Generator, Credits API, reCAPTCHA v3
+### Task: 4 Promotional Videos with Voice-Over — COMPLETED
+Generated 4 AI promotional videos using Sora 2 + OpenAI TTS (onyx male voice) + ffmpeg merge:
+1. Instagram Reel (12s, 2.3MB) - Hype/energetic, all features overview
+2. Instagram Story (8s, 2.0MB) - Quick POV teaser
+3. YouTube Shorts (12s, 3.5MB) - Feature showcase with detailed voiceover
+4. Facebook Reel (12s, 2.2MB) - Before/after transformation theme
+- Pipeline: Sora 2 (1280x720 landscape) → ffmpeg vertical convert (720x1280 with blurred bg) → TTS voice-over → merge
+- Download page at `/app/promo-videos` with video previews, download buttons, share functionality
+- Dashboard link added with "NEW" badge
 
 ## Architecture
-- Backend: FastAPI + MongoDB + Cashfree PG SDK + Emergent LLM (Gemini)
+- Backend: FastAPI + MongoDB + Cashfree PG + Emergent LLM (Gemini + Sora 2 + TTS)
 - Frontend: React + Shadcn UI + Cashfree JS SDK
-- Storage: Cloudflare R2
+- Storage: Cloudflare R2 + local static/generated
 - Queue: Redis workers
+- Video: Sora 2 + OpenAI TTS + ffmpeg
 
 ## Known Issues
 - SendGrid: requires plan upgrade (BLOCKED on user)
 - Generated files 404 on production: fix ready, awaiting user deployment
-- LLM key budget should be monitored
+- LLM key budget should be monitored (video generation uses more credits)
 
 ## Backlog
 - P0: User must deploy generated file 404 fix to production
@@ -51,4 +40,3 @@ Total blog posts: 12 (8 existing + 4 new)
 - P2: Job queue architecture improvements
 - P2: File storage cleanup policy (R2)
 - P2: Monitoring & observability (Sentry/Prometheus)
-- P2: Automated test coverage expansion
