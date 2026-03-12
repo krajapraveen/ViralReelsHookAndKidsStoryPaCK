@@ -614,7 +614,7 @@ export default function StoryVideoStudio() {
     setLoading(true);
     setShowWaitingExperience(true);
     setGenerationStage('image_generation');
-    setGenerationProgress(10);
+    setGenerationProgress(5);
     
     try {
       const res = await api.post('/api/story-video-studio/generation/images', {
@@ -622,21 +622,47 @@ export default function StoryVideoStudio() {
         provider: imageProvider
       });
       
-      setGenerationProgress(100);
-      
-      if (res.data.success) {
-        setGeneratedImages(res.data.images);
-        setProject(prev => ({ ...prev, status: 'images_generated' }));
-        toast.success(`Generated ${res.data.images_generated} images!`);
-        analytics.trackGeneration('story_video_images', res.data.credits_spent);
-        setStep(5); // Go to images display step
+      if (res.data.success && res.data.job_id) {
+        toast.info(`Image generation started for ${res.data.total_scenes} scenes...`);
+        pollImageGenerationStatus(res.data.job_id);
       }
     } catch (error) {
-      toast.error(`${error.response?.data?.detail || 'Failed to generate images'}. Credits have been refunded.`);
-    } finally {
+      toast.error(`${error.response?.data?.detail || 'Failed to start image generation'}`);
       setLoading(false);
       setShowWaitingExperience(false);
     }
+  };
+
+  const pollImageGenerationStatus = (jobId) => {
+    const checkStatus = async () => {
+      try {
+        const res = await api.get(`/api/story-video-studio/generation/images/status/${jobId}`);
+        if (res.data.success) {
+          const job = res.data.job;
+          setGenerationProgress(job.progress || 0);
+
+          if (job.status === 'COMPLETED') {
+            setGeneratedImages(job.images || []);
+            setProject(prev => ({ ...prev, status: 'images_generated' }));
+            toast.success(`Generated ${job.completed_scenes} images!`);
+            analytics.trackGeneration('story_video_images', 0);
+            setStep(5);
+            setLoading(false);
+            setShowWaitingExperience(false);
+          } else if (job.status === 'FAILED') {
+            toast.error(`Image generation failed: ${job.error || 'Unknown error'}. Credits have been refunded.`);
+            setLoading(false);
+            setShowWaitingExperience(false);
+          } else {
+            setTimeout(checkStatus, 3000);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check image generation status:', error);
+        setTimeout(checkStatus, 5000);
+      }
+    };
+    checkStatus();
   };
   
   // ============================================
@@ -646,7 +672,6 @@ export default function StoryVideoStudio() {
   const generateVoices = async () => {
     if (!project?.project_id) return;
     
-    // Check if BYO key is required
     if (voiceConfig?.mode === 'BYO_USER_KEY' && !userApiKey) {
       toast.error('Please provide your OpenAI API key for voice generation');
       return;
@@ -655,7 +680,7 @@ export default function StoryVideoStudio() {
     setLoading(true);
     setShowWaitingExperience(true);
     setGenerationStage('voice_generation');
-    setGenerationProgress(10);
+    setGenerationProgress(5);
     
     try {
       const res = await api.post('/api/story-video-studio/generation/voices', {
@@ -664,21 +689,47 @@ export default function StoryVideoStudio() {
         user_api_key: userApiKey || undefined
       });
       
-      setGenerationProgress(100);
-      
-      if (res.data.success) {
-        setGeneratedVoices(res.data.voices);
-        setProject(prev => ({ ...prev, status: 'voices_generated' }));
-        toast.success(`Generated ${res.data.voices_generated} voice tracks!`);
-        analytics.trackGeneration('story_video_voices', res.data.credits_spent);
-        setStep(7);
+      if (res.data.success && res.data.job_id) {
+        toast.info(`Voice generation started for ${res.data.total_scenes} scenes...`);
+        pollVoiceGenerationStatus(res.data.job_id);
       }
     } catch (error) {
-      toast.error(`${error.response?.data?.detail || 'Failed to generate voices'}. Credits have been refunded.`);
-    } finally {
+      toast.error(`${error.response?.data?.detail || 'Failed to start voice generation'}`);
       setLoading(false);
       setShowWaitingExperience(false);
     }
+  };
+
+  const pollVoiceGenerationStatus = (jobId) => {
+    const checkStatus = async () => {
+      try {
+        const res = await api.get(`/api/story-video-studio/generation/voices/status/${jobId}`);
+        if (res.data.success) {
+          const job = res.data.job;
+          setGenerationProgress(job.progress || 0);
+
+          if (job.status === 'COMPLETED') {
+            setGeneratedVoices(job.voices || []);
+            setProject(prev => ({ ...prev, status: 'voices_generated' }));
+            toast.success(`Generated ${job.completed_scenes} voice tracks!`);
+            analytics.trackGeneration('story_video_voices', 0);
+            setStep(7);
+            setLoading(false);
+            setShowWaitingExperience(false);
+          } else if (job.status === 'FAILED') {
+            toast.error(`Voice generation failed: ${job.error || 'Unknown error'}. Credits have been refunded.`);
+            setLoading(false);
+            setShowWaitingExperience(false);
+          } else {
+            setTimeout(checkStatus, 3000);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check voice generation status:', error);
+        setTimeout(checkStatus, 5000);
+      }
+    };
+    checkStatus();
   };
   
   // ============================================

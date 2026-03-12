@@ -258,6 +258,36 @@ async def generate_image_with_retry(
     }
 
 
+def _truncate_prompt_smart(prompt: str, max_length: int = 3800) -> str:
+    """
+    Smart prompt truncation that preserves essential scene meaning.
+    Priority: scene description > character details > style > negative prompts.
+    """
+    if len(prompt) <= max_length:
+        return prompt
+    
+    logger.warning(f"[PROMPT] Truncating prompt from {len(prompt)} to {max_length} chars")
+    
+    # Split into sections by '. ' to preserve sentence boundaries
+    sentences = prompt.split('. ')
+    result = []
+    current_len = 0
+    
+    for sentence in sentences:
+        if current_len + len(sentence) + 2 <= max_length:
+            result.append(sentence)
+            current_len += len(sentence) + 2
+        else:
+            break
+    
+    truncated = '. '.join(result)
+    if not truncated.endswith('.'):
+        truncated += '.'
+    
+    logger.info(f"[PROMPT] Truncated prompt to {len(truncated)} chars (preserved {len(result)}/{len(sentences)} sentences)")
+    return truncated
+
+
 async def _generate_image_openai_raw(prompt: str, negative_prompt: str, style: str) -> tuple:
     """
     Internal function to generate image using OpenAI GPT Image 1.
@@ -269,11 +299,12 @@ async def _generate_image_openai_raw(prompt: str, negative_prompt: str, style: s
     if not api_key:
         raise Exception("EMERGENT_LLM_KEY not configured")
     
-    # Combine prompts
+    # Combine prompts with smart truncation
     combined_negative = f"{negative_prompt}. {UNIVERSAL_NEGATIVE_PROMPTS}"
-    full_prompt = f"{prompt}. Style: {style}. IMPORTANT - Avoid these: {combined_negative[:400]}"
+    full_prompt = f"{prompt}. Style: {style}. IMPORTANT - Avoid these: {combined_negative[:300]}"
+    full_prompt = _truncate_prompt_smart(full_prompt, max_length=3800)
     
-    logger.info("[OPENAI] Calling GPT Image 1 API...")
+    logger.info(f"[OPENAI] Calling GPT Image 1 API... (prompt length: {len(full_prompt)} chars)")
     
     image_gen = OpenAIImageGeneration(api_key=api_key)
     images = await image_gen.generate_images(
@@ -364,9 +395,8 @@ async def generate_scene_images(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Generate images for scenes (Phase 2) - Credits deducted BEFORE generation"""
-    import time
-    start_time = time.time()
+    """Generate images for scenes (Phase 2) - Background task with polling.
+    Returns immediately with a job_id. Frontend polls /images/status/{job_id}."""
     
     user_id = current_user.get("id") or str(current_user.get("_id"))
     if not user_id:
@@ -398,151 +428,269 @@ async def generate_scene_images(
         f"Image generation for {len(scenes_to_generate)} scenes in project {request.project_id}"
     )
     
-    # Build character descriptions
-    character_bible = {}
-    for char in project.get("characters", []):
-        char_prompt = f"{char.get('name')}: {char.get('appearance')}, wearing {char.get('clothing')}"
-        character_bible[char.get("name")] = char_prompt
+    # Create job document
+    job_id = str(uuid.uuid4())
+    job_doc = {
+        "job_id": job_id,
+        "job_type": "image_generation",
+        "project_id": request.project_id,
+        "user_id": user_id,
+        "provider": request.provider,
+        "status": "PENDING",
+        "progress": 0,
+        "current_step": "Starting image generation...",
+        "total_scenes": len(scenes_to_generate),
+        "completed_scenes": 0,
+        "credits_charged": total_cost,
+        "images": [],
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.generation_jobs.insert_one(job_doc)
     
-    # Generate images IN PARALLEL using NEW RETRY-ENABLED PIPELINE
-    generated_images = []
-    style_prompt = project.get("style_prompt", "")
-    negative_prompt = "copyrighted character, brand name, celebrity, nsfw, violence, gore"
-    
-    logger.info(f"[STORY PIPELINE] Starting image generation for {len(scenes_to_generate)} scenes")
-    
-    async def generate_single_image(scene):
-        """Generate image for a single scene using retry-enabled pipeline"""
-        scene_number = scene.get("scene_number", 0)
-        chars_in_scene = scene.get("characters_in_scene", [])
-        char_descriptions = [character_bible.get(c, c) for c in chars_in_scene]
-        
-        full_prompt = f"{scene.get('visual_prompt')}. "
-        if char_descriptions:
-            full_prompt += f"Characters: {', '.join(char_descriptions)}. "
-        
-        logger.info(f"[IMAGE GENERATION] Starting scene {scene_number}")
-        
-        # Use the new retry-enabled pipeline
-        result = await generate_image_with_retry(
-            prompt=full_prompt,
-            negative_prompt=negative_prompt,
-            style=style_prompt,
-            project_id=request.project_id,
-            scene_number=scene_number,
-            provider=request.provider
-        )
-        
-        if result["success"]:
-            # Store in scene_assets collection
-            await db.scene_assets.insert_one({
-                "project_id": request.project_id,
-                "scene_number": scene_number,
-                "asset_type": "image",
-                "url": result["url"],
-                "provider": request.provider,
-                "storage_type": result.get("storage_type", "r2_cloud"),
-                "generation_time_ms": result.get("generation_time_ms"),
-                "upload_time_ms": result.get("upload_time_ms"),
-                "retry_attempts": result.get("attempt", 1),
-                "created_at": datetime.now(timezone.utc)
-            })
-            
-            logger.info(f"[IMAGE GENERATION] Scene {scene_number} completed successfully")
-            
-            return {
-                "scene_number": scene_number,
-                "image_url": result["url"],
-                "provider": request.provider,
-                "storage_type": result.get("storage_type"),
-                "generated_at": datetime.now(timezone.utc).isoformat()
-            }
-        else:
-            # Refund credits for failed generation
-            logger.error(f"[IMAGE GENERATION] Scene {scene_number} FAILED: {result.get('error')}")
-            await db.users.update_one(
-                {"id": user_id},
-                {"$inc": {"credits": CREDIT_COSTS["image_per_scene"]}}
-            )
-            return {
-                "scene_number": scene_number,
-                "error": result.get("error", "Image generation failed"),
-                "provider": request.provider
-            }
-    
-    # Generate all images in parallel (max 3 concurrent to avoid rate limits)
-    semaphore = asyncio.Semaphore(3)  # Limit concurrent requests
-    
-    async def limited_generate(scene):
-        async with semaphore:
-            return await generate_single_image(scene)
-    
-    # Run all generations in parallel
-    tasks = [limited_generate(scene) for scene in scenes_to_generate]
-    generated_images = await asyncio.gather(*tasks)
-    
-    # Sort by scene number
-    generated_images = sorted(generated_images, key=lambda x: x.get("scene_number", 0))
-    
-    # ===== CRITICAL: Update scenes array in project with generated image URLs =====
-    # This ensures data consistency - the project document has the URLs directly
-    for img_result in generated_images:
-        if "image_url" in img_result:
-            scene_num = img_result.get("scene_number")
-            image_url = img_result.get("image_url")
-            
-            # Update the specific scene in the scenes array
-            await db.story_projects.update_one(
-                {"project_id": request.project_id, "scenes.scene_number": scene_num},
-                {
-                    "$set": {
-                        "scenes.$.image_url": image_url,
-                        "scenes.$.image_provider": request.provider,
-                        "scenes.$.image_generated_at": datetime.now(timezone.utc).isoformat()
-                    }
-                }
-            )
-            logger.info(f"[DB UPDATE] Saved image URL to project scenes array for scene {scene_num}")
-    
-    # Update project status
-    await db.story_projects.update_one(
-        {"project_id": request.project_id},
-        {
-            "$set": {
-                "status": "images_generated",
-                "updated_at": datetime.now(timezone.utc)
-            },
-            "$inc": {"credits_spent": total_cost}
-        }
+    # Start background task — returns immediately
+    background_tasks.add_task(
+        _process_image_generation_job,
+        job_id, request.project_id, user_id, request.provider,
+        scenes_to_generate, project, total_cost
     )
-    
-    # Record metrics
-    duration_ms = int((time.time() - start_time) * 1000)
-    try:
-        from routes.story_video_analytics import record_metric
-        await record_metric(
-            metric_type="image_generation",
-            project_id=request.project_id,
-            user_id=str(user_id),
-            duration_ms=duration_ms,
-            success=True,
-            metadata={
-                "provider": request.provider,
-                "scenes_count": len(scenes_to_generate),
-                "successful_images": len([i for i in generated_images if "image_url" in i])
-            }
-        )
-    except Exception:
-        pass  # Don't fail if metrics recording fails
     
     return {
         "success": True,
+        "job_id": job_id,
         "project_id": request.project_id,
-        "images_generated": len([i for i in generated_images if "image_url" in i]),
-        "credits_spent": total_cost,
-        "duration_ms": duration_ms,
-        "images": generated_images
+        "total_scenes": len(scenes_to_generate),
+        "credits_charged": total_cost,
+        "message": "Image generation started. Poll /images/status/{job_id} for progress."
     }
+
+
+@router.get("/images/status/{job_id}")
+async def get_image_generation_status(
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Poll image generation job progress."""
+    job = await db.generation_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {
+        "success": True,
+        "job": {
+            "job_id": job.get("job_id"),
+            "status": job.get("status"),
+            "progress": job.get("progress", 0),
+            "current_step": job.get("current_step", ""),
+            "total_scenes": job.get("total_scenes", 0),
+            "completed_scenes": job.get("completed_scenes", 0),
+            "images": job.get("images", []),
+            "error": job.get("error"),
+            "created_at": job.get("created_at"),
+            "completed_at": job.get("completed_at"),
+        }
+    }
+
+
+async def _process_image_generation_job(
+    job_id: str, project_id: str, user_id: str, provider: str,
+    scenes_to_generate: list, project: dict, total_cost: int
+):
+    """Background task: generate images for all scenes with progress updates."""
+    import time
+    start_time = time.time()
+    
+    async def update_job(updates: dict):
+        await db.generation_jobs.update_one({"job_id": job_id}, {"$set": updates})
+    
+    try:
+        await update_job({"status": "PROCESSING", "progress": 5, "current_step": "Preparing prompts..."})
+        
+        # Build character descriptions
+        character_bible = {}
+        for char in project.get("characters", []):
+            char_prompt = f"{char.get('name')}: {char.get('appearance')}, wearing {char.get('clothing')}"
+            character_bible[char.get("name")] = char_prompt
+        
+        style_prompt = project.get("style_prompt", "")
+        negative_prompt = "copyrighted character, brand name, celebrity, nsfw, violence, gore"
+        total_scenes = len(scenes_to_generate)
+        
+        logger.info(f"[IMAGE JOB {job_id[:8]}] Starting for {total_scenes} scenes")
+        
+        async def generate_single_image(scene):
+            scene_number = scene.get("scene_number", 0)
+            chars_in_scene = scene.get("characters_in_scene", [])
+            char_descriptions = [character_bible.get(c, c) for c in chars_in_scene]
+            
+            full_prompt = f"{scene.get('visual_prompt')}. "
+            if char_descriptions:
+                full_prompt += f"Characters: {', '.join(char_descriptions)}. "
+            
+            result = await generate_image_with_retry(
+                prompt=full_prompt,
+                negative_prompt=negative_prompt,
+                style=style_prompt,
+                project_id=project_id,
+                scene_number=scene_number,
+                provider=provider
+            )
+            
+            if result["success"]:
+                await db.scene_assets.insert_one({
+                    "project_id": project_id,
+                    "scene_number": scene_number,
+                    "asset_type": "image",
+                    "url": result["url"],
+                    "provider": provider,
+                    "storage_type": result.get("storage_type", "r2_cloud"),
+                    "generation_time_ms": result.get("generation_time_ms"),
+                    "upload_time_ms": result.get("upload_time_ms"),
+                    "retry_attempts": result.get("attempt", 1),
+                    "created_at": datetime.now(timezone.utc)
+                })
+                return {
+                    "scene_number": scene_number,
+                    "image_url": result["url"],
+                    "provider": provider,
+                    "storage_type": result.get("storage_type"),
+                    "generated_at": datetime.now(timezone.utc).isoformat()
+                }
+            else:
+                logger.error(f"[IMAGE JOB {job_id[:8]}] Scene {scene_number} FAILED: {result.get('error')}")
+                # Refund for this specific scene
+                from bson import ObjectId
+                user = None
+                try:
+                    user = await db.users.find_one({"_id": ObjectId(user_id)})
+                except Exception:
+                    user = await db.users.find_one({"id": user_id})
+                if user:
+                    await db.users.update_one(
+                        {"_id": user.get("_id")},
+                        {
+                            "$inc": {"credits": CREDIT_COSTS["image_per_scene"]},
+                            "$push": {"credit_transactions": {
+                                "amount": CREDIT_COSTS["image_per_scene"],
+                                "description": f"Refund: failed image scene {scene_number} in {project_id[:8]}",
+                                "timestamp": datetime.now(timezone.utc),
+                                "type": "refund"
+                            }}
+                        }
+                    )
+                return {
+                    "scene_number": scene_number,
+                    "error": result.get("error", "Image generation failed"),
+                    "provider": provider
+                }
+        
+        # Process scenes in batches with semaphore for progress tracking
+        semaphore = asyncio.Semaphore(3)
+        completed_count = 0
+        all_results = []
+        
+        async def limited_generate(scene):
+            nonlocal completed_count
+            async with semaphore:
+                result = await generate_single_image(scene)
+                completed_count += 1
+                progress = 5 + int((completed_count / total_scenes) * 90)
+                await update_job({
+                    "progress": progress,
+                    "completed_scenes": completed_count,
+                    "current_step": f"Generated {completed_count}/{total_scenes} images..."
+                })
+                return result
+        
+        tasks = [limited_generate(scene) for scene in scenes_to_generate]
+        all_results = await asyncio.gather(*tasks)
+        
+        generated_images = sorted(all_results, key=lambda x: x.get("scene_number", 0))
+        
+        # Update project with image URLs
+        for img_result in generated_images:
+            if "image_url" in img_result:
+                scene_num = img_result.get("scene_number")
+                await db.story_projects.update_one(
+                    {"project_id": project_id, "scenes.scene_number": scene_num},
+                    {"$set": {
+                        "scenes.$.image_url": img_result["image_url"],
+                        "scenes.$.image_provider": provider,
+                        "scenes.$.image_generated_at": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+        
+        successful = [i for i in generated_images if "image_url" in i]
+        
+        # Update project status
+        await db.story_projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"status": "images_generated", "updated_at": datetime.now(timezone.utc)},
+             "$inc": {"credits_spent": total_cost}}
+        )
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        await update_job({
+            "status": "COMPLETED",
+            "progress": 100,
+            "current_step": f"All {len(successful)} images generated!",
+            "completed_scenes": len(successful),
+            "images": generated_images,
+            "completed_at": datetime.now(timezone.utc),
+            "duration_ms": duration_ms
+        })
+        
+        logger.info(f"[IMAGE JOB {job_id[:8]}] COMPLETED: {len(successful)}/{total_scenes} images in {duration_ms}ms")
+        
+        # Record metrics
+        try:
+            from routes.story_video_analytics import record_metric
+            await record_metric(
+                metric_type="image_generation",
+                project_id=project_id,
+                user_id=str(user_id),
+                duration_ms=duration_ms,
+                success=True,
+                metadata={"provider": provider, "scenes_count": total_scenes, "successful_images": len(successful)}
+            )
+        except Exception:
+            pass
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[IMAGE JOB {job_id[:8]}] FAILED: {error_msg}")
+        
+        # Refund ALL credits on total failure
+        try:
+            from bson import ObjectId
+            user = None
+            try:
+                user = await db.users.find_one({"_id": ObjectId(user_id)})
+            except Exception:
+                user = await db.users.find_one({"id": user_id})
+            if user:
+                await db.users.update_one(
+                    {"_id": user.get("_id")},
+                    {
+                        "$inc": {"credits": total_cost},
+                        "$push": {"credit_transactions": {
+                            "amount": total_cost,
+                            "description": f"Refund: image generation failed for {project_id[:8]}",
+                            "timestamp": datetime.now(timezone.utc),
+                            "type": "refund"
+                        }}
+                    }
+                )
+                logger.info(f"[IMAGE JOB {job_id[:8]}] Refunded {total_cost} credits")
+        except Exception as refund_err:
+            logger.error(f"[IMAGE JOB {job_id[:8]}] Refund failed: {refund_err}")
+        
+        await update_job({
+            "status": "FAILED",
+            "error": error_msg,
+            "current_step": f"Error: {error_msg[:100]}",
+            "completed_at": datetime.now(timezone.utc)
+        })
 
 @router.get("/images/{project_id}")
 async def get_project_images(
@@ -673,22 +821,19 @@ async def get_voice_config():
 @router.post("/voices")
 async def generate_scene_voices(
     request: VoiceGenerationRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Generate voices for scenes (Phase 3) - Credits deducted BEFORE generation"""
+    """Generate voices for scenes (Phase 3) - Background task with polling.
+    Returns immediately with a job_id. Frontend polls /voices/status/{job_id}."""
     
     user_id = current_user.get("id") or str(current_user.get("_id"))
     if not user_id:
         raise HTTPException(status_code=401, detail="User not authenticated")
     
-    # Check voice provider mode
     if VOICE_PROVIDER_MODE == "BYO_USER_KEY" and not request.user_api_key:
-        raise HTTPException(
-            status_code=400, 
-            detail="Voice generation requires your own OpenAI API key. Please provide 'user_api_key' in the request."
-        )
+        raise HTTPException(status_code=400, detail="Voice generation requires your own OpenAI API key.")
     
-    # Get project
     project = await db.story_projects.find_one({"project_id": request.project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -697,149 +842,209 @@ async def generate_scene_voices(
     if not voice_scripts:
         raise HTTPException(status_code=400, detail="No voice scripts available. Generate scenes first.")
     
-    # Filter scenes if specified
     if request.scene_numbers:
         voice_scripts = [vs for vs in voice_scripts if vs.get("scene_number") in request.scene_numbers]
-    
     if not voice_scripts:
         raise HTTPException(status_code=400, detail="No voice scripts to generate")
     
-    # Estimate duration and calculate cost
     total_text_length = sum(len(vs.get("narrator_text", "")) for vs in voice_scripts)
-    # Approximate: 150 words per minute, 5 characters per word
     estimated_minutes = max(1, total_text_length / (150 * 5))
     total_cost = int(estimated_minutes) * CREDIT_COSTS["voice_per_minute"]
     
-    # Deduct credits BEFORE processing
     await check_and_deduct_credits(
-        user_id,
-        total_cost,
+        user_id, total_cost,
         f"Voice generation for {len(voice_scripts)} scenes in project {request.project_id}"
     )
     
-    # Generate voices IN PARALLEL for better performance
-    generated_voices = []
+    job_id = str(uuid.uuid4())
+    job_doc = {
+        "job_id": job_id,
+        "job_type": "voice_generation",
+        "project_id": request.project_id,
+        "user_id": user_id,
+        "voice_id": request.voice_id,
+        "status": "PENDING",
+        "progress": 0,
+        "current_step": "Starting voice generation...",
+        "total_scenes": len(voice_scripts),
+        "completed_scenes": 0,
+        "credits_charged": total_cost,
+        "voices": [],
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.generation_jobs.insert_one(job_doc)
     
-    async def generate_single_voice(vs):
-        """Generate voice for a single scene - uploads to R2 cloud storage"""
-        from services.cloudflare_r2_storage import get_r2_storage
-        
-        scene_num = vs.get("scene_number")
-        narrator_text = vs.get("narrator_text", "")
-        
-        # Create temporary output path
-        output_filename = f"{request.project_id}_scene_{scene_num}_voice.mp3"
-        output_path = str(STATIC_DIR / output_filename)
-        
-        try:
-            if VOICE_PROVIDER_MODE == "BYO_USER_KEY":
-                await generate_voice_with_user_key(narrator_text, request.voice_id, output_path, request.user_api_key)
-            else:
-                await generate_voice_openai(narrator_text, request.voice_id, output_path)
-            
-            # Get audio duration
-            duration = await get_audio_duration(output_path)
-            
-            # Upload to R2 cloud storage
-            audio_url = f"/static/generated/{output_filename}"
-            storage_type = "local"
-            
-            r2_storage = get_r2_storage()
-            if r2_storage.is_configured:
-                success, public_url, key = await r2_storage.upload_file(
-                    output_path, "voice", request.project_id, output_filename
-                )
-                if success:
-                    audio_url = public_url
-                    storage_type = "r2_cloud"
-                    logger.info(f"Voice uploaded to R2: {public_url}")
-                    # Optionally delete local file after successful upload
-                    try:
-                        os.remove(output_path)
-                    except OSError:
-                        pass
-            
-            # Store in voice_tracks collection
-            await db.voice_tracks.insert_one({
-                "project_id": request.project_id,
-                "scene_number": scene_num,
-                "audio_path": output_path if storage_type == "local" else None,
-                "audio_url": audio_url,
-                "duration": duration,
-                "voice_id": request.voice_id,
-                "storage_type": storage_type,
-                "created_at": datetime.now(timezone.utc)
-            })
-            
-            return {
-                "scene_number": scene_num,
-                "audio_url": audio_url,
-                "duration": duration,
-                "voice_id": request.voice_id,
-                "generated_at": datetime.now(timezone.utc).isoformat()
-            }
-            
-        except Exception as e:
-            return {
-                "scene_number": scene_num,
-                "error": str(e)
-            }
-    
-    # Generate all voices in parallel (max 3 concurrent)
-    semaphore = asyncio.Semaphore(3)
-    
-    async def limited_generate_voice(vs):
-        async with semaphore:
-            return await generate_single_voice(vs)
-    
-    tasks = [limited_generate_voice(vs) for vs in voice_scripts]
-    generated_voices = await asyncio.gather(*tasks)
-    
-    # Sort by scene number
-    generated_voices = sorted(generated_voices, key=lambda x: x.get("scene_number", 0))
-    
-    # ===== CRITICAL: Update voice_scripts array in project with generated audio URLs =====
-    # This ensures data consistency - the project document has the URLs directly
-    for voice_result in generated_voices:
-        if "audio_url" in voice_result:
-            scene_num = voice_result.get("scene_number")
-            audio_url = voice_result.get("audio_url")
-            duration = voice_result.get("duration", 0)
-            
-            # Update the specific voice script in the voice_scripts array
-            await db.story_projects.update_one(
-                {"project_id": request.project_id, "voice_scripts.scene_number": scene_num},
-                {
-                    "$set": {
-                        "voice_scripts.$.audio_url": audio_url,
-                        "voice_scripts.$.duration": duration,
-                        "voice_scripts.$.voice_id": request.voice_id,
-                        "voice_scripts.$.voice_generated_at": datetime.now(timezone.utc).isoformat()
-                    }
-                }
-            )
-            logger.info(f"[DB UPDATE] Saved audio URL to project voice_scripts array for scene {scene_num}")
-    
-    # Update project status
-    await db.story_projects.update_one(
-        {"project_id": request.project_id},
-        {
-            "$set": {
-                "status": "voices_generated",
-                "updated_at": datetime.now(timezone.utc)
-            },
-            "$inc": {"credits_spent": total_cost}
-        }
+    background_tasks.add_task(
+        _process_voice_generation_job,
+        job_id, request.project_id, user_id, request.voice_id,
+        request.user_api_key, voice_scripts, total_cost
     )
     
     return {
         "success": True,
+        "job_id": job_id,
         "project_id": request.project_id,
-        "voices_generated": len([v for v in generated_voices if "audio_url" in v]),
-        "credits_spent": total_cost,
-        "mode": VOICE_PROVIDER_MODE,
-        "voices": generated_voices
+        "total_scenes": len(voice_scripts),
+        "credits_charged": total_cost,
+        "message": "Voice generation started. Poll /voices/status/{job_id} for progress."
     }
+
+
+@router.get("/voices/status/{job_id}")
+async def get_voice_generation_status(
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Poll voice generation job progress."""
+    job = await db.generation_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {
+        "success": True,
+        "job": {
+            "job_id": job.get("job_id"),
+            "status": job.get("status"),
+            "progress": job.get("progress", 0),
+            "current_step": job.get("current_step", ""),
+            "total_scenes": job.get("total_scenes", 0),
+            "completed_scenes": job.get("completed_scenes", 0),
+            "voices": job.get("voices", []),
+            "error": job.get("error"),
+            "completed_at": job.get("completed_at"),
+        }
+    }
+
+
+async def _process_voice_generation_job(
+    job_id: str, project_id: str, user_id: str, voice_id: str,
+    user_api_key: str, voice_scripts: list, total_cost: int
+):
+    """Background task: generate voices for all scenes with progress updates."""
+    import time
+    start_time = time.time()
+    
+    async def update_job(updates: dict):
+        await db.generation_jobs.update_one({"job_id": job_id}, {"$set": updates})
+    
+    try:
+        await update_job({"status": "PROCESSING", "progress": 5, "current_step": "Preparing voice generation..."})
+        total_scenes = len(voice_scripts)
+        completed_count = 0
+        
+        async def generate_single_voice(vs):
+            nonlocal completed_count
+            from services.cloudflare_r2_storage import get_r2_storage
+            scene_num = vs.get("scene_number")
+            narrator_text = vs.get("narrator_text", "")
+            output_filename = f"{project_id}_scene_{scene_num}_voice.mp3"
+            output_path = str(STATIC_DIR / output_filename)
+            
+            try:
+                if VOICE_PROVIDER_MODE == "BYO_USER_KEY" and user_api_key:
+                    await generate_voice_with_user_key(narrator_text, voice_id, output_path, user_api_key)
+                else:
+                    await generate_voice_openai(narrator_text, voice_id, output_path)
+                
+                duration = await get_audio_duration(output_path)
+                audio_url = f"/static/generated/{output_filename}"
+                storage_type = "local"
+                
+                r2_storage = get_r2_storage()
+                if r2_storage.is_configured:
+                    success, public_url, key = await r2_storage.upload_file(
+                        output_path, "voice", project_id, output_filename
+                    )
+                    if success:
+                        audio_url = public_url
+                        storage_type = "r2_cloud"
+                        try:
+                            os.remove(output_path)
+                        except OSError:
+                            pass
+                
+                await db.voice_tracks.insert_one({
+                    "project_id": project_id,
+                    "scene_number": scene_num,
+                    "audio_path": output_path if storage_type == "local" else None,
+                    "audio_url": audio_url,
+                    "duration": duration,
+                    "voice_id": voice_id,
+                    "storage_type": storage_type,
+                    "created_at": datetime.now(timezone.utc)
+                })
+                
+                completed_count += 1
+                progress = 5 + int((completed_count / total_scenes) * 90)
+                await update_job({"progress": progress, "completed_scenes": completed_count, "current_step": f"Generated {completed_count}/{total_scenes} voices..."})
+                
+                return {"scene_number": scene_num, "audio_url": audio_url, "duration": duration, "voice_id": voice_id, "generated_at": datetime.now(timezone.utc).isoformat()}
+            except Exception as e:
+                completed_count += 1
+                return {"scene_number": scene_num, "error": str(e)}
+        
+        semaphore = asyncio.Semaphore(3)
+        async def limited_gen(vs):
+            async with semaphore:
+                return await generate_single_voice(vs)
+        
+        tasks = [limited_gen(vs) for vs in voice_scripts]
+        all_results = await asyncio.gather(*tasks)
+        generated_voices = sorted(all_results, key=lambda x: x.get("scene_number", 0))
+        
+        # Update project with audio URLs
+        for voice_result in generated_voices:
+            if "audio_url" in voice_result:
+                scene_num = voice_result.get("scene_number")
+                await db.story_projects.update_one(
+                    {"project_id": project_id, "voice_scripts.scene_number": scene_num},
+                    {"$set": {
+                        "voice_scripts.$.audio_url": voice_result["audio_url"],
+                        "voice_scripts.$.duration": voice_result.get("duration", 0),
+                        "voice_scripts.$.voice_id": voice_id,
+                        "voice_scripts.$.voice_generated_at": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+        
+        await db.story_projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"status": "voices_generated", "updated_at": datetime.now(timezone.utc)},
+             "$inc": {"credits_spent": total_cost}}
+        )
+        
+        successful = [v for v in generated_voices if "audio_url" in v]
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        await update_job({
+            "status": "COMPLETED",
+            "progress": 100,
+            "current_step": f"All {len(successful)} voices generated!",
+            "completed_scenes": len(successful),
+            "voices": generated_voices,
+            "completed_at": datetime.now(timezone.utc),
+            "duration_ms": duration_ms
+        })
+        logger.info(f"[VOICE JOB {job_id[:8]}] COMPLETED: {len(successful)}/{total_scenes} in {duration_ms}ms")
+    
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[VOICE JOB {job_id[:8]}] FAILED: {error_msg}")
+        try:
+            from bson import ObjectId
+            user = None
+            try:
+                user = await db.users.find_one({"_id": ObjectId(user_id)})
+            except Exception:
+                user = await db.users.find_one({"id": user_id})
+            if user:
+                await db.users.update_one(
+                    {"_id": user.get("_id")},
+                    {"$inc": {"credits": total_cost},
+                     "$push": {"credit_transactions": {"amount": total_cost, "description": f"Refund: voice gen failed for {project_id[:8]}", "timestamp": datetime.now(timezone.utc), "type": "refund"}}}
+                )
+        except Exception as refund_err:
+            logger.error(f"[VOICE JOB {job_id[:8]}] Refund failed: {refund_err}")
+        
+        await update_job({"status": "FAILED", "error": error_msg, "current_step": f"Error: {error_msg[:100]}", "completed_at": datetime.now(timezone.utc)})
 
 async def get_audio_duration(audio_path: str) -> float:
     """Get duration of audio file using ffprobe"""

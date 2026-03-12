@@ -310,6 +310,19 @@ async def generate_single_image_optimized(prompt: str, style_prompt: str, negati
         
         start = time.time()
         full_prompt = f"{prompt}. Style: {style_prompt}. Avoid: {negative_prompt[:200]}"
+        # Smart truncation to prevent API failures on long prompts
+        if len(full_prompt) > 3800:
+            sentences = full_prompt.split('. ')
+            result_parts = []
+            current_len = 0
+            for s in sentences:
+                if current_len + len(s) + 2 <= 3800:
+                    result_parts.append(s)
+                    current_len += len(s) + 2
+                else:
+                    break
+            full_prompt = '. '.join(result_parts) + '.'
+            logger.warning(f"[IMG] Scene {scene_num}: prompt truncated to {len(full_prompt)} chars")
         
         try:
             image_gen = OpenAIImageGeneration(api_key=api_key)
