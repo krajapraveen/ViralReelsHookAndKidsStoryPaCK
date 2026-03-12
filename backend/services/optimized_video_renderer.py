@@ -159,7 +159,7 @@ class OptimizedVideoRenderer:
             progress.update("concatenating", 65, "Concatenating video segments")
             await self._broadcast_progress(progress, "audio_sync", 65, "Merging video segments")
             
-            concat_video = await self._concatenate_segments(segments, temp_dir)
+            concat_video = await self._concatenate_segments(segments, temp_dir, include_watermark)
             
             concat_duration = (time.time() - concat_start) * 1000
             progress.log_stage("concatenate_segments", concat_duration)
@@ -183,19 +183,17 @@ class OptimizedVideoRenderer:
             await self._update_job_status(job_id, "PROCESSING", 80, "Finalizing video")
             
             # =================================================================
-            # STAGE 5: Add watermark and finalize (80-90%)
+            # STAGE 5: Finalize output (80-90%) — watermark already baked in concat
             # =================================================================
-            watermark_start = time.time()
-            progress.update("finalizing", 82, "Adding watermark and finalizing")
-            await self._broadcast_progress(progress, "rendering", 82, "Adding watermark")
+            finalize_start = time.time()
+            progress.update("finalizing", 82, "Finalizing video")
+            await self._broadcast_progress(progress, "rendering", 82, "Finalizing video")
             
             output_filename = f"{project_id}_final.mp4"
-            output_path = await self._add_watermark_and_finalize(
-                final_video, include_watermark, output_filename, temp_dir
-            )
+            output_path = await self._finalize_output(final_video, output_filename)
             
-            watermark_duration = (time.time() - watermark_start) * 1000
-            progress.log_stage("add_watermark", watermark_duration)
+            finalize_duration = (time.time() - finalize_start) * 1000
+            progress.log_stage("finalize", finalize_duration)
             
             # =================================================================
             # STAGE 6: Upload to R2 cloud storage (90-100%)
@@ -390,77 +388,94 @@ class OptimizedVideoRenderer:
         temp_dir: str,
         progress: RenderProgress
     ) -> List[str]:
-        """Encode all scene segments with optimized FFmpeg settings"""
-        segments = []
+        """Encode all scene segments in PARALLEL with optimized FFmpeg settings"""
         total = len(scene_data)
         
-        for i, scene in enumerate(scene_data):
-            scene_num = scene["scene_number"]
-            segment_path = os.path.join(temp_dir, f"segment_{scene_num}.mp4")
-            
-            # Update progress (25-60% range for encoding)
-            pct = 25 + int((i / total) * 35)
-            progress.update("encoding", pct, f"Encoding scene {scene_num}/{total}")
-            await self._broadcast_progress(
-                progress, "composing", pct, 
-                f"Encoding scene {scene_num}/{total}"
-            )
-            
-            # FFmpeg command - highly optimized
-            cmd = [
-                "ffmpeg", "-y",
-                "-loop", "1",
-                "-i", scene["image_path"],
-                "-i", scene["audio_path"],
-                "-c:v", "libx264",
-                "-preset", FFMPEG_PRESET,
-                "-tune", "stillimage",
-                "-crf", str(FFMPEG_CRF),
-                "-c:a", "aac",
-                "-b:a", AUDIO_BITRATE,
-                "-pix_fmt", "yuv420p",
-                "-vf", f"scale={OUTPUT_RESOLUTION}:force_original_aspect_ratio=decrease,pad={OUTPUT_RESOLUTION}:(ow-iw)/2:(oh-ih)/2",
-                "-r", str(OUTPUT_FPS),
-                "-shortest",
-                "-t", str(scene["duration"] + 0.5),
-                "-threads", "2",
-                segment_path
-            ]
-            
-            # Run FFmpeg with timeout
-            start_time = time.time()
-            try:
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+        # Limit concurrent ffmpeg processes to avoid CPU overload
+        encode_semaphore = asyncio.Semaphore(min(3, total))
+        completed_count = 0
+        
+        async def encode_single_scene(scene):
+            nonlocal completed_count
+            async with encode_semaphore:
+                scene_num = scene["scene_number"]
+                segment_path = os.path.join(temp_dir, f"segment_{scene_num}.mp4")
+                
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-loop", "1",
+                    "-i", scene["image_path"],
+                    "-i", scene["audio_path"],
+                    "-c:v", "libx264",
+                    "-preset", FFMPEG_PRESET,
+                    "-tune", "stillimage",
+                    "-crf", str(FFMPEG_CRF),
+                    "-c:a", "aac",
+                    "-b:a", AUDIO_BITRATE,
+                    "-pix_fmt", "yuv420p",
+                    "-vf", f"scale={OUTPUT_RESOLUTION}:force_original_aspect_ratio=decrease,pad={OUTPUT_RESOLUTION}:(ow-iw)/2:(oh-ih)/2",
+                    "-r", str(OUTPUT_FPS),
+                    "-shortest",
+                    "-t", str(scene["duration"] + 0.5),
+                    "-threads", "2",
+                    segment_path
+                ]
+                
+                start_time = time.time()
+                try:
+                    process = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    
+                    try:
+                        stdout, stderr = await asyncio.wait_for(
+                            process.communicate(),
+                            timeout=FFMPEG_SCENE_TIMEOUT
+                        )
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        raise subprocess.TimeoutExpired(cmd, FFMPEG_SCENE_TIMEOUT)
+                    
+                    if process.returncode != 0:
+                        error_output = stderr.decode()[:500] if stderr else "Unknown error"
+                        raise Exception(f"FFmpeg encode failed for scene {scene_num}: {error_output}")
+                    
+                finally:
+                    duration = (time.time() - start_time) * 1000
+                    progress.log_stage(f"encode_scene_{scene_num}", duration)
+                
+                completed_count += 1
+                pct = 25 + int((completed_count / total) * 35)
+                progress.update("encoding", pct, f"Encoded scene {completed_count}/{total}")
+                await self._broadcast_progress(
+                    progress, "composing", pct,
+                    f"Encoded scene {completed_count}/{total}"
                 )
                 
-                try:
-                    stdout, stderr = await asyncio.wait_for(
-                        process.communicate(),
-                        timeout=FFMPEG_SCENE_TIMEOUT
-                    )
-                except asyncio.TimeoutError:
-                    process.kill()
-                    raise subprocess.TimeoutExpired(cmd, FFMPEG_SCENE_TIMEOUT)
-                
-                if process.returncode != 0:
-                    error_output = stderr.decode()[:500] if stderr else "Unknown error"
-                    raise Exception(f"FFmpeg encode failed for scene {scene_num}: {error_output}")
-                
-            finally:
-                duration = (time.time() - start_time) * 1000
-                progress.log_stage(f"encode_scene_{scene_num}", duration)
-            
-            segments.append(segment_path)
+                return scene_num, segment_path
         
-        return segments
+        # Run all scene encodings in parallel
+        results = await asyncio.gather(
+            *[encode_single_scene(scene) for scene in scene_data],
+            return_exceptions=True
+        )
+        
+        # Sort by scene number and collect paths
+        segments = []
+        for result in results:
+            if isinstance(result, Exception):
+                raise result
+            scene_num, path = result
+            segments.append((scene_num, path))
+        
+        segments.sort(key=lambda x: x[0])
+        return [path for _, path in segments]
     
-    async def _concatenate_segments(self, segments: List[str], temp_dir: str) -> str:
-        """Concatenate video segments using stream copy (fast)"""
+    async def _concatenate_segments(self, segments: List[str], temp_dir: str, include_watermark: bool = False) -> str:
+        """Concatenate video segments. If watermark=True, bake it in same pass (avoids separate re-encode)"""
         
-        # Create concat file
         concat_file = os.path.join(temp_dir, "concat.txt")
         with open(concat_file, "w") as f:
             for seg in segments:
@@ -468,14 +483,23 @@ class OptimizedVideoRenderer:
         
         output_path = os.path.join(temp_dir, "concat_video.mp4")
         
-        cmd = [
-            "ffmpeg", "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", concat_file,
-            "-c", "copy",  # Stream copy - very fast
-            output_path
-        ]
+        if include_watermark:
+            # Concat + watermark in ONE pass (saves 10-15s vs separate watermark step)
+            cmd = [
+                "ffmpeg", "-y",
+                "-f", "concat", "-safe", "0", "-i", concat_file,
+                "-vf", "drawtext=text='visionary-suite.com':fontcolor=white@0.5:fontsize=18:x=w-tw-10:y=h-th-10",
+                "-c:v", "libx264", "-preset", FFMPEG_PRESET, "-crf", str(FFMPEG_CRF),
+                "-c:a", "copy",
+                output_path
+            ]
+        else:
+            cmd = [
+                "ffmpeg", "-y",
+                "-f", "concat", "-safe", "0", "-i", concat_file,
+                "-c", "copy",
+                output_path
+            ]
         
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -540,6 +564,14 @@ class OptimizedVideoRenderer:
             raise subprocess.TimeoutExpired(cmd, FFMPEG_MUSIC_TIMEOUT)
         
         return output_path if process.returncode == 0 else video_path
+    
+    async def _finalize_output(self, video_path: str, output_filename: str) -> str:
+        """Copy final video to output directory (no re-encode needed, watermark already applied)"""
+        static_dir = Path("/app/backend/static/generated")
+        static_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(static_dir / output_filename)
+        shutil.copy(video_path, output_path)
+        return output_path
     
     async def _add_watermark_and_finalize(
         self,
