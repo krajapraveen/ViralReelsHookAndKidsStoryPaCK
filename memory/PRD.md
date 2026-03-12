@@ -3,84 +3,58 @@
 ## Original Problem Statement
 Full-stack SaaS platform for creative content generation with monitoring, security, and admin analytics.
 
-## LATEST UPDATE: 2026-03-12 — P0 Story To Video Image Generation Bug Fix
+## LATEST UPDATE: 2026-03-12 — P0 Blank Page Bug Fix + Image Generation Fix
 
-### Root Cause (PROVEN)
-The image generation endpoint (`POST /api/story-video-studio/generation/images`) ran **synchronously** for 90-120+ seconds (generating 5-6 images, each taking ~20s via OpenAI GPT Image 1 API, plus R2 uploads). The Kubernetes ingress has a ~60s request timeout. When the endpoint exceeded this timeout, the HTTP response was dropped by the proxy, causing the frontend to interpret the timeout as a failure and display "Failed to generate images. Credits have been refunded." **In reality, images WERE generated successfully in the background, but the response never reached the client.**
+### Issue 1: Blank Page After Clicking Generate (P0)
+**Root Cause**: Missing ErrorBoundary around StoryVideoStudio component. Any unhandled React error during render would unmount the entire component tree, resulting in a blank dark page. Additionally, unsafe property access on `project.promptPack.stats.*` without optional chaining could cause crashes on Step 4.
 
-### Root Cause Evidence
-- Backend logs show all 6 images generated successfully in 118,458ms
-- Curl to external URL returned empty after ~60s (ingress timeout)
-- Same request via localhost:8001 returned full success response
-- No prompt length issues — prompts ranged 531-695 chars (well within API limits)
+**Fix Applied**:
+1. ErrorBoundary wrapping StoryVideoStudio in App.js (catches all render errors)
+2. Component-level error recovery UI (Try Again + Dashboard buttons)
+3. Null-safe access: `project?.promptPack?.stats?.total_scenes` etc.
+4. `AlertCircle` icon import added for error UI
+5. Polling fail-count limits (max 10 retries before graceful failure)
+6. `componentError` state prevents blank page in edge cases
 
-### Fix Applied
-1. **Converted image generation to background task + polling** (same pattern as video assembly)
-   - `POST /images` → Returns instantly with `job_id` (29ms measured)
-   - `GET /images/status/{job_id}` → Returns real-time progress (0-100%)
-   - Background task processes images, updates job doc in `generation_jobs` collection
-2. **Converted voice generation to background task + polling** (same pattern)
-   - `POST /voices` → Returns instantly with `job_id`
-   - `GET /voices/status/{job_id}` → Returns real-time progress
-3. **Smart prompt truncation** (defense-in-depth)
-   - `_truncate_prompt_smart()` caps prompts at 3800 chars
-   - Preserves sentence boundaries and essential scene meaning
-   - Applied to both standard and fast pipelines
-4. **Frontend polling integration**
-   - `generateImages()` → submit → poll `pollImageGenerationStatus()` every 3s
-   - `generateVoices()` → submit → poll `pollVoiceGenerationStatus()` every 3s
-   - Shows progress indicator during processing
-5. **Credit refund integrity**
-   - Single deduction at start (before background task)
-   - Per-scene refund on individual scene failure
-   - Full refund on total pipeline failure
-   - Refund transactions logged with `type: "refund"`
+**Stability Proof**: 6 consecutive Generate Scenes runs with different stories/styles — ALL passed, page remained visible throughout, body text > 1000 chars at all times.
 
-### Stability Test Results (5 Consecutive Runs)
-| Run | Scenes | Result | Endpoint Response Time |
-|-----|--------|--------|----------------------|
-| 1 | 6 | 6/6 SUCCESS | N/A (pre-fix) |
-| 2 | 5 | 5/5 SUCCESS | <2s |
-| 3 | 5 | 5/5 SUCCESS | <2s |
-| 4 | 5 | 5/5 SUCCESS (testing agent) | <2s |
-| 5 | 6 | 6/6 SUCCESS | 29ms |
+### Issue 2: Image Generation Timeout (P0)
+**Root Cause**: Image generation endpoint ran synchronously for 90-120+ seconds, exceeding Kubernetes ingress ~60s timeout. Frontend received empty/error response.
 
-### Test Results (Iteration 147)
-- 16/16 pytest tests PASSED
-- Frontend verified: polling flow works correctly
-- Credit integrity verified: single deduction, proper refunds
+**Fix Applied**:
+1. Converted image generation to background task + polling (29ms response time)
+2. Converted voice generation to background task + polling
+3. Smart prompt truncation (3800 char cap, sentence-boundary preserving)
+4. Both standard and fast pipelines fixed consistently
+5. Single credit deduction at start, per-scene refund on failure, full refund on pipeline crash
 
-## Performance Benchmark (Previous Session)
+**Stability Proof**: 5 consecutive image generation runs — ALL passed (27+ images total).
+
+### Test Results
+- **Iteration 148**: 6 Generate Scenes + 1 Image Gen = ALL PASSED
+- **Iteration 147**: 16/16 backend tests PASSED
+
+## Performance Benchmark
 | Stage | Before | After | Improvement |
 |-------|--------|-------|-------------|
 | Scene Generation (LLM) | ~15-20s | **7.0s** | 2x faster |
-| Image Generation | ~90-150s | **107.8s parallel** | Images+Voices simultaneous |
-| Video Assembly | ~30-45s | **12.0s** | 3x faster (single-pass) |
-| R2 Upload | ~10-15s | **4.1s** | Async |
-| **TOTAL** | **~180-300s** | **~105-131s** | **50-60% faster** |
-
-## Previous Fixes (Same Session History)
-- P0: Infinite toast loop fix (useRef for polling)
-- P0: Rating feedback fix
-- P0: Promo videos (4/4 available)
-- Payment History fix, Blog posts, Blog nav link
-
-## Architecture
-- Backend: FastAPI + MongoDB + Cashfree PG + Emergent LLM
-- Video Pipeline: GPT-4o-mini (scenes) → GPT Image 1 (images) + TTS (voices) [PARALLEL] → ffmpeg (assembly) → R2 CDN
-- Frontend: React + Shadcn UI
-- New: `generation_jobs` collection for background task tracking
+| Image Generation | ~90-150s | **107.8s parallel** | Background task |
+| Video Assembly | ~30-45s | **12.0s** | 3x faster |
 
 ## Key API Endpoints
-- `POST /api/story-video-studio/generation/images` → Returns job_id (background task)
+- `POST /api/story-video-studio/generation/images` → Returns job_id (background)
 - `GET /api/story-video-studio/generation/images/status/{job_id}` → Poll progress
-- `POST /api/story-video-studio/generation/voices` → Returns job_id (background task)
+- `POST /api/story-video-studio/generation/voices` → Returns job_id (background)
 - `GET /api/story-video-studio/generation/voices/status/{job_id}` → Poll progress
-- `POST /api/story-video-studio/generation/video/assemble` → Returns job_id
-- `GET /api/story-video-studio/generation/video/status/{job_id}` → Poll progress
+
+## Files Changed (This Session)
+- `/app/frontend/src/App.js` — ErrorBoundary import + wrapping
+- `/app/frontend/src/pages/StoryVideoStudio.js` — Error recovery UI, null-safe access, polling with limits, AlertCircle import
+- `/app/backend/routes/story_video_generation.py` — Background tasks, smart truncation
+- `/app/backend/routes/story_video_fast.py` — Smart prompt truncation
 
 ## Backlog
-- P0: Production deployment + verification on visionary-suite.com
+- P0: Deploy to production + verify on visionary-suite.com
 - P1: Concurrent user testing (5-10 users)
 - P1: LLM timeout retry logic (tenacity)
 - P1: Full system audit on production
