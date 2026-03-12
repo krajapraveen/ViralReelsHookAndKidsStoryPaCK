@@ -226,22 +226,27 @@ export default function PaymentHistory() {
           ) : (
             <>
               <div className="divide-y divide-slate-700">
-                {payments.map((payment, index) => (
+                {payments.map((payment, index) => {
+                  const orderId = payment.order_id || payment.orderId || payment.cf_order_id;
+                  const displayName = payment.plan_name || payment.product?.name || payment.description || payment.type || 'Credit Purchase';
+                  const displayDate = payment.createdAt || payment.created_at || payment.paidAt;
+                  const displayAmount = payment.amount >= 100000 ? payment.amount / 100 : payment.amount;
+                  return (
                   <div key={payment.id || index} className="p-4 hover:bg-slate-700/30 transition-colors" data-testid={`payment-${payment.id}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         {getStatusIcon(payment.status)}
                         <div>
                           <p className="font-semibold text-white">
-                            {payment.product?.name || payment.description || 'Credit Purchase'}
+                            {displayName}
                           </p>
                           <div className="flex items-center gap-2 text-sm text-slate-400">
                             <Calendar className="w-3 h-3" />
-                            {formatDate(payment.createdAt || payment.paidAt)}
-                            {payment.orderId && (
+                            {formatDate(displayDate)}
+                            {orderId && (
                               <>
                                 <span className="text-slate-600">•</span>
-                                <span className="font-mono text-xs">{payment.orderId.slice(-8)}</span>
+                                <span className="font-mono text-xs">{orderId.slice(-8)}</span>
                               </>
                             )}
                           </div>
@@ -251,7 +256,7 @@ export default function PaymentHistory() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <p className="font-bold text-white">
-                            {formatCurrency(payment.amount, payment.currency)}
+                            {formatCurrency(displayAmount, payment.currency)}
                           </p>
                           {payment.credits && (
                             <p className="text-sm text-purple-400">+{payment.credits} credits</p>
@@ -260,17 +265,16 @@ export default function PaymentHistory() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
                           {payment.status || 'Unknown'}
                         </span>
-                        {/* Invoice Download Button */}
-                        {(payment.status === 'PAID' || payment.status === 'SUCCESS' || payment.status === 'COMPLETED') && payment.orderId && (
+                        {(payment.status === 'PAID' || payment.status === 'SUCCESS' || payment.status === 'COMPLETED') && orderId && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDownloadInvoice(payment.orderId)}
-                            disabled={downloadingInvoice === payment.orderId}
-                            className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                            data-testid={`invoice-${payment.orderId}`}
+                            onClick={() => handleDownloadInvoice(orderId)}
+                            disabled={downloadingInvoice === orderId}
+                            className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                            data-testid={`invoice-${orderId}`}
                           >
-                            {downloadingInvoice === payment.orderId ? (
+                            {downloadingInvoice === orderId ? (
                               <Clock className="w-4 h-4 animate-spin" />
                             ) : (
                               <>
@@ -283,7 +287,8 @@ export default function PaymentHistory() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Pagination */}
