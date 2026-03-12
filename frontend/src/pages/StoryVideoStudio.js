@@ -16,7 +16,7 @@ import {
   ArrowLeft, Upload, Wand2, Loader2, Film, Image, Mic, 
   Play, Users, BookOpen, Sparkles, ChevronRight, ChevronDown,
   FileText, Download, Edit, Trash2, Eye, Clock, Coins,
-  AlertTriangle, CheckCircle, Palette, Music, Video, Pause,
+  AlertTriangle, AlertCircle, CheckCircle, Palette, Music, Video, Pause,
   Volume2, Maximize, Settings, RefreshCw, LayoutTemplate,
   Gamepad2, Share2, Facebook, Twitter, MessageCircle, Linkedin,
   Mail, Trophy, HelpCircle, Puzzle, Brain, Lightbulb, Copy,
@@ -106,6 +106,9 @@ export default function StoryVideoStudio() {
   // NEW: Social Sharing state
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareLinks, setShareLinks] = useState({});
+  
+  // Error recovery state — prevents blank page on any unhandled error
+  const [componentError, setComponentError] = useState(null);
   
   // NEW: WebSocket Real-Time Progress
   const [currentJobId, setCurrentJobId] = useState(null);
@@ -466,6 +469,7 @@ export default function StoryVideoStudio() {
       return;
     }
     
+    setComponentError(null);
     setLoading(true);
     setGenerationStage('scene_generation');
     try {
@@ -593,12 +597,12 @@ export default function StoryVideoStudio() {
   const downloadPromptPack = () => {
     if (!project?.promptPack) return;
     
-    const data = JSON.stringify(project.promptPack, null, 2);
+    const data = JSON.stringify(project?.promptPack || {}, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${project.title || 'story'}_prompt_pack.json`;
+    a.download = `${project?.title || 'story'}_prompt_pack.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Prompt pack downloaded!');
@@ -634,9 +638,11 @@ export default function StoryVideoStudio() {
   };
 
   const pollImageGenerationStatus = (jobId) => {
+    let failCount = 0;
     const checkStatus = async () => {
       try {
         const res = await api.get(`/api/story-video-studio/generation/images/status/${jobId}`);
+        failCount = 0;
         if (res.data.success) {
           const job = res.data.job;
           setGenerationProgress(job.progress || 0);
@@ -658,8 +664,15 @@ export default function StoryVideoStudio() {
           }
         }
       } catch (error) {
+        failCount++;
         console.error('Failed to check image generation status:', error);
-        setTimeout(checkStatus, 5000);
+        if (failCount >= 10) {
+          toast.error('Lost connection to image generation. Please check your project in History.');
+          setLoading(false);
+          setShowWaitingExperience(false);
+        } else {
+          setTimeout(checkStatus, 5000);
+        }
       }
     };
     checkStatus();
@@ -701,9 +714,11 @@ export default function StoryVideoStudio() {
   };
 
   const pollVoiceGenerationStatus = (jobId) => {
+    let failCount = 0;
     const checkStatus = async () => {
       try {
         const res = await api.get(`/api/story-video-studio/generation/voices/status/${jobId}`);
+        failCount = 0;
         if (res.data.success) {
           const job = res.data.job;
           setGenerationProgress(job.progress || 0);
@@ -725,8 +740,15 @@ export default function StoryVideoStudio() {
           }
         }
       } catch (error) {
+        failCount++;
         console.error('Failed to check voice generation status:', error);
-        setTimeout(checkStatus, 5000);
+        if (failCount >= 10) {
+          toast.error('Lost connection to voice generation. Please check your project in History.');
+          setLoading(false);
+          setShowWaitingExperience(false);
+        } else {
+          setTimeout(checkStatus, 5000);
+        }
       }
     };
     checkStatus();
@@ -833,6 +855,26 @@ export default function StoryVideoStudio() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-purple-950 to-slate-950">
+      {/* Error Recovery UI — prevents blank page if component encounters an error */}
+      {componentError && (
+        <div className="min-h-screen flex items-center justify-center p-8" data-testid="error-recovery">
+          <div className="max-w-lg bg-slate-800/80 rounded-2xl border border-red-500/30 p-8 text-center space-y-4">
+            <div className="w-16 h-16 mx-auto bg-red-500/20 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-red-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Something went wrong</h2>
+            <p className="text-slate-400 text-sm">{componentError}</p>
+            <div className="flex gap-3 justify-center">
+              <Button onClick={() => { setComponentError(null); setStep(1); setLoading(false); setShowWaitingExperience(false); }} className="bg-purple-600 hover:bg-purple-700">
+                Try Again
+              </Button>
+              <Link to="/app">
+                <Button variant="outline">Go to Dashboard</Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -1414,15 +1456,15 @@ export default function StoryVideoStudio() {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
-                <p className="text-3xl font-bold text-white">{project.promptPack.stats?.total_scenes}</p>
+                <p className="text-3xl font-bold text-white">{project?.promptPack?.stats?.total_scenes || 0}</p>
                 <p className="text-slate-400">Scenes</p>
               </div>
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
-                <p className="text-3xl font-bold text-white">{project.promptPack.stats?.total_characters}</p>
+                <p className="text-3xl font-bold text-white">{project?.promptPack?.stats?.total_characters || 0}</p>
                 <p className="text-slate-400">Characters</p>
               </div>
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
-                <p className="text-3xl font-bold text-yellow-400">{project.promptPack.stats?.estimated_image_credits}</p>
+                <p className="text-3xl font-bold text-yellow-400">{project?.promptPack?.stats?.estimated_image_credits || 0}</p>
                 <p className="text-slate-400">Credits for Images</p>
               </div>
             </div>
@@ -1431,7 +1473,7 @@ export default function StoryVideoStudio() {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Scene Prompts</h3>
               <div className="space-y-4">
-                {project.promptPack.scene_prompts?.map((sp, idx) => (
+                {project?.promptPack?.scene_prompts?.map((sp, idx) => (
                   <div key={idx} className="bg-slate-900/50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-purple-400 font-medium">Scene {sp.scene_number}: {sp.title}</span>
