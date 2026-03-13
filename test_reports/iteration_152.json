@@ -1,0 +1,116 @@
+{
+  "summary": "Production A-to-Z Testing completed for Visionary Suite Story → Video Pipeline. CRITICAL: Production site (https://www.visionary-suite.com) returns 502 Bad Gateway on API endpoints. Testing completed on preview environment (video-job-queue-1.preview.emergentagent.com). 17/17 backend API tests passed. Pipeline creates jobs correctly, charges 50 credits, validates inputs. Jobs queue up but processing is slow (7 jobs queued, 1 worker). Frontend login/dashboard/Story Video Studio all functional.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "https://www.visionary-suite.com/api/*",
+        "issue": "PRODUCTION API DOWN - 502 Bad Gateway on ALL API endpoints. Frontend HTML loads (from CDN) but backend API is unreachable.",
+        "priority": "CRITICAL/P0"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/api/pipeline/*",
+        "issue": "Pipeline worker capacity issue - 7 jobs queued, only 1 worker with max_concurrent=1. Jobs stay in QUEUED state for extended periods.",
+        "priority": "MEDIUM"
+      },
+      {
+        "endpoint": "https://www.visionary-suite.com/api/auth/login",
+        "issue": "Test user (test@visionary-suite.com) authentication fails with 'Invalid email or password' - user may not exist in production DB or password differs",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Production Login",
+        "issue": "Login fails on www.visionary-suite.com due to 502 backend errors",
+        "affected_selectors": ["button:has-text('Login')"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Landing Page",
+        "issues": ["Cookie consent banner overlays bottom UI elements - minor"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_preview_pipeline_iteration152.py",
+    "/app/test_reports/pytest/pytest_preview_pipeline_iteration152.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Investigate and fix 502 Bad Gateway on production API (https://www.visionary-suite.com). Backend pod may be crashed or unresponsive.",
+    "HIGH: Increase pipeline workers from 1 to 3+ workers for production workload",
+    "MEDIUM: Verify test@visionary-suite.com user exists in production DB with correct password",
+    "LOW: Consider dismissing cookie consent on user interaction to prevent UI overlap"
+  ],
+  "critical_code_review_comments": [
+    "pipeline_routes.py: All 5 endpoints (/create, /status/{job_id}, /resume/{job_id}, /user-jobs, /workers/status) working correctly",
+    "pipeline_engine.py: Credit deduction (50/80/120) on job create and refund on failure - verified",
+    "pipeline_engine.py: Validation rejects story < 50 chars and empty titles correctly",
+    "pipeline_engine.py: Copyright blocking (Disney, Marvel, etc.) working",
+    "StoryVideoPipeline.js: 4 phases (input/processing/done/error) with proper data-testid attributes",
+    "StoryVideoPipeline.js: Auto-resume of active jobs working - shows processing phase if job in progress"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_preview_pipeline_iteration152.py",
+    "/app/backend/tests/test_production_story_video_pipeline_iteration152.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests on preview, 0% on production due to 502)",
+    "frontend": "100% (Dashboard, Login, Story Video Studio all functional on preview)"
+  },
+  "test_credentials": {
+    "demo_user": "demo@example.com / Password123! (preview - unlimited credits)",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026 (preview)",
+    "test_user_production": "test@visionary-suite.com / Test@2026# (NOT WORKING - invalid credentials error)"
+  },
+  "seed_data_creation": "Created 8+ test pipeline jobs during testing: TEST_Iter152_Run1-5, TEST_Concurrent_0-2",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "CRITICAL: Production API (www.visionary-suite.com) is DOWN with 502 errors. All testing was done on preview environment. Pipeline worker has 7 jobs queued but only 1 worker - processing is slow. Demo user has unlimited credits. Story Video Studio auto-resumes active jobs when user visits the page.",
+  "verified_features_preview": {
+    "POST /api/pipeline/create": {
+      "status": "WORKING",
+      "validation": "Rejects story < 50 chars, empty titles",
+      "returns": "job_id, credits_charged (50), estimated_scenes"
+    },
+    "GET /api/pipeline/status/{job_id}": {
+      "status": "WORKING",
+      "returns": "progress, stages, scene_progress, timing, output_url"
+    },
+    "POST /api/pipeline/resume/{job_id}": {
+      "status": "WORKING"
+    },
+    "GET /api/pipeline/user-jobs": {
+      "status": "WORKING",
+      "returns": "list of user's pipeline jobs sorted by created_at"
+    },
+    "GET /api/pipeline/workers/status": {
+      "status": "WORKING",
+      "returns": "1 worker, 7 jobs in queue"
+    },
+    "POST /api/auth/login": {
+      "status": "WORKING on preview",
+      "returns": "token, user object with credits"
+    },
+    "Frontend Dashboard": {
+      "status": "WORKING",
+      "features": "Feature cards, credits display, daily reward, profile"
+    },
+    "Frontend Story Video Studio": {
+      "status": "WORKING",
+      "features": "Input form, style selection, age/voice selection, generate button"
+    }
+  },
+  "production_status": {
+    "api_health": "502 Bad Gateway - CRITICAL",
+    "frontend_html": "Loading from CDN",
+    "login": "FAILED - backend unreachable",
+    "recommendation": "INVESTIGATE BACKEND POD IMMEDIATELY"
+  },
+  "rca_of_the_issue": "Production backend at https://www.visionary-suite.com is returning 502 Bad Gateway errors. The frontend HTML/JS loads (served from CDN/static hosting) but all /api/* endpoints fail. This indicates the backend pod/container may be crashed, the nginx reverse proxy may be misconfigured, or there's a network issue between nginx and the backend service. The preview environment (video-job-queue-1.preview.emergentagent.com) is fully functional, suggesting the code is correct but production deployment has issues."
+}

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="6" failures="2" skipped="0" tests="18" time="50.018" timestamp="2026-03-13T16:15:58.143415+00:00" hostname="agent-env-8a587c38-66d8-4a13-b3ae-db38fed1ae8b"><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestAuthAndCredits" name="test_login_success" time="25.588" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestAuthAndCredits" name="test_credits_balance" time="0.076" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestAuthAndCredits" name="test_cashfree_plans" time="0.065" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestPipelineOptions" name="test_pipeline_options" time="0.187" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestPipelineE2E" name="test_create_pipeline_job_validation" time="10.344" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestPipelineE2E" name="test_create_pipeline_job_missing_title" time="0.232" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestPipelineE2E" name="test_create_pipeline_job_success" time="0.195" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestPipelineE2E" name="test_poll_pipeline_status" time="0.159"><failure message="AssertionError: Create failed: {&quot;detail&quot;:&quot;Insufficient credits. Need 50, have 0&quot;}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400]&gt;.status_code">backend/tests/test_production_story_video_pipeline_iteration152.py:235: in test_poll_pipeline_status
+    assert create_resp.status_code == 200, f"Create failed: {create_resp.text}"
+E   AssertionError: Create failed: {"detail":"Insufficient credits. Need 50, have 0"}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestPipelineE2E" name="test_user_jobs_history" time="0.256" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestPipelineConcurrent" name="test_concurrent_job_creation" time="1.832"><failure message="AssertionError: At least 2 concurrent jobs should succeed, got 0&#10;assert 0 &gt;= 2">backend/tests/test_production_story_video_pipeline_iteration152.py:378: in test_concurrent_job_creation
+    assert success_count &gt;= 2, f"At least 2 concurrent jobs should succeed, got {success_count}"
+E   AssertionError: At least 2 concurrent jobs should succeed, got 0
+E   assert 0 &gt;= 2</failure></testcase><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestDashboardAndNavigation" name="test_user_profile" time="1.400" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestDashboardAndNavigation" name="test_daily_reward_status" time="0.092" /><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestAdminPanel" name="test_admin_login" time="9.088"><error message="failed on setup with &quot;requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)&quot;">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_production_story_video_pipeline_iteration152.py:456: in admin_token
+    return response.json().get("token") or response.json().get("access_token")
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</error></testcase><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestAdminPanel" name="test_admin_users_list" time="0.000"><error message="failed on setup with &quot;requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)&quot;">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_production_story_video_pipeline_iteration152.py:456: in admin_token
+    return response.json().get("token") or response.json().get("access_token")
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</error></testcase><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestAdminPanel" name="test_pipeline_workers_status" time="0.000"><error message="failed on setup with &quot;requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)&quot;">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_production_story_video_pipeline_iteration152.py:456: in admin_token
+    return response.json().get("token") or response.json().get("access_token")
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</error></testcase><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestOtherFeatures" name="test_reel_generator_options" time="0.247"><error message="failed on setup with &quot;requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)&quot;">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_production_story_video_pipeline_iteration152.py:511: in auth_token
+    return response.json().get("token") or response.json().get("access_token")
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</error></testcase><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestOtherFeatures" name="test_story_generator_options" time="0.000"><error message="failed on setup with &quot;requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)&quot;">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_production_story_video_pipeline_iteration152.py:511: in auth_token
+    return response.json().get("token") or response.json().get("access_token")
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</error></testcase><testcase classname="backend.tests.test_production_story_video_pipeline_iteration152.TestOtherFeatures" name="test_photo_to_comic_health" time="0.000"><error message="failed on setup with &quot;requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)&quot;">/root/.venv/lib/python3.11/site-packages/requests/models.py:976: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_production_story_video_pipeline_iteration152.py:511: in auth_token
+    return response.json().get("token") or response.json().get("access_token")
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:980: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</error></testcase></testsuite></testsuites>
