@@ -109,20 +109,43 @@ async def start_workers():
 
     logger.info(f"[WORKER] Started {NUM_WORKERS} dedicated pipeline workers")
 
-    # Resume any jobs that were PROCESSING when server restarted
+    # Clean up stale jobs from previous server lifecycle (mark as FAILED, refund credits)
+    # DO NOT re-process — they would likely fail again and could crash the server
     try:
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
         stale_jobs = await db.pipeline_jobs.find(
             {"status": {"$in": ["PROCESSING", "QUEUED"]}},
-            {"job_id": 1, "_id": 0}
-        ).to_list(length=20)
+            {"job_id": 1, "user_id": 1, "credits_charged": 1, "created_at": 1, "_id": 0}
+        ).to_list(length=50)
 
         for job_doc in stale_jobs:
-            jid = job_doc.get("job_id")
-            if jid:
-                logger.info(f"[WORKER] Recovering stale job {jid[:8]}")
-                await enqueue_job(jid)
+            jid = job_doc.get("job_id", "")
+            uid = job_doc.get("user_id")
+            credits = job_doc.get("credits_charged", 0)
+            logger.info(f"[WORKER] Cleaning stale job {jid[:8]} (was stuck)")
+            
+            # Mark as FAILED
+            await db.pipeline_jobs.update_one(
+                {"job_id": jid},
+                {"$set": {
+                    "status": "FAILED",
+                    "error": "Job interrupted by server restart. Credits refunded.",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            # Refund credits
+            if uid and credits:
+                await db.users.update_one(
+                    {"id": uid},
+                    {"$inc": {"credits": credits}}
+                )
+                logger.info(f"[WORKER] Refunded {credits} credits for stale job {jid[:8]}")
+
+        if stale_jobs:
+            logger.info(f"[WORKER] Cleaned up {len(stale_jobs)} stale jobs")
     except Exception as e:
-        logger.warning(f"[WORKER] Could not recover stale jobs: {e}")
+        logger.warning(f"[WORKER] Could not clean stale jobs: {e}")
 
 
 async def stop_workers():
