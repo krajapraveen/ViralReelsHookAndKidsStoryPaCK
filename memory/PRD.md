@@ -1,7 +1,7 @@
 # Visionary-Suite PRD
 
 ## Original Problem Statement
-The "Story To Video" feature was unstable, slow, and unreliable in production. The system was re-architected into a durable, async, stage-based job pipeline. After deployment, production experienced persistent crash loops (520 errors) and OOM kills due to ffmpeg memory exhaustion. After fixing OOM, a full platform audit was requested.
+The "Story To Video" feature was unstable in production (OOM crashes). After fixing that, a full platform audit was completed. The next phase is repositioning the product: transforming from a "toolbox" site into a focused **AI Story→Video platform** to improve user activation, retention, and revenue.
 
 ## Architecture
 - **Frontend**: React (CRA with craco) on port 3000
@@ -9,74 +9,77 @@ The "Story To Video" feature was unstable, slow, and unreliable in production. T
 - **Database**: MongoDB (creatorstudio_production)
 - **Storage**: Cloudflare R2
 - **Payment**: Cashfree
-- **LLM**: OpenAI GPT-4o-mini, GPT Image 1, OpenAI TTS, Sora 2, Gemini (storybook images)
-- **Video Processing**: ffmpeg (system dependency via apt-packages.txt)
+- **LLM**: OpenAI GPT-4o-mini, GPT Image 1, OpenAI TTS, Sora 2, Gemini
+- **Video Processing**: ffmpeg (system dependency)
 
-## Features & Status (All Verified 2026-03-13)
+## Current Product Positioning
+**"Turn stories into cinematic videos using AI"**
+- Story→Video is the HERO feature
+- Secondary tools: Reel Scripts, Photo to Comic, GIF Creator, Comic Storybook
+- 10 free credits on signup (previously 100)
 
-### Core Features
-| Feature | Route | API Prefix | Credit Cost | Deduction Type | Status |
-|---------|-------|-----------|-------------|----------------|--------|
-| Reel Generator | /app/reel-generator | /api/generate/reel | 10 | Upfront | ✅ |
-| Kids Story Pack | /app/story-generator | /api/generate/story | 10 | Upfront | ✅ |
-| Photo to Comic | /app/photo-to-comic | /api/photo-to-comic/* | 15-45 | Deferred | ✅ |
-| GIF Maker | /app/gif-maker | /api/gif-maker/* | 10+15dl | Deferred | ✅ |
-| Comic Storybook | /app/comic-storybook | /api/comic-storybook/* | 10+/page+20dl | Deferred | ✅ |
-| Story→Video | /app/story-video-studio | /api/pipeline/* | 50-120 | Upfront | ✅ |
+## What's Been Implemented
 
-### Credit Integrity Audit Results
-- **Upfront deduction** (Reel, Story, Pipeline): Exact amount deducted immediately on creation ✅
-- **Deferred deduction** (Photo-to-Comic, GIF, Storybook): Deducted after background processing completes ✅
-- **Insufficient credits rejection**: All features correctly reject and prevent generation ✅
-- **No double-deductions detected** ✅
-- **Refund on failure**: Pipeline refunds credits when job fails or stale on restart ✅
+### Phase 1: New Marketing Landing Page (2026-03-13) ✅
+- **Hero section**: "Turn stories into cinematic videos using AI" + CTA
+- **Social proof bar**: Video count, 90s avg time, 5 pipeline stages, 5-star rating
+- **How It Works**: 3-step visual (Write → AI Creates → Download)
+- **Prompt templates**: 6 genre-based clickable prompts (Fantasy, Bedtime, Space, Animal, Superhero, Underwater)
+- **Video Gallery**: Real generated videos from /api/pipeline/gallery (public endpoint)
+- **Secondary tools**: De-emphasized "More Creator Tools" section
+- **Pricing overview**: Free (10) / Starter (100) / Pro (1,000) credits
+- **Final CTA**: "Your story deserves to be seen"
+- **Simplified nav**: Gallery | How It Works | Pricing | Login | Start Creating
+- **Mobile responsive**: Hamburger menu for mobile
 
-### Production-Safe Render Stage (P0 Fix)
-- Sequential scene rendering, single-threaded ffmpeg (-threads 1)
-- 640x360 @ 10fps, CRF 35, maxrate/bufsize 400k
-- -nostdin, -loglevel error auto-injected
-- gc.collect() after each scene, aggressive temp cleanup
-- Concat step also single-threaded with matching low-memory settings
+### Credit System Change (2026-03-13) ✅
+- New signups receive **10 free credits** (was 100)
+- Updated across: email registration, Google OAuth, signup page, pricing page, blog, live chat, terms of service, demo reel generator
+- Admin/demo/UAT users retain existing credits
 
-### Verified Render Benchmarks (Preview)
-| Metric | Value |
-|--------|-------|
-| Per-scene render | 1.3-2.4s |
-| Full render (3 scenes) | 4.9-7.4s |
-| Full pipeline | 78-86s |
-| Video size | 0.5-0.6MB |
-| 5 consecutive runs | 5/5 ✅ |
-| 3 concurrent runs | 3/3 ✅ |
+### Production-Safe Render Stage (P0 Fix) ✅
+- Sequential scene rendering, single-threaded ffmpeg
+- 640x360 @ 10fps, aggressive memory control
+- 5/5 consecutive + 3/3 concurrent tests passed
 
-### Testing Summary
-| Test | Result |
-|------|--------|
-| iteration_153: Story Video Pipeline | 100% (13/13 backend) |
-| iteration_154: Full Platform Audit | 100% (18/18 backend, 9/9 frontend) |
-| Credit integrity (manual) | All 6 features verified |
-| Insufficient credits | All features reject correctly |
-| Stale job recovery + refund | ✅ |
+### Full Platform Audit ✅
+- All 6 features verified (18/18 backend, 9/9 frontend)
+- Credit integrity verified across all features
 
 ## Key Files
+- `/app/frontend/src/pages/Landing.js` - New marketing landing page
+- `/app/backend/routes/pipeline_routes.py` - Gallery API endpoint (line 30)
+- `/app/backend/routes/auth.py` - Credit system (10 credits)
 - `/app/backend/services/pipeline_engine.py` - Pipeline + render logic
-- `/app/backend/services/pipeline_worker.py` - Worker management
-- `/app/backend/routes/pipeline_routes.py` - Pipeline API
-- `/app/backend/routes/generation.py` - Reel + Story API
-- `/app/backend/routes/photo_to_comic.py` - Photo to Comic API
-- `/app/backend/routes/gif_maker.py` - GIF Maker API
-- `/app/backend/routes/comic_storybook.py` - Storybook API
-- `/app/backend/routes/credits.py` - Credit system
 - `/app/frontend/src/App.js` - All route definitions
 
-## Pending
-- P1: SendGrid email (blocked on user's plan upgrade)
+## Test Reports
+- iteration_153: Story Video Pipeline (100%)
+- iteration_154: Full Platform Audit (100%)
+- iteration_155: Landing Page + Credits (100%)
+
+## Upcoming (Phase 2): Onboarding Flow
+- Guided first-time experience after signup
+- Pre-filled story prompt → one-click generate → wow moment
+- Welcome screen: "Create your first video in 60 seconds"
+
+## Upcoming (Phase 3): UX Improvements
+- Dashboard reorganization (Story→Video hero at top)
+- Example outputs throughout the app
+- Remove decision overload
+
+## Upcoming (Phase 4): Growth Features
+- Public AI Video Gallery page (/gallery)
+- Share screen after video generation
+- Video watermark (already exists)
 
 ## Backlog
-- P2: WebSocket real-time progress (replace polling)
+- P2: WebSocket real-time progress
 - P2: Worker auto-scaling
 - P2: Email notifications on completion
 - P3: Delete obsolete old Story→Video code
 - P3: GPU-accelerated rendering
+- P1: SendGrid email (blocked on user's plan upgrade)
 
 ## Test Credentials
 - UAT: test@visionary-suite.com / Test@2026#
