@@ -10,8 +10,9 @@ import {
   ArrowLeft, Wand2, Loader2, Film, Image, Mic, CheckCircle,
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
   Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye,
-  Share2, Link2, Copy, ExternalLink
+  Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix
 } from 'lucide-react';
+import UpsellModal from '../components/UpsellModal';
 
 const STAGE_ORDER = ['scenes', 'images', 'voices', 'render', 'upload'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic, render: Video, upload: Upload };
@@ -30,6 +31,9 @@ export default function StoryVideoPipeline() {
   const [submitting, setSubmitting] = useState(false);
   const [userJobs, setUserJobs] = useState([]);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showUpsell, setShowUpsell] = useState(false);
+  const [userCredits, setUserCredits] = useState(null);
+  const [remixData, setRemixData] = useState(null);
   const pollRef = useRef(null);
   const [searchParams] = useSearchParams();
 
@@ -37,12 +41,31 @@ export default function StoryVideoPipeline() {
   useEffect(() => {
     api.get('/api/pipeline/options').then(r => setOptions(r.data)).catch(() => {});
     loadUserJobs();
+    checkUpsell();
+
+    // Check for remix data
+    const isRemix = searchParams.get('remix');
+    if (isRemix) {
+      const saved = localStorage.getItem('remix_video');
+      if (saved) {
+        try {
+          const rd = JSON.parse(saved);
+          setRemixData(rd);
+          setTitle(`Remix: ${rd.title || 'Untitled'}`);
+          setStoryText(rd.story_text || '');
+          if (rd.animation_style) setAnimStyle(rd.animation_style);
+          if (rd.age_group) setAgeGroup(rd.age_group);
+          if (rd.voice_preset) setVoicePreset(rd.voice_preset);
+          localStorage.removeItem('remix_video');
+        } catch { /* ignore */ }
+      }
+    }
 
     // Onboarding: check for prompt from signup flow
     const urlPrompt = searchParams.get('prompt');
     const savedPrompt = localStorage.getItem('onboarding_prompt');
     const prompt = urlPrompt || savedPrompt;
-    if (prompt) {
+    if (prompt && !isRemix) {
       setStoryText(prompt);
       setShowWelcome(true);
       localStorage.removeItem('onboarding_prompt');
@@ -56,7 +79,6 @@ export default function StoryVideoPipeline() {
       const res = await api.get('/api/pipeline/user-jobs');
       if (res.data.success) {
         setUserJobs(res.data.jobs || []);
-        // Auto-resume if there's an active job
         const active = (res.data.jobs || []).find(j => ['QUEUED', 'PROCESSING'].includes(j.status));
         if (active) {
           setJobId(active.job_id);
@@ -65,6 +87,16 @@ export default function StoryVideoPipeline() {
         }
       }
     } catch (e) { /* ignore */ }
+  };
+
+  const checkUpsell = async () => {
+    try {
+      const res = await api.get('/api/credits/check-upsell');
+      if (res.data.show_upsell) {
+        setUserCredits(res.data.credits);
+        setShowUpsell(true);
+      }
+    } catch { /* ignore */ }
   };
 
   const startPolling = useCallback((jid) => {
@@ -100,6 +132,7 @@ export default function StoryVideoPipeline() {
       const res = await api.post('/api/pipeline/create', {
         title, story_text: storyText, animation_style: animStyle,
         age_group: ageGroup, voice_preset: voicePreset,
+        parent_video_id: remixData?.parent_video_id || null,
       });
       if (res.data.success) {
         setJobId(res.data.job_id);
@@ -162,6 +195,17 @@ export default function StoryVideoPipeline() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Upsell Modal */}
+        {showUpsell && <UpsellModal credits={userCredits} onClose={() => setShowUpsell(false)} />}
+
+        {/* Remix banner */}
+        {remixData && phase === 'input' && (
+          <div className="mb-6 bg-pink-500/10 border border-pink-500/30 rounded-xl p-4 flex items-center gap-3" data-testid="remix-banner">
+            <Remix className="w-5 h-5 text-pink-400" />
+            <span className="text-pink-200 text-sm">Remixing: <strong>{remixData.title}</strong> — edit the story and make it your own!</span>
+          </div>
+        )}
+
         {/* Welcome overlay for onboarding */}
         {showWelcome && phase === 'input' && (
           <div className="mb-8 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl p-6 text-center" data-testid="welcome-overlay">

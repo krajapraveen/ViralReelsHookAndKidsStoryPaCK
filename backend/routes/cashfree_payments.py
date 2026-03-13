@@ -83,13 +83,13 @@ except Exception as e:
 
 # Product definitions - Cashfree Only
 PRODUCTS = {
-    "starter": {"name": "Starter Pack", "credits": 100, "price": 499, "popular": False},
-    "creator": {"name": "Creator Pack", "credits": 300, "price": 999, "popular": True},
-    "pro": {"name": "Pro Pack", "credits": 1000, "price": 2499, "popular": False},
-    "weekly": {"name": "Weekly Subscription", "credits": 50, "price": 199, "popular": False, "period": "weekly", "savings": "10%"},
-    "monthly": {"name": "Monthly Subscription", "credits": 200, "price": 699, "popular": False, "period": "monthly", "savings": "20%"},
-    "quarterly": {"name": "Quarterly Subscription", "credits": 500, "price": 1999, "popular": False, "period": "quarterly", "savings": "35%"},
-    "yearly": {"name": "Yearly Subscription", "credits": 2500, "price": 5999, "popular": True, "period": "yearly", "savings": "50%"},
+    # Subscription Plans (Monthly)
+    "creator_monthly": {"name": "Creator", "credits": 100, "price": 749, "priceUsd": 9, "popular": False, "period": "monthly", "savings": "", "features": ["5 Story Videos/mo", "All animation styles", "Priority rendering"]},
+    "pro_monthly": {"name": "Pro", "credits": 250, "price": 1599, "priceUsd": 19, "popular": True, "period": "monthly", "savings": "Save 20%", "features": ["12+ Story Videos/mo", "All animation styles", "Priority rendering", "No watermark", "Gallery featured"]},
+    # Credit Top-Up Packs (One-Time)
+    "topup_small": {"name": "50 Credits", "credits": 50, "price": 399, "priceUsd": 5, "popular": False},
+    "topup_medium": {"name": "150 Credits", "credits": 150, "price": 999, "priceUsd": 12, "popular": True},
+    "topup_large": {"name": "500 Credits", "credits": 500, "price": 2499, "priceUsd": 30, "popular": False},
 }
 
 # Pydantic Models

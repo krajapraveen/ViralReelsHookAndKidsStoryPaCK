@@ -70,6 +70,21 @@ async def get_balance(user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/check-upsell")
+async def check_upsell(user: dict = Depends(get_current_user)):
+    """Check if user should see an upsell prompt (low credits)."""
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1, "plan": 1})
+    credits_val = user_data.get("credits", 0) if user_data else 0
+    plan_val = user_data.get("plan", "free") if user_data else "free"
+    # Trigger upsell if credits < 10 (cost of 1 video)
+    show_upsell = credits_val < 10
+    return {
+        "show_upsell": show_upsell,
+        "credits": credits_val,
+        "plan": plan_val,
+    }
+
+
 @router.get("/ledger")
 async def get_ledger(
     page: int = 0,

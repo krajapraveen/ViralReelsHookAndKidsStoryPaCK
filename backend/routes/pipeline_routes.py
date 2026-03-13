@@ -258,6 +258,71 @@ async def get_user_pipeline_jobs(current_user: dict = Depends(get_current_user))
     return {"success": True, "jobs": jobs}
 
 
+@router.get("/analytics/funnel")
+async def get_analytics_funnel(days: int = 30, current_user: dict = Depends(get_current_user)):
+    """Admin endpoint: get growth funnel analytics."""
+    if current_user.get("role") not in ("admin", "ADMIN"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    pipe = [
+        {"$match": {"timestamp": {"$gte": since}}},
+        {"$group": {"_id": "$event", "count": {"$sum": 1}}},
+    ]
+    rows = await db.analytics_events.aggregate(pipe).to_list(length=100)
+    event_counts = {r["_id"]: r["count"] for r in rows}
+
+    # Daily breakdown for chart
+    daily_pipe = [
+        {"$match": {"timestamp": {"$gte": since}}},
+        {"$group": {
+            "_id": {
+                "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+                "event": "$event",
+            },
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"_id.date": 1}},
+    ]
+    daily_rows = await db.analytics_events.aggregate(daily_pipe).to_list(length=5000)
+    daily = {}
+    for r in daily_rows:
+        d = r["_id"]["date"]
+        if d not in daily:
+            daily[d] = {}
+        daily[d][r["_id"]["event"]] = r["count"]
+
+    # Cost analytics: total credits consumed
+    cost_pipe = [
+        {"$match": {"timestamp": {"$gte": since}, "event": "video_generation_started"}},
+        {"$group": {"_id": None, "total_credits": {"$sum": "$data.credits"}}},
+    ]
+    cost_rows = await db.analytics_events.aggregate(cost_pipe).to_list(length=1)
+    total_credits = cost_rows[0]["total_credits"] if cost_rows else 0
+
+    # Remix stats
+    remix_count = await db.pipeline_jobs.count_documents({
+        "parent_video_id": {"$exists": True, "$ne": None},
+        "created_at": {"$gte": since},
+    })
+
+    # Total videos
+    total_videos = await db.pipeline_jobs.count_documents({"created_at": {"$gte": since}})
+    completed_videos = await db.pipeline_jobs.count_documents({"status": "COMPLETED", "created_at": {"$gte": since}})
+
+    return {
+        "success": True,
+        "funnel": event_counts,
+        "daily": daily,
+        "totals": {
+            "total_videos": total_videos,
+            "completed_videos": completed_videos,
+            "remix_count": remix_count,
+            "total_credits_consumed": total_credits,
+        },
+    }
+
+
 @router.get("/workers/status")
 async def pipeline_worker_status(current_user: dict = Depends(get_current_user)):
     """Get worker pool status (admin diagnostic)."""

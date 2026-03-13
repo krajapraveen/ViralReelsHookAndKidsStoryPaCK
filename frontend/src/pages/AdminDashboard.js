@@ -22,6 +22,7 @@ import TrendingTopicsTab from '../components/admin/TrendingTopicsTab';
 import PaymentMonitoringTab from '../components/admin/PaymentMonitoringTab';
 import ExceptionMonitoringTab from '../components/admin/ExceptionMonitoringTab';
 import UserAnalyticsTab from '../components/admin/UserAnalyticsTab';
+import GrowthFunnelTab from '../components/admin/GrowthFunnelTab';
 import HelpGuide from '../components/HelpGuide';
 
 // Default fallback data structure for graceful degradation
@@ -151,13 +152,14 @@ export default function AdminDashboard() {
     { id: 'visitors', label: 'Visitors' },
     { id: 'features', label: 'Features' },
     { id: 'payments', label: 'Payments' },
-    { id: 'payment-monitoring', label: '💰 Payment Monitor' },
-    { id: 'exceptions', label: '⚠️ Exceptions' },
+    { id: 'payment-monitoring', label: 'Payment Monitor' },
+    { id: 'exceptions', label: 'Exceptions' },
     { id: 'satisfaction', label: 'Satisfaction' },
-    { id: 'user-analytics', label: '📊 User Analytics' },
-    { id: 'feature-requests', label: '💡 Feature Requests' },
-    { id: 'feedback', label: '📝 User Feedback' },
-    { id: 'trending', label: '📈 Trending Topics' },
+    { id: 'user-analytics', label: 'User Analytics' },
+    { id: 'feature-requests', label: 'Feature Requests' },
+    { id: 'feedback', label: 'User Feedback' },
+    { id: 'trending', label: 'Trending Topics' },
+    { id: 'growth-funnel', label: 'Growth Funnel' },
   ];
 
   return (
@@ -409,6 +411,7 @@ export default function AdminDashboard() {
             )}
             {activeTab === 'feedback' && <UserFeedbackTab />}
             {activeTab === 'trending' && <TrendingTopicsTab />}
+            {activeTab === 'growth-funnel' && <GrowthFunnelTab dateRange={dateRange} />}
           </div>
         </div>
       </div>
