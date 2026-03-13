@@ -151,131 +151,98 @@ export default function Dashboard() {
           <p className="text-slate-400 text-base sm:text-lg">What would you like to create today?</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
+        {/* ── HERO FEATURE: Story → Video ── */}
+        <Link to="/app/story-video-studio">
+          <div className="relative bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 rounded-2xl p-6 sm:p-8 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-indigo-500/30 mb-6 sm:mb-8 overflow-hidden" data-testid="hero-story-video-card">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent pointer-events-none" />
+            <div className="relative flex items-center gap-5">
+              <div className="bg-white/15 rounded-2xl p-4 backdrop-blur-sm">
+                <Film className="w-10 h-10" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl sm:text-3xl font-bold mb-2">Create Story Video</h2>
+                <p className="text-indigo-200 text-sm sm:text-base">Turn any story into a cinematic AI video with scenes, images, voiceover, and music — in 90 seconds.</p>
+                <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                  <span className="bg-white/15 backdrop-blur-sm rounded-full px-3 py-1">6 Video Styles</span>
+                  <span className="bg-white/15 backdrop-blur-sm rounded-full px-3 py-1">AI Voice</span>
+                  <span className="bg-white/15 backdrop-blur-sm rounded-full px-3 py-1">Auto Scenes</span>
+                  <span className="bg-white/15 backdrop-blur-sm rounded-full px-3 py-1">50 credits</span>
+                </div>
+              </div>
+              <ChevronRight className="w-6 h-6 text-indigo-300 hidden sm:block" />
+            </div>
+          </div>
+        </Link>
+
+        {/* ── More Creator Tools ── */}
+        <div className="mb-4">
+          <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-4">More Creator Tools</h2>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
           <Link to="/app/reels">
-            <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-indigo-500/20" data-testid="quick-action-reel" data-tour="reel-generator-card">
-              <Video className="w-10 h-10 sm:w-12 sm:h-12 mb-4" />
-              <h2 className="text-xl sm:text-2xl font-bold mb-2">Generate Reel Script</h2>
-              <p className="text-indigo-200 mb-4 text-sm sm:text-base">Create viral reel scripts in 5-10 seconds</p>
-              <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-2 text-sm">
-                <Coins className="w-4 h-4" />
-                <span>10 credits per reel</span>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 sm:p-6 text-white hover:border-slate-600 hover:bg-slate-800/70 transition-all cursor-pointer" data-testid="quick-action-reel" data-tour="reel-generator-card">
+              <div className="flex items-center gap-4">
+                <div className="bg-indigo-500/10 rounded-xl p-3">
+                  <Video className="w-7 h-7 text-indigo-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold mb-1">Reel Script Generator</h2>
+                  <p className="text-slate-400 text-sm">Viral hooks, scripts & hashtags in seconds</p>
+                  <span className="text-xs text-slate-500 mt-1 inline-block">10 credits</span>
+                </div>
               </div>
             </div>
           </Link>
 
           <Link to="/app/stories">
-            <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl p-6 sm:p-8 text-white hover:scale-105 transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-story" data-tour="story-generator-card">
-              <BookOpen className="w-10 h-10 sm:w-12 sm:h-12 mb-4" />
-              <h2 className="text-xl sm:text-2xl font-bold mb-2">Create Kids Story Pack</h2>
-              <p className="text-purple-200 mb-4 text-sm sm:text-base">Complete video production packages</p>
-              <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-2 text-sm">
-                <Coins className="w-4 h-4" />
-                <span>10 credits per story</span>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 sm:p-6 text-white hover:border-slate-600 hover:bg-slate-800/70 transition-all cursor-pointer" data-testid="quick-action-story" data-tour="story-generator-card">
+              <div className="flex items-center gap-4">
+                <div className="bg-purple-500/10 rounded-xl p-3">
+                  <BookOpen className="w-7 h-7 text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold mb-1">Kids Story Pack</h2>
+                  <p className="text-slate-400 text-sm">Complete story production packages</p>
+                  <span className="text-xs text-slate-500 mt-1 inline-block">10 credits</span>
+                </div>
               </div>
             </div>
           </Link>
         </div>
 
-        {/* PRIMARY TOOLS - High Revenue (Reordered for Monetization) */}
+        {/* PRIMARY TOOLS */}
         <div className="grid md:grid-cols-2 gap-4 mb-4 sm:mb-6">
-          {/* Photo to Comic - Priority 1 */}
           <Link to="/app/photo-to-comic">
-            <div className="relative bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-purple-500/20" data-testid="quick-action-comix">
-              <div className="absolute top-3 right-3 flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-                <Flame className="w-3 h-3" />
-                TRENDING
-              </div>
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <ImageIcon className="w-6 h-6 sm:w-8 sm:h-8" />
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 sm:p-6 text-white hover:border-slate-600 hover:bg-slate-800/70 transition-all cursor-pointer" data-testid="quick-action-comix">
+              <div className="flex items-center gap-4">
+                <div className="bg-pink-500/10 rounded-xl p-3">
+                  <ImageIcon className="w-7 h-7 text-pink-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg sm:text-xl font-bold mb-1">Photo to Comic</h2>
-                  <p className="text-white/80 text-xs sm:text-sm">Transform photos into comic characters</p>
-                  <div className="flex items-center gap-2 mt-2 text-xs">
-                    <span className="bg-white/20 rounded-full px-2 py-0.5">15-45 credits</span>
-                    <span className="text-yellow-300">🎨 24 Safe Styles</span>
-                  </div>
+                  <h2 className="text-lg font-bold mb-1">Photo to Comic</h2>
+                  <p className="text-slate-400 text-sm">Transform photos into comic characters</p>
+                  <span className="text-xs text-slate-500 mt-1 inline-block">15-45 credits</span>
                 </div>
               </div>
             </div>
           </Link>
 
-          {/* Comic Story Book Builder - Priority 2 */}
           <Link to="/app/comic-storybook">
-            <div className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-emerald-500/20" data-testid="quick-action-storybook">
-              <div className="absolute top-3 right-3 flex items-center gap-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full">
-                <Sparkles className="w-3 h-3" />
-                REBUILT
-              </div>
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="bg-white/20 rounded-xl p-2 sm:p-3">
-                  <Library className="w-6 h-6 sm:w-8 sm:h-8" />
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 sm:p-6 text-white hover:border-slate-600 hover:bg-slate-800/70 transition-all cursor-pointer" data-testid="quick-action-storybook">
+              <div className="flex items-center gap-4">
+                <div className="bg-emerald-500/10 rounded-xl p-3">
+                  <Library className="w-7 h-7 text-emerald-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg sm:text-xl font-bold mb-1">Comic Story Book Builder</h2>
-                  <p className="text-white/80 text-xs sm:text-sm">Turn your idea into a printable comic book</p>
-                  <div className="flex items-center gap-2 mt-2 text-xs">
-                    <span className="bg-white/20 rounded-full px-2 py-0.5">25-60 credits</span>
-                    <span className="text-yellow-300">📖 5-Step Wizard</span>
-                  </div>
+                  <h2 className="text-lg font-bold mb-1">Comic Story Builder</h2>
+                  <p className="text-slate-400 text-sm">Turn ideas into printable comic books</p>
+                  <span className="text-xs text-slate-500 mt-1 inline-block">25-60 credits</span>
                 </div>
               </div>
             </div>
           </Link>
         </div>
-
-        {/* STORY TO VIDEO STUDIO - BETA RELEASE */}
-        <Link to="/app/story-video-studio">
-          <div className="relative bg-gradient-to-r from-rose-600 via-pink-600 to-fuchsia-600 rounded-2xl p-5 sm:p-6 text-white hover:scale-[1.02] transition-transform cursor-pointer shadow-xl shadow-pink-500/30 mb-4 sm:mb-6 overflow-hidden" data-testid="quick-action-story-video">
-            {/* Animated background effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 via-transparent to-yellow-500/10 animate-pulse"></div>
-            
-            {/* BETA Badge */}
-            <div className="absolute top-3 right-3 flex items-center gap-1 bg-yellow-500 text-black text-xs px-2 py-1 rounded-full font-bold animate-bounce">
-              <Sparkles className="w-3 h-3" />
-              BETA
-            </div>
-            
-            <div className="relative flex items-center gap-4">
-              <div className="bg-white/20 rounded-xl p-3">
-                <Video className="w-8 h-8" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-xl sm:text-2xl font-bold mb-1">Story to Video Studio</h2>
-                <p className="text-white/80 text-sm">Transform any story into a fully animated video with AI-generated scenes, images, voice narration & music</p>
-                <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
-                  <span className="bg-white/20 rounded-full px-3 py-1">🎬 6 Video Styles</span>
-                  <span className="bg-white/20 rounded-full px-3 py-1">📝 8 Templates</span>
-                  <span className="bg-white/20 rounded-full px-3 py-1">🎤 AI Voice</span>
-                  <span className="bg-white/20 rounded-full px-3 py-1">🎵 Background Music</span>
-                  <span className="bg-yellow-400/20 text-yellow-300 rounded-full px-3 py-1">⚡ Real-time Progress</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Beta Release Notice Label */}
-            <div className="relative mt-4 bg-gradient-to-r from-yellow-500/30 via-amber-500/30 to-orange-500/30 backdrop-blur-sm rounded-xl p-4 border border-yellow-400/50 shadow-lg shadow-yellow-500/20">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 bg-yellow-400 text-black rounded-full p-1.5 animate-pulse">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="text-yellow-300 font-bold text-sm sm:text-base">🚀 Story To Video – Beta Release Is Here!</span>
-                  </div>
-                  <p className="text-white/90 text-xs sm:text-sm leading-relaxed">
-                    This exciting feature is currently under advanced testing by{' '}
-                    <span className="font-bold text-yellow-300">K. Raja Praveen</span>{' '}
-                    <span className="text-yellow-200/80">(krajapraveen@visionary-suite.com)</span>{' '}
-                    to ensure the best experience. It will be fully available to all users very soon. <span className="text-yellow-300 font-semibold">Stay tuned!</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Link>
 
         {/* Creator Boost Pack - Bundled Small Tools */}
         <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 sm:p-6 mb-4 sm:mb-6">

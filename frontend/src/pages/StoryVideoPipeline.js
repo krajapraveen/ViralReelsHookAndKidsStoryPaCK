@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -9,7 +9,8 @@ import api from '../utils/api';
 import {
   ArrowLeft, Wand2, Loader2, Film, Image, Mic, CheckCircle,
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
-  Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye
+  Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye,
+  Share2, Link2, Copy, ExternalLink
 } from 'lucide-react';
 
 const STAGE_ORDER = ['scenes', 'images', 'voices', 'render', 'upload'];
@@ -28,14 +29,27 @@ export default function StoryVideoPipeline() {
   const [job, setJob] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [userJobs, setUserJobs] = useState([]);
+  const [showWelcome, setShowWelcome] = useState(false);
   const pollRef = useRef(null);
+  const [searchParams] = useSearchParams();
 
-  // Load options + check for active jobs on mount
+  // Load options + check for onboarding prompt + check for active jobs
   useEffect(() => {
     api.get('/api/pipeline/options').then(r => setOptions(r.data)).catch(() => {});
     loadUserJobs();
+
+    // Onboarding: check for prompt from signup flow
+    const urlPrompt = searchParams.get('prompt');
+    const savedPrompt = localStorage.getItem('onboarding_prompt');
+    const prompt = urlPrompt || savedPrompt;
+    if (prompt) {
+      setStoryText(prompt);
+      setShowWelcome(true);
+      localStorage.removeItem('onboarding_prompt');
+    }
+
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, []);
+  }, [searchParams]);
 
   const loadUserJobs = async () => {
     try {
@@ -148,6 +162,16 @@ export default function StoryVideoPipeline() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Welcome overlay for onboarding */}
+        {showWelcome && phase === 'input' && (
+          <div className="mb-8 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl p-6 text-center" data-testid="welcome-overlay">
+            <Sparkles className="w-8 h-8 text-indigo-400 mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-white mb-2">Let's turn your story into a cinematic video</h2>
+            <p className="text-slate-400 text-sm max-w-md mx-auto mb-4">Your story is pre-filled below. Add a title, pick a style, and hit Generate. AI does the rest in ~90 seconds.</p>
+            <Button onClick={() => setShowWelcome(false)} variant="ghost" className="text-indigo-400 hover:text-indigo-300 text-sm">Got it</Button>
+          </div>
+        )}
+
         {phase === 'input' && <InputPhase
           options={options} title={title} setTitle={setTitle}
           storyText={storyText} setStoryText={setStoryText}
@@ -387,20 +411,44 @@ function ProcessingPhase({ job }) {
   );
 }
 
-// ─── DONE PHASE ───────────────────────────────────────────────────────────
+// ─── DONE PHASE (with Share Screen) ───────────────────────────────────────
 
 function DonePhase({ job, jobId, onNew }) {
+  const [copied, setCopied] = useState(false);
   if (!job) return null;
   const timing = job.timing || {};
 
+  const handleCopyLink = () => {
+    if (job.output_url) {
+      navigator.clipboard.writeText(job.output_url).then(() => {
+        setCopied(true);
+        toast.success('Video link copied!');
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  };
+
+  const handleShare = (platform) => {
+    const url = encodeURIComponent(job.output_url || '');
+    const text = encodeURIComponent(`Check out this AI-generated story video: "${job.title}" — Made with Visionary Suite`);
+    const urls = {
+      twitter: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
+      whatsapp: `https://wa.me/?text=${text}%20${url}`,
+    };
+    if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400');
+  };
+
   return (
     <div className="space-y-8" data-testid="done-phase">
+      {/* Success header */}
       <div className="text-center">
         <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center mb-4">
           <CheckCircle className="w-8 h-8 text-green-400" />
         </div>
         <h2 className="text-2xl font-bold text-white">{job.title}</h2>
-        <p className="text-green-400 mt-1">Video Ready!</p>
+        <p className="text-green-400 mt-1">Your AI video is ready!</p>
       </div>
 
       {/* Video player */}
@@ -409,14 +457,45 @@ function DonePhase({ job, jobId, onNew }) {
           <div className="rounded-xl overflow-hidden border border-slate-700/50 bg-black" data-testid="video-player">
             <video src={job.output_url} controls className="w-full" preload="metadata" />
           </div>
-          <div className="flex justify-center gap-3 mt-4">
+
+          {/* Primary actions */}
+          <div className="flex justify-center gap-3 mt-6">
             <a href={job.output_url} download target="_blank" rel="noopener noreferrer">
-              <Button className="bg-purple-600 hover:bg-purple-700" data-testid="download-btn">
+              <Button className="bg-indigo-600 hover:bg-indigo-700" data-testid="download-btn">
                 <Download className="w-4 h-4 mr-2" /> Download Video
               </Button>
             </a>
-            <Button onClick={onNew} variant="outline" className="border-slate-700 text-slate-300" data-testid="new-video-btn">
-              <Sparkles className="w-4 h-4 mr-2" /> Create Another
+            <Button onClick={handleCopyLink} variant="outline" className="border-slate-700 text-slate-300" data-testid="copy-link-btn">
+              {copied ? <CheckCircle className="w-4 h-4 mr-2 text-green-400" /> : <Link2 className="w-4 h-4 mr-2" />}
+              {copied ? 'Copied!' : 'Copy Link'}
+            </Button>
+          </div>
+
+          {/* Share section */}
+          <div className="mt-6 p-4 rounded-xl bg-slate-800/30 border border-slate-700/30" data-testid="share-section">
+            <p className="text-sm text-slate-400 text-center mb-3 flex items-center justify-center gap-2">
+              <Share2 className="w-4 h-4" /> Share your creation
+            </p>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => handleShare('twitter')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1DA1F2]/20 border border-slate-600/50 hover:border-[#1DA1F2]/50 transition-all" data-testid="share-twitter" title="Share on X">
+                <span className="text-sm font-bold text-slate-300 hover:text-[#1DA1F2]">X</span>
+              </button>
+              <button onClick={() => handleShare('facebook')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1877F2]/20 border border-slate-600/50 hover:border-[#1877F2]/50 transition-all" data-testid="share-facebook" title="Share on Facebook">
+                <span className="text-sm font-bold text-slate-300 hover:text-[#1877F2]">f</span>
+              </button>
+              <button onClick={() => handleShare('whatsapp')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#25D366]/20 border border-slate-600/50 hover:border-[#25D366]/50 transition-all" data-testid="share-whatsapp" title="Share on WhatsApp">
+                <span className="text-sm font-bold text-slate-300 hover:text-[#25D366]">W</span>
+              </button>
+              <button onClick={() => handleShare('linkedin')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#0A66C2]/20 border border-slate-600/50 hover:border-[#0A66C2]/50 transition-all" data-testid="share-linkedin" title="Share on LinkedIn">
+                <span className="text-sm font-bold text-slate-300 hover:text-[#0A66C2]">in</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Create another */}
+          <div className="text-center mt-6">
+            <Button onClick={onNew} variant="ghost" className="text-slate-400 hover:text-white" data-testid="new-video-btn">
+              <Sparkles className="w-4 h-4 mr-2" /> Create Another Video
             </Button>
           </div>
         </div>

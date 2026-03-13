@@ -56,6 +56,7 @@ import { ErrorBoundary } from './components/recovery';  // Add ErrorBoundary
 import UserAnalyticsDashboard from './pages/Admin/UserAnalyticsDashboard';
 import SharePage from './pages/SharePage';
 import ReferralProgram from './pages/ReferralProgram';
+import Gallery from './pages/Gallery';
 import AIChatbot from './components/AIChatbot';
 import FeedbackWidget from './components/FeedbackWidget';
 import AppTour, { TourProvider } from './components/AppTour';
@@ -157,6 +158,7 @@ function App() {
         
         {/* Public Share Page - No auth required */}
         <Route path="/share/:shareId" element={<SharePage />} />
+        <Route path="/gallery" element={<Gallery />} />
         
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />

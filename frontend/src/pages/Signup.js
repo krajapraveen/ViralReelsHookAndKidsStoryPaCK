@@ -21,7 +21,13 @@ export default function Signup({ setAuth }) {
   const navigate = useNavigate();
   const { executeRecaptcha } = useRecaptcha();
 
+  // Capture prompt from landing page for onboarding flow
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prompt = params.get('prompt');
+    if (prompt) {
+      localStorage.setItem('onboarding_prompt', prompt);
+    }
     analytics.trackFunnelStep('signup_start');
   }, []);
 
@@ -222,7 +228,13 @@ export default function Signup({ setAuth }) {
         toast.success('Account created! Check your dashboard for credits.');
       }
       
-      navigate('/app', { replace: true });
+      // Onboarding: redirect to Story→Video studio if user came from a prompt
+      const onboardingPrompt = localStorage.getItem('onboarding_prompt');
+      if (onboardingPrompt) {
+        navigate('/app/story-video-studio', { replace: true });
+      } else {
+        navigate('/app/story-video-studio', { replace: true });
+      }
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Signup failed. Please try again.';
       // Handle CAPTCHA error
