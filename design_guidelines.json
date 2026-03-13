@@ -1,152 +1,198 @@
 {
-  "brand_identity": {
-    "name": "CreatorStudio AI",
-    "tagline": "Generate viral reels + kids story videos in minutes.",
-    "archetype": "The Performance Pro (Efficiency) x Vibrant Play (Creativity)",
-    "emotional_tone": "Magic, Speed, Professionalism, Creativity",
-    "visual_style": "Smart Hybrid - Dark Mode for Marketing (High Impact), Clean Light Mode for Dashboard (Focus) with Dark Mode Toggle"
+  "project_name": "Visionary Suite Landing Page Redesign",
+  "version": "1.0.0",
+  "theme": {
+    "mode": "dark",
+    "background": "bg-slate-950",
+    "foreground": "text-slate-50",
+    "accent_color": "indigo-500",
+    "forbidden_colors": ["purple-600", "violet-600", "fuchsia-600", "teal-500"]
   },
   "typography": {
     "headings": {
-      "font_family": "Outfit, sans-serif",
-      "weights": ["500", "700", "900"],
-      "usage": "Landing page headlines, feature titles, dashboard section headers. Use tight tracking (-0.02em) for large text."
+      "family": "Outfit, sans-serif",
+      "weights": ["700", "900"],
+      "tracking": "tracking-tight",
+      "styles": {
+        "h1": "text-5xl md:text-7xl font-black tracking-tighter leading-[1.1]",
+        "h2": "text-3xl md:text-5xl font-bold tracking-tight",
+        "h3": "text-2xl md:text-3xl font-semibold tracking-tight"
+      }
     },
     "body": {
-      "font_family": "Inter, sans-serif",
-      "weights": ["400", "500", "600"],
-      "usage": "General text, inputs, data tables, long-form content. Use relaxed line-height (1.6) for readability."
-    },
-    "mono": {
-      "font_family": "JetBrains Mono, monospace",
-      "usage": "Code snippets, API keys, technical data displays."
+      "family": "Inter, sans-serif",
+      "weights": ["400", "500"],
+      "styles": {
+        "lead": "text-xl md:text-2xl text-slate-400 font-light leading-relaxed",
+        "paragraph": "text-base text-slate-400 leading-relaxed",
+        "small": "text-sm text-slate-500 font-medium uppercase tracking-widest"
+      }
     }
   },
   "colors": {
-    "primary": {
-      "name": "Electric Indigo",
-      "hex": "#6366f1",
-      "tailwind": "indigo-500",
-      "usage": "Primary buttons, active states, key brand elements."
+    "palette": {
+      "base": {
+        "bg": "#020617",
+        "card": "#0f172a",
+        "border": "#1e293b"
+      },
+      "brand": {
+        "primary": "#4f46e5",
+        "primary_hover": "#4338ca",
+        "secondary": "#f59e0b"
+      },
+      "functional": {
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "error": "#ef4444"
+      }
     },
-    "secondary": {
-      "name": "Viral Orange",
-      "hex": "#f97316",
-      "tailwind": "orange-500",
-      "usage": "Call-to-actions (CTAs), 'New' badges, high-energy accents."
-    },
-    "background": {
-      "light": "#f8fafc",
-      "dark": "#020617",
-      "paper_light": "#ffffff",
-      "paper_dark": "#0f172a"
-    },
-    "text": {
-      "primary_light": "#0f172a",
-      "secondary_light": "#475569",
-      "primary_dark": "#f8fafc",
-      "secondary_dark": "#94a3b8"
-    },
-    "status": {
-      "success": "#22c55e",
-      "error": "#ef4444",
-      "warning": "#eab308",
-      "info": "#3b82f6"
+    "gradients": {
+      "hero_glow": "bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950",
+      "card_surface": "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950"
     }
   },
-  "layout_strategies": {
-    "marketing": {
-      "grid": "Mode A: The Tetris Grid",
-      "spacing": "Generous (p-12 to p-32)",
-      "container": "max-w-7xl mx-auto",
-      "visuals": "Dark immersive backgrounds, glowing gradients, large typography."
+  "layout_strategy": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "spacing": {
+      "section_gap": "py-24 md:py-32",
+      "element_gap": "gap-8"
     },
-    "dashboard": {
-      "grid": "Mode B: High Density Grid (Bento)",
-      "spacing": "Compact (p-4 to p-8)",
-      "sidebar": "Fixed left sidebar (w-64), collapsible on mobile.",
-      "visuals": "Clean cards, subtle borders, glassmorphism for sticky headers."
-    },
-    "generators": {
-      "layout": "Split View",
-      "left_panel": "Input controls (Forms, Sliders, Toggles) - Scrollable",
-      "right_panel": "Live Preview / Result Output - Sticky/Fixed",
-      "mobile": "Stacked (Input first, Preview second)"
+    "grid_system": {
+      "bento_gallery": "grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[300px]",
+      "feature_list": "grid grid-cols-1 md:grid-cols-3 gap-12"
     }
   },
-  "component_rules": {
+  "components": {
     "buttons": {
-      "primary": "bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-full px-8 py-3 font-medium transition-all hover:scale-105",
-      "secondary": "bg-secondary text-white hover:bg-secondary/90 shadow-lg shadow-secondary/20 rounded-full px-8 py-3 font-medium",
-      "outline": "border-2 border-primary text-primary hover:bg-primary/10 rounded-full px-8 py-3 font-medium",
-      "ghost": "text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg px-4 py-2"
+      "primary": "bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-8 py-4 font-semibold text-lg transition-all hover:scale-105 hover:shadow-[0_0_20px_-5px_rgba(79,70,229,0.5)]",
+      "secondary": "bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full px-6 py-3 font-medium backdrop-blur-sm transition-all",
+      "ghost": "text-slate-400 hover:text-white transition-colors"
     },
     "cards": {
-      "marketing": "bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-8 hover:border-primary/50 transition-colors",
-      "dashboard": "bg-card text-card-foreground border border-border rounded-xl shadow-sm hover:shadow-md transition-shadow p-6"
-    },
-    "inputs": {
-      "style": "bg-background border-input ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md h-10 px-3 py-2"
+      "feature": "group relative overflow-hidden rounded-2xl border border-white/5 bg-white/5 p-8 transition-all hover:border-white/10 hover:bg-white/10",
+      "pricing": "flex flex-col rounded-3xl border border-white/10 bg-slate-900/50 p-8 backdrop-blur-xl"
     },
     "navigation": {
-      "marketing": "Floating glass navbar (top-4, mx-auto, max-w-5xl, rounded-full, border border-white/10, bg-black/50 backdrop-blur-md)",
-      "dashboard": "Sidebar navigation with active state highlighting (bg-primary/10 text-primary border-r-2 border-primary)"
+      "style": "fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl supports-[backdrop-filter]:bg-slate-950/60",
+      "links": "text-sm font-medium text-slate-300 hover:text-white transition-colors"
     }
   },
   "visual_enhancers": {
-    "glassmorphism": "backdrop-blur-xl bg-white/70 (light) or bg-black/60 (dark) border border-white/20",
-    "gradients": "Use subtle mesh gradients for backgrounds. Avoid harsh linear gradients.",
-    "shadows": "Layered shadows: shadow-sm for cards, shadow-xl for modals/dropdowns.",
-    "borders": "1px solid borders. Use 'Tracing Beam' effect for pricing cards or featured items."
-  },
-  "image_assets": {
-    "hero_image": {
-      "url": "https://images.unsplash.com/photo-1600660622236-f446d098e192?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwxfHxjb250ZW50JTIwY3JlYXRvciUyMGZpbG1pbmclMjB3aXRoJTIwcGhvbmV8ZW58MHx8fHwxNzcxMDc4MzY2fDA&ixlib=rb-4.1.0&q=85",
-      "alt": "Content creator filming with phone",
-      "usage": "Hero section background or split layout image"
+    "glassmorphism": "backdrop-blur-xl bg-white/5 border border-white/10",
+    "shadows": {
+      "glow": "shadow-[0_0_50px_-12px_rgba(79,70,229,0.3)]",
+      "card": "shadow-xl shadow-black/20"
     },
-    "kids_feature": {
-      "url": "https://images.unsplash.com/photo-1704241370920-e67ce744d8cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxoYXBweSUyMGtpZCUyMHJlYWRpbmclMjBzdG9yeWJvb2t8ZW58MHx8fHwxNzcxMDc4MzY3fDA&ixlib=rb-4.1.0&q=85",
-      "alt": "Happy kid reading storybook",
-      "usage": "Kids Story Generator feature section"
-    },
-    "viral_feature": {
-      "url": "https://images.unsplash.com/photo-1683721003111-070bcc053d8b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwyfHx2aXJhbCUyMHZpZGVvJTIwc29jaWFsJTIwbWVkaWElMjBjb25jZXB0fGVufDB8fHx8MTc3MTA3ODM3MXww&ixlib=rb-4.1.0&q=85",
-      "alt": "3D Social Media Icons",
-      "usage": "Viral Reels Generator feature section"
-    },
-    "about_team": {
-      "url": "https://images.unsplash.com/photo-1748346918817-0b1b6b2f9bab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHx0ZWFtJTIwd29ya2luZyUyMGluJTIwbW9kZXJuJTIwb2ZmaWNlfGVufDB8fHx8MTc3MTA3ODM3NXww&ixlib=rb-4.1.0&q=85",
-      "alt": "Team working in modern office",
-      "usage": "About Us page"
-    }
-  },
-  "icons": {
-    "library": "lucide-react",
-    "style": "Stroke width 1.5px or 2px. Consistent sizing (w-5 h-5 for UI, w-8 h-8 for features)."
+    "borders": "border border-white/5",
+    "textures": "Use subtle noise overlay on background if possible for film grain effect"
   },
   "motion": {
-    "transitions": "transition-all duration-300 ease-in-out",
-    "hover_effects": "hover:-translate-y-1 hover:shadow-lg",
-    "loading": "Use skeleton loaders (animate-pulse) for data fetching. Use spinners for actions."
+    "reduced_motion": "respect-preference",
+    "transitions": {
+      "hover": "transition-all duration-300 ease-out",
+      "fade_in": "animate-in fade-in slide-in-from-bottom-4 duration-700"
+    }
   },
-  "accessibility": {
-    "contrast": "Ensure text meets WCAG AA standards (4.5:1).",
-    "focus": "Visible focus rings (ring-2 ring-offset-2 ring-primary) for keyboard navigation.",
-    "labels": "All inputs must have associated labels. Icons must have aria-labels."
-  },
-  "universal_guidelines": {
-    "do_not": [
-      "Use generic 'AI' emojis (🤖, 🧠) as icons.",
-      "Use full-screen gradients without texture.",
-      "Center everything - use asymmetry for interest.",
-      "Use 'Inter' for headings - use 'Outfit' instead."
+  "assets": {
+    "images": [
+      {
+        "id": "hero_bg",
+        "url": "https://images.unsplash.com/photo-1725143087475-44de83ef07e2?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Cinematic dark abstract background",
+        "usage": "Hero section background fallback if video fails"
+      },
+      {
+        "id": "gallery_1",
+        "url": "https://images.pexels.com/photos/3379932/pexels-photo-3379932.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Cinematographer silhouette",
+        "usage": "Gallery item 1 - Filmmaking vibe"
+      },
+      {
+        "id": "gallery_2",
+        "url": "https://images.unsplash.com/photo-1632893037506-aac33bf18107?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Laptop in dark room",
+        "usage": "Gallery item 2 - Editing process"
+      },
+      {
+        "id": "gallery_3",
+        "url": "https://images.unsplash.com/photo-1771253067609-08b383ade125?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Dark silhouette person",
+        "usage": "Gallery item 3 - Mystery/Story"
+      },
+      {
+        "id": "creator_1",
+        "url": "https://images.unsplash.com/photo-1636336086126-be44ca922de9?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Creator with camera",
+        "usage": "Testimonial avatar 1"
+      },
+      {
+        "id": "creator_2",
+        "url": "https://images.unsplash.com/photo-1682718619474-2f7af6b12c01?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Young creator",
+        "usage": "Testimonial avatar 2"
+      }
     ],
-    "must_do": [
-      "Add 'data-testid' to all interactive elements.",
-      "Use 'sonner' for toast notifications.",
-      "Use 'lucide-react' for icons.",
-      "Implement responsive design (mobile-first)."
-    ]
-  }
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-1.5"
+    }
+  },
+  "sections_structure": [
+    {
+      "name": "Hero",
+      "elements": [
+        "H1: Turn stories into cinematic videos using AI",
+        "Sub: The world's most advanced Story-to-Video engine. Create award-winning content in seconds.",
+        "CTA: Start Creating (Primary) + Watch Demo (Secondary)",
+        "Visual: Large video player container with 'glow' effect behind it"
+      ]
+    },
+    {
+      "name": "Social Proof",
+      "elements": ["Trusted by 10,000+ creators", "Logo Strip (Grayscale, 50% opacity)"]
+    },
+    {
+      "name": "How It Works",
+      "layout": "3-Step Zig-Zag",
+      "steps": [
+        "1. Write your story (Input UI mock)",
+        "2. AI Generates Scene (Processing visual)",
+        "3. Export 4K Video (Video player mock)"
+      ]
+    },
+    {
+      "name": "Showcase Gallery",
+      "layout": "Bento Grid",
+      "content": "Mix of 36+ generated videos (use placeholders from R2 if available or fallback images)"
+    },
+    {
+      "name": "Pricing",
+      "layout": "3 Cards",
+      "highlight": "Pro Plan (Center)"
+    },
+    {
+      "name": "Footer",
+      "style": "Simple, 4 columns, dark background"
+    }
+  ],
+  "instructions_to_main_agent": [
+    "1. IMPLEMENTATION: Use 'lucide-react' for all icons.",
+    "2. THEME: Ensure 'dark' class is applied to the html/body tag permanently for this landing page.",
+    "3. NAVBAR: Make it sticky with a glassmorphism effect (backdrop-blur-xl).",
+    "4. HERO VIDEO: If R2 video URL is not provided, use a div with a 'Play' icon and the 'Hero BG' image as a poster.",
+    "5. GRID: Use the 'Bento Grid' layout for the Gallery section as defined in the layout_strategy.",
+    "6. GRADIENTS: strictly AVOID purple/violet/fuchsia gradients. Use Indigo (#4f46e5) mixed with Slate (#020617) only.",
+    "7. COMPONENTS: Reuse Shadcn Button and Card but override styles to match the 'dark cinematic' aesthetic (rounded-full for buttons, glass for cards).",
+    "8. TESTING: Add data-testid to all buttons and inputs.",
+    "9. MOBILE: Ensure the Hero text is legible on mobile (text-4xl) and video doesn't overflow."
+  ],
+  "universal_guidelines": [
+    "Do not use generic centered layouts everywhere.",
+    "Use 2-3x more spacing than typical (py-24 or py-32 for sections).",
+    "Micro-animations on hover are mandatory for all interactive elements.",
+    "Ensure text contrast meets WCAG AA standards (light gray text on dark bg).",
+    "NO 'AI' EMOJIS (robot, brain, etc).",
+    "Use 'Sonner' for toasts."
+  ]
 }
