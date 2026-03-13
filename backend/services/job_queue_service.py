@@ -81,7 +81,7 @@ class JobQueueService:
         
         # Worker pools by job type
         self.workers: Dict[str, List[asyncio.Task]] = defaultdict(list)
-        self.worker_count = int(os.environ.get("JOB_QUEUE_WORKERS", "4"))
+        self.worker_count = int(os.environ.get("JOB_QUEUE_WORKERS", "1"))
         
         # Job handlers by type
         self.handlers: Dict[str, Callable] = {}

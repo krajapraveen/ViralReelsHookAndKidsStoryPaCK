@@ -821,13 +821,17 @@ async def startup():
     # Start job worker
     asyncio.create_task(job_worker_loop())
     
-    # Start dedicated pipeline workers for Story → Video
-    try:
-        from services.pipeline_worker import start_workers as start_pipeline_workers
-        await start_pipeline_workers()
-        logger.info("Pipeline workers started")
-    except Exception as e:
-        logger.warning(f"Pipeline worker startup warning: {e}")
+    # IMPORTANT: Stagger heavy service startups to prevent OOM on production
+    # Start dedicated pipeline workers for Story → Video (delayed for stability)
+    async def _delayed_pipeline_start():
+        await asyncio.sleep(10)  # Let server stabilize first
+        try:
+            from services.pipeline_worker import start_workers as start_pipeline_workers
+            await start_pipeline_workers()
+            logger.info("Pipeline workers started (delayed)")
+        except Exception as e:
+            logger.warning(f"Pipeline worker startup warning: {e}")
+    asyncio.create_task(_delayed_pipeline_start())
     
     # Initialize self-healing system
     try:
@@ -852,30 +856,32 @@ async def startup():
     except Exception as e:
         logger.warning(f"Auto-scaling initialization warning: {e}")
     
-    # Initialize enhanced worker pools
-    try:
-        from services.enhanced_worker_system import get_worker_system
-        worker_system = get_worker_system(db)
-        
-        # Register feature handlers (placeholder async functions for now)
-        async def comic_avatar_handler(payload): return {"status": "processed"}
-        async def comic_strip_handler(payload): return {"status": "processed"}
-        async def gif_maker_handler(payload): return {"status": "processed"}
-        async def coloring_book_handler(payload): return {"status": "processed"}
-        async def reel_generator_handler(payload): return {"status": "processed"}
-        async def story_generator_handler(payload): return {"status": "processed"}
-        
-        worker_system.register_feature("comic_avatar", comic_avatar_handler)
-        worker_system.register_feature("comic_strip", comic_strip_handler)
-        worker_system.register_feature("gif_maker", gif_maker_handler)
-        worker_system.register_feature("coloring_book", coloring_book_handler)
-        worker_system.register_feature("reel_generator", reel_generator_handler)
-        worker_system.register_feature("story_generator", story_generator_handler)
-        
-        await worker_system.start()
-        logger.info("Enhanced worker pools initialized and started")
-    except Exception as e:
-        logger.warning(f"Worker system initialization warning: {e}")
+    # Initialize enhanced worker pools (deferred start for stability)
+    async def _delayed_worker_system():
+        await asyncio.sleep(15)
+        try:
+            from services.enhanced_worker_system import get_worker_system
+            worker_system = get_worker_system(db)
+            
+            async def comic_avatar_handler(payload): return {"status": "processed"}
+            async def comic_strip_handler(payload): return {"status": "processed"}
+            async def gif_maker_handler(payload): return {"status": "processed"}
+            async def coloring_book_handler(payload): return {"status": "processed"}
+            async def reel_generator_handler(payload): return {"status": "processed"}
+            async def story_generator_handler(payload): return {"status": "processed"}
+            
+            worker_system.register_feature("comic_avatar", comic_avatar_handler)
+            worker_system.register_feature("comic_strip", comic_strip_handler)
+            worker_system.register_feature("gif_maker", gif_maker_handler)
+            worker_system.register_feature("coloring_book", coloring_book_handler)
+            worker_system.register_feature("reel_generator", reel_generator_handler)
+            worker_system.register_feature("story_generator", story_generator_handler)
+            
+            await worker_system.start()
+            logger.info("Enhanced worker pools initialized (delayed)")
+        except Exception as e:
+            logger.warning(f"Worker system initialization warning: {e}")
+    asyncio.create_task(_delayed_worker_system())
     
     # Initialize download expiry service
     try:
@@ -954,13 +960,16 @@ async def startup():
     except Exception as e:
         logger.warning(f"Environment monitor scheduler warning: {e}")
     
-    # Initialize Async Job Queue
-    try:
-        from services.job_queue_service import init_job_queue
-        job_queue = await init_job_queue()
-        logger.info("Async job queue initialized and started")
-    except Exception as e:
-        logger.warning(f"Job queue initialization warning: {e}")
+    # Initialize Async Job Queue (deferred for stability)
+    async def _delayed_job_queue():
+        await asyncio.sleep(20)
+        try:
+            from services.job_queue_service import init_job_queue
+            job_queue = await init_job_queue()
+            logger.info("Async job queue initialized (delayed)")
+        except Exception as e:
+            logger.warning(f"Job queue initialization warning: {e}")
+    asyncio.create_task(_delayed_job_queue())
     
     logger.info("CreatorStudio API ready!")
 

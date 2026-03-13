@@ -13,9 +13,9 @@ from shared import db
 
 logger = logging.getLogger("pipeline_worker")
 
-# Worker pool configuration
-NUM_WORKERS = 3
-MAX_CONCURRENT_JOBS = 3
+# Worker pool configuration — use 1 worker for production stability
+NUM_WORKERS = 1
+MAX_CONCURRENT_JOBS = 1
 
 # Global worker state
 _worker_queue: asyncio.Queue = None
