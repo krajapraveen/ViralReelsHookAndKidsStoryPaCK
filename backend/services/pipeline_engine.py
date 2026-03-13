@@ -42,7 +42,7 @@ STAGE_CONFIG = {
     "scenes":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 90,  "retriable_on_timeout": True},
     "images":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 300, "retriable_on_timeout": True},
     "voices":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 180, "retriable_on_timeout": True},
-    "render":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 300, "retriable_on_timeout": True},
+    "render":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 600, "retriable_on_timeout": True},
     "upload":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 60,  "retriable_on_timeout": True},
 }
 
@@ -587,16 +587,16 @@ async def run_stage_render(job: dict) -> dict:
 
             seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
 
-            # Use simple scale+pad (no zoompan) for faster production encoding
+            # Fast encoding: 720p, low fps, ultrafast preset for production
             cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", img_path,
                 "-i", audio_path,
                 "-filter_complex",
-                f"[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25[v]",
+                f"[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=15[v]",
                 "-map", "[v]", "-map", "1:a",
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-                "-c:a", "aac", "-b:a", "128k",
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-crf", "30",
+                "-c:a", "aac", "-b:a", "96k",
                 "-t", str(duration + 0.3),
                 "-shortest", "-pix_fmt", "yuv420p",
                 seg_path,
@@ -604,7 +604,7 @@ async def run_stage_render(job: dict) -> dict:
 
             logger.info(f"[RENDER] Encoding scene {sn} ({idx+1}/{total_scenes})...")
             try:
-                rc, _, stderr = await _run_ffmpeg(cmd, timeout=60)
+                rc, _, stderr = await _run_ffmpeg(cmd, timeout=180)
                 if rc == 0 and os.path.exists(seg_path):
                     segments.append(seg_path)
                     logger.info(f"[RENDER] Scene {sn} encoded OK")
@@ -637,7 +637,7 @@ async def run_stage_render(job: dict) -> dict:
             cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_file, "-c", "copy", final_path]
 
         logger.info(f"[RENDER] Concatenating {len(segments)} segments...")
-        rc, _, stderr = await _run_ffmpeg(cmd, timeout=90)
+        rc, _, stderr = await _run_ffmpeg(cmd, timeout=180)
         if rc != 0:
             raise RuntimeError(f"Video concat failed: {stderr[:300]}")
 
