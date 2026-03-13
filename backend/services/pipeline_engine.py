@@ -42,7 +42,7 @@ STAGE_CONFIG = {
     "scenes":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 90,  "retriable_on_timeout": True},
     "images":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 300, "retriable_on_timeout": True},
     "voices":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 180, "retriable_on_timeout": True},
-    "render":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 120, "retriable_on_timeout": True},
+    "render":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 300, "retriable_on_timeout": True},
     "upload":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 60,  "retriable_on_timeout": True},
 }
 
@@ -504,8 +504,42 @@ async def run_stage_voices(job: dict) -> dict:
     return {"voices_generated": done, "voices_failed": len(failed)}
 
 
+async def _run_ffmpeg(cmd: list, timeout: int = 90) -> tuple:
+    """Run ffmpeg as async subprocess so asyncio timeouts can cancel it."""
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return proc.returncode, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(f"ffmpeg timed out after {timeout}s")
+
+
+async def _download_file(url: str, dest: str, label: str, timeout: int = 30) -> bool:
+    """Download a file from URL to dest path. Returns True on success."""
+    import aiohttp
+    try:
+        async with aiohttp.ClientSession() as sess:
+            async with sess.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+                if resp.status == 200:
+                    with open(dest, "wb") as f:
+                        f.write(await resp.read())
+                    logger.info(f"[RENDER] Downloaded {label} from cloud")
+                    return True
+                else:
+                    logger.error(f"[RENDER] Download {label} failed: HTTP {resp.status}")
+    except Exception as e:
+        logger.error(f"[RENDER] Download {label} error: {e}")
+    return False
+
+
 async def run_stage_render(job: dict) -> dict:
-    """Stage: Assemble video from checkpointed images + voices."""
+    """Stage: Assemble video from checkpointed images + voices using async ffmpeg."""
     job_id = job["job_id"]
     scenes = job.get("scenes", [])
     scene_images = job.get("scene_images", {})
@@ -518,10 +552,11 @@ async def run_stage_render(job: dict) -> dict:
     final_path = str(videos_dir / output_fn)
 
     try:
-        import aiohttp
-
         segments = []
-        for scene in sorted(scenes, key=lambda s: s.get("scene_number", 0)):
+        sorted_scenes = sorted(scenes, key=lambda s: s.get("scene_number", 0))
+        total_scenes = len(sorted_scenes)
+
+        for idx, scene in enumerate(sorted_scenes):
             sn = str(scene.get("scene_number", 0))
             img = scene_images.get(sn, {})
             voice = scene_voices.get(sn, {})
@@ -530,55 +565,35 @@ async def run_stage_render(job: dict) -> dict:
             audio_path = voice.get("path", "")
             duration = voice.get("duration", 5.0)
 
-            # Download image from URL if local file missing
+            # Download image from cloud if local missing
             if not os.path.exists(img_path):
                 img_url = img.get("url", "")
                 if img_url.startswith("http"):
-                    try:
-                        async with aiohttp.ClientSession() as sess:
-                            async with sess.get(img_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                                if resp.status == 200:
-                                    dl_path = os.path.join(temp_dir, f"img_{sn}.png")
-                                    with open(dl_path, "wb") as f:
-                                        f.write(await resp.read())
-                                    img_path = dl_path
-                                    logger.info(f"[RENDER] Downloaded image for scene {sn} from R2")
-                                else:
-                                    logger.error(f"[RENDER] Image download failed for scene {sn}: HTTP {resp.status}")
-                    except Exception as dl_err:
-                        logger.error(f"[RENDER] Image download error for scene {sn}: {dl_err}")
+                    dl_path = os.path.join(temp_dir, f"img_{sn}.png")
+                    if await _download_file(img_url, dl_path, f"image scene {sn}"):
+                        img_path = dl_path
 
-            # Download voice from URL if local file missing
+            # Download voice from cloud if local missing
             if not os.path.exists(audio_path):
                 voice_url = voice.get("url", "")
                 if voice_url and voice_url.startswith("http"):
-                    try:
-                        async with aiohttp.ClientSession() as sess:
-                            async with sess.get(voice_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                                if resp.status == 200:
-                                    dl_path = os.path.join(temp_dir, f"voice_{sn}.mp3")
-                                    with open(dl_path, "wb") as f:
-                                        f.write(await resp.read())
-                                    audio_path = dl_path
-                                    logger.info(f"[RENDER] Downloaded voice for scene {sn} from R2")
-                                else:
-                                    logger.error(f"[RENDER] Voice download failed for scene {sn}: HTTP {resp.status}")
-                    except Exception as dl_err:
-                        logger.error(f"[RENDER] Voice download error for scene {sn}: {dl_err}")
+                    dl_path = os.path.join(temp_dir, f"voice_{sn}.mp3")
+                    if await _download_file(voice_url, dl_path, f"voice scene {sn}"):
+                        audio_path = dl_path
 
             if not os.path.exists(img_path) or not os.path.exists(audio_path):
-                logger.warning(f"[RENDER] Missing files for scene {sn}: img={os.path.exists(img_path)}({img_path}), audio={os.path.exists(audio_path)}({audio_path})")
+                logger.warning(f"[RENDER] Missing files for scene {sn}: img={os.path.exists(img_path)}, audio={os.path.exists(audio_path)}")
                 continue
 
             seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
-            zoom = 0.0005
+
+            # Use simple scale+pad (no zoompan) for faster production encoding
             cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", img_path,
                 "-i", audio_path,
                 "-filter_complex",
-                f"[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,"
-                f"zoompan=z='min(zoom+{zoom},1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={int(duration * 25)}:s=1920x1080:fps=25[v]",
+                f"[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25[v]",
                 "-map", "[v]", "-map", "1:a",
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
                 "-c:a", "aac", "-b:a", "128k",
@@ -586,11 +601,21 @@ async def run_stage_render(job: dict) -> dict:
                 "-shortest", "-pix_fmt", "yuv420p",
                 seg_path,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
-            if result.returncode == 0 and os.path.exists(seg_path):
-                segments.append(seg_path)
-            else:
-                logger.error(f"[RENDER] Scene {sn} encode failed: {result.stderr[:200]}")
+
+            logger.info(f"[RENDER] Encoding scene {sn} ({idx+1}/{total_scenes})...")
+            try:
+                rc, _, stderr = await _run_ffmpeg(cmd, timeout=60)
+                if rc == 0 and os.path.exists(seg_path):
+                    segments.append(seg_path)
+                    logger.info(f"[RENDER] Scene {sn} encoded OK")
+                else:
+                    logger.error(f"[RENDER] Scene {sn} encode failed (rc={rc}): {stderr[:200]}")
+            except RuntimeError as e:
+                logger.error(f"[RENDER] Scene {sn}: {e}")
+
+            # Update progress per scene
+            pct = int(75 + ((idx + 1) / total_scenes) * 15)
+            await update_job(job_id, {"progress": pct, "current_step": f"Rendered scene {idx+1}/{total_scenes}..."})
 
         if not segments:
             raise RuntimeError("No video segments created")
@@ -611,9 +636,10 @@ async def run_stage_render(job: dict) -> dict:
         else:
             cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_file, "-c", "copy", final_path]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
-        if result.returncode != 0:
-            raise RuntimeError(f"Video concat failed: {result.stderr[:300]}")
+        logger.info(f"[RENDER] Concatenating {len(segments)} segments...")
+        rc, _, stderr = await _run_ffmpeg(cmd, timeout=90)
+        if rc != 0:
+            raise RuntimeError(f"Video concat failed: {stderr[:300]}")
 
         file_size = os.path.getsize(final_path) / (1024 * 1024)
         await update_job(job_id, {"render_path": final_path})
