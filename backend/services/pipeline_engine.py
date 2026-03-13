@@ -539,7 +539,8 @@ async def _download_file(url: str, dest: str, label: str, timeout: int = 30) -> 
 
 
 async def run_stage_render(job: dict) -> dict:
-    """Stage: Assemble video from checkpointed images + voices using async ffmpeg."""
+    """Stage: Assemble video from checkpointed images + voices using async ffmpeg.
+    Uses ultra-low-memory settings optimized for constrained production environments."""
     job_id = job["job_id"]
     scenes = job.get("scenes", [])
     scene_images = job.get("scene_images", {})
@@ -585,18 +586,34 @@ async def run_stage_render(job: dict) -> dict:
                 logger.warning(f"[RENDER] Missing files for scene {sn}: img={os.path.exists(img_path)}, audio={os.path.exists(audio_path)}")
                 continue
 
+            # First, resize image to small size using ffmpeg to reduce memory
+            small_img = os.path.join(temp_dir, f"small_{sn}.jpg")
+            rc, _, _ = await _run_ffmpeg([
+                "ffmpeg", "-y", "-i", img_path,
+                "-vf", "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2",
+                "-q:v", "5", small_img
+            ], timeout=30)
+            if rc == 0 and os.path.exists(small_img):
+                # Delete the large image immediately to free memory
+                if img_path.startswith(temp_dir):
+                    try: os.remove(img_path)
+                    except: pass
+                img_path = small_img
+
             seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
 
-            # Fast encoding: 720p, low fps, ultrafast preset for production
+            # Ultra-low-memory encoding: 360p, 10fps, single thread
             cmd = [
                 "ffmpeg", "-y",
+                "-threads", "1",
                 "-loop", "1", "-i", img_path,
                 "-i", audio_path,
                 "-filter_complex",
-                f"[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=15[v]",
+                f"[0:v]fps=10[v]",
                 "-map", "[v]", "-map", "1:a",
-                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-crf", "30",
-                "-c:a", "aac", "-b:a", "96k",
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+                "-crf", "35", "-maxrate", "500k", "-bufsize", "500k",
+                "-c:a", "aac", "-b:a", "64k",
                 "-t", str(duration + 0.3),
                 "-shortest", "-pix_fmt", "yuv420p",
                 seg_path,
@@ -608,6 +625,11 @@ async def run_stage_render(job: dict) -> dict:
                 if rc == 0 and os.path.exists(seg_path):
                     segments.append(seg_path)
                     logger.info(f"[RENDER] Scene {sn} encoded OK")
+                    # Clean up source files immediately
+                    for f in [img_path, audio_path]:
+                        if f.startswith(temp_dir):
+                            try: os.remove(f)
+                            except: pass
                 else:
                     logger.error(f"[RENDER] Scene {sn} encode failed (rc={rc}): {stderr[:200]}")
             except RuntimeError as e:

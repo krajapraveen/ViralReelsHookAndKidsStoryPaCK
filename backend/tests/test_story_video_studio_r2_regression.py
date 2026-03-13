@@ -15,7 +15,7 @@ import os
 import time
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://video-job-queue-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://render-stability.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER_EMAIL = "test@visionary-suite.com"

@@ -19,7 +19,7 @@
     "OPTIONAL: Make /api/privacy/policy endpoint public (currently requires auth)"
   ],
   "critical_code_review_comments": [
-    "CORS configuration was missing the current frontend URL - fixed by adding https://video-job-queue-1.preview.emergentagent.com to CORS_ORIGINS",
+    "CORS configuration was missing the current frontend URL - fixed by adding https://render-stability.preview.emergentagent.com to CORS_ORIGINS",
     "Redis cache was causing products to not show - cleared cache to fix",
     "PostgreSQL password was not set - fixed by setting postgres user password"
   ],
@@ -79,7 +79,7 @@
     "razorpay": "Razorpay payment integration is in TEST MODE with test keys"
   },
   "fixes_applied": [
-    "Fixed CORS configuration - Added https://video-job-queue-1.preview.emergentagent.com to allowed origins",
+    "Fixed CORS configuration - Added https://render-stability.preview.emergentagent.com to allowed origins",
     "Fixed PostgreSQL authentication - Set postgres user password",
     "Cleared Redis cache - Products were not showing due to stale cache",
     "Seeded products table - Added 6 products (3 subscriptions, 3 credit packs)"

@@ -3,7 +3,7 @@
 **Date:** February 21, 2026  
 **Auditor:** Senior QA Lead + Frontend Engineer + Security Tester  
 **Target:** Sign-Up / Create Account Page  
-**Preview URL:** https://video-job-queue-1.preview.emergentagent.com/signup  
+**Preview URL:** https://render-stability.preview.emergentagent.com/signup  
 **Production URL:** https://visionary-suite.com/signup  
 
 ---

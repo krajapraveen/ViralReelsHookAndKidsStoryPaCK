@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 from collections import defaultdict
 
 # Configuration
-API_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://video-job-queue-1.preview.emergentagent.com")
+API_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://render-stability.preview.emergentagent.com")
 ADMIN_EMAIL = "admin@creatorstudio.ai"
 ADMIN_PASSWORD = "Cr3@t0rStud!o#2026"
 

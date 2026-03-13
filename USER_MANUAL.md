@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://video-job-queue-1.preview.emergentagent.com
+**Platform URL:** https://render-stability.preview.emergentagent.com
 
 ---
 

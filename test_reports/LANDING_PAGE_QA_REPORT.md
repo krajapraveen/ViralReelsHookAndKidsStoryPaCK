@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://video-job-queue-1.preview.emergentagent.com/  
+**URL Tested:** https://render-stability.preview.emergentagent.com/  
 **Environment:** Desktop Chrome + Mobile Responsive (375px)
 
 ---

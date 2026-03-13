@@ -239,7 +239,7 @@ def get_cors_config():
         "allow_origins": [
             "https://creatorstudio.ai",
             "https://www.creatorstudio.ai",
-            "https://video-job-queue-1.preview.emergentagent.com",
+            "https://render-stability.preview.emergentagent.com",
             "http://localhost:3000",
             "http://localhost:8001"
         ],

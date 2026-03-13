@@ -1,31 +1,46 @@
 <analysis>**original_problem_statement:**
-The user escalated a series of P0 bugs with the Story To Video feature, which was unstable, slow, and unreliable in production. Initial fixes for timeouts and UI crashes were insufficient. The user's final, highest-priority demand was to stop patching symptoms and re-architect the feature into a scalable, resilient, and performant asynchronous job pipeline. The new system must be durable, support concurrent users, be resumable after failures, and provide a much better, non-blocking user experience. The ultimate goal is a production-ready feature that is stable and works reliably for all users.
+The user's primary goal is to achieve a fully stable, performant, and reliable production environment. The initial P0 task was to fix the unstable Story To Video feature by re-architecting it into a resilient asynchronous pipeline. After multiple deployment and stability issues, the problem has escalated. The current P0 demand is a **strict A-to-Z production user simulation test** of the *entire* live application, including all features, edge cases, performance, load, and validation scenarios. This is blocked by a critical, recurring Out-Of-Memory (OOM) crash in the Story To Video render stage on the production server.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The agent has completed a major architectural overhaul of the Story To Video feature. The old, fragile synchronous flow has been entirely replaced with a robust, asynchronous, stage-based job pipeline. This new system uses a dedicated Redis-backed job queue, a pool of heavy-job workers, and persists all progress in MongoDB for resilience and resumability. The frontend has been rebuilt to interact with this new pipeline, providing users with real-time progress, a filmstrip of generated scene images, and the ability to safely refresh the page without losing work. This new system has been extensively tested and proven stable in the preview environment.
+The Story To Video feature has been architecturally redesigned into an asynchronous, Redis-backed job pipeline. However, deploying this to production revealed severe stability issues. The production server suffers from extremely limited resources, causing the  video rendering process to be repeatedly killed by the OS (OOM-killed), which crashes the entire server.
+
+The agent has implemented several iterations of fixes:
+1.  Fixed an infinite server crash-loop by changing how stale jobs are handled on startup.
+2.  Converted blocking render subprocesses to non-blocking async calls to prevent hangs.
+3.  Reduced the number of background workers and staggered their startup to lower memory pressure.
+4.  Continuously optimized  parameters (reducing framerate, quality, and resolution) to decrease memory usage.
+
+The latest set of aggressive ffmpeg optimizations has been coded but is awaiting deployment. The production environment is currently unstable and unable to complete a single Story To Video generation.
 
 **Last working item**:
--   **Last item agent was working**: Performing a comprehensive production verification of the newly architected Story To Video pipeline as demanded by the user.
--   **Status**: BLOCKED
--   **Reasoning**: The agent discovered that the production backend API is down and returning a  error. This indicates the new, working code from the preview environment has not been successfully deployed to the live production server. The agent completed the full verification suite on the preview environment instead, confirming the code itself is production-ready. The immediate blocker is the failed production deployment.
--   **Agent Testing Done**: Y
--   **Which testing method agent to use?**: After the production deployment is fixed, the  must be used to execute the full production verification plan on the live domain. This includes single-user stability runs, concurrent load tests, and resume-from-failure tests.
+-   **Last item agent was working**: Fixing a recurring P0 production server crash caused by the Story To Video render stage exhausting all available memory (OOM kill).
+-   **Status**: IN PROGRESS
+-   **Reasoning**: The agent identified that even with previous optimizations, the  process was too resource-intensive for the production hardware. The last action was to implement a new, more drastic set of optimizations in , including reducing video resolution to  and limiting ffmpeg to a single thread (). This fix has been coded but has not yet been deployed or verified on production.
+-   **Agent Testing Done**: N (for the latest fix on production)
+-   **Which testing method agent to use?**: manual testing by curl
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: (P0) Production Backend is Down (502 Bad Gateway)**
-    -   **Description**: The live production API at  is completely inaccessible, preventing any backend functionality, including the newly built pipeline.
-    -   **Attempted fixes**: None. This is a deployment/infrastructure issue that the agent cannot fix directly.
+-   **Issue 1: (P0) Production Server OOM Crash During Video Rendering**
+    -   **Description**: The  process for the Story To Video feature consumes too much memory on the production hardware, causing the server process to be OOM-killed. This makes the feature unusable and destabilizes the entire production application.
+    -   **Attempted fixes**:
+        -   Converted rendering to async subprocesses.
+        -   Reduced FPS from 25 to 15.
+        -   Added  ffmpeg optimization.
+        -   Increased stage timeouts.
+        -   Reduced video quality (CRF) and audio bitrate.
+        -   **Latest attempt (undeployed)**: Reduced resolution to  and forced ffmpeg to use only one thread ().
     -   **Next debug checklist**:
-        1.  The next agent must inform the user that the production deployment has failed.
-        2.  Guide the user/platform team to check the production server logs and deployment process to resolve the 502 error.
-        3.  Once the production environment is running with the new code, proceed with the full verification plan.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is the highest priority P0 blocker. Fixing it will bring the new, stable Story To Video feature live for users and unblock all further testing and verification.
-    -   **Status**: BLOCKED
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: both
+        1.  Confirm the latest code changes are deployed to production.
+        2.  Execute a single Story To Video job on production to see if the OOM crash is resolved.
+        3.  Monitor server memory usage during the render stage.
+        4.  If it still fails, consider rendering video scenes serially instead of in parallel within the  function.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is the absolute highest priority blocker. Fixing it is the only way to stabilize the production environment and unblock the user's mandatory A-to-Z testing of the entire platform.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?**: Y
+    -   **Should Test frontend/backend/both after fix?**: backend
     -   **Blocked on other issue**: None. This is the primary blocker.
 
 -   **Issue 2: (P1) SendGrid Email Service is Down**
@@ -33,127 +48,130 @@ The agent has completed a major architectural overhaul of the Story To Video fea
     -   **Status**: BLOCKED (Awaiting user action to upgrade their SendGrid plan).
 
 **In progress Task List**:
--   None. The development and refactoring task is complete.
+-   None. All work is focused on resolving the P0 issue above.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **(P0) Production Verification of Story To Video Pipeline**: Once the production deployment is fixed, execute the comprehensive verification plan provided by the user. This includes 5 consecutive single-user runs, a 3-user concurrent load test, resume-from-checkpoint tests, and credit integrity checks on the live domain.
-    -   **(P1) Full Platform Audit on Production**: After the Story To Video feature is confirmed stable on production, perform a full audit of all other major features (Reel Generator, Photo to Comic, etc.) as requested.
+    -   **(P0) Full A-to-Z Production User Simulation Testing**: Once the rendering crash is fixed and production is stable, execute the user's comprehensive testing mandate. This includes end-to-end testing, validation, error handling, performance, load, and stability audits for *every* feature on the live site, with a heavy focus on the Story To Video stability tests (5 single runs, 3 concurrent runs, etc.).
+    -   **(P1) Full Platform Audit on Production**: A subset of the above task, focused on ensuring all other features (Reel Generator, Photo to Comic, etc.) were not broken by recent changes.
 
 -   **Future Tasks:**
-    -   **(P2) Implement WebSocket for Real-time Progress**: Replace the current polling mechanism with WebSockets for more efficient, real-time UI updates.
-    -   **(P2) Implement Worker Auto-scaling**: Enhance the worker infrastructure to automatically scale based on queue depth.
-    -   **(P2) Add Email Notifications**: Implement a system to notify users by email when their video generation is complete.
-    -   **(P3) Delete Obsolete Code**: Remove the old Story To Video routes and components that were replaced by the new pipeline.
+    -   **(P2) Implement WebSocket for Real-time Progress**: Replace the current polling mechanism.
+    -   **(P2) Implement Worker Auto-scaling**: Scale workers based on queue depth.
+    -   **(P2) Add Email Notifications**: Notify users upon video completion.
+    -   **(P3) Delete Obsolete Code**: Remove the old Story To Video routes and components.
 
 **Completed work in this session**
--   **Architectural Redesign of Story To Video**:
-    -   Replaced the entire fragile, synchronous process with a durable, asynchronous, stage-based job pipeline using Redis (RQ) and MongoDB.
-    -   Implemented a dedicated worker pool with 3 workers to isolate heavy video generation jobs.
-    -   Created a resilient pipeline engine with DB-persisted checkpoints for every stage (Scenes, Images, Voices, Render, Upload), enabling per-stage retries and full resume-on-failure/refresh capability.
-    -   Parallelized image and voice generation for multiple scenes with controlled concurrency.
--   **Frontend Overhaul**:
-    -   Built a new React component () for the Story To Video feature, providing a vastly improved UX with real-time progress updates, a filmstrip of generated scene thumbnails, and robust error handling.
-    -   Fixed a critical blank page bug by implementing  and defensive, null-safe rendering patterns throughout the component.
--   **Comprehensive Testing**:
-    -   Conducted and passed extensive tests on the new pipeline in the preview environment, including: 5 consecutive end-to-end runs, 3-user concurrent load tests, forced-failure-and-resume tests, and refresh-recovery tests.
-    -   Verified credit deduction and refund logic is accurate and robust.
-    -   Achieved a benchmark of ~90 seconds for a full 3-scene video generation on a single-user run.
+-   **Production Stability Fixes**:
+    -   Resolved an infinite server crash-loop by modifying the stale-job recovery logic on worker startup to mark jobs as  and refund credits, instead of re-queuing them ().
+    -   Fixed render stage hangs by converting blocking  calls to non-blocking  calls ().
+    -   Reduced overall memory pressure by decreasing the number of pipeline and job queue workers and adding staggered startup delays in .
+-   **FFmpeg Optimization & Hardening**:
+    -   Added  to ensure  is automatically installed during deployment.
+    -   Iteratively applied multiple  optimizations (FPS reduction, quality adjustments, async execution, timeouts) to combat OOM errors.
+    -   Added R2 upload and fallback download logic for voice files to improve render resilience.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: SendGrid Email Service is Down**
-    -   **Debug checklist**: User needs to upgrade their SendGrid plan.
-    -   **Why to solve this issue and what will be achieved with this?**: Restores critical user account management features.
+    -   **Debug checklist**: Requires user to upgrade their SendGrid plan.
+    -   **Why to solve this issue and what will be achieved with this?**: Restores user account management features (e.g., password reset).
     -   **Should Test frontend/backend/both after fix**: backend
     -   **Is recurring issue?**: Y
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: The Story To Video feature was chronically unstable, failing repeatedly.
--   **Recurrence count**: 3+
--   **Status**: RESOLVED. The feature was completely re-architected to solve the root cause of instability. The new system is proven stable in the preview environment and is pending production deployment and verification.
+-   **Issue recurrence in previous fork**: The Story To Video feature's chronic instability.
+-   **Recurrence count**: 5+ (in this session, manifesting as hangs and OOM crashes).
+-   **Status**: IN PROGRESS. The root cause is now clearly identified as  memory exhaustion on resource-constrained production hardware.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Asynchronous Job Queuing**: Using  and the  library to manage long-running video generation tasks in a dedicated 'heavy-jobs' queue.
--   **Durable, Stage-Based Workflows**: Breaking the video creation process into independent, resumable stages with progress and partial results persisted in .
--   **Dedicated Worker Pools**: Isolating resource-intensive tasks into a separate worker pool to prevent them from blocking lighter application features.
--   **Resilient Frontend Design**: Using React , defensive coding (null-safe access), and state recovery logic to prevent UI crashes and blank pages, ensuring a stable user experience even if backend errors occur.
--   **Polling for Progress**: Frontend polls a status endpoint to provide real-time updates, with logic to recover the job state on page refresh.
+-   **Asynchronous Job Queuing**: Using Redis and .
+-   **Durable Workflows**: Using MongoDB to persist stage progress.
+-   **Async Subprocesses**: Using  to run  without blocking the main event loop.
+-   **Resource-Constrained Optimization**: Aggressively tuning  parameters (resolution, threads, FPS, quality) to run within very low memory limits.
+-   **Fault-Tolerant Startup**: Designing background services to start safely and handle stale state without causing crash-loops.
 
 **key DB schema**
--   **pipeline_jobs**: 
--   **jobs**: (Legacy, still used by other features) 
--   **payments**: 
+-   **pipeline_jobs**:  (No changes)
 
 **changes in tech stack**
--    (Redis Queue) library was added to  to implement the job queueing system.
+-   ****: Added to manage system-level dependencies like .
 
 **All files of reference**
--   : The core logic for running the stage-based pipeline.
--   : The new API endpoints (, ).
--   : The script that defines the heavy-job worker process.
--   : Modified to initialize the MongoDB index for  and start the pipeline workers.
--   : The new, completely refactored frontend component for Story To Video.
--   : Modified to route  to the new pipeline component and wrap it in an .
--   : A new reusable component to catch React errors and prevent blank pages.
+-   : The epicenter of the current P0 issue. Contains all  logic and optimizations.
+-   : Contains the critical startup logic that prevents the server crash-loop.
+-   : Contains the reduced worker configuration and staggered service startup logic.
+-   : New file created to ensure  is installed reliably on deployment.
 
-**Areas that need refactoring**
--   The old Story To Video files are now obsolete and should be deleted to avoid confusion and code rot. This includes:
+**Areas that need refactoring**:
+-   The old Story To Video files are obsolete and should be deleted:
     -   
     -   
-    -    (The old component, now replaced by ).
+    -   
 
 **key api endpoints**
--   : Creates a new Story-to-Video job, returns a  instantly.
--   : Polls for the status and progress of a specific job.
--   : Gets the latest job for the current user to support resume-on-refresh.
+-   
+-   
+-   
 
 **Critical Info for New Agent**
--   **DO NOT RE-IMPLEMENT ANYTHING.** The entire Story To Video feature has been successfully re-architected and is working correctly in the preview environment. The code is stable and has passed extensive testing.
--   **THE IMMEDIATE PROBLEM IS DEPLOYMENT.** Your first action is to inform the user that the production backend is down (502 Bad Gateway) and that the new code needs to be successfully deployed before any further action can be taken.
--   **FOLLOW THE VERIFICATION PLAN.** Once the production environment is live, your task is to execute the comprehensive production verification plan mandated by the user. This is a testing and verification task, not a development task.
+-   **PRODUCTION IS EXTREMELY UNSTABLE AND RESOURCE-CONSTRAINED.** Your primary goal is to stabilize it. Do not assume standard code will work; all solutions must be optimized for minimal memory and CPU usage.
+-   The Story To Video render stage is the main point of failure. The  command is being OOM-killed. Your first task is to ensure the latest set of extreme  optimizations (1-thread, 960x540 resolution) gets deployed and then test if it survives.
+-   Once production is stable, the user has mandated a massive, **A-to-Z production testing suite**. You must follow the user's last prompt meticulously. Do not mark the task complete until this comprehensive testing is done and reported.
+-   The previous agent correctly identified that the server was starting too many background services at once. The worker counts have been reduced. Be cautious about increasing them.
 
 **documents and test reports created in this job**
 -   
--    (Updated with the new architecture and requirements)
 
 **Last 10 User Messages and any pending HUMAN messages**
-10. **(PENDING)** User demands full production verification and stability testing on the live website for the newly architected pipeline.
-9.  User provides final approval to proceed with the P0 architecture redesign, detailing mandatory requirements for the new pipeline.
-8.  Agent proposes a detailed plan for the full architectural redesign of the Story-to-Video feature into a durable, stage-based asynchronous pipeline.
-7.  **(CRITICAL)** User sends a final P0 escalation, rejecting all previous temporary fixes and demanding a complete architectural redesign of Story To Video for reliability, scalability, and performance.
-6.  Agent completes testing of the blank page fix and prepares to finish the task.
-5.  **(CRITICAL)** User reports a new P0 bug: clicking the Generate button on the Story To Video page leads to a completely blank screen, making the feature unusable.
-4.  Agent completes the 5th consecutive successful test run, verifying the stability of the ingress timeout fix.
-3.  Agent adds test credits to perform the final required stability test run.
-2.  Agent successfully implements and tests the conversion of image/voice generation to background tasks, fixing the ingress timeout issue.
-1.  User approves the agent's plan to investigate and fix the Story To Video image generation failure, demanding a deep root-cause fix and extensive testing.
+10. **(PENDING)** User provides a strict, final P0 order for an immediate redeployment with a crash-loop fix, followed by a full incident report and a comprehensive production test suite once stability is restored.
+9.  User demands A-to-Z production testing, simulating a real end-user and covering every feature, validation, error, and performance aspect.
+8.  User confirms the new optimized build should be deployed and the full testing suite should be executed.
+7.  User is informed the app is ready for deployment with new render optimizations (15fps, stillimage tune).
+6.  User is informed about the render timeout on production and the plan to optimize ffmpeg.
+5.  User demands immediate production verification after a redeployment.
+4.  User is informed that production is running old code that fails at the render stage.
+3.  User demands a comprehensive production verification report and provides detailed instructions.
+2.  User is informed that the code is ready for deployment after a health check.
+1.  User demands full production verification and stability testing on the live website.
 
 **Project Health Check:**
 -   **Broken**:
-    -   **(P0) Entire Production Backend API**: Inaccessible, returning a . This is the top priority blocker.
--   **Mocked**: None.
+    -   **(P0) Story To Video Feature on Production**: Unusable. Crashes the server due to OOM errors during the render stage.
+    -   **(P0) Production Server Stability**: Highly unstable. Prone to crashes and restarts when the Story To Video feature is used.
 
 **3rd Party Integrations**
--   **OpenAI GPT Image 1**: Image Generation.
--   **Sora 2 (OpenAI)**: Video Generation.
--   **OpenAI TTS**: Text-to-Speech.
--   **GPT-4o-mini**: Text Generation.
--   **Redis**: Used for the  job queue.
--   **Cloudflare R2**: Object Storage for generated videos.
--   **Cashfree**: Payment Gateway.
--   **SendGrid**: Email Service (**UNAVAILABLE/BLOCKED**).
+-   **OpenAI GPT Image 1, Sora 2, OpenAI TTS, GPT-4o-mini**
+-   **Redis** (for RQ job queue)
+-   **Cloudflare R2** (Object Storage)
+-   **Cashfree** (Payment Gateway)
+-   **SendGrid** (Email Service - **UNAVAILABLE/BLOCKED**)
+-   **ffmpeg** (System dependency for video processing)
 
 **Testing status**
--   **Testing agent used after significant changes**: YES. The  was used to perform a comprehensive suite of tests on the new pipeline, including end-to-end runs, concurrent load tests, and failure recovery scenarios. All tests passed on the preview environment.
--   **Test files created**: None. All testing was done via  and manual verification.
--   **Known regressions**: None. The new architecture resolved previous regressions.
+-   **Testing agent used after significant changes**: YES, but it encountered transient 502 errors due to production instability.
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**: None.
+-   **Known regressions**: None, as the primary feature has never been stable on production.
 
 **Credentials to test flow:**
 -   **UAT Test User**:  / 
 -   **Admin User**:  / 
 
 **What agent forgot to execute**
--   The agent executed the user's plan completely. The only outstanding task—production verification—could not be completed because the production environment was down, which is outside the agent's control. The agent correctly identified this blocker.</analysis>
+The agent has been unable to execute the user's full testing plan because it has been correctly prioritizing and attempting to fix the P0 production server crash. All efforts have been logically directed at this blocker.
+
+**Debugging checklist for current issue**
+-   **Issue**:  process is OOM-killed on production during the Story to Video render stage.
+-   **Frontend files to check**: N/A (Backend issue).
+-   **Backend files to check**:
+    -   :
+        -   Verify the latest optimizations (, , increased timeouts) are active on production.
+        -   Check the  function logic. It currently uses  to run scene rendering in parallel. This might still be too much for the server.
+-   **Next Steps**:
+    1.  Wait for the new build with the latest optimizations to be deployed.
+    2.  Run one Story To Video job. Use  or  in a separate terminal to monitor memory usage of the  process.
+    3.  If it still crashes, the next logical step is to serialize the scene rendering. Modify the  function to process videos in a simple  loop instead of  to ensure only one  instance runs at a time.
+        </analysis>
