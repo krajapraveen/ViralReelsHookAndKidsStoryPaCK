@@ -90,7 +90,7 @@ export default function TermsOfService() {
                   Our Service operates on a credit-based system:
                 </p>
                 <ul className="list-disc list-inside text-slate-300 space-y-2 ml-4">
-                  <li>New users receive 100 free credits upon registration</li>
+                  <li>New users receive 10 free credits upon registration</li>
                   <li>Additional credits can be purchased through our billing page</li>
                   <li>Credits are non-refundable once used for generation</li>
                   <li>Subscription plans provide monthly credit allocations</li>

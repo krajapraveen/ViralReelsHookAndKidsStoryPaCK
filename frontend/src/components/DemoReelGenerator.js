@@ -109,13 +109,13 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
             </div>
             <h3 className="text-2xl font-bold text-white mb-3">Demo Already Used</h3>
             <p className="text-slate-400 mb-8 max-w-md mx-auto">
-              You've already used your free demo. Sign up now to generate unlimited reel scripts and get 100 free credits!
+              You've already used your free demo. Sign up now to generate unlimited reel scripts and get 10 free credits!
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/signup">
                 <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white px-8 py-6 text-lg rounded-xl" data-testid="demo-signup-btn">
                   <Sparkles className="w-5 h-5 mr-2" />
-                  Sign Up Free (100 Credits)
+                  Sign Up Free (10 Credits)
                 </Button>
               </Link>
               <Link to="/login">
@@ -390,7 +390,7 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
                       <Link to="/signup">
                         <Button className="bg-white text-indigo-600 hover:bg-indigo-50 w-full sm:w-auto" data-testid="demo-cta-signup-btn">
                           <Sparkles className="w-4 h-4 mr-2" />
-                          Get 100 Free Credits
+                          Get 10 Free Credits
                         </Button>
                       </Link>
                       <Link to="/login">

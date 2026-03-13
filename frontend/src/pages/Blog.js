@@ -200,7 +200,7 @@ function BlogList() {
             <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-2xl border border-indigo-500/30 p-6 mb-6">
               <h3 className="text-lg font-bold text-white mb-2">Try Visionary Suite Free</h3>
               <p className="text-slate-400 text-sm mb-4">
-                Get 100 free credits and start creating viral content in seconds.
+                Get 10 free credits and start creating viral content in seconds.
               </p>
               <Link to="/signup">
                 <Button className="w-full bg-gradient-to-r from-indigo-500 to-purple-500">
@@ -438,7 +438,7 @@ function BlogPost() {
         {/* CTA */}
         <div className="mt-12 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-2xl border border-indigo-500/30 p-8 text-center">
           <h3 className="text-2xl font-bold text-white mb-2">Ready to Create Viral Content?</h3>
-          <p className="text-slate-400 mb-6">Get 100 free credits and start creating in seconds.</p>
+          <p className="text-slate-400 mb-6">Get 10 free credits and start creating in seconds.</p>
           <Link to="/signup">
             <Button size="lg" className="bg-gradient-to-r from-indigo-500 to-purple-500">
               Get Started Free

@@ -59,14 +59,14 @@ const getQuickReplies = (pathname) => {
 const AUTO_RESPONSES = {
   // Getting Started
   "how do i get started": {
-    message: "Getting started with Visionary Suite is easy!\n\n1. Sign up for free - get 100 credits instantly\n2. Choose your tool from the Dashboard\n3. Enter your topic or upload an image\n4. Let AI create amazing content!\n\nEach tool has a step-by-step wizard to guide you.",
+    message: "Getting started with Visionary Suite is easy!\n\n1. Sign up for free - get 10 credits instantly\n2. Choose your tool from the Dashboard\n3. Enter your topic or upload an image\n4. Let AI create amazing content!\n\nEach tool has a step-by-step wizard to guide you.",
     link: { text: "Go to Dashboard", url: "/app" },
     suggestions: ["What are credits?", "Best features to try"]
   },
   
   // Credits & Pricing
   "what are credits": {
-    message: "Credits are our simple pay-as-you-go system:\n\n- Reel Scripts: 10 credits\n- Story Packs: 6 credits\n- Comic Avatars: 15 credits\n- GIFs: 8 credits\n- Coloring Books: 5-10 credits\n\nYou get 100 FREE credits on signup!",
+    message: "Credits are our simple pay-as-you-go system:\n\n- Reel Scripts: 10 credits\n- Story Packs: 6 credits\n- Comic Avatars: 15 credits\n- GIFs: 8 credits\n- Coloring Books: 5-10 credits\n\nYou get 10 FREE credits on signup!",
     link: { text: "View Pricing", url: "/pricing" },
     suggestions: ["How to get more credits?", "Pricing plans"]
   },

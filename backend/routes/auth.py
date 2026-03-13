@@ -337,7 +337,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "name": clean_name,
             "password": hash_password(data.password),
             "role": "user",
-            "credits": 100,  # Full credits immediately (verification disabled)
+            "credits": 10,  # Free tier: 10 credits to start
             "emailVerified": True,  # Auto-verified (verification disabled)
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "lastLogin": datetime.now(timezone.utc).isoformat(),
@@ -368,19 +368,19 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
             "userId": user_id,
-            "amount": 100,
+            "amount": 10,
             "type": "SIGNUP_BONUS",
-            "description": "Welcome bonus - 100 free credits on signup",
+            "description": "Welcome bonus - 10 free credits on signup",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
         # Send welcome email in background
         from services.welcome_email_service import send_welcome_email
-        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 100)
+        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 10)
         
         token = create_token(user_id, user["role"])
         
-        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - Granted 100 credits (verification disabled)")
+        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - Granted 10 credits")
         
         return {
             "token": token,
@@ -393,10 +393,10 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
                 "emailVerified": True,
                 "credits_locked": False
             },
-            "message": "Registration successful! You have been granted 100 free credits to start creating.",
+            "message": "Registration successful! You have been granted 10 free credits to start creating.",
             "email_verification_required": False,
             "credits_info": {
-                "current_credits": 100,
+                "current_credits": 10,
                 "message": "Enjoy your free credits!"
             }
         }
@@ -650,7 +650,7 @@ async def google_callback(request: Request, data: GoogleCallback):
                 "picture": picture,
                 "password": "",
                 "role": "user",
-                "credits": 100,
+                "credits": 10,
                 "authProvider": "google",
                 "createdAt": datetime.now(timezone.utc).isoformat(),
                 "lastLogin": datetime.now(timezone.utc).isoformat()
@@ -662,7 +662,7 @@ async def google_callback(request: Request, data: GoogleCallback):
             await db.credit_ledger.insert_one({
                 "id": str(uuid.uuid4()),
                 "userId": user_id,
-                "amount": 100,
+                "amount": 10,
                 "type": "SIGNUP_BONUS",
                 "description": "Welcome bonus credits (Google Sign-In)",
                 "createdAt": datetime.now(timezone.utc).isoformat()
@@ -688,7 +688,7 @@ async def google_callback(request: Request, data: GoogleCallback):
                     "email": email,
                     "name": name,
                     "role": "user",
-                    "credits": 100,
+                    "credits": 10,
                     "picture": picture
                 }
             }

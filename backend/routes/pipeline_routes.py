@@ -27,6 +27,17 @@ class CreatePipelineRequest(BaseModel):
     include_watermark: bool = Field(default=True)
 
 
+
+@router.get("/gallery")
+async def public_gallery():
+    """Public endpoint: return completed videos for the landing page gallery."""
+    jobs = await db.pipeline_jobs.find(
+        {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
+        {"title": 1, "output_url": 1, "animation_style": 1, "timing": 1, "completed_at": 1, "_id": 0}
+    ).sort("completed_at", -1).to_list(length=12)
+    return {"videos": jobs}
+
+
 @router.get("/options")
 async def get_pipeline_options():
     """Return all available options for the pipeline."""

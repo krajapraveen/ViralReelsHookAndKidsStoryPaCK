@@ -2,541 +2,421 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { 
-  Sparkles, Video, BookOpen, Zap, Clock, TrendingUp, Play, Menu, X, Shield, CheckCircle,
-  Star, Users, Award, Gift, ArrowRight, Flame, Crown, Heart, MessageCircle, Share2,
-  Instagram, Youtube, Twitter, ChevronDown
+  Play, Sparkles, Clapperboard, PenLine, Wand2, Download, ArrowRight,
+  Menu, X, Film, BookOpen, Image, Zap, ChevronRight, Clock, Star
 } from 'lucide-react';
-import DemoReelGenerator from '../components/DemoReelGenerator';
-import ProductShowcase from '../components/ProductShowcase';
-import Testimonials from '../components/Testimonials';
-import DemoVideoPlayer from '../components/DemoVideoPlayer';
-import analytics from '../utils/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-// A/B Test Variations for Landing Page
-const LANDING_VARIATIONS = {
-  A: {
-    headline: "Go Viral on Social Media Without Being Creative",
-    subheadline: "AI writes your hooks, scripts, captions & hashtags. Generate complete kids story video packs. Create 30-day content calendars. All in under 60 seconds.",
-    ctaText: "Get 100 FREE Credits",
-    ctaColor: "from-indigo-500 to-purple-500"
-  },
-  B: {
-    headline: "Create Viral Content in 60 Seconds with AI",
-    subheadline: "No creative skills needed. Our AI generates scroll-stopping reels, kids stories, and content calendars that actually work. Join 5,000+ creators today.",
-    ctaText: "Start Creating Free",
-    ctaColor: "from-green-500 to-emerald-500"
-  }
-};
+const STORY_PROMPTS = [
+  { label: 'Fantasy Adventure', text: 'A brave dragon protects a hidden village from shadow creatures, and a young girl discovers she can speak to dragons.', icon: '🐉' },
+  { label: 'Bedtime Story', text: 'A sleepy moon fairy sprinkles dream dust across the sky, helping all the forest animals drift into peaceful slumber.', icon: '🌙' },
+  { label: 'Space Exploration', text: 'Captain Nova and her robot companion explore a mysterious planet made entirely of crystals that sing when touched.', icon: '🚀' },
+  { label: 'Animal Friendship', text: 'A tiny mouse and a giant bear become unlikely friends when they discover they both love painting sunsets together.', icon: '🐻' },
+  { label: 'Superhero Origin', text: 'A quiet librarian discovers that reading books aloud gives her the power to bring stories to life in the real world.', icon: '📖' },
+  { label: 'Underwater World', text: 'A curious octopus opens an underwater school where fish learn to dance, and a shy seahorse becomes the star student.', icon: '🌊' },
+];
 
 export default function Landing() {
-  const [showDemo, setShowDemo] = useState(false);
-  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [liveUsers, setLiveUsers] = useState(47);
-  const [contentCreated, setContentCreated] = useState(12784);
-  const [abVariant, setAbVariant] = useState('A');
-  const [variation, setVariation] = useState(LANDING_VARIATIONS.A);
+  const [galleryVideos, setGalleryVideos] = useState([]);
+  const [stats, setStats] = useState({ videosCreated: 36, creatorsOnline: 12 });
+  const [selectedPrompt, setSelectedPrompt] = useState(null);
 
-  // Initialize A/B test and track funnel
   useEffect(() => {
-    // Initialize session for tracking
-    analytics.initSession();
-    
-    // Get A/B test variant
-    const variant = analytics.initABTest('landing_page_2026');
-    setAbVariant(variant);
-    setVariation(LANDING_VARIATIONS[variant] || LANDING_VARIATIONS.A);
-    
-    // Track funnel step: Landing View
-    analytics.trackFunnelStep('landing_view', { ab_variant: variant });
-  }, []);
+    fetch(`${API_URL}/api/pipeline/gallery`)
+      .then(r => r.json())
+      .then(d => { if (d.videos) setGalleryVideos(d.videos.slice(0, 6)); })
+      .catch(() => {});
 
-  // Fetch real stats from API every 60 seconds with dynamic updates
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/live-stats/public`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.stats) {
-            setLiveUsers(data.stats.creators_online);
-            setContentCreated(data.stats.content_created_today);
-          }
+    fetch(`${API_URL}/api/live-stats/public`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.stats) {
+          setStats({ videosCreated: d.stats.content_created_today || 36, creatorsOnline: d.stats.creators_online || 12 });
         }
-      } catch (error) {
-        console.error('Failed to fetch live stats:', error);
-      }
-    };
-
-    // Fetch immediately
-    fetchStats();
-    
-    // Then fetch every 60 seconds for dynamic updates
-    const interval = setInterval(fetchStats, 60000);
-    
-    return () => clearInterval(interval);
+      })
+      .catch(() => {});
   }, []);
-
-  // Track CTA click for A/B test conversion
-  const handleCTAClick = (ctaLocation) => {
-    analytics.trackExperimentConversion('landing_page_2026', abVariant, 'cta_click');
-    analytics.trackFunnelStep('signup_start', { ab_variant: abVariant, cta_location: ctaLocation });
-    analytics.trackCTAClick(variation.ctaText, ctaLocation);
-  };
-
-  // Testimonials are now dynamically loaded from API in the Testimonials component
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
-      {/* Demo Modal */}
-      <DemoReelGenerator isOpen={showDemo} onClose={() => setShowDemo(false)} />
-      
-      {/* Video Player Modal */}
-      <DemoVideoPlayer isOpen={showVideoPlayer} onClose={() => setShowVideoPlayer(false)} />
-      
-      {/* Live Activity Banner */}
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-green-600 to-emerald-600 text-white text-center py-2 text-sm font-medium">
-        <div className="flex items-center justify-center gap-3 animate-pulse">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 bg-white rounded-full animate-ping"></span>
-            <Users className="w-4 h-4" />
-            {liveUsers} creators online now
-          </span>
-          <span className="hidden sm:inline">•</span>
-          <span className="hidden sm:flex items-center gap-1">
-            <Flame className="w-4 h-4" />
-            {contentCreated.toLocaleString()} pieces of content created today
-          </span>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-950 text-slate-50 overflow-x-hidden">
+      {/* ── Navbar ── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl supports-[backdrop-filter]:bg-slate-950/60" data-testid="landing-nav">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+          <Link to="/" className="flex items-center gap-2">
+            <Clapperboard className="w-6 h-6 text-indigo-500" />
+            <span className="text-lg font-bold tracking-tight">Visionary Suite</span>
+          </Link>
 
-      {/* Floating Navbar */}
-      <nav className="fixed top-10 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl px-4">
-        <div className="bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500" />
-            <span className="text-base sm:text-xl font-bold text-white">Visionary Suite</span>
-          </div>
-          
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-4">
-            <Link to="/pricing">
-              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-pricing-btn">
-                Pricing
-              </Button>
-            </Link>
-            <Link to="/reviews">
-              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-reviews-btn">
-                Reviews
-              </Button>
-            </Link>
-            <Link to="/blog">
-              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-blog-btn">
-                Blog
-              </Button>
-            </Link>
-            <Link to="/user-manual">
-              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-help-btn">
-                Help
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button variant="ghost" className="text-white hover:bg-white/10" data-testid="nav-login-btn">
-                Login
-              </Button>
-            </Link>
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#gallery" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Gallery</a>
+            <a href="#how-it-works" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">How It Works</a>
+            <Link to="/pricing" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Pricing</Link>
+            <Link to="/login" className="text-sm font-medium text-slate-300 hover:text-white transition-colors" data-testid="nav-login-link">Login</Link>
             <Link to="/signup">
-              <Button className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full animate-pulse" data-testid="nav-signup-btn">
-                <Gift className="w-4 h-4 mr-1" />
-                Get 100 Free Credits
+              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-2 text-sm font-semibold transition-all hover:scale-105 hover:shadow-[0_0_20px_-5px_rgba(79,70,229,0.5)]" data-testid="nav-signup-btn">
+                Start Creating
               </Button>
             </Link>
           </div>
-          
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden text-white p-2 hover:bg-white/10 rounded-full transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            data-testid="mobile-menu-btn"
-          >
+
+          <button className="md:hidden text-white p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} data-testid="mobile-menu-btn">
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
-        
-        {/* Mobile Menu Dropdown */}
+
         {mobileMenuOpen && (
-          <div className="md:hidden mt-2 bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex flex-col gap-2">
-              <Link to="/pricing" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start">
-                  Pricing
-                </Button>
-              </Link>
-              <Link to="/reviews" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start">
-                  Reviews
-                </Button>
-              </Link>
-              <Link to="/blog" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start">
-                  Blog
-                </Button>
-              </Link>
-              <Link to="/user-manual" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start">
-                  Help
-                </Button>
-              </Link>
-              <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full text-white hover:bg-white/10 justify-start">
-                  Login
-                </Button>
-              </Link>
-              <Link to="/signup" onClick={() => setMobileMenuOpen(false)}>
-                <Button className="w-full bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full mt-2">
-                  <Gift className="w-4 h-4 mr-2" />
-                  Get 100 Free Credits
-                </Button>
-              </Link>
-            </div>
+          <div className="md:hidden border-t border-white/5 bg-slate-950/95 backdrop-blur-xl px-4 py-4 space-y-3">
+            <a href="#gallery" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Gallery</a>
+            <a href="#how-it-works" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
+            <Link to="/pricing" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
+            <Link to="/login" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Login</Link>
+            <Link to="/signup" className="block" onClick={() => setMobileMenuOpen(false)}>
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-semibold">Start Creating</Button>
+            </Link>
           </div>
         )}
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-40 pb-16 px-4">
-        <div className="max-w-7xl mx-auto text-center">
-          {/* A/B Test Indicator (only visible in dev) */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="fixed top-20 right-4 z-50 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-300">
-              A/B Test: Variant {abVariant}
+      {/* ── Hero ── */}
+      <section className="relative pt-32 pb-24 md:pt-44 md:pb-32 px-4">
+        {/* Glow effect */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 pointer-events-none" />
+
+        <div className="relative max-w-7xl mx-auto">
+          <div className="max-w-4xl">
+            <p className="text-sm font-medium uppercase tracking-widest text-indigo-400 mb-6" data-testid="hero-tagline">AI-Powered Story Engine</p>
+
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.1] mb-8">
+              Turn stories into{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-amber-400">
+                cinematic videos
+              </span>
+              {' '}using AI
+            </h1>
+
+            <p className="text-lg md:text-xl text-slate-400 font-light leading-relaxed max-w-2xl mb-10">
+              Write any story. Our AI generates scenes, creates images, adds voiceover,
+              and renders a complete video — all in under 90 seconds.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-start gap-4 mb-12">
+              <Link to="/signup">
+                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-8 py-4 text-lg font-semibold transition-all hover:scale-105 hover:shadow-[0_0_20px_-5px_rgba(79,70,229,0.5)]" data-testid="hero-cta-btn">
+                  Create Your First Video
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+              </Link>
+              <a href="#how-it-works">
+                <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/5 rounded-full px-6 py-4 text-lg font-medium" data-testid="hero-howit-btn">
+                  <Play className="w-5 h-5 mr-2" />
+                  See How It Works
+                </Button>
+              </a>
             </div>
-          )}
-          
-          {/* Trust Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
-            <div className="inline-flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-full px-4 py-2">
-              <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-              <span className="text-yellow-500 text-sm font-medium">4.9/5 Rating</span>
-            </div>
-            <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2">
-              <Users className="w-4 h-4 text-green-500" />
-              <span className="text-green-500 text-sm font-medium">5,000+ Creators</span>
-            </div>
-            <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-full px-4 py-2">
-              <Sparkles className="w-4 h-4 text-purple-500" />
-              <span className="text-purple-500 text-sm font-medium">AI-Powered</span>
+
+            <div className="flex items-center gap-6 text-sm text-slate-500">
+              <span>10 free credits</span>
+              <span className="w-1 h-1 rounded-full bg-slate-700" />
+              <span>No credit card</span>
+              <span className="w-1 h-1 rounded-full bg-slate-700" />
+              <span>Cancel anytime</span>
             </div>
           </div>
-          
-          {/* A/B Tested Headline */}
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white mb-6 tracking-tight leading-tight">
-            {variation.headline.split(' ').slice(0, -2).join(' ')}<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-pink-400 to-purple-400">
-              {variation.headline.split(' ').slice(-2).join(' ')}
-            </span>
-          </h1>
-          
-          {/* A/B Tested Subheadline */}
-          <p className="text-base sm:text-lg md:text-xl text-slate-300 max-w-3xl mx-auto mb-6 px-4">
-            {variation.subheadline}
-          </p>
 
-          {/* Urgency Banner */}
-          <div className="inline-flex items-center gap-2 bg-red-500/20 border border-red-500/40 rounded-full px-6 py-3 mb-8 animate-bounce">
-            <Flame className="w-5 h-5 text-red-400" />
-            <span className="text-red-400 font-bold">LIMITED: Get 100 FREE credits today (worth ₹500)</span>
+          {/* Hero video preview */}
+          <div className="mt-16 relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_50px_-12px_rgba(79,70,229,0.3)]" data-testid="hero-video-preview">
+            {galleryVideos.length > 0 ? (
+              <video
+                src={galleryVideos[0]?.output_url}
+                poster=""
+                controls
+                className="w-full aspect-video bg-slate-900"
+                preload="metadata"
+              />
+            ) : (
+              <div className="w-full aspect-video bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 flex items-center justify-center">
+                <div className="text-center">
+                  <Play className="w-16 h-16 text-indigo-500 mx-auto mb-4 opacity-50" />
+                  <p className="text-slate-500">AI-generated story video preview</p>
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+      </section>
 
-          {/* A/B Tested CTA Button */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-6 px-4">
-            <Link to="/signup" className="w-full sm:w-auto" onClick={() => handleCTAClick('hero_primary')}>
-              <Button 
-                size="lg" 
-                className={`w-full sm:w-auto bg-gradient-to-r ${variation.ctaColor} hover:opacity-90 text-white rounded-full px-8 py-6 text-lg shadow-2xl shadow-pink-500/30 hover:scale-105 transition-all font-bold`}
-                data-testid="hero-signup-btn"
+      {/* ── Social Proof Bar ── */}
+      <section className="border-y border-white/5 py-8 px-4">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-8 md:gap-16">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-white">{stats.videosCreated}+</div>
+            <div className="text-sm text-slate-500 mt-1">Videos Created</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-white">90s</div>
+            <div className="text-sm text-slate-500 mt-1">Avg Generation Time</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-white">5</div>
+            <div className="text-sm text-slate-500 mt-1">AI Pipeline Stages</div>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center gap-1 justify-center">
+              {[1,2,3,4,5].map(i => <Star key={i} className="w-5 h-5 text-amber-400 fill-amber-400" />)}
+            </div>
+            <div className="text-sm text-slate-500 mt-1">Creator Rated</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── How It Works ── */}
+      <section id="how-it-works" className="py-24 md:py-32 px-4">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-sm font-medium uppercase tracking-widest text-indigo-400 mb-4">How It Works</p>
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-16">Three steps to your first video</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            {[
+              { step: '01', icon: PenLine, title: 'Write Your Story', desc: 'Type any story or pick a prompt template. A bedtime tale, a fantasy adventure, an educational lesson — anything.' },
+              { step: '02', icon: Wand2, title: 'AI Creates Everything', desc: 'Our pipeline generates scenes, creates unique images, adds professional voiceover, and renders full video automatically.' },
+              { step: '03', icon: Download, title: 'Download & Share', desc: 'Get your finished video in under 90 seconds. Download, share on social media, or embed anywhere.' },
+            ].map(({ step, icon: Icon, title, desc }) => (
+              <div key={step} className="group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-8 transition-all hover:border-white/10 hover:bg-white/[0.04]">
+                <span className="text-6xl font-black text-white/5 absolute -top-2 -right-2 group-hover:text-indigo-500/10 transition-colors">{step}</span>
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-6">
+                  <Icon className="w-6 h-6 text-indigo-400" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-xl font-semibold tracking-tight mb-3">{title}</h3>
+                <p className="text-slate-400 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Story Prompt Templates ── */}
+      <section className="py-24 md:py-32 px-4 border-t border-white/5">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-sm font-medium uppercase tracking-widest text-indigo-400 mb-4">Try It Now</p>
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Pick a story, create a video</h2>
+          <p className="text-lg text-slate-400 max-w-2xl mb-12">Click any prompt below, then sign up to generate your AI video instantly.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {STORY_PROMPTS.map((prompt, i) => (
+              <Link
+                key={i}
+                to={`/signup?prompt=${encodeURIComponent(prompt.text)}`}
+                className={`group relative rounded-2xl border p-6 transition-all cursor-pointer ${
+                  selectedPrompt === i
+                    ? 'border-indigo-500/50 bg-indigo-500/10'
+                    : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
+                }`}
+                onClick={() => setSelectedPrompt(i)}
+                data-testid={`prompt-${i}`}
               >
-                <Gift className="w-5 h-5 mr-2" />
-                {variation.ctaText}
-                <ArrowRight className="w-5 h-5 ml-2" />
+                <div className="flex items-start gap-4">
+                  <span className="text-2xl">{prompt.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-white mb-2 group-hover:text-indigo-300 transition-colors">{prompt.label}</h3>
+                    <p className="text-sm text-slate-400 leading-relaxed line-clamp-2">{prompt.text}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all flex-shrink-0 mt-1" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Video Gallery ── */}
+      <section id="gallery" className="py-24 md:py-32 px-4 border-t border-white/5">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-end justify-between mb-12">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-widest text-indigo-400 mb-4">Gallery</p>
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight">Made with Visionary Suite</h2>
+            </div>
+            <Link to="/signup" className="hidden md:block">
+              <Button variant="ghost" className="text-slate-400 hover:text-white transition-colors">
+                Create yours <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </Link>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-8 px-4">
-            <Button 
-              size="lg" 
-              variant="outline"
-              onClick={() => {
-                analytics.trackCTAClick('Watch Demo Video', 'hero_section');
-                setShowVideoPlayer(true);
-              }}
-              className="w-full sm:w-auto border-2 border-white/20 text-white hover:bg-white/10 rounded-full px-6 py-4 text-base" 
-              data-testid="hero-demo-btn"
-            >
-              <Play className="w-5 h-5 mr-2" />
-              Watch 60-Second Demo
-            </Button>
-          </div>
-
-          <p className="text-slate-500 text-sm mb-12">No credit card required • Cancel anytime • Instant access</p>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto mb-16">
-            <div className="text-center p-4 bg-white/5 rounded-2xl border border-white/10">
-              <div className="text-3xl font-bold text-indigo-400 mb-1">5-10s</div>
-              <div className="text-slate-400 text-sm">Reel Generation</div>
-            </div>
-            <div className="text-center p-4 bg-white/5 rounded-2xl border border-white/10">
-              <div className="text-3xl font-bold text-purple-400 mb-1">30-90s</div>
-              <div className="text-slate-400 text-sm">Story Pack</div>
-            </div>
-            <div className="text-center p-4 bg-white/5 rounded-2xl border border-white/10">
-              <div className="text-3xl font-bold text-green-400 mb-1">100</div>
-              <div className="text-slate-400 text-sm">Free Credits</div>
-            </div>
-            <div className="text-center p-4 bg-white/5 rounded-2xl border border-white/10">
-              <div className="text-3xl font-bold text-orange-400 mb-1">50K+</div>
-              <div className="text-slate-400 text-sm">Content Created</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-4">
-            Everything You Need to Go Viral
-          </h2>
-          <p className="text-slate-400 text-center mb-12">Professional content creation tools at your fingertips</p>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Reel Feature */}
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 hover:border-indigo-500/50 transition-colors group">
-              <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Video className="w-6 h-6 text-indigo-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Viral Reel Scripts</h3>
-              <p className="text-slate-400 mb-4 text-sm">5 hooks, script, captions, hashtags in 10 seconds</p>
-              <div className="flex items-center gap-2 text-indigo-400 text-sm font-medium">
-                <span>10 credits</span>
-                <span className="text-slate-500">per reel</span>
-              </div>
-            </div>
-
-            {/* Story Feature */}
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 hover:border-purple-500/50 transition-colors group">
-              <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <BookOpen className="w-6 h-6 text-purple-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Kids Story Packs</h3>
-              <p className="text-slate-400 mb-4 text-sm">Complete video production package with voiceover</p>
-              <div className="flex items-center gap-2 text-purple-400 text-sm font-medium">
-                <span>6 credits</span>
-                <span className="text-slate-500">per story</span>
-              </div>
-            </div>
-
-            {/* Comic Feature */}
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 hover:border-pink-500/50 transition-colors group relative">
-              <div className="absolute -top-2 -right-2 bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                TRENDING
-              </div>
-              <div className="w-12 h-12 bg-pink-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Award className="w-6 h-6 text-pink-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Photo to Comic</h3>
-              <p className="text-slate-400 mb-4 text-sm">Transform photos into comic avatars & strips</p>
-              <div className="flex items-center gap-2 text-pink-400 text-sm font-medium">
-                <span>15 credits</span>
-                <span className="text-slate-500">per comic</span>
-              </div>
-            </div>
-
-            {/* Calendar Feature */}
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 hover:border-green-500/50 transition-colors group">
-              <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Clock className="w-6 h-6 text-green-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">30-Day Calendar</h3>
-              <p className="text-slate-400 mb-4 text-sm">Never run out of content ideas again</p>
-              <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
-                <span>10 credits</span>
-                <span className="text-slate-500">per calendar</span>
-              </div>
-            </div>
-
-            {/* Hashtag Feature */}
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 hover:border-blue-500/50 transition-colors group">
-              <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <TrendingUp className="w-6 h-6 text-blue-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Trending Hashtags</h3>
-              <p className="text-slate-400 mb-4 text-sm">AI-optimized hashtags for maximum reach</p>
-              <div className="flex items-center gap-2 text-blue-400 text-sm font-medium">
-                <span>5 credits</span>
-                <span className="text-slate-500">per set</span>
-              </div>
-            </div>
-
-            {/* Carousel Feature */}
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6 hover:border-yellow-500/50 transition-colors group">
-              <div className="w-12 h-12 bg-yellow-500/10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Share2 className="w-6 h-6 text-yellow-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Carousel Maker</h3>
-              <p className="text-slate-400 mb-4 text-sm">Engaging multi-slide posts that convert</p>
-              <div className="flex items-center gap-2 text-yellow-400 text-sm font-medium">
-                <span>8 credits</span>
-                <span className="text-slate-500">per carousel</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Product Showcase - Auto-playing Feature Demo */}
-      <section className="py-20 px-4 bg-gradient-to-b from-transparent via-indigo-950/30 to-transparent">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 rounded-full px-4 py-2 mb-4">
-              <Play className="w-4 h-4 text-indigo-400" />
-              <span className="text-indigo-400 font-medium text-sm">See It In Action</span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Powerful Features, Simple Interface
-            </h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              Watch how easy it is to create viral content with our AI-powered tools
-            </p>
-          </div>
-          <ProductShowcase />
-        </div>
-      </section>
-
-      {/* Platform Support */}
-      <section className="py-16 px-4 bg-black/30">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl font-bold text-white mb-8">Works for All Platforms</h2>
-          <div className="flex flex-wrap items-center justify-center gap-8">
-            <div className="flex items-center gap-2 text-slate-400">
-              <Instagram className="w-8 h-8" />
-              <span>Instagram</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              <Youtube className="w-8 h-8" />
-              <span>YouTube</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              <Twitter className="w-8 h-8" />
-              <span>Twitter/X</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-              </svg>
-              <span>TikTok</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Daily Rewards Teaser */}
-      <section className="py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-orange-500/20 via-pink-500/20 to-purple-500/20 border border-orange-500/30 rounded-3xl p-8 text-center">
-            <div className="inline-flex items-center gap-2 bg-orange-500/20 rounded-full px-4 py-2 mb-4">
-              <Gift className="w-5 h-5 text-orange-400" />
-              <span className="text-orange-400 font-bold">DAILY REWARDS</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
-              Earn Free Credits Every Day!
-            </h2>
-            <p className="text-slate-300 mb-6">
-              Login daily to claim bonus credits. Build a streak and earn up to <span className="text-orange-400 font-bold">50 bonus credits per week!</span>
-            </p>
-            <div className="flex flex-wrap justify-center gap-4 mb-6">
-              {['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'].map((day, i) => (
-                <div key={i} className={`w-16 h-16 rounded-xl flex flex-col items-center justify-center ${i === 6 ? 'bg-gradient-to-r from-orange-500 to-pink-500' : 'bg-white/10'} border border-white/20`}>
-                  <span className="text-xs text-slate-400">{day}</span>
-                  <span className="text-white font-bold">{i === 6 ? '10' : (i + 2)}</span>
+          {galleryVideos.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {galleryVideos.map((video, i) => (
+                <div key={i} className="group rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02] hover:border-white/10 transition-all" data-testid={`gallery-video-${i}`}>
+                  <div className="aspect-video bg-slate-900 relative">
+                    <video
+                      src={video.output_url}
+                      className="w-full h-full object-cover"
+                      preload="metadata"
+                      controls
+                      muted
+                    />
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-medium text-white truncate">{video.title || 'AI Story Video'}</h3>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+                      <span className="flex items-center gap-1"><Film className="w-3 h-3" /> {video.animation_style || 'cartoon_2d'}</span>
+                      {video.timing?.total_ms && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {Math.round(video.timing.total_ms / 1000)}s</span>}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
-            <Link to="/signup">
-              <Button 
-                className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full px-8 py-4 text-lg font-bold"
-                onClick={() => analytics.trackCTAClick('Start Earning Now', 'referral_section')}
-              >
-                Start Earning Now
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </Link>
+          ) : (
+            <div className="text-center py-16 text-slate-500">
+              <Film className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p>Videos will appear here as creators generate them.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── More Tools (De-emphasized) ── */}
+      <section className="py-24 md:py-32 px-4 border-t border-white/5">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-sm font-medium uppercase tracking-widest text-slate-500 mb-4">More Creator Tools</p>
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-300 mb-12">Everything else you need</h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: Zap, title: 'Reel Scripts', desc: 'Viral hooks, scripts & hashtags in seconds', cost: '10 credits', href: '/app/reel-generator' },
+              { icon: Image, title: 'Photo to Comic', desc: 'Transform any photo into a comic avatar', cost: '15 credits', href: '/app/photo-to-comic' },
+              { icon: Film, title: 'GIF Creator', desc: 'Turn photos into animated reaction GIFs', cost: '10 credits', href: '/app/gif-maker' },
+              { icon: BookOpen, title: 'Comic Storybook', desc: 'Create illustrated comic storybooks', cost: '20+ credits', href: '/app/comic-storybook' },
+            ].map(({ icon: Icon, title, desc, cost, href }) => (
+              <Link key={title} to={href} className="group rounded-2xl border border-white/5 bg-white/[0.02] p-6 hover:border-white/10 hover:bg-white/[0.04] transition-all">
+                <Icon className="w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors mb-4" strokeWidth={1.5} />
+                <h3 className="font-semibold text-white mb-1">{title}</h3>
+                <p className="text-sm text-slate-500 mb-3">{desc}</p>
+                <span className="text-xs text-slate-600">{cost}</span>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <Testimonials />
-
-      {/* Final CTA Section */}
-      <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-8 sm:p-12">
-          <div className="inline-flex items-center gap-2 bg-green-500/20 rounded-full px-4 py-2 mb-6">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <span className="text-green-400 font-medium">Join 5,000+ creators already using Visionary Suite</span>
+      {/* ── Pricing ── */}
+      <section className="py-24 md:py-32 px-4 border-t border-white/5">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-sm font-medium uppercase tracking-widest text-indigo-400 mb-4">Simple Pricing</p>
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">Start free, scale when ready</h2>
+            <p className="text-lg text-slate-400">No subscriptions required. Buy credits as you need them.</p>
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
-            Ready to Create Viral Content?
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Free */}
+            <div className="flex flex-col rounded-3xl border border-white/10 bg-slate-900/50 p-8 backdrop-blur-xl">
+              <h3 className="text-xl font-bold mb-2">Free</h3>
+              <div className="text-4xl font-black mb-1">10</div>
+              <p className="text-slate-500 mb-6">credits to start</p>
+              <ul className="space-y-3 mb-8 flex-1">
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> 1 Story Video</li>
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> 1 Reel Script</li>
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> All features unlocked</li>
+              </ul>
+              <Link to="/signup">
+                <Button className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 font-medium" data-testid="pricing-free-btn">Get Started</Button>
+              </Link>
+            </div>
+
+            {/* Starter */}
+            <div className="flex flex-col rounded-3xl border-2 border-indigo-500/50 bg-slate-900/50 p-8 backdrop-blur-xl relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-4 py-1 rounded-full">POPULAR</div>
+              <h3 className="text-xl font-bold mb-2">Starter</h3>
+              <div className="text-4xl font-black mb-1">100</div>
+              <p className="text-slate-500 mb-6">credits</p>
+              <ul className="space-y-3 mb-8 flex-1">
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> 2 Story Videos</li>
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> 10 Reel Scripts</li>
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> Priority rendering</li>
+              </ul>
+              <Link to="/pricing">
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-full py-3 font-semibold transition-all hover:shadow-[0_0_20px_-5px_rgba(79,70,229,0.5)]" data-testid="pricing-starter-btn">Buy Credits</Button>
+              </Link>
+            </div>
+
+            {/* Pro */}
+            <div className="flex flex-col rounded-3xl border border-white/10 bg-slate-900/50 p-8 backdrop-blur-xl">
+              <h3 className="text-xl font-bold mb-2">Pro</h3>
+              <div className="text-4xl font-black mb-1">1,000</div>
+              <p className="text-slate-500 mb-6">credits</p>
+              <ul className="space-y-3 mb-8 flex-1">
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> 20 Story Videos</li>
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> 100 Reel Scripts</li>
+                <li className="flex items-center gap-2 text-sm text-slate-400"><Sparkles className="w-4 h-4 text-indigo-400" /> All tools unlimited</li>
+              </ul>
+              <Link to="/pricing">
+                <Button className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 font-medium" data-testid="pricing-pro-btn">Buy Credits</Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Final CTA ── */}
+      <section className="py-24 md:py-32 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">
+            Your story deserves to be seen
           </h2>
-          <p className="text-base sm:text-lg md:text-xl text-slate-300 mb-8 px-4">
-            Get 100 free credits on signup. No credit card required. Start creating in 30 seconds.
+          <p className="text-lg text-slate-400 mb-10 max-w-xl mx-auto">
+            Join creators who are turning stories into videos with AI. Start with 10 free credits — no strings attached.
           </p>
           <Link to="/signup">
-            <Button 
-              size="lg" 
-              className="w-full sm:w-auto bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 hover:from-orange-600 hover:via-pink-600 hover:to-purple-600 text-white rounded-full px-12 py-6 text-lg shadow-2xl shadow-pink-500/30 hover:scale-105 transition-all font-bold" 
-              data-testid="cta-signup-btn"
-              onClick={() => analytics.trackCTAClick('Claim Your 100 Free Credits', 'final_cta_section')}
-            >
-              <Gift className="w-5 h-5 mr-2" />
-              Claim Your 100 Free Credits
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all hover:scale-105 hover:shadow-[0_0_20px_-5px_rgba(79,70,229,0.5)]" data-testid="final-cta-btn">
+              Create Your First Video
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>
-          <p className="text-slate-500 text-sm mt-4">No spam. Unsubscribe anytime.</p>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 py-8 px-4">
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/5 py-12 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-500" />
-              <span className="text-white font-semibold">Visionary Suite</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Clapperboard className="w-5 h-5 text-indigo-500" />
+                <span className="font-bold">Visionary Suite</span>
+              </div>
+              <p className="text-sm text-slate-500">AI-powered story-to-video engine for creators.</p>
             </div>
-            
-            {/* Security Badge */}
-            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-full px-4 py-2">
-              <Shield className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 text-sm font-medium">Protected by OWASP Standards</span>
-              <CheckCircle className="w-3 h-3 text-green-400" />
+            <div>
+              <h4 className="text-sm font-semibold text-slate-300 mb-3">Product</h4>
+              <div className="space-y-2 text-sm text-slate-500">
+                <Link to="/signup" className="block hover:text-white transition-colors">Create Video</Link>
+                <a href="#gallery" className="block hover:text-white transition-colors">Gallery</a>
+                <Link to="/pricing" className="block hover:text-white transition-colors">Pricing</Link>
+              </div>
             </div>
-            
-            <div className="flex items-center gap-6 text-slate-400">
-              <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-              <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
-              <Link to="/reviews" className="hover:text-white transition-colors">Reviews</Link>
-              <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
-              <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy</Link>
-              <Link to="/terms-of-service" className="hover:text-white transition-colors">Terms</Link>
+            <div>
+              <h4 className="text-sm font-semibold text-slate-300 mb-3">Resources</h4>
+              <div className="space-y-2 text-sm text-slate-500">
+                <Link to="/blog" className="block hover:text-white transition-colors">Blog</Link>
+                <Link to="/user-manual" className="block hover:text-white transition-colors">Help Center</Link>
+                <Link to="/contact" className="block hover:text-white transition-colors">Contact</Link>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-slate-300 mb-3">Legal</h4>
+              <div className="space-y-2 text-sm text-slate-500">
+                <Link to="/privacy-policy" className="block hover:text-white transition-colors">Privacy Policy</Link>
+                <Link to="/terms-of-service" className="block hover:text-white transition-colors">Terms of Service</Link>
+                <Link to="/cookie-policy" className="block hover:text-white transition-colors">Cookies</Link>
+              </div>
             </div>
           </div>
-          <p className="text-slate-500 text-sm text-center mt-6">© 2026 Visionary Suite. All rights reserved.</p>
+          <div className="border-t border-white/5 pt-8 text-center text-sm text-slate-600">
+            © 2026 Visionary Suite. All rights reserved.
+          </div>
         </div>
       </footer>
     </div>
