@@ -1,0 +1,310 @@
+{
+  "total_users": 20,
+  "signups": {
+    "success": 20,
+    "failed": 0,
+    "avg_time_ms": 0
+  },
+  "video_generations": {
+    "success": 1,
+    "failed": 0,
+    "rate_limited": 19,
+    "avg_time_ms": 0
+  },
+  "status_checks": {
+    "success": 5,
+    "failed": 0,
+    "avg_time_ms": 0
+  },
+  "errors": [],
+  "timings": [
+    {
+      "user": 13,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4784
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 56
+        }
+      }
+    },
+    {
+      "user": 18,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4803
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59825
+        }
+      }
+    },
+    {
+      "user": 14,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4812
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59817
+        }
+      }
+    },
+    {
+      "user": 10,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4812
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59819
+        }
+      }
+    },
+    {
+      "user": 0,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4813
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59819
+        }
+      }
+    },
+    {
+      "user": 11,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4805
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59826
+        }
+      }
+    },
+    {
+      "user": 16,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4811
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59820
+        }
+      }
+    },
+    {
+      "user": 8,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4813
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59819
+        }
+      }
+    },
+    {
+      "user": 4,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4814
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59818
+        }
+      }
+    },
+    {
+      "user": 2,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4809
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59823
+        }
+      }
+    },
+    {
+      "user": 3,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4815
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59818
+        }
+      }
+    },
+    {
+      "user": 5,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4820
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59813
+        }
+      }
+    },
+    {
+      "user": 17,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4814
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59820
+        }
+      }
+    },
+    {
+      "user": 15,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4809
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59826
+        }
+      }
+    },
+    {
+      "user": 12,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4811
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59824
+        }
+      }
+    },
+    {
+      "user": 19,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4803
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59834
+        }
+      }
+    },
+    {
+      "user": 1,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4818
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59824
+        }
+      }
+    },
+    {
+      "user": 7,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4801
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59866
+        }
+      }
+    },
+    {
+      "user": 6,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4799
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 59874
+        }
+      }
+    },
+    {
+      "user": 9,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 4776
+        },
+        "create_video": {
+          "status": "ok",
+          "ms": 59,
+          "job_id": "69e38bad-9c17-46d3-a0d2-c0b195b61b7c",
+          "credits": 10
+        },
+        "poll_0": {
+          "status": "PROCESSING",
+          "ms": 56768,
+          "progress": 25
+        },
+        "poll_1": {
+          "status": "PROCESSING",
+          "ms": 14139,
+          "progress": 68
+        },
+        "poll_2": {
+          "status": "PROCESSING",
+          "ms": 67,
+          "progress": 75
+        },
+        "poll_3": {
+          "status": "PROCESSING",
+          "ms": 68,
+          "progress": 75
+        },
+        "poll_4": {
+          "status": "PROCESSING",
+          "ms": 71,
+          "progress": 75
+        }
+      }
+    }
+  ],
+  "total_time_s": 91.0
+}

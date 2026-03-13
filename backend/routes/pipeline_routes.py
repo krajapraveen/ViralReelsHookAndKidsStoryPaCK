@@ -3,6 +3,7 @@ Pipeline API Routes
 Story → Video durable pipeline endpoints.
 """
 
+import os
 import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends
@@ -63,18 +64,103 @@ async def _check_rate_limit(user_id: str):
 
 
 @router.get("/gallery")
-async def public_gallery(category: str = None):
+async def public_gallery(category: str = None, sort: str = "newest", featured: bool = False):
     """Public endpoint: return completed videos for the gallery."""
     query = {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}}
-    if category:
+    if category and category != "all":
         query["animation_style"] = category
+    if featured:
+        query["remix_count"] = {"$gte": 1}
+
+    # Determine sort order
+    sort_field = "completed_at"
+    sort_dir = -1
+    if sort == "most_remixed":
+        sort_field = "remix_count"
+    elif sort == "trending":
+        # Trending = most recently remixed/completed with remix activity
+        sort_field = "completed_at"
+
     jobs = await db.pipeline_jobs.find(
         query,
         {"title": 1, "output_url": 1, "animation_style": 1, "timing": 1,
          "completed_at": 1, "job_id": 1, "story_text": 1, "remix_count": 1,
          "age_group": 1, "voice_preset": 1, "_id": 0}
-    ).sort("completed_at", -1).to_list(length=24)
+    ).sort(sort_field, sort_dir).to_list(length=48)
     return {"videos": jobs}
+
+
+@router.get("/gallery/leaderboard")
+async def gallery_leaderboard():
+    """Public endpoint: return most remixed videos for the leaderboard."""
+    jobs = await db.pipeline_jobs.find(
+        {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "remix_count": {"$gte": 1}},
+        {"title": 1, "output_url": 1, "animation_style": 1, "job_id": 1,
+         "remix_count": 1, "completed_at": 1, "_id": 0}
+    ).sort("remix_count", -1).to_list(length=10)
+    return {"leaderboard": jobs}
+
+
+@router.get("/gallery/categories")
+async def gallery_categories():
+    """Public endpoint: return available categories with counts."""
+    pipe = [
+        {"$match": {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": "$animation_style", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    rows = await db.pipeline_jobs.aggregate(pipe).to_list(length=20)
+    categories = [{"id": r["_id"], "name": ANIMATION_STYLES.get(r["_id"], {}).get("name", r["_id"]), "count": r["count"]} for r in rows if r["_id"]]
+    total = sum(r["count"] for r in rows)
+    return {"categories": [{"id": "all", "name": "All", "count": total}] + categories}
+
+
+@router.get("/performance")
+async def get_performance_stats(current_user: dict = Depends(get_current_user)):
+    """Admin endpoint: get performance monitoring stats."""
+    if current_user.get("role") not in ("admin", "ADMIN"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    now = datetime.now(timezone.utc)
+    one_hour_ago = now - timedelta(hours=1)
+
+    # Queue depth
+    queued = await db.pipeline_jobs.count_documents({"status": "QUEUED"})
+    processing = await db.pipeline_jobs.count_documents({"status": "PROCESSING"})
+
+    # Recent render times
+    render_pipe = [
+        {"$match": {"status": "COMPLETED", "completed_at": {"$gte": one_hour_ago}}},
+        {"$group": {
+            "_id": None,
+            "avg_total_ms": {"$avg": "$timing.total_ms"},
+            "avg_render_ms": {"$avg": "$timing.render_ms"},
+            "max_total_ms": {"$max": "$timing.total_ms"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    render_rows = await db.pipeline_jobs.aggregate(render_pipe).to_list(length=1)
+    render_stats = render_rows[0] if render_rows else {"avg_total_ms": 0, "avg_render_ms": 0, "max_total_ms": 0, "count": 0}
+    render_stats.pop("_id", None)
+
+    # Failure rate (last hour)
+    failed = await db.pipeline_jobs.count_documents({"status": "FAILED", "created_at": {"$gte": one_hour_ago}})
+    total_recent = await db.pipeline_jobs.count_documents({"created_at": {"$gte": one_hour_ago}})
+    failure_rate = round((failed / total_recent * 100), 1) if total_recent > 0 else 0
+
+    # Worker stats
+    workers = get_worker_stats()
+
+    return {
+        "success": True,
+        "queue": {"queued": queued, "processing": processing},
+        "render_stats": render_stats,
+        "failure_rate": failure_rate,
+        "failed_last_hour": failed,
+        "total_last_hour": total_recent,
+        "workers": workers,
+        "timestamp": now.isoformat(),
+    }
 
 
 @router.get("/gallery/{job_id}")
@@ -88,6 +174,41 @@ async def get_gallery_video(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Video not found")
     return {"video": job}
+
+
+@router.get("/gallery/{job_id}/og")
+async def get_gallery_video_og(job_id: str):
+    """Public endpoint: return OG meta HTML for social sharing."""
+    from fastapi.responses import HTMLResponse
+    job = await db.pipeline_jobs.find_one(
+        {"job_id": job_id, "status": "COMPLETED"},
+        {"title": 1, "output_url": 1, "animation_style": 1, "story_text": 1, "_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    base_url = os.environ.get("REACT_APP_BACKEND_URL", "")
+    title = job.get("title", "AI Story Video")
+    desc = (job.get("story_text", "") or "")[:200]
+    video_url = job.get("output_url", "")
+    page_url = f"{base_url}/gallery?video={job_id}"
+
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta property="og:type" content="video.other" />
+<meta property="og:title" content="{title} | Visionary Suite" />
+<meta property="og:description" content="{desc}" />
+<meta property="og:video" content="{video_url}" />
+<meta property="og:video:type" content="video/mp4" />
+<meta property="og:url" content="{page_url}" />
+<meta property="og:site_name" content="Visionary Suite" />
+<meta name="twitter:card" content="player" />
+<meta name="twitter:title" content="{title} | Visionary Suite" />
+<meta name="twitter:description" content="{desc}" />
+<meta name="twitter:player" content="{video_url}" />
+<meta http-equiv="refresh" content="0;url={page_url}" />
+</head><body>Redirecting...</body></html>"""
+    return HTMLResponse(content=html)
 
 
 @router.get("/options")

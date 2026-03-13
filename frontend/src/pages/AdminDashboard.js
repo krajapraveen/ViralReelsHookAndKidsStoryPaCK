@@ -23,6 +23,7 @@ import PaymentMonitoringTab from '../components/admin/PaymentMonitoringTab';
 import ExceptionMonitoringTab from '../components/admin/ExceptionMonitoringTab';
 import UserAnalyticsTab from '../components/admin/UserAnalyticsTab';
 import GrowthFunnelTab from '../components/admin/GrowthFunnelTab';
+import PerformanceMonitorTab from '../components/admin/PerformanceMonitorTab';
 import HelpGuide from '../components/HelpGuide';
 
 // Default fallback data structure for graceful degradation
@@ -160,6 +161,7 @@ export default function AdminDashboard() {
     { id: 'feedback', label: 'User Feedback' },
     { id: 'trending', label: 'Trending Topics' },
     { id: 'growth-funnel', label: 'Growth Funnel' },
+    { id: 'performance', label: 'Performance' },
   ];
 
   return (
@@ -412,6 +414,7 @@ export default function AdminDashboard() {
             {activeTab === 'feedback' && <UserFeedbackTab />}
             {activeTab === 'trending' && <TrendingTopicsTab />}
             {activeTab === 'growth-funnel' && <GrowthFunnelTab dateRange={dateRange} />}
+            {activeTab === 'performance' && <PerformanceMonitorTab />}
           </div>
         </div>
       </div>

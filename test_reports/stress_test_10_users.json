@@ -1,0 +1,261 @@
+{
+  "total_users": 10,
+  "signups": {
+    "success": 10,
+    "failed": 0,
+    "avg_time_ms": 0
+  },
+  "video_generations": {
+    "success": 4,
+    "failed": 0,
+    "rate_limited": 6,
+    "avg_time_ms": 0
+  },
+  "status_checks": {
+    "success": 20,
+    "failed": 0,
+    "avg_time_ms": 0
+  },
+  "errors": [],
+  "timings": [
+    {
+      "user": 9,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17175
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 106
+        }
+      }
+    },
+    {
+      "user": 3,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17179
+        },
+        "create_video": {
+          "status": "ok",
+          "ms": 78,
+          "job_id": "12f534cf-5aaf-4990-a1da-c368574b4fd5",
+          "credits": 10
+        },
+        "poll_0": {
+          "status": "QUEUED",
+          "ms": 10919,
+          "progress": 0
+        },
+        "poll_1": {
+          "status": "QUEUED",
+          "ms": 74,
+          "progress": 0
+        },
+        "poll_2": {
+          "status": "QUEUED",
+          "ms": 61,
+          "progress": 0
+        },
+        "poll_3": {
+          "status": "QUEUED",
+          "ms": 58,
+          "progress": 0
+        },
+        "poll_4": {
+          "status": "QUEUED",
+          "ms": 61,
+          "progress": 0
+        }
+      }
+    },
+    {
+      "user": 4,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17176
+        },
+        "create_video": {
+          "status": "ok",
+          "ms": 76,
+          "job_id": "b32265e7-c134-4f86-9191-99b70042ac87",
+          "credits": 10
+        },
+        "poll_0": {
+          "status": "QUEUED",
+          "ms": 10931,
+          "progress": 0
+        },
+        "poll_1": {
+          "status": "QUEUED",
+          "ms": 66,
+          "progress": 0
+        },
+        "poll_2": {
+          "status": "QUEUED",
+          "ms": 65,
+          "progress": 0
+        },
+        "poll_3": {
+          "status": "QUEUED",
+          "ms": 55,
+          "progress": 0
+        },
+        "poll_4": {
+          "status": "QUEUED",
+          "ms": 62,
+          "progress": 0
+        }
+      }
+    },
+    {
+      "user": 7,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17176
+        },
+        "create_video": {
+          "status": "ok",
+          "ms": 80,
+          "job_id": "39f1c7d4-c9aa-4695-bfd0-c61a04a71518",
+          "credits": 10
+        },
+        "poll_0": {
+          "status": "QUEUED",
+          "ms": 10921,
+          "progress": 0
+        },
+        "poll_1": {
+          "status": "QUEUED",
+          "ms": 94,
+          "progress": 0
+        },
+        "poll_2": {
+          "status": "QUEUED",
+          "ms": 59,
+          "progress": 0
+        },
+        "poll_3": {
+          "status": "QUEUED",
+          "ms": 66,
+          "progress": 0
+        },
+        "poll_4": {
+          "status": "QUEUED",
+          "ms": 67,
+          "progress": 0
+        }
+      }
+    },
+    {
+      "user": 8,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17178
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 36622
+        }
+      }
+    },
+    {
+      "user": 1,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17181
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 36622
+        }
+      }
+    },
+    {
+      "user": 2,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17176
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 36628
+        }
+      }
+    },
+    {
+      "user": 0,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17176
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 36641
+        }
+      }
+    },
+    {
+      "user": 5,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17191
+        },
+        "create_video": {
+          "status": "rate_limited",
+          "ms": 36625
+        }
+      }
+    },
+    {
+      "user": 6,
+      "steps": {
+        "login": {
+          "status": "ok",
+          "ms": 17178
+        },
+        "create_video": {
+          "status": "ok",
+          "ms": 79,
+          "job_id": "9de254d9-9d02-49c5-9230-e5deec7ff5e2",
+          "credits": 10
+        },
+        "poll_0": {
+          "status": "QUEUED",
+          "ms": 33535,
+          "progress": 0
+        },
+        "poll_1": {
+          "status": "QUEUED",
+          "ms": 74,
+          "progress": 0
+        },
+        "poll_2": {
+          "status": "QUEUED",
+          "ms": 71,
+          "progress": 0
+        },
+        "poll_3": {
+          "status": "QUEUED",
+          "ms": 83,
+          "progress": 0
+        },
+        "poll_4": {
+          "status": "FAILED",
+          "ms": 89,
+          "progress": 0
+        }
+      }
+    }
+  ],
+  "total_time_s": 66.1
+}
