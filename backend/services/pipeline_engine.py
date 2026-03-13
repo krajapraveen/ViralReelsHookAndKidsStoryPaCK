@@ -454,13 +454,32 @@ async def run_stage_voices(job: dict) -> dict:
                 with open(path, "wb") as f:
                     f.write(audio)
 
-                probe = subprocess.run(
-                    ["ffprobe", "-i", str(path), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
-                    capture_output=True, text=True, timeout=10,
-                )
-                duration = float(probe.stdout.strip()) if probe.returncode == 0 and probe.stdout.strip() else 5.0
+                # Measure duration (fault-tolerant: fallback to estimate if ffprobe unavailable)
+                duration = 5.0
+                try:
+                    probe = subprocess.run(
+                        ["ffprobe", "-i", str(path), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    if probe.returncode == 0 and probe.stdout.strip():
+                        duration = float(probe.stdout.strip())
+                except (FileNotFoundError, subprocess.TimeoutExpired, ValueError) as probe_err:
+                    logger.warning(f"[PIPE {job_id[:8]}] ffprobe unavailable for scene {sn}, using estimated duration: {probe_err}")
+                    duration = max(3.0, len(text.split()) / 2.5)
 
-                result = {"path": str(path), "duration": duration, "scene_number": sn}
+                # Upload voice to R2 for durability
+                voice_url = None
+                try:
+                    from services.cloudflare_r2_storage import get_r2_storage
+                    r2 = get_r2_storage()
+                    if r2.is_configured:
+                        ok, pub_url, _ = await r2.upload_file(str(path), "audio", job_id, fn)
+                        if ok:
+                            voice_url = pub_url
+                except Exception as r2_err:
+                    logger.warning(f"[PIPE {job_id[:8]}] Voice R2 upload failed for scene {sn}: {r2_err}")
+
+                result = {"path": str(path), "url": voice_url, "duration": duration, "scene_number": sn}
 
                 done += 1
                 pct = int(55 + (done / total) * 20)
@@ -499,6 +518,8 @@ async def run_stage_render(job: dict) -> dict:
     final_path = str(videos_dir / output_fn)
 
     try:
+        import aiohttp
+
         segments = []
         for scene in sorted(scenes, key=lambda s: s.get("scene_number", 0)):
             sn = str(scene.get("scene_number", 0))
@@ -509,19 +530,44 @@ async def run_stage_render(job: dict) -> dict:
             audio_path = voice.get("path", "")
             duration = voice.get("duration", 5.0)
 
-            # Try local path first, then download from URL if needed
-            if not os.path.exists(img_path) and img.get("url", "").startswith("http"):
-                import aiohttp
-                async with aiohttp.ClientSession() as sess:
-                    async with sess.get(img.get("url")) as resp:
-                        if resp.status == 200:
-                            dl_path = os.path.join(temp_dir, f"img_{sn}.png")
-                            with open(dl_path, "wb") as f:
-                                f.write(await resp.read())
-                            img_path = dl_path
+            # Download image from URL if local file missing
+            if not os.path.exists(img_path):
+                img_url = img.get("url", "")
+                if img_url.startswith("http"):
+                    try:
+                        async with aiohttp.ClientSession() as sess:
+                            async with sess.get(img_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                                if resp.status == 200:
+                                    dl_path = os.path.join(temp_dir, f"img_{sn}.png")
+                                    with open(dl_path, "wb") as f:
+                                        f.write(await resp.read())
+                                    img_path = dl_path
+                                    logger.info(f"[RENDER] Downloaded image for scene {sn} from R2")
+                                else:
+                                    logger.error(f"[RENDER] Image download failed for scene {sn}: HTTP {resp.status}")
+                    except Exception as dl_err:
+                        logger.error(f"[RENDER] Image download error for scene {sn}: {dl_err}")
+
+            # Download voice from URL if local file missing
+            if not os.path.exists(audio_path):
+                voice_url = voice.get("url", "")
+                if voice_url and voice_url.startswith("http"):
+                    try:
+                        async with aiohttp.ClientSession() as sess:
+                            async with sess.get(voice_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                                if resp.status == 200:
+                                    dl_path = os.path.join(temp_dir, f"voice_{sn}.mp3")
+                                    with open(dl_path, "wb") as f:
+                                        f.write(await resp.read())
+                                    audio_path = dl_path
+                                    logger.info(f"[RENDER] Downloaded voice for scene {sn} from R2")
+                                else:
+                                    logger.error(f"[RENDER] Voice download failed for scene {sn}: HTTP {resp.status}")
+                    except Exception as dl_err:
+                        logger.error(f"[RENDER] Voice download error for scene {sn}: {dl_err}")
 
             if not os.path.exists(img_path) or not os.path.exists(audio_path):
-                logger.warning(f"[RENDER] Missing files for scene {sn}")
+                logger.warning(f"[RENDER] Missing files for scene {sn}: img={os.path.exists(img_path)}({img_path}), audio={os.path.exists(audio_path)}({audio_path})")
                 continue
 
             seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
