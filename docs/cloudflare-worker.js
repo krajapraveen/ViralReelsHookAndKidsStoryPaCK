@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://story-video-fix.preview.emergentagent.com';
+const BACKEND_URL = 'https://video-job-queue-1.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

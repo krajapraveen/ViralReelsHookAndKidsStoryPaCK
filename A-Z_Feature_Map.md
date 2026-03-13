@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Purpose**: Master checklist for Phase 1-7 QA & Performance Testing  
-**Base URL**: https://story-video-fix.preview.emergentagent.com
+**Base URL**: https://video-job-queue-1.preview.emergentagent.com
 
 ---
 

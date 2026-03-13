@@ -2,7 +2,7 @@
   "summary": "Comprehensive testing of Admin Monitoring Dashboard, SmartDownloadButton/Watermark integration, and Live Chat Widget human support escalation. All 14 backend tests passed (100%). All frontend features verified working. No bugs found.",
   
   "test_date": "2026-03-08",
-  "preview_api_url": "https://story-video-fix.preview.emergentagent.com",
+  "preview_api_url": "https://video-job-queue-1.preview.emergentagent.com",
   "testing_type": "Both Backend and Frontend",
   "overall_result": "PASS (100% backend, 100% frontend)",
   
