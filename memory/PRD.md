@@ -1,61 +1,78 @@
-# Visionary Suite — PRD
+# Visionary-Suite PRD
 
 ## Original Problem Statement
-Full-stack SaaS platform for creative content generation. Story → Video was unreliable (blank pages, timeouts, stalled progress). Required complete architectural redesign.
+The "Story To Video" feature was unstable, slow, and unreliable in production. The system was re-architected into a durable, async, stage-based job pipeline. After deployment, production experienced a persistent crash loop (520 errors) requiring multiple fixes.
 
-## P0 Architecture Redesign — Story → Video Pipeline (2026-03-13)
+## Architecture
+- **Frontend**: React (CRA with craco) on port 3000
+- **Backend**: FastAPI on port 8001 
+- **Database**: MongoDB (creatorstudio_production)
+- **Storage**: Cloudflare R2
+- **Payment**: Cashfree
+- **LLM**: OpenAI GPT-4o-mini, GPT Image 1, OpenAI TTS, Sora 2
 
-### Architecture
-```
-User clicks "Generate Video"
-  → POST /api/pipeline/create (<200ms)
-  → pipeline_jobs DB doc created (status=QUEUED)
-  → Job enqueued to asyncio.Queue
-  → One of 3 dedicated workers picks job
-  → Executes stages:
-     SCENES → IMAGES(parallel×3) → VOICES(parallel×4) → RENDER → UPLOAD(R2+verify)
-  → Frontend polls GET /status/{job_id} every 3s
-  → Shows filmstrip thumbnails as scenes complete
-  → Final: video player + download
-```
+## What's Been Implemented
 
-### Performance
-| Stage | Time |
-|-------|------|
-| Job creation | 131ms |
-| Scenes | 7.9s |
-| Images | 49.6s |
-| Voices | 10.9s |
-| Render | 14.7s |
-| Upload | 6.1s |
-| **Total** | **89.3s** |
+### Story → Video Pipeline (Re-architected)
+- Stage-based async pipeline: Scenes → Images → Voices → Render → Upload
+- 1 dedicated pipeline worker (reduced from 3 for stability)
+- DB-persisted checkpoints for every stage
+- Per-stage retries with backoff
+- Resume-on-refresh capability
+- Credit deduction on creation, refund on failure
+- Async ffmpeg rendering (asyncio.create_subprocess_exec)
+- Voice + Image upload to R2 for durability
+- Download fallbacks from R2 in render stage
+- ffprobe fault-tolerance
 
-### Testing Summary (Iterations 148-150)
-- 5 consecutive single-user runs: ALL COMPLETED
-- 3 concurrent users: ALL COMPLETED (211-278s)
-- Resume from checkpoint: VERIFIED (28s recovery)
-- Refresh recovery: VERIFIED (auto-detects active job)
-- Credit integrity: VERIFIED (no duplicates, refunds work)
-- No blank page: VERIFIED (body > 500 chars at all times)
-- Video download: VERIFIED (HTTP 200, video/mp4, R2 CDN)
-- Platform audit: Login, Dashboard, Story Video, Projects — all working
+### Production Crash-Fix (Pending Deployment)
+- Stale PROCESSING/QUEUED jobs marked FAILED + refunded on startup (prevents crash loop)
+- Staggered service startup (10s/15s/20s delays)
+- Worker counts reduced: pipeline 3→1, job_queue 4→1
+- apt-packages.txt for ffmpeg system dependency
+- .gitignore cleaned
 
-### Files
-- NEW: `/app/backend/services/pipeline_engine.py`
-- NEW: `/app/backend/services/pipeline_worker.py`
-- NEW: `/app/backend/routes/pipeline_routes.py`
-- NEW: `/app/frontend/src/pages/StoryVideoPipeline.js`
-- MOD: `/app/backend/server.py`
-- MOD: `/app/frontend/src/App.js`
+## Key Files
+- `/app/backend/services/pipeline_engine.py` - Core pipeline logic
+- `/app/backend/services/pipeline_worker.py` - Worker pool management
+- `/app/backend/routes/pipeline_routes.py` - API endpoints
+- `/app/backend/server.py` - Server startup with staggered initialization
+- `/app/frontend/src/pages/StoryVideoStudioPipeline.js` - Frontend component
 
-### Production Deployment Status
-⚠️ Production API at www.visionary-suite.com returns 502 Bad Gateway.
-Pipeline code verified on preview, needs production deployment.
+## Current Status (2026-03-13)
 
-### Backlog
-- P0: Production deployment + verification
-- P1: WebSocket progress (replace polling)
-- P1: Worker auto-scaling
-- P2: Email notification when video ready
-- P2: 5-10 concurrent user stress test
+### P0: Production 520 Crash Loop
+- **Status**: FIX READY, AWAITING DEPLOYMENT
+- **Root Cause**: On restart, workers re-process stale PROCESSING/QUEUED jobs → ffmpeg memory exhaustion → OOM → crash → restart loop
+- **Fix**: Stale jobs marked FAILED + refunded; workers reduced; staggered startup
+- **Preview**: Verified working (pipeline completes in ~100-106s)
+
+### P1: SendGrid Email Service  
+- **Status**: BLOCKED (awaiting user's SendGrid plan upgrade)
+
+## Preview Test Results (Post-Fix)
+- Pipeline runs: 10+ COMPLETED, 0 FAILED
+- Avg time: ~100 seconds
+- Concurrent (3 jobs): All completed
+- Testing agent: 95% backend, 100% frontend pass rate
+- Video downloads verified on R2
+
+## Pending Production Tests (After Deployment)
+1. 5 consecutive single-user Story→Video runs
+2. 3 concurrent runs
+3. Refresh recovery test
+4. Forced failure + refund test
+5. Full platform audit (all features)
+6. Credit integrity audit
+7. Performance benchmarks
+
+## Backlog
+- P2: WebSocket progress (replace polling)
+- P2: Worker auto-scaling
+- P2: Email notification on completion
+- P3: Delete obsolete old Story→Video code
 - P3: GPU-accelerated rendering
+
+## Test Credentials
+- UAT: test@visionary-suite.com / Test@2026#
+- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
