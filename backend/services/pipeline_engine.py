@@ -505,7 +505,18 @@ async def run_stage_voices(job: dict) -> dict:
 
 
 async def _run_ffmpeg(cmd: list, timeout: int = 90) -> tuple:
-    """Run ffmpeg as async subprocess so asyncio timeouts can cancel it."""
+    """Run ffmpeg as async subprocess so asyncio timeouts can cancel it.
+    Adds -nostdin and -loglevel error automatically for safety."""
+    # Insert -nostdin and -loglevel error after 'ffmpeg' if not present
+    if cmd and cmd[0] == "ffmpeg":
+        extras = []
+        if "-nostdin" not in cmd:
+            extras.append("-nostdin")
+        if "-loglevel" not in cmd:
+            extras.extend(["-loglevel", "error"])
+        if extras:
+            cmd = [cmd[0]] + extras + cmd[1:]
+
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
@@ -540,7 +551,10 @@ async def _download_file(url: str, dest: str, label: str, timeout: int = 30) -> 
 
 async def run_stage_render(job: dict) -> dict:
     """Stage: Assemble video from checkpointed images + voices using async ffmpeg.
-    Uses ultra-low-memory settings optimized for constrained production environments."""
+    Production-safe: sequential rendering, single-threaded, aggressive memory control.
+    Every ffmpeg call is single-threaded with strict memory limits."""
+    import gc
+
     job_id = job["job_id"]
     scenes = job.get("scenes", [])
     scene_images = job.get("scene_images", {})
@@ -552,12 +566,18 @@ async def run_stage_render(job: dict) -> dict:
     videos_dir.mkdir(parents=True, exist_ok=True)
     final_path = str(videos_dir / output_fn)
 
+    render_timing = {}
+    stage_start = time.time()
+
     try:
         segments = []
         sorted_scenes = sorted(scenes, key=lambda s: s.get("scene_number", 0))
         total_scenes = len(sorted_scenes)
 
+        logger.info(f"[RENDER {job_id[:8]}] Starting sequential render of {total_scenes} scenes")
+
         for idx, scene in enumerate(sorted_scenes):
+            scene_start = time.time()
             sn = str(scene.get("scene_number", 0))
             img = scene_images.get(sn, {})
             voice = scene_voices.get(sn, {})
@@ -569,7 +589,7 @@ async def run_stage_render(job: dict) -> dict:
             # Download image from cloud if local missing
             if not os.path.exists(img_path):
                 img_url = img.get("url", "")
-                if img_url.startswith("http"):
+                if img_url and img_url.startswith("http"):
                     dl_path = os.path.join(temp_dir, f"img_{sn}.png")
                     if await _download_file(img_url, dl_path, f"image scene {sn}"):
                         img_path = dl_path
@@ -583,57 +603,64 @@ async def run_stage_render(job: dict) -> dict:
                         audio_path = dl_path
 
             if not os.path.exists(img_path) or not os.path.exists(audio_path):
-                logger.warning(f"[RENDER] Missing files for scene {sn}: img={os.path.exists(img_path)}, audio={os.path.exists(audio_path)}")
+                logger.warning(f"[RENDER {job_id[:8]}] Missing files for scene {sn}: img={os.path.exists(img_path)}, audio={os.path.exists(audio_path)}")
                 continue
 
-            # First, resize image to small size using ffmpeg to reduce memory
+            # Step 1: Resize image to small 640x360 JPEG (reduces ffmpeg decode memory)
             small_img = os.path.join(temp_dir, f"small_{sn}.jpg")
             rc, _, _ = await _run_ffmpeg([
-                "ffmpeg", "-y", "-i", img_path,
+                "ffmpeg", "-y", "-threads", "1",
+                "-i", img_path,
                 "-vf", "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2",
                 "-q:v", "5", small_img
             ], timeout=30)
             if rc == 0 and os.path.exists(small_img):
-                # Delete the large image immediately to free memory
+                # Delete the original downloaded image immediately
                 if img_path.startswith(temp_dir):
-                    try: os.remove(img_path)
-                    except: pass
+                    try:
+                        os.remove(img_path)
+                    except OSError:
+                        pass
                 img_path = small_img
 
+            # Step 2: Encode scene video — single-threaded, ultra-low memory
             seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
-
-            # Ultra-low-memory encoding: 360p, 10fps, single thread
             cmd = [
                 "ffmpeg", "-y",
                 "-threads", "1",
                 "-loop", "1", "-i", img_path,
                 "-i", audio_path,
-                "-filter_complex",
-                f"[0:v]fps=10[v]",
+                "-filter_complex", "[0:v]fps=10[v]",
                 "-map", "[v]", "-map", "1:a",
                 "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
-                "-crf", "35", "-maxrate", "500k", "-bufsize", "500k",
+                "-crf", "35", "-maxrate", "400k", "-bufsize", "400k",
                 "-c:a", "aac", "-b:a", "64k",
                 "-t", str(duration + 0.3),
                 "-shortest", "-pix_fmt", "yuv420p",
                 seg_path,
             ]
 
-            logger.info(f"[RENDER] Encoding scene {sn} ({idx+1}/{total_scenes})...")
+            logger.info(f"[RENDER {job_id[:8]}] Encoding scene {sn} ({idx+1}/{total_scenes})...")
             try:
                 rc, _, stderr = await _run_ffmpeg(cmd, timeout=180)
                 if rc == 0 and os.path.exists(seg_path):
                     segments.append(seg_path)
-                    logger.info(f"[RENDER] Scene {sn} encoded OK")
-                    # Clean up source files immediately
-                    for f in [img_path, audio_path]:
-                        if f.startswith(temp_dir):
-                            try: os.remove(f)
-                            except: pass
+                    scene_ms = int((time.time() - scene_start) * 1000)
+                    render_timing[f"scene_{sn}_ms"] = scene_ms
+                    logger.info(f"[RENDER {job_id[:8]}] Scene {sn} OK ({scene_ms}ms)")
                 else:
-                    logger.error(f"[RENDER] Scene {sn} encode failed (rc={rc}): {stderr[:200]}")
+                    logger.error(f"[RENDER {job_id[:8]}] Scene {sn} failed (rc={rc}): {stderr[:200]}")
             except RuntimeError as e:
-                logger.error(f"[RENDER] Scene {sn}: {e}")
+                logger.error(f"[RENDER {job_id[:8]}] Scene {sn}: {e}")
+
+            # Step 3: Aggressive cleanup after each scene
+            for f in [img_path, audio_path]:
+                if f.startswith(temp_dir):
+                    try:
+                        os.remove(f)
+                    except OSError:
+                        pass
+            gc.collect()
 
             # Update progress per scene
             pct = int(75 + ((idx + 1) / total_scenes) * 15)
@@ -642,6 +669,8 @@ async def run_stage_render(job: dict) -> dict:
         if not segments:
             raise RuntimeError("No video segments created")
 
+        # Step 4: Concatenate all segments — also single-threaded with memory limits
+        concat_start = time.time()
         concat_file = os.path.join(temp_dir, "concat.txt")
         with open(concat_file, "w") as f:
             for seg in segments:
@@ -650,26 +679,46 @@ async def run_stage_render(job: dict) -> dict:
         watermark = job.get("include_watermark", True)
         if watermark:
             cmd = [
-                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_file,
+                "ffmpeg", "-y", "-threads", "1",
+                "-f", "concat", "-safe", "0", "-i", concat_file,
                 "-vf", "drawtext=text='visionary-suite.com':fontcolor=white@0.4:fontsize=16:x=w-tw-10:y=h-th-10",
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-                "-c:a", "copy", final_path,
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35",
+                "-maxrate", "400k", "-bufsize", "400k",
+                "-c:a", "copy", "-pix_fmt", "yuv420p",
+                final_path,
             ]
         else:
-            cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_file, "-c", "copy", final_path]
+            cmd = [
+                "ffmpeg", "-y", "-threads", "1",
+                "-f", "concat", "-safe", "0", "-i", concat_file,
+                "-c", "copy",
+                final_path,
+            ]
 
-        logger.info(f"[RENDER] Concatenating {len(segments)} segments...")
+        logger.info(f"[RENDER {job_id[:8]}] Concatenating {len(segments)} segments...")
         rc, _, stderr = await _run_ffmpeg(cmd, timeout=180)
         if rc != 0:
             raise RuntimeError(f"Video concat failed: {stderr[:300]}")
 
+        concat_ms = int((time.time() - concat_start) * 1000)
+        render_timing["concat_ms"] = concat_ms
+        render_timing["total_render_ms"] = int((time.time() - stage_start) * 1000)
+
         file_size = os.path.getsize(final_path) / (1024 * 1024)
         await update_job(job_id, {"render_path": final_path})
 
-        return {"path": final_path, "file_size_mb": round(file_size, 1), "segments": len(segments)}
+        logger.info(f"[RENDER {job_id[:8]}] Complete: {len(segments)} scenes, {file_size:.1f}MB, {render_timing['total_render_ms']}ms total")
+
+        return {
+            "path": final_path,
+            "file_size_mb": round(file_size, 1),
+            "segments": len(segments),
+            "timing": render_timing,
+        }
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        gc.collect()
 
 
 async def run_stage_upload(job: dict) -> dict:
