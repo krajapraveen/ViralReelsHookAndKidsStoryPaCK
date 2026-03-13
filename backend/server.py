@@ -504,6 +504,10 @@ api_router.include_router(story_video_preview_router)
 from routes.story_video_templates import router as story_video_templates_router
 api_router.include_router(story_video_templates_router)
 
+# Pipeline Routes (new durable pipeline)
+from routes.pipeline_routes import router as pipeline_router
+api_router.include_router(pipeline_router)
+
 # Blog Content for SEO
 from routes.blog_content import router as blog_router
 api_router.include_router(blog_router)
@@ -733,6 +737,11 @@ async def startup():
         await db.story_generator_jobs.create_index([("created_at", -1)])
         await db.story_generator_jobs.create_index([("user_id", 1), ("created_at", -1)])
         
+        # Pipeline jobs indexes
+        await db.pipeline_jobs.create_index("job_id", unique=True)
+        await db.pipeline_jobs.create_index([("user_id", 1), ("created_at", -1)])
+        await db.pipeline_jobs.create_index("status")
+        
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
@@ -811,6 +820,14 @@ async def startup():
     
     # Start job worker
     asyncio.create_task(job_worker_loop())
+    
+    # Start dedicated pipeline workers for Story → Video
+    try:
+        from services.pipeline_worker import start_workers as start_pipeline_workers
+        await start_pipeline_workers()
+        logger.info("Pipeline workers started")
+    except Exception as e:
+        logger.warning(f"Pipeline worker startup warning: {e}")
     
     # Initialize self-healing system
     try:
