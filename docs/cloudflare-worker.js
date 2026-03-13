@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://render-stability.preview.emergentagent.com';
+const BACKEND_URL = 'https://remix-monetize-1.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

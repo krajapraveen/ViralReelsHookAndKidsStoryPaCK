@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://render-stability.preview.emergentagent.com
+**Website:** https://remix-monetize-1.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

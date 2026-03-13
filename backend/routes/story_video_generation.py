@@ -1946,7 +1946,7 @@ async def download_file(url: str, output_path: str):
         # Also try preview URL pattern
         preview_urls = [
             backend_url,
-            "https://render-stability.preview.emergentagent.com",  # Preview environment
+            "https://remix-monetize-1.preview.emergentagent.com",  # Preview environment
         ]
         
         for base_url in preview_urls:

@@ -213,23 +213,23 @@ SAFE_STYLES = {
 # ============================================
 PRICING = {
     "comic_avatar": {
-        "base": 15,
+        "base": 3,
         "add_ons": {
-            "transparent_bg": 3,
-            "multiple_poses": 5,
-            "hd_export": 5,
+            "transparent_bg": 1,
+            "multiple_poses": 2,
+            "hd_export": 2,
         }
     },
     "comic_strip": {
         "panels": {
-            3: 25,
-            4: 32,
-            6: 45,
+            3: 5,
+            4: 6,
+            6: 8,
         },
         "add_ons": {
-            "auto_dialogue": 5,
-            "custom_speech": 3,
-            "hd_export": 8,
+            "auto_dialogue": 1,
+            "custom_speech": 1,
+            "hd_export": 2,
         }
     },
     "download": {

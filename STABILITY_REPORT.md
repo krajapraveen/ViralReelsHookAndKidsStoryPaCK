@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://render-stability.preview.emergentagent.com
+API URL: https://remix-monetize-1.preview.emergentagent.com
 ```
 
 ### Results Summary

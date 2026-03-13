@@ -119,8 +119,8 @@ PANEL_LAYOUTS = {
 
 # Credit costs
 STORYBOOK_CREDITS = {
-    "generate": 10,  # Base cost to generate (per page)
-    "download": 20   # Cost to download PDF
+    "generate": 3,   # Base cost per page
+    "download": 5    # Cost to download PDF
 }
 
 # Credit costs based on page count (for generation view)

@@ -2,7 +2,7 @@
   "summary": "Admin User Reset Verification feature fully tested. Backend: All 12 API tests passed (reset-verification, users/list, users/{id}). Frontend: All UI components working - Verified column displays correctly with 'Verified', 'Pending', 'Legacy' statuses; Reset Verify buttons appear for appropriate users; Reset Verification modal opens and contains all expected elements.",
   
   "test_date": "2026-03-03",
-  "preview_url": "https://render-stability.preview.emergentagent.com",
+  "preview_url": "https://remix-monetize-1.preview.emergentagent.com",
   "testing_type": "both - Backend API + Frontend UI",
   "overall_result": "PASS",
   

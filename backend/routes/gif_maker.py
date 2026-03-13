@@ -157,10 +157,10 @@ BACKGROUNDS = {
 
 # Credit costs - Updated pricing
 GIF_CREDITS = {
-    "generate": 10,  # Cost to view/generate
-    "download": 15,  # Cost to download
-    "batch_multiplier": 0.8,  # 20% discount for batch
-    "batch_10": 15
+    "generate": 2,   # Cost to generate
+    "download": 3,   # Cost to download
+    "batch_multiplier": 0.8,
+    "batch_10": 4
 }
 
 # Blocked content for safety

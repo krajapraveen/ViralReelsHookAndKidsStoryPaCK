@@ -30,8 +30,8 @@ from services.watermark_service import add_diagonal_watermark, should_apply_wate
 router = APIRouter(prefix="/generate", tags=["Generation"])
 
 # Credit costs
-REEL_COST = 10
-STORY_COST = 10
+REEL_COST = 1
+STORY_COST = 1
 
 
 async def generate_reel_content_inline(data: dict) -> dict:

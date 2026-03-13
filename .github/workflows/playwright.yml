@@ -18,7 +18,7 @@ on:
           - production
 
 env:
-  PREVIEW_URL: https://render-stability.preview.emergentagent.com
+  PREVIEW_URL: https://remix-monetize-1.preview.emergentagent.com
   PRODUCTION_URL: https://visionary-suite.com
 
 jobs:

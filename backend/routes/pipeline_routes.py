@@ -4,6 +4,7 @@ Story → Video durable pipeline endpoints.
 """
 
 import logging
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from shared import db, get_current_user
@@ -17,6 +18,10 @@ logger = logging.getLogger("pipeline_routes")
 
 router = APIRouter(prefix="/pipeline", tags=["Story Video Pipeline"])
 
+# Rate limits
+MAX_VIDEOS_PER_HOUR = 5
+MAX_CONCURRENT_JOBS = 1
+
 
 class CreatePipelineRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=100)
@@ -25,17 +30,64 @@ class CreatePipelineRequest(BaseModel):
     age_group: str = Field(default="kids_5_8")
     voice_preset: str = Field(default="narrator_warm")
     include_watermark: bool = Field(default=True)
+    parent_video_id: str = Field(default=None, description="ID of remixed video")
+
+
+async def _track_event(event: str, user_id: str = None, data: dict = None):
+    """Track an analytics event for funnel analysis."""
+    await db.analytics_events.insert_one({
+        "event": event,
+        "user_id": user_id,
+        "data": data or {},
+        "timestamp": datetime.now(timezone.utc),
+    })
+
+
+async def _check_rate_limit(user_id: str):
+    """Enforce rate limits: MAX_VIDEOS_PER_HOUR and MAX_CONCURRENT_JOBS."""
+    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+    recent_count = await db.pipeline_jobs.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": one_hour_ago},
+    })
+    if recent_count >= MAX_VIDEOS_PER_HOUR:
+        raise HTTPException(status_code=429, detail=f"Rate limit: max {MAX_VIDEOS_PER_HOUR} videos per hour. Please wait.")
+
+    concurrent = await db.pipeline_jobs.count_documents({
+        "user_id": user_id,
+        "status": {"$in": ["QUEUED", "PROCESSING"]},
+    })
+    if concurrent >= MAX_CONCURRENT_JOBS:
+        raise HTTPException(status_code=429, detail="You already have a video generating. Please wait for it to finish.")
 
 
 
 @router.get("/gallery")
-async def public_gallery():
-    """Public endpoint: return completed videos for the landing page gallery."""
+async def public_gallery(category: str = None):
+    """Public endpoint: return completed videos for the gallery."""
+    query = {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}}
+    if category:
+        query["animation_style"] = category
     jobs = await db.pipeline_jobs.find(
-        {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
-        {"title": 1, "output_url": 1, "animation_style": 1, "timing": 1, "completed_at": 1, "_id": 0}
-    ).sort("completed_at", -1).to_list(length=12)
+        query,
+        {"title": 1, "output_url": 1, "animation_style": 1, "timing": 1,
+         "completed_at": 1, "job_id": 1, "story_text": 1, "remix_count": 1,
+         "age_group": 1, "voice_preset": 1, "_id": 0}
+    ).sort("completed_at", -1).to_list(length=24)
     return {"videos": jobs}
+
+
+@router.get("/gallery/{job_id}")
+async def get_gallery_video(job_id: str):
+    """Public endpoint: get a single video for remix."""
+    job = await db.pipeline_jobs.find_one(
+        {"job_id": job_id, "status": "COMPLETED"},
+        {"title": 1, "story_text": 1, "animation_style": 1, "age_group": 1,
+         "voice_preset": 1, "output_url": 1, "job_id": 1, "remix_count": 1, "_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return {"video": job}
 
 
 @router.get("/options")
@@ -69,6 +121,9 @@ async def create_pipeline(
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+    # Enforce rate limits
+    await _check_rate_limit(user_id)
+
     try:
         result = await create_pipeline_job(
             user_id=user_id,
@@ -81,6 +136,25 @@ async def create_pipeline(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Store remix link if present
+    if request.parent_video_id:
+        await db.pipeline_jobs.update_one(
+            {"job_id": result["job_id"]},
+            {"$set": {"parent_video_id": request.parent_video_id}}
+        )
+        await db.pipeline_jobs.update_one(
+            {"job_id": request.parent_video_id},
+            {"$inc": {"remix_count": 1}}
+        )
+
+    # Track analytics
+    await _track_event("video_generation_started", user_id, {
+        "job_id": result["job_id"],
+        "credits": result["credits_charged"],
+        "style": request.animation_style,
+        "is_remix": bool(request.parent_video_id),
+    })
 
     # Enqueue for worker processing
     await enqueue_job(result["job_id"])

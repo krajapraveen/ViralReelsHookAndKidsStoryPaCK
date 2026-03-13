@@ -47,9 +47,9 @@ STAGE_CONFIG = {
 }
 
 CREDIT_COSTS = {
-    "small": 50,   # <=3 scenes
-    "medium": 80,  # 4-6 scenes
-    "large": 120,  # 7+ scenes
+    "small": 10,   # <=3 scenes
+    "medium": 15,  # 4-6 scenes
+    "large": 20,   # 7+ scenes
 }
 
 MAX_PARALLEL_IMAGES = 3
