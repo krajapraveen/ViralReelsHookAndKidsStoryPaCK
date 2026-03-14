@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
+import CreationActionsBar from '../components/CreationActionsBar';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -681,6 +682,16 @@ export default function BedtimeStoryBuilder() {
             </p>
           </div>
         </div>
+
+        {/* Remix & Variations Engine */}
+        {story && step === 5 && (
+          <CreationActionsBar
+            toolType="bedtime-story-builder"
+            originalPrompt={`${theme || ''} bedtime story`}
+            originalSettings={{ ageGroup, theme, moral }}
+            remixSourceTitle={story?.title || 'Bedtime Story'}
+          />
+        )}
       </div>
       
       <HelpGuide pageId="bedtime-story-builder" />

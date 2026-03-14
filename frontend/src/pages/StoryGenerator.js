@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -16,6 +16,7 @@ import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import analytics from '../utils/analytics';
+import CreationActionsBar from '../components/CreationActionsBar';
 
 export default function StoryGenerator() {
   const [credits, setCredits] = useState(0);
@@ -39,6 +40,7 @@ export default function StoryGenerator() {
   const [fillBlankResults, setFillBlankResults] = useState({});
   const [showAnswers, setShowAnswers] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
     ageGroup: '',
@@ -92,6 +94,9 @@ export default function StoryGenerator() {
 
   useEffect(() => {
     fetchCredits();
+    if (location.state?.prompt) {
+      setFormData(prev => ({ ...prev, theme: location.state.prompt }));
+    }
   }, []);
 
   useEffect(() => {
@@ -1014,6 +1019,15 @@ export default function StoryGenerator() {
                 )}
               </div>
               
+              {/* Remix & Variations Engine */}
+              <CreationActionsBar
+                toolType="stories"
+                originalPrompt={formData.theme || result?.title || ''}
+                originalSettings={{ genre: formData.genre, ageGroup: formData.ageGroup, style: formData.style }}
+                parentGenerationId={generationId}
+                remixSourceTitle={result?.title}
+              />
+
             </div>}
           </div>
         </div>

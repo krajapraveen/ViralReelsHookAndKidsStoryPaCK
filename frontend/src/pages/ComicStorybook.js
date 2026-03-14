@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Upload, Wand2, BookOpen, FileText, Loader2, Download, Eye, Trash2, Sparkles, Settings, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -16,6 +16,7 @@ import VariationSelector from '../components/VariationSelector';
 import PremiumLock from '../components/PremiumLock';
 import WaitingWithGames from '../components/WaitingWithGames';
 import { useNotifications } from '../contexts/NotificationContext';
+import CreationActionsBar from '../components/CreationActionsBar';
 
 export default function ComicStorybook() {
   const [credits, setCredits] = useState(0);
@@ -29,6 +30,7 @@ export default function ComicStorybook() {
   const [selectedVariation, setSelectedVariation] = useState('single');
   const [userPlan, setUserPlan] = useState('free');
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Notifications
   const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
@@ -59,6 +61,9 @@ export default function ComicStorybook() {
     fetchCredits();
     fetchStyles();
     fetchHistory();
+    if (location.state?.prompt) {
+      setStoryText(location.state.prompt);
+    }
     return () => {
       if (pollingInterval) clearInterval(pollingInterval);
     };
@@ -617,6 +622,17 @@ export default function ComicStorybook() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Remix & Variations Engine */}
+            {currentJob?.status === 'COMPLETED' && (
+              <CreationActionsBar
+                toolType="comic-storybook"
+                originalPrompt={storyText || 'Comic storybook'}
+                originalSettings={{ style: selectedStyle, pageCount }}
+                parentGenerationId={currentJob?.id}
+                remixSourceTitle={`Comic Storybook (${pageCount} pages)`}
+              />
             )}
 
             {/* Empty State */}

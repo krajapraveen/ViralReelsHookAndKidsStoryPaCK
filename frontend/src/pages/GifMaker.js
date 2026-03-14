@@ -15,6 +15,7 @@ import PremiumLock, { PremiumBanner } from '../components/PremiumLock';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import analytics from '../utils/analytics';
+import CreationActionsBar from '../components/CreationActionsBar';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(0);
@@ -726,6 +727,17 @@ export default function GifMaker() {
                         <Share2 className="w-4 h-4 mr-2" /> <span className="text-white">Share</span>
                       </Button>
                     </div>
+                  )}
+
+                  {/* Remix & Variations Engine */}
+                  {currentJob?.status === 'COMPLETED' && (
+                    <CreationActionsBar
+                      toolType="gif-maker"
+                      originalPrompt={`${selectedEmotion} ${selectedStyle} reaction GIF`}
+                      originalSettings={{ emotion: selectedEmotion, style: selectedStyle }}
+                      parentGenerationId={currentJob?.id}
+                      remixSourceTitle={`${selectedEmotion} GIF`}
+                    />
                   )}
                 </div>
               ) : (

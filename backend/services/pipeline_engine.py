@@ -351,13 +351,15 @@ async def run_stage_images(job: dict) -> dict:
                 # Upload to R2
                 url = f"/static/generated/{filename}"
                 storage = "local"
+                r2_key = None
                 try:
                     from services.cloudflare_r2_storage import get_r2_storage
                     r2 = get_r2_storage()
                     if r2.is_configured:
-                        ok, pub_url, _ = await r2.upload_file(str(path), "image", job_id, filename)
+                        ok, pub_url, key = await r2.upload_file(str(path), "image", job_id, filename)
                         if ok:
                             url = pub_url
+                            r2_key = key
                             storage = "r2"
                             try:
                                 os.remove(str(path))
@@ -366,7 +368,7 @@ async def run_stage_images(job: dict) -> dict:
                 except Exception:
                     pass
 
-                result = {"url": url, "path": str(path), "storage": storage, "scene_number": sn}
+                result = {"url": url, "path": str(path), "storage": storage, "scene_number": sn, "r2_key": r2_key}
 
                 # Checkpoint: save this scene immediately
                 done += 1
@@ -469,17 +471,19 @@ async def run_stage_voices(job: dict) -> dict:
 
                 # Upload voice to R2 for durability
                 voice_url = None
+                voice_r2_key = None
                 try:
                     from services.cloudflare_r2_storage import get_r2_storage
                     r2 = get_r2_storage()
                     if r2.is_configured:
-                        ok, pub_url, _ = await r2.upload_file(str(path), "audio", job_id, fn)
+                        ok, pub_url, key = await r2.upload_file(str(path), "audio", job_id, fn)
                         if ok:
                             voice_url = pub_url
+                            voice_r2_key = key
                 except Exception as r2_err:
                     logger.warning(f"[PIPE {job_id[:8]}] Voice R2 upload failed for scene {sn}: {r2_err}")
 
-                result = {"path": str(path), "url": voice_url, "duration": duration, "scene_number": sn}
+                result = {"path": str(path), "url": voice_url, "duration": duration, "scene_number": sn, "r2_key": voice_r2_key}
 
                 done += 1
                 pct = int(55 + (done / total) * 20)
@@ -532,36 +536,77 @@ async def _run_ffmpeg(cmd: list, timeout: int = 90) -> tuple:
 
 
 async def _download_file(url: str, dest: str, label: str, timeout: int = 30) -> bool:
-    """Download a file from URL to dest path. Handles presigned URL conversion for R2."""
+    """Download a file from URL to dest path. Handles presigned URL conversion for R2.
+    Retries once on failure with a fresh presigned URL."""
     import aiohttp
 
-    # If it's an R2 public URL that will 403, generate a presigned URL
-    if ".r2.dev/" in url:
+    async def _try_download(download_url: str) -> bool:
         try:
-            from utils.r2_presign import presign_url
-            url = presign_url(url, expiry=600)
-        except Exception:
-            pass
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(download_url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        if len(data) < 100:
+                            logger.warning(f"[RENDER] Downloaded {label} but file too small ({len(data)} bytes)")
+                            return False
+                        with open(dest, "wb") as f:
+                            f.write(data)
+                        logger.info(f"[RENDER] Downloaded {label} ({len(data)} bytes)")
+                        return True
+                    else:
+                        logger.error(f"[RENDER] Download {label} failed: HTTP {resp.status}")
+        except asyncio.TimeoutError:
+            logger.error(f"[RENDER] Download {label} timed out after {timeout}s")
+        except Exception as e:
+            logger.error(f"[RENDER] Download {label} error: {e}")
+        return False
 
+    # Attempt 1: Try direct URL first (may be presigned already)
+    if not url.startswith("http"):
+        return False
+
+    # Always presign R2 URLs for reliability
+    presigned_url = url
     try:
-        async with aiohttp.ClientSession() as sess:
-            async with sess.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-                if resp.status == 200:
-                    with open(dest, "wb") as f:
-                        f.write(await resp.read())
-                    logger.info(f"[RENDER] Downloaded {label} from cloud")
-                    return True
-                else:
-                    logger.error(f"[RENDER] Download {label} failed: HTTP {resp.status}")
+        from utils.r2_presign import presign_url
+        if ".r2.dev/" in url or "r2.cloudflarestorage.com" in url:
+            presigned_url = presign_url(url, expiry=600)
     except Exception as e:
-        logger.error(f"[RENDER] Download {label} error: {e}")
+        logger.warning(f"[RENDER] Presign failed for {label}: {e}")
+
+    if await _try_download(presigned_url):
+        return True
+
+    # Attempt 2: If first attempt failed, try with fresh presigned URL
+    if presigned_url != url:
+        logger.info(f"[RENDER] Retrying {label} with original URL")
+        if await _try_download(url):
+            return True
+
+    # Attempt 3: Try extracting the R2 key and generating presigned URL from scratch
+    try:
+        from utils.r2_presign import presign_url
+        # Extract key from URL patterns like https://xxx.r2.dev/type/jobid/filename
+        import re
+        key_match = re.search(r'r2\.dev/(.+?)(?:\?|$)', url)
+        if not key_match:
+            key_match = re.search(r'r2\.cloudflarestorage\.com/[^/]+/(.+?)(?:\?|$)', url)
+        if key_match:
+            key = key_match.group(1)
+            fresh_url = presign_url(f"placeholder/{key}", expiry=600)
+            if await _try_download(fresh_url):
+                return True
+    except Exception:
+        pass
+
+    logger.error(f"[RENDER] All download attempts failed for {label}")
     return False
 
 
 async def run_stage_render(job: dict) -> dict:
     """Stage: Assemble video from checkpointed images + voices using async ffmpeg.
     Production-safe: sequential rendering, single-threaded, aggressive memory control.
-    Every ffmpeg call is single-threaded with strict memory limits."""
+    Reports progress per sub-step so users never see a frozen progress bar."""
     import gc
 
     job_id = job["job_id"]
@@ -577,13 +622,18 @@ async def run_stage_render(job: dict) -> dict:
 
     render_timing = {}
     stage_start = time.time()
+    failed_scenes = []
 
     try:
         segments = []
         sorted_scenes = sorted(scenes, key=lambda s: s.get("scene_number", 0))
         total_scenes = len(sorted_scenes)
 
-        logger.info(f"[RENDER {job_id[:8]}] Starting sequential render of {total_scenes} scenes")
+        if total_scenes == 0:
+            raise RuntimeError("No scenes found in job")
+
+        logger.info(f"[RENDER {job_id[:8]}] Starting render of {total_scenes} scenes")
+        await update_job(job_id, {"current_step": f"Preparing {total_scenes} scenes for render..."})
 
         for idx, scene in enumerate(sorted_scenes):
             scene_start = time.time()
@@ -595,27 +645,68 @@ async def run_stage_render(job: dict) -> dict:
             audio_path = voice.get("path", "")
             duration = voice.get("duration", 5.0)
 
+            # Update progress: downloading assets for this scene
+            dl_pct = int(75 + ((idx) / total_scenes) * 5)
+            await update_job(job_id, {
+                "progress": dl_pct,
+                "current_step": f"Downloading assets for scene {idx+1}/{total_scenes}..."
+            })
+
             # Download image from cloud if local missing
             if not os.path.exists(img_path):
                 img_url = img.get("url", "")
-                if img_url and img_url.startswith("http"):
-                    dl_path = os.path.join(temp_dir, f"img_{sn}.png")
-                    if await _download_file(img_url, dl_path, f"image scene {sn}"):
-                        img_path = dl_path
+                img_r2_key = img.get("r2_key", "")
+                dl_path = os.path.join(temp_dir, f"img_{sn}.png")
+
+                # Try URL first
+                if img_url and await _download_file(img_url, dl_path, f"image scene {sn}"):
+                    img_path = dl_path
+                elif img_r2_key:
+                    # Fallback: generate fresh presigned URL from stored key
+                    try:
+                        from utils.r2_presign import presign_key
+                        fresh_url = presign_key(img_r2_key, expiry=600)
+                        if fresh_url and await _download_file(fresh_url, dl_path, f"image scene {sn} (key)"):
+                            img_path = dl_path
+                    except Exception:
+                        pass
+
+                if not os.path.exists(dl_path):
+                    logger.error(f"[RENDER {job_id[:8]}] FAILED to download image for scene {sn}")
 
             # Download voice from cloud if local missing
             if not os.path.exists(audio_path):
                 voice_url = voice.get("url", "")
-                if voice_url and voice_url.startswith("http"):
-                    dl_path = os.path.join(temp_dir, f"voice_{sn}.mp3")
-                    if await _download_file(voice_url, dl_path, f"voice scene {sn}"):
-                        audio_path = dl_path
+                voice_r2_key = voice.get("r2_key", "")
+                dl_path = os.path.join(temp_dir, f"voice_{sn}.mp3")
+
+                if voice_url and await _download_file(voice_url, dl_path, f"voice scene {sn}"):
+                    audio_path = dl_path
+                elif voice_r2_key:
+                    try:
+                        from utils.r2_presign import presign_key
+                        fresh_url = presign_key(voice_r2_key, expiry=600)
+                        if fresh_url and await _download_file(fresh_url, dl_path, f"voice scene {sn} (key)"):
+                            audio_path = dl_path
+                    except Exception:
+                        pass
+
+                if not os.path.exists(dl_path):
+                    logger.error(f"[RENDER {job_id[:8]}] FAILED to download voice for scene {sn}")
 
             if not os.path.exists(img_path) or not os.path.exists(audio_path):
                 logger.warning(f"[RENDER {job_id[:8]}] Missing files for scene {sn}: img={os.path.exists(img_path)}, audio={os.path.exists(audio_path)}")
+                failed_scenes.append(sn)
                 continue
 
-            # Step 1: Resize image to 1280x720 (balance of quality and speed)
+            # Update progress: encoding this scene
+            enc_pct = int(75 + 5 + ((idx) / total_scenes) * 10)
+            await update_job(job_id, {
+                "progress": enc_pct,
+                "current_step": f"Encoding scene {idx+1}/{total_scenes}..."
+            })
+
+            # Step 1: Resize image to 1280x720
             small_img = os.path.join(temp_dir, f"small_{sn}.jpg")
             rc, _, _ = await _run_ffmpeg([
                 "ffmpeg", "-y", "-threads", "1",
@@ -624,7 +715,6 @@ async def run_stage_render(job: dict) -> dict:
                 "-q:v", "3", small_img
             ], timeout=30)
             if rc == 0 and os.path.exists(small_img):
-                # Delete the original downloaded image immediately
                 if img_path.startswith(temp_dir):
                     try:
                         os.remove(img_path)
@@ -632,7 +722,7 @@ async def run_stage_render(job: dict) -> dict:
                         pass
                 img_path = small_img
 
-            # Step 2: Encode scene video — balanced quality and speed
+            # Step 2: Encode scene video
             seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
             cmd = [
                 "ffmpeg", "-y",
@@ -641,7 +731,7 @@ async def run_stage_render(job: dict) -> dict:
                 "-i", audio_path,
                 "-filter_complex", "[0:v]fps=24[v]",
                 "-map", "[v]", "-map", "1:a",
-                "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
                 "-crf", "28", "-maxrate", "1M", "-bufsize", "1M",
                 "-c:a", "aac", "-b:a", "96k",
                 "-t", str(duration + 0.3),
@@ -651,20 +741,22 @@ async def run_stage_render(job: dict) -> dict:
 
             logger.info(f"[RENDER {job_id[:8]}] Encoding scene {sn} ({idx+1}/{total_scenes})...")
             try:
-                rc, _, stderr = await _run_ffmpeg(cmd, timeout=180)
+                rc, _, stderr = await _run_ffmpeg(cmd, timeout=120)
                 if rc == 0 and os.path.exists(seg_path):
                     segments.append(seg_path)
                     scene_ms = int((time.time() - scene_start) * 1000)
                     render_timing[f"scene_{sn}_ms"] = scene_ms
                     logger.info(f"[RENDER {job_id[:8]}] Scene {sn} OK ({scene_ms}ms)")
                 else:
-                    logger.error(f"[RENDER {job_id[:8]}] Scene {sn} failed (rc={rc}): {stderr[:200]}")
+                    logger.error(f"[RENDER {job_id[:8]}] Scene {sn} encoding failed (rc={rc}): {stderr[:200]}")
+                    failed_scenes.append(sn)
             except RuntimeError as e:
-                logger.error(f"[RENDER {job_id[:8]}] Scene {sn}: {e}")
+                logger.error(f"[RENDER {job_id[:8]}] Scene {sn} timeout: {e}")
+                failed_scenes.append(sn)
 
-            # Step 3: Aggressive cleanup after each scene
+            # Cleanup after each scene
             for f in [img_path, audio_path]:
-                if f.startswith(temp_dir):
+                if f.startswith(temp_dir) and os.path.exists(f):
                     try:
                         os.remove(f)
                     except OSError:
@@ -672,13 +764,19 @@ async def run_stage_render(job: dict) -> dict:
             gc.collect()
 
             # Update progress per scene
-            pct = int(75 + ((idx + 1) / total_scenes) * 15)
-            await update_job(job_id, {"progress": pct, "current_step": f"Rendered scene {idx+1}/{total_scenes}..."})
+            pct = int(80 + ((idx + 1) / total_scenes) * 10)
+            await update_job(job_id, {"progress": pct, "current_step": f"Rendered scene {idx+1}/{total_scenes}"})
 
         if not segments:
-            raise RuntimeError("No video segments created")
+            error_detail = f"No video segments created. {len(failed_scenes)} scenes failed: {', '.join(failed_scenes[:5])}"
+            raise RuntimeError(error_detail)
 
-        # Step 4: Concatenate all segments — also single-threaded with memory limits
+        # Log if some scenes failed but we have enough to continue
+        if failed_scenes:
+            logger.warning(f"[RENDER {job_id[:8]}] {len(failed_scenes)} scenes failed, continuing with {len(segments)} segments")
+
+        # Step 3: Concatenate all segments
+        await update_job(job_id, {"progress": 88, "current_step": "Concatenating scenes..."})
         concat_start = time.time()
         concat_file = os.path.join(temp_dir, "concat.txt")
         with open(concat_file, "w") as f:
@@ -691,7 +789,7 @@ async def run_stage_render(job: dict) -> dict:
                 "ffmpeg", "-y", "-threads", "2",
                 "-f", "concat", "-safe", "0", "-i", concat_file,
                 "-vf", "drawtext=text='visionary-suite.com':fontcolor=white@0.4:fontsize=16:x=w-tw-10:y=h-th-10",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
                 "-maxrate", "1M", "-bufsize", "1M",
                 "-c:a", "copy", "-pix_fmt", "yuv420p",
                 final_path,
@@ -705,7 +803,7 @@ async def run_stage_render(job: dict) -> dict:
             ]
 
         logger.info(f"[RENDER {job_id[:8]}] Concatenating {len(segments)} segments...")
-        rc, _, stderr = await _run_ffmpeg(cmd, timeout=180)
+        rc, _, stderr = await _run_ffmpeg(cmd, timeout=120)
         if rc != 0:
             raise RuntimeError(f"Video concat failed: {stderr[:300]}")
 
@@ -714,7 +812,7 @@ async def run_stage_render(job: dict) -> dict:
         render_timing["total_render_ms"] = int((time.time() - stage_start) * 1000)
 
         file_size = os.path.getsize(final_path) / (1024 * 1024)
-        await update_job(job_id, {"render_path": final_path})
+        await update_job(job_id, {"render_path": final_path, "progress": 90})
 
         logger.info(f"[RENDER {job_id[:8]}] Complete: {len(segments)} scenes, {file_size:.1f}MB, {render_timing['total_render_ms']}ms total")
 
@@ -722,6 +820,7 @@ async def run_stage_render(job: dict) -> dict:
             "path": final_path,
             "file_size_mb": round(file_size, 1),
             "segments": len(segments),
+            "failed_scenes": len(failed_scenes),
             "timing": render_timing,
         }
 
@@ -731,7 +830,8 @@ async def run_stage_render(job: dict) -> dict:
 
 
 async def run_stage_upload(job: dict) -> dict:
-    """Stage: Upload rendered video to R2 and verify."""
+    """Stage: Upload rendered video to R2 and verify.
+    Retries upload with exponential backoff. Falls back to local storage."""
     job_id = job["job_id"]
     render_path = job.get("render_path")
 
@@ -739,19 +839,33 @@ async def run_stage_upload(job: dict) -> dict:
         raise RuntimeError(f"Render file not found: {render_path}")
 
     filename = os.path.basename(render_path)
+    file_size_mb = os.path.getsize(render_path) / (1024 * 1024)
+    logger.info(f"[UPLOAD {job_id[:8]}] Starting upload of {file_size_mb:.1f}MB file")
 
-    try:
-        from services.cloudflare_r2_storage import get_r2_storage
-        r2 = get_r2_storage()
-        if r2.is_configured:
-            ok, public_url, key = await r2.upload_file_multipart(render_path, "video", job_id, filename)
-            if ok and public_url:
-                logger.info(f"[UPLOAD] Uploaded to R2: {public_url[:60]}")
-                return {"url": public_url, "storage": "r2", "verified": True}
-    except Exception as e:
-        logger.warning(f"[UPLOAD] R2 upload failed, using local: {e}")
+    await update_job(job_id, {"current_step": f"Uploading video ({file_size_mb:.1f}MB)...", "progress": 92})
 
+    # Try R2 upload with retry
+    for attempt in range(3):
+        try:
+            from services.cloudflare_r2_storage import get_r2_storage
+            r2 = get_r2_storage()
+            if r2.is_configured:
+                ok, public_url, key = await r2.upload_file_multipart(render_path, "video", job_id, filename)
+                if ok and public_url:
+                    logger.info(f"[UPLOAD {job_id[:8]}] R2 upload OK on attempt {attempt+1}: {public_url[:60]}")
+                    await update_job(job_id, {"progress": 98, "current_step": "Upload complete, finalizing..."})
+                    return {"url": public_url, "storage": "r2", "verified": True}
+                else:
+                    logger.warning(f"[UPLOAD {job_id[:8]}] R2 upload returned ok={ok} url={public_url}")
+        except Exception as e:
+            logger.warning(f"[UPLOAD {job_id[:8]}] R2 upload attempt {attempt+1} failed: {e}")
+            if attempt < 2:
+                await asyncio.sleep(2 * (attempt + 1))
+
+    # Fallback to local storage
+    logger.warning(f"[UPLOAD {job_id[:8]}] All R2 uploads failed, using local storage")
     local_url = f"/api/generated/videos/{filename}"
+    await update_job(job_id, {"progress": 98, "current_step": "Upload complete (local), finalizing..."})
     return {"url": local_url, "storage": "local", "verified": True}
 
 

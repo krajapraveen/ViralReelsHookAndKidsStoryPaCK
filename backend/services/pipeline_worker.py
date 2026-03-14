@@ -101,7 +101,6 @@ async def worker_loop(worker_id: int, auto_scaled: bool = False):
                     return
                 continue
 
-            idle_since = time.time()
             _worker_stats["active_jobs"] += 1
             _worker_stats["queue_size"] = queue.qsize()
 
@@ -142,7 +141,7 @@ async def worker_loop(worker_id: int, auto_scaled: bool = False):
 
 
 async def start_workers():
-    """Start the dedicated worker pool with auto-scaling."""
+    """Start the dedicated worker pool with auto-scaling and stuck job recovery."""
     global _workers_started, _worker_tasks, _active_worker_count, _scale_lock
 
     if _workers_started:
@@ -160,11 +159,14 @@ async def start_workers():
     _worker_stats["current_workers"] = _active_worker_count
     logger.info(f"[WORKER] Started {MIN_WORKERS} pipeline workers (auto-scale to {MAX_WORKERS})")
 
+    # Start stuck job recovery loop
+    asyncio.create_task(_stuck_job_recovery_loop())
+
     # Clean up stale jobs from previous server lifecycle
     try:
         stale_jobs = await db.pipeline_jobs.find(
             {"status": {"$in": ["PROCESSING", "QUEUED"]}},
-            {"job_id": 1, "user_id": 1, "credits_charged": 1, "created_at": 1, "_id": 0}
+            {"job_id": 1, "user_id": 1, "credits_charged": 1, "created_at": 1, "title": 1, "_id": 0}
         ).to_list(length=50)
 
         for job_doc in stale_jobs:
@@ -178,20 +180,96 @@ async def start_workers():
                 {"$set": {
                     "status": "FAILED",
                     "error": "Job interrupted by server restart. Credits refunded.",
+                    "current_step": "Failed: server restarted during processing. Please try again.",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }}
             )
             if uid and credits:
-                await db.users.update_one(
+                from bson import ObjectId
+                # Try both ID formats for robustness
+                result = await db.users.update_one(
                     {"id": uid},
                     {"$inc": {"credits": credits}}
                 )
+                if result.modified_count == 0:
+                    try:
+                        await db.users.update_one(
+                            {"_id": ObjectId(uid)},
+                            {"$inc": {"credits": credits}}
+                        )
+                    except Exception:
+                        pass
                 logger.info(f"[WORKER] Refunded {credits} credits for stale job {jid[:8]}")
 
         if stale_jobs:
             logger.info(f"[WORKER] Cleaned up {len(stale_jobs)} stale jobs")
     except Exception as e:
         logger.warning(f"[WORKER] Could not clean stale jobs: {e}")
+
+
+STUCK_JOB_TIMEOUT_MINUTES = 10
+
+async def _stuck_job_recovery_loop():
+    """Periodically check for stuck jobs and recover them."""
+    logger.info("[STUCK-RECOVERY] Started stuck job recovery loop (checks every 2 min)")
+    while True:
+        try:
+            await asyncio.sleep(120)  # Check every 2 minutes
+
+            cutoff = datetime.now(timezone.utc)
+            from datetime import timedelta
+            cutoff = cutoff - timedelta(minutes=STUCK_JOB_TIMEOUT_MINUTES)
+
+            # Find jobs stuck in PROCESSING for too long
+            stuck_jobs = await db.pipeline_jobs.find({
+                "status": "PROCESSING",
+                "started_at": {"$lt": cutoff},
+            }, {"job_id": 1, "user_id": 1, "credits_charged": 1, "current_stage": 1, "title": 1, "progress": 1, "_id": 0}).to_list(length=20)
+
+            for job_doc in stuck_jobs:
+                jid = job_doc.get("job_id", "")
+                stage = job_doc.get("current_stage", "unknown")
+                progress = job_doc.get("progress", 0)
+                credits = job_doc.get("credits_charged", 0)
+                uid = job_doc.get("user_id")
+
+                logger.warning(f"[STUCK-RECOVERY] Job {jid[:8]} stuck at {stage} ({progress}%) for >{STUCK_JOB_TIMEOUT_MINUTES}min. Marking FAILED.")
+
+                await db.pipeline_jobs.update_one(
+                    {"job_id": jid},
+                    {"$set": {
+                        "status": "FAILED",
+                        "error": f"Job timed out at {stage} stage ({progress}%). Auto-recovered. Credits refunded. Please retry.",
+                        "current_step": f"Failed: timed out at {stage}. Credits refunded. Please retry.",
+                        "completed_at": datetime.now(timezone.utc),
+                    }}
+                )
+
+                # Refund credits
+                if uid and credits:
+                    from bson import ObjectId
+                    result = await db.users.update_one(
+                        {"id": uid},
+                        {"$inc": {"credits": credits}}
+                    )
+                    if result.modified_count == 0:
+                        try:
+                            await db.users.update_one(
+                                {"_id": ObjectId(uid)},
+                                {"$inc": {"credits": credits}}
+                            )
+                        except Exception:
+                            pass
+                    logger.info(f"[STUCK-RECOVERY] Refunded {credits} credits for stuck job {jid[:8]}")
+
+            if stuck_jobs:
+                logger.info(f"[STUCK-RECOVERY] Recovered {len(stuck_jobs)} stuck jobs")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"[STUCK-RECOVERY] Error: {e}")
+            await asyncio.sleep(30)
 
 
 async def stop_workers():

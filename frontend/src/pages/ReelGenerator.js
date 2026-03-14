@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -11,6 +11,7 @@ import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle, LogOu
 
 import ShareButton from '../components/ShareButton';
 import ShareCreation from '../components/ShareCreation';
+import CreationActionsBar from '../components/CreationActionsBar';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
 import UpsellModal from '../components/UpsellModal';
@@ -30,6 +31,7 @@ export default function ReelGenerator() {
   const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [lastGenerationId, setLastGenerationId] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
     topic: '',
@@ -86,6 +88,10 @@ export default function ReelGenerator() {
 
   useEffect(() => {
     fetchCredits();
+    // Handle remix/variation navigation state
+    if (location.state?.prompt) {
+      setFormData(prev => ({ ...prev, topic: location.state.prompt }));
+    }
   }, []);
 
   const fetchCredits = async () => {
@@ -613,6 +619,15 @@ export default function ReelGenerator() {
                     </ul>
                   </div>
                 )}
+
+                {/* Remix & Variations Engine */}
+                <CreationActionsBar
+                  toolType="reels"
+                  originalPrompt={formData.topic}
+                  originalSettings={{ niche: formData.niche, tone: formData.tone, duration: formData.duration }}
+                  parentGenerationId={lastGenerationId}
+                  remixSourceTitle={result.best_hook}
+                />
               </div>
             )}
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -22,6 +22,7 @@ import {
   Mail, Trophy, HelpCircle, Puzzle, Brain, Lightbulb, Copy,
   Wifi, WifiOff, ImageOff
 } from 'lucide-react';
+import CreationActionsBar from '../components/CreationActionsBar';
 
 const AGE_GROUPS = [
   { id: 'kids_3_5', name: 'Kids 3-5', description: 'Simple stories, bright colors' },
@@ -43,6 +44,7 @@ const LANGUAGES = [
 
 export default function StoryVideoStudio() {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   
@@ -55,6 +57,7 @@ export default function StoryVideoStudio() {
   // Story input state
   const [storyText, setStoryText] = useState('');
   const [title, setTitle] = useState('');
+  const [remixSource, setRemixSource] = useState(null);
   const [language, setLanguage] = useState('english');
   const [ageGroup, setAgeGroup] = useState('kids_5_8');
   const [styleId, setStyleId] = useState('storybook');
@@ -190,6 +193,15 @@ export default function StoryVideoStudio() {
     fetchMusicLibrary();
     fetchTemplates();
     analytics.trackFunnelStep('story_video_studio_view');
+
+    // Handle remix/variation navigation state
+    if (location.state?.prompt) {
+      setStoryText(location.state.prompt);
+    }
+    if (location.state?.remixFrom) {
+      setRemixSource(location.state.remixFrom);
+      toast.info(`Remixing from "${location.state.remixFrom.title || 'previous creation'}"`, { duration: 3000 });
+    }
   }, []);
   
   // Load existing images when project changes and has images_generated status
@@ -788,54 +800,57 @@ export default function StoryVideoStudio() {
   };
   
   const pollRenderStatus = async (jobId) => {
+    let lastProgress = 0;
+    let staleCount = 0;
+    const MAX_STALE_CHECKS = 40; // 40 * 5s = ~3.3 minutes without progress change
+    
     const checkStatus = async () => {
       try {
         const res = await api.get(`/api/story-video-studio/generation/video/status/${jobId}`);
         if (res.data.success) {
-          setRenderJob(res.data.job);
-          setGenerationProgress(res.data.job.progress || 0);
+          const job = res.data.job;
+          setRenderJob(job);
+          setGenerationProgress(job.progress || 0);
           
-          if (res.data.job.status === 'COMPLETED') {
-            // Verify the video file exists - handle both R2 URLs and local paths
-            const outputUrl = res.data.job.output_url;
-            const videoUrl = outputUrl?.startsWith('http') ? outputUrl : `${process.env.REACT_APP_BACKEND_URL}${outputUrl}`;
-            try {
-              const checkResponse = await fetch(videoUrl, { method: 'HEAD' });
-              if (checkResponse.ok) {
-                setProject(prev => ({ 
-                  ...prev, 
-                  status: 'video_rendered',
-                  final_video_url: res.data.job.output_url 
-                }));
-                toast.success('Video rendered successfully!');
-                setLoading(false);
-                setShowWaitingExperience(false);
-                setStep(8);
-                
-                // Auto-redirect to downloads page after 2 seconds
-                setTimeout(() => {
-                  toast.info('Redirecting to your downloads...');
-                  navigate('/app/downloads');
-                }, 2000);
-              } else {
-                toast.error('Video generation completed but file is not accessible. Credits have been refunded.');
-                setLoading(false);
-                setShowWaitingExperience(false);
-              }
-            } catch {
-              toast.success('Video rendered successfully!');
+          // Detect stale/stuck progress
+          if (job.progress === lastProgress && job.status === 'PROCESSING') {
+            staleCount++;
+            if (staleCount >= MAX_STALE_CHECKS) {
+              toast.error('Video rendering appears stuck. The system will auto-recover your credits. Please try again.', { duration: 8000 });
               setLoading(false);
               setShowWaitingExperience(false);
-              setStep(8);
-              setTimeout(() => navigate('/app/downloads'), 2000);
+              return;
             }
-          } else if (res.data.job.status === 'FAILED') {
-            toast.error(`Video rendering failed: ${res.data.job.error || 'Unknown error'}. Credits have been refunded.`);
+          } else {
+            staleCount = 0;
+            lastProgress = job.progress;
+          }
+          
+          if (job.status === 'COMPLETED') {
+            const outputUrl = job.output_url;
+            setProject(prev => ({ 
+              ...prev, 
+              status: 'video_rendered',
+              final_video_url: outputUrl 
+            }));
+            toast.success('Video rendered successfully!');
+            setLoading(false);
+            setShowWaitingExperience(false);
+            setStep(8);
+            setTimeout(() => {
+              toast.info('Redirecting to your downloads...');
+              navigate('/app/downloads');
+            }, 2000);
+          } else if (job.status === 'FAILED') {
+            const errorMsg = job.error || 'Unknown error';
+            const isTimeout = errorMsg.includes('timed out') || errorMsg.includes('interrupted');
+            toast.error(`${isTimeout ? 'Video rendering timed out' : 'Video rendering failed'}: ${errorMsg.slice(0, 100)}`, { duration: 8000 });
             setLoading(false);
             setShowWaitingExperience(false);
           } else {
-            // Continue polling
-            setTimeout(checkStatus, 3000);
+            // Continue polling with adaptive interval
+            const interval = job.progress > 80 ? 2000 : 5000;
+            setTimeout(checkStatus, interval);
           }
         }
       } catch (error) {
@@ -2193,6 +2208,15 @@ export default function StoryVideoStudio() {
               </div>
             </div>
             
+            {/* Remix & Variations Engine */}
+            <CreationActionsBar
+              toolType="story-video-studio"
+              originalPrompt={storyText || title || ''}
+              originalSettings={{ styleId, ageGroup, voice: selectedVoice }}
+              parentGenerationId={renderJob?.job_id || project?.project_id}
+              remixSourceTitle={project?.title}
+            />
+
             {/* Actions */}
             <div className="flex gap-4">
               <Button 

@@ -24,6 +24,7 @@ import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import NotificationBell from '../components/NotificationBell';
 import { useNotifications } from '../contexts/NotificationContext';
 import analytics from '../utils/analytics';
+import CreationActionsBar from '../components/CreationActionsBar';
 
 // Copyright blocked keywords (case-insensitive, substring match)
 const BLOCKED_KEYWORDS = [
@@ -982,6 +983,16 @@ export default function PhotoToComic() {
         </div>
       </div>
       
+      {job?.status === 'COMPLETED' && (
+        <CreationActionsBar
+          toolType="photo-to-comic"
+          originalPrompt={storyPrompt || `${selectedStyle || ''} comic character`}
+          originalSettings={{ mode, style: selectedStyle }}
+          parentGenerationId={job?.id}
+          remixSourceTitle={`Comic ${mode === 'avatar' ? 'Avatar' : 'Strip'}`}
+        />
+      )}
+
       <div className="flex justify-between mt-8">
         <Button variant="outline" onClick={prevStep} className="text-slate-300" disabled={loading}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
@@ -1420,6 +1431,16 @@ export default function PhotoToComic() {
         </div>
       </div>
       
+      {job?.status === 'COMPLETED' && (
+        <CreationActionsBar
+          toolType="photo-to-comic"
+          originalPrompt={storyPrompt || `${selectedStyle || ''} comic strip`}
+          originalSettings={{ mode, style: selectedStyle }}
+          parentGenerationId={job?.id}
+          remixSourceTitle="Comic Strip"
+        />
+      )}
+
       <div className="flex justify-between mt-8">
         <Button variant="outline" onClick={prevStep} className="text-slate-300" disabled={loading}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back

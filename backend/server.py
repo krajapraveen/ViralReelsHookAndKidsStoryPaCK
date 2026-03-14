@@ -522,6 +522,16 @@ api_router.include_router(character_routes_router)
 from routes.engagement import router as engagement_router
 api_router.include_router(engagement_router)
 
+# Remix & Variations Engine
+from routes.remix_routes import router as remix_router
+api_router.include_router(remix_router)
+
+# Engagement Analytics
+from routes.engagement_analytics import router as engagement_analytics_router
+api_router.include_router(engagement_analytics_router)
+
+
+
 
 # Include API router in app
 app.include_router(api_router)
