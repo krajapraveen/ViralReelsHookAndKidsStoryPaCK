@@ -9,13 +9,15 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 - **Storage**: Cloudflare R2 (served via presigned URLs - public URL disabled)
 - **AI**: OpenAI GPT-4o-mini, GPT Image 1, Sora 2, TTS + Gemini Nano Banana
 - **Payment**: Cashfree
-- **Workers**: Auto-scaling pipeline worker pool (1-3 workers)
+- **Workers**: Auto-scaling pipeline worker pool (1-3 workers) + 6 feature pools
 
 ## Key Users
 - **Test**: test@visionary-suite.com / Test@2026#
 - **Admin**: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
 ## What's Implemented (Complete)
+
+### Core Platform
 - Full AI story video pipeline (script > scenes > images > voices > render > upload)
 - Gallery with 30 professional showcase items (thumbnails, presigned URLs)
 - Rate limiting: 5/hour for normal users, exempt for admin/test/demo
@@ -25,59 +27,80 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 - Admin dashboard with analytics, user management, monitoring
 - UI: Consistent dark professional theme across all pages
 - Error boundary with recovery options
-- Credit system with refunds on failure
-- New signups get 0 credits (no free signup bonus)
-- Admin/Demo/UAT users have unlimited credits (999,999)
-- Landing page spacing reduced between sections
-- All 26 landing page links/buttons verified working correctly
-- R2 presigned URL utility for all media assets
-- Dynamic worker auto-scaling in pipeline
+- Credit system with refunds on failure (0 credits for new signups, unlimited for admin/demo/UAT)
 
 ### Premium Dashboard with Engagement System (Completed Mar 14, 2026)
-- **2-Column Layout**: Main content (left) + utility sidebar (right, 320px, hidden lg:block)
-- **Universal AI Prompt**: Keyword intent detection routes to correct tool (16 tool mappings)
-- **3 Hero Action Cards**: Story Video, Photo to Comic, Reel Generator with gradient cards
-- **6 Inspiration Templates**: Pre-filled prompts with one-click navigation
-- **Recent Creations**: Generation history with status badges (COMPLETED/FAILED/PENDING)
-- **Tool Categories**: 4 tabbed categories (Video/Image/Story/Social) with 20+ tools
-- **Trending Feed**: Top 6 gallery items with presigned thumbnails
-- **Credits Panel**: Balance display, progress bar, Buy/Plans CTAs
-- **Creator Level System**: 5 levels (Beginner > Creator > Creator Pro > AI Producer > Visionary)
-- **Daily Challenge**: Rotating challenges from 30-item pool, +10-15 credit rewards
-- **Creation Streak**: 7-day calendar tracker with milestone rewards (3/7/14/30/60/100 days)
-- **AI Ideas**: 4 personalized daily suggestions per user
-- **Activity Feed**: Recent generation timeline
-- **Quick Links**: Referrals, Analytics, Payments, Help Center
-- **Responsive**: Desktop 2-column, tablet/mobile single-column
+- 2-Column Layout: Main content (left) + utility sidebar (right, 320px, hidden lg:block)
+- Universal AI Prompt: Keyword intent detection routes to correct tool (16 tool mappings)
+- 3 Hero Action Cards: Story Video, Photo to Comic, Reel Generator
+- 6 Inspiration Templates: Pre-filled prompts with one-click navigation
+- Recent Creations: Generation history with status badges
+- Tool Categories: 4 tabbed categories (Video/Image/Story/Social) with 20+ tools
+- Trending Feed: Top 6 gallery items with presigned thumbnails
+- Credits Panel, Creator Level (5 levels), Daily Challenge, Creation Streak (7-day), AI Ideas, Activity Feed, Quick Links
 
-## Engagement System Backend
-- `GET /api/engagement/dashboard` - Full dashboard data (challenge, streak, level, ideas)
-- `POST /api/engagement/challenge/complete` - Complete daily challenge, award credits
-- `POST /api/engagement/streak/update` - Update creation streak after successful generation
-- `GET /api/engagement/trending` - Top 6 trending gallery items
-- **Collections**: challenge_completions, creation_streaks
-- **Streak Milestones**: 3d=10cr, 7d=25cr, 14d=50cr, 30d=100cr, 60d=250cr, 100d=500cr
-- **Creator Levels**: Beginner(0), Creator(10), Creator Pro(50), AI Producer(150), Visionary(500)
+### Remix & Variations Engine (Completed Mar 14, 2026)
+- **CreationActionsBar component**: Reusable across all 7 tools
+  - Quick Variations Row: 4 one-click buttons (Funny, Dramatic, Anime Style, Short Version etc.)
+  - Style Switcher: Dropdown with 5-7 styles per tool
+  - Prompt Edit + Remix: Editable prompt box with Generate button
+  - Cross-Tool Conversions: Turn Into Reel, Turn Into Comic, Turn Into Video etc.
+  - Regenerate button
+  - Remix Source Tag: Shows "Remixed from: [title]"
+- **Variation configs for 7 tools**: story-video-studio, reels, photo-to-comic, gif-maker, stories, bedtime-story-builder, comic-storybook
+- **Remix tracking**: All remix events logged with source_tool, target_tool, variation_type, lineage
+- **Navigation state integration**: Tools accept `location.state.prompt` for pre-filled input on remix
+- **Backend**: `/api/remix/variations/{tool}`, `/api/remix/track`, `/api/remix/stats`
+
+### Engagement Analytics (Completed Mar 14, 2026)
+- Track CTA clicks (upgrade banners, buy credits, plans)
+- Track template usage
+- Admin analytics report: challenge completion rate, streak retention (7/14/30d), creations per user, remix rate, remix chain length, cross-tool conversions, variation click rate, template usage
+
+### P0 Pipeline & Worker Fixes (Completed Mar 14, 2026)
+- **Asset download reliability**: Retry logic with 3 attempts, presigned URL regeneration, R2 key fallback
+- **Stuck job recovery**: Periodic loop (every 2 min) detects jobs stuck >10 min, marks FAILED, refunds credits
+- **Stale job cleanup**: On server restart, auto-fails orphaned PROCESSING/QUEUED jobs with credit refund
+- **ffmpeg optimization**: ultrafast preset, scene timeout 120s, concat timeout 120s
+- **Progress reporting**: Sub-step updates during render (downloading, encoding, concatenating)
+- **Frontend stuck detection**: Polling detects stale progress (no change for ~3.3 min), shows retry message
+- **R2 presign utility**: Handles .r2.dev/ and r2.cloudflarestorage.com URLs, strips query params, key-based fallback
+- **R2 key storage**: Image/voice assets store R2 key alongside URL for reliable re-download
+
+## API Endpoints
+
+### Remix Engine
+- `GET /api/remix/variations/{tool_type}` - Variation config per tool (public)
+- `POST /api/remix/track` - Track remix event (auth required)
+- `GET /api/remix/stats` - Remix analytics (admin: full breakdown, user: total count)
+
+### Engagement Analytics
+- `POST /api/engagement-analytics/track-cta` - Track CTA clicks
+- `POST /api/engagement-analytics/track-template` - Track template usage
+- `GET /api/engagement-analytics/report` - Full admin analytics report
+
+### Engagement System
+- `GET /api/engagement/dashboard` - Full dashboard data
+- `POST /api/engagement/challenge/complete` - Complete daily challenge
+- `POST /api/engagement/streak/update` - Update creation streak
+- `GET /api/engagement/trending` - Top 6 trending items
 
 ## Backlog
 - **P1**: WebSocket real-time progress for video generation
 - **P1**: Video watermarking for free plan users
 - **P1**: SendGrid email (BLOCKED - needs plan upgrade)
 - **P2**: Email notifications on video completion
+- **P2**: Break Dashboard.js into smaller components for maintainability
 
 ## Test Reports
 | Iter | Scope | Backend | Frontend |
 |------|-------|---------|----------|
-| 255 | Gallery Showcase | 100% | 100% |
-| 256 | Full Production Audit | 93% (39/42) | 100% |
-| 257 | Premium Dashboard Redesign | N/A | 100% (29/29) |
-| 161 | Engagement Dashboard E2E | 76% (16/21)* | 100% |
-
-*5 backend failures were test file path issues, not actual bugs. All engagement APIs passed 100%.
+| 161 | Engagement Dashboard E2E | 76% | 100% |
+| 162 | Remix + Analytics + Pipeline | 95% (20/21) | 100% |
 
 ## Technical Notes
 - R2 public URL returns 403 - all media served via presigned URLs (4hr expiry)
-- Presigned URL utility: `/app/backend/utils/r2_presign.py`
-- Pipeline rendering: 1280x720, 24fps, veryfast preset
-- Thumbnail generation via ffmpeg frame extraction
-- Dashboard sidebar uses `hidden lg:block` for responsive hiding (>=1024px only)
+- Pipeline rendering: 1280x720, 24fps, ultrafast preset
+- Stuck job recovery: every 2 min, 10 min timeout, auto credit refund
+- CreationActionsBar: conditionally rendered after generation completes
+- Dashboard sidebar: hidden lg:block (desktop only)
