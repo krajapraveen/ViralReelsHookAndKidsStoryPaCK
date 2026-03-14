@@ -66,7 +66,7 @@ export default function Pricing() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/80 to-slate-950 text-white">
       <div className="max-w-6xl mx-auto px-4 py-12">
         <Link to="/">
           <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/[0.06] mb-8" data-testid="pricing-back-btn">

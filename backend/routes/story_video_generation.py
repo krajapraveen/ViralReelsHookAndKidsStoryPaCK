@@ -23,6 +23,7 @@ import aiofiles
 
 # Import shared utilities
 from shared import db, get_current_user
+from utils.r2_presign import presign_url as _presign
 
 logger = logging.getLogger(__name__)
 
@@ -2027,7 +2028,7 @@ async def get_video_player_data(project_id: str):
     
     return {
         "success": True,
-        "video_url": project.get("final_video_url"),
+        "video_url": _presign(project.get("final_video_url")),
         "title": project.get("title"),
         "chapters": chapters,
         "player_config": {
@@ -2466,7 +2467,7 @@ async def retry_video_job(
     
     # Check if job already completed
     if job.get("status") == "COMPLETED":
-        return {"success": True, "message": "Job already completed", "video_url": job.get("output_url")}
+        return {"success": True, "message": "Job already completed", "video_url": _presign(job.get("output_url"))}
     
     project_id = job.get("project_id")
     
@@ -2662,6 +2663,6 @@ async def get_job_health(
         },
         "timing": job.get("timing_breakdown"),
         "error": job.get("error"),
-        "output_url": job.get("output_url")
+        "output_url": _presign(job.get("output_url"))
     }
 

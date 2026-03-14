@@ -233,9 +233,13 @@ async def generate_fast_video(
 
 @router.get("/status/{job_id}")
 async def get_fast_video_status(job_id: str):
+    from utils.r2_presign import presign_url
     job = await db.fast_video_jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    output_url = job.get("output_url")
+    if output_url:
+        output_url = presign_url(output_url)
     return {
         "success": True,
         "job": {
@@ -244,7 +248,7 @@ async def get_fast_video_status(job_id: str):
             "status": job.get("status"),
             "progress": job.get("progress", 0),
             "current_step": job.get("current_step"),
-            "output_url": job.get("output_url"),
+            "output_url": output_url,
             "error": job.get("error"),
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
@@ -254,11 +258,15 @@ async def get_fast_video_status(job_id: str):
 
 @router.get("/user-jobs")
 async def get_user_jobs(current_user: dict = Depends(get_current_user)):
+    from utils.r2_presign import presign_url
     user_id = current_user.get("id") or str(current_user.get("_id"))
     jobs = await db.fast_video_jobs.find(
         {"user_id": user_id},
         {"_id": 0, "story_text": 0, "scenes": 0, "images": 0, "voices": 0}
     ).sort("created_at", -1).to_list(length=50)
+    for j in jobs:
+        if j.get("output_url"):
+            j["output_url"] = presign_url(j["output_url"])
     return {"success": True, "jobs": jobs}
 
 # =============================================================================

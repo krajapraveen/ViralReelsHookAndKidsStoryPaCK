@@ -1,7 +1,7 @@
 """
-Pipeline Worker Pool
-Dedicated heavy-job workers for Story → Video pipeline.
-Isolated from lightweight API request handling.
+Pipeline Worker Pool with Auto-Scaling
+Dedicated heavy-job workers for Story -> Video pipeline.
+Dynamically scales workers based on queue depth.
 """
 
 import asyncio
@@ -13,20 +13,26 @@ from shared import db
 
 logger = logging.getLogger("pipeline_worker")
 
-# Worker pool configuration — use 1 worker for production stability
-NUM_WORKERS = 1
-MAX_CONCURRENT_JOBS = 1
+# Worker pool configuration
+MIN_WORKERS = 1
+MAX_WORKERS = 3
+SCALE_UP_THRESHOLD = 2    # scale up when queue > this
+SCALE_DOWN_INTERVAL = 60  # seconds idle before scaling down
 
 # Global worker state
 _worker_queue: asyncio.Queue = None
 _workers_started = False
 _worker_tasks = []
+_active_worker_count = 0
+_scale_lock = asyncio.Lock() if hasattr(asyncio, 'Lock') else None
 _worker_stats = {
     "jobs_processed": 0,
     "jobs_failed": 0,
     "total_processing_ms": 0,
     "active_jobs": 0,
     "queue_size": 0,
+    "current_workers": 0,
+    "scale_events": 0,
 }
 
 
@@ -38,23 +44,64 @@ async def get_queue() -> asyncio.Queue:
 
 
 async def enqueue_job(job_id: str):
-    """Add a job to the worker queue."""
+    """Add a job to the worker queue and trigger scaling if needed."""
     queue = await get_queue()
     await queue.put(job_id)
     _worker_stats["queue_size"] = queue.qsize()
     logger.info(f"[WORKER] Job {job_id[:8]} enqueued (queue size: {queue.qsize()})")
 
+    # Check if we need more workers
+    await _maybe_scale_up()
 
-async def worker_loop(worker_id: int):
+
+async def _maybe_scale_up():
+    """Scale up workers if queue depth exceeds threshold."""
+    global _active_worker_count, _scale_lock
+    if _scale_lock is None:
+        _scale_lock = asyncio.Lock()
+
+    async with _scale_lock:
+        queue = await get_queue()
+        if queue.qsize() > SCALE_UP_THRESHOLD and _active_worker_count < MAX_WORKERS:
+            new_id = _active_worker_count
+            _active_worker_count += 1
+            _worker_stats["current_workers"] = _active_worker_count
+            _worker_stats["scale_events"] += 1
+            task = asyncio.create_task(worker_loop(new_id, auto_scaled=True))
+            _worker_tasks.append(task)
+            logger.info(f"[AUTOSCALE] Scaled UP to {_active_worker_count} workers (queue: {queue.qsize()})")
+
+
+async def worker_loop(worker_id: int, auto_scaled: bool = False):
     """Single worker loop — picks jobs from queue and executes pipeline."""
+    global _active_worker_count
     from services.pipeline_engine import execute_pipeline
 
-    logger.info(f"[WORKER-{worker_id}] Started")
+    logger.info(f"[WORKER-{worker_id}] Started {'(auto-scaled)' if auto_scaled else ''}")
     queue = await get_queue()
 
     while True:
         try:
-            job_id = await queue.get()
+            # For auto-scaled workers, use timeout to allow scale-down
+            timeout = SCALE_DOWN_INTERVAL if auto_scaled else None
+
+            try:
+                if timeout:
+                    job_id = await asyncio.wait_for(queue.get(), timeout=timeout)
+                else:
+                    job_id = await queue.get()
+            except asyncio.TimeoutError:
+                # Auto-scaled worker idle too long — scale down
+                if auto_scaled and _active_worker_count > MIN_WORKERS:
+                    async with _scale_lock:
+                        _active_worker_count -= 1
+                        _worker_stats["current_workers"] = _active_worker_count
+                        _worker_stats["scale_events"] += 1
+                    logger.info(f"[AUTOSCALE] Worker-{worker_id} idle, scaled DOWN to {_active_worker_count} workers")
+                    return
+                continue
+
+            idle_since = time.time()
             _worker_stats["active_jobs"] += 1
             _worker_stats["queue_size"] = queue.qsize()
 
@@ -67,7 +114,6 @@ async def worker_loop(worker_id: int):
             except Exception as e:
                 _worker_stats["jobs_failed"] += 1
                 logger.error(f"[WORKER-{worker_id}] Job {job_id[:8]} crashed: {e}")
-                # Mark job failed in DB
                 try:
                     await db.pipeline_jobs.update_one(
                         {"job_id": job_id},
@@ -96,24 +142,26 @@ async def worker_loop(worker_id: int):
 
 
 async def start_workers():
-    """Start the dedicated worker pool."""
-    global _workers_started, _worker_tasks
+    """Start the dedicated worker pool with auto-scaling."""
+    global _workers_started, _worker_tasks, _active_worker_count, _scale_lock
 
     if _workers_started:
         return
 
     _workers_started = True
-    for i in range(NUM_WORKERS):
+    _scale_lock = asyncio.Lock()
+
+    # Start minimum workers
+    for i in range(MIN_WORKERS):
         task = asyncio.create_task(worker_loop(i))
         _worker_tasks.append(task)
+        _active_worker_count += 1
 
-    logger.info(f"[WORKER] Started {NUM_WORKERS} dedicated pipeline workers")
+    _worker_stats["current_workers"] = _active_worker_count
+    logger.info(f"[WORKER] Started {MIN_WORKERS} pipeline workers (auto-scale to {MAX_WORKERS})")
 
-    # Clean up stale jobs from previous server lifecycle (mark as FAILED, refund credits)
-    # DO NOT re-process — they would likely fail again and could crash the server
+    # Clean up stale jobs from previous server lifecycle
     try:
-        from datetime import datetime, timezone, timedelta
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
         stale_jobs = await db.pipeline_jobs.find(
             {"status": {"$in": ["PROCESSING", "QUEUED"]}},
             {"job_id": 1, "user_id": 1, "credits_charged": 1, "created_at": 1, "_id": 0}
@@ -124,8 +172,7 @@ async def start_workers():
             uid = job_doc.get("user_id")
             credits = job_doc.get("credits_charged", 0)
             logger.info(f"[WORKER] Cleaning stale job {jid[:8]} (was stuck)")
-            
-            # Mark as FAILED
+
             await db.pipeline_jobs.update_one(
                 {"job_id": jid},
                 {"$set": {
@@ -134,7 +181,6 @@ async def start_workers():
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }}
             )
-            # Refund credits
             if uid and credits:
                 await db.users.update_one(
                     {"id": uid},
@@ -150,18 +196,22 @@ async def start_workers():
 
 async def stop_workers():
     """Gracefully stop workers."""
-    global _workers_started, _worker_tasks
+    global _workers_started, _worker_tasks, _active_worker_count
     for task in _worker_tasks:
         task.cancel()
     _worker_tasks = []
     _workers_started = False
+    _active_worker_count = 0
 
 
 def get_worker_stats() -> dict:
     """Return current worker pool statistics."""
     return {
         **_worker_stats,
-        "num_workers": NUM_WORKERS,
-        "max_concurrent": MAX_CONCURRENT_JOBS,
+        "min_workers": MIN_WORKERS,
+        "max_workers": MAX_WORKERS,
+        "num_workers": _active_worker_count,
+        "max_concurrent": MAX_WORKERS,
         "workers_running": _workers_started,
+        "scale_up_threshold": SCALE_UP_THRESHOLD,
     }

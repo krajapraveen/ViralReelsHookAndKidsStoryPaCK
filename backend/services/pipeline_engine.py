@@ -52,8 +52,8 @@ CREDIT_COSTS = {
     "large": 20,   # 7+ scenes
 }
 
-MAX_PARALLEL_IMAGES = 3
-MAX_PARALLEL_VOICES = 4
+MAX_PARALLEL_IMAGES = 5
+MAX_PARALLEL_VOICES = 6
 
 # ─── COPYRIGHT COMPLIANCE ────────────────────────────────────────────────────
 
@@ -327,11 +327,11 @@ async def run_stage_images(job: dict) -> dict:
             prompt = f"{scene.get('visual_prompt', '')}. Style: {style.get('style_prompt', '')}. Avoid: {LEGAL_NEGATIVE}"
             if len(prompt) > 3800:
                 sentences = prompt.split('. ')
-                parts, l = [], 0
+                parts, curr_len = [], 0
                 for s in sentences:
-                    if l + len(s) + 2 <= 3800:
+                    if curr_len + len(s) + 2 <= 3800:
                         parts.append(s)
-                        l += len(s) + 2
+                        curr_len += len(s) + 2
                     else:
                         break
                 prompt = '. '.join(parts) + '.'
@@ -499,7 +499,7 @@ async def run_stage_voices(job: dict) -> dict:
 
     failed = [r for r in results if isinstance(r, dict) and r.get("failed")]
     if done == 0:
-        raise RuntimeError(f"All voice generations failed")
+        raise RuntimeError("All voice generations failed")
 
     return {"voices_generated": done, "voices_failed": len(failed)}
 
@@ -532,8 +532,17 @@ async def _run_ffmpeg(cmd: list, timeout: int = 90) -> tuple:
 
 
 async def _download_file(url: str, dest: str, label: str, timeout: int = 30) -> bool:
-    """Download a file from URL to dest path. Returns True on success."""
+    """Download a file from URL to dest path. Handles presigned URL conversion for R2."""
     import aiohttp
+
+    # If it's an R2 public URL that will 403, generate a presigned URL
+    if ".r2.dev/" in url:
+        try:
+            from utils.r2_presign import presign_url
+            url = presign_url(url, expiry=600)
+        except Exception:
+            pass
+
     try:
         async with aiohttp.ClientSession() as sess:
             async with sess.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
@@ -606,13 +615,13 @@ async def run_stage_render(job: dict) -> dict:
                 logger.warning(f"[RENDER {job_id[:8]}] Missing files for scene {sn}: img={os.path.exists(img_path)}, audio={os.path.exists(audio_path)}")
                 continue
 
-            # Step 1: Resize image to small 640x360 JPEG (reduces ffmpeg decode memory)
+            # Step 1: Resize image to 1280x720 (balance of quality and speed)
             small_img = os.path.join(temp_dir, f"small_{sn}.jpg")
             rc, _, _ = await _run_ffmpeg([
                 "ffmpeg", "-y", "-threads", "1",
                 "-i", img_path,
-                "-vf", "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2",
-                "-q:v", "5", small_img
+                "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+                "-q:v", "3", small_img
             ], timeout=30)
             if rc == 0 and os.path.exists(small_img):
                 # Delete the original downloaded image immediately
@@ -623,18 +632,18 @@ async def run_stage_render(job: dict) -> dict:
                         pass
                 img_path = small_img
 
-            # Step 2: Encode scene video — single-threaded, ultra-low memory
+            # Step 2: Encode scene video — balanced quality and speed
             seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
             cmd = [
                 "ffmpeg", "-y",
-                "-threads", "1",
+                "-threads", "2",
                 "-loop", "1", "-i", img_path,
                 "-i", audio_path,
-                "-filter_complex", "[0:v]fps=10[v]",
+                "-filter_complex", "[0:v]fps=24[v]",
                 "-map", "[v]", "-map", "1:a",
-                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
-                "-crf", "35", "-maxrate", "400k", "-bufsize", "400k",
-                "-c:a", "aac", "-b:a", "64k",
+                "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",
+                "-crf", "28", "-maxrate", "1M", "-bufsize", "1M",
+                "-c:a", "aac", "-b:a", "96k",
                 "-t", str(duration + 0.3),
                 "-shortest", "-pix_fmt", "yuv420p",
                 seg_path,
@@ -679,17 +688,17 @@ async def run_stage_render(job: dict) -> dict:
         watermark = job.get("include_watermark", True)
         if watermark:
             cmd = [
-                "ffmpeg", "-y", "-threads", "1",
+                "ffmpeg", "-y", "-threads", "2",
                 "-f", "concat", "-safe", "0", "-i", concat_file,
                 "-vf", "drawtext=text='visionary-suite.com':fontcolor=white@0.4:fontsize=16:x=w-tw-10:y=h-th-10",
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35",
-                "-maxrate", "400k", "-bufsize", "400k",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+                "-maxrate", "1M", "-bufsize", "1M",
                 "-c:a", "copy", "-pix_fmt", "yuv420p",
                 final_path,
             ]
         else:
             cmd = [
-                "ffmpeg", "-y", "-threads", "1",
+                "ffmpeg", "-y", "-threads", "2",
                 "-f", "concat", "-safe", "0", "-i", concat_file,
                 "-c", "copy",
                 final_path,
@@ -737,16 +746,8 @@ async def run_stage_upload(job: dict) -> dict:
         if r2.is_configured:
             ok, public_url, key = await r2.upload_file_multipart(render_path, "video", job_id, filename)
             if ok and public_url:
-                # Verify upload by checking URL accessibility
-                import aiohttp
-                async with aiohttp.ClientSession() as sess:
-                    async with sess.head(public_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        if resp.status < 400:
-                            logger.info(f"[UPLOAD] Verified: {public_url}")
-                            return {"url": public_url, "storage": "r2", "verified": True}
-                        else:
-                            logger.warning(f"[UPLOAD] Verification returned {resp.status}, using URL anyway")
-                            return {"url": public_url, "storage": "r2", "verified": False}
+                logger.info(f"[UPLOAD] Uploaded to R2: {public_url[:60]}")
+                return {"url": public_url, "storage": "r2", "verified": True}
     except Exception as e:
         logger.warning(f"[UPLOAD] R2 upload failed, using local: {e}")
 

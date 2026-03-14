@@ -85,6 +85,22 @@ async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
     """Check if the user can create a new video (pre-check)."""
     user_id = current_user.get("id") or str(current_user.get("_id"))
 
+    # Check if user is exempt from rate limiting
+    user_email = current_user.get("email", "")
+    user_role = current_user.get("role", "")
+    is_exempt = user_email in RATE_LIMIT_EXEMPT_EMAILS or user_role in ("admin", "ADMIN")
+
+    if is_exempt:
+        return {
+            "can_create": True,
+            "recent_count": 0,
+            "max_per_hour": 999,
+            "concurrent": 0,
+            "max_concurrent": 10,
+            "reason": None,
+            "exempt": True,
+        }
+
     # Auto-timeout stale jobs
     stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
     await db.pipeline_jobs.update_many(
@@ -120,25 +136,8 @@ async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
 
 def _make_presigned_url(stored_url: str) -> str:
     """Convert a stored R2 public URL to a presigned URL for direct access."""
-    try:
-        from services.cloudflare_r2_storage import get_r2_storage
-        r2 = get_r2_storage()
-        if not r2 or not r2._client:
-            return stored_url
-        # Extract key from stored URL: https://pub-xxx.r2.dev/KEY
-        parts = stored_url.split(".r2.dev/")
-        if len(parts) < 2:
-            return stored_url
-        key = parts[1]
-        bucket = os.environ.get("CLOUDFLARE_R2_BUCKET_NAME", "visionary-suite-assets-prod")
-        presigned = r2._client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': bucket, 'Key': key},
-            ExpiresIn=14400  # 4 hours
-        )
-        return presigned
-    except Exception:
-        return stored_url
+    from utils.r2_presign import presign_url
+    return presign_url(stored_url)
 
 
 @router.get("/gallery")
@@ -392,11 +391,14 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
     scene_progress = []
     for scene in scenes:
         sn = str(scene.get("scene_number", 0))
+        image_url = scene_images.get(sn, {}).get("url")
+        if image_url:
+            image_url = _make_presigned_url(image_url)
         sp = {
             "scene_number": int(sn),
             "title": scene.get("title", f"Scene {sn}"),
             "has_image": sn in scene_images,
-            "image_url": scene_images.get(sn, {}).get("url"),
+            "image_url": image_url,
             "has_voice": sn in scene_voices,
             "voice_duration": scene_voices.get(sn, {}).get("duration"),
         }
@@ -421,7 +423,7 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "progress": job.get("progress", 0),
             "current_stage": job.get("current_stage"),
             "current_step": job.get("current_step"),
-            "output_url": job.get("output_url"),
+            "output_url": _make_presigned_url(job.get("output_url")) if job.get("output_url") else None,
             "error": job.get("error"),
             "stages": stages_summary,
             "scene_progress": scene_progress,
@@ -463,6 +465,12 @@ async def get_user_pipeline_jobs(current_user: dict = Depends(get_current_user))
         {"user_id": user_id},
         {"_id": 0, "story_text": 0, "scenes": 0, "scene_images": 0, "scene_voices": 0},
     ).sort("created_at", -1).to_list(length=50)
+
+    for j in jobs:
+        if j.get("output_url"):
+            j["output_url"] = _make_presigned_url(j["output_url"])
+        if j.get("thumbnail_url"):
+            j["thumbnail_url"] = _make_presigned_url(j["thumbnail_url"])
 
     return {"success": True, "jobs": jobs}
 

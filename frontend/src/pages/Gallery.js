@@ -65,7 +65,7 @@ export default function Gallery() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#06060b] text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/80 to-slate-950 text-white">
       {/* Nav */}
       <nav className="border-b border-white/[0.04] bg-[#06060b]/80 backdrop-blur-2xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
