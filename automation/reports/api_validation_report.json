@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-03-14T09:00:30.336763",
+  "timestamp": "2026-03-14T09:05:52.802171",
   "base_url": "https://kidsstory-3.preview.emergentagent.com",
   "results": [
     {
       "endpoint": "/api/auth/login",
       "method": "POST",
       "status_code": 404,
-      "response_time_ms": 101.58,
+      "response_time_ms": 93.32,
       "success": true,
       "error": null
     },
@@ -14,7 +14,7 @@
       "endpoint": "/api/payments/products",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 95.72,
+      "response_time_ms": 100.47,
       "success": true,
       "error": null
     },
@@ -22,7 +22,7 @@
       "endpoint": "/api/payments/currencies",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 101.05,
+      "response_time_ms": 101.8,
       "success": true,
       "error": null
     },
@@ -30,7 +30,7 @@
       "endpoint": "/api/auth/me",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 97.19,
+      "response_time_ms": 93.72,
       "success": true,
       "error": null
     },
@@ -38,7 +38,7 @@
       "endpoint": "/api/credits/balance",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 99.3,
+      "response_time_ms": 103.39,
       "success": true,
       "error": null
     },
@@ -46,7 +46,7 @@
       "endpoint": "/api/credits/ledger?page=0&size=10",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 95.12,
+      "response_time_ms": 90.51,
       "success": true,
       "error": null
     },
@@ -54,7 +54,7 @@
       "endpoint": "/api/generate/generations?page=0&size=10",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 102.11,
+      "response_time_ms": 93.23,
       "success": true,
       "error": null
     },
@@ -62,7 +62,7 @@
       "endpoint": "/api/payments/history?page=0&size=10",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 101.35,
+      "response_time_ms": 105.83,
       "success": true,
       "error": null
     },
@@ -70,7 +70,7 @@
       "endpoint": "/api/privacy/my-data",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 95.18,
+      "response_time_ms": 98.04,
       "success": true,
       "error": null
     },
@@ -78,7 +78,7 @@
       "endpoint": "/api/features?page=0&size=10",
       "method": "GET",
       "status_code": 404,
-      "response_time_ms": 125.39,
+      "response_time_ms": 94.56,
       "success": true,
       "error": null
     }
@@ -87,7 +87,7 @@
     "total": 10,
     "passed": 10,
     "failed": 0,
-    "avg_response_time": 101.4,
+    "avg_response_time": 97.49,
     "pass_rate": 100.0,
     "status": "healthy"
   }
