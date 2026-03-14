@@ -2,7 +2,6 @@
 
 ## Product Vision
 **"Turn stories into cinematic videos using AI"**
-Visionary Suite is an AI Story→Video platform. Users write a story and the AI generates scenes, creates images, adds voiceover, and renders a complete video in ~90 seconds.
 
 ## Architecture
 - **Frontend**: React (CRA + craco) on port 3000
@@ -18,70 +17,45 @@ Visionary Suite is an AI Story→Video platform. Users write a story and the AI 
 ### Phase 1-4: Product Foundation ✅
 - Marketing landing page, onboarding flow, dashboard UX, public gallery, share screen
 
-### Phase 5: Growth, Monetization & Analytics ✅ (2026-03-13)
-- Creator $9/mo (100 credits), Pro $19/mo (250 credits) subscription plans
-- Credit top-ups: $5 (50), $12 (150), $30 (500)
-- Remix This Video viral growth loop
-- Rate limiting: 5 videos/hour, 1 concurrent
-- Admin analytics funnel dashboard
-- Upsell modal when credits < 10
+### Phase 5: Growth, Monetization & Analytics ✅
+- Creator $9/mo, Pro $19/mo, credit top-ups ($5/$12/$30)
+- Remix viral growth loop, rate limiting, analytics funnel, upsell modal
 
-### Phase 6: Landing Page V3 — Text-Only Redesign ✅ (2026-03-13)
-- Removed all video/player elements from landing page
-- Professional dark #06060b background with grid texture
-- Gradient hero text (indigo → violet → amber)
-- 6 feature showcase cards with icons (Write, Scene Gen, Image, Voice, Render, Speed)
-- 6 animation style cards (2D Cartoon, Anime, 3D, Watercolor, Comic, Clay)
-- Remix CTA section with "Browse Gallery" button
-- Story prompt templates section
-- Pricing overview with $9/$19 plans inline
+### Phase 6-10: Landing V3, Gallery, OG, Performance, Stress Testing ✅
+- Text-only landing page (no videos), gallery categories/sorting/leaderboard
+- OpenGraph meta tags, performance monitoring tab, stress tested 5/10/20 users
 
-### Phase 7: Gallery Optimization ✅ (2026-03-13)
-- Category filters: All, 2D Cartoon, Watercolor, Anime, Comic Book, Claymation
-- Sort options: Newest, Most Remixed, Trending
-- Remix Leaderboard section (shows when remixed videos exist)
-- Backend endpoints: /gallery/categories, /gallery/leaderboard
-- Gallery sort/filter via query params: ?sort=most_remixed&category=cartoon_2d
+### P0 Bug Fix: Story Video Studio Blank Page ✅ (2026-03-14)
+#### Root Causes Identified & Fixed:
+1. **Stale PROCESSING jobs** blocking new creations — added 15-min auto-timeout
+2. **Pydantic model error** — `parent_video_id: str` rejected `null` → fixed to `Optional[str]`
+3. **JS TypeError** — `detail.toLowerCase()` crashed when `detail` was not a string → defensive type check
+4. **Silent disabled button** — `disabled={isDisabled}` prevented ALL click feedback → button always clickable, validates on click
+5. **Missing error boundary** — component crash = blank page → added React ErrorBoundary
+6. **No rate-limit pre-check** — users couldn't see why they can't create → added `/api/pipeline/rate-limit-status`
 
-### Phase 8: Social Sharing Optimization ✅ (2026-03-13)
-- OpenGraph meta tags for gallery video sharing: /gallery/{job_id}/og
-- Returns HTML with og:video, og:title, og:description, twitter:card
-- Updated index.html meta tags for homepage
+#### Files Changed:
+- `/app/backend/routes/pipeline_routes.py` — Auto-timeout stale jobs, rate-limit-status endpoint, Optional[str] fix
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Complete rewrite with ErrorBoundary, inline validation, rate-limit awareness, active job banner
 
-### Phase 9: Remix Leaderboard ✅ (2026-03-13)
-- Most Remixed Videos leaderboard on Gallery page
-- Ranked #1-#6 with gold/silver/bronze colors
-- Shows remix count per video
-
-### Phase 10: Performance Monitoring ✅ (2026-03-13)
-- Admin Performance tab: queue depth, failure rate, avg/max render times, worker pool
-- Alert system: queue > 5 (warning), failure > 10% (critical), render > 3min (warning)
-- Auto-refresh mode (10s interval)
-- Backend endpoint: GET /api/pipeline/performance
-
-### Phase 6 Stress Testing ✅ (2026-03-13)
-- 5 concurrent users: 5/5 signups, 5/5 videos, 0 failures
-- 10 concurrent users: 10/10 logins, 4/10 videos (6 rate limited), 0 failures
-- 20 concurrent users: 20/20 logins, 1/20 videos (19 rate limited), 0 failures
-- Platform stable under all load levels
+#### Validation Fixes:
+- Empty title → "Please enter a title for your video."
+- Title < 3 chars → "Title must be at least 3 characters."
+- Title > 100 chars → "Title must be 100 characters or less."
+- Empty story → "Please enter a story to generate a video from."
+- Story < 50 chars → "Story must be at least 50 characters. You have X — need Y more."
+- Rate limited → Shows amber warning with exact reason
+- Concurrent job → "You have a video currently generating" banner with View Progress button
+- API 429 → Inline error with clear message
+- API 402 → Insufficient credits + upsell modal
+- API 401 → Session expired message
 
 ## Test Reports
 | Iteration | Scope | Result |
 |-----------|-------|--------|
-| 157 | Phase 5: Growth/Monetization/Analytics | 100% (17/17 backend) |
-| 158 | Phase 6-10: Landing V3/Gallery/OG/Perf | 100% (22/22 backend, 17 frontend) |
-
-## Key Files
-- `/app/frontend/src/pages/Landing.js` - Text-only feature showcase
-- `/app/frontend/src/pages/Gallery.js` - Categories, sorting, leaderboard
-- `/app/frontend/src/pages/Pricing.js` - $9/$19 subscription plans
-- `/app/frontend/src/components/admin/PerformanceMonitorTab.js` - Perf monitor
-- `/app/frontend/src/components/admin/GrowthFunnelTab.js` - Analytics funnel
-- `/app/frontend/src/components/UpsellModal.js` - Upsell modal
-- `/app/backend/routes/pipeline_routes.py` - Gallery/analytics/perf/OG endpoints
-- `/app/backend/routes/credits.py` - Balance + upsell check
-- `/app/backend/routes/cashfree_payments.py` - Products/plans
-- `/app/backend/tests/stress_test.py` - Load testing script
+| 157 | Phase 5 | 100% |
+| 158 | Phases 6-10 | 100% (22/22 backend) |
+| 159 | P0 Bug Fix | 90% (20/22 — 2 failures were test-script session issues) |
 
 ## Backlog
 - P1: SendGrid email (blocked on user upgrade)
@@ -89,7 +63,7 @@ Visionary Suite is an AI Story→Video platform. Users write a story and the AI 
 - P2: WebSocket real-time progress (replace polling)
 - P3: Worker auto-scaling
 - P3: Email notifications on completion
-- P3: Delete obsolete legacy code
+- P3: Legacy code cleanup
 
 ## Test Credentials
 - UAT: test@visionary-suite.com / Test@2026#

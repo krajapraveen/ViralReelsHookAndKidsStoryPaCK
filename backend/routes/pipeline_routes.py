@@ -24,6 +24,8 @@ MAX_VIDEOS_PER_HOUR = 5
 MAX_CONCURRENT_JOBS = 1
 
 
+from typing import Optional
+
 class CreatePipelineRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=100)
     story_text: str = Field(..., min_length=50, max_length=10000)
@@ -31,7 +33,7 @@ class CreatePipelineRequest(BaseModel):
     age_group: str = Field(default="kids_5_8")
     voice_preset: str = Field(default="narrator_warm")
     include_watermark: bool = Field(default=True)
-    parent_video_id: str = Field(default=None, description="ID of remixed video")
+    parent_video_id: Optional[str] = Field(default=None, description="ID of remixed video")
 
 
 async def _track_event(event: str, user_id: str = None, data: dict = None):
@@ -46,6 +48,13 @@ async def _track_event(event: str, user_id: str = None, data: dict = None):
 
 async def _check_rate_limit(user_id: str):
     """Enforce rate limits: MAX_VIDEOS_PER_HOUR and MAX_CONCURRENT_JOBS."""
+    # Auto-timeout stale jobs older than 15 minutes
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    await db.pipeline_jobs.update_many(
+        {"user_id": user_id, "status": {"$in": ["QUEUED", "PROCESSING"]}, "created_at": {"$lt": stale_cutoff}},
+        {"$set": {"status": "FAILED", "error": "Job timed out after 15 minutes", "completed_at": datetime.now(timezone.utc)}}
+    )
+
     one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
     recent_count = await db.pipeline_jobs.count_documents({
         "user_id": user_id,
@@ -60,6 +69,43 @@ async def _check_rate_limit(user_id: str):
     })
     if concurrent >= MAX_CONCURRENT_JOBS:
         raise HTTPException(status_code=429, detail="You already have a video generating. Please wait for it to finish.")
+
+
+@router.get("/rate-limit-status")
+async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
+    """Check if the user can create a new video (pre-check)."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    # Auto-timeout stale jobs
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    await db.pipeline_jobs.update_many(
+        {"user_id": user_id, "status": {"$in": ["QUEUED", "PROCESSING"]}, "created_at": {"$lt": stale_cutoff}},
+        {"$set": {"status": "FAILED", "error": "Job timed out after 15 minutes", "completed_at": datetime.now(timezone.utc)}}
+    )
+
+    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+    recent_count = await db.pipeline_jobs.count_documents({
+        "user_id": user_id, "created_at": {"$gte": one_hour_ago},
+    })
+    concurrent = await db.pipeline_jobs.count_documents({
+        "user_id": user_id, "status": {"$in": ["QUEUED", "PROCESSING"]},
+    })
+
+    can_create = recent_count < MAX_VIDEOS_PER_HOUR and concurrent < MAX_CONCURRENT_JOBS
+    reason = None
+    if concurrent >= MAX_CONCURRENT_JOBS:
+        reason = "You have a video currently generating. Please wait for it to finish."
+    elif recent_count >= MAX_VIDEOS_PER_HOUR:
+        reason = f"You've reached the limit of {MAX_VIDEOS_PER_HOUR} videos per hour. Please wait."
+
+    return {
+        "can_create": can_create,
+        "recent_count": recent_count,
+        "max_per_hour": MAX_VIDEOS_PER_HOUR,
+        "concurrent": concurrent,
+        "max_concurrent": MAX_CONCURRENT_JOBS,
+        "reason": reason,
+    }
 
 
 
