@@ -23,6 +23,7 @@ import {
   Wifi, WifiOff, ImageOff
 } from 'lucide-react';
 import CreationActionsBar from '../components/CreationActionsBar';
+import ContextualUpgrade from '../components/ContextualUpgrade';
 
 const AGE_GROUPS = [
   { id: 'kids_3_5', name: 'Kids 3-5', description: 'Simple stories, bright colors' },
@@ -193,16 +194,23 @@ export default function StoryVideoStudio() {
     fetchMusicLibrary();
     fetchTemplates();
     analytics.trackFunnelStep('story_video_studio_view');
-
-    // Handle remix/variation navigation state
-    if (location.state?.prompt) {
-      setStoryText(location.state.prompt);
-    }
-    if (location.state?.remixFrom) {
-      setRemixSource(location.state.remixFrom);
-      toast.info(`Remixing from "${location.state.remixFrom.title || 'previous creation'}"`, { duration: 3000 });
-    }
   }, []);
+  
+  // Handle remix/variation navigation state (separate effect for clarity)
+  // Note: React Router v7 stores state in window.history.state.usr
+  useEffect(() => {
+    // Try location.state first, then fallback to history.state.usr
+    const navState = location.state || window.history?.state?.usr;
+    
+    if (navState?.prompt && !storyText) {
+      setStoryText(navState.prompt);
+      console.log('[StoryVideoStudio] Setting story from remix:', navState.prompt?.substring(0, 50) + '...');
+    }
+    if (navState?.remixFrom && !remixSource) {
+      setRemixSource(navState.remixFrom);
+      toast.info(`Remixing from "${navState.remixFrom.title || 'previous creation'}"`, { duration: 3000 });
+    }
+  }, [location.state, storyText, remixSource]);
   
   // Load existing images when project changes and has images_generated status
   useEffect(() => {
@@ -2216,6 +2224,9 @@ export default function StoryVideoStudio() {
               parentGenerationId={renderJob?.job_id || project?.project_id}
               remixSourceTitle={project?.title}
             />
+
+            {/* Contextual Upgrade - After Generation */}
+            <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
 
             {/* Actions */}
             <div className="flex gap-4">

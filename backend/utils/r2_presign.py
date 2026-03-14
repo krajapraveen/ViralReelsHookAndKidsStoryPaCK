@@ -15,9 +15,16 @@ def _get_r2_client():
     try:
         from services.cloudflare_r2_storage import get_r2_storage
         r2 = get_r2_storage()
-        if r2 and r2._client:
+        if r2 and hasattr(r2, '_client') and r2._client:
             _r2_client = r2._client
+            logger.info("R2 presign client initialized successfully")
             return _r2_client
+        elif r2 and hasattr(r2, 'client') and r2.client:
+            _r2_client = r2.client
+            logger.info("R2 presign client initialized (via .client)")
+            return _r2_client
+        else:
+            logger.warning(f"R2 storage returned but no client found. is_configured={getattr(r2, 'is_configured', 'N/A')}")
     except Exception as e:
         logger.warning(f"Failed to get R2 client: {e}")
     return None

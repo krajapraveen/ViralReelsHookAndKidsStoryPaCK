@@ -229,7 +229,7 @@ async def get_trending_creations():
     # Presign thumbnail URLs
     from utils.r2_presign import presign_url
     for j in jobs:
-        if j.get("thumbnail_url") and ".r2.dev/" in j["thumbnail_url"]:
+        if j.get("thumbnail_url"):
             j["thumbnail_url"] = presign_url(j["thumbnail_url"])
 
     return {"trending": jobs}

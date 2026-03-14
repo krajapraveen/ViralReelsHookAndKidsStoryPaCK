@@ -167,9 +167,9 @@ async def public_gallery(category: str = None, sort: str = "newest", featured: b
 
     # Convert output_url to presigned URLs for working playback
     for job in jobs:
-        if job.get("output_url") and ".r2.dev/" in job["output_url"]:
+        if job.get("output_url"):
             job["output_url"] = _make_presigned_url(job["output_url"])
-        if job.get("thumbnail_url") and ".r2.dev/" in job["thumbnail_url"]:
+        if job.get("thumbnail_url"):
             job["thumbnail_url"] = _make_presigned_url(job["thumbnail_url"])
 
     return {"videos": jobs}
@@ -178,11 +178,30 @@ async def public_gallery(category: str = None, sort: str = "newest", featured: b
 @router.get("/gallery/leaderboard")
 async def gallery_leaderboard():
     """Public endpoint: return most remixed videos for the leaderboard."""
+    # First try pipeline_jobs with remix_count
     jobs = await db.pipeline_jobs.find(
         {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "remix_count": {"$gte": 1}},
-        {"title": 1, "output_url": 1, "animation_style": 1, "job_id": 1,
-         "remix_count": 1, "completed_at": 1, "_id": 0}
+        {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "job_id": 1,
+         "remix_count": 1, "completed_at": 1, "story_text": 1, "age_group": 1,
+         "voice_preset": 1, "_id": 0}
     ).sort("remix_count", -1).to_list(length=10)
+
+    # Fallback: show newest gallery items as "featured" if no remixed items
+    if not jobs:
+        jobs = await db.pipeline_jobs.find(
+            {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
+            {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "job_id": 1,
+             "remix_count": 1, "completed_at": 1, "story_text": 1, "age_group": 1,
+             "voice_preset": 1, "_id": 0}
+        ).sort("completed_at", -1).to_list(length=5)
+
+    # Presign URLs
+    for j in jobs:
+        if j.get("output_url"):
+            j["output_url"] = _make_presigned_url(j["output_url"])
+        if j.get("thumbnail_url"):
+            j["thumbnail_url"] = _make_presigned_url(j["thumbnail_url"])
+
     return {"leaderboard": jobs}
 
 
@@ -258,7 +277,7 @@ async def get_gallery_video(job_id: str):
     )
     if not job:
         raise HTTPException(status_code=404, detail="Video not found")
-    if job.get("output_url") and ".r2.dev/" in job["output_url"]:
+    if job.get("output_url"):
         job["output_url"] = _make_presigned_url(job["output_url"])
     return {"video": job}
 
