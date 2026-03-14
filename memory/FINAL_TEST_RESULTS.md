@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://gallery-showcase-43.preview.emergentagent.com
+**Website:** https://daily-challenges-10.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

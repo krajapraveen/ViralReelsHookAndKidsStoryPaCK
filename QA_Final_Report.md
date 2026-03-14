@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Testing Tools**: Playwright v1.58.2, curl, Python concurrent.futures  
-**Base URL**: https://gallery-showcase-43.preview.emergentagent.com
+**Base URL**: https://daily-challenges-10.preview.emergentagent.com
 
 ---
 

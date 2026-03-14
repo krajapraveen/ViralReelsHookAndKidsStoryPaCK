@@ -12,7 +12,7 @@
  */
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://gallery-showcase-43.preview.emergentagent.com';
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://daily-challenges-10.preview.emergentagent.com';
 
 const TEST_USERS = {
   demo: {

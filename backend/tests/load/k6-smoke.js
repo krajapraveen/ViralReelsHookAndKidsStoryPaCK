@@ -9,7 +9,7 @@ const loginSuccess = new Counter("login_success");
 const loginFailure = new Counter("login_failure");
 
 // Configuration
-const BASE = __ENV.BASE_URL || "https://gallery-showcase-43.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://daily-challenges-10.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

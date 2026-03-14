@@ -305,7 +305,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://gallery-showcase-43.preview.emergentagent.com",
+    "https://daily-challenges-10.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
@@ -517,6 +517,11 @@ api_router.include_router(job_queue_router)
 
 # Character Consistency Routes
 api_router.include_router(character_routes_router)
+
+# Engagement System (Daily Challenges, Streaks, Levels, Trending)
+from routes.engagement import router as engagement_router
+api_router.include_router(engagement_router)
+
 
 # Include API router in app
 app.include_router(api_router)

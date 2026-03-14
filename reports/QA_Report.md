@@ -3,7 +3,7 @@
 
 **Report Generated:** February 27, 2026  
 **Report Version:** 1.0  
-**Test Environment:** https://gallery-showcase-43.preview.emergentagent.com
+**Test Environment:** https://daily-challenges-10.preview.emergentagent.com
 
 ---
 

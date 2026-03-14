@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 
 # Base URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://gallery-showcase-43.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://daily-challenges-10.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "admin@creatorstudio.ai"

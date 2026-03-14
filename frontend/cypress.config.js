@@ -2,7 +2,7 @@ const { defineConfig } = require('cypress');
 
 module.exports = defineConfig({
   e2e: {
-    baseUrl: process.env.CYPRESS_BASE_URL || 'https://gallery-showcase-43.preview.emergentagent.com',
+    baseUrl: process.env.CYPRESS_BASE_URL || 'https://daily-challenges-10.preview.emergentagent.com',
     supportFile: 'cypress/support/e2e.js',
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
     viewportWidth: 1920,

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://gallery-showcase-43.preview.emergentagent.com
+**Platform URL:** https://daily-challenges-10.preview.emergentagent.com
 
 ---
 

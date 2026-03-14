@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://gallery-showcase-43.preview.emergentagent.com
+**Environment:** https://daily-challenges-10.preview.emergentagent.com
 
 ---
 

@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://gallery-showcase-43.preview.emergentagent.com';
+const BACKEND_URL = 'https://daily-challenges-10.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {
