@@ -34,7 +34,7 @@ public class EmailNotificationService {
     @Value("${app.name:CreatorStudio AI}")
     private String appName;
 
-    private static final String LOGO_URL = "https://remix-monetize-1.preview.emergentagent.com/logo.png";
+    private static final String LOGO_URL = "https://gallery-showcase-43.preview.emergentagent.com/logo.png";
 
     /**
      * Send payment confirmation email
@@ -62,7 +62,7 @@ public class EmailNotificationService {
                 <p style="font-size: 14px; color: #666;">Your credits are now available in your account. Start creating amazing content!</p>
                 
                 <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://remix-monetize-1.preview.emergentagent.com/app" 
+                    <a href="https://gallery-showcase-43.preview.emergentagent.com/app" 
                        style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
                         Start Creating →
                     </a>
@@ -104,7 +104,7 @@ public class EmailNotificationService {
                 </ul>
                 
                 <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://remix-monetize-1.preview.emergentagent.com/app/history" 
+                    <a href="https://gallery-showcase-43.preview.emergentagent.com/app/history" 
                        style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
                         View Your Script →
                     </a>
@@ -151,7 +151,7 @@ public class EmailNotificationService {
                 </ul>
                 
                 <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://remix-monetize-1.preview.emergentagent.com/app/history" 
+                    <a href="https://gallery-showcase-43.preview.emergentagent.com/app/history" 
                        style="display: inline-block; background: #a855f7; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
                         Download Story Pack →
                     </a>
@@ -194,7 +194,7 @@ public class EmailNotificationService {
                 </div>
                 
                 <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://remix-monetize-1.preview.emergentagent.com/pricing" 
+                    <a href="https://gallery-showcase-43.preview.emergentagent.com/pricing" 
                        style="display: inline-block; background: #f59e0b; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
                         Buy More Credits →
                     </a>
@@ -243,7 +243,7 @@ public class EmailNotificationService {
                 </div>
                 
                 <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://remix-monetize-1.preview.emergentagent.com/app" 
+                    <a href="https://gallery-showcase-43.preview.emergentagent.com/app" 
                        style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
                         Start Creating Now →
                     </a>
@@ -278,7 +278,7 @@ public class EmailNotificationService {
                 <p style="font-size: 14px; color: #666;">If you change your mind, simply log in to your account and go to Privacy Settings to cancel the deletion.</p>
                 
                 <div style="text-align: center; margin: 32px 0;">
-                    <a href="https://remix-monetize-1.preview.emergentagent.com/app/privacy" 
+                    <a href="https://gallery-showcase-43.preview.emergentagent.com/app/privacy" 
                        style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
                         Cancel Deletion →
                     </a>
@@ -334,8 +334,8 @@ public class EmailNotificationService {
                                         <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;">%s</p>
                                         <p style="margin: 0; color: #94a3b8; font-size: 12px;">
                                             © 2025 CreatorStudio AI. All rights reserved.<br>
-                                            <a href="https://remix-monetize-1.preview.emergentagent.com/privacy-policy" style="color: #6366f1; text-decoration: none;">Privacy Policy</a> • 
-                                            <a href="https://remix-monetize-1.preview.emergentagent.com/contact" style="color: #6366f1; text-decoration: none;">Contact Us</a>
+                                            <a href="https://gallery-showcase-43.preview.emergentagent.com/privacy-policy" style="color: #6366f1; text-decoration: none;">Privacy Policy</a> • 
+                                            <a href="https://gallery-showcase-43.preview.emergentagent.com/contact" style="color: #6366f1; text-decoration: none;">Contact Us</a>
                                         </p>
                                     </td>
                                 </tr>

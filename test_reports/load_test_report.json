@@ -1,7 +1,7 @@
 {
   "test_type": "Extended Load Test (25-50 Concurrent Users)",
   "timestamp": "2026-02-27T14:26:11.808853",
-  "api_url": "https://remix-monetize-1.preview.emergentagent.com",
+  "api_url": "https://gallery-showcase-43.preview.emergentagent.com",
   "results": {
     "25_users": {
       "total_requests": 600,

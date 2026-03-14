@@ -2,7 +2,7 @@
 # CreatorStudio AI - Load Test Script
 # Run: chmod +x load_test.sh && ./load_test.sh
 
-API_URL="${1:-https://remix-monetize-1.preview.emergentagent.com}"
+API_URL="${1:-https://gallery-showcase-43.preview.emergentagent.com}"
 CONCURRENT_USERS="${2:-100}"
 DURATION="${3:-30}"
 

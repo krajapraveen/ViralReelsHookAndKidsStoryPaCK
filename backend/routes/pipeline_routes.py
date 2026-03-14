@@ -19,9 +19,12 @@ logger = logging.getLogger("pipeline_routes")
 
 router = APIRouter(prefix="/pipeline", tags=["Story Video Pipeline"])
 
-# Rate limits
+# Rate limits - Production values
 MAX_VIDEOS_PER_HOUR = 5
 MAX_CONCURRENT_JOBS = 1
+
+# Users exempt from rate limiting (admin, demo, UAT)
+RATE_LIMIT_EXEMPT_EMAILS = {"admin@creatorstudio.ai", "test@visionary-suite.com", "demo@visionary-suite.com"}
 
 
 from typing import Optional
@@ -48,6 +51,12 @@ async def _track_event(event: str, user_id: str = None, data: dict = None):
 
 async def _check_rate_limit(user_id: str):
     """Enforce rate limits: MAX_VIDEOS_PER_HOUR and MAX_CONCURRENT_JOBS."""
+    # Check if user is exempt from rate limiting
+    user_doc = await db.users.find_one({"id": user_id}, {"email": 1, "role": 1, "_id": 0})
+    if user_doc:
+        if user_doc.get("email") in RATE_LIMIT_EXEMPT_EMAILS or user_doc.get("role") in ("admin", "ADMIN"):
+            return  # Skip rate limit for exempt users
+
     # Auto-timeout stale jobs older than 15 minutes
     stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
     await db.pipeline_jobs.update_many(
@@ -109,6 +118,29 @@ async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
 
 
 
+def _make_presigned_url(stored_url: str) -> str:
+    """Convert a stored R2 public URL to a presigned URL for direct access."""
+    try:
+        from services.cloudflare_r2_storage import get_r2_storage
+        r2 = get_r2_storage()
+        if not r2 or not r2._client:
+            return stored_url
+        # Extract key from stored URL: https://pub-xxx.r2.dev/KEY
+        parts = stored_url.split(".r2.dev/")
+        if len(parts) < 2:
+            return stored_url
+        key = parts[1]
+        bucket = os.environ.get("CLOUDFLARE_R2_BUCKET_NAME", "visionary-suite-assets-prod")
+        presigned = r2._client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket, 'Key': key},
+            ExpiresIn=14400  # 4 hours
+        )
+        return presigned
+    except Exception:
+        return stored_url
+
+
 @router.get("/gallery")
 async def public_gallery(category: str = None, sort: str = "newest", featured: bool = False):
     """Public endpoint: return completed videos for the gallery."""
@@ -129,10 +161,18 @@ async def public_gallery(category: str = None, sort: str = "newest", featured: b
 
     jobs = await db.pipeline_jobs.find(
         query,
-        {"title": 1, "output_url": 1, "animation_style": 1, "timing": 1,
+        {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "timing": 1,
          "completed_at": 1, "job_id": 1, "story_text": 1, "remix_count": 1,
          "age_group": 1, "voice_preset": 1, "_id": 0}
     ).sort(sort_field, sort_dir).to_list(length=48)
+
+    # Convert output_url to presigned URLs for working playback
+    for job in jobs:
+        if job.get("output_url") and ".r2.dev/" in job["output_url"]:
+            job["output_url"] = _make_presigned_url(job["output_url"])
+        if job.get("thumbnail_url") and ".r2.dev/" in job["thumbnail_url"]:
+            job["thumbnail_url"] = _make_presigned_url(job["thumbnail_url"])
+
     return {"videos": jobs}
 
 
@@ -219,6 +259,8 @@ async def get_gallery_video(job_id: str):
     )
     if not job:
         raise HTTPException(status_code=404, detail="Video not found")
+    if job.get("output_url") and ".r2.dev/" in job["output_url"]:
+        job["output_url"] = _make_presigned_url(job["output_url"])
     return {"video": job}
 
 

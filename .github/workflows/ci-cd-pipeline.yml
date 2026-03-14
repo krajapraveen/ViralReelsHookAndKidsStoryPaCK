@@ -97,7 +97,7 @@ jobs:
         working-directory: playwright-tests
         run: yarn test:smoke
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://remix-monetize-1.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://gallery-showcase-43.preview.emergentagent.com' }}
         continue-on-error: false
 
       - name: 📊 Upload Test Results
@@ -150,21 +150,21 @@ jobs:
         working-directory: playwright-tests
         run: yarn test:desktop
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://remix-monetize-1.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://gallery-showcase-43.preview.emergentagent.com' }}
         continue-on-error: true
 
       - name: 📱 Run Mobile Tests
         working-directory: playwright-tests
         run: yarn test:mobile
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://remix-monetize-1.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://gallery-showcase-43.preview.emergentagent.com' }}
         continue-on-error: true
 
       - name: 🔧 Run Edge Case Tests
         working-directory: playwright-tests
         run: yarn test:edge
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://remix-monetize-1.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://gallery-showcase-43.preview.emergentagent.com' }}
         continue-on-error: true
 
       - name: 📊 Upload Full Test Results

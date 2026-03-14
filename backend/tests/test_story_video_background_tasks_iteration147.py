@@ -19,7 +19,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://remix-monetize-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://gallery-showcase-43.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER_EMAIL = "test@visionary-suite.com"

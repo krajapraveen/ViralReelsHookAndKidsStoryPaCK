@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://remix-monetize-1.preview.emergentagent.com
+**Platform URL:** https://gallery-showcase-43.preview.emergentagent.com
 
 ---
 

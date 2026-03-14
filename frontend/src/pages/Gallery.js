@@ -170,7 +170,14 @@ export default function Gallery() {
             {videos.map((video, i) => (
               <div key={i} className="group rounded-2xl overflow-hidden border border-white/[0.05] bg-white/[0.015] hover:border-white/[0.12] transition-all" data-testid={`gallery-card-${i}`}>
                 <div className="aspect-video bg-black relative">
-                  <video src={video.output_url} className="w-full h-full object-cover" preload="metadata" controls muted />
+                  <video 
+                    src={video.output_url} 
+                    poster={video.thumbnail_url || undefined}
+                    className="w-full h-full object-cover" 
+                    preload="metadata" 
+                    controls 
+                    muted 
+                  />
                   {video.remix_count > 0 && (
                     <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-pink-300 px-2 py-1 rounded-full text-xs font-medium">
                       <RefreshCcw className="w-3 h-3" /> {video.remix_count} remixes
