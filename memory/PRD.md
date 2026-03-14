@@ -70,6 +70,17 @@
 - Gallery, categories, leaderboard, rate-limit-status
 - Pipeline options, cashfree products, credits, performance, funnel
 
+### Gallery Showcase (30 Items) ✅ (2026-03-14)
+- Cleaned 36 test items → 30 professional showcase videos
+- Archived 6 items (3 duplicates, 2 generic, 1 garbage)
+- Renamed all 30 with professional titles derived from story content
+- Generated 30 video thumbnails via ffmpeg frame extraction → uploaded to R2
+- Fixed R2 public URL 403 issue → backend now serves presigned URLs (4hr expiry)
+- Presigned URLs for both video playback and thumbnail display
+- Rate limit reverted: 1000/min → 5/hour (production value)
+- Admin/demo/UAT users exempt from rate limiting
+- Style distribution: 2D Cartoon (14), Watercolor (9), Anime (4), Comic Book (2), Claymation (1)
+
 ## Test Reports
 | Iter | Scope | Result |
 |------|-------|--------|
@@ -77,12 +88,21 @@
 | 158 | Phases 6-10 | 100% |
 | 159 | P0 Fix | 90% |
 | 160 | **Full Production UAT** | **92% backend, 100% frontend** |
+| 254 | Full Production UAT v2 | 100% |
+| 255 | **Gallery Showcase** | **100% (18/18 backend, all frontend)** |
 
 ## Test Credentials
 - UAT: test@visionary-suite.com / Test@2026#
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
+## Key Technical Notes
+- R2 public URL (pub-c251248e...r2.dev) returns 403 — all media served via presigned URLs
+- Presigned URL generation in `_make_presigned_url()` at `/app/backend/routes/pipeline_routes.py`
+- Thumbnail URLs stored in `thumbnail_url` field of `pipeline_jobs` collection
+
 ## Backlog
-- P1: SendGrid email (blocked)
-- P2: Video watermarking, WebSocket progress
-- P3: Worker auto-scaling, email notifications, legacy cleanup
+- P1: SendGrid email (blocked — external, needs plan upgrade)
+- P1: WebSocket real-time progress for video generation
+- P1: Worker auto-scaling based on queue depth
+- P2: Video watermarking for free plan
+- P2: Email notifications on video completion
