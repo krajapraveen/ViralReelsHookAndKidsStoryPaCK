@@ -1557,16 +1557,13 @@ export default function PhotoToComic() {
         onSubmitSuccess={() => setShowRating(false)}
       />
       
-      <UpsellModal
-        isOpen={showUpsell}
-        onClose={() => setShowUpsell(false)}
-        feature="photo_to_comic"
-        generationId={job?.id}
-        onSuccess={() => {
-          fetchCredits();
-          setShowUpsell(false);
-        }}
-      />
+      {showUpsell && (
+        <UpsellModal
+          isOpen={showUpsell}
+          credits={credits}
+          onClose={() => setShowUpsell(false)}
+        />
+      )}
       
       {/* Help Guide */}
       <HelpGuide pageId="photo-to-comic" />

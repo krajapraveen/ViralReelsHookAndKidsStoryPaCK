@@ -957,16 +957,13 @@ export default function PhotoReactionGIF() {
         onSubmitSuccess={() => setShowRating(false)}
       />
       
-      <UpsellModal
-        isOpen={showUpsell}
-        onClose={() => setShowUpsell(false)}
-        feature="reaction_gif"
-        generationId={job?.id}
-        onSuccess={() => {
-          fetchCredits();
-          setShowUpsell(false);
-        }}
-      />
+      {showUpsell && (
+        <UpsellModal
+          isOpen={showUpsell}
+          credits={0}
+          onClose={() => setShowUpsell(false)}
+        />
+      )}
     </div>
   );
 }

@@ -142,34 +142,35 @@ def _make_presigned_url(stored_url: str) -> str:
 
 @router.get("/gallery")
 async def public_gallery(category: str = None, sort: str = "newest", featured: bool = False):
-    """Public endpoint: return completed videos for the gallery."""
-    query = {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}}
+    """Public endpoint: return completed videos and showcase items for the gallery."""
+    query = {
+        "status": "COMPLETED",
+        "$or": [
+            {"output_url": {"$exists": True, "$ne": None}},
+            {"is_showcase": True},
+        ]
+    }
     if category and category != "all":
         query["animation_style"] = category
     if featured:
         query["remix_count"] = {"$gte": 1}
 
-    # Determine sort order
     sort_field = "completed_at"
     sort_dir = -1
     if sort == "most_remixed":
         sort_field = "remix_count"
-    elif sort == "trending":
-        # Trending = most recently remixed/completed with remix activity
-        sort_field = "completed_at"
 
     jobs = await db.pipeline_jobs.find(
         query,
         {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "timing": 1,
          "completed_at": 1, "job_id": 1, "story_text": 1, "remix_count": 1,
-         "age_group": 1, "voice_preset": 1, "_id": 0}
+         "age_group": 1, "voice_preset": 1, "is_showcase": 1, "_id": 0}
     ).sort(sort_field, sort_dir).to_list(length=48)
 
-    # Convert output_url to presigned URLs for working playback
     for job in jobs:
         if job.get("output_url"):
             job["output_url"] = _make_presigned_url(job["output_url"])
-        if job.get("thumbnail_url"):
+        if job.get("thumbnail_url") and not job.get("thumbnail_url", "").startswith("https://static.prod-images"):
             job["thumbnail_url"] = _make_presigned_url(job["thumbnail_url"])
 
     return {"videos": jobs}
@@ -177,29 +178,29 @@ async def public_gallery(category: str = None, sort: str = "newest", featured: b
 
 @router.get("/gallery/leaderboard")
 async def gallery_leaderboard():
-    """Public endpoint: return most remixed videos for the leaderboard."""
-    # First try pipeline_jobs with remix_count
-    jobs = await db.pipeline_jobs.find(
-        {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "remix_count": {"$gte": 1}},
-        {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "job_id": 1,
-         "remix_count": 1, "completed_at": 1, "story_text": 1, "age_group": 1,
-         "voice_preset": 1, "_id": 0}
-    ).sort("remix_count", -1).to_list(length=10)
+    """Public endpoint: return most remixed videos/showcases for the leaderboard."""
+    query = {
+        "status": "COMPLETED",
+        "remix_count": {"$gte": 1},
+        "$or": [
+            {"output_url": {"$exists": True, "$ne": None}},
+            {"is_showcase": True},
+        ]
+    }
+    projection = {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "job_id": 1,
+                  "remix_count": 1, "completed_at": 1, "story_text": 1, "age_group": 1,
+                  "voice_preset": 1, "is_showcase": 1, "_id": 0}
 
-    # Fallback: show newest gallery items as "featured" if no remixed items
+    jobs = await db.pipeline_jobs.find(query, projection).sort("remix_count", -1).to_list(length=10)
+
     if not jobs:
-        jobs = await db.pipeline_jobs.find(
-            {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
-            {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "job_id": 1,
-             "remix_count": 1, "completed_at": 1, "story_text": 1, "age_group": 1,
-             "voice_preset": 1, "_id": 0}
-        ).sort("completed_at", -1).to_list(length=5)
+        query.pop("remix_count")
+        jobs = await db.pipeline_jobs.find(query, projection).sort("completed_at", -1).to_list(length=5)
 
-    # Presign URLs
     for j in jobs:
         if j.get("output_url"):
             j["output_url"] = _make_presigned_url(j["output_url"])
-        if j.get("thumbnail_url"):
+        if j.get("thumbnail_url") and not j.get("thumbnail_url", "").startswith("https://static.prod-images"):
             j["thumbnail_url"] = _make_presigned_url(j["thumbnail_url"])
 
     return {"leaderboard": jobs}
@@ -209,7 +210,10 @@ async def gallery_leaderboard():
 async def gallery_categories():
     """Public endpoint: return available categories with counts."""
     pipe = [
-        {"$match": {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}}},
+        {"$match": {"status": "COMPLETED", "$or": [
+            {"output_url": {"$exists": True, "$ne": None}},
+            {"is_showcase": True},
+        ]}},
         {"$group": {"_id": "$animation_style", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]

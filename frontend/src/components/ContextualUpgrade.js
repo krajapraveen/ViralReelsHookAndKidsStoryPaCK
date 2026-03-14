@@ -4,15 +4,20 @@ import { Crown, Zap, Check, X } from 'lucide-react';
 import { Button } from './ui/button';
 import axios from 'axios';
 
+import { getPricing } from '../utils/pricing';
+
 const API = process.env.REACT_APP_BACKEND_URL;
 
-const BENEFITS = [
-  '250 monthly credits',
-  'HD video export',
-  'No watermark',
-  'Faster generation',
-  'Priority rendering',
-];
+const getBenefits = () => {
+  const p = getPricing();
+  return [
+    `${p.pro.credits} monthly credits`,
+    'HD video export',
+    'No watermark',
+    'Faster generation',
+    'Priority rendering',
+  ];
+};
 
 export default function ContextualUpgrade({ trigger = 'low_credits', sourcePage = 'unknown', onDismiss }) {
   const [dismissed, setDismissed] = useState(false);
@@ -76,7 +81,7 @@ export default function ContextualUpgrade({ trigger = 'low_credits', sourcePage 
           <h4 className="text-sm font-semibold text-white">{config.title}</h4>
           <p className="text-xs text-slate-400 mt-0.5">{config.subtitle}</p>
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-            {BENEFITS.slice(0, 3).map((b, i) => (
+            {getBenefits().slice(0, 3).map((b, i) => (
               <span key={i} className="text-[11px] text-indigo-300/70 flex items-center gap-1">
                 <Check className="w-3 h-3" /> {b}
               </span>

@@ -4,11 +4,13 @@ import { Button } from '../components/ui/button';
 import { paymentAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Check, Sparkles, ArrowLeft, Loader2, Zap, Film, Star } from 'lucide-react';
+import { getPricing } from '../utils/pricing';
 
 export default function Pricing() {
   const [products, setProducts] = useState({});
   const [loading, setLoading] = useState({});
   const navigate = useNavigate();
+  const pricing = getPricing();
 
   useEffect(() => {
     fetchProducts();
@@ -41,28 +43,28 @@ export default function Pricing() {
     {
       id: 'creator_monthly',
       name: 'Creator',
-      price: '$9',
+      price: `${pricing.symbol}${pricing.creator.price.toLocaleString()}`,
       priceNote: '/month',
-      credits: products.creator_monthly?.credits || 100,
+      credits: pricing.creator.credits,
       popular: true,
-      features: ['5 Story Videos/mo', 'All animation styles', 'Priority rendering', 'Email support'],
+      features: ['Access to core AI tools', 'All animation styles', 'Priority rendering', 'Email support'],
     },
     {
       id: 'pro_monthly',
       name: 'Pro',
-      price: '$19',
+      price: `${pricing.symbol}${pricing.pro.price.toLocaleString()}`,
       priceNote: '/month',
-      credits: products.pro_monthly?.credits || 250,
+      credits: pricing.pro.credits,
       popular: false,
       badge: 'BEST VALUE',
-      features: ['12+ Story Videos/mo', 'All animation styles', 'Priority rendering', 'No watermark', 'Gallery featured', 'Priority support'],
+      features: ['All tools unlocked', 'HD downloads', 'Priority rendering', 'No watermark', 'Gallery featured', 'Priority support'],
     },
   ];
 
   const topUpPacks = [
-    { id: 'topup_small', name: '50 Credits', price: '$5', credits: 50 },
-    { id: 'topup_medium', name: '150 Credits', price: '$12', credits: 150, popular: true },
-    { id: 'topup_large', name: '500 Credits', price: '$30', credits: 500 },
+    { id: 'topup_small', name: `${pricing.topup.credits} Credits`, price: `${pricing.symbol}${pricing.topup.price.toLocaleString()}`, credits: pricing.topup.credits },
+    { id: 'topup_medium', name: `${pricing.topup.credits * 3} Credits`, price: `${pricing.symbol}${(pricing.topup.price * 2.5).toLocaleString()}`, credits: pricing.topup.credits * 3, popular: true },
+    { id: 'topup_large', name: `${pricing.topup.credits * 8} Credits`, price: `${pricing.symbol}${(pricing.topup.price * 5).toLocaleString()}`, credits: pricing.topup.credits * 8 },
   ];
 
   return (

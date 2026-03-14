@@ -57,16 +57,21 @@ async def get_credit_history(
 
 @router.get("/balance")
 async def get_balance(user: dict = Depends(get_current_user)):
-    """Get current credit balance"""
-    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1, "subscription": 1, "plan": 1})
-    credits_val = user_data.get("credits", 0)
-    plan_val = user_data.get("plan", "free")
+    """Get current credit balance. Admin/exempt users show unlimited."""
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1, "subscription": 1, "plan": 1, "email": 1, "role": 1})
+    email = user_data.get("email", "")
+    role = user_data.get("role", "")
+    EXEMPT_EMAILS = {"admin@creatorstudio.ai", "test@visionary-suite.com", "demo@visionary-suite.com"}
+    is_exempt = email in EXEMPT_EMAILS or role in ("admin", "ADMIN")
+    credits_val = 999999 if is_exempt else user_data.get("credits", 0)
+    plan_val = "pro" if is_exempt else user_data.get("plan", "free")
     return {
         "credits": credits_val,
         "balance": credits_val,
         "subscription": user_data.get("subscription"),
         "plan": plan_val,
-        "isFreeTier": plan_val == "free"
+        "isFreeTier": plan_val == "free",
+        "unlimited": is_exempt,
     }
 
 

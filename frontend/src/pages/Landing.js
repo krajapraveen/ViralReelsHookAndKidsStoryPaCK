@@ -6,6 +6,7 @@ import {
   Menu, X, Film, BookOpen, Image, Zap, ChevronRight, Star, Check,
   Clock, Layers, Mic, Palette, Shield, RefreshCcw
 } from 'lucide-react';
+import { getPricing } from '../utils/pricing';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -39,6 +40,7 @@ const STYLES = [
 export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState({ videosCreated: 36, creatorsOnline: 12 });
+  const pricing = getPricing();
 
   useEffect(() => {
     fetch(`${API_URL}/api/live-stats/public`)
@@ -75,11 +77,6 @@ export default function Landing() {
             <Link to="/gallery" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Gallery</Link>
             <Link to="/pricing" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Pricing</Link>
             <Link to="/login" className="text-sm font-medium text-slate-400 hover:text-white transition-colors" data-testid="nav-login-link">Login</Link>
-            <Link to="/signup">
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-6 py-2 text-sm font-semibold transition-all hover:shadow-[0_0_24px_-4px_rgba(99,102,241,0.5)]" data-testid="nav-signup-btn">
-                Start Free
-              </Button>
-            </Link>
           </div>
           <button className="md:hidden text-white p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} data-testid="mobile-menu-btn">
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -92,9 +89,6 @@ export default function Landing() {
             <Link to="/gallery" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Gallery</Link>
             <Link to="/pricing" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
             <Link to="/login" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Login</Link>
-            <Link to="/signup" className="block" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-semibold">Start Free</Button>
-            </Link>
           </div>
         )}
       </nav>
@@ -295,7 +289,7 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="flex flex-col rounded-2xl border border-white/[0.06] bg-white/[0.015] p-8">
               <h3 className="text-xl font-bold mb-2 text-white">Free</h3>
-              <div className="text-4xl font-black mb-1 text-white">$0</div>
+              <div className="text-4xl font-black mb-1 text-white">{pricing.symbol}0</div>
               <p className="text-slate-500 mb-6">to get started</p>
               <ul className="space-y-3 mb-8 flex-1">
                 <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> Browse all features</li>
@@ -311,12 +305,12 @@ export default function Landing() {
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-4 py-1 rounded-full">POPULAR</div>
               <h3 className="text-xl font-bold mb-2 text-white">Creator</h3>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-white">$9</span>
+                <span className="text-4xl font-black text-white">{pricing.symbol}{pricing.creator.price.toLocaleString()}</span>
                 <span className="text-slate-500">/month</span>
               </div>
-              <p className="text-indigo-300/80 text-sm mt-1 mb-6">100 credits/month</p>
+              <p className="text-indigo-300/80 text-sm mt-1 mb-6">{pricing.creator.credits} credits/month</p>
               <ul className="space-y-3 mb-8 flex-1">
-                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> ~5 Story Videos</li>
+                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> Access to core AI tools</li>
                 <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> All animation styles</li>
                 <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> Priority rendering</li>
               </ul>
@@ -328,14 +322,14 @@ export default function Landing() {
             <div className="flex flex-col rounded-2xl border border-white/[0.06] bg-white/[0.015] p-8">
               <h3 className="text-xl font-bold mb-2 text-white">Pro</h3>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-white">$19</span>
+                <span className="text-4xl font-black text-white">{pricing.symbol}{pricing.pro.price.toLocaleString()}</span>
                 <span className="text-slate-500">/month</span>
               </div>
-              <p className="text-amber-300/80 text-sm mt-1 mb-6">250 credits/month</p>
+              <p className="text-amber-300/80 text-sm mt-1 mb-6">{pricing.pro.credits} credits/month</p>
               <ul className="space-y-3 mb-8 flex-1">
-                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> ~12 Story Videos</li>
+                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> All tools unlocked</li>
+                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> HD downloads</li>
                 <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> No watermark</li>
-                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> Gallery featured</li>
                 <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> Priority support</li>
               </ul>
               <Link to="/pricing">
@@ -345,7 +339,7 @@ export default function Landing() {
           </div>
 
           <p className="text-center text-sm text-slate-600 mt-8">
-            Need more? <Link to="/pricing" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Buy credit top-ups</Link> starting from $5 for 50 credits.
+            Need more? <Link to="/pricing" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Buy credit top-ups</Link> starting from {pricing.topup.label} for {pricing.topup.credits} credits.
           </p>
         </div>
       </section>

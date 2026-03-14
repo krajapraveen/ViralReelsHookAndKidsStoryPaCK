@@ -1,15 +1,18 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from './ui/button';
 import { Coins, Sparkles, X, ArrowRight, Zap } from 'lucide-react';
+import { getPricing } from '../utils/pricing';
 
-export default function UpsellModal({ credits, onClose }) {
+export default function UpsellModal({ credits, onClose, isOpen }) {
   const navigate = useNavigate();
+  const p = getPricing();
+
+  if (isOpen === false) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="upsell-modal">
-      <div className="relative w-full max-w-md mx-4 rounded-2xl border border-white/10 bg-slate-900 p-8 shadow-2xl">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white" data-testid="upsell-close-btn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="upsell-modal" onClick={onClose}>
+      <div className="relative w-full max-w-md mx-4 rounded-2xl border border-white/10 bg-slate-900 p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors" data-testid="upsell-close-btn">
           <X className="w-5 h-5" />
         </button>
 
@@ -34,8 +37,8 @@ export default function UpsellModal({ credits, onClose }) {
               <Sparkles className="w-5 h-5 text-indigo-400" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-white">Subscribe — from $9/mo</p>
-              <p className="text-xs text-slate-400">100 credits/mo + priority rendering</p>
+              <p className="font-semibold text-white">Subscribe — from {p.creator.label}</p>
+              <p className="text-xs text-slate-400">{p.subscribeDesc}</p>
             </div>
             <ArrowRight className="w-4 h-4 text-indigo-400" />
           </button>
@@ -50,7 +53,7 @@ export default function UpsellModal({ credits, onClose }) {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-white">Top Up Credits</p>
-              <p className="text-xs text-slate-400">50 credits from $5 — use anytime</p>
+              <p className="text-xs text-slate-400">{p.topupDesc}</p>
             </div>
             <ArrowRight className="w-4 h-4 text-slate-500" />
           </button>

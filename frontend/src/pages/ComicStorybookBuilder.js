@@ -1391,16 +1391,13 @@ export default function ComicStorybookBuilder() {
         onSubmitSuccess={() => setShowRating(false)}
       />
       
-      <UpsellModal
-        isOpen={showUpsell}
-        onClose={() => setShowUpsell(false)}
-        feature="comic_storybook"
-        generationId={job?.id}
-        onSuccess={() => {
-          fetchCredits();
-          setShowUpsell(false);
-        }}
-      />
+      {showUpsell && (
+        <UpsellModal
+          isOpen={showUpsell}
+          credits={0}
+          onClose={() => setShowUpsell(false)}
+        />
+      )}
       
       {/* Help Guide */}
       <HelpGuide pageId="comic-storybook" />
