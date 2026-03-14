@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
  * Target execution time: < 2 minutes
  */
 
-const BASE_URL = 'https://daily-challenges-10.preview.emergentagent.com';
+const BASE_URL = 'https://engagement-loop-core.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

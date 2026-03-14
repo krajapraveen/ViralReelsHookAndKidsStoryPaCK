@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://daily-challenges-10.preview.emergentagent.com
+**Website:** https://engagement-loop-core.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

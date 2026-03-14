@@ -10,7 +10,7 @@ Full production verification including:
 - All endpoint authentication checks
 
 Test User: test@visionary-suite.com / Test@2026#
-Preview URL: https://daily-challenges-10.preview.emergentagent.com
+Preview URL: https://engagement-loop-core.preview.emergentagent.com
 """
 
 import pytest

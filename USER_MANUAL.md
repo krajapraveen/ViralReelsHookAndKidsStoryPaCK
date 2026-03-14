@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://daily-challenges-10.preview.emergentagent.com
+**Platform URL:** https://engagement-loop-core.preview.emergentagent.com
 
 ---
 

@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://daily-challenges-10.preview.emergentagent.com
+**Base URL:** https://engagement-loop-core.preview.emergentagent.com
 
 ---
 

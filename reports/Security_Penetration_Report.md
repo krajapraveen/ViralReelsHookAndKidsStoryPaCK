@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://daily-challenges-10.preview.emergentagent.com
+**Environment:** https://engagement-loop-core.preview.emergentagent.com
 
 ---
 

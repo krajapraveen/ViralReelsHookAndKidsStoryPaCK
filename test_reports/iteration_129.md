@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://daily-challenges-10.preview.emergentagent.com)
+**Environment:** Preview (https://engagement-loop-core.preview.emergentagent.com)
 
 ---
 

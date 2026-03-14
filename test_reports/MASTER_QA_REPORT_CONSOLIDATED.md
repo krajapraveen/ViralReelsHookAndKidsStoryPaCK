@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://daily-challenges-10.preview.emergentagent.com  
+**Base URL:** https://engagement-loop-core.preview.emergentagent.com  
 **Forks Consolidated:** Current + Previous 5 Forks
 
 ---

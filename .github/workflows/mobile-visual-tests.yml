@@ -52,7 +52,7 @@ jobs:
         run: |
           npx playwright test --project=mobile-deep
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://daily-challenges-10.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://engagement-loop-core.preview.emergentagent.com' }}
           VIEWPORT: ${{ matrix.viewport }}
 
       - name: 📸 Upload Screenshots

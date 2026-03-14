@@ -3,7 +3,7 @@ Story Video Pipeline Render Stability Tests - Iteration 153
 Testing the optimized render stage with OOM prevention fixes.
 API endpoints validation only - NOT triggering full pipeline runs (~80s each).
 
-Target: https://daily-challenges-10.preview.emergentagent.com
+Target: https://engagement-loop-core.preview.emergentagent.com
 Focus: Pipeline API responses, job status, worker stats, options endpoint
 """
 
@@ -13,7 +13,7 @@ import os
 import time
 
 # Base URL from environment or default to preview
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://daily-challenges-10.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://engagement-loop-core.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_USER_EMAIL = "test@visionary-suite.com"

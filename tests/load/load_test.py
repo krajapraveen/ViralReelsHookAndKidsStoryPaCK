@@ -15,7 +15,7 @@ from datetime import datetime
 from collections import defaultdict
 
 # Configuration
-BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "https://daily-challenges-10.preview.emergentagent.com"
+BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "https://engagement-loop-core.preview.emergentagent.com"
 CONCURRENT_USERS = 200
 TEST_DURATION_SECONDS = 120  # 2 minutes
 RAMP_UP_SECONDS = 30

@@ -54,7 +54,7 @@
     }
   },
   "test_config": {
-    "api_url": "https://daily-challenges-10.preview.emergentagent.com",
+    "api_url": "https://engagement-loop-core.preview.emergentagent.com",
     "start_time": "2026-02-26T07:39:52.271450+00:00",
     "end_time": "2026-02-26T07:40:28.272666+00:00"
   },
