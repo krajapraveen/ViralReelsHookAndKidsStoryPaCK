@@ -19,101 +19,80 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 
 ### Core Platform
 - Full AI story video pipeline (script > scenes > images > voices > render > upload)
-- Gallery with 30 professional showcase items (thumbnails, presigned URLs)
+- Gallery with 30+ professional showcase items (AI-generated thumbnails, presigned URLs)
 - Rate limiting: 5/hour for normal users, exempt for admin/test/demo
 - Worker auto-scaling: 1 min, 3 max, scales on queue depth
 - 50+ creator tools (reel generator, story generator, coloring book, comic maker, etc.)
 - Payment/billing system (Cashfree integration)
 - Admin dashboard with analytics, user management, monitoring
-- UI: Consistent dark professional theme across all pages
+- Credit system with refunds on failure (unlimited for admin/demo/UAT)
 - Error boundary with recovery options
-- Credit system with refunds on failure (0 credits for new signups, unlimited for admin/demo/UAT)
-
-### Premium Dashboard with Engagement System (Completed Mar 14, 2026)
-- 2-Column Layout: Main content (left) + utility sidebar (right, 320px, hidden lg:block)
-- Universal AI Prompt: Keyword intent detection routes to correct tool (16 tool mappings)
-- 3 Hero Action Cards: Story Video, Photo to Comic, Reel Generator
-- 6 Inspiration Templates: Pre-filled prompts with one-click navigation
-- Recent Creations: Generation history with status badges
-- Tool Categories: 4 tabbed categories (Video/Image/Story/Social) with 20+ tools
-- Trending Feed: Top 6 gallery items with presigned thumbnails
-- Credits Panel, Creator Level (5 levels), Daily Challenge, Creation Streak (7-day), AI Ideas, Activity Feed, Quick Links
-
-### Remix & Variations Engine (Completed Mar 14, 2026)
-- **CreationActionsBar component**: Reusable across all 7 tools
-  - Quick Variations Row: 4 one-click buttons (Funny, Dramatic, Anime Style, Short Version etc.)
-  - Style Switcher: Dropdown with 5-7 styles per tool
-  - Prompt Edit + Remix: Editable prompt box with Generate button
-  - Cross-Tool Conversions: Turn Into Reel, Turn Into Comic, Turn Into Video etc.
-  - Regenerate button
-  - Remix Source Tag: Shows "Remixed from: [title]"
-- **Variation configs for 7 tools**: story-video-studio, reels, photo-to-comic, gif-maker, stories, bedtime-story-builder, comic-storybook
-- **Remix tracking**: All remix events logged with source_tool, target_tool, variation_type, lineage
-- **Navigation state integration**: Tools accept `location.state.prompt` for pre-filled input on remix
-- **Backend**: `/api/remix/variations/{tool}`, `/api/remix/track`, `/api/remix/stats`
-
-### Engagement Analytics (Completed Mar 14, 2026)
-- Track CTA clicks (upgrade banners, buy credits, plans)
-- Track template usage
-- Admin analytics report: challenge completion rate, streak retention (7/14/30d), creations per user, remix rate, remix chain length, cross-tool conversions, variation click rate, template usage
-
-### P0 Pipeline & Worker Fixes (Completed Mar 14, 2026)
-- **Asset download reliability**: Retry logic with 3 attempts, presigned URL regeneration, R2 key fallback
-- **Stuck job recovery**: Periodic loop (every 2 min) detects jobs stuck >10 min, marks FAILED, refunds credits
-- **Stale job cleanup**: On server restart, auto-fails orphaned PROCESSING/QUEUED jobs with credit refund
-- **ffmpeg optimization**: ultrafast preset, scene timeout 120s, concat timeout 120s
-- **Progress reporting**: Sub-step updates during render (downloading, encoding, concatenating)
-- **Frontend stuck detection**: Polling detects stale progress (no change for ~3.3 min), shows retry message
-- **R2 presign utility**: Handles .r2.dev/ and r2.cloudflarestorage.com URLs, strips query params, key-based fallback
-- **R2 key storage**: Image/voice assets store R2 key alongside URL for reliable re-download
 
 ### Render Architecture Redesign (Completed Mar 14, 2026)
 - **REMOVED** scene-by-scene mp4 clip rendering (was 2N+1 FFmpeg calls)
 - **REPLACED** with single-pass FFmpeg encode using filter_complex concat
-- Resolution: 960x540 (was 1280x720), FPS: 15 (was 24)
-- Codec: libx264, preset: ultrafast, CRF: 28, threads: 1
+- Resolution: 960x540, FPS: 15, libx264 ultrafast, CRF 28, threads 1
 - Real-time render progress via FFmpeg -progress flag
-- No zoompan, complex transitions, or per-scene animation filters
 - Render time: ~27s solo (3 scenes), ~65-85s concurrent
-- Total pipeline: ~100-120s solo (3 scenes)
-- 28 successful completions, 0 render failures across testing
-- Benchmark report: /app/test_reports/render_speed_benchmark.json
+- 28 successful completions, 0 render failures
+
+### Landing Page & Pricing Fixes (Completed Mar 14, 2026)
+- **Removed "Start Free" button** from landing page nav (desktop + mobile)
+- **Geo-based currency detection**: INR (₹) for India users, USD ($) for international
+  - India: Creator ₹699/mo (300 credits), Pro ₹1,299/mo (1000 credits), TopUp ₹299 (150 credits)
+  - International: Creator $9/mo (100 credits), Pro $19/mo (250 credits), TopUp $5 (50 credits)
+  - Detection via browser timezone (Asia/Kolkata = India)
+- Applied to: Landing page, Pricing page, UpsellModal, ContextualUpgrade
+
+### Gallery & Showcase Overhaul (Completed Mar 14, 2026)
+- Seeded 12 AI-generated showcase items with HD thumbnails
+- Gallery now shows 48+ items with category filters
+- "Most Remixed Creations" leaderboard with remix count badges
+- Categories: All, 2D Cartoon, Watercolor, Anime, Comic Book, 3D Animation, Claymation
+- Remix button on gallery cards for engagement
+
+### Credits & UpsellModal Fixes (Completed Mar 14, 2026)
+- Admin/exempt users now show 999,999 credits (was 0)
+- `/api/credits/balance` returns `unlimited: true` for admin users
+- UpsellModal properly checks `isOpen` prop — no longer blocks admin
+- X button, backdrop click, and "Maybe Later" all properly close the modal
+- Fixed in: PhotoToComic, ReelGenerator, ComicStorybookBuilder, PhotoReactionGIF
+
+### Remix & Variations Engine
+- CreationActionsBar component across all 7 tools
+- Remix tracking, leaderboard, cross-tool conversions
+- Pre-fill logic for remix flow
+
+### P0 Pipeline Stabilization
+- Stuck job recovery (background service)
+- Asset download retries with presigned URL regeneration
+- Frontend stuck detection with retry option
 
 ## API Endpoints
 
-### Remix Engine
-- `GET /api/remix/variations/{tool_type}` - Variation config per tool (public)
-- `POST /api/remix/track` - Track remix event (auth required)
-- `GET /api/remix/stats` - Remix analytics (admin: full breakdown, user: total count)
+### Credits
+- `GET /api/credits/balance` — Returns credits (999999 for admin), unlimited flag, plan
 
-### Engagement Analytics
-- `POST /api/engagement-analytics/track-cta` - Track CTA clicks
-- `POST /api/engagement-analytics/track-template` - Track template usage
-- `GET /api/engagement-analytics/report` - Full admin analytics report
+### Gallery
+- `GET /api/pipeline/gallery` — Showcases + user videos, presigned URLs
+- `GET /api/pipeline/gallery/leaderboard` — Top remixed creations
+- `GET /api/pipeline/gallery/categories` — Category counts
 
-### Engagement System
-- `GET /api/engagement/dashboard` - Full dashboard data
-- `POST /api/engagement/challenge/complete` - Complete daily challenge
-- `POST /api/engagement/streak/update` - Update creation streak
-- `GET /api/engagement/trending` - Top 6 trending items
+### Remix
+- `GET /api/remix/variations/{tool}` — Variation config
+- `POST /api/remix/track` — Track remix event
+- `GET /api/remix/stats` — Analytics
 
 ## Backlog
 - **P1**: WebSocket real-time progress for video generation
 - **P1**: Video watermarking for free plan users
-- **P1**: SendGrid email (BLOCKED - needs plan upgrade)
-- **P2**: Email notifications on video completion
-- **P2**: Break Dashboard.js into smaller components for maintainability
-
-## Test Reports
-| Iter | Scope | Backend | Frontend |
-|------|-------|---------|----------|
-| 161 | Engagement Dashboard E2E | 76% | 100% |
-| 162 | Remix + Analytics + Pipeline | 95% (20/21) | 100% |
-| Render Benchmark | Single-pass render redesign | 28/28 (100%) | UI verified |
+- **P1**: Expand contextual upgrade prompts
+- **P2**: Email notifications (BLOCKED on SendGrid)
+- **P2**: Break Dashboard.js into smaller components
 
 ## Technical Notes
 - R2 public URL returns 403 - all media served via presigned URLs (4hr expiry)
-- **Pipeline rendering: 960x540, 15fps, ultrafast, CRF 28, single-pass encode**
+- Pipeline rendering: 960x540, 15fps, ultrafast, CRF 28, single-pass encode
 - Stuck job recovery: every 2 min, 10 min timeout, auto credit refund
-- CreationActionsBar: conditionally rendered after generation completes
-- Dashboard sidebar: hidden lg:block (desktop only)
+- Geo-detection: `Intl.DateTimeFormat().resolvedOptions().timeZone` → Asia/Kolkata = INR
+- Admin exempt emails: admin@creatorstudio.ai, test@visionary-suite.com, demo@visionary-suite.com
