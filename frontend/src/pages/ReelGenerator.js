@@ -89,8 +89,16 @@ export default function ReelGenerator() {
   useEffect(() => {
     fetchCredits();
     // Handle remix/variation navigation state
-    if (location.state?.prompt) {
-      setFormData(prev => ({ ...prev, topic: location.state.prompt }));
+    const navState = location.state || window.history?.state?.usr;
+    let remixData = navState;
+    if (!remixData?.prompt) {
+      try {
+        const stored = localStorage.getItem('remix_data');
+        if (stored) { remixData = JSON.parse(stored); setTimeout(() => localStorage.removeItem('remix_data'), 1000); }
+      } catch {}
+    }
+    if (remixData?.prompt) {
+      setFormData(prev => ({ ...prev, topic: remixData.prompt }));
     }
   }, []);
 

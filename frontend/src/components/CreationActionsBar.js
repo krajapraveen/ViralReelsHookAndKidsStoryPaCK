@@ -70,19 +70,19 @@ export default function CreationActionsBar({
 
     // Navigate to target tool with remix context
     const route = TOOL_ROUTES[targetTool] || `/app/${targetTool}`;
-    navigate(route, {
-      state: {
-        prompt: finalPrompt,
-        remixFrom: {
-          tool: toolType,
-          prompt: originalPrompt,
-          settings: originalSettings,
-          title: remixSourceTitle,
-          parentId: parentGenerationId,
-          originalId: originalGenerationId || parentGenerationId,
-        }
+    const stateData = {
+      prompt: finalPrompt,
+      remixFrom: {
+        tool: toolType,
+        prompt: originalPrompt,
+        settings: originalSettings,
+        title: remixSourceTitle,
+        parentId: parentGenerationId,
+        originalId: originalGenerationId || parentGenerationId,
       }
-    });
+    };
+    localStorage.setItem('remix_data', JSON.stringify(stateData));
+    navigate(route, { state: stateData });
     toast.success(`Creating ${label}...`);
   };
 

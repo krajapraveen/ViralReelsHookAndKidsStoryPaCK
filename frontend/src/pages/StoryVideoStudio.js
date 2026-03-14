@@ -199,18 +199,29 @@ export default function StoryVideoStudio() {
   // Handle remix/variation navigation state (separate effect for clarity)
   // Note: React Router v7 stores state in window.history.state.usr
   useEffect(() => {
-    // Try location.state first, then fallback to history.state.usr
+    // Try location.state first, then fallback to history.state.usr, then localStorage
     const navState = location.state || window.history?.state?.usr;
+    let remixData = navState;
     
-    if (navState?.prompt && !storyText) {
-      setStoryText(navState.prompt);
-      console.log('[StoryVideoStudio] Setting story from remix:', navState.prompt?.substring(0, 50) + '...');
+    if (!remixData?.prompt) {
+      try {
+        const stored = localStorage.getItem('remix_data');
+        if (stored) {
+          remixData = JSON.parse(stored);
+          // Clear after short delay to avoid StrictMode double-invocation issues
+          setTimeout(() => localStorage.removeItem('remix_data'), 1000);
+        }
+      } catch {}
     }
-    if (navState?.remixFrom && !remixSource) {
-      setRemixSource(navState.remixFrom);
-      toast.info(`Remixing from "${navState.remixFrom.title || 'previous creation'}"`, { duration: 3000 });
+    
+    if (remixData?.prompt) {
+      setStoryText(remixData.prompt);
     }
-  }, [location.state, storyText, remixSource]);
+    if (remixData?.remixFrom) {
+      setRemixSource(remixData.remixFrom);
+      toast.info(`Remixing from "${remixData.remixFrom.title || 'previous creation'}"`, { duration: 3000 });
+    }
+  }, []);
   
   // Load existing images when project changes and has images_generated status
   useEffect(() => {

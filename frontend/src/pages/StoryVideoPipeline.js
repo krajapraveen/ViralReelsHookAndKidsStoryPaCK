@@ -13,6 +13,8 @@ import {
   Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert
 } from 'lucide-react';
 import UpsellModal from '../components/UpsellModal';
+import CreationActionsBar from '../components/CreationActionsBar';
+import ContextualUpgrade from '../components/ContextualUpgrade';
 
 const STAGE_ORDER = ['scenes', 'images', 'voices', 'render', 'upload'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic, render: Video, upload: Upload };
@@ -83,6 +85,25 @@ function StoryVideoPipelineInner() {
           localStorage.removeItem('remix_video');
         } catch { /* ignore */ }
       }
+    }
+
+    // Handle new remix_data from Remix & Variations Engine
+    const newRemixData = localStorage.getItem('remix_data');
+    if (newRemixData && !isRemix) {
+      try {
+        const rd = JSON.parse(newRemixData);
+        if (rd.prompt) {
+          setStoryText(rd.prompt);
+        }
+        if (rd.remixFrom) {
+          setRemixData(rd.remixFrom);
+          if (rd.remixFrom.title) setTitle(`Remix: ${rd.remixFrom.title}`);
+          if (rd.remixFrom.settings?.animation_style) setAnimStyle(rd.remixFrom.settings.animation_style);
+          if (rd.remixFrom.settings?.age_group) setAgeGroup(rd.remixFrom.settings.age_group);
+          if (rd.remixFrom.settings?.voice_preset) setVoicePreset(rd.remixFrom.settings.voice_preset);
+        }
+        setTimeout(() => localStorage.removeItem('remix_data'), 1000);
+      } catch { /* ignore */ }
     }
 
     const urlPrompt = searchParams.get('prompt');
@@ -304,7 +325,7 @@ function StoryVideoPipelineInner() {
           rateLimitStatus={rateLimitStatus} formError={formError}
         />}
         {phase === 'processing' && <ProcessingPhase job={job} />}
-        {phase === 'done' && <DonePhase job={job} jobId={jobId} onNew={handleNewVideo} />}
+        {phase === 'done' && <DonePhase job={job} jobId={jobId} onNew={handleNewVideo} storyText={storyText} animStyle={animStyle} />}
         {phase === 'error' && <ErrorPhase job={job} onResume={handleResume} onNew={handleNewVideo} />}
       </main>
     </div>
@@ -573,7 +594,7 @@ function ProcessingPhase({ job }) {
 
 // ─── DONE PHASE ───────────────────────────────────────────────────────────
 
-function DonePhase({ job, jobId, onNew }) {
+function DonePhase({ job, jobId, onNew, storyText, animStyle }) {
   const [copied, setCopied] = useState(false);
   if (!job) return null;
   const timing = job.timing || {};
@@ -645,6 +666,18 @@ function DonePhase({ job, jobId, onNew }) {
               <Sparkles className="w-4 h-4 mr-2" /> Create Another Video
             </Button>
           </div>
+
+          {/* Remix & Variations Engine */}
+          <CreationActionsBar
+            toolType="story-video-studio"
+            originalPrompt={storyText || job.story_text || job.title || ''}
+            originalSettings={{ style: animStyle || job.animation_style, ageGroup: job.age_group }}
+            parentGenerationId={jobId || job.job_id}
+            remixSourceTitle={job.title}
+          />
+
+          {/* Contextual Upgrade */}
+          <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
         </div>
       )}
 

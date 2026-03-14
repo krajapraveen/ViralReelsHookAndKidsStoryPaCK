@@ -66,22 +66,24 @@ export default function Gallery() {
       }, { headers: { Authorization: `Bearer ${token}` } });
     } catch {}
 
-    navigate('/app/story-video-studio', {
-      state: {
-        prompt: video.story_text || video.title || '',
-        remixFrom: {
-          tool: 'gallery',
-          prompt: video.story_text || video.title,
-          title: video.title,
-          settings: {
-            animation_style: video.animation_style,
-            age_group: video.age_group,
-            voice_preset: video.voice_preset,
-          },
-          parentId: video.job_id,
-        }
+    // Store in localStorage for reliable cross-page data passing
+    const remixData = {
+      prompt: video.story_text || video.title || '',
+      remixFrom: {
+        tool: 'gallery',
+        prompt: video.story_text || video.title,
+        title: video.title,
+        settings: {
+          animation_style: video.animation_style,
+          age_group: video.age_group,
+          voice_preset: video.voice_preset,
+        },
+        parentId: video.job_id,
       }
-    });
+    };
+    localStorage.setItem('remix_data', JSON.stringify(remixData));
+
+    navigate('/app/story-video-studio', { state: remixData });
     toast.success(`Remixing "${video.title}"...`);
   };
 
