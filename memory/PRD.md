@@ -26,6 +26,10 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 - UI: Consistent dark professional theme across all pages
 - Error boundary with recovery options
 - Credit system with refunds on failure
+- **New signups get 0 credits (no free signup bonus)**
+- **Admin/Demo/UAT users have unlimited credits (999,999)**
+- **Landing page spacing reduced between sections**
+- **All 26 landing page links/buttons verified working correctly**
 
 ## Backlog
 - **P1**: SendGrid email (BLOCKED - needs plan upgrade)

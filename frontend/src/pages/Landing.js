@@ -138,7 +138,7 @@ export default function Landing() {
           </div>
 
           <div className="flex items-center justify-center gap-6 md:gap-8 text-sm text-slate-400 font-medium fade-up-3">
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> 10 free credits</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Free to start</span>
             <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> No credit card</span>
             <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Cancel anytime</span>
           </div>
@@ -168,9 +168,9 @@ export default function Landing() {
       </section>
 
       {/* Features — THE CORE SECTION */}
-      <section id="features" className="py-24 md:py-36 px-4">
+      <section id="features" className="py-16 md:py-24 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
+          <div className="text-center mb-12">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">The AI Pipeline</p>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
               Five AI stages. One finished video.
@@ -200,9 +200,9 @@ export default function Landing() {
       </section>
 
       {/* Animation Styles */}
-      <section className="py-24 md:py-32 px-4 border-t border-white/[0.04]">
+      <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">Visual Styles</p>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
               Choose your art style
@@ -223,10 +223,10 @@ export default function Landing() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-24 md:py-32 px-4 border-t border-white/[0.04]">
+      <section id="how-it-works" className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-7xl mx-auto">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">How It Works</p>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-20 text-white">Three steps to a finished video</h2>
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-12 text-white">Three steps to a finished video</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
@@ -250,7 +250,7 @@ export default function Landing() {
       </section>
 
       {/* Story Prompts */}
-      <section className="py-24 md:py-32 px-4 border-t border-white/[0.04]">
+      <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-7xl mx-auto">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">Try It Now</p>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-4 text-white">Pick a story, create a video</h2>
@@ -284,9 +284,9 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section className="py-24 md:py-32 px-4 border-t border-white/[0.04]">
+      <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">Simple Pricing</p>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-4 text-white">Start free, scale when ready</h2>
             <p className="text-lg text-slate-400">Subscribe monthly or buy credits as you go.</p>
@@ -295,11 +295,11 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="flex flex-col rounded-2xl border border-white/[0.06] bg-white/[0.015] p-8">
               <h3 className="text-xl font-bold mb-2 text-white">Free</h3>
-              <div className="text-4xl font-black mb-1 text-white">10</div>
-              <p className="text-slate-500 mb-6">credits to start</p>
+              <div className="text-4xl font-black mb-1 text-white">$0</div>
+              <p className="text-slate-500 mb-6">to get started</p>
               <ul className="space-y-3 mb-8 flex-1">
-                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> 1 Story Video</li>
-                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> All features unlocked</li>
+                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> Browse all features</li>
+                <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> Preview AI tools</li>
                 <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400" /> No credit card required</li>
               </ul>
               <Link to="/signup">
@@ -351,7 +351,7 @@ export default function Landing() {
       </section>
 
       {/* Remix / Growth Feature */}
-      <section className="py-24 md:py-32 px-4 border-t border-white/[0.04]">
+      <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-pink-500/10 border border-pink-500/20 rounded-full px-5 py-2 mb-8">
             <RefreshCcw className="w-4 h-4 text-pink-400" />
@@ -375,7 +375,7 @@ export default function Landing() {
       </section>
 
       {/* More Tools */}
-      <section className="py-24 md:py-32 px-4 border-t border-white/[0.04]">
+      <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-7xl mx-auto">
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-600 mb-4">More Creator Tools</p>
           <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-300 mb-12">Everything else you need</h2>
@@ -399,13 +399,13 @@ export default function Landing() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-24 md:py-32 px-4">
+      <section className="py-16 md:py-24 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-6 text-white">
             Your story deserves to be seen
           </h2>
           <p className="text-lg text-slate-400 mb-10 max-w-xl mx-auto">
-            Join creators turning stories into AI videos. Start with 10 free credits — no strings attached.
+            Join creators turning stories into AI videos. Sign up and start creating today.
           </p>
           <Link to="/signup">
             <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all hover:scale-[1.02] hover:shadow-[0_0_40px_-8px_rgba(99,102,241,0.5)]" data-testid="final-cta-btn">

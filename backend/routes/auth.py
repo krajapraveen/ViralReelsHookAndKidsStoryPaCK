@@ -337,7 +337,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "name": clean_name,
             "password": hash_password(data.password),
             "role": "user",
-            "credits": 10,  # Free tier: 10 credits to start
+            "credits": 0,  # No free credits on signup
             "emailVerified": True,  # Auto-verified (verification disabled)
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "lastLogin": datetime.now(timezone.utc).isoformat(),
@@ -364,23 +364,23 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             phone_number=phone_number
         )
         
-        # Log credit grant
+        # Log account creation (no credits granted)
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
             "userId": user_id,
-            "amount": 10,
-            "type": "SIGNUP_BONUS",
-            "description": "Welcome bonus - 10 free credits on signup",
+            "amount": 0,
+            "type": "SIGNUP",
+            "description": "Account created - purchase credits to start creating",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
         # Send welcome email in background
         from services.welcome_email_service import send_welcome_email
-        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 10)
+        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 0)
         
         token = create_token(user_id, user["role"])
         
-        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - Granted 10 credits")
+        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - 0 credits")
         
         return {
             "token": token,
@@ -650,7 +650,7 @@ async def google_callback(request: Request, data: GoogleCallback):
                 "picture": picture,
                 "password": "",
                 "role": "user",
-                "credits": 10,
+                "credits": 0,
                 "authProvider": "google",
                 "createdAt": datetime.now(timezone.utc).isoformat(),
                 "lastLogin": datetime.now(timezone.utc).isoformat()
@@ -658,13 +658,13 @@ async def google_callback(request: Request, data: GoogleCallback):
             
             await db.users.insert_one(user)
             
-            # Log initial credit grant
+            # Log account creation (no credits granted)
             await db.credit_ledger.insert_one({
                 "id": str(uuid.uuid4()),
                 "userId": user_id,
-                "amount": 10,
-                "type": "SIGNUP_BONUS",
-                "description": "Welcome bonus credits (Google Sign-In)",
+                "amount": 0,
+                "type": "SIGNUP",
+                "description": "Account created via Google Sign-In - purchase credits to start creating",
                 "createdAt": datetime.now(timezone.utc).isoformat()
             })
             
@@ -688,7 +688,7 @@ async def google_callback(request: Request, data: GoogleCallback):
                     "email": email,
                     "name": name,
                     "role": "user",
-                    "credits": 10,
+                    "credits": 0,
                     "picture": picture
                 }
             }
