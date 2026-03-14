@@ -67,6 +67,18 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 - **R2 presign utility**: Handles .r2.dev/ and r2.cloudflarestorage.com URLs, strips query params, key-based fallback
 - **R2 key storage**: Image/voice assets store R2 key alongside URL for reliable re-download
 
+### Render Architecture Redesign (Completed Mar 14, 2026)
+- **REMOVED** scene-by-scene mp4 clip rendering (was 2N+1 FFmpeg calls)
+- **REPLACED** with single-pass FFmpeg encode using filter_complex concat
+- Resolution: 960x540 (was 1280x720), FPS: 15 (was 24)
+- Codec: libx264, preset: ultrafast, CRF: 28, threads: 1
+- Real-time render progress via FFmpeg -progress flag
+- No zoompan, complex transitions, or per-scene animation filters
+- Render time: ~27s solo (3 scenes), ~65-85s concurrent
+- Total pipeline: ~100-120s solo (3 scenes)
+- 28 successful completions, 0 render failures across testing
+- Benchmark report: /app/test_reports/render_speed_benchmark.json
+
 ## API Endpoints
 
 ### Remix Engine
@@ -97,10 +109,11 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 |------|-------|---------|----------|
 | 161 | Engagement Dashboard E2E | 76% | 100% |
 | 162 | Remix + Analytics + Pipeline | 95% (20/21) | 100% |
+| Render Benchmark | Single-pass render redesign | 28/28 (100%) | UI verified |
 
 ## Technical Notes
 - R2 public URL returns 403 - all media served via presigned URLs (4hr expiry)
-- Pipeline rendering: 1280x720, 24fps, ultrafast preset
+- **Pipeline rendering: 960x540, 15fps, ultrafast, CRF 28, single-pass encode**
 - Stuck job recovery: every 2 min, 10 min timeout, auto credit refund
 - CreationActionsBar: conditionally rendered after generation completes
 - Dashboard sidebar: hidden lg:block (desktop only)

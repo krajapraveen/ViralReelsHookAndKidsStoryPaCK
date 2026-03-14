@@ -42,9 +42,17 @@ STAGE_CONFIG = {
     "scenes":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 90,  "retriable_on_timeout": True},
     "images":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 300, "retriable_on_timeout": True},
     "voices":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 180, "retriable_on_timeout": True},
-    "render":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 600, "retriable_on_timeout": True},
+    "render":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 300, "retriable_on_timeout": True},
     "upload":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 60,  "retriable_on_timeout": True},
 }
+
+# ─── RENDER SETTINGS (production-safe fast defaults) ─────────────────────────
+RENDER_WIDTH = 960
+RENDER_HEIGHT = 540
+RENDER_FPS = 15
+RENDER_PRESET = "ultrafast"
+RENDER_CRF = 28
+RENDER_THREADS = 1
 
 CREDIT_COSTS = {
     "small": 10,   # <=3 scenes
@@ -511,7 +519,6 @@ async def run_stage_voices(job: dict) -> dict:
 async def _run_ffmpeg(cmd: list, timeout: int = 90) -> tuple:
     """Run ffmpeg as async subprocess so asyncio timeouts can cancel it.
     Adds -nostdin and -loglevel error automatically for safety."""
-    # Insert -nostdin and -loglevel error after 'ffmpeg' if not present
     if cmd and cmd[0] == "ffmpeg":
         extras = []
         if "-nostdin" not in cmd:
@@ -533,6 +540,75 @@ async def _run_ffmpeg(cmd: list, timeout: int = 90) -> tuple:
         proc.kill()
         await proc.wait()
         raise RuntimeError(f"ffmpeg timed out after {timeout}s")
+
+
+async def _run_ffmpeg_with_progress(cmd: list, job_id: str, total_duration: float,
+                                     scene_count: int, timeout: int = 180) -> tuple:
+    """Run ffmpeg with real-time progress tracking via -progress flag.
+    Updates job with per-scene render progress for user visibility."""
+    progress_file = tempfile.mktemp(suffix='.progress')
+
+    if cmd and cmd[0] == "ffmpeg":
+        extras = ["-nostdin", "-loglevel", "error", "-progress", progress_file]
+        cmd = [cmd[0]] + extras + cmd[1:]
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    async def _monitor():
+        """Background task: read FFmpeg progress file and update job status."""
+        last_scene_reported = 0
+        while proc.returncode is None:
+            await asyncio.sleep(1.5)
+            try:
+                if not os.path.exists(progress_file):
+                    continue
+                with open(progress_file, 'r') as f:
+                    content = f.read()
+                # Parse out_time_us (microseconds of encoded output)
+                for line in reversed(content.strip().split('\n')):
+                    if 'out_time_us=' in line:
+                        val = line.split('=')[1].strip()
+                        if val and val != 'N/A':
+                            us = int(val)
+                            current_s = us / 1_000_000
+                            if total_duration > 0:
+                                pct = min(89, int(82 + (current_s / total_duration) * 8))
+                                scene_dur = total_duration / max(1, scene_count)
+                                scene_num = min(scene_count, int(current_s / scene_dur) + 1)
+                                if scene_num > last_scene_reported:
+                                    await update_job(job_id, {
+                                        "progress": pct,
+                                        "current_step": f"Rendering scene {scene_num}/{scene_count}..."
+                                    })
+                                    last_scene_reported = scene_num
+                        break
+            except Exception:
+                pass
+
+    monitor_task = asyncio.create_task(_monitor())
+
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        monitor_task.cancel()
+        try:
+            await monitor_task
+        except asyncio.CancelledError:
+            pass
+        return proc.returncode, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+    except asyncio.TimeoutError:
+        monitor_task.cancel()
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(f"ffmpeg timed out after {timeout}s")
+    finally:
+        try:
+            os.remove(progress_file)
+        except OSError:
+            pass
 
 
 async def _download_file(url: str, dest: str, label: str, timeout: int = 30) -> bool:
@@ -604,9 +680,20 @@ async def _download_file(url: str, dest: str, label: str, timeout: int = 30) -> 
 
 
 async def run_stage_render(job: dict) -> dict:
-    """Stage: Assemble video from checkpointed images + voices using async ffmpeg.
-    Production-safe: sequential rendering, single-threaded, aggressive memory control.
-    Reports progress per sub-step so users never see a frozen progress bar."""
+    """Stage: SINGLE-PASS render — all scene images + voices → one FFmpeg encode.
+
+    Architecture (redesigned for speed):
+    1. Download all pre-generated scene images and voice audio to temp dir
+    2. Build ONE FFmpeg command with filter_complex:
+       - Scale+pad each image to RENDER_WIDTH x RENDER_HEIGHT
+       - Set fps=RENDER_FPS for each image stream
+       - Concat all video streams, concat all audio streams
+       - Optional lightweight watermark (drawtext)
+    3. Single encode: libx264, ultrafast, CRF 28, threads 1
+    4. No intermediate per-scene mp4 clips. No repeated re-encoding.
+
+    This replaces the old scene-by-scene mp4 + concat approach.
+    """
     import gc
 
     job_id = job["job_id"]
@@ -622,206 +709,228 @@ async def run_stage_render(job: dict) -> dict:
 
     render_timing = {}
     stage_start = time.time()
-    failed_scenes = []
 
     try:
-        segments = []
         sorted_scenes = sorted(scenes, key=lambda s: s.get("scene_number", 0))
         total_scenes = len(sorted_scenes)
 
         if total_scenes == 0:
             raise RuntimeError("No scenes found in job")
 
-        logger.info(f"[RENDER {job_id[:8]}] Starting render of {total_scenes} scenes")
-        await update_job(job_id, {"current_step": f"Preparing {total_scenes} scenes for render..."})
+        logger.info(f"[RENDER {job_id[:8]}] Starting SINGLE-PASS render: {total_scenes} scenes, "
+                     f"{RENDER_WIDTH}x{RENDER_HEIGHT}, {RENDER_FPS}fps, {RENDER_PRESET}, CRF {RENDER_CRF}")
+        await update_job(job_id, {
+            "progress": 75,
+            "current_step": f"Preparing final render ({total_scenes} scenes)..."
+        })
+
+        # ── Phase 1: Download all assets ──────────────────────────────────
+        dl_start = time.time()
+        image_paths = {}   # sn -> local path
+        audio_paths = {}   # sn -> local path
+        durations = {}     # sn -> seconds
+        skipped_scenes = []
 
         for idx, scene in enumerate(sorted_scenes):
-            scene_start = time.time()
             sn = str(scene.get("scene_number", 0))
             img = scene_images.get(sn, {})
             voice = scene_voices.get(sn, {})
 
-            img_path = img.get("path", "")
-            audio_path = voice.get("path", "")
-            duration = voice.get("duration", 5.0)
-
-            # Update progress: downloading assets for this scene
-            dl_pct = int(75 + ((idx) / total_scenes) * 5)
             await update_job(job_id, {
-                "progress": dl_pct,
+                "progress": int(75 + (idx / total_scenes) * 5),
                 "current_step": f"Downloading assets for scene {idx+1}/{total_scenes}..."
             })
 
-            # Download image from cloud if local missing
+            # ── Download image ──
+            img_path = img.get("path", "")
             if not os.path.exists(img_path):
-                img_url = img.get("url", "")
-                img_r2_key = img.get("r2_key", "")
                 dl_path = os.path.join(temp_dir, f"img_{sn}.png")
+                downloaded = False
 
-                # Try URL first
-                if img_url and await _download_file(img_url, dl_path, f"image scene {sn}"):
+                img_url = img.get("url", "")
+                if img_url:
+                    downloaded = await _download_file(img_url, dl_path, f"image scene {sn}")
+
+                if not downloaded:
+                    img_r2_key = img.get("r2_key", "")
+                    if img_r2_key:
+                        try:
+                            from utils.r2_presign import presign_key
+                            fresh_url = presign_key(img_r2_key, expiry=600)
+                            if fresh_url:
+                                downloaded = await _download_file(fresh_url, dl_path, f"image scene {sn} (key)")
+                        except Exception:
+                            pass
+
+                if downloaded and os.path.exists(dl_path):
                     img_path = dl_path
-                elif img_r2_key:
-                    # Fallback: generate fresh presigned URL from stored key
-                    try:
-                        from utils.r2_presign import presign_key
-                        fresh_url = presign_key(img_r2_key, expiry=600)
-                        if fresh_url and await _download_file(fresh_url, dl_path, f"image scene {sn} (key)"):
-                            img_path = dl_path
-                    except Exception:
-                        pass
-
-                if not os.path.exists(dl_path):
-                    logger.error(f"[RENDER {job_id[:8]}] FAILED to download image for scene {sn}")
-
-            # Download voice from cloud if local missing
-            if not os.path.exists(audio_path):
-                voice_url = voice.get("url", "")
-                voice_r2_key = voice.get("r2_key", "")
-                dl_path = os.path.join(temp_dir, f"voice_{sn}.mp3")
-
-                if voice_url and await _download_file(voice_url, dl_path, f"voice scene {sn}"):
-                    audio_path = dl_path
-                elif voice_r2_key:
-                    try:
-                        from utils.r2_presign import presign_key
-                        fresh_url = presign_key(voice_r2_key, expiry=600)
-                        if fresh_url and await _download_file(fresh_url, dl_path, f"voice scene {sn} (key)"):
-                            audio_path = dl_path
-                    except Exception:
-                        pass
-
-                if not os.path.exists(dl_path):
-                    logger.error(f"[RENDER {job_id[:8]}] FAILED to download voice for scene {sn}")
-
-            if not os.path.exists(img_path) or not os.path.exists(audio_path):
-                logger.warning(f"[RENDER {job_id[:8]}] Missing files for scene {sn}: img={os.path.exists(img_path)}, audio={os.path.exists(audio_path)}")
-                failed_scenes.append(sn)
-                continue
-
-            # Update progress: encoding this scene
-            enc_pct = int(75 + 5 + ((idx) / total_scenes) * 10)
-            await update_job(job_id, {
-                "progress": enc_pct,
-                "current_step": f"Encoding scene {idx+1}/{total_scenes}..."
-            })
-
-            # Step 1: Resize image to 1280x720
-            small_img = os.path.join(temp_dir, f"small_{sn}.jpg")
-            rc, _, _ = await _run_ffmpeg([
-                "ffmpeg", "-y", "-threads", "1",
-                "-i", img_path,
-                "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
-                "-q:v", "3", small_img
-            ], timeout=30)
-            if rc == 0 and os.path.exists(small_img):
-                if img_path.startswith(temp_dir):
-                    try:
-                        os.remove(img_path)
-                    except OSError:
-                        pass
-                img_path = small_img
-
-            # Step 2: Encode scene video
-            seg_path = os.path.join(temp_dir, f"seg_{sn}.mp4")
-            cmd = [
-                "ffmpeg", "-y",
-                "-threads", "2",
-                "-loop", "1", "-i", img_path,
-                "-i", audio_path,
-                "-filter_complex", "[0:v]fps=24[v]",
-                "-map", "[v]", "-map", "1:a",
-                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
-                "-crf", "28", "-maxrate", "1M", "-bufsize", "1M",
-                "-c:a", "aac", "-b:a", "96k",
-                "-t", str(duration + 0.3),
-                "-shortest", "-pix_fmt", "yuv420p",
-                seg_path,
-            ]
-
-            logger.info(f"[RENDER {job_id[:8]}] Encoding scene {sn} ({idx+1}/{total_scenes})...")
-            try:
-                rc, _, stderr = await _run_ffmpeg(cmd, timeout=120)
-                if rc == 0 and os.path.exists(seg_path):
-                    segments.append(seg_path)
-                    scene_ms = int((time.time() - scene_start) * 1000)
-                    render_timing[f"scene_{sn}_ms"] = scene_ms
-                    logger.info(f"[RENDER {job_id[:8]}] Scene {sn} OK ({scene_ms}ms)")
                 else:
-                    logger.error(f"[RENDER {job_id[:8]}] Scene {sn} encoding failed (rc={rc}): {stderr[:200]}")
-                    failed_scenes.append(sn)
-            except RuntimeError as e:
-                logger.error(f"[RENDER {job_id[:8]}] Scene {sn} timeout: {e}")
-                failed_scenes.append(sn)
+                    logger.error(f"[RENDER {job_id[:8]}] Failed to get image for scene {sn}")
+                    skipped_scenes.append(sn)
+                    continue
 
-            # Cleanup after each scene
-            for f in [img_path, audio_path]:
-                if f.startswith(temp_dir) and os.path.exists(f):
-                    try:
-                        os.remove(f)
-                    except OSError:
-                        pass
-            gc.collect()
+            # ── Download voice ──
+            audio_path = voice.get("path", "")
+            if not os.path.exists(audio_path):
+                dl_path = os.path.join(temp_dir, f"voice_{sn}.mp3")
+                downloaded = False
 
-            # Update progress per scene
-            pct = int(80 + ((idx + 1) / total_scenes) * 10)
-            await update_job(job_id, {"progress": pct, "current_step": f"Rendered scene {idx+1}/{total_scenes}"})
+                voice_url = voice.get("url", "")
+                if voice_url:
+                    downloaded = await _download_file(voice_url, dl_path, f"voice scene {sn}")
 
-        if not segments:
-            error_detail = f"No video segments created. {len(failed_scenes)} scenes failed: {', '.join(failed_scenes[:5])}"
-            raise RuntimeError(error_detail)
+                if not downloaded:
+                    voice_r2_key = voice.get("r2_key", "")
+                    if voice_r2_key:
+                        try:
+                            from utils.r2_presign import presign_key
+                            fresh_url = presign_key(voice_r2_key, expiry=600)
+                            if fresh_url:
+                                downloaded = await _download_file(fresh_url, dl_path, f"voice scene {sn} (key)")
+                        except Exception:
+                            pass
 
-        # Log if some scenes failed but we have enough to continue
-        if failed_scenes:
-            logger.warning(f"[RENDER {job_id[:8]}] {len(failed_scenes)} scenes failed, continuing with {len(segments)} segments")
+                if downloaded and os.path.exists(dl_path):
+                    audio_path = dl_path
+                else:
+                    logger.error(f"[RENDER {job_id[:8]}] Failed to get voice for scene {sn}")
+                    skipped_scenes.append(sn)
+                    continue
 
-        # Step 3: Concatenate all segments
-        await update_job(job_id, {"progress": 88, "current_step": "Concatenating scenes..."})
-        concat_start = time.time()
-        concat_file = os.path.join(temp_dir, "concat.txt")
-        with open(concat_file, "w") as f:
-            for seg in segments:
-                f.write(f"file '{seg}'\n")
+            image_paths[sn] = img_path
+            audio_paths[sn] = audio_path
+            durations[sn] = voice.get("duration", 5.0)
 
+        dl_ms = int((time.time() - dl_start) * 1000)
+        render_timing["download_ms"] = dl_ms
+
+        # Determine valid scenes (have both image and audio)
+        valid_scenes = [str(s.get("scene_number", 0)) for s in sorted_scenes
+                        if str(s.get("scene_number", 0)) in image_paths
+                        and str(s.get("scene_number", 0)) in audio_paths]
+
+        if not valid_scenes:
+            raise RuntimeError(f"No valid scenes after download. {len(skipped_scenes)} scenes skipped: {skipped_scenes}")
+
+        logger.info(f"[RENDER {job_id[:8]}] Assets ready: {len(valid_scenes)}/{total_scenes} scenes, download {dl_ms}ms")
+
+        # ── Phase 2: Single FFmpeg encode ─────────────────────────────────
+        await update_job(job_id, {
+            "progress": 82,
+            "current_step": f"Rendering final video ({len(valid_scenes)} scenes)..."
+        })
+
+        encode_start = time.time()
+        n = len(valid_scenes)
+
+        # Build FFmpeg inputs: alternating -loop 1 -t <dur> -i <image>, -i <audio>
+        inputs = []
+        filter_parts = []
+        total_duration = 0.0
+
+        for i, sn in enumerate(valid_scenes):
+            dur = durations[sn] + 0.3  # small buffer for sync
+            total_duration += dur
+            v_idx = i * 2      # image input index (0, 2, 4, ...)
+            a_idx = i * 2 + 1  # audio input index (1, 3, 5, ...)
+
+            inputs.extend(["-loop", "1", "-t", f"{dur:.2f}", "-i", image_paths[sn]])
+            inputs.extend(["-i", audio_paths[sn]])
+
+            # Video filter: scale + pad to exact resolution, set fps
+            filter_parts.append(
+                f"[{v_idx}:v]scale={RENDER_WIDTH}:{RENDER_HEIGHT}:"
+                f"force_original_aspect_ratio=decrease,"
+                f"pad={RENDER_WIDTH}:{RENDER_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
+                f"setsar=1,fps={RENDER_FPS}[v{i}]"
+            )
+
+        # Concat all video streams
+        v_concat = ''.join(f'[v{i}]' for i in range(n))
+        filter_parts.append(f"{v_concat}concat=n={n}:v=1:a=0[vout]")
+
+        # Concat all audio streams (resample for consistency)
+        a_filters = []
+        for i in range(n):
+            a_idx = i * 2 + 1
+            a_filters.append(f"[{a_idx}:a]aresample=44100[a{i}]")
+        filter_parts.extend(a_filters)
+
+        a_concat = ''.join(f'[a{i}]' for i in range(n))
+        filter_parts.append(f"{a_concat}concat=n={n}:v=0:a=1[aout]")
+
+        # Optional lightweight watermark
         watermark = job.get("include_watermark", True)
         if watermark:
-            cmd = [
-                "ffmpeg", "-y", "-threads", "2",
-                "-f", "concat", "-safe", "0", "-i", concat_file,
-                "-vf", "drawtext=text='visionary-suite.com':fontcolor=white@0.4:fontsize=16:x=w-tw-10:y=h-th-10",
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-                "-maxrate", "1M", "-bufsize", "1M",
-                "-c:a", "copy", "-pix_fmt", "yuv420p",
-                final_path,
-            ]
+            filter_parts.append(
+                "[vout]drawtext=text='visionary-suite.com':"
+                "fontcolor=white@0.4:fontsize=14:x=w-tw-8:y=h-th-8[vfinal]"
+            )
+            v_map = "[vfinal]"
         else:
-            cmd = [
-                "ffmpeg", "-y", "-threads", "2",
-                "-f", "concat", "-safe", "0", "-i", concat_file,
-                "-c", "copy",
-                final_path,
-            ]
+            v_map = "[vout]"
 
-        logger.info(f"[RENDER {job_id[:8]}] Concatenating {len(segments)} segments...")
-        rc, _, stderr = await _run_ffmpeg(cmd, timeout=120)
+        filter_complex = ';'.join(filter_parts)
+
+        cmd = [
+            "ffmpeg", "-y",
+            *inputs,
+            "-filter_complex", filter_complex,
+            "-map", v_map,
+            "-map", "[aout]",
+            "-c:v", "libx264",
+            "-preset", RENDER_PRESET,
+            "-crf", str(RENDER_CRF),
+            "-r", str(RENDER_FPS),
+            "-threads", str(RENDER_THREADS),
+            "-c:a", "aac", "-b:a", "96k",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            final_path,
+        ]
+
+        logger.info(f"[RENDER {job_id[:8]}] Running single-pass FFmpeg encode: "
+                     f"{n} scenes, {RENDER_WIDTH}x{RENDER_HEIGHT}, {RENDER_FPS}fps, "
+                     f"{RENDER_PRESET}, CRF {RENDER_CRF}, total_dur={total_duration:.1f}s")
+
+        # Execute with real-time progress monitoring
+        encode_timeout = max(180, n * 40)  # generous but bounded
+        rc, stdout, stderr = await _run_ffmpeg_with_progress(
+            cmd, job_id, total_duration, n, timeout=encode_timeout
+        )
+
+        encode_ms = int((time.time() - encode_start) * 1000)
+        render_timing["encode_ms"] = encode_ms
+
         if rc != 0:
-            raise RuntimeError(f"Video concat failed: {stderr[:300]}")
+            raise RuntimeError(f"Single-pass encode failed (rc={rc}): {stderr[:500]}")
 
-        concat_ms = int((time.time() - concat_start) * 1000)
-        render_timing["concat_ms"] = concat_ms
-        render_timing["total_render_ms"] = int((time.time() - stage_start) * 1000)
+        if not os.path.exists(final_path):
+            raise RuntimeError("Final video file not created")
 
         file_size = os.path.getsize(final_path) / (1024 * 1024)
-        await update_job(job_id, {"render_path": final_path, "progress": 90})
+        render_timing["total_render_ms"] = int((time.time() - stage_start) * 1000)
 
-        logger.info(f"[RENDER {job_id[:8]}] Complete: {len(segments)} scenes, {file_size:.1f}MB, {render_timing['total_render_ms']}ms total")
+        await update_job(job_id, {
+            "render_path": final_path,
+            "progress": 90,
+            "current_step": "Finalizing video..."
+        })
+
+        logger.info(
+            f"[RENDER {job_id[:8]}] SINGLE-PASS COMPLETE: {n} scenes, {file_size:.1f}MB, "
+            f"encode={encode_ms}ms, total={render_timing['total_render_ms']}ms "
+            f"(was: N*2+1 FFmpeg calls, now: 1 FFmpeg call)"
+        )
 
         return {
             "path": final_path,
             "file_size_mb": round(file_size, 1),
-            "segments": len(segments),
-            "failed_scenes": len(failed_scenes),
+            "segments": n,
+            "failed_scenes": len(skipped_scenes),
             "timing": render_timing,
+            "architecture": "single-pass-encode",
+            "settings": f"{RENDER_WIDTH}x{RENDER_HEIGHT}@{RENDER_FPS}fps/{RENDER_PRESET}/CRF{RENDER_CRF}",
         }
 
     finally:
