@@ -107,16 +107,18 @@ class CashfreeSubscriptionService:
             "accept": "application/json"
         }
     
-    async def create_plan(self, plan_key: str) -> Dict[str, Any]:
+    async def create_plan(self, plan_key: str, currency: str = "INR") -> Dict[str, Any]:
         """Create a subscription plan in Cashfree"""
         plan = SUBSCRIPTION_PLANS.get(plan_key)
         if not plan:
             raise ValueError(f"Unknown plan: {plan_key}")
         
+        plan_amount = plan["price_inr"] if currency == "INR" else plan.get("price_usd", plan["price_inr"])
+        
         payload = {
             "plan_name": plan["name"],
-            "plan_amount": plan["price_inr"],
-            "plan_currency": "INR",
+            "plan_amount": plan_amount,
+            "plan_currency": currency,
             "billing_frequency": "MONTHLY",
             "billing_cycles": -1,  # Indefinite
             "is_auto_collect": True
@@ -141,7 +143,8 @@ class CashfreeSubscriptionService:
         customer_email: str,
         customer_phone: str,
         customer_name: str,
-        return_url: str
+        return_url: str,
+        currency: str = "INR"
     ) -> Dict[str, Any]:
         """Create a new subscription for a user"""
         plan = SUBSCRIPTION_PLANS.get(plan_key)
@@ -149,6 +152,8 @@ class CashfreeSubscriptionService:
             raise ValueError(f"Unknown plan: {plan_key}")
         
         subscription_id = f"sub_{user_id[:8]}_{int(datetime.now(timezone.utc).timestamp())}"
+        
+        plan_amount = plan["price_inr"] if currency == "INR" else plan.get("price_usd", plan["price_inr"])
         
         payload = {
             "subscription_id": subscription_id,
@@ -160,9 +165,9 @@ class CashfreeSubscriptionService:
             "plan_details": {
                 "plan_name": plan["name"],
                 "plan_type": "PERIODIC",
-                "plan_amount": plan["price_inr"],
-                "plan_max_amount": plan["price_inr"],
-                "plan_currency": "INR",
+                "plan_amount": plan_amount,
+                "plan_max_amount": plan_amount,
+                "plan_currency": currency,
                 "plan_interval_type": "MONTH",
                 "plan_intervals": 1
             },

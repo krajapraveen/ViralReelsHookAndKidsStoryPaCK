@@ -88,7 +88,15 @@ export default function Gallery() {
   };
 
   const handlePreview = (video) => {
-    setPreviewVideo(video);
+    // If video has output_url, play it in modal
+    // Otherwise, navigate to story preview page for rich experience
+    if (video.output_url) {
+      setPreviewVideo(video);
+    } else if (video.job_id) {
+      navigate(`/app/story-preview/${video.job_id}`);
+    } else {
+      setPreviewVideo(video);
+    }
   };
 
   const SORT_OPTIONS = [
@@ -342,12 +350,27 @@ export default function Gallery() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setPreviewVideo(null)} data-testid="video-preview-modal">
           <div className="relative w-full max-w-3xl mx-4 rounded-2xl overflow-hidden border border-white/[0.08] bg-[#0B1220]" onClick={(e) => e.stopPropagation()}>
             <div className="aspect-video bg-black">
-              <video
-                src={previewVideo.output_url}
-                className="w-full h-full object-contain"
-                controls
-                autoPlay
-              />
+              {previewVideo.output_url ? (
+                <video
+                  src={previewVideo.output_url}
+                  className="w-full h-full object-contain"
+                  controls
+                  autoPlay
+                />
+              ) : previewVideo.thumbnail_url ? (
+                <div className="relative w-full h-full">
+                  <img src={previewVideo.thumbnail_url} alt={previewVideo.title} className="w-full h-full object-contain" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <span className="px-4 py-2 bg-indigo-600/80 backdrop-blur-sm rounded-full text-white text-sm font-medium">
+                      Story Preview
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                  <Film className="w-12 h-12 opacity-30" />
+                </div>
+              )}
             </div>
             <div className="p-5">
               <h3 className="text-lg font-semibold text-white mb-2">{previewVideo.title || 'AI Story Video'}</h3>

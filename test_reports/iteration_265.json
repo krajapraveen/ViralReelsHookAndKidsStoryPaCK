@@ -1,0 +1,116 @@
+{
+  "summary": "Iteration 265: Fallback Pipeline System - All features verified working. (1) GET /api/pipeline/preview/{job_id} returns full scene data with images, audio URLs, story text, fallback download URLs - PUBLIC endpoint, no auth required. (2) GET /api/pipeline/assets/{job_id} returns presigned URLs for individual assets - requires auth, admin can view any job. (3) POST /api/pipeline/notify-when-ready/{job_id} subscription works - returns already_done for PARTIAL status jobs. (4) GET /api/pipeline/status/{job_id} includes fallback data in response. (5) Geo-IP currency detection on /api/cashfree/products works correctly - x-country: US returns USD, x-country: IN returns INR. (6) Story Preview page at /app/story-preview/{jobId} renders correctly with scenes, audio player, fallback downloads sidebar. (7) Gallery handles showcase items properly. (8) Admin panel endpoints all return 200 (regression verified).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Story Preview / Gallery",
+        "issues": ["Cookie consent banner overlays content initially - minor UX issue, does not block functionality"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_fallback_pipeline_iteration265.py",
+    "/app/test_reports/pytest/pytest_fallback_pipeline_iteration265.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: /api/pipeline/preview/{job_id} - Public endpoint returns scene data with presigned R2 URLs for images/audio, fallback_video_url, story_pack_url",
+    "VERIFIED: /api/pipeline/assets/{job_id} - Auth required, returns individual presigned URLs for all assets including images, audio, fallback_video, story_pack_zip",
+    "VERIFIED: /api/pipeline/notify-when-ready/{job_id} - Handles already-complete jobs properly",
+    "VERIFIED: /api/pipeline/status/{job_id} - Includes fallback object with status, fallback_video_url, story_pack_url, has_preview, preview_scenes",
+    "VERIFIED: /api/cashfree/products - Geo-IP detection via x-country header returns correct currency (USD/INR) and pricing",
+    "VERIFIED: StoryPreview.js - Full preview page with scene viewer, audio playback, downloads sidebar, fallback banner for PARTIAL status",
+    "VERIFIED: Gallery.js - handlePreview navigates to story-preview for items without video URL"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_fallback_pipeline_iteration265.py"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 tests passed)",
+    "frontend": "100%"
+  },
+  "verified_features": {
+    "FEATURE_1_PREVIEW_ENDPOINT": {
+      "status": "VERIFIED WORKING",
+      "description": "GET /api/pipeline/preview/{job_id} returns full scene data",
+      "endpoint": "/api/pipeline/preview/{job_id}",
+      "auth_required": false,
+      "response_includes": ["scenes array", "image_url", "audio_url", "narration_text", "fallback_video_url", "story_pack_url"]
+    },
+    "FEATURE_2_ASSETS_ENDPOINT": {
+      "status": "VERIFIED WORKING",
+      "description": "GET /api/pipeline/assets/{job_id} returns individual downloadable asset links",
+      "endpoint": "/api/pipeline/assets/{job_id}",
+      "auth_required": true,
+      "response_includes": ["images dict", "audio dict", "fallback_video", "story_pack_zip", "all presigned URLs"]
+    },
+    "FEATURE_3_NOTIFY_WHEN_READY": {
+      "status": "VERIFIED WORKING",
+      "description": "POST /api/pipeline/notify-when-ready/{job_id} subscription endpoint",
+      "endpoint": "/api/pipeline/notify-when-ready/{job_id}",
+      "auth_required": true,
+      "notes": "Returns already_done=true for completed/partial jobs"
+    },
+    "FEATURE_4_STATUS_WITH_FALLBACK": {
+      "status": "VERIFIED WORKING",
+      "description": "GET /api/pipeline/status/{job_id} includes fallback data",
+      "endpoint": "/api/pipeline/status/{job_id}",
+      "fallback_object_includes": ["status", "fallback_video_url", "story_pack_url", "has_preview", "preview_scenes"]
+    },
+    "FEATURE_5_GEOIP_CURRENCY": {
+      "status": "VERIFIED WORKING",
+      "description": "Geo-IP currency detection on Cashfree products",
+      "endpoint": "/api/cashfree/products",
+      "test_results": {
+        "x-country: US": "Returns USD with $ symbol and priceUsd values",
+        "x-country: IN": "Returns INR with ₹ symbol and price values",
+        "no header": "Defaults to USD"
+      }
+    },
+    "FEATURE_6_STORY_PREVIEW_PAGE": {
+      "status": "VERIFIED WORKING",
+      "description": "Story Preview page renders correctly at /app/story-preview/{jobId}",
+      "elements_verified": ["preview-title", "preview-status", "fallback-banner", "scene-viewer", "scene-title", "scene-narration", "scene-image", "download-fallback-btn", "download-pack-btn", "scene-thumbs", "play-audio-btn"]
+    },
+    "FEATURE_7_GALLERY_SHOWCASE": {
+      "status": "VERIFIED WORKING",
+      "description": "Gallery handles showcase items without video URL",
+      "endpoint": "/api/pipeline/gallery",
+      "frontend_behavior": "Navigates to story-preview for items without video URL"
+    },
+    "FEATURE_8_ADMIN_REGRESSION": {
+      "status": "VERIFIED WORKING",
+      "description": "All admin panel endpoints return 200",
+      "endpoints_tested": ["/api/admin/users/list", "/api/admin/analytics/dashboard", "/api/admin/login-activity", "/api/admin/system/system-health", "/api/admin/audit-logs/logs"]
+    }
+  },
+  "test_jobs_used": {
+    "d870c412-dc39-4400-ab0e-f3a43a514182": {
+      "title": "Super Hero",
+      "status": "PARTIAL",
+      "has_fallback_video": true,
+      "has_story_pack": true,
+      "scenes": 3
+    },
+    "b2fe2b5d-57ce-49bc-9751-4cb1ae05492b": {
+      "title": "Test Superhero Story",
+      "status": "PARTIAL",
+      "has_story_pack": true,
+      "scenes": 2
+    }
+  },
+  "test_credentials": {
+    "admin": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026",
+    "test_user": "test@visionary-suite.com / Test@2026#"
+  },
+  "seed_data_creation": "None - used existing failed pipeline jobs with fallback outputs",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 265: All fallback pipeline features working. Preview endpoint is PUBLIC (no auth). Assets endpoint requires auth (owner or admin). Two test jobs available: d870c412 has both fallback video and story pack, b2fe2b5d has story pack only. Geo-IP currency detection works with x-country header. Story Preview page at /app/story-preview/{jobId} shows fallback banner, scene viewer, audio playback, and download buttons."
+}

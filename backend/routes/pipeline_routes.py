@@ -439,6 +439,24 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "error": stage_data.get("error"),
         }
 
+    # Include fallback outputs if available
+    fallback = job.get("fallback_outputs", {})
+    fallback_data = None
+    if fallback:
+        fallback_data = {
+            "status": job.get("fallback_status", "none"),
+        }
+        if fallback.get("fallback_mp4", {}).get("url"):
+            fallback_data["fallback_video_url"] = _make_presigned_url(fallback["fallback_mp4"]["url"])
+            fallback_data["fallback_video_size_mb"] = fallback["fallback_mp4"].get("file_size_mb")
+            fallback_data["fallback_video_type"] = "slideshow"
+        if fallback.get("story_pack_zip", {}).get("url"):
+            fallback_data["story_pack_url"] = _make_presigned_url(fallback["story_pack_zip"]["url"])
+            fallback_data["story_pack_size_mb"] = fallback["story_pack_zip"].get("file_size_mb")
+        if fallback.get("preview"):
+            fallback_data["has_preview"] = True
+            fallback_data["preview_scenes"] = fallback["preview"].get("total_scenes", 0)
+
     return {
         "success": True,
         "job": {
@@ -458,6 +476,7 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "queue_wait_ms": job.get("queue_wait_ms"),
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
+            "fallback": fallback_data,
         },
     }
 
@@ -481,7 +500,6 @@ async def resume_pipeline_job(job_id: str, current_user: dict = Depends(get_curr
 
     # Preserve original priority on retry/resume
     user_plan = current_user.get("plan", "free")
-    original_priority = job.get("queue_priority")
     await enqueue_job(job_id, user_id=user_id, user_plan=user_plan)
 
     return {"success": True, "message": "Pipeline resumed from last checkpoint."}
@@ -575,3 +593,101 @@ async def pipeline_worker_status(current_user: dict = Depends(get_current_user))
     """Get worker pool status (admin diagnostic)."""
     stats = get_worker_stats()
     return {"success": True, "workers": stats}
+
+
+
+# ─── FALLBACK OUTPUT ENDPOINTS ───────────────────────────────────────────────
+
+@router.get("/preview/{job_id}")
+async def get_job_preview(job_id: str):
+    """Public preview page data: scene images in order, audio per scene, story text.
+    Works for any job that has generated scenes (regardless of render status)."""
+    job = await db.pipeline_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    from services.fallback_pipeline import get_preview_data
+    preview = await get_preview_data(job)
+
+    # Include fallback info if available
+    fallback = job.get("fallback_outputs", {})
+    preview["fallback_video_url"] = None
+    preview["story_pack_url"] = None
+    preview["final_video_url"] = None
+
+    if job.get("output_url"):
+        preview["final_video_url"] = _make_presigned_url(job["output_url"])
+    if fallback.get("fallback_mp4", {}).get("url"):
+        preview["fallback_video_url"] = _make_presigned_url(fallback["fallback_mp4"]["url"])
+    if fallback.get("story_pack_zip", {}).get("url"):
+        preview["story_pack_url"] = _make_presigned_url(fallback["story_pack_zip"]["url"])
+
+    return {"success": True, "preview": preview}
+
+
+@router.get("/assets/{job_id}")
+async def get_job_assets(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Get downloadable URLs for all individual assets of a job."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    job = await db.pipeline_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Allow owner or admin
+    is_admin = current_user.get("role") in ("admin", "ADMIN")
+    if job.get("user_id") != user_id and not is_admin:
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    from services.fallback_pipeline import get_asset_links
+    assets = await get_asset_links(job)
+    return {"success": True, "assets": assets}
+
+
+@router.post("/notify-when-ready/{job_id}")
+async def subscribe_notify_when_ready(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Subscribe to be notified when a long-running job completes.
+    Stores a flag so the system sends a notification on completion."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    job = await db.pipeline_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    # If already completed, return immediately
+    if job.get("status") in ("COMPLETED", "PARTIAL"):
+        return {"success": True, "message": "Job already completed", "already_done": True}
+
+    await db.pipeline_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"notify_on_complete": True, "notify_email": current_user.get("email", "")}}
+    )
+
+    return {"success": True, "message": "You'll be notified when your video is ready"}
+
+
+@router.post("/generate-fallback/{job_id}")
+async def manually_generate_fallback(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Manually trigger fallback generation for a failed job.
+    Useful if user wants to get assets from an old failed job."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    job = await db.pipeline_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    # Check if fallback already exists
+    if job.get("fallback_outputs"):
+        return {"success": True, "message": "Fallback already generated", "fallback": job["fallback_outputs"]}
+
+    # Check if job has assets to work with
+    if not job.get("scenes") or not job.get("scene_images"):
+        raise HTTPException(status_code=400, detail="No scene assets available for this job")
+
+    from services.fallback_pipeline import run_fallback_pipeline
+    await run_fallback_pipeline(job_id, job.get("current_stage", "render"))
+
+    # Re-fetch updated job
+    updated = await db.pipeline_jobs.find_one({"job_id": job_id}, {"_id": 0, "fallback_outputs": 1, "fallback_status": 1})
+    return {"success": True, "message": "Fallback generated", "fallback_status": updated.get("fallback_status")}

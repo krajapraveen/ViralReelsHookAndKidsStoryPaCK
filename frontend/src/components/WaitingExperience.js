@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 import { 
   Loader2, Clock, Gamepad2, Puzzle, Quote, Sparkles, 
   RefreshCw, ChevronRight, Brain, Lightbulb, Trophy,
-  ArrowRight, Zap, Star
+  ArrowRight, Zap, Star, Bell, CheckCircle2
 } from 'lucide-react';
 
 // Inspirational Quotes
@@ -63,11 +63,13 @@ export default function WaitingExperience({
   isStalled = false,
   stallDuration = 0,
   queuePriority = null,
+  onNotifyMe = null,
 }) {
   const [currentQuote, setCurrentQuote] = useState(QUOTES[0]);
   const [activeGame, setActiveGame] = useState(null);
   const [gameScore, setGameScore] = useState(0);
   const [triviaIndex, setTriviaIndex] = useState(0);
+  const [notifySubscribed, setNotifySubscribed] = useState(false);
   const [scrambledWord, setScrambledWord] = useState('');
   const [userGuess, setUserGuess] = useState('');
   const [currentWord, setCurrentWord] = useState('');
@@ -277,21 +279,44 @@ export default function WaitingExperience({
         )}
       </div>
 
-      {/* Try Other Features Button */}
-      {onTryOtherFeature && (
+      {/* Try Other Features / Notify Me */}
+      {(onTryOtherFeature || onNotifyMe) && (
         <div className="mb-6 p-4 bg-purple-500/20 rounded-lg border border-purple-500/30">
           <p className="text-purple-300 text-sm mb-3">
             Your generation is running in the background. Feel free to explore other features!
           </p>
-          <Button 
-            onClick={onTryOtherFeature}
-            className="bg-purple-600 hover:bg-purple-700"
-            data-testid="try-other-features-btn"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            Try Other Features
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {onTryOtherFeature && (
+              <Button 
+                onClick={onTryOtherFeature}
+                className="bg-purple-600 hover:bg-purple-700"
+                data-testid="try-other-features-btn"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Try Other Features
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            )}
+            {onNotifyMe && !notifySubscribed && (
+              <Button
+                onClick={async () => {
+                  await onNotifyMe();
+                  setNotifySubscribed(true);
+                }}
+                variant="outline"
+                className="border-purple-500/50 text-purple-300 hover:bg-purple-500/10"
+                data-testid="notify-me-btn"
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                Notify Me When Ready
+              </Button>
+            )}
+            {notifySubscribed && (
+              <span className="text-emerald-400 text-sm flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> We'll notify you when it's done
+              </span>
+            )}
+          </div>
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -9,7 +9,7 @@ import api from '../utils/api';
 import {
   ArrowLeft, Wand2, Loader2, Film, Image, Mic, CheckCircle,
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
-  Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye,
+  Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye, Package,
   Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert
 } from 'lucide-react';
 import UpsellModal from '../components/UpsellModal';
@@ -44,6 +44,7 @@ class StudioErrorBoundary extends React.Component {
 }
 
 function StoryVideoPipelineInner() {
+  const navigate = useNavigate();
   const [phase, setPhase] = useState('input'); // input | processing | done | error
   const [options, setOptions] = useState(null);
   const [title, setTitle] = useState('');
@@ -163,17 +164,31 @@ function StoryVideoPipelineInner() {
             pollRef.current = null;
             setPhase('done');
             toast.success('Video generated successfully!');
+          } else if (j.status === 'PARTIAL') {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            if (j.fallback?.fallback_video_url) {
+              toast.info('Slideshow video ready! Redirecting to preview...', { duration: 4000 });
+            } else {
+              toast.info('Story assets ready! Redirecting to preview...', { duration: 4000 });
+            }
+            setTimeout(() => navigate(`/app/story-preview/${jid}`), 1500);
           } else if (j.status === 'FAILED') {
             clearInterval(pollRef.current);
             pollRef.current = null;
-            setPhase('error');
+            if (j.fallback?.has_preview || j.fallback?.story_pack_url) {
+              toast.info('Video render failed but your story assets are available!', { duration: 5000 });
+              setTimeout(() => navigate(`/app/story-preview/${jid}`), 1500);
+            } else {
+              setPhase('error');
+            }
           }
         }
       } catch { /* continue polling */ }
     };
     poll();
     pollRef.current = setInterval(poll, 3000);
-  }, []);
+  }, [navigate]);
 
   const handleGenerate = async () => {
     setFormError('');
@@ -274,7 +289,14 @@ function StoryVideoPipelineInner() {
   const viewJob = (j) => {
     setJobId(j.job_id);
     if (j.status === 'COMPLETED') { setJob(j); setPhase('done'); }
-    else if (j.status === 'FAILED') { setJob(j); setPhase('error'); }
+    else if (j.status === 'PARTIAL') { navigate(`/app/story-preview/${j.job_id}`); }
+    else if (j.status === 'FAILED') {
+      if (j.fallback_status && j.fallback_status !== 'none') {
+        navigate(`/app/story-preview/${j.job_id}`);
+      } else {
+        setJob(j); setPhase('error');
+      }
+    }
     else { setPhase('processing'); startPolling(j.job_id); }
   };
 
@@ -725,15 +747,22 @@ function DonePhase({ job, jobId, onNew, storyText, animStyle }) {
 function ErrorPhase({ job, onResume, onNew }) {
   const stages = job?.stages || {};
   const failedStage = Object.entries(stages).find(([, v]) => v.status === 'FAILED');
+  const hasFallback = job?.fallback?.has_preview || job?.fallback?.story_pack_url || job?.fallback?.fallback_video_url;
 
   return (
     <div className="max-w-lg mx-auto text-center space-y-6 py-12" data-testid="error-phase">
-      <div className="w-16 h-16 mx-auto bg-red-500/20 rounded-full flex items-center justify-center">
-        <AlertCircle className="w-8 h-8 text-red-400" />
+      <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${hasFallback ? 'bg-amber-500/20' : 'bg-red-500/20'}`}>
+        {hasFallback ? <Package className="w-8 h-8 text-amber-400" /> : <AlertCircle className="w-8 h-8 text-red-400" />}
       </div>
-      <h2 className="text-xl font-bold text-white">Generation Failed</h2>
-      <p className="text-slate-400">{job?.error || 'An error occurred during video generation.'}</p>
-      {failedStage && (
+      <h2 className="text-xl font-bold text-white">
+        {hasFallback ? 'Your Story Assets Are Ready' : 'Generation Failed'}
+      </h2>
+      <p className="text-slate-400">
+        {hasFallback
+          ? 'The cinematic render encountered an issue, but we saved your story assets — images, audio, and more.'
+          : (job?.error || 'An error occurred during video generation.')}
+      </p>
+      {failedStage && !hasFallback && (
         <p className="text-sm text-slate-500">
           Failed at: <span className="text-red-400 font-medium">{failedStage[0]}</span>
           {failedStage[1].retry_count > 0 && ` (after ${failedStage[1].retry_count} retries)`}
@@ -755,6 +784,13 @@ function ErrorPhase({ job, onResume, onNew }) {
       </div>
 
       <div className="flex justify-center gap-3">
+        {hasFallback && (
+          <Link to={`/app/story-preview/${job.job_id}`}>
+            <Button className="bg-amber-600 hover:bg-amber-700" data-testid="view-assets-btn">
+              <Eye className="w-4 h-4 mr-2" /> View Story Assets
+            </Button>
+          </Link>
+        )}
         <Button onClick={onResume} className="bg-purple-600 hover:bg-purple-700" data-testid="resume-btn">
           <RotateCcw className="w-4 h-4 mr-2" /> Resume from Checkpoint
         </Button>
@@ -763,7 +799,7 @@ function ErrorPhase({ job, onResume, onNew }) {
         </Button>
       </div>
 
-      <p className="text-xs text-slate-500">Credits will be refunded for failed jobs.</p>
+      <p className="text-xs text-slate-500">Credits have been refunded for the failed render.</p>
     </div>
   );
 }

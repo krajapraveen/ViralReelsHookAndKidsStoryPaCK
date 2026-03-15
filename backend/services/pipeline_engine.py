@@ -1127,6 +1127,15 @@ async def execute_pipeline(job_id: str):
             # Refund credits
             await refund_credits(job)
 
+            # If render or upload failed but we have assets, run fallback pipeline
+            if stage_name in ("render", "upload"):
+                try:
+                    from services.fallback_pipeline import run_fallback_pipeline
+                    logger.info(f"[PIPE {job_id[:8]}] Render/upload failed — triggering fallback pipeline")
+                    await run_fallback_pipeline(job_id, stage_name)
+                except Exception as fb_err:
+                    logger.error(f"[PIPE {job_id[:8]}] Fallback pipeline failed: {fb_err}")
+
             # Broadcast failure via WebSocket
             await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, 0,
                                 f"Failed at {stage_name}: {(last_error or '')[:80]}", status="failed")
@@ -1155,13 +1164,28 @@ async def execute_pipeline(job_id: str):
 
     logger.info(f"[PIPE {job_id[:8]}] COMPLETE in {total_ms}ms — {video_url[:60]}")
 
+    # Send notification if user subscribed to "notify when ready"
+    if job.get("notify_on_complete"):
+        try:
+            from services.notification_service import NotificationService
+            notif_svc = NotificationService(db)
+            await notif_svc.create_notification(
+                user_id=job.get("user_id", ""),
+                notification_type="generation_complete",
+                title=f"Video ready: {job.get('title', 'Your Story')}",
+                message=f"Your video '{job.get('title', '')}' is ready to download!",
+                job_id=job_id,
+            )
+        except Exception as notif_err:
+            logger.warning(f"[PIPE {job_id[:8]}] Notify-when-ready failed: {notif_err}")
+
     # Clean up local temp files (images/audio) now that render is complete & uploaded
     try:
-        for sn, img in scene_images.items():
+        for sn, img in job.get("scene_images", {}).items():
             p = img.get("path", "")
             if p and os.path.exists(p) and str(STATIC_DIR) in p:
                 os.remove(p)
-        for sn, voice in scene_voices.items():
+        for sn, voice in job.get("scene_voices", {}).items():
             p = voice.get("path", "")
             if p and os.path.exists(p) and str(STATIC_DIR) in p:
                 os.remove(p)

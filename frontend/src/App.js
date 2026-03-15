@@ -53,6 +53,7 @@ import SelfHealingDashboard from './pages/Admin/SelfHealingDashboard';
 // Story → Video Studio (NEW)
 import StoryVideoStudio from './pages/StoryVideoStudio';
 import StoryVideoPipeline from './pages/StoryVideoPipeline';
+import StoryPreview from './pages/StoryPreview';
 import { ErrorBoundary } from './components/recovery';  // Add ErrorBoundary
 import UserAnalyticsDashboard from './pages/Admin/UserAnalyticsDashboard';
 import SharePage from './pages/SharePage';
@@ -193,6 +194,8 @@ function App() {
       <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBookWizard /> : <Navigate to="/login" />} />
       {/* Story → Video Studio — Using new durable pipeline */}
       <Route path="/app/story-video-studio" element={isAuthenticated ? <ErrorBoundary><StoryVideoPipeline /></ErrorBoundary> : <Navigate to="/login" />} />
+      {/* Story Preview (public for sharing, shows fallback assets) */}
+      <Route path="/app/story-preview/:jobId" element={<StoryPreview />} />
       {/* Story Video Analytics Dashboard */}
       <Route path="/app/admin/story-video-analytics" element={isAuthenticated ? <StoryVideoAnalyticsDashboard /> : <Navigate to="/login" />} />
       {/* Character Consistency Studio */}

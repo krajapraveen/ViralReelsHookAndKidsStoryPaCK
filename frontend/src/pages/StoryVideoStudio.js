@@ -871,12 +871,35 @@ export default function StoryVideoStudio() {
               toast.info('Redirecting to your downloads...');
               navigate('/app/downloads');
             }, 2000);
+          } else if (job.status === 'PARTIAL') {
+            // Fallback deliverables are available
+            setLoading(false);
+            setShowWaitingExperience(false);
+            const fallback = job.fallback;
+            if (fallback?.fallback_video_url) {
+              toast.info('Slideshow video ready! Redirecting to preview...', { duration: 4000 });
+            } else {
+              toast.info('Story assets ready! Redirecting to preview...', { duration: 4000 });
+            }
+            setTimeout(() => {
+              navigate(`/app/story-preview/${job.job_id}`);
+            }, 1500);
           } else if (job.status === 'FAILED') {
             const errorMsg = job.error || 'Unknown error';
             const isTimeout = errorMsg.includes('timed out') || errorMsg.includes('interrupted');
-            toast.error(`${isTimeout ? 'Video rendering timed out' : 'Video rendering failed'}: ${errorMsg.slice(0, 100)}`, { duration: 8000 });
-            setLoading(false);
-            setShowWaitingExperience(false);
+            // Check if fallback assets exist
+            if (job.fallback?.has_preview || job.fallback?.story_pack_url) {
+              toast.info('Video render failed but your story assets are available!', { duration: 5000 });
+              setLoading(false);
+              setShowWaitingExperience(false);
+              setTimeout(() => {
+                navigate(`/app/story-preview/${job.job_id}`);
+              }, 1500);
+            } else {
+              toast.error(`${isTimeout ? 'Video rendering timed out' : 'Video rendering failed'}: ${errorMsg.slice(0, 100)}`, { duration: 8000 });
+              setLoading(false);
+              setShowWaitingExperience(false);
+            }
           } else {
             // Continue polling with adaptive interval
             const interval = job.progress > 80 ? 2000 : 5000;
@@ -1047,6 +1070,14 @@ export default function StoryVideoStudio() {
                 generationStage === 'video_assembly' ? '15-30 seconds' :
                 null
               }
+              onNotifyMe={renderJob?.job_id ? async () => {
+                try {
+                  await api.post(`/api/pipeline/notify-when-ready/${renderJob.job_id}`);
+                  toast.success("We'll notify you when your video is ready!");
+                } catch {
+                  toast.error('Could not subscribe to notifications');
+                }
+              } : null}
             />
           </div>
         )}
