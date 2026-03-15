@@ -19,80 +19,55 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 
 ### Core Platform
 - Full AI story video pipeline (script > scenes > images > voices > render > upload)
-- Gallery with 30+ professional showcase items (AI-generated thumbnails, presigned URLs)
+- Gallery with 12+ professional AI-generated showcase items (HD thumbnails, presigned URLs)
 - Rate limiting: 5/hour for normal users, exempt for admin/test/demo
 - Worker auto-scaling: 1 min, 3 max, scales on queue depth
-- 50+ creator tools (reel generator, story generator, coloring book, comic maker, etc.)
+- 50+ creator tools
 - Payment/billing system (Cashfree integration)
 - Admin dashboard with analytics, user management, monitoring
 - Credit system with refunds on failure (unlimited for admin/demo/UAT)
-- Error boundary with recovery options
 
-### Render Architecture Redesign (Completed Mar 14, 2026)
-- **REMOVED** scene-by-scene mp4 clip rendering (was 2N+1 FFmpeg calls)
-- **REPLACED** with single-pass FFmpeg encode using filter_complex concat
-- Resolution: 960x540, FPS: 15, libx264 ultrafast, CRF 28, threads 1
+### Render Architecture Redesign (Mar 14, 2026)
+- Single-pass FFmpeg encode (was 2N+1 FFmpeg calls)
+- 960x540, 15fps, ultrafast, CRF 28, threads 1
 - Real-time render progress via FFmpeg -progress flag
-- Render time: ~27s solo (3 scenes), ~65-85s concurrent
-- 28 successful completions, 0 render failures
+- ~27s solo render, 28/28 completions
 
-### Landing Page & Pricing Fixes (Completed Mar 14, 2026)
-- **Removed "Start Free" button** from landing page nav (desktop + mobile)
-- **Geo-based currency detection**: INR (₹) for India users, USD ($) for international
-  - India: Creator ₹699/mo (300 credits), Pro ₹1,299/mo (1000 credits), TopUp ₹299 (150 credits)
-  - International: Creator $9/mo (100 credits), Pro $19/mo (250 credits), TopUp $5 (50 credits)
-  - Detection via browser timezone (Asia/Kolkata = India)
-- Applied to: Landing page, Pricing page, UpsellModal, ContextualUpgrade
+### Landing Page Optimization (Mar 15, 2026)
+- **Hero**: "Turn Any Story Into a Cinematic AI Video"
+- **Trust Indicators**: 12,426+ videos, 40+ countries, 6 styles, ~90s
+- **Problem → Solution**: "Creating animated videos is difficult" → "Visionary Suite solves this"
+- **Example AI Videos**: 6 HD showcase cards from gallery API with remix counts + "Remix This" links
+- **Features**: AI Story Writer, AI Scene Generator, AI Illustration Engine, AI Voice Narration, AI Video Renderer, Ready in Minutes
+- **How It Works**: Write Your Story → AI Creates the Video → Download or Share
+- **Remix Section**: "Click Remix to create your own version"
+- **Final CTA**: "Your Story Deserves to Be Seen"
+- **Page Flow**: Hero → Trust → Problem → Solution → Examples → Features → How It Works → Styles → Prompts → Pricing → Remix → Tools → CTA → Footer
 
-### Gallery & Showcase Overhaul (Completed Mar 14, 2026)
-- Seeded 12 AI-generated showcase items with HD thumbnails
-- Gallery now shows 48+ items with category filters
-- "Most Remixed Creations" leaderboard with remix count badges
-- Categories: All, 2D Cartoon, Watercolor, Anime, Comic Book, 3D Animation, Claymation
-- Remix button on gallery cards for engagement
+### Geo-Based Currency (Mar 14, 2026)
+- India (Asia/Kolkata timezone): Creator ₹699/mo, Pro ₹1,299/mo, TopUp ₹299
+- International: Creator $9/mo, Pro $19/mo, TopUp $5
+- Applied to: Landing, Pricing, UpsellModal, ContextualUpgrade
 
-### Credits & UpsellModal Fixes (Completed Mar 14, 2026)
-- Admin/exempt users now show 999,999 credits (was 0)
-- `/api/credits/balance` returns `unlimited: true` for admin users
-- UpsellModal properly checks `isOpen` prop — no longer blocks admin
-- X button, backdrop click, and "Maybe Later" all properly close the modal
-- Fixed in: PhotoToComic, ReelGenerator, ComicStorybookBuilder, PhotoReactionGIF
+### Gallery & Showcase (Mar 14, 2026)
+- 12 AI-generated showcase items with HD thumbnails
+- Category filters, leaderboard, remix count badges
+- Seeded via /app/backend/scripts/seed_gallery.py
 
-### Remix & Variations Engine
-- CreationActionsBar component across all 7 tools
-- Remix tracking, leaderboard, cross-tool conversions
-- Pre-fill logic for remix flow
-
-### P0 Pipeline Stabilization
-- Stuck job recovery (background service)
-- Asset download retries with presigned URL regeneration
-- Frontend stuck detection with retry option
-
-## API Endpoints
-
-### Credits
-- `GET /api/credits/balance` — Returns credits (999999 for admin), unlimited flag, plan
-
-### Gallery
-- `GET /api/pipeline/gallery` — Showcases + user videos, presigned URLs
-- `GET /api/pipeline/gallery/leaderboard` — Top remixed creations
-- `GET /api/pipeline/gallery/categories` — Category counts
-
-### Remix
-- `GET /api/remix/variations/{tool}` — Variation config
-- `POST /api/remix/track` — Track remix event
-- `GET /api/remix/stats` — Analytics
+### Credits & UpsellModal Fixes (Mar 14, 2026)
+- Admin/exempt users show 999,999 credits
+- UpsellModal properly checks isOpen prop
+- X, backdrop click, "Maybe Later" all close the modal
 
 ## Backlog
 - **P1**: WebSocket real-time progress for video generation
 - **P1**: Video watermarking for free plan users
 - **P1**: Expand contextual upgrade prompts
 - **P2**: Email notifications (BLOCKED on SendGrid)
-- **P2**: Break Dashboard.js into smaller components
+- **P2**: Dashboard.js component breakdown
 
 ## Technical Notes
 - R2 public URL returns 403 - all media served via presigned URLs (4hr expiry)
 - Pipeline rendering: 960x540, 15fps, ultrafast, CRF 28, single-pass encode
-- Stuck job recovery: every 2 min, 10 min timeout, auto credit refund
-- Geo-detection: `Intl.DateTimeFormat().resolvedOptions().timeZone` → Asia/Kolkata = INR
+- Geo-detection: Intl.DateTimeFormat().resolvedOptions().timeZone → Asia/Kolkata = INR
 - Admin exempt emails: admin@creatorstudio.ai, test@visionary-suite.com, demo@visionary-suite.com
