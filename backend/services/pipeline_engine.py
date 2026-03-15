@@ -386,10 +386,8 @@ async def run_stage_images(job: dict) -> dict:
                             url = pub_url
                             r2_key = key
                             storage = "r2"
-                            try:
-                                os.remove(str(path))
-                            except OSError:
-                                pass
+                            # NOTE: Keep local file — render stage needs it.
+                            # Cleanup happens after pipeline completion.
                 except Exception:
                     pass
 
@@ -1156,6 +1154,20 @@ async def execute_pipeline(job_id: str):
                         f"Video ready! ({total_ms // 1000}s)", status="completed")
 
     logger.info(f"[PIPE {job_id[:8]}] COMPLETE in {total_ms}ms — {video_url[:60]}")
+
+    # Clean up local temp files (images/audio) now that render is complete & uploaded
+    try:
+        for sn, img in scene_images.items():
+            p = img.get("path", "")
+            if p and os.path.exists(p) and str(STATIC_DIR) in p:
+                os.remove(p)
+        for sn, voice in scene_voices.items():
+            p = voice.get("path", "")
+            if p and os.path.exists(p) and str(STATIC_DIR) in p:
+                os.remove(p)
+        logger.info(f"[PIPE {job_id[:8]}] Cleaned up local temp files")
+    except Exception:
+        pass
 
 
 async def refund_credits(job: dict):

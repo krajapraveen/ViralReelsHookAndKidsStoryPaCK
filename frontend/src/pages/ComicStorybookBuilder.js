@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, ArrowRight, Wand2, BookOpen, Loader2, Download, 
@@ -423,7 +423,7 @@ export default function ComicStorybookBuilder() {
   // Generation state
   const [loading, setLoading] = useState(false);
   const [job, setJob] = useState(null);
-  const [pollingInterval, setPollingIntervalState] = useState(null);
+  const pollingRef = useRef(null);
   
   // Modals
   const [showRating, setShowRating] = useState(false);
@@ -433,7 +433,7 @@ export default function ComicStorybookBuilder() {
     fetchCredits();
     fetchUserPlan();
     return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, []);
 
@@ -526,8 +526,10 @@ export default function ComicStorybookBuilder() {
       setJob(res.data);
       
       if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
-        if (pollingInterval) clearInterval(pollingInterval);
-        setPollingIntervalState(null);
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
         setLoading(false);
         fetchCredits();
         
@@ -541,7 +543,7 @@ export default function ComicStorybookBuilder() {
     } catch (e) {
       console.error('Poll error:', e);
     }
-  }, [pollingInterval]);
+  }, []);
 
   // Generate full comic book
   const generateComicBook = async () => {
@@ -581,7 +583,7 @@ export default function ComicStorybookBuilder() {
       toast.success('Comic book generation started!');
       
       const interval = setInterval(() => pollJobStatus(res.data.jobId), 3000);
-      setPollingIntervalState(interval);
+      pollingRef.current = interval;
       
     } catch (e) {
       setLoading(false);
