@@ -1279,11 +1279,13 @@ async def execute_pipeline(job_id: str):
             # Refund credits
             await refund_credits(job)
 
-            # If render or upload failed but we have assets, run fallback pipeline
-            if stage_name in ("render", "upload"):
+            # If we have any assets (scenes+images), run fallback pipeline regardless of which stage failed
+            job_check = await get_job(job_id)
+            has_assets = (len(job_check.get("scenes", [])) > 0 and len(job_check.get("scene_images", {})) > 0)
+            if has_assets:
                 try:
                     from services.fallback_pipeline import run_fallback_pipeline
-                    logger.info(f"[PIPE {job_id[:8]}] Render/upload failed — triggering fallback pipeline")
+                    logger.info(f"[PIPE {job_id[:8]}] Stage '{stage_name}' failed — triggering fallback (assets available)")
                     await run_fallback_pipeline(job_id, stage_name)
                 except Exception as fb_err:
                     logger.error(f"[PIPE {job_id[:8]}] Fallback pipeline failed: {fb_err}")
@@ -1388,7 +1390,7 @@ async def refund_credits(job: dict):
 
 
 async def resume_pipeline(job_id: str):
-    """Resume a failed pipeline from its last checkpoint."""
+    """Resume a pipeline from its last checkpoint. Handles FAILED, PROCESSING, and INTERRUPTED states."""
     job = await get_job(job_id)
     if not job:
         raise ValueError("Job not found")
@@ -1396,17 +1398,25 @@ async def resume_pipeline(job_id: str):
     if job.get("status") == "COMPLETED":
         raise ValueError("Job already completed")
 
-    # Reset the failed stage to PENDING so executor will re-run it
+    # Reset any FAILED or RUNNING (interrupted) stage to PENDING so executor will re-run it
     stages = job.get("stages", {})
+    reset_done = False
     for stage_name in STAGES[1:]:  # skip "script"
-        if stages.get(stage_name, {}).get("status") == StageStatus.FAILED:
+        stage_status = stages.get(stage_name, {}).get("status")
+        if stage_status in (StageStatus.FAILED, StageStatus.RUNNING):
             await update_job(job_id, {
                 f"stages.{stage_name}.status": StageStatus.PENDING,
                 f"stages.{stage_name}.error": None,
                 f"stages.{stage_name}.retry_count": 0,
-                "status": "QUEUED",
-                "error": None,
             })
+            reset_done = True
             break
 
+    await update_job(job_id, {
+        "status": "QUEUED",
+        "error": None,
+        "current_step": "Resuming from last checkpoint...",
+    })
+
+    logger.info(f"[RESUME] Job {job_id[:8]} reset for resume (stage_reset={reset_done})")
     return True

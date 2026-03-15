@@ -334,26 +334,100 @@ async def start_workers():
     # Start stuck job recovery loop
     asyncio.create_task(_stuck_job_recovery_loop())
 
-    # Clean up stale jobs from previous server lifecycle
+    # Recover interrupted jobs from previous server lifecycle
     try:
         stale_jobs = await db.pipeline_jobs.find(
             {"status": {"$in": ["PROCESSING", "QUEUED"]}},
-            {"job_id": 1, "user_id": 1, "credits_charged": 1, "created_at": 1, "title": 1, "queue_priority": 1, "_id": 0}
+            {"job_id": 1, "user_id": 1, "credits_charged": 1, "created_at": 1,
+             "title": 1, "queue_priority": 1, "stages": 1, "scenes": 1,
+             "scene_images": 1, "scene_voices": 1, "current_stage": 1,
+             "progress": 1, "_id": 0}
         ).to_list(length=50)
+
+        restart_ts = datetime.now(timezone.utc).isoformat()
+        resumed_count = 0
+        fallback_count = 0
+        failed_count = 0
 
         for job_doc in stale_jobs:
             jid = job_doc.get("job_id", "")
             uid = job_doc.get("user_id")
             credits = job_doc.get("credits_charged", 0)
-            logger.info(f"[WORKER] Cleaning stale job {jid[:8]} (was stuck)")
+            stages = job_doc.get("stages", {})
+            current_stage = job_doc.get("current_stage", "unknown")
+            progress = job_doc.get("progress", 0)
 
+            # Check which stages completed
+            completed_stages = [s for s, d in stages.items() if d.get("status") == "COMPLETED"]
+            has_scenes = len(job_doc.get("scenes", [])) > 0
+            has_images = len(job_doc.get("scene_images", {})) > 0
+            has_voices = len(job_doc.get("scene_voices", {})) > 0
+
+            logger.info(
+                f"[RESTART-RECOVERY] Job {jid[:8]} interrupted at stage='{current_stage}' "
+                f"progress={progress}% completed_stages={completed_stages} "
+                f"scenes={has_scenes} images={has_images} voices={has_voices} "
+                f"restart_ts={restart_ts}"
+            )
+
+            # Store crash diagnostic data
+            crash_log = {
+                "restart_timestamp": restart_ts,
+                "job_id": jid,
+                "stage_interrupted": current_stage,
+                "progress_at_interrupt": progress,
+                "completed_stages": completed_stages,
+                "had_scenes": has_scenes,
+                "had_images": has_images,
+                "had_voices": has_voices,
+                "reason": "server_restart",
+            }
+            await db.pipeline_jobs.update_one(
+                {"job_id": jid},
+                {"$push": {"crash_logs": crash_log}}
+            )
+
+            # Decision: Resume, Fallback, or Fail
+            if completed_stages:
+                # Has some progress — try to auto-resume from checkpoint
+                try:
+                    from services.pipeline_engine import resume_pipeline
+                    await resume_pipeline(jid)
+
+                    # Re-enqueue with original priority
+                    user_plan = "free"
+                    if job_doc.get("queue_priority") == 0:
+                        user_plan = "admin"
+                    elif job_doc.get("queue_priority") == 1:
+                        user_plan = "monthly"
+
+                    await enqueue_job(jid, user_id=uid or "", user_plan=user_plan)
+                    resumed_count += 1
+                    logger.info(f"[RESTART-RECOVERY] Auto-resumed job {jid[:8]} from checkpoint (completed: {completed_stages})")
+                    continue
+                except Exception as resume_err:
+                    logger.warning(f"[RESTART-RECOVERY] Auto-resume failed for {jid[:8]}: {resume_err}")
+
+                # Resume failed — try generating fallback if we have assets
+                if has_scenes and has_images:
+                    try:
+                        from services.fallback_pipeline import run_fallback_pipeline
+                        await run_fallback_pipeline(jid, current_stage or "render")
+                        fallback_count += 1
+                        logger.info(f"[RESTART-RECOVERY] Fallback generated for {jid[:8]} (scenes+images available)")
+                        # Don't refund — user gets fallback assets
+                        continue
+                    except Exception as fb_err:
+                        logger.warning(f"[RESTART-RECOVERY] Fallback failed for {jid[:8]}: {fb_err}")
+
+            # No progress or all recovery failed — mark FAILED and refund
             await db.pipeline_jobs.update_one(
                 {"job_id": jid},
                 {"$set": {
                     "status": "FAILED",
                     "error": "Job interrupted by server restart. Credits refunded.",
                     "current_step": "Failed: server restarted during processing. Please try again.",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": restart_ts,
                 }}
             )
             if uid and credits:
@@ -370,12 +444,16 @@ async def start_workers():
                         )
                     except Exception:
                         pass
-                logger.info(f"[WORKER] Refunded {credits} credits for stale job {jid[:8]}")
+                logger.info(f"[RESTART-RECOVERY] Refunded {credits} credits for job {jid[:8]} (no recoverable progress)")
+            failed_count += 1
 
         if stale_jobs:
-            logger.info(f"[WORKER] Cleaned up {len(stale_jobs)} stale jobs")
+            logger.info(
+                f"[RESTART-RECOVERY] Processed {len(stale_jobs)} interrupted jobs: "
+                f"{resumed_count} resumed, {fallback_count} fallback, {failed_count} failed"
+            )
     except Exception as e:
-        logger.warning(f"[WORKER] Could not clean stale jobs: {e}")
+        logger.warning(f"[RESTART-RECOVERY] Could not process stale jobs: {e}")
 
 
 STUCK_JOB_TIMEOUT_MINUTES = 10

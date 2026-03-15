@@ -182,12 +182,12 @@ function StoryVideoPipelineInner() {
           } else if (j.status === 'FAILED') {
             clearInterval(pollRef.current);
             pollRef.current = null;
-            if (j.fallback?.has_preview || j.fallback?.story_pack_url) {
+            // Check for any recoverable assets — formal fallback or raw assets
+            const hasRecoverable = j.has_recoverable_assets || j.fallback?.has_preview || j.fallback?.story_pack_url;
+            if (hasRecoverable) {
               toast.info('Video render failed but your story assets are available!', { duration: 5000 });
-              setTimeout(() => navigate(`/app/story-preview/${jid}`), 1500);
-            } else {
-              setPhase('error');
             }
+            setPhase('error');
           }
         }
       } catch { /* continue polling */ }
@@ -785,21 +785,25 @@ function ErrorPhase({ job, onResume, onNew }) {
   const stages = job?.stages || {};
   const failedStage = Object.entries(stages).find(([, v]) => v.status === 'FAILED');
   const hasFallback = job?.fallback?.has_preview || job?.fallback?.story_pack_url || job?.fallback?.fallback_video_url;
+  const hasAnyAssets = hasFallback || job?.has_recoverable_assets || (job?.scene_progress?.some(s => s.has_image));
+  const isServerRestart = job?.error?.includes('server restart') || job?.error?.includes('interrupted');
 
   return (
     <div className="max-w-lg mx-auto text-center space-y-6 py-12" data-testid="error-phase">
-      <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${hasFallback ? 'bg-amber-500/20' : 'bg-red-500/20'}`}>
-        {hasFallback ? <Package className="w-8 h-8 text-amber-400" /> : <AlertCircle className="w-8 h-8 text-red-400" />}
+      <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${hasAnyAssets ? 'bg-amber-500/20' : 'bg-red-500/20'}`}>
+        {hasAnyAssets ? <Package className="w-8 h-8 text-amber-400" /> : <AlertCircle className="w-8 h-8 text-red-400" />}
       </div>
       <h2 className="text-xl font-bold text-white">
-        {hasFallback ? 'Your Story Assets Are Ready' : 'Generation Failed'}
+        {hasAnyAssets ? 'Your Story Assets Are Ready' : 'Generation Failed'}
       </h2>
       <p className="text-slate-400">
-        {hasFallback
-          ? 'The cinematic render encountered an issue, but we saved your story assets — images, audio, and more.'
-          : (job?.error || 'An error occurred during video generation.')}
+        {isServerRestart
+          ? 'The process was interrupted, but your completed assets have been saved. You can resume or view what was generated.'
+          : hasAnyAssets
+            ? 'The cinematic render encountered an issue, but we saved your story assets — images, audio, and more.'
+            : (job?.error || 'An error occurred during video generation.')}
       </p>
-      {failedStage && !hasFallback && (
+      {failedStage && !hasAnyAssets && (
         <p className="text-sm text-slate-500">
           Failed at: <span className="text-red-400 font-medium">{failedStage[0]}</span>
           {failedStage[1].retry_count > 0 && ` (after ${failedStage[1].retry_count} retries)`}
@@ -820,18 +824,26 @@ function ErrorPhase({ job, onResume, onNew }) {
         })}
       </div>
 
-      <div className="flex justify-center gap-3">
-        {hasFallback && (
+      <div className="flex flex-col items-center gap-3">
+        {/* Primary actions — always show preview and resume when assets exist */}
+        {hasAnyAssets && (
           <Link to={`/app/story-preview/${job.job_id}`}>
-            <Button className="bg-amber-600 hover:bg-amber-700" data-testid="view-assets-btn">
-              <Eye className="w-4 h-4 mr-2" /> View Story Assets
+            <Button className="bg-amber-600 hover:bg-amber-700 w-64" data-testid="view-assets-btn">
+              <Eye className="w-4 h-4 mr-2" /> Open Preview
             </Button>
           </Link>
         )}
-        <Button onClick={onResume} className="bg-purple-600 hover:bg-purple-700" data-testid="resume-btn">
+        {job?.fallback?.story_pack_url && (
+          <a href={job.fallback.story_pack_url} target="_blank" rel="noopener noreferrer">
+            <Button className="bg-teal-600 hover:bg-teal-700 w-64" data-testid="download-zip-btn">
+              <Download className="w-4 h-4 mr-2" /> Download Story Pack ZIP
+            </Button>
+          </a>
+        )}
+        <Button onClick={onResume} className="bg-purple-600 hover:bg-purple-700 w-64" data-testid="resume-btn">
           <RotateCcw className="w-4 h-4 mr-2" /> Resume from Checkpoint
         </Button>
-        <Button onClick={onNew} variant="outline" className="border-slate-700 text-slate-300" data-testid="new-video-btn-error">
+        <Button onClick={onNew} variant="outline" className="border-slate-700 text-slate-300 w-64" data-testid="new-video-btn-error">
           Start Over
         </Button>
       </div>

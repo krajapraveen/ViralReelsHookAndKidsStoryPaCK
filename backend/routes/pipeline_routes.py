@@ -457,6 +457,17 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             fallback_data["has_preview"] = True
             fallback_data["preview_scenes"] = fallback["preview"].get("total_scenes", 0)
 
+    # Even without formal fallback data, detect if raw assets exist for recovery
+    has_raw_assets = len(scene_images) > 0 or len(scene_voices) > 0
+    if not fallback_data and has_raw_assets and job.get("status") == "FAILED":
+        fallback_data = {
+            "status": "assets_available",
+            "has_preview": True,
+            "preview_scenes": len(scenes),
+            "has_raw_images": len(scene_images) > 0,
+            "has_raw_voices": len(scene_voices) > 0,
+        }
+
     return {
         "success": True,
         "job": {
@@ -477,6 +488,8 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
             "fallback": fallback_data,
+            "has_recoverable_assets": has_raw_assets or bool(fallback_data),
+            "crash_logs": job.get("crash_logs", [])[-3:],  # Last 3 crash events for diagnostics
         },
     }
 
@@ -519,6 +532,8 @@ async def get_user_pipeline_jobs(current_user: dict = Depends(get_current_user))
             j["output_url"] = _make_presigned_url(j["output_url"])
         if j.get("thumbnail_url"):
             j["thumbnail_url"] = _make_presigned_url(j["thumbnail_url"])
+        # Flag jobs that have recoverable assets even if FAILED
+        j["has_recoverable_assets"] = bool(j.get("fallback_outputs")) or j.get("fallback_status") not in (None, "none")
 
     return {"success": True, "jobs": jobs}
 
@@ -593,6 +608,27 @@ async def pipeline_worker_status(current_user: dict = Depends(get_current_user))
     """Get worker pool status (admin diagnostic)."""
     stats = get_worker_stats()
     return {"success": True, "workers": stats}
+
+
+@router.get("/crash-diagnostics")
+async def get_crash_diagnostics(current_user: dict = Depends(get_current_user)):
+    """Admin endpoint: Get crash diagnostics for interrupted jobs."""
+    if current_user.get("role") not in ("admin", "ADMIN"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Find jobs with crash logs
+    crashed_jobs = await db.pipeline_jobs.find(
+        {"crash_logs": {"$exists": True, "$ne": []}},
+        {"_id": 0, "job_id": 1, "title": 1, "status": 1, "user_id": 1,
+         "crash_logs": 1, "current_stage": 1, "progress": 1, "created_at": 1}
+    ).sort("created_at", -1).to_list(length=50)
+
+    return {
+        "success": True,
+        "total_crashes": sum(len(j.get("crash_logs", [])) for j in crashed_jobs),
+        "affected_jobs": len(crashed_jobs),
+        "jobs": crashed_jobs,
+    }
 
 
 
