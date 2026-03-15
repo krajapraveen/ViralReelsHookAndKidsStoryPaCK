@@ -14,11 +14,6 @@ Frontend (React + TailwindCSS + Shadcn):
 Server FFmpeg: Admin-only fallback (not default path)
 ```
 
-**3-Tier Output Model:**
-1. Instant: Playable web preview (free)
-2. Standard: Story Pack ZIP (images, audio, text)
-3. Premium: Final MP4 export (browser-rendered)
-
 ## Implemented Features
 
 ### Core Platform
@@ -32,75 +27,52 @@ Server FFmpeg: Admin-only fallback (not default path)
 - [x] Landing page optimization + Testimonials, Social sharing + OpenGraph
 - [x] Cashfree payments with Geo-IP (INR/USD)
 
-### Fallback Output System (Mar 2026)
+### Fallback Output System
 - [x] Server fallback MP4, Story Pack ZIP, Public preview page
 - [x] R2 presigned asset links, Notify-when-ready, Manual fallback trigger
-- [x] Auto-fallback on render/upload failure
+- [x] Auto-fallback on ANY stage failure with assets
 
-### Progressive Delivery + Client-Side Export (Mar 2026)
-- [x] Per-asset WebSocket events (scene_ready, image_ready, voice_ready, preview_ready)
-- [x] ProgressiveGeneration component with live scene cards
-- [x] Web Preview Player with synced audio
-- [x] BrowserVideoExport (ffmpeg.wasm, 720p, 15fps)
-- [x] useJobWebSocket hook with auto-reconnect
+### Progressive Delivery + Client-Side Export
+- [x] Per-asset WebSocket events, ProgressiveGeneration component
+- [x] Web Preview Player, BrowserVideoExport (ffmpeg.wasm)
 
-### TTFD Analytics System (Mar 2026)
-- [x] Backend TTFD tracking, Derived metrics, Queue performance
-- [x] Engagement tracking, Admin TTFD Dashboard, Daily aggregation job
+### TTFD Analytics System
+- [x] Backend TTFD tracking, Queue performance, Engagement tracking
+- [x] Admin TTFD Dashboard, Daily aggregation job
 
-### P0 Infrastructure Stability — Job Durability (Mar 2026)
+### P0 Infrastructure Stability — Job Durability
 - [x] Auto-resume from checkpoint on server restart
-- [x] Fallback for interrupted jobs (Story Pack ZIP + preview)
-- [x] Crash diagnostics logging (restart_timestamp, stage_interrupted, etc.)
-- [x] Enhanced error recovery UI (Open Preview, Download ZIP, Resume, Start Over)
-- [x] has_recoverable_assets flag on status and user-jobs endpoints
-- [x] Admin crash diagnostics endpoint
+- [x] Fallback for interrupted jobs, Crash diagnostics logging
+- [x] Enhanced error recovery UI, has_recoverable_assets flag
 
-### My Jobs Dashboard (Mar 2026)
-- [x] "My Jobs" tab in Profile page (between My Space and Profile Settings)
-- [x] Filter stats bar: All, Completed, Assets Ready, Failed, Active
-- [x] Job cards with status badges, stage progress bars, metadata
-- [x] "Recovered" badge on server-restart interrupted jobs
-- [x] Action buttons: Video download, Preview, Resume, Get Assets
-- [x] Resume from checkpoint directly from dashboard
-- [x] Fallback generation trigger for failed jobs with assets
-- [x] Refresh functionality
+### My Jobs Dashboard
+- [x] "My Jobs" tab in Profile page with filters (All/Completed/Assets Ready/Failed/Active)
+- [x] Job cards with status badges, stage progress bars, action buttons
+- [x] Resume from checkpoint, Preview, Download directly from dashboard
 
-### Performance Targets
-| Metric | Target | Current |
-|--------|--------|---------|
-| Time to First Scene | <5s | 9.35s |
-| Time to First Image | <20s | 60.47s |
-| Time to Playable Preview | <60s | 79s |
-| Export Success Rate | >95% | 0% (render env) |
-
-## Key API Endpoints
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /api/pipeline/user-jobs | All user pipeline jobs with recovery flags |
-| POST | /api/pipeline/resume/{job_id} | Resume job from checkpoint |
-| POST | /api/pipeline/generate-fallback/{job_id} | Manual fallback trigger |
-| GET | /api/pipeline/crash-diagnostics | Admin crash diagnostic logs |
-| GET | /api/pipeline/preview/{job_id} | Public preview data |
-| GET | /api/analytics/ttfd | TTFD metrics and trends |
+### Video Creation Error Handling Fix (Mar 2026)
+- [x] Backend: Proper HTTP status codes (402 for credits, 500 with error detail)
+- [x] Backend: Comprehensive exception handling with exc_info logging
+- [x] Frontend: Network error detection ("Could not reach the server")
+- [x] Frontend: Specific messages for 401/402/422/429/500 errors
+- [x] Frontend: Action links ("Go to Login", "Get More Credits") in error display
+- [x] Frontend: Pydantic validation array parsing for field-specific error messages
 
 ## Backlog
 
 ### P1
 - [ ] Generate showcase video content for gallery
-- [ ] Improve TTFD performance (scene generation speed, parallel image gen)
+- [ ] Improve TTFD performance (scene gen speed, parallel image gen)
 - [ ] Cashfree live payment testing with production keys
 
 ### P2
 - [ ] Email notifications (blocked on SendGrid)
-- [ ] Onboarding flow optimization
-- [ ] Free → Paid upgrade flow optimization
-- [ ] Landing page conversion improvements
+- [ ] Onboarding flow optimization, Landing page conversion
+- [ ] Free → Paid upgrade flow
 
 ### P3
 - [ ] Multi-language narration, Custom voice cloning
-- [ ] Deprecate server FFmpeg after browser export proven stable
-- [ ] A/B testing for landing page
+- [ ] Deprecate server FFmpeg, A/B testing
 
 ## Test Credentials
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
