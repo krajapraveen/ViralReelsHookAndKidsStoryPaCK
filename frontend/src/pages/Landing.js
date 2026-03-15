@@ -408,7 +408,63 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ─── 9. Pricing ─── */}
+      {/* ─── 9. Testimonials ─── */}
+      <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]" data-testid="testimonials-section">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-400 mb-4">Creator Feedback</p>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-4 text-white">Loved by creators worldwide</h2>
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <div className="flex">
+                {[1,2,3,4].map(i => <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />)}
+                <Star className="w-5 h-5 text-amber-400" style={{ clipPath: 'inset(0 60% 0 0)' }} fill="currentColor" />
+              </div>
+              <span className="text-lg font-bold text-white ml-1">4.4 / 5</span>
+              <span className="text-sm text-slate-400 ml-1">Average Rating</span>
+            </div>
+            <p className="text-sm text-slate-500 mt-1">Based on feedback from early creators worldwide</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { name: 'Emily Carter', country: 'United States', stars: 5, text: 'I was surprised how quickly this works. I typed a short story and it turned into a narrated animated video in minutes.' },
+              { name: 'Lucas Fernandes', country: 'Brazil', stars: 4, text: 'I run a small YouTube channel and Visionary-Suite helps me create story videos much faster than traditional editing tools.' },
+              { name: 'Priya Sharma', country: 'India', stars: 5, text: 'I started using Visionary-Suite to create educational stories for my students. The visuals and narration make lessons much more engaging.' },
+              { name: 'David Walker', country: 'United Kingdom', stars: 4, text: 'As a writer, seeing my stories turn into animated videos is amazing. The concept is really exciting.' },
+              { name: 'Kenji Tanaka', country: 'Japan', stars: 5, text: 'I tested many AI tools recently and this one is quite unique. The full pipeline from story to video is impressive.' },
+              { name: 'Anna Müller', country: 'Germany', stars: 4, text: 'The different animation styles are my favorite part. It allows me to experiment creatively.' },
+              { name: 'Carlos Rodriguez', country: 'Mexico', stars: 5, text: 'The workflow is simple. Write a story, choose a style, and the AI generates the video.' },
+              { name: 'Fatima Hassan', country: 'UAE', stars: 4, text: 'This platform makes storytelling visual without needing advanced editing skills.' },
+              { name: 'Michael Thompson', country: 'Canada', stars: 5, text: 'I think tools like Visionary-Suite will become a big part of the future of content creation.' },
+              { name: 'Sofia Rossi', country: 'Italy', stars: 4, text: 'I created a fantasy story video and shared it with friends. They loved it.' },
+            ].map((t, i) => (
+              <div
+                key={i}
+                className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 hover:border-white/[0.12] transition-colors"
+                data-testid={`testimonial-card-${i}`}
+              >
+                <div className="flex mb-3">
+                  {Array.from({ length: 5 }, (_, s) => (
+                    <Star key={s} className={`w-4 h-4 ${s < t.stars ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                  ))}
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed mb-4">"{t.text}"</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                    {t.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{t.name}</p>
+                    <p className="text-xs text-slate-500">{t.country}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 10. Pricing ─── */}
       <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
