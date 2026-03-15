@@ -16,6 +16,7 @@ import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
 import ProgressiveGeneration from '../components/ProgressiveGeneration';
 import { useJobWebSocket } from '../hooks/useJobWebSocket';
+import ContextualUpgrade from '../components/ContextualUpgrade';
 
 const STAGE_ORDER = ['scenes', 'images', 'voices', 'render', 'upload'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic, render: Video, upload: Upload };
@@ -251,13 +252,32 @@ function StoryVideoPipelineInner() {
     } catch (e) {
       const status = e.response?.status;
       const rawDetail = e.response?.data?.detail;
-      const detail = typeof rawDetail === 'string' ? rawDetail : (rawDetail ? JSON.stringify(rawDetail) : '');
-      if (status === 429) {
+      
+      // Parse error detail - handle Pydantic validation arrays
+      let detail = '';
+      if (typeof rawDetail === 'string') {
+        detail = rawDetail;
+      } else if (Array.isArray(rawDetail)) {
+        // Pydantic validation errors come as array of {loc, msg, type}
+        detail = rawDetail.map(err => {
+          const field = err.loc?.slice(-1)?.[0] || '';
+          const fieldName = field === 'story_text' ? 'Story' : field === 'title' ? 'Title' : field;
+          return `${fieldName}: ${err.msg}`;
+        }).join('. ');
+      } else if (rawDetail && typeof rawDetail === 'object') {
+        detail = rawDetail.message || rawDetail.msg || JSON.stringify(rawDetail);
+      }
+
+      if (status === 422) {
+        setFormError(detail || 'Please check your input. Story must be at least 50 characters and title at least 3 characters.');
+      } else if (status === 429) {
         setFormError(detail || 'Rate limit reached. Please wait before generating another video.');
         checkRateLimit();
       } else if (status === 402 || (detail && detail.toLowerCase().includes('credit'))) {
         setFormError('Insufficient credits. Please purchase more credits to continue.');
         setShowUpsell(true);
+      } else if (status === 400 && detail) {
+        setFormError(detail);
       } else if (status === 401) {
         setFormError('Your session has expired. Please log in again.');
       } else {
