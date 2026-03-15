@@ -90,6 +90,9 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 - Photo to Comic: Verified working (LLM available, test image gen successful)
 - Reel Generator Admin Popup: Fixed race condition with creditsLoaded state
 - Gallery Auto-Seeding: server.py auto-seeds on startup when DB empty
+- **Story Video Pipeline**: Fixed local image deletion after R2 upload — files now preserved until render completes
+- **Comic Storybook Rating Loop**: Fixed stale closure bug — replaced useState with useRef for polling interval
+- **Landing Page Testimonials**: Added 10 realistic reviews (4.4/5 avg, mix of 4★ and 5★)
 
 ## Backlog
 - **P2**: Email notifications (BLOCKED on SendGrid upgrade)
