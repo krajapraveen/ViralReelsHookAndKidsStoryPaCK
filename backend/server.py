@@ -113,6 +113,7 @@ from routes.caption_rewriter_pro import router as caption_rewriter_pro_router
 from routes.audit_dashboard import router as audit_dashboard_router
 from routes.content_blueprint_library import router as blueprint_library_router
 from routes.security_management import router as security_management_router
+from routes.content_trending import router as content_trending_router
 
 # NEW FEATURE: Instagram Bio Generator
 from routes.instagram_bio_generator import router as instagram_bio_generator_router
@@ -435,6 +436,7 @@ api_router.include_router(notification_router)
 api_router.include_router(user_profile_router)
 api_router.include_router(health_router)
 api_router.include_router(content_protection_router)
+api_router.include_router(content_trending_router)
 
 # Daily Report Service
 api_router.include_router(daily_report_router)

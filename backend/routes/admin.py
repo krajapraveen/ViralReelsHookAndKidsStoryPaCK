@@ -652,64 +652,50 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
     start_date = end_date - timedelta(days=days)
     start_iso = start_date.isoformat()
     
-    # User stats
-    total_users = await db.users.count_documents({})
-    new_users = await db.users.count_documents({"createdAt": {"$gte": start_iso}})
-    active_users = await db.users.count_documents({"lastLogin": {"$gte": start_iso}})
+    import asyncio
     
-    # Generation stats
-    total_generations = await db.generations.count_documents({})
-    reel_generations = await db.generations.count_documents({"type": "REEL"})
-    story_generations = await db.generations.count_documents({"type": "STORY"})
-    recent_generations = await db.generations.count_documents({"createdAt": {"$gte": start_iso}})
+    # Run all independent queries in parallel to prevent timeouts
+    (
+        total_users, new_users, active_users,
+        total_generations, reel_generations, story_generations, recent_generations,
+        genstudio_jobs, genstudio_recent,
+        revenue_result, credit_result,
+        recent_users_list, recent_gens,
+        total_exceptions, unresolved_exceptions, critical_exceptions,
+        successful_payments, failed_payments, refunded_payments,
+        feedback_count, feedback_with_rating,
+    ) = await asyncio.gather(
+        db.users.count_documents({}),
+        db.users.count_documents({"createdAt": {"$gte": start_iso}}),
+        db.users.count_documents({"lastLogin": {"$gte": start_iso}}),
+        db.generations.count_documents({}),
+        db.generations.count_documents({"type": "REEL"}),
+        db.generations.count_documents({"type": "STORY"}),
+        db.generations.count_documents({"createdAt": {"$gte": start_iso}}),
+        db.genstudio_jobs.count_documents({}),
+        db.genstudio_jobs.count_documents({"createdAt": {"$gte": start_iso}}),
+        db.orders.aggregate([
+            {"$match": {"status": "PAID", "createdAt": {"$gte": start_iso}}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}}
+        ]).to_list(length=1),
+        db.credit_ledger.aggregate([
+            {"$match": {"type": "USAGE", "createdAt": {"$gte": start_iso}}},
+            {"$group": {"_id": None, "total": {"$sum": {"$abs": "$amount"}}}}
+        ]).to_list(length=1),
+        db.users.find({}, {"_id": 0, "password": 0}).sort("createdAt", -1).limit(10).to_list(length=10),
+        db.generations.find({}, {"_id": 0}).sort("createdAt", -1).limit(10).to_list(length=10),
+        db.exception_logs.count_documents({}),
+        db.exception_logs.count_documents({"resolved": False}),
+        db.exception_logs.count_documents({"severity": "CRITICAL", "resolved": False}),
+        db.payment_logs.count_documents({"status": "SUCCESS"}),
+        db.payment_logs.count_documents({"status": "FAILED"}),
+        db.payment_logs.count_documents({"status": "REFUNDED"}),
+        db.feedback.count_documents({}),
+        db.feedback.find({"rating": {"$exists": True}}, {"_id": 0, "rating": 1, "message": 1, "createdAt": 1}).limit(100).to_list(100),
+    )
     
-    # GenStudio stats
-    genstudio_jobs = await db.genstudio_jobs.count_documents({})
-    genstudio_recent = await db.genstudio_jobs.count_documents({"createdAt": {"$gte": start_iso}})
-    
-    # Revenue stats  
-    pipeline = [
-        {"$match": {"status": "PAID", "createdAt": {"$gte": start_iso}}},
-        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}}
-    ]
-    revenue_result = await db.orders.aggregate(pipeline).to_list(length=1)
     revenue = revenue_result[0] if revenue_result else {"total": 0, "count": 0}
-    
-    # Credit usage
-    credit_pipeline = [
-        {"$match": {"type": "USAGE", "createdAt": {"$gte": start_iso}}},
-        {"$group": {"_id": None, "total": {"$sum": {"$abs": "$amount"}}}}
-    ]
-    credit_result = await db.credit_ledger.aggregate(credit_pipeline).to_list(length=1)
     credits_used = credit_result[0].get("total", 0) if credit_result else 0
-    
-    # Recent activity
-    recent_users_list = await db.users.find(
-        {},
-        {"_id": 0, "password": 0}
-    ).sort("createdAt", -1).limit(10).to_list(length=10)
-    
-    recent_gens = await db.generations.find(
-        {},
-        {"_id": 0}
-    ).sort("createdAt", -1).limit(10).to_list(length=10)
-    
-    # Exception summary
-    total_exceptions = await db.exception_logs.count_documents({})
-    unresolved_exceptions = await db.exception_logs.count_documents({"resolved": False})
-    critical_exceptions = await db.exception_logs.count_documents({"severity": "CRITICAL", "resolved": False})
-    
-    # Payment summary
-    successful_payments = await db.payment_logs.count_documents({"status": "SUCCESS"})
-    failed_payments = await db.payment_logs.count_documents({"status": "FAILED"})
-    refunded_payments = await db.payment_logs.count_documents({"status": "REFUNDED"})
-    
-    # Calculate satisfaction from feedback
-    feedback_count = await db.feedback.count_documents({})
-    feedback_with_rating = await db.feedback.find(
-        {"rating": {"$exists": True}}, 
-        {"_id": 0, "rating": 1, "message": 1, "createdAt": 1}
-    ).limit(100).to_list(100)
     avg_rating = sum([f.get("rating", 0) for f in feedback_with_rating]) / len(feedback_with_rating) if feedback_with_rating else 0
     satisfaction_percentage = int((avg_rating / 5) * 100) if avg_rating > 0 else 0
     
@@ -738,44 +724,43 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
     total_responses = len(feedback_with_rating) or 1
     nps_score = int(((promoters - detractors) / total_responses) * 100)
     
-    # Generate daily trend data for visitors
-    daily_trend = []
-    for i in range(7):
+    # Generate daily trend data for visitors — parallel queries for all 7 days
+    async def _day_visitors(i):
         day = end_date - timedelta(days=6-i)
         day_start = day.replace(hour=0, minute=0, second=0)
         day_end = day.replace(hour=23, minute=59, second=59)
-        day_visitors = await db.users.count_documents({
+        cnt = await db.users.count_documents({
             "lastLogin": {"$gte": day_start.isoformat(), "$lte": day_end.isoformat()}
         })
-        daily_trend.append({
-            "date": day.strftime("%m/%d"),
-            "visitors": day_visitors or (total_users // 7)  # Fallback to average
-        })
-    
-    # Recent payments
-    recent_payments = await db.orders.find(
-        {},
-        {"_id": 0}
-    ).sort("createdAt", -1).limit(5).to_list(length=5)
-    
-    # =========================================================================
-    # FEATURE USAGE ANALYTICS (for FeaturesTab)
-    # =========================================================================
-    # Get feature usage from generations collection
-    feature_pipeline = [
-        {"$match": {"createdAt": {"$gte": start_iso}}},
-        {"$group": {"_id": "$type", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]
-    feature_counts = await db.generations.aggregate(feature_pipeline).to_list(20)
-    
-    # Also get GenStudio job types
-    genstudio_feature_pipeline = [
-        {"$match": {"createdAt": {"$gte": start_iso}}},
-        {"$group": {"_id": "$jobType", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]
-    genstudio_counts = await db.genstudio_jobs.aggregate(genstudio_feature_pipeline).to_list(20)
+        return {"date": day.strftime("%m/%d"), "visitors": cnt or (total_users // 7)}
+
+    daily_trend_tasks = [_day_visitors(i) for i in range(7)]
+
+    # Run daily trend + remaining queries in parallel
+    (
+        *daily_trend_results,
+        recent_payments,
+        feature_counts, genstudio_counts, unique_users_by_feature,
+    ) = await asyncio.gather(
+        *daily_trend_tasks,
+        db.orders.find({}, {"_id": 0}).sort("createdAt", -1).limit(5).to_list(length=5),
+        db.generations.aggregate([
+            {"$match": {"createdAt": {"$gte": start_iso}}},
+            {"$group": {"_id": "$type", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}
+        ]).to_list(20),
+        db.genstudio_jobs.aggregate([
+            {"$match": {"createdAt": {"$gte": start_iso}}},
+            {"$group": {"_id": "$jobType", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}
+        ]).to_list(20),
+        db.generations.aggregate([
+            {"$match": {"createdAt": {"$gte": start_iso}}},
+            {"$group": {"_id": "$type", "uniqueUsers": {"$addToSet": "$userId"}}},
+            {"$project": {"feature": "$_id", "uniqueUsers": {"$size": "$uniqueUsers"}}}
+        ]).to_list(20),
+    )
+    daily_trend = list(daily_trend_results)
     
     # Combine all feature usage
     all_features = []
@@ -785,33 +770,22 @@ async def get_admin_analytics(request: Request, days: int = 30, user: dict = Dep
     for f in genstudio_counts:
         if f.get("_id"):
             all_features.append({"feature": f["_id"], "count": f["count"]})
-    
-    # Sort by count
     all_features.sort(key=lambda x: x["count"], reverse=True)
-    
-    # Calculate percentages
     total_feature_count = sum(f["count"] for f in all_features) or 1
     feature_percentages = [
         {"feature": f["feature"], "percentage": round((f["count"] / total_feature_count) * 100, 1)}
         for f in all_features
     ]
     
-    # Get unique users per feature
-    unique_users_pipeline = [
-        {"$match": {"createdAt": {"$gte": start_iso}}},
-        {"$group": {"_id": "$type", "uniqueUsers": {"$addToSet": "$userId"}}},
-        {"$project": {"feature": "$_id", "uniqueUsers": {"$size": "$uniqueUsers"}}}
-    ]
-    unique_users_by_feature = await db.generations.aggregate(unique_users_pipeline).to_list(20)
-    
     # =========================================================================
-    # PAYMENT ANALYTICS (for PaymentsTab)
+    # PAYMENT ANALYTICS (for PaymentsTab) — parallel queries
     # =========================================================================
-    # Transaction summary
-    total_transactions = await db.orders.count_documents({"createdAt": {"$gte": start_iso}})
-    successful_transactions = await db.orders.count_documents({"status": "PAID", "createdAt": {"$gte": start_iso}})
-    failed_transactions = await db.orders.count_documents({"status": {"$in": ["FAILED", "CANCELLED"]}, "createdAt": {"$gte": start_iso}})
-    pending_transactions = await db.orders.count_documents({"status": "PENDING", "createdAt": {"$gte": start_iso}})
+    (total_transactions, successful_transactions, failed_transactions, pending_transactions) = await asyncio.gather(
+        db.orders.count_documents({"createdAt": {"$gte": start_iso}}),
+        db.orders.count_documents({"status": "PAID", "createdAt": {"$gte": start_iso}}),
+        db.orders.count_documents({"status": {"$in": ["FAILED", "CANCELLED"]}, "createdAt": {"$gte": start_iso}}),
+        db.orders.count_documents({"status": "PENDING", "createdAt": {"$gte": start_iso}}),
+    )
     
     success_rate = round((successful_transactions / total_transactions * 100), 1) if total_transactions > 0 else 0
     
