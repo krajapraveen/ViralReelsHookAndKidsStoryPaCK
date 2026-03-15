@@ -48,9 +48,18 @@ Server FFmpeg: Admin-only fallback (not default path)
 - [x] **Backend TTFD tracking**: Timestamps for scene_start, first_scene, first_image, first_voice, first_playable_preview, job_complete
 - [x] **Derived metrics**: time_to_first_scene, time_to_first_image, time_to_first_voice, time_to_first_playable_preview, total_generation_time
 - [x] **Queue performance**: Wait times by tier (free/paid/admin), avg/p95, starvation boost count
-- [x] **Engagement tracking**: POST /api/analytics/track-event/{job_id} — preview_played, export_started/completed, story_pack_downloaded, video_shared (throttled, deduplicated)
-- [x] **Admin TTFD Dashboard**: /app/admin/ttfd-analytics — Performance vs Targets, TTFD metrics (avg/median/p95), Daily trends charts, Queue performance, Engagement rates, Pipeline health
-- [x] **Daily aggregation job**: Runs hourly, stores daily_avg_ttfd, preview_play_rate, export_rate, queue_wait
+- [x] **Engagement tracking**: POST /api/analytics/track-event/{job_id}
+- [x] **Admin TTFD Dashboard**: /app/admin/ttfd-analytics
+- [x] **Daily aggregation job**: Runs hourly
+
+### P0 Infrastructure Stability — Job Durability (Mar 2026)
+- [x] **Auto-resume from checkpoint**: Jobs with completed stages auto-resume on server restart instead of being marked FAILED
+- [x] **Fallback for interrupted jobs**: If resume fails but assets exist, fallback pipeline generates Story Pack ZIP + preview
+- [x] **Crash diagnostics logging**: Each interrupt records restart_timestamp, job_id, stage_interrupted, progress, completed_stages, reason
+- [x] **Enhanced error recovery UI**: ErrorPhase shows "Open Preview", "Download Story Pack ZIP", "Resume from Checkpoint", "Start Over"
+- [x] **has_recoverable_assets flag**: Status and user-jobs endpoints report when raw assets exist even without formal fallback
+- [x] **Admin crash diagnostics endpoint**: GET /api/pipeline/crash-diagnostics with full crash history
+- [x] **Fallback triggers on any stage failure**: Not just render/upload — any stage with existing assets triggers fallback pipeline
 
 ### Performance Targets
 | Metric | Target | Current |
@@ -71,6 +80,8 @@ Server FFmpeg: Admin-only fallback (not default path)
 | GET | /api/pipeline/assets/{job_id} | Individual asset links |
 | POST | /api/pipeline/notify-when-ready/{job_id} | Notification subscription |
 | POST | /api/pipeline/generate-fallback/{job_id} | Manual fallback trigger |
+| POST | /api/pipeline/resume/{job_id} | Resume job from checkpoint |
+| GET | /api/pipeline/crash-diagnostics | Admin crash diagnostic logs |
 
 ## Backlog
 
@@ -83,6 +94,7 @@ Server FFmpeg: Admin-only fallback (not default path)
 - [ ] Email notifications (blocked on SendGrid)
 - [ ] Onboarding flow optimization
 - [ ] Free → Paid upgrade flow optimization
+- [ ] Landing page conversion improvements
 
 ### P3
 - [ ] Multi-language narration, Custom voice cloning
