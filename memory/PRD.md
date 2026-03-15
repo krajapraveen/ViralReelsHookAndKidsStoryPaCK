@@ -59,15 +59,23 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 - UpsellModal properly checks isOpen prop
 - X, backdrop click, "Maybe Later" all close the modal
 
+### Critical Bug Fixes (Mar 15, 2026)
+- **Google Auth**: Fixed AuthCallback.js error handling — extracts session_id from both hash & query params, shows backend `detail` errors properly
+- **Photo to Comic**: Verified working — LLM available, test image generation successful
+- **Reel Generator Admin Popup**: Fixed race condition — added `creditsLoaded` state, banners only render after credits API response. Admin (999999999 credits) sees NO banners
+- **Gallery Auto-Seeding**: server.py startup now auto-seeds 12 showcase items when DB is empty (production-safe: skips if items exist)
+
 ## Backlog
+- **P1**: Landing Page content optimization (detailed copy from user)
 - **P1**: WebSocket real-time progress for video generation
 - **P1**: Video watermarking for free plan users
-- **P1**: Expand contextual upgrade prompts
+- **P2**: Geo-IP integration with Cashfree payment gateway
 - **P2**: Email notifications (BLOCKED on SendGrid)
-- **P2**: Dashboard.js component breakdown
+- **P2**: Global credit state management refactor (React Context)
 
 ## Technical Notes
 - R2 public URL returns 403 - all media served via presigned URLs (4hr expiry)
 - Pipeline rendering: 960x540, 15fps, ultrafast, CRF 28, single-pass encode
 - Geo-detection: Intl.DateTimeFormat().resolvedOptions().timeZone → Asia/Kolkata = INR
 - Admin exempt emails: admin@creatorstudio.ai, test@visionary-suite.com, demo@visionary-suite.com
+- Gallery seed: 12 showcase items auto-inserted on startup if pipeline_jobs has no is_showcase=true docs
