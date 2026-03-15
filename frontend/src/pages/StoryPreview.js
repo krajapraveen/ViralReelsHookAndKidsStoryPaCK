@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
+import BrowserVideoExport from '../components/BrowserVideoExport';
 import {
   ArrowLeft, Download, Play, Pause, Image, Mic, FileText,
   Film, Package, Eye, AlertCircle, ChevronRight, ChevronLeft,
@@ -13,6 +14,7 @@ export default function StoryPreview() {
   const { jobId } = useParams();
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showExport, setShowExport] = useState(false);
   const [error, setError] = useState(null);
   const [activeScene, setActiveScene] = useState(0);
   const [playingAudio, setPlayingAudio] = useState(null);
@@ -116,6 +118,17 @@ export default function StoryPreview() {
 
           {/* Download Actions */}
           <div className="flex items-center gap-2">
+            {/* Browser Export Button — always available when scenes have images */}
+            {preview.scenes?.some(s => s.image_url) && !preview.final_video_url && (
+              <Button
+                onClick={() => setShowExport(!showExport)}
+                className={showExport ? 'bg-purple-700' : 'bg-purple-600 hover:bg-purple-700'}
+                data-testid="browser-export-toggle-btn"
+              >
+                <Film className="w-4 h-4 mr-2" />
+                {showExport ? 'Hide Export' : 'Export MP4'}
+              </Button>
+            )}
             {preview.final_video_url && (
               <a href={preview.final_video_url} target="_blank" rel="noopener noreferrer">
                 <Button className="bg-emerald-600 hover:bg-emerald-700" data-testid="download-video-btn">
@@ -126,9 +139,9 @@ export default function StoryPreview() {
             )}
             {preview.fallback_video_url && !preview.final_video_url && (
               <a href={preview.fallback_video_url} target="_blank" rel="noopener noreferrer">
-                <Button className="bg-amber-600 hover:bg-amber-700" data-testid="download-fallback-btn">
+                <Button variant="outline" className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10" data-testid="download-fallback-btn">
                   <Film className="w-4 h-4 mr-2" />
-                  Download Slideshow
+                  Server Slideshow
                 </Button>
               </a>
             )}
@@ -145,6 +158,18 @@ export default function StoryPreview() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Browser Video Export Panel */}
+        {showExport && (
+          <div className="mb-6 animate-in fade-in slide-in-from-top-2">
+            <BrowserVideoExport
+              scenes={preview.scenes || []}
+              title={preview.title}
+              jobId={jobId}
+              onClose={() => setShowExport(false)}
+            />
+          </div>
+        )}
+
         {/* Fallback Banner */}
         {preview.status === 'PARTIAL' && (
           <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl" data-testid="fallback-banner">
@@ -153,9 +178,23 @@ export default function StoryPreview() {
               <div>
                 <h3 className="text-amber-300 font-semibold">Your story assets are ready</h3>
                 <p className="text-amber-200/70 text-sm mt-1">
-                  The cinematic render encountered an issue, but we've prepared your story assets.
-                  You can download the slideshow video, individual scene images, voice narrations, and the Story Pack ZIP.
+                  The cinematic server render encountered an issue, but all your story assets are preserved.
+                  You have three options:
                 </p>
+                <div className="mt-3 grid sm:grid-cols-3 gap-2">
+                  <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <p className="text-emerald-400 text-xs font-semibold">Instant Preview</p>
+                    <p className="text-emerald-300/60 text-[10px]">Watch scenes below with audio</p>
+                  </div>
+                  <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                    <p className="text-purple-400 text-xs font-semibold">Export MP4</p>
+                    <p className="text-purple-300/60 text-[10px]">Render video in your browser</p>
+                  </div>
+                  <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <p className="text-amber-400 text-xs font-semibold">Story Pack ZIP</p>
+                    <p className="text-amber-300/60 text-[10px]">All images, audio, and text</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

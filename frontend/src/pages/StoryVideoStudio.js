@@ -12,6 +12,7 @@ import analytics from '../utils/analytics';
 import useWebSocketProgress from '../hooks/useWebSocketProgress';
 import { RealTimeProgressPanel } from '../components/RealTimeProgressPanel';
 import WaitingExperience from '../components/WaitingExperience';
+import ProgressiveGeneration from '../components/ProgressiveGeneration';
 import { 
   ArrowLeft, Upload, Wand2, Loader2, Film, Image, Mic, 
   Play, Users, BookOpen, Sparkles, ChevronRight, ChevronDown,
@@ -180,7 +181,8 @@ export default function StoryVideoStudio() {
   // WebSocket hook
   const { 
     isConnected: wsConnected, 
-    subscribeToJob 
+    subscribeToJob,
+    wsRef
   } = useWebSocketProgress(
     currentJobId,
     handleWsProgress,
@@ -1078,6 +1080,22 @@ export default function StoryVideoStudio() {
                   toast.error('Could not subscribe to notifications');
                 }
               } : null}
+            />
+          </div>
+        )}
+
+        {/* Progressive Scene Cards — shows scenes/images/voices as they arrive */}
+        {showWaitingExperience && loading && renderJob?.job_id && (
+          <div className="mb-8">
+            <ProgressiveGeneration
+              jobId={renderJob.job_id}
+              wsRef={wsRef}
+              initialProgress={generationProgress}
+              initialStage={generationStage === 'scene_generation' ? 'scenes' :
+                generationStage === 'image_generation' ? 'images' :
+                generationStage === 'voice_generation' ? 'voices' :
+                generationStage === 'video_assembly' ? 'render' : 'scenes'}
+              onComplete={() => {}}
             />
           </div>
         )}

@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
-import ContextualUpgrade from '../components/ContextualUpgrade';
+import ProgressiveGeneration from '../components/ProgressiveGeneration';
+import { useJobWebSocket } from '../hooks/useJobWebSocket';
 
 const STAGE_ORDER = ['scenes', 'images', 'voices', 'render', 'upload'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic, render: Video, upload: Upload };
@@ -64,6 +65,10 @@ function StoryVideoPipelineInner() {
   const [formError, setFormError] = useState('');
   const pollRef = useRef(null);
   const [searchParams] = useSearchParams();
+
+  // WebSocket for progressive updates
+  const token = localStorage.getItem('token');
+  const { wsRef } = useJobWebSocket(jobId, token);
 
   useEffect(() => {
     api.get('/api/pipeline/options').then(r => setOptions(r.data)).catch(() => {});
@@ -346,7 +351,19 @@ function StoryVideoPipelineInner() {
           userJobs={userJobs} onViewJob={viewJob}
           rateLimitStatus={rateLimitStatus} formError={formError}
         />}
-        {phase === 'processing' && <ProcessingPhase job={job} />}
+        {phase === 'processing' && (
+          <ProgressiveGeneration
+            jobId={jobId}
+            wsRef={wsRef}
+            initialProgress={job?.progress || 0}
+            initialStage={job?.current_stage || 'scenes'}
+            onComplete={(completedJob) => {
+              setJob(completedJob);
+              setPhase('done');
+              toast.success('Video generated successfully!');
+            }}
+          />
+        )}
         {phase === 'done' && <DonePhase job={job} jobId={jobId} onNew={handleNewVideo} storyText={storyText} animStyle={animStyle} />}
         {phase === 'error' && <ErrorPhase job={job} onResume={handleResume} onNew={handleNewVideo} />}
       </main>

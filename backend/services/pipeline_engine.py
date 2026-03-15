@@ -319,6 +319,25 @@ Visual prompts must describe ORIGINAL characters. Keep narration engaging.""",
 
     # Persist scenes to job
     await update_job(job["job_id"], {"scenes": scenes})
+
+    # Broadcast each scene as it's ready for progressive delivery
+    try:
+        from routes.websocket_progress import broadcast_asset_ready
+        for scene in scenes:
+            await broadcast_asset_ready(
+                job_id=job["job_id"],
+                user_id=job.get("user_id", ""),
+                asset_type="scene_ready",
+                scene_number=scene.get("scene_number", 0),
+                data={
+                    "title": scene.get("title", ""),
+                    "narration_text": scene.get("narration_text", ""),
+                    "visual_prompt": scene.get("visual_prompt", ""),
+                }
+            )
+    except Exception:
+        pass
+
     return {"scene_count": len(scenes)}
 
 
@@ -401,6 +420,27 @@ async def run_stage_images(job: dict) -> dict:
                     "progress": pct,
                     "current_step": f"Generated image {done}/{total}...",
                 })
+
+                # Broadcast image_ready for progressive delivery
+                try:
+                    from routes.websocket_progress import broadcast_asset_ready
+                    from utils.r2_presign import presign_url as _presign
+                    presigned = url
+                    if storage == "r2" and url:
+                        try:
+                            presigned = _presign(url, expiry=3600)
+                        except Exception:
+                            pass
+                    await broadcast_asset_ready(
+                        job_id=job_id,
+                        user_id=job.get("user_id", ""),
+                        asset_type="image_ready",
+                        scene_number=sn,
+                        data={"image_url": presigned, "done": done, "total": total}
+                    )
+                except Exception:
+                    pass
+
                 logger.info(f"[PIPE {job_id[:8]}] Image scene {sn} done ({done}/{total})")
                 return result
 
@@ -515,6 +555,27 @@ async def run_stage_voices(job: dict) -> dict:
                     "progress": pct,
                     "current_step": f"Generated voice {done}/{total}...",
                 })
+
+                # Broadcast voice_ready for progressive delivery
+                try:
+                    from routes.websocket_progress import broadcast_asset_ready
+                    from utils.r2_presign import presign_url as _presign
+                    presigned_voice = voice_url
+                    if voice_url:
+                        try:
+                            presigned_voice = _presign(voice_url, expiry=3600)
+                        except Exception:
+                            pass
+                    await broadcast_asset_ready(
+                        job_id=job_id,
+                        user_id=job.get("user_id", ""),
+                        asset_type="voice_ready",
+                        scene_number=sn,
+                        data={"audio_url": presigned_voice, "duration": duration, "done": done, "total": total}
+                    )
+                except Exception:
+                    pass
+
                 return result
 
             except Exception as e:
@@ -527,6 +588,19 @@ async def run_stage_voices(job: dict) -> dict:
     failed = [r for r in results if isinstance(r, dict) and r.get("failed")]
     if done == 0:
         raise RuntimeError("All voice generations failed")
+
+    # Broadcast preview_ready — all assets are now available for instant preview
+    try:
+        from routes.websocket_progress import broadcast_asset_ready
+        await broadcast_asset_ready(
+            job_id=job_id,
+            user_id=job.get("user_id", ""),
+            asset_type="preview_ready",
+            scene_number=0,
+            data={"total_scenes": total, "images_done": done, "voices_done": done}
+        )
+    except Exception:
+        pass
 
     return {"voices_generated": done, "voices_failed": len(failed)}
 

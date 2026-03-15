@@ -200,7 +200,8 @@ export const useWebSocketProgress = (jobId = null, onProgress = null, onComplete
     connect,
     disconnect,
     subscribeToJob,
-    unsubscribeFromJob
+    unsubscribeFromJob,
+    wsRef
   };
 };
 

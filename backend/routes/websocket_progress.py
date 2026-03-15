@@ -386,6 +386,32 @@ async def broadcast_error(
     )
 
 
+async def broadcast_asset_ready(
+    job_id: str,
+    user_id: str,
+    asset_type: str,
+    scene_number: int,
+    data: dict
+):
+    """Broadcast that an individual asset is ready (scene/image/voice).
+    This enables progressive delivery — frontend can show each asset as it arrives.
+    
+    asset_type: 'scene_ready' | 'image_ready' | 'voice_ready' | 'preview_ready'
+    data: asset-specific payload (url, title, narration, duration, etc.)
+    """
+    payload = {
+        "type": "asset_ready",
+        "job_id": job_id,
+        "user_id": user_id,
+        "asset_type": asset_type,
+        "scene_number": scene_number,
+        "data": data,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await manager.send_to_job(job_id, payload)
+    await manager.send_to_user(user_id, payload)
+
+
 # Export manager and helper functions
 __all__ = [
     "router",
@@ -395,5 +421,6 @@ __all__ = [
     "broadcast_voice_progress",
     "broadcast_video_progress",
     "broadcast_completion",
-    "broadcast_error"
+    "broadcast_error",
+    "broadcast_asset_ready"
 ]
