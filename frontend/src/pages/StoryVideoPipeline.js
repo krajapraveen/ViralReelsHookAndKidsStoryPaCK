@@ -268,20 +268,25 @@ function StoryVideoPipelineInner() {
         detail = rawDetail.message || rawDetail.msg || JSON.stringify(rawDetail);
       }
 
-      if (status === 422) {
+      if (!e.response) {
+        // Network error - no response received at all
+        setFormError('Network error: Could not reach the server. Please check your internet connection and try again.');
+      } else if (status === 422) {
         setFormError(detail || 'Please check your input. Story must be at least 50 characters and title at least 3 characters.');
       } else if (status === 429) {
         setFormError(detail || 'Rate limit reached. Please wait before generating another video.');
         checkRateLimit();
       } else if (status === 402 || (detail && detail.toLowerCase().includes('credit'))) {
-        setFormError('Insufficient credits. Please purchase more credits to continue.');
+        setFormError(detail || 'Insufficient credits. Please purchase more credits to continue.');
         setShowUpsell(true);
       } else if (status === 400 && detail) {
         setFormError(detail);
       } else if (status === 401) {
         setFormError('Your session has expired. Please log in again.');
+      } else if (status === 500) {
+        setFormError(detail || 'Server error occurred. Our team has been notified. Please try again in a moment.');
       } else {
-        setFormError(detail || 'An error occurred while creating the video. Please try again.');
+        setFormError(detail || `Unexpected error (${status || 'network'}). Please try again or contact support.`);
       }
     } finally {
       setSubmitting(false);
@@ -524,7 +529,19 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           {formError && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3" data-testid="form-error">
               <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-red-300 text-sm">{formError}</p>
+              <div className="flex-1">
+                <p className="text-red-300 text-sm">{formError}</p>
+                {formError.includes('session') && (
+                  <button onClick={() => window.location.href = '/login'} className="text-xs text-purple-400 hover:text-purple-300 underline mt-1">
+                    Go to Login
+                  </button>
+                )}
+                {formError.includes('credit') && (
+                  <button onClick={() => window.location.href = '/app/pricing'} className="text-xs text-purple-400 hover:text-purple-300 underline mt-1">
+                    Get More Credits
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

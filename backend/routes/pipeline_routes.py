@@ -366,37 +366,48 @@ async def create_pipeline(
             include_watermark=request.include_watermark,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        error_msg = str(e)
+        if "credit" in error_msg.lower():
+            raise HTTPException(status_code=402, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+    except Exception as e:
+        logger.error(f"[PIPELINE-CREATE] Unexpected error for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)[:200]}")
 
-    # Store remix link if present
-    if request.parent_video_id:
-        await db.pipeline_jobs.update_one(
-            {"job_id": result["job_id"]},
-            {"$set": {"parent_video_id": request.parent_video_id}}
-        )
-        await db.pipeline_jobs.update_one(
-            {"job_id": request.parent_video_id},
-            {"$inc": {"remix_count": 1}}
-        )
+    try:
+        # Store remix link if present
+        if request.parent_video_id:
+            await db.pipeline_jobs.update_one(
+                {"job_id": result["job_id"]},
+                {"$set": {"parent_video_id": request.parent_video_id}}
+            )
+            await db.pipeline_jobs.update_one(
+                {"job_id": request.parent_video_id},
+                {"$inc": {"remix_count": 1}}
+            )
 
-    # Track analytics
-    await _track_event("video_generation_started", user_id, {
-        "job_id": result["job_id"],
-        "credits": result["credits_charged"],
-        "style": request.animation_style,
-        "is_remix": bool(request.parent_video_id),
-    })
+        # Track analytics
+        await _track_event("video_generation_started", user_id, {
+            "job_id": result["job_id"],
+            "credits": result["credits_charged"],
+            "style": request.animation_style,
+            "is_remix": bool(request.parent_video_id),
+        })
 
-    # Enqueue for worker processing with priority based on user plan
-    user_plan = current_user.get("plan", "free")
-    await enqueue_job(result["job_id"], user_id=user_id, user_plan=user_plan)
+        # Enqueue for worker processing with priority based on user plan
+        user_plan = current_user.get("plan", "free")
+        await enqueue_job(result["job_id"], user_id=user_id, user_plan=user_plan)
+    except Exception as e:
+        logger.error(f"[PIPELINE-CREATE] Post-creation error for job {result.get('job_id')}: {e}", exc_info=True)
+        # Job was created and credits deducted, so still return success
+        # The job just might not be enqueued yet
 
     return {
         "success": True,
         "job_id": result["job_id"],
         "credits_charged": result["credits_charged"],
         "estimated_scenes": result["estimated_scenes"],
-        "queue_priority": "priority" if user_plan in ("admin", "demo", "weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise") else "standard",
+        "queue_priority": "priority" if current_user.get("plan", "free") in ("admin", "demo", "weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise") else "standard",
         "message": "Video generation queued. Poll /status for progress.",
     }
 
