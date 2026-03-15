@@ -12,7 +12,8 @@ import {
   Sparkles, ArrowLeft, User, Mail, Shield, Bell, 
   CreditCard, Clock, Save, Trash2, Download, Image, Video, Mic,
   Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Play,
-  FileText, RefreshCw, Folder, HardDrive, AlertTriangle, XCircle
+  FileText, RefreshCw, Folder, HardDrive, AlertTriangle, XCircle,
+  RotateCcw, Package, ExternalLink, Film, Briefcase
 } from 'lucide-react';
 import { useAppTour } from '../components/AppTour';
 
@@ -40,6 +41,10 @@ export default function Profile() {
     confirmPassword: ''
   });
 
+  const [pipelineJobs, setPipelineJobs] = useState([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobFilter, setJobFilter] = useState('all'); // all | completed | partial | failed | processing
+
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
     marketingEmails: false,
@@ -52,6 +57,10 @@ export default function Profile() {
     fetchUserData();
     fetchUserSpace();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'jobs') fetchPipelineJobs();
+  }, [activeTab]);
 
   const fetchUserData = async () => {
     try {
@@ -134,6 +143,38 @@ export default function Profile() {
       console.error('Failed to fetch user space:', error);
     } finally {
       setLoadingSpace(false);
+    }
+  };
+
+  const fetchPipelineJobs = async () => {
+    setLoadingJobs(true);
+    try {
+      const res = await api.get('/api/pipeline/user-jobs');
+      setPipelineJobs(res.data.jobs || []);
+    } catch (error) {
+      console.error('Failed to fetch pipeline jobs:', error);
+    } finally {
+      setLoadingJobs(false);
+    }
+  };
+
+  const handleResumeJob = async (jobId) => {
+    try {
+      await api.post(`/api/pipeline/resume/${jobId}`);
+      toast.success('Job resumed from last checkpoint!');
+      fetchPipelineJobs();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to resume job');
+    }
+  };
+
+  const handleGenerateFallback = async (jobId) => {
+    try {
+      const res = await api.post(`/api/pipeline/generate-fallback/${jobId}`);
+      toast.success(res.data.message || 'Fallback assets generated!');
+      fetchPipelineJobs();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to generate fallback');
     }
   };
 
@@ -226,6 +267,7 @@ export default function Profile() {
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {[
             { id: 'space', label: 'My Space', icon: Folder },
+            { id: 'jobs', label: 'My Jobs', icon: Briefcase },
             { id: 'profile', label: 'Profile Settings', icon: User },
             { id: 'security', label: 'Security', icon: Shield },
             { id: 'notifications', label: 'Notifications', icon: Bell }
@@ -481,6 +523,20 @@ export default function Profile() {
           </div>
         )}
 
+        {/* My Jobs Tab */}
+        {activeTab === 'jobs' && (
+          <MyJobsDashboard
+            jobs={pipelineJobs}
+            loading={loadingJobs}
+            filter={jobFilter}
+            setFilter={setJobFilter}
+            onRefresh={fetchPipelineJobs}
+            onResume={handleResumeJob}
+            onGenerateFallback={handleGenerateFallback}
+            formatDate={formatDate}
+          />
+        )}
+
         {/* Profile Settings Tab */}
         {activeTab === 'profile' && (
           <div className="max-w-2xl space-y-6">
@@ -622,6 +678,248 @@ export default function Profile() {
       </main>
 
       <HelpGuide pageId="profile" />
+    </div>
+  );
+}
+
+
+// ─── My Jobs Dashboard Component ────────────────────────────────────────────
+
+const STATUS_CONFIG = {
+  COMPLETED: { label: 'Completed', color: 'text-green-400', bg: 'bg-green-500/15 border-green-500/30', icon: CheckCircle, dot: 'bg-green-400' },
+  PARTIAL:   { label: 'Assets Ready', color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30', icon: Package, dot: 'bg-amber-400' },
+  PROCESSING:{ label: 'Processing', color: 'text-blue-400', bg: 'bg-blue-500/15 border-blue-500/30', icon: Loader2, dot: 'bg-blue-400' },
+  QUEUED:    { label: 'Queued', color: 'text-slate-400', bg: 'bg-slate-500/15 border-slate-500/30', icon: Clock, dot: 'bg-slate-400' },
+  FAILED:    { label: 'Failed', color: 'text-red-400', bg: 'bg-red-500/15 border-red-500/30', icon: XCircle, dot: 'bg-red-400' },
+};
+
+const FILTER_OPTIONS = [
+  { id: 'all', label: 'All' },
+  { id: 'COMPLETED', label: 'Completed' },
+  { id: 'PARTIAL', label: 'Assets Ready' },
+  { id: 'FAILED', label: 'Failed' },
+  { id: 'active', label: 'Active' },
+];
+
+function MyJobsDashboard({ jobs, loading, filter, setFilter, onRefresh, onResume, onGenerateFallback, formatDate }) {
+  const filtered = filter === 'all'
+    ? jobs
+    : filter === 'active'
+      ? jobs.filter(j => ['PROCESSING', 'QUEUED'].includes(j.status))
+      : jobs.filter(j => j.status === filter);
+
+  const counts = {
+    all: jobs.length,
+    COMPLETED: jobs.filter(j => j.status === 'COMPLETED').length,
+    PARTIAL: jobs.filter(j => j.status === 'PARTIAL').length,
+    FAILED: jobs.filter(j => j.status === 'FAILED').length,
+    active: jobs.filter(j => ['PROCESSING', 'QUEUED'].includes(j.status)).length,
+  };
+
+  return (
+    <div className="space-y-6" data-testid="my-jobs-dashboard">
+      {/* Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {FILTER_OPTIONS.map(f => {
+          const isActive = filter === f.id;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              data-testid={`job-filter-${f.id}`}
+              className={`p-3 rounded-xl border text-left transition-all ${
+                isActive
+                  ? 'bg-purple-600/20 border-purple-500/50 ring-1 ring-purple-500/30'
+                  : 'bg-slate-800/50 border-slate-700/50 hover:border-slate-600'
+              }`}
+            >
+              <p className={`text-2xl font-bold ${isActive ? 'text-purple-400' : 'text-white'}`}>{counts[f.id]}</p>
+              <p className="text-xs text-slate-400">{f.label}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">
+          Showing {filtered.length} of {jobs.length} jobs
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRefresh}
+          disabled={loading}
+          className="border-slate-600 text-slate-300"
+          data-testid="refresh-jobs-btn"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Job List */}
+      {loading && jobs.length === 0 ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 bg-slate-800/30 rounded-xl border border-slate-700/30">
+          <Briefcase className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-400 mb-1">No jobs found</p>
+          <p className="text-sm text-slate-500 mb-4">
+            {filter === 'all' ? 'Create your first Story Video to see it here.' : 'No jobs match this filter.'}
+          </p>
+          {filter === 'all' && (
+            <Link to="/app/story-video">
+              <Button className="bg-purple-600 hover:bg-purple-700">
+                <Film className="w-4 h-4 mr-2" /> Create Story Video
+              </Button>
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(job => (
+            <JobCard
+              key={job.job_id}
+              job={job}
+              formatDate={formatDate}
+              onResume={onResume}
+              onGenerateFallback={onGenerateFallback}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function JobCard({ job, formatDate, onResume, onGenerateFallback }) {
+  const cfg = STATUS_CONFIG[job.status] || STATUS_CONFIG.FAILED;
+  const StatusIcon = cfg.icon;
+  const hasVideo = !!job.output_url;
+  const hasFallback = !!job.fallback_outputs && Object.keys(job.fallback_outputs).length > 0;
+  const hasAssets = job.has_recoverable_assets;
+  const isInterrupted = job.error?.includes('server restart') || job.error?.includes('interrupted');
+  const canResume = ['FAILED', 'PARTIAL'].includes(job.status) && job.status !== 'COMPLETED';
+  const canGenerateFallback = job.status === 'FAILED' && !hasFallback && hasAssets;
+
+  const totalTime = job.timing?.total_ms
+    ? `${Math.round(job.timing.total_ms / 1000)}s`
+    : job.timing?.images_ms
+      ? `~${Math.round((Object.values(job.timing).reduce((a, b) => a + b, 0)) / 1000)}s`
+      : null;
+
+  // Count completed stages
+  const stages = job.stages || {};
+  const completedStages = Object.values(stages).filter(s => s.status === 'COMPLETED').length;
+  const totalStages = Object.keys(stages).length || 6;
+
+  return (
+    <div
+      className={`rounded-xl border p-4 transition-all hover:border-slate-600 ${cfg.bg}`}
+      data-testid={`job-card-${job.job_id}`}
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        {/* Left: Status + Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+            <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+            {isInterrupted && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">Recovered</span>
+            )}
+            {job.credits_charged && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">{job.credits_charged} credits</span>
+            )}
+          </div>
+          <h4 className="text-white font-medium truncate" data-testid={`job-title-${job.job_id}`}>{job.title || 'Untitled'}</h4>
+          <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+            <span>{formatDate(job.created_at)}</span>
+            {totalTime && <span>{totalTime}</span>}
+            {job.animation_style && (
+              <span className="capitalize">{job.animation_style.replace('_', ' ')}</span>
+            )}
+          </div>
+
+          {/* Stage progress bar */}
+          {totalStages > 0 && (
+            <div className="flex gap-1 mt-2">
+              {['scenes', 'images', 'voices', 'render', 'upload'].map(s => {
+                const st = stages[s];
+                if (!st) return null;
+                const clr = st.status === 'COMPLETED' ? 'bg-green-500'
+                  : st.status === 'FAILED' ? 'bg-red-500'
+                  : st.status === 'RUNNING' ? 'bg-blue-500 animate-pulse'
+                  : 'bg-slate-700';
+                return (
+                  <div key={s} className="flex-1 group relative">
+                    <div className={`h-1.5 rounded-full ${clr}`} />
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 hidden group-hover:block text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                      {s}: {st.status?.toLowerCase()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Error message for failed jobs */}
+          {job.error && job.status === 'FAILED' && !hasAssets && (
+            <p className="text-xs text-red-400/80 mt-1.5 truncate">{job.error}</p>
+          )}
+          {job.current_step && job.status === 'PROCESSING' && (
+            <p className="text-xs text-blue-400/80 mt-1.5">{job.current_step}</p>
+          )}
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Completed: Download video */}
+          {hasVideo && (
+            <a href={job.output_url} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" className="bg-green-600 hover:bg-green-700" data-testid={`download-video-${job.job_id}`}>
+                <Download className="w-3.5 h-3.5 mr-1.5" /> Video
+              </Button>
+            </a>
+          )}
+
+          {/* Has assets: View Preview */}
+          {hasAssets && (
+            <Link to={`/app/story-preview/${job.job_id}`}>
+              <Button size="sm" variant="outline" className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10" data-testid={`preview-job-${job.job_id}`}>
+                <Eye className="w-3.5 h-3.5 mr-1.5" /> Preview
+              </Button>
+            </Link>
+          )}
+
+          {/* Can resume from checkpoint */}
+          {canResume && (
+            <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+              onClick={() => onResume(job.job_id)} data-testid={`resume-job-${job.job_id}`}>
+              <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Resume
+            </Button>
+          )}
+
+          {/* Can generate fallback */}
+          {canGenerateFallback && (
+            <Button size="sm" variant="outline" className="border-teal-500/50 text-teal-400 hover:bg-teal-500/10"
+              onClick={() => onGenerateFallback(job.job_id)} data-testid={`fallback-job-${job.job_id}`}>
+              <Package className="w-3.5 h-3.5 mr-1.5" /> Get Assets
+            </Button>
+          )}
+
+          {/* Processing: Status only */}
+          {job.status === 'PROCESSING' && (
+            <div className="flex items-center gap-1.5 text-blue-400 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{job.progress || 0}%</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
