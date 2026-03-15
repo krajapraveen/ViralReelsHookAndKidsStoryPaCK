@@ -94,6 +94,7 @@ import AdminAuditLogs from './pages/Admin/AuditLogs';
 import TemplateLeaderboard from './pages/Admin/TemplateLeaderboard';
 // WORKER DASHBOARD
 import WorkerDashboard from './pages/admin/WorkerDashboard';
+import TTFDDashboard from './pages/admin/TTFDDashboard';
 // DAILY REPORT DASHBOARD
 import DailyReportDashboard from './pages/Admin/DailyReportDashboard';
 // ACCOUNT LOCK MANAGEMENT
@@ -220,6 +221,7 @@ function App() {
       <Route path="/app/admin/login-activity" element={isAuthenticated ? <AdminLoginActivity /> : <Navigate to="/login" />} />
       <Route path="/app/admin/users" element={isAuthenticated ? <AdminUsersManagement /> : <Navigate to="/login" />} />
       <Route path="/app/admin/self-healing" element={isAuthenticated ? <SelfHealingDashboard /> : <Navigate to="/login" />} />
+      <Route path="/app/admin/ttfd-analytics" element={isAuthenticated ? <TTFDDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/admin/user-analytics" element={isAuthenticated ? <UserAnalyticsDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/admin/security" element={isAuthenticated ? <AdminSecurityDashboard /> : <Navigate to="/login" />} />
       <Route path="/app/admin/bio-templates" element={isAuthenticated ? <BioTemplatesAdmin /> : <Navigate to="/login" />} />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
@@ -37,6 +37,15 @@ export default function StoryPreview() {
     }
   };
 
+  // Engagement tracking helper (fire-and-forget, throttled by backend)
+  const trackEvent = useCallback(async (eventType, value = null) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      await api.post(`/api/analytics/track-event/${jobId}`, { event_type: eventType, value });
+    } catch {}
+  }, [jobId]);
+
   const playAudio = (url, sceneIndex) => {
     if (playingAudio === sceneIndex) {
       audioRef.current?.pause();
@@ -50,6 +59,7 @@ export default function StoryPreview() {
     audioRef.current = audio;
     audio.play();
     setPlayingAudio(sceneIndex);
+    trackEvent('preview_played');
     audio.onended = () => setPlayingAudio(null);
   };
 
@@ -121,7 +131,7 @@ export default function StoryPreview() {
             {/* Browser Export Button — always available when scenes have images */}
             {preview.scenes?.some(s => s.image_url) && !preview.final_video_url && (
               <Button
-                onClick={() => setShowExport(!showExport)}
+                onClick={() => { setShowExport(!showExport); if (!showExport) trackEvent('export_started'); }}
                 className={showExport ? 'bg-purple-700' : 'bg-purple-600 hover:bg-purple-700'}
                 data-testid="browser-export-toggle-btn"
               >
@@ -146,7 +156,7 @@ export default function StoryPreview() {
               </a>
             )}
             {preview.story_pack_url && (
-              <a href={preview.story_pack_url} target="_blank" rel="noopener noreferrer">
+              <a href={preview.story_pack_url} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('story_pack_downloaded')}>
                 <Button variant="outline" className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10" data-testid="download-pack-btn">
                   <Package className="w-4 h-4 mr-2" />
                   Story Pack ZIP

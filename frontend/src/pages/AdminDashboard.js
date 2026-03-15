@@ -278,6 +278,12 @@ export default function AdminDashboard() {
                 <span className="hidden sm:inline">Monitor</span>
               </Button>
             </Link>
+            <Link to="/app/admin/ttfd-analytics">
+              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="ttfd-analytics-btn">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">TTFD</span>
+              </Button>
+            </Link>
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(Number(e.target.value))}

@@ -532,6 +532,9 @@ api_router.include_router(remix_router)
 from routes.engagement_analytics import router as engagement_analytics_router
 api_router.include_router(engagement_analytics_router)
 
+from routes.ttfd_analytics import router as ttfd_analytics_router
+api_router.include_router(ttfd_analytics_router)
+
 
 
 
@@ -904,6 +907,19 @@ async def startup():
         logger.info("Payment reconciliation task started")
     except Exception as e:
         logger.warning(f"Payment reconciliation task warning: {e}")
+    
+    # Start daily analytics aggregation (runs once per hour, aggregates yesterday)
+    async def _daily_aggregation_loop():
+        await asyncio.sleep(60)  # Let server stabilize
+        while True:
+            try:
+                from routes.ttfd_analytics import run_daily_aggregation
+                await run_daily_aggregation()
+                logger.info("Daily analytics aggregation complete")
+            except Exception as e:
+                logger.warning(f"Daily aggregation error: {e}")
+            await asyncio.sleep(3600)  # Run every hour
+    asyncio.create_task(_daily_aggregation_loop())
     
     # Start auto-scaling engine
     try:

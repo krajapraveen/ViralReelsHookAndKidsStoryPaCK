@@ -421,6 +421,21 @@ async def run_stage_images(job: dict) -> dict:
                     "current_step": f"Generated image {done}/{total}...",
                 })
 
+                # Record first_image TTFD on first completion only
+                if done == 1:
+                    try:
+                        now_ts = time.time()
+                        ps = job.get("ttfd_metrics", {}).get("pipeline_start", now_ts)
+                        await db.pipeline_jobs.update_one(
+                            {"job_id": job_id},
+                            {"$set": {
+                                "ttfd_metrics.first_image": now_ts,
+                                "ttfd_metrics.time_to_first_image": round(now_ts - ps, 2),
+                            }}
+                        )
+                    except Exception:
+                        pass
+
                 # Broadcast image_ready for progressive delivery
                 try:
                     from routes.websocket_progress import broadcast_asset_ready
@@ -555,6 +570,21 @@ async def run_stage_voices(job: dict) -> dict:
                     "progress": pct,
                     "current_step": f"Generated voice {done}/{total}...",
                 })
+
+                # Record first_voice TTFD on first completion only
+                if done == 1:
+                    try:
+                        now_ts = time.time()
+                        ps = job.get("ttfd_metrics", {}).get("pipeline_start", now_ts)
+                        await db.pipeline_jobs.update_one(
+                            {"job_id": job_id},
+                            {"$set": {
+                                "ttfd_metrics.first_voice": now_ts,
+                                "ttfd_metrics.time_to_first_voice": round(now_ts - ps, 2),
+                            }}
+                        )
+                    except Exception:
+                        pass
 
                 # Broadcast voice_ready for progressive delivery
                 try:
@@ -1104,10 +1134,29 @@ async def execute_pipeline(job_id: str):
         logger.error(f"[PIPE] Job {job_id} not found")
         return
 
+    # Initialize TTFD metrics — timestamps recorded per stage boundary
+    ttfd = {
+        "pipeline_start": pipeline_start,
+        "scene_start": None,
+        "first_scene": None,
+        "first_image": None,
+        "first_voice": None,
+        "first_playable_preview": None,
+        "job_complete": None,
+    }
+
     await update_job(job_id, {
         "status": "PROCESSING",
         "started_at": datetime.now(timezone.utc),
+        "ttfd_metrics": ttfd,
     })
+
+    # Record scene_start immediately
+    ttfd["scene_start"] = time.time()
+    await db.pipeline_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"ttfd_metrics.scene_start": ttfd["scene_start"]}}
+    )
 
     timing = {}
 
@@ -1169,6 +1218,35 @@ async def execute_pipeline(job_id: str):
                 await mark_stage_complete(job_id, stage_name, outputs, duration_ms)
                 await update_job(job_id, {"progress": progress_end})
 
+                # Record TTFD timestamps (batch update per stage, not per asset)
+                ttfd_update = {}
+                now_ts = time.time()
+                if stage_name == "scenes":
+                    ttfd["first_scene"] = now_ts
+                    ttfd_update = {
+                        "ttfd_metrics.first_scene": now_ts,
+                        "ttfd_metrics.time_to_first_scene": round(now_ts - pipeline_start, 2),
+                    }
+                elif stage_name == "images":
+                    ttfd["first_image"] = now_ts
+                    ttfd_update = {
+                        "ttfd_metrics.first_image": now_ts,
+                        "ttfd_metrics.time_to_first_image": round(now_ts - pipeline_start, 2),
+                    }
+                elif stage_name == "voices":
+                    ttfd["first_voice"] = now_ts
+                    ttfd["first_playable_preview"] = now_ts
+                    ttfd_update = {
+                        "ttfd_metrics.first_voice": now_ts,
+                        "ttfd_metrics.first_playable_preview": now_ts,
+                        "ttfd_metrics.time_to_first_voice": round(now_ts - pipeline_start, 2),
+                        "ttfd_metrics.time_to_first_playable_preview": round(now_ts - pipeline_start, 2),
+                    }
+                if ttfd_update:
+                    await db.pipeline_jobs.update_one(
+                        {"job_id": job_id}, {"$set": ttfd_update}
+                    )
+
                 # Broadcast stage completion via WebSocket
                 await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, progress_end,
                                     f"{STAGE_LABELS.get(stage_name, stage_name)} complete")
@@ -1223,6 +1301,13 @@ async def execute_pipeline(job_id: str):
     total_ms = int((time.time() - pipeline_start) * 1000)
     timing["total_ms"] = total_ms
 
+    # Finalize TTFD metrics
+    complete_ts = time.time()
+    ttfd_final = {
+        "ttfd_metrics.job_complete": complete_ts,
+        "ttfd_metrics.total_generation_time": round(complete_ts - pipeline_start, 2),
+    }
+
     await update_job(job_id, {
         "status": "COMPLETED",
         "progress": 100,
@@ -1230,6 +1315,7 @@ async def execute_pipeline(job_id: str):
         "current_step": f"Video ready! ({total_ms // 1000}s)",
         "completed_at": datetime.now(timezone.utc),
         "timing": timing,
+        **ttfd_final,
     })
 
     # Broadcast completion via WebSocket
