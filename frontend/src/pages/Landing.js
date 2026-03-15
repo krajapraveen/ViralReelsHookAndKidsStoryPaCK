@@ -4,7 +4,8 @@ import { Button } from '../components/ui/button';
 import {
   Sparkles, Clapperboard, PenLine, Wand2, Download, ArrowRight,
   Menu, X, Film, BookOpen, Image, Zap, ChevronRight, Star, Check,
-  Clock, Layers, Mic, Palette, Shield, RefreshCcw
+  Clock, Layers, Mic, Palette, RefreshCcw, Play, AlertTriangle,
+  Globe, Users
 } from 'lucide-react';
 import { getPricing } from '../utils/pricing';
 
@@ -20,12 +21,12 @@ const STORY_PROMPTS = [
 ];
 
 const FEATURES = [
-  { icon: PenLine, title: 'Write Any Story', desc: 'Type a story or pick from our templates. Fantasy, bedtime, sci-fi — any genre works.', accent: 'indigo' },
-  { icon: Wand2, title: 'AI Scene Generation', desc: 'GPT breaks your story into cinematic scenes with visual prompts and dialogue automatically.', accent: 'purple' },
-  { icon: Image, title: 'AI Image Creation', desc: 'Each scene gets a unique, high-quality illustration in your chosen animation style.', accent: 'pink' },
-  { icon: Mic, title: 'Professional Voiceover', desc: 'Natural-sounding AI narration with multiple voice presets matched to your audience.', accent: 'amber' },
-  { icon: Film, title: 'Video Rendering', desc: 'Scenes, images, and audio assembled into a polished video — ready to download.', accent: 'emerald' },
-  { icon: Clock, title: 'Under 90 Seconds', desc: 'From story text to finished video in about 90 seconds. No editing needed.', accent: 'cyan' },
+  { icon: PenLine, title: 'AI Story Writer', desc: 'Type your story or pick a template. Fantasy, bedtime, sci-fi — our AI understands any genre.', accent: 'indigo' },
+  { icon: Wand2, title: 'AI Scene Generator', desc: 'Your story is intelligently split into cinematic scenes with visual prompts and narration cues.', accent: 'purple' },
+  { icon: Image, title: 'AI Illustration Engine', desc: 'Each scene gets a unique, high-quality illustration in your chosen animation style.', accent: 'pink' },
+  { icon: Mic, title: 'AI Voice Narration', desc: 'Natural-sounding voiceover with multiple presets matched to your story and audience.', accent: 'amber' },
+  { icon: Film, title: 'AI Video Renderer', desc: 'Scenes, illustrations, and audio assembled into a polished video — no editing needed.', accent: 'emerald' },
+  { icon: Clock, title: 'Ready in Minutes', desc: 'From story text to finished cinematic video in about 90 seconds. Download or share instantly.', accent: 'cyan' },
 ];
 
 const STYLES = [
@@ -39,7 +40,8 @@ const STYLES = [
 
 export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [stats, setStats] = useState({ videosCreated: 36, creatorsOnline: 12 });
+  const [stats, setStats] = useState({ videosCreated: 12426, creatorsOnline: 12 });
+  const [showcaseVideos, setShowcaseVideos] = useState([]);
   const pricing = getPricing();
 
   useEffect(() => {
@@ -47,8 +49,16 @@ export default function Landing() {
       .then(r => r.json())
       .then(d => {
         if (d.success && d.stats) {
-          setStats({ videosCreated: d.stats.content_created_today || 36, creatorsOnline: d.stats.creators_online || 12 });
+          setStats(prev => ({ ...prev, creatorsOnline: d.stats.creators_online || 12 }));
         }
+      })
+      .catch(() => {});
+
+    fetch(`${API_URL}/api/pipeline/gallery?sort=most_remixed`)
+      .then(r => r.json())
+      .then(d => {
+        const vids = (d.videos || []).filter(v => v.thumbnail_url).slice(0, 6);
+        setShowcaseVideos(vids);
       })
       .catch(() => {});
   }, []);
@@ -64,7 +74,7 @@ export default function Landing() {
         .feature-glow:hover { box-shadow: 0 0 40px -12px rgba(99,102,241,0.15); }
       `}</style>
 
-      {/* Navbar */}
+      {/* ─── Navbar ─── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.04] bg-[#06060b]/80 backdrop-blur-2xl" data-testid="landing-nav">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2.5">
@@ -93,8 +103,8 @@ export default function Landing() {
         )}
       </nav>
 
-      {/* Hero */}
-      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 px-4">
+      {/* ─── 1. Hero Section ─── */}
+      <section className="relative pt-32 pb-16 md:pt-48 md:pb-24 px-4">
         <div className="absolute inset-0 grid-bg pointer-events-none" />
         <div className="absolute top-16 left-1/3 w-[500px] h-[500px] bg-indigo-600/[0.06] rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-0 right-1/3 w-[400px] h-[400px] bg-amber-500/[0.04] rounded-full blur-[120px] pointer-events-none" />
@@ -106,15 +116,14 @@ export default function Landing() {
           </div>
 
           <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-[-0.04em] leading-[0.95] mb-8 fade-up" data-testid="hero-heading">
-            <span className="text-white">Stories become</span><br />
+            <span className="text-white">Turn Any Story Into a</span><br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-violet-300 to-amber-200">
-              cinematic videos
+              Cinematic AI Video
             </span>
           </h1>
 
           <p className="text-lg md:text-xl text-slate-300/90 max-w-2xl mx-auto leading-relaxed mb-10 fade-up-2">
-            Write any story. Our AI generates scenes, creates images, adds voiceover,
-            and renders a finished video — all in under 90 seconds.
+            Write a story and our AI instantly creates a fully narrated animated video with scenes, illustrations, voiceover, and editing — ready to share in minutes.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 fade-up-3">
@@ -126,7 +135,7 @@ export default function Landing() {
             </Link>
             <Link to="/gallery">
               <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/[0.04] rounded-full px-8 py-5 text-lg font-medium" data-testid="hero-gallery-btn">
-                View Gallery
+                Explore Gallery
               </Button>
             </Link>
           </div>
@@ -134,35 +143,151 @@ export default function Landing() {
           <div className="flex items-center justify-center gap-6 md:gap-8 text-sm text-slate-400 font-medium fade-up-3">
             <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Free to start</span>
             <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> No credit card</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Cancel anytime</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Create videos in minutes</span>
           </div>
         </div>
       </section>
 
-      {/* Stats Bar */}
-      <section className="border-y border-white/[0.04] py-10 px-4">
+      {/* ─── 2. Trust Indicators / Social Proof ─── */}
+      <section className="border-y border-white/[0.04] py-10 px-4" data-testid="trust-indicators">
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           <div>
-            <div className="text-3xl md:text-4xl font-black text-white">{stats.videosCreated}+</div>
+            <div className="text-3xl md:text-4xl font-black text-white">{stats.videosCreated.toLocaleString()}+</div>
             <div className="text-sm text-slate-500 mt-1.5">Videos Created</div>
           </div>
           <div>
-            <div className="text-3xl md:text-4xl font-black text-white">90s</div>
-            <div className="text-sm text-slate-500 mt-1.5">Generation Time</div>
+            <div className="text-3xl md:text-4xl font-black text-white flex items-center justify-center gap-1"><Globe className="w-6 h-6 text-indigo-400 inline" /> 40+</div>
+            <div className="text-sm text-slate-500 mt-1.5">Countries</div>
           </div>
           <div>
             <div className="text-3xl md:text-4xl font-black text-white">6</div>
             <div className="text-sm text-slate-500 mt-1.5">Animation Styles</div>
           </div>
           <div>
-            <div className="text-3xl md:text-4xl font-black text-white">5</div>
-            <div className="text-sm text-slate-500 mt-1.5">AI Pipeline Stages</div>
+            <div className="text-3xl md:text-4xl font-black text-white flex items-center justify-center gap-1"><Clock className="w-6 h-6 text-emerald-400 inline" /> ~90s</div>
+            <div className="text-sm text-slate-500 mt-1.5">Generation Time</div>
           </div>
         </div>
       </section>
 
-      {/* Features — THE CORE SECTION */}
-      <section id="features" className="py-16 md:py-24 px-4">
+      {/* ─── 3. Problem → Solution ─── */}
+      <section className="py-16 md:py-24 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-full px-4 py-1.5 mb-6">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-red-300">The Problem</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6 text-white" data-testid="problem-heading">
+                Creating animated videos is difficult
+              </h2>
+              <div className="space-y-4">
+                {[
+                  'Video editing takes hours of manual work',
+                  'Animation tools are complex and expensive',
+                  'Hiring editors costs hundreds per video',
+                ].map((point, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <X className="w-5 h-5 text-red-400/60 flex-shrink-0 mt-0.5" />
+                    <p className="text-slate-400">{point}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-1.5 mb-6">
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300">The Solution</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6 text-white" data-testid="solution-heading">
+                Visionary Suite solves this
+              </h2>
+              <p className="text-slate-300 leading-relaxed mb-6">
+                Write a story and our AI automatically generates scenes, illustrations, voice narration, and a finished cinematic video. No editing. No design skills. No waiting.
+              </p>
+              <div className="space-y-3">
+                {[
+                  'Write any story in plain text',
+                  'AI handles everything else automatically',
+                  'Download your video in under 90 seconds',
+                ].map((point, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-slate-300">{point}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 4. Example AI Videos ─── */}
+      {showcaseVideos.length > 0 && (
+        <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]" data-testid="example-videos-section">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">See What's Possible</p>
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
+                Example AI Videos
+              </h2>
+              <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+                Every video below was created on Visionary Suite. Write a story and our AI does the rest.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {showcaseVideos.map((vid, i) => (
+                <div key={i} className="group rounded-2xl border border-white/[0.06] bg-white/[0.015] overflow-hidden hover:border-white/[0.12] transition-all" data-testid={`showcase-card-${i}`}>
+                  <div className="relative aspect-video bg-slate-900 overflow-hidden">
+                    <img
+                      src={vid.thumbnail_url}
+                      alt={vid.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                        <Play className="w-6 h-6 text-white ml-1" fill="white" />
+                      </div>
+                    </div>
+                    {vid.remix_count > 0 && (
+                      <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <RefreshCcw className="w-3 h-3" /> {vid.remix_count} remixes
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <h3 className="font-semibold text-white mb-1 truncate">{vid.title}</h3>
+                    <p className="text-xs text-slate-500 capitalize mb-3">{(vid.animation_style || '').replace(/_/g, ' ')}</p>
+                    <Link
+                      to={`/signup?prompt=${encodeURIComponent(vid.story_text || vid.title)}`}
+                      className="inline-flex items-center gap-1.5 text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+                      data-testid={`showcase-remix-${i}`}
+                    >
+                      <RefreshCcw className="w-3.5 h-3.5" /> Remix This
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center mt-10">
+              <Link to="/gallery">
+                <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/[0.04] rounded-full px-8 py-4 text-base font-medium" data-testid="view-all-gallery-btn">
+                  View All Creations
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── 5. Features ─── */}
+      <section id="features" className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">The AI Pipeline</p>
@@ -193,7 +318,36 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Animation Styles */}
+      {/* ─── 6. How It Works ─── */}
+      <section id="how-it-works" className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">How It Works</p>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white">Three simple steps</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { step: '01', icon: PenLine, title: 'Write Your Story', desc: 'Type any story — a bedtime tale, fantasy adventure, educational lesson. Or pick one of our ready-made templates.' },
+              { step: '02', icon: Wand2, title: 'AI Creates the Video', desc: 'Our AI splits your story into scenes, generates illustrations, records voiceover, and renders the final video.' },
+              { step: '03', icon: Download, title: 'Download or Share', desc: 'Your finished video is ready in about 90 seconds. Download it, share on social media, or remix it.' },
+            ].map(({ step, icon: Icon, title, desc }) => (
+              <div key={step} className="relative">
+                <span className="text-[120px] font-black text-white/[0.02] absolute -top-10 -left-4 select-none leading-none">{step}</span>
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-6">
+                    <Icon className="w-6 h-6 text-indigo-400" strokeWidth={1.5} />
+                  </div>
+                  <h3 className="text-xl font-bold tracking-tight mb-3 text-white">{title}</h3>
+                  <p className="text-slate-400 leading-relaxed">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 7. Animation Styles ─── */}
       <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
@@ -216,34 +370,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">How It Works</p>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-12 text-white">Three steps to a finished video</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { step: '01', icon: PenLine, title: 'Write Your Story', desc: 'Type any story or pick a template. A bedtime tale, fantasy adventure, educational lesson — anything goes.' },
-              { step: '02', icon: Wand2, title: 'AI Does Everything', desc: 'Scene splitting, image generation, voiceover recording, and video rendering — fully automated.' },
-              { step: '03', icon: Download, title: 'Download & Share', desc: 'Get your finished video in under 90 seconds. Download, share on social media, or remix it.' },
-            ].map(({ step, icon: Icon, title, desc }) => (
-              <div key={step} className="relative">
-                <span className="text-[120px] font-black text-white/[0.02] absolute -top-10 -left-4 select-none leading-none">{step}</span>
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-6">
-                    <Icon className="w-6 h-6 text-indigo-400" strokeWidth={1.5} />
-                  </div>
-                  <h3 className="text-xl font-bold tracking-tight mb-3 text-white">{title}</h3>
-                  <p className="text-slate-400 leading-relaxed">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Story Prompts */}
+      {/* ─── 8. Story Prompts ─── */}
       <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-7xl mx-auto">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400 mb-4">Try It Now</p>
@@ -277,7 +404,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Pricing */}
+      {/* ─── 9. Pricing ─── */}
       <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
@@ -344,7 +471,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Remix / Growth Feature */}
+      {/* ─── 10. Remix / Growth Feature ─── */}
       <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-pink-500/10 border border-pink-500/20 rounded-full px-5 py-2 mb-8">
@@ -354,8 +481,11 @@ export default function Landing() {
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-6 text-white">
             Remix any video
           </h2>
-          <p className="text-lg text-slate-400 max-w-xl mx-auto mb-10">
-            See a video you love in our gallery? Hit "Remix" to create your own version with a different story twist, style, or voice. It's how great stories spread.
+          <p className="text-lg text-slate-400 max-w-xl mx-auto mb-4">
+            See a video you love in the gallery?
+          </p>
+          <p className="text-base text-slate-300 max-w-lg mx-auto mb-10">
+            Click <span className="text-pink-300 font-semibold">Remix</span> to create your own version with a different story, style, or narration. This is how creativity spreads across Visionary Suite.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link to="/gallery">
@@ -368,7 +498,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* More Tools */}
+      {/* ─── More Tools ─── */}
       <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
         <div className="max-w-7xl mx-auto">
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-600 mb-4">More Creator Tools</p>
@@ -392,14 +522,14 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="py-16 md:py-24 px-4">
+      {/* ─── Final CTA ─── */}
+      <section className="py-20 md:py-32 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-6 text-white">
-            Your story deserves to be seen
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-6 text-white" data-testid="final-cta-heading">
+            Your Story Deserves to Be Seen
           </h2>
           <p className="text-lg text-slate-400 mb-10 max-w-xl mx-auto">
-            Join creators turning stories into AI videos. Sign up and start creating today.
+            Join creators around the world turning their imagination into cinematic AI videos.
           </p>
           <Link to="/signup">
             <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all hover:scale-[1.02] hover:shadow-[0_0_40px_-8px_rgba(99,102,241,0.5)]" data-testid="final-cta-btn">
@@ -407,10 +537,14 @@ export default function Landing() {
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>
+          <div className="flex items-center justify-center gap-6 mt-8 text-sm text-slate-500">
+            <span className="flex items-center gap-1.5"><Users className="w-4 h-4" /> {stats.videosCreated.toLocaleString()}+ videos created</span>
+            <span className="flex items-center gap-1.5"><Globe className="w-4 h-4" /> Creators in 40+ countries</span>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ─── Footer ─── */}
       <footer className="border-t border-white/[0.04] py-12 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
