@@ -45,21 +45,26 @@ Server FFmpeg: Admin-only fallback (not default path)
 - [x] useJobWebSocket hook with auto-reconnect
 
 ### TTFD Analytics System (Mar 2026)
-- [x] **Backend TTFD tracking**: Timestamps for scene_start, first_scene, first_image, first_voice, first_playable_preview, job_complete
-- [x] **Derived metrics**: time_to_first_scene, time_to_first_image, time_to_first_voice, time_to_first_playable_preview, total_generation_time
-- [x] **Queue performance**: Wait times by tier (free/paid/admin), avg/p95, starvation boost count
-- [x] **Engagement tracking**: POST /api/analytics/track-event/{job_id}
-- [x] **Admin TTFD Dashboard**: /app/admin/ttfd-analytics
-- [x] **Daily aggregation job**: Runs hourly
+- [x] Backend TTFD tracking, Derived metrics, Queue performance
+- [x] Engagement tracking, Admin TTFD Dashboard, Daily aggregation job
 
 ### P0 Infrastructure Stability — Job Durability (Mar 2026)
-- [x] **Auto-resume from checkpoint**: Jobs with completed stages auto-resume on server restart instead of being marked FAILED
-- [x] **Fallback for interrupted jobs**: If resume fails but assets exist, fallback pipeline generates Story Pack ZIP + preview
-- [x] **Crash diagnostics logging**: Each interrupt records restart_timestamp, job_id, stage_interrupted, progress, completed_stages, reason
-- [x] **Enhanced error recovery UI**: ErrorPhase shows "Open Preview", "Download Story Pack ZIP", "Resume from Checkpoint", "Start Over"
-- [x] **has_recoverable_assets flag**: Status and user-jobs endpoints report when raw assets exist even without formal fallback
-- [x] **Admin crash diagnostics endpoint**: GET /api/pipeline/crash-diagnostics with full crash history
-- [x] **Fallback triggers on any stage failure**: Not just render/upload — any stage with existing assets triggers fallback pipeline
+- [x] Auto-resume from checkpoint on server restart
+- [x] Fallback for interrupted jobs (Story Pack ZIP + preview)
+- [x] Crash diagnostics logging (restart_timestamp, stage_interrupted, etc.)
+- [x] Enhanced error recovery UI (Open Preview, Download ZIP, Resume, Start Over)
+- [x] has_recoverable_assets flag on status and user-jobs endpoints
+- [x] Admin crash diagnostics endpoint
+
+### My Jobs Dashboard (Mar 2026)
+- [x] "My Jobs" tab in Profile page (between My Space and Profile Settings)
+- [x] Filter stats bar: All, Completed, Assets Ready, Failed, Active
+- [x] Job cards with status badges, stage progress bars, metadata
+- [x] "Recovered" badge on server-restart interrupted jobs
+- [x] Action buttons: Video download, Preview, Resume, Get Assets
+- [x] Resume from checkpoint directly from dashboard
+- [x] Fallback generation trigger for failed jobs with assets
+- [x] Refresh functionality
 
 ### Performance Targets
 | Metric | Target | Current |
@@ -72,16 +77,12 @@ Server FFmpeg: Admin-only fallback (not default path)
 ## Key API Endpoints
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | /api/analytics/ttfd | TTFD metrics, targets, engagement, trends |
-| GET | /api/analytics/queue | Queue depth, tier wait times |
-| POST | /api/analytics/track-event/{job_id} | Track engagement event |
-| GET | /api/analytics/daily-aggregates | Pre-computed daily analytics |
-| GET | /api/pipeline/preview/{job_id} | Public preview data |
-| GET | /api/pipeline/assets/{job_id} | Individual asset links |
-| POST | /api/pipeline/notify-when-ready/{job_id} | Notification subscription |
-| POST | /api/pipeline/generate-fallback/{job_id} | Manual fallback trigger |
+| GET | /api/pipeline/user-jobs | All user pipeline jobs with recovery flags |
 | POST | /api/pipeline/resume/{job_id} | Resume job from checkpoint |
+| POST | /api/pipeline/generate-fallback/{job_id} | Manual fallback trigger |
 | GET | /api/pipeline/crash-diagnostics | Admin crash diagnostic logs |
+| GET | /api/pipeline/preview/{job_id} | Public preview data |
+| GET | /api/analytics/ttfd | TTFD metrics and trends |
 
 ## Backlog
 
