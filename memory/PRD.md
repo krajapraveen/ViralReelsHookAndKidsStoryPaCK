@@ -93,9 +93,19 @@ AI-powered Story Video Studio and Creator Tools Platform. Generates story videos
 
 ## Backlog
 - **P2**: Email notifications (BLOCKED on SendGrid upgrade)
-- **P2**: Video generation queue priority for paid users
 - **P3**: Multi-language support for narration
 - **P3**: Custom voice cloning integration
+
+### Video Queue Priority (Mar 15, 2026)
+- Priority levels: Admin=0 (highest), Paid=1, Free=10 (standard)
+- `PriorityQueue` with `PriorityJob` dataclass: `(priority, sequence)` ordering
+- FIFO within each tier via monotonic sequence counter
+- Anti-starvation: Free jobs boosted from priority 10 → 2 after 120s wait
+- Worker analytics: avg_wait_ms per tier, starvation boost count
+- Job fields: queue_priority, queue_tier, queued_at, queue_wait_ms, picked_up_at
+- UI: "Priority Queue" badge (amber, Zap icon) for paid/admin in WaitingExperience
+- Free users see normal progress (no negative messaging)
+- Future-ready: easy to add Pro > Creator, Enterprise dedicated queue
 
 ## Technical Notes
 - R2 public URL returns 403 - all media served via presigned URLs (4hr expiry)
