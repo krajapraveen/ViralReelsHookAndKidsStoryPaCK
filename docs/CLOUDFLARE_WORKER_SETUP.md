@@ -35,7 +35,7 @@ This guide will help you set up a Cloudflare Worker to proxy all `/api/*` reques
  * CreatorStudio AI (visionary-suite.com)
  */
 
-const BACKEND_URL = 'https://dashboard-restore-18.preview.emergentagent.com';
+const BACKEND_URL = 'https://progressive-pipeline.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {
@@ -187,7 +187,7 @@ After completing these steps:
 |---------|-------|
 | Worker Name | `api-proxy` |
 | Route | `visionary-suite.com/api/*` |
-| Backend URL | `https://dashboard-restore-18.preview.emergentagent.com` |
+| Backend URL | `https://progressive-pipeline.preview.emergentagent.com` |
 | Zone | `visionary-suite.com` |
 
 ---

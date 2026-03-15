@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://dashboard-restore-18.preview.emergentagent.com
+API URL: https://progressive-pipeline.preview.emergentagent.com
 ```
 
 ### Results Summary

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://dashboard-restore-18.preview.emergentagent.com
+**Platform URL:** https://progressive-pipeline.preview.emergentagent.com
 
 ---
 

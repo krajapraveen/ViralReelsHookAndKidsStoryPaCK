@@ -1,109 +1,94 @@
 # Visionary-Suite — Product Requirements Document
 
 ## Original Problem Statement
-AI content generation platform (story videos, comics, GIFs, reels). Users create content using AI and monetize through credits/subscriptions.
+AI content generation platform (story videos, comics, GIFs, reels). Progressive delivery architecture with browser-side rendering.
 
-## Core Architecture
+## Architecture
 ```
-/app/
-├── backend/  (FastAPI + MongoDB + Redis)
-│   ├── routes/         (API endpoints)
-│   ├── services/       (Business logic incl. pipeline, fallback, R2)
-│   ├── utils/          (R2 presign, payment monitoring)
-│   └── scripts/        (Seeding, migrations)
-└── frontend/ (React + TailwindCSS + Shadcn)
-    └── src/
-        ├── components/  (ProgressiveGeneration, BrowserVideoExport, WaitingExperience, Testimonials)
-        ├── context/     (CreditContext global state)
-        ├── hooks/       (useJobWebSocket, useWebSocketProgress)
-        └── pages/       (StoryPreview, StoryVideoPipeline, StoryVideoStudio, Gallery, Landing, Dashboard)
+Backend (FastAPI + MongoDB + Redis):
+  Story generation → Scene generation → Image generation → Voice generation → Asset storage (R2)
+  
+Frontend (React + TailwindCSS + Shadcn):
+  Progressive preview → Web player → Browser-side MP4 export (ffmpeg.wasm)
+  
+Server FFmpeg: Admin-only fallback (not default path)
 ```
-
-## Architecture Philosophy
-**Progressive Delivery** — Server generates story + images + voices. User sees value incrementally. Browser handles final video assembly. Server FFmpeg is kept as admin-only fallback.
 
 **3-Tier Output Model:**
-1. **Instant**: Playable web preview (free, no render needed)
-2. **Standard**: Story Pack ZIP (images, audio, text, manifest)
-3. **Premium**: Final MP4 export (browser-rendered via ffmpeg.wasm)
+1. Instant: Playable web preview (free)
+2. Standard: Story Pack ZIP (images, audio, text)
+3. Premium: Final MP4 export (browser-rendered)
 
 ## Implemented Features
 
-### Phase 1 — Core Platform
-- [x] User auth (JWT + Google OAuth)
-- [x] Story → Video pipeline (scenes, images, voices, render)
-- [x] Comic Storybook Builder, GIF/Reel generators
-- [x] Credit system + ledger
-- [x] Gallery with 30 showcase items
+### Core Platform
+- [x] User auth (JWT + Google OAuth), Credit system, Gallery (30 showcase items)
+- [x] Story → Video pipeline, Comic Storybook Builder, GIF/Reel generators
 - [x] Admin panel with full analytics (parallel queries)
 
-### Phase 2 — Growth & Monetization
-- [x] Priority queue system (Admin > Paid > Free)
-- [x] Global CreditContext (React Context API)
-- [x] Real-time WebSocket progress updates
-- [x] Video watermarking (free users)
-- [x] Social sharing + OpenGraph tags
-- [x] Landing page conversion optimization + Testimonials
+### Growth & Monetization
+- [x] Priority queue (Admin > Paid > Free), Video watermarking (free)
+- [x] Global CreditContext, Real-time WebSocket progress
+- [x] Landing page optimization + Testimonials, Social sharing + OpenGraph
 - [x] Cashfree payments with Geo-IP (INR/USD)
 
-### Phase 3 — Fallback Output System (Mar 2026)
-- [x] Lightweight server fallback MP4 (640x360, veryfast encode)
-- [x] Story Pack ZIP (all scene images, audio, text, manifest.json)
-- [x] Public preview page `/app/story-preview/:jobId`
-- [x] R2 direct asset links with presigned URLs
-- [x] Notify when ready — notification subscription flow
-- [x] Manual fallback trigger API
-- [x] Pipeline auto-triggers fallback on render/upload failure
+### Fallback Output System (Mar 2026)
+- [x] Server fallback MP4, Story Pack ZIP, Public preview page
+- [x] R2 presigned asset links, Notify-when-ready, Manual fallback trigger
+- [x] Auto-fallback on render/upload failure
 
-### Phase 4 — Progressive Delivery + Client-Side Export (Mar 2026)
-- [x] **Per-asset WebSocket events**: `scene_ready`, `image_ready`, `voice_ready`, `preview_ready`
-- [x] **ProgressiveGeneration component**: Live scene cards, streaming images/voices, stage pipeline indicator
-- [x] **Web Preview Player**: Browser-based slideshow with synced audio playback
-- [x] **BrowserVideoExport**: ffmpeg.wasm browser-side MP4 rendering (720p, 15fps)
-- [x] **3-tier output model on StoryPreview page**: Instant Preview, Export MP4, Story Pack ZIP
-- [x] **useJobWebSocket hook**: WebSocket connection with ping/pong and auto-reconnect
-- [x] **Graceful fallback**: Unsupported browsers get Story Pack + Preview instead of broken export
-- [x] **Server FFmpeg preserved as admin-only fallback**
+### Progressive Delivery + Client-Side Export (Mar 2026)
+- [x] Per-asset WebSocket events (scene_ready, image_ready, voice_ready, preview_ready)
+- [x] ProgressiveGeneration component with live scene cards
+- [x] Web Preview Player with synced audio
+- [x] BrowserVideoExport (ffmpeg.wasm, 720p, 15fps)
+- [x] useJobWebSocket hook with auto-reconnect
+
+### TTFD Analytics System (Mar 2026)
+- [x] **Backend TTFD tracking**: Timestamps for scene_start, first_scene, first_image, first_voice, first_playable_preview, job_complete
+- [x] **Derived metrics**: time_to_first_scene, time_to_first_image, time_to_first_voice, time_to_first_playable_preview, total_generation_time
+- [x] **Queue performance**: Wait times by tier (free/paid/admin), avg/p95, starvation boost count
+- [x] **Engagement tracking**: POST /api/analytics/track-event/{job_id} — preview_played, export_started/completed, story_pack_downloaded, video_shared (throttled, deduplicated)
+- [x] **Admin TTFD Dashboard**: /app/admin/ttfd-analytics — Performance vs Targets, TTFD metrics (avg/median/p95), Daily trends charts, Queue performance, Engagement rates, Pipeline health
+- [x] **Daily aggregation job**: Runs hourly, stores daily_avg_ttfd, preview_play_rate, export_rate, queue_wait
+
+### Performance Targets
+| Metric | Target | Current |
+|--------|--------|---------|
+| Time to First Scene | <5s | 9.35s |
+| Time to First Image | <20s | 60.47s |
+| Time to Playable Preview | <60s | 79s |
+| Export Success Rate | >95% | 0% (render env) |
 
 ## Key API Endpoints
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /api/pipeline/preview/{job_id} | No | Public preview data with presigned URLs |
-| GET | /api/pipeline/assets/{job_id} | Yes | Individual asset download links |
-| POST | /api/pipeline/notify-when-ready/{job_id} | Yes | Subscribe for completion notification |
-| POST | /api/pipeline/generate-fallback/{job_id} | Yes | Manually trigger fallback generation |
-| GET | /api/pipeline/status/{job_id} | Yes | Job status with fallback data |
-| GET | /api/cashfree/products | No | Geo-IP aware pricing (INR/USD) |
-| GET | /api/admin/analytics/dashboard | Yes | Admin analytics (parallel queries) |
-
-## Key Database Schema
-- `pipeline_jobs`: Includes `fallback_outputs`, `fallback_status`, `notify_on_complete`, `queue_priority`, `queue_tier`
-- `users`, `orders`, `subscriptions`, `credit_ledger`, `trending_topics`, `notifications`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/analytics/ttfd | TTFD metrics, targets, engagement, trends |
+| GET | /api/analytics/queue | Queue depth, tier wait times |
+| POST | /api/analytics/track-event/{job_id} | Track engagement event |
+| GET | /api/analytics/daily-aggregates | Pre-computed daily analytics |
+| GET | /api/pipeline/preview/{job_id} | Public preview data |
+| GET | /api/pipeline/assets/{job_id} | Individual asset links |
+| POST | /api/pipeline/notify-when-ready/{job_id} | Notification subscription |
+| POST | /api/pipeline/generate-fallback/{job_id} | Manual fallback trigger |
 
 ## Backlog
 
-### P1 — Next Up
-- [ ] Generate actual showcase video content (real AI-rendered videos for gallery)
-- [ ] Complete Cashfree live payment flow testing with production keys
-- [ ] Before/after benchmarks for time-to-first-visible-output
+### P1
+- [ ] Generate showcase video content for gallery
+- [ ] Improve TTFD performance (scene generation speed, parallel image gen)
+- [ ] Cashfree live payment testing with production keys
 
 ### P2
-- [ ] Email notifications (blocked on SendGrid upgrade)
-- [ ] Multi-language narration support
-- [ ] Performance metrics dashboard (TTFD tracking)
+- [ ] Email notifications (blocked on SendGrid)
+- [ ] Onboarding flow optimization
+- [ ] Free → Paid upgrade flow optimization
 
 ### P3
-- [ ] Custom voice cloning
-- [ ] Advanced video templates
+- [ ] Multi-language narration, Custom voice cloning
+- [ ] Deprecate server FFmpeg after browser export proven stable
 - [ ] A/B testing for landing page
-- [ ] Deprecate server-side FFmpeg after browser export stability proven
-
-## 3rd Party Integrations
-- OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS)
-- Gemini, Google Auth, Redis, Cloudflare R2
-- Cashfree (Geo-IP ready), SendGrid (BLOCKED)
-- FFmpeg (server fallback + ffmpeg.wasm browser export)
 
 ## Test Credentials
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-- Test user: test@visionary-suite.com / Test@2026#
+- Test: test@visionary-suite.com / Test@2026#

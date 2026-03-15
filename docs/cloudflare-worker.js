@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://dashboard-restore-18.preview.emergentagent.com';
+const BACKEND_URL = 'https://progressive-pipeline.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

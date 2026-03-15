@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dashboard-restore-18.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://progressive-pipeline.preview.emergentagent.com')
 
 class TestAuthEndpoints:
     """Authentication endpoint tests"""

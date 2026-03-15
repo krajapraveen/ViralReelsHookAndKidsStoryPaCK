@@ -8,7 +8,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dashboard-restore-18.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://progressive-pipeline.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_USER = {"email": "test@visionary-suite.com", "password": "Test@2026#"}

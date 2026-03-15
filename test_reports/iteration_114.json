@@ -1,7 +1,7 @@
 {
   "summary": "Environment Monitor Feature - Full backend and frontend testing completed successfully. All 12 backend API tests passed. Frontend UI renders correctly with all components: status card, quick actions, database info cards, monitoring config, fix history, and recent alerts.",
   "test_date": "2026-03-02",
-  "preview_url": "https://dashboard-restore-18.preview.emergentagent.com",
+  "preview_url": "https://progressive-pipeline.preview.emergentagent.com",
   "testing_type": "both",
   "backend_issues": {
     "critical": [],

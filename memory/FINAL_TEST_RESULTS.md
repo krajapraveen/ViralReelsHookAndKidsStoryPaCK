@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://dashboard-restore-18.preview.emergentagent.com
+**Website:** https://progressive-pipeline.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

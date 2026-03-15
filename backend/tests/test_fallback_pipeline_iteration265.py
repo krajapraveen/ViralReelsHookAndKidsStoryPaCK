@@ -14,7 +14,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dashboard-restore-18.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://progressive-pipeline.preview.emergentagent.com')
 
 # Test jobs provided with fallback data
 JOB_WITH_FALLBACK_VIDEO = "d870c412-dc39-4400-ab0e-f3a43a514182"
