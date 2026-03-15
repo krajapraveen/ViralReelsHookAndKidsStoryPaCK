@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://auth-photo-comic.preview.emergentagent.com  
+**Base URL:** https://dashboard-restore-18.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---

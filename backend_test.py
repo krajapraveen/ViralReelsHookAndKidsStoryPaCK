@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 class CreatorStudioAPITester:
-    def __init__(self, base_url="https://auth-photo-comic.preview.emergentagent.com"):
+    def __init__(self, base_url="https://dashboard-restore-18.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0

@@ -2,7 +2,7 @@
 // CreatorStudio AI E2E Tests
 import { defineConfig, devices } from '@playwright/test';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://auth-photo-comic.preview.emergentagent.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://dashboard-restore-18.preview.emergentagent.com';
 
 export default defineConfig({
   testDir: './tests/e2e',

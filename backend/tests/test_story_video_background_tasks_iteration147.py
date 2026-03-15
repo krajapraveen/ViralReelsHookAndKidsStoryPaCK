@@ -19,7 +19,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://auth-photo-comic.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dashboard-restore-18.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER_EMAIL = "test@visionary-suite.com"

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://auth-photo-comic.preview.emergentagent.com
+**Platform URL:** https://dashboard-restore-18.preview.emergentagent.com
 
 ---
 

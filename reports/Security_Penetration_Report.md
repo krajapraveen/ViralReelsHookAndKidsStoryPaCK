@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://auth-photo-comic.preview.emergentagent.com
+**Environment:** https://dashboard-restore-18.preview.emergentagent.com
 
 ---
 

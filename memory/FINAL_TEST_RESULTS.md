@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://auth-photo-comic.preview.emergentagent.com
+**Website:** https://dashboard-restore-18.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

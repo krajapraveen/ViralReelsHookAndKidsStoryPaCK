@@ -14,7 +14,7 @@ const loginSuccess = new Counter('login_success');
 const generationSuccess = new Counter('generation_success');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://auth-photo-comic.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://dashboard-restore-18.preview.emergentagent.com';
 
 export const options = {
   scenarios: {

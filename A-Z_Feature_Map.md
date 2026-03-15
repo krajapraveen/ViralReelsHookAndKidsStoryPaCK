@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Purpose**: Master checklist for Phase 1-7 QA & Performance Testing  
-**Base URL**: https://auth-photo-comic.preview.emergentagent.com
+**Base URL**: https://dashboard-restore-18.preview.emergentagent.com
 
 ---
 

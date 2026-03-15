@@ -7,7 +7,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://auth-photo-comic.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dashboard-restore-18.preview.emergentagent.com')
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}
