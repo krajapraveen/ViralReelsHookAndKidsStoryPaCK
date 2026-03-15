@@ -8,7 +8,8 @@ import {
   Lock, User, Copyright, Wand2, Library, Receipt, Palette, Film, Calendar,
   Type, Crown, BarChart3, HelpCircle, TrendingUp, Gift, ChevronRight,
   Image as ImageIcon, Users, MessageSquare, Moon, Search, ArrowRight,
-  Download, Zap, Send, Flame, Check, Trophy, Lightbulb
+  Download, Zap, Send, Flame, Check, Trophy, Lightbulb,
+  Activity, Eye, Globe, AlertTriangle, Heart, FileText
 } from 'lucide-react';
 import HelpGuide from '../components/HelpGuide';
 import CreditStatusBadge from '../components/CreditStatusBadge';
@@ -208,6 +209,51 @@ export default function Dashboard() {
           </h1>
           <p className="text-white/30 mt-0.5 text-sm">What would you like to create today?</p>
         </div>
+
+        {/* ─── ADMIN PANEL (Admin Only) ─── */}
+        {isAdmin && (
+          <div className="mb-6 rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-900/20 to-purple-900/10 p-5" data-testid="admin-panel-section">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Admin Panel</h2>
+                  <p className="text-[10px] text-indigo-300/50">System management & analytics</p>
+                </div>
+              </div>
+              <Link to="/app/admin">
+                <Button size="sm" className="bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-xs rounded-lg border border-indigo-500/20" data-testid="admin-panel-full-link">
+                  Full Dashboard <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {[
+                { label: 'Users', icon: Users, to: '/app/admin/users', color: 'text-blue-400' },
+                { label: 'Revenue', icon: CreditCard, to: '/app/admin/revenue', color: 'text-emerald-400' },
+                { label: 'Analytics', icon: BarChart3, to: '/app/admin/realtime-analytics', color: 'text-amber-400' },
+                { label: 'Workers', icon: Zap, to: '/app/admin/workers', color: 'text-orange-400' },
+                { label: 'Security', icon: Shield, to: '/app/admin/security', color: 'text-red-400' },
+                { label: 'Monitoring', icon: Activity, to: '/app/admin/monitoring', color: 'text-cyan-400' },
+                { label: 'Audit Logs', icon: FileText, to: '/app/admin/audit-logs', color: 'text-violet-400' },
+                { label: 'Logins', icon: Eye, to: '/app/admin/login-activity', color: 'text-pink-400' },
+                { label: 'Environment', icon: Globe, to: '/app/admin/environment-monitor', color: 'text-teal-400' },
+                { label: 'Anti-Abuse', icon: AlertTriangle, to: '/app/admin/anti-abuse', color: 'text-yellow-400' },
+                { label: 'Health', icon: Heart, to: '/app/admin/system-health', color: 'text-rose-400' },
+                { label: 'Daily Report', icon: Calendar, to: '/app/admin/daily-report', color: 'text-indigo-400' },
+              ].map(item => (
+                <Link key={item.to} to={item.to} className="group" data-testid={`admin-quick-${item.label.toLowerCase().replace(/\s/g, '-')}`}>
+                  <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.06] hover:border-indigo-500/20 transition-all">
+                    <item.icon className={`w-4 h-4 ${item.color} opacity-60 group-hover:opacity-100 transition-opacity`} />
+                    <span className="text-[10px] text-white/40 group-hover:text-white/70 transition-colors text-center leading-tight">{item.label}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ─── 2-COLUMN LAYOUT ─── */}
         <div className="flex gap-6">
