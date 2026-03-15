@@ -23,6 +23,18 @@ from shared import db
 
 logger = logging.getLogger("pipeline_engine")
 
+# WebSocket broadcast helper — fail-safe, never breaks pipeline
+async def _ws_broadcast(job_id, user_id, stage, progress, message, status="running"):
+    try:
+        from routes.websocket_progress import manager
+        await manager.broadcast_progress(
+            job_id=job_id, user_id=user_id, stage=stage,
+            progress=progress, current_step=progress, total_steps=100,
+            message=message, status=status
+        )
+    except Exception:
+        pass  # WebSocket is best-effort, never block pipeline
+
 STATIC_DIR = Path("/app/backend/static/generated")
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -159,6 +171,11 @@ async def create_pipeline_job(
     if user.get("credits", 0) < credit_cost:
         raise ValueError(f"Insufficient credits. Need {credit_cost}, have {user.get('credits', 0)}")
 
+    # Determine watermark based on user plan — free users get watermark, paid don't
+    user_plan = str(user.get("plan", "free")).lower()
+    paid_plans = ["weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise", "admin", "demo"]
+    apply_watermark = user_plan not in paid_plans
+
     await db.users.update_one(
         {"_id": user["_id"]},
         {
@@ -198,7 +215,7 @@ async def create_pipeline_job(
         "age_config": age,
         "voice_preset": voice_preset,
         "voice_config": voice,
-        "include_watermark": include_watermark,
+        "include_watermark": apply_watermark,
         "estimated_scenes": estimated_scenes,
         "credits_charged": credit_cost,
         "status": "QUEUED",
@@ -859,12 +876,12 @@ async def run_stage_render(job: dict) -> dict:
         a_concat = ''.join(f'[a{i}]' for i in range(n))
         filter_parts.append(f"{a_concat}concat=n={n}:v=0:a=1[aout]")
 
-        # Optional lightweight watermark
-        watermark = job.get("include_watermark", True)
+        # Optional lightweight watermark — only for free-tier users
+        watermark = job.get("include_watermark", False)
         if watermark:
             filter_parts.append(
-                "[vout]drawtext=text='visionary-suite.com':"
-                "fontcolor=white@0.4:fontsize=14:x=w-tw-8:y=h-th-8[vfinal]"
+                "[vout]drawtext=text='Made with Visionary-Suite.com':"
+                "fontcolor=white@0.35:fontsize=16:x=w-tw-12:y=h-th-10[vfinal]"
             )
             v_map = "[vfinal]"
         else:
@@ -1039,6 +1056,9 @@ async def execute_pipeline(job_id: str):
         })
         await mark_stage_running(job_id, stage_name)
 
+        # Broadcast stage start via WebSocket
+        await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, progress_start, STAGE_LABELS[stage_name])
+
         # Retry loop
         success = False
         last_error = None
@@ -1077,6 +1097,10 @@ async def execute_pipeline(job_id: str):
                 await mark_stage_complete(job_id, stage_name, outputs, duration_ms)
                 await update_job(job_id, {"progress": progress_end})
 
+                # Broadcast stage completion via WebSocket
+                await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, progress_end,
+                                    f"{STAGE_LABELS.get(stage_name, stage_name)} complete")
+
                 logger.info(f"[PIPE {job_id[:8]}] Stage {stage_name} completed in {duration_ms}ms")
                 success = True
                 break
@@ -1104,6 +1128,10 @@ async def execute_pipeline(job_id: str):
 
             # Refund credits
             await refund_credits(job)
+
+            # Broadcast failure via WebSocket
+            await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, 0,
+                                f"Failed at {stage_name}: {(last_error or '')[:80]}", status="failed")
             return
 
     # ─── ALL STAGES COMPLETE ─────────────────────────────────────────────
@@ -1122,6 +1150,10 @@ async def execute_pipeline(job_id: str):
         "completed_at": datetime.now(timezone.utc),
         "timing": timing,
     })
+
+    # Broadcast completion via WebSocket
+    await _ws_broadcast(job_id, job.get("user_id", ""), "complete", 100,
+                        f"Video ready! ({total_ms // 1000}s)", status="completed")
 
     logger.info(f"[PIPE {job_id[:8]}] COMPLETE in {total_ms}ms — {video_url[:60]}")
 

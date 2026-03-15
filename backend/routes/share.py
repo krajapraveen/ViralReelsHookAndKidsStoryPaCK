@@ -37,7 +37,7 @@ class CreateShareRequest(BaseModel):
 def generate_og_html(share_data: dict, base_url: str) -> str:
     """Generate HTML with Open Graph meta tags for social sharing"""
     title = share_data.get('title', 'AI Creation')
-    description = share_data.get('preview', 'Created with CreatorStudio AI')[:160]
+    description = share_data.get('preview', 'Created with Visionary Suite — AI Story Video Platform')[:160]
     type_name = share_data.get('type', 'creation')
     share_id = share_data.get('id', '')
     thumbnail = share_data.get('thumbnailUrl', f'{base_url}/og-default.png')
@@ -56,28 +56,28 @@ def generate_og_html(share_data: dict, base_url: str) -> str:
 <html>
 <head>
     <meta charset="utf-8">
-    <title>{emoji} {title} - CreatorStudio AI</title>
+    <title>{emoji} {title} - Visionary Suite</title>
     
     <!-- Primary Meta Tags -->
-    <meta name="title" content="{emoji} {title} - CreatorStudio AI">
-    <meta name="description" content="{description}">
+    <meta name="title" content="{emoji} {title} - Visionary Suite">
+    <meta name="description" content="{description} — Remix this video on Visionary Suite!">
     
     <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
+    <meta property="og:type" content="video.other">
     <meta property="og:url" content="{base_url}/share/{share_id}">
-    <meta property="og:title" content="{emoji} {title} - CreatorStudio AI">
-    <meta property="og:description" content="{description}">
+    <meta property="og:title" content="{emoji} {title} - Visionary Suite">
+    <meta property="og:description" content="{description} — Remix this video on Visionary Suite!">
     <meta property="og:image" content="{thumbnail}">
-    <meta property="og:site_name" content="CreatorStudio AI">
+    <meta property="og:site_name" content="Visionary Suite">
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="{base_url}/share/{share_id}">
-    <meta property="twitter:title" content="{emoji} {title} - CreatorStudio AI">
-    <meta property="twitter:description" content="{description}">
+    <meta property="twitter:title" content="{emoji} {title} - Visionary Suite">
+    <meta property="twitter:description" content="{description} — Remix this video on Visionary Suite!">
     <meta property="twitter:image" content="{thumbnail}">
     
-    <!-- WhatsApp / LinkedIn -->
+    <!-- WhatsApp / LinkedIn / Telegram -->
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     
@@ -86,7 +86,7 @@ def generate_og_html(share_data: dict, base_url: str) -> str:
     <script>window.location.href = "{base_url}/share/{share_id}";</script>
 </head>
 <body>
-    <p>Redirecting to <a href="{base_url}/share/{share_id}">CreatorStudio AI</a>...</p>
+    <p>Redirecting to <a href="{base_url}/share/{share_id}">Visionary Suite</a>...</p>
 </body>
 </html>"""
 

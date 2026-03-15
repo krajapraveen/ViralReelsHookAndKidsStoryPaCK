@@ -92,6 +92,22 @@ PRODUCTS = {
     "topup_large": {"name": "500 Credits", "credits": 500, "price": 2499, "priceUsd": 30, "popular": False},
 }
 
+def detect_currency_from_request(request: Request) -> str:
+    """Detect user's currency from request headers — India=INR, else USD"""
+    country = (request.headers.get("cf-ipcountry", "") or
+               request.headers.get("x-country", "")).upper()
+    if not country:
+        lang = request.headers.get("accept-language", "")
+        if "hi" in lang.lower():
+            country = "IN"
+    return "INR" if country == "IN" else "USD"
+
+def get_product_price(product: dict, currency: str) -> float:
+    """Return product price in the requested currency"""
+    if currency == "INR":
+        return float(product["price"])
+    return float(product.get("priceUsd", product["price"]))
+
 # Pydantic Models
 class CashfreeOrderRequest(BaseModel):
     productId: str
@@ -139,12 +155,24 @@ async def get_payment_monitoring_health(user: dict = Depends(get_admin_user)):
 
 
 @router.get("/products")
-async def get_cashfree_products():
-    """Get available products for Cashfree"""
+async def get_cashfree_products(request: Request):
+    """Get available products with geo-detected pricing"""
+    currency = detect_currency_from_request(request)
+    symbol = "₹" if currency == "INR" else "$"
+    products_with_geo = {}
+    for pid, p in PRODUCTS.items():
+        products_with_geo[pid] = {
+            **p,
+            "displayPrice": get_product_price(p, currency),
+            "displayCurrency": currency,
+            "displaySymbol": symbol,
+        }
     return {
-        "products": PRODUCTS,
+        "products": products_with_geo,
         "gateway": "cashfree",
-        "configured": cashfree_client is not None
+        "configured": cashfree_client is not None,
+        "detectedCurrency": currency,
+        "symbol": symbol,
     }
 
 
@@ -185,8 +213,10 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         # Generate unique order ID
         order_id = f"cf_order_{user['id'][:8]}_{int(datetime.now().timestamp() * 1000)}"
         
-        # Calculate amount
-        amount = float(product["price"])
+        # Calculate amount based on geo-detected currency
+        detected_currency = detect_currency_from_request(request)
+        order_currency = data.currency.upper() if data.currency else detected_currency
+        amount = get_product_price(product, order_currency)
         
         # Create customer details
         customer_details = CustomerDetails(
@@ -208,7 +238,7 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         order_request = CreateOrderRequest(
             order_id=order_id,
             order_amount=amount,
-            order_currency=data.currency.upper(),
+            order_currency=order_currency,
             customer_details=customer_details,
             order_meta=order_meta,
             order_note=f"Purchase {product['name']} - {product['credits']} credits"
@@ -226,8 +256,8 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
                 "userEmail": user.get("email", ""),
                 "productId": data.productId,
                 "productName": product["name"],
-                "amount": int(amount * 100),  # Store in paise
-                "currency": data.currency.upper(),
+                "amount": int(amount * 100),  # Store in paise/cents
+                "currency": order_currency,
                 "credits": product["credits"],
                 "gateway": "cashfree",
                 "cf_order_id": response.data.cf_order_id,
@@ -246,7 +276,7 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
                 "cfOrderId": response.data.cf_order_id,
                 "paymentSessionId": response.data.payment_session_id,
                 "amount": amount,
-                "currency": data.currency.upper(),
+                "currency": order_currency,
                 "productName": product["name"],
                 "credits": product["credits"],
                 "environment": CASHFREE_ENVIRONMENT.lower()

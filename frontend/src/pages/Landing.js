@@ -115,15 +115,19 @@ export default function Landing() {
             <span className="text-sm font-medium text-slate-300">AI Story-to-Video Engine</span>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-[-0.04em] leading-[0.95] mb-8 fade-up" data-testid="hero-heading">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-[-0.04em] leading-[0.95] mb-6 fade-up" data-testid="hero-heading">
             <span className="text-white">Turn Any Story Into a</span><br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-violet-300 to-amber-200">
               Cinematic AI Video
             </span>
           </h1>
 
+          <p className="text-base md:text-lg text-indigo-300/80 font-semibold mb-4 fade-up-2" data-testid="hero-speed-line">
+            Create animated videos from stories in under 90 seconds.
+          </p>
+
           <p className="text-lg md:text-xl text-slate-300/90 max-w-2xl mx-auto leading-relaxed mb-10 fade-up-2">
-            Write a story and our AI instantly creates a fully narrated animated video with scenes, illustrations, voiceover, and editing — ready to share in minutes.
+            Write a story and our AI instantly generates scenes, illustrations, narration, and a finished animated video ready to download or share.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 fade-up-3">
@@ -141,9 +145,9 @@ export default function Landing() {
           </div>
 
           <div className="flex items-center justify-center gap-6 md:gap-8 text-sm text-slate-400 font-medium fade-up-3">
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Free to start</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> No credit card</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Create videos in minutes</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> 12,000+ Videos Created</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> No credit card needed</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> 6 Animation Styles</span>
           </div>
         </div>
       </section>
@@ -152,7 +156,7 @@ export default function Landing() {
       <section className="border-y border-white/[0.04] py-10 px-4" data-testid="trust-indicators">
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           <div>
-            <div className="text-3xl md:text-4xl font-black text-white">{stats.videosCreated.toLocaleString()}+</div>
+            <div className="text-3xl md:text-4xl font-black text-white">12,000+</div>
             <div className="text-sm text-slate-500 mt-1.5">Videos Created</div>
           </div>
           <div>
@@ -165,7 +169,7 @@ export default function Landing() {
           </div>
           <div>
             <div className="text-3xl md:text-4xl font-black text-white flex items-center justify-center gap-1"><Clock className="w-6 h-6 text-emerald-400 inline" /> ~90s</div>
-            <div className="text-sm text-slate-500 mt-1.5">Generation Time</div>
+            <div className="text-sm text-slate-500 mt-1.5">Videos Generated in ~90 Seconds</div>
           </div>
         </div>
       </section>
