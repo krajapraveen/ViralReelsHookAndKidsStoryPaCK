@@ -127,7 +127,7 @@ export default function Landing() {
           </p>
 
           <p className="text-lg md:text-xl text-slate-300/90 max-w-2xl mx-auto leading-relaxed mb-10 fade-up-2">
-            Write a story and our AI instantly generates scenes, illustrations, narration, and a finished animated video ready to download or share.
+            Write a story and our AI instantly creates a fully narrated animated video with scenes, illustrations, voiceover, and editing — ready to share in minutes.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 fade-up-3">
@@ -145,9 +145,9 @@ export default function Landing() {
           </div>
 
           <div className="flex items-center justify-center gap-6 md:gap-8 text-sm text-slate-400 font-medium fade-up-3">
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> 12,000+ Videos Created</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> No credit card needed</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> 6 Animation Styles</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Free to start</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> No credit card</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Create videos in minutes</span>
           </div>
         </div>
       </section>
@@ -188,9 +188,9 @@ export default function Landing() {
               </h2>
               <div className="space-y-4">
                 {[
-                  'Video editing takes hours of manual work',
-                  'Animation tools are complex and expensive',
-                  'Hiring editors costs hundreds per video',
+                  'Video editing takes hours',
+                  'Animation tools are complex',
+                  'Hiring editors is expensive',
                 ].map((point, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <X className="w-5 h-5 text-red-400/60 flex-shrink-0 mt-0.5" />
@@ -206,10 +206,10 @@ export default function Landing() {
                 <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300">The Solution</span>
               </div>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6 text-white" data-testid="solution-heading">
-                Visionary Suite solves this
+                Visionary-Suite solves this.
               </h2>
               <p className="text-slate-300 leading-relaxed mb-6">
-                Write a story and our AI automatically generates scenes, illustrations, voice narration, and a finished cinematic video. No editing. No design skills. No waiting.
+                Write a story and our AI automatically generates scenes, illustrations, voice narration, and a finished cinematic video.
               </p>
               <div className="space-y-3">
                 {[
@@ -332,9 +332,9 @@ export default function Landing() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { step: '01', icon: PenLine, title: 'Write Your Story', desc: 'Type any story — a bedtime tale, fantasy adventure, educational lesson. Or pick one of our ready-made templates.' },
-              { step: '02', icon: Wand2, title: 'AI Creates the Video', desc: 'Our AI splits your story into scenes, generates illustrations, records voiceover, and renders the final video.' },
-              { step: '03', icon: Download, title: 'Download or Share', desc: 'Your finished video is ready in about 90 seconds. Download it, share on social media, or remix it.' },
+              { step: '01', icon: PenLine, title: 'Write Your Story', desc: 'Type any story — bedtime tale, fantasy, sci-fi, educational. Or pick a ready-made template.' },
+              { step: '02', icon: Wand2, title: 'AI Creates the Video', desc: 'Our AI splits your story into scenes, generates illustrations, records voiceover, and renders everything.' },
+              { step: '03', icon: Download, title: 'Download or Share', desc: 'Your video is ready in about 90 seconds. Download, share on social media, or remix it.' },
             ].map(({ step, icon: Icon, title, desc }) => (
               <div key={step} className="relative">
                 <span className="text-[120px] font-black text-white/[0.02] absolute -top-10 -left-4 select-none leading-none">{step}</span>
@@ -350,6 +350,48 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* ─── 6b. Watch a Story Become a Video ─── */}
+      {showcaseVideos.length > 0 && (
+        <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]" data-testid="demo-video-section">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-400 mb-4">See It In Action</p>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
+              Watch a Story Become a Video
+            </h2>
+            <p className="text-lg text-slate-400 max-w-xl mx-auto mb-10">
+              This entire video was generated from a single story using Visionary Suite.
+            </p>
+
+            <div className="relative group rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden max-w-3xl mx-auto">
+              <div className="relative aspect-video bg-slate-900">
+                <img
+                  src={showcaseVideos[0]?.thumbnail_url}
+                  alt={showcaseVideos[0]?.title || 'Demo video'}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 flex flex-col items-center justify-center gap-4">
+                  <div className="w-20 h-20 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 group-hover:bg-white/25 group-hover:scale-110 transition-all cursor-pointer">
+                    <Play className="w-8 h-8 text-white ml-1" fill="white" />
+                  </div>
+                  <p className="text-white/80 text-sm font-medium">{showcaseVideos[0]?.title || 'AI Generated Story Video'}</p>
+                </div>
+              </div>
+              <div className="p-6 flex items-center justify-between">
+                <div className="text-left">
+                  <p className="text-white font-semibold">{showcaseVideos[0]?.title}</p>
+                  <p className="text-xs text-slate-500 capitalize">{(showcaseVideos[0]?.animation_style || '').replace(/_/g, ' ')} style</p>
+                </div>
+                <Link to={`/signup?prompt=${encodeURIComponent(showcaseVideos[0]?.story_text || '')}`}>
+                  <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-6 py-3 text-sm font-semibold" data-testid="demo-create-btn">
+                    Create Your Version <ArrowRight className="w-4 h-4 ml-1.5" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─── 7. Animation Styles ─── */}
       <section className="py-16 md:py-24 px-4 border-t border-white/[0.04]">
