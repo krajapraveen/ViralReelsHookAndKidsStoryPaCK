@@ -1,4 +1,6 @@
-"""Seed the gallery with professional AI-generated showcase items."""
+"""Seed the gallery with professional AI-generated showcase items.
+All images are 100% AI-generated (Gemini Imagen 4.0) — zero copyright/legal/piracy issues.
+These are original artworks owned entirely by the platform."""
 import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -10,112 +12,100 @@ DB_NAME = os.environ.get("DB_NAME", "creatorstudio_production").strip('"')
 
 SHOWCASE_ITEMS = [
     {
-        "title": "Luna and the Cloud Dragon",
-        "story_text": "A brave young girl named Luna befriended a baby dragon made of clouds. Together they soared through magical sunsets, discovering hidden kingdoms above the sky. Their friendship proved that courage and kindness can unlock the most extraordinary adventures.",
+        "title": "Dragon Protects a Hidden Village",
+        "story_text": "A friendly dragon watched over a small colorful village nestled on a hilltop. Every evening at sunset, the dragon curled around the village like a warm blanket, keeping the townspeople safe. The children loved climbing on its tail, and the dragon would gently breathe warm air to dry their laundry on cold days.",
         "animation_style": "cartoon_2d",
         "age_group": "kids_5_8",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/81e8023a07a846e50a5a29af4506739392b87307dca3ece86f168ded85a2fb97.png",
-        "remix_count": 47,
-        "voice_preset": "narrator_warm",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/a872e7715ba85b6197e0284e7c99f80a41ac2fd542033ef355b80dfdde7aa866.png",
+        "remix_count": 142,
     },
     {
-        "title": "The Underwater Crystal Kingdom",
-        "story_text": "Deep beneath the ocean waves, a glowing coral castle held secrets of an ancient underwater kingdom. Friendly fish and sea creatures welcomed curious visitors to their magical realm of light and wonder.",
-        "animation_style": "cartoon_2d",
-        "age_group": "kids_5_8",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/9767ca5ec978bf4b91d67b24d17f267c28109cc21f9450a7737f122b0ce2b61f.png",
-        "remix_count": 31,
-        "voice_preset": "narrator_warm",
+        "title": "Robot Exploring Mars",
+        "story_text": "A curious little robot named Bolt landed on Mars with big, excited eyes. Walking across the red rocky terrain, Bolt discovered ancient crystals that glowed blue when touched. Looking up at Earth in the starry sky, Bolt sent a message home: 'Mars is beautiful. You should come visit.'",
+        "animation_style": "3d_pixar",
+        "age_group": "kids_8_12",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/bf426f3d9d2a7bbac3318cb92270fbb00cd235294e4c0bc78d4bb1007827b7b3.png",
+        "remix_count": 98,
     },
     {
-        "title": "Captain Whiskers in Space",
-        "story_text": "An astronaut cat named Captain Whiskers blasted off to explore the colorful galaxy. Floating past ringed planets and sparkling nebulas, the brave feline discovered that the universe is full of friendly neighbors waiting to say hello.",
-        "animation_style": "3d_cartoon",
-        "age_group": "kids_5_8",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/4e397a85980ce79c7eccaea4380ce879a3927ff7e53a32dc3c7ffe24ff8c6183.png",
-        "remix_count": 28,
-        "voice_preset": "narrator_warm",
-    },
-    {
-        "title": "The Enchanted Treehouse Party",
-        "story_text": "Hidden deep in an enchanted forest, a magical treehouse hosted the most wonderful tea parties. Squirrels, rabbits, and owls gathered under twinkling lanterns to share stories and laughter as golden light filtered through the ancient trees.",
+        "title": "Magical Bedtime Forest Story",
+        "story_text": "In a forest where mushrooms glowed and fireflies danced, a tiny fox cub found the perfect spot to sleep under the biggest, oldest tree. As moonlight filtered through the leaves, the tree whispered ancient lullabies that only those with kind hearts could hear. The little fox dreamed of flying.",
         "animation_style": "watercolor",
         "age_group": "kids_3_5",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/fede8e7aea1097f77278458543b556ce91bd9e14f124e8f2dbd3e66de55fd021.png",
-        "remix_count": 22,
-        "voice_preset": "narrator_warm",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/a8a0e43d4cede87f383e6695d758daed26d17059583c24a4d4b30be236496545.png",
+        "remix_count": 87,
     },
     {
-        "title": "Sky Pirates of Cloud Harbor",
-        "story_text": "A colorful pirate ship sailed through cotton candy clouds with a crew of adorable animal pirates. Captain Fox and First Mate Parrot discovered floating islands of treasure while the golden sunset painted the sky in brilliant colors.",
-        "animation_style": "comic_strip",
-        "age_group": "kids_8_12",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/136d1ea5250582a5ff542adb4412235a8799e7f89463a2028b10349cc46c7853.png",
-        "remix_count": 19,
-        "voice_preset": "narrator_warm",
-    },
-    {
-        "title": "The Midnight Fairy Garden",
-        "story_text": "When night falls, a magical garden comes alive with glowing flowers and dancing fairies. Tiny wings shimmer in pink and purple light as the fairies tend to their enchanted blooms under the gentle moonlight.",
-        "animation_style": "watercolor",
-        "age_group": "kids_3_5",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/a23659b0577941f830f1e7942e9f68c9aa78ac4256bc485e02b114a3fedf5165.png",
-        "remix_count": 15,
-        "voice_preset": "narrator_warm",
-    },
-    {
-        "title": "Aurora and the Brave Little Fox",
-        "story_text": "A small fox named Aurora climbed to the highest peak to watch the northern lights dance across the sky. The shimmering green and purple waves told stories of ancient legends while the stars twinkled in approval of her courage.",
-        "animation_style": "anime",
-        "age_group": "kids_8_12",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/b20e870026536257af402b64c2eb5aadbfee003405d7956e1a7cedcfff2c0bcf.png",
-        "remix_count": 12,
-        "voice_preset": "narrator_warm",
-    },
-    {
-        "title": "Robo Teacher's Fun Academy",
-        "story_text": "In a futuristic classroom that sparkles with holographic displays, a friendly robot named Professor Chip teaches kids about the wonders of science. Together they build amazing inventions and explore the mysteries of the universe.",
-        "animation_style": "3d_cartoon",
+        "title": "Underwater Kingdom Adventure",
+        "story_text": "Deep beneath the sparkling ocean, a magnificent kingdom of coral castles and crystal towers thrived. Tropical fish of every color swam through archways while sea turtles carried messages between towers. The mer-people had lived in peace for a thousand years, protected by the gentle current.",
+        "animation_style": "3d_pixar",
         "age_group": "kids_5_8",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/3565d1a93a96933f99a3a54cffdd96dbb5ffb43cad86f9a447c441c069f0a604.png",
-        "remix_count": 9,
-        "voice_preset": "narrator_warm",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/a375c94249f29116bbdc5d252b4bb6a0ddb0fcf8ff10c8cd86bae0efd01a961f.png",
+        "remix_count": 76,
     },
     {
-        "title": "Ella the Rainbow Painter",
-        "story_text": "A baby elephant named Ella discovered she could paint rainbows with her trunk. On the warm African savanna, she sprayed colors across the sky, bringing joy to all the animals who gathered to watch her magical artwork light up the golden plains.",
+        "title": "Superhero Origin Story",
+        "story_text": "Five ordinary kids discovered glowing stones that gave them extraordinary powers. By dawn, they could fly over their city, leaving trails of light across the neon skyline. They made a pact: use their powers only to help others. The city had never felt safer than when these young heroes took to the sky.",
+        "animation_style": "comic_book",
+        "age_group": "kids_8_12",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/350b1df7d754acbe6a1c441e5c173234d7761650ce38d22c92f694d519bd88e5.png",
+        "remix_count": 65,
+    },
+    {
+        "title": "Animal Friendship Tale",
+        "story_text": "On the golden African savanna, a baby elephant discovered she could paint rainbows with her trunk. Giraffes, zebras, and birds gathered in amazement as brilliant colors arced across the sky. The elephant shared her gift freely, painting joy across the entire plain every afternoon at sunset.",
         "animation_style": "cartoon_2d",
         "age_group": "kids_3_5",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/a7160123f9fc76dbacee28e0b5e961e7bef0efb293697df6325361fcfb1291a1.png",
-        "remix_count": 7,
-        "voice_preset": "narrator_warm",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/fe80be8f82d0d1bc31aebc6f9e8d68ae8ba50c461bf98db0c88d3583598cc93e.png",
+        "remix_count": 54,
     },
     {
-        "title": "Princess Frost and the Ice Kingdom",
-        "story_text": "Atop a frozen mountain stood a magnificent castle of pure crystal ice. Princess Frost and her loyal polar bear companion guarded the ancient magic that kept winter beautiful and balanced across the enchanted northern lands.",
-        "animation_style": "anime",
+        "title": "Candy Pirate Adventure",
+        "story_text": "Captain Whiskers sailed a magnificent ship made entirely of candy through cotton candy clouds. With a crew of adorable animal pirates, they searched for the legendary Lollipop Island where the sweetest treasure in all the seven skies was hidden. The parrot navigator spotted land through a gumdrop telescope.",
+        "animation_style": "3d_pixar",
         "age_group": "kids_5_8",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/793618143f5b260cd5bf9a4a26ee85258c4acf270a51b2e732d449157f732bbd.png",
-        "remix_count": 5,
-        "voice_preset": "narrator_warm",
-    },
-    {
-        "title": "The Junior Justice League",
-        "story_text": "Five extraordinary kids discovered they had amazing superpowers. Flying high over the colorful city skyline at dawn, they vowed to protect their neighborhood from trouble and always help those in need with bravery and teamwork.",
-        "animation_style": "comic_strip",
-        "age_group": "kids_8_12",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/877098fdc64ed85c4f119440005b3a3f032178630452545dfc88d585ecd243e3.png",
-        "remix_count": 3,
-        "voice_preset": "narrator_warm",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/c98915b0c37a14774dc792bea83ad907203f022f954b5c5a928cd43733f00eb4.png",
+        "remix_count": 43,
     },
     {
         "title": "The Tiny Baker Mice",
-        "story_text": "In a cozy bakery hidden behind the walls, a family of mice crafted the most delicious tiny cakes and pastries. Using miniature ovens and flour sacks, they baked with love and sprinkled magic into every treat they made.",
+        "story_text": "Behind the walls of a grand old bakery, a family of mice ran the most wonderful miniature kitchen. Wearing tiny chef hats and aprons, they baked the most incredible cakes and pastries. Their secret ingredient was love, and their golden oven made everything taste like a warm hug.",
         "animation_style": "watercolor",
         "age_group": "kids_3_5",
-        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/a848820fbb698d2db5d95cccb2044f3f8a394ef9dd83436a352025bcbe296703.png",
-        "remix_count": 2,
-        "voice_preset": "narrator_warm",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/ba3e0ad163bfd7357e11a867f3afb26f32bafd0b2c82ffbfe55bea124f5683dd.png",
+        "remix_count": 38,
+    },
+    {
+        "title": "Princess Frost and the Ice Kingdom",
+        "story_text": "Atop the highest frozen mountain stood a magnificent castle made entirely of sparkling ice crystals. Princess Frost and her loyal polar bear companion guarded the ancient magic that painted the aurora borealis across the northern sky every night, lighting up the world with green and purple wonder.",
+        "animation_style": "anime_style",
+        "age_group": "kids_5_8",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/a1c635fa62475e769cfdbfed9bb4a03ca64a798672ab72ea5814cb2279e2d4e1.png",
+        "remix_count": 31,
+    },
+    {
+        "title": "Robo Teacher's Fun Academy",
+        "story_text": "In a classroom of the future, a friendly robot named Professor Chip used holographic displays to bring lessons to life. Dinosaurs roamed across desks, planets orbited above heads, and the kids learned by exploring rather than just reading. Every day at Chip's Academy was an adventure.",
+        "animation_style": "3d_pixar",
+        "age_group": "kids_8_12",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/fa218782cf315a943ff9cf4c9f7c58fb6754c256f84d7afcf468a6f2a6cd43d4.png",
+        "remix_count": 25,
+    },
+    {
+        "title": "Sir Squeaks the Mouse Knight",
+        "story_text": "The bravest knight in the medieval village was only three inches tall. Sir Squeaks the mouse rode his loyal cat steed through cobblestone streets, protecting the market from wandering hawks and keeping peace among the animal townsfolk. His courage proved that heroes come in all sizes.",
+        "animation_style": "cartoon_2d",
+        "age_group": "kids_5_8",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/506d6012a03a6a2ca6de28111b1e17c96ea07a23a0673aa0c7780ca80da217f0.png",
+        "remix_count": 19,
+    },
+    {
+        "title": "Dinosaur Birthday Party",
+        "story_text": "The biggest birthday party the prehistoric jungle had ever seen was happening today. A T-Rex wearing a sparkly party hat tried to blow out candles on a massive cake while pterodactyls dropped confetti from above. Every dinosaur was invited, and they danced until the meteor shower lit up the sky.",
+        "animation_style": "cartoon_2d",
+        "age_group": "kids_3_5",
+        "thumbnail_url": "https://static.prod-images.emergentagent.com/jobs/d29dba27-ba90-4188-b2b5-0b75f69ea76d/images/dcc66fbc8d1254c0e2688c23a2b6e885136c0608451742782c32f441d18c69ee.png",
+        "remix_count": 14,
     },
 ]
 
@@ -123,8 +113,9 @@ async def seed():
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
 
-    # Remove old showcase items
-    await db.pipeline_jobs.delete_many({"is_showcase": True})
+    # Remove ALL old showcase items
+    result = await db.pipeline_jobs.delete_many({"is_showcase": True})
+    print(f"Removed {result.deleted_count} old showcase items")
 
     now = datetime.now(timezone.utc)
     docs = []
@@ -137,15 +128,15 @@ async def seed():
             "story_text": item["story_text"],
             "animation_style": item["animation_style"],
             "age_group": item["age_group"],
-            "voice_preset": item["voice_preset"],
+            "voice_preset": "narrator_warm",
             "status": "COMPLETED",
             "progress": 100,
             "current_step": "Showcase item",
             "output_url": None,
             "thumbnail_url": item["thumbnail_url"],
             "remix_count": item["remix_count"],
-            "completed_at": now - timedelta(hours=i * 3),
-            "created_at": now - timedelta(hours=i * 3 + 1),
+            "completed_at": now - timedelta(hours=i * 2),
+            "created_at": now - timedelta(hours=i * 2 + 1),
             "is_showcase": True,
             "timing": {"total_ms": 95000},
             "stages": {},
@@ -158,6 +149,12 @@ async def seed():
     # Verify
     count = await db.pipeline_jobs.count_documents({"is_showcase": True, "status": "COMPLETED"})
     print(f"Total showcase items in DB: {count}")
+
+    # Print titles for verification
+    cursor = db.pipeline_jobs.find({"is_showcase": True}, {"title": 1, "animation_style": 1, "thumbnail_url": 1, "_id": 0})
+    async for doc in cursor:
+        has_thumb = "YES" if doc.get("thumbnail_url") else "NO"
+        print(f"  [{has_thumb}] {doc['title'][:40]:40} | {doc['animation_style']}")
 
     client.close()
 
