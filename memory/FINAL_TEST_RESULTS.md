@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://engagement-loop-core.preview.emergentagent.com
+**Website:** https://auth-photo-comic.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

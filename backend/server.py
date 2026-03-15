@@ -305,7 +305,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://engagement-loop-core.preview.emergentagent.com",
+    "https://auth-photo-comic.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
@@ -817,6 +817,45 @@ async def startup():
             }}
         )
         logger.info("Demo user credits verified (password preserved)")
+    
+    # ==================== GALLERY SEED ====================
+    # Seed showcase gallery items if none exist (production-safe: runs only when empty)
+    try:
+        showcase_count = await db.pipeline_jobs.count_documents({"is_showcase": True})
+        if showcase_count == 0:
+            logger.info("No showcase items found — seeding gallery...")
+            from scripts.seed_gallery import SHOWCASE_ITEMS
+            from datetime import timedelta
+            now = datetime.now(timezone.utc)
+            docs = []
+            for i, item in enumerate(SHOWCASE_ITEMS):
+                docs.append({
+                    "job_id": str(uuid.uuid4()),
+                    "user_id": "showcase",
+                    "title": item["title"],
+                    "story_text": item["story_text"],
+                    "animation_style": item["animation_style"],
+                    "age_group": item["age_group"],
+                    "voice_preset": "narrator_warm",
+                    "status": "COMPLETED",
+                    "progress": 100,
+                    "current_step": "Showcase item",
+                    "output_url": None,
+                    "thumbnail_url": item["thumbnail_url"],
+                    "remix_count": item.get("remix_count", 0),
+                    "completed_at": now - timedelta(hours=i * 2),
+                    "created_at": now - timedelta(hours=i * 2 + 1),
+                    "is_showcase": True,
+                    "timing": {"total_ms": 95000},
+                    "stages": {},
+                })
+            if docs:
+                await db.pipeline_jobs.insert_many(docs)
+                logger.info(f"Gallery seeded with {len(docs)} showcase items")
+        else:
+            logger.info(f"Gallery already has {showcase_count} showcase items")
+    except Exception as e:
+        logger.warning(f"Gallery seed warning: {e}")
     
     # Give 100 free credits to all existing users who have less than 100 credits
     # This is a one-time bonus for production go-live

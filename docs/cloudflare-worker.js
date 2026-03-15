@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://engagement-loop-core.preview.emergentagent.com';
+const BACKEND_URL = 'https://auth-photo-comic.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

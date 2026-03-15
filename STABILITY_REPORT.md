@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://engagement-loop-core.preview.emergentagent.com
+API URL: https://auth-photo-comic.preview.emergentagent.com
 ```
 
 ### Results Summary

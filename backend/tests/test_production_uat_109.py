@@ -7,7 +7,7 @@ import requests
 import os
 
 # Use production backend URL
-BASE_URL = "https://engagement-loop-core.preview.emergentagent.com"
+BASE_URL = "https://auth-photo-comic.preview.emergentagent.com"
 
 class TestAPIHealth:
     """API Health and Basic Connectivity Tests"""

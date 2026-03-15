@@ -3,7 +3,7 @@
 **Date:** March 8, 2026  
 **Auditor:** E1 Agent  
 **Production URL:** https://www.visionary-suite.com  
-**Preview URL:** https://engagement-loop-core.preview.emergentagent.com
+**Preview URL:** https://auth-photo-comic.preview.emergentagent.com
 
 ---
 

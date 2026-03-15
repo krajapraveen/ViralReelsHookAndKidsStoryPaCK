@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://engagement-loop-core.preview.emergentagent.com
+**Environment:** https://auth-photo-comic.preview.emergentagent.com
 
 ---
 

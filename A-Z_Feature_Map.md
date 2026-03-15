@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Purpose**: Master checklist for Phase 1-7 QA & Performance Testing  
-**Base URL**: https://engagement-loop-core.preview.emergentagent.com
+**Base URL**: https://auth-photo-comic.preview.emergentagent.com
 
 ---
 

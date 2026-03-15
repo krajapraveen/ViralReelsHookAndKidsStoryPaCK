@@ -8,7 +8,7 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL')
 if not BASE_URL:
-    BASE_URL = "https://engagement-loop-core.preview.emergentagent.com"
+    BASE_URL = "https://auth-photo-comic.preview.emergentagent.com"
 
 # Test credentials
 ADMIN_CREDS = {"email": "admin@creatorstudio.ai", "password": "Cr3@t0rStud!o#2026"}

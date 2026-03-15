@@ -2,7 +2,7 @@
 # CreatorStudio AI - Security Scan Script
 # Run: chmod +x security_scan.sh && ./security_scan.sh
 
-API_URL="${1:-https://engagement-loop-core.preview.emergentagent.com}"
+API_URL="${1:-https://auth-photo-comic.preview.emergentagent.com}"
 echo "=========================================="
 echo "🔒 CreatorStudio AI Security Scan"
 echo "=========================================="

@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://engagement-loop-core.preview.emergentagent.com/  
+**URL Tested:** https://auth-photo-comic.preview.emergentagent.com/  
 **Environment:** Desktop Chrome + Mobile Responsive (375px)
 
 ---

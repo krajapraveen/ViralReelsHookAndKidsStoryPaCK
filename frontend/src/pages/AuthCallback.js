@@ -15,11 +15,17 @@ export default function AuthCallback({ setAuth }) {
 
     const processAuth = async () => {
       try {
-        const hash = location.hash;
-        const sessionIdMatch = hash.match(/session_id=([^&]+)/);
+        // Extract session_id from hash or query params (support both formats)
+        const hash = location.hash || '';
+        const search = location.search || '';
+        const fullFragment = hash + '&' + search;
+        
+        const sessionIdMatch = fullFragment.match(/session_id=([^&]+)/) 
+          || fullFragment.match(/sessionId=([^&]+)/);
         
         if (!sessionIdMatch) {
-          toast.error('No session ID found');
+          console.error('Auth callback: No session_id found in URL', { hash, search });
+          toast.error('Authentication failed. Please try again.');
           navigate('/login');
           return;
         }
@@ -29,6 +35,12 @@ export default function AuthCallback({ setAuth }) {
         // Exchange session_id for user data
         const response = await api.post('/api/auth/google-callback', { sessionId });
         const { user, token } = response.data;
+        
+        if (!token || !user) {
+          toast.error('Authentication failed. Invalid response from server.');
+          navigate('/login');
+          return;
+        }
         
         // Store token
         localStorage.setItem('token', token);
@@ -50,8 +62,9 @@ export default function AuthCallback({ setAuth }) {
         navigate('/app', { replace: true });
         
       } catch (error) {
-        console.error('Auth error:', error);
-        toast.error('Authentication failed: ' + (error.response?.data?.message || error.message));
+        console.error('Auth callback error:', error?.response?.data || error);
+        const detail = error?.response?.data?.detail || error?.response?.data?.message || 'Please try again.';
+        toast.error('Google sign-in failed: ' + detail);
         navigate('/login');
       }
     };

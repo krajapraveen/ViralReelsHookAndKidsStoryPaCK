@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
  * Test Suite 1: Public Pages & Authentication
  */
 
-const BASE_URL = 'https://engagement-loop-core.preview.emergentagent.com';
+const BASE_URL = 'https://auth-photo-comic.preview.emergentagent.com';
 
 // Test credentials
 const DEMO_USER = {

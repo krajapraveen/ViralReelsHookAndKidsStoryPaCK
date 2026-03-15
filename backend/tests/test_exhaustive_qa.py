@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://engagement-loop-core.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://auth-photo-comic.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}

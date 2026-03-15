@@ -22,10 +22,11 @@ import WaitingWithGames from '../components/WaitingWithGames';
 import analytics from '../utils/analytics';
 
 export default function ReelGenerator() {
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(null);
+  const [creditsLoaded, setCreditsLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [isFreeTier, setIsFreeTier] = useState(true);
+  const [isFreeTier, setIsFreeTier] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
@@ -109,7 +110,10 @@ export default function ReelGenerator() {
       setCredits(data.balance ?? data.credits ?? 0);
       setIsFreeTier(data.isFreeTier ?? (data.plan === 'free'));
     } catch (error) {
+      setCredits(0);
       toast.error('Failed to load credits');
+    } finally {
+      setCreditsLoaded(true);
     }
   };
 
@@ -123,7 +127,7 @@ export default function ReelGenerator() {
       return;
     }
     
-    if (credits < 1) {
+    if ((credits ?? 0) < 1) {
       toast.error('Insufficient credits! Please buy more.');
       navigate('/pricing');
       return;
@@ -219,7 +223,7 @@ export default function ReelGenerator() {
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2">
               <Coins className="w-4 h-4 text-indigo-400" />
-              <span className="font-semibold text-indigo-300 text-sm sm:text-base">{credits}</span>
+              <span className="font-semibold text-indigo-300 text-sm sm:text-base">{credits ?? '...'}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="reel-logout-btn">
               <LogOut className="w-4 h-4" />
@@ -230,10 +234,10 @@ export default function ReelGenerator() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Upgrade Banners */}
-        {credits === 0 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="exhausted" />}
-        {credits > 0 && credits <= 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="low" />}
-        {isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
+        {/* Upgrade Banners - only show after credits have loaded to prevent flash */}
+        {creditsLoaded && credits === 0 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="exhausted" />}
+        {creditsLoaded && credits > 0 && credits <= 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="low" />}
+        {creditsLoaded && isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
 
         <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Input Form */}
