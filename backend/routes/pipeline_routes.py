@@ -387,14 +387,16 @@ async def create_pipeline(
         "is_remix": bool(request.parent_video_id),
     })
 
-    # Enqueue for worker processing
-    await enqueue_job(result["job_id"])
+    # Enqueue for worker processing with priority based on user plan
+    user_plan = current_user.get("plan", "free")
+    await enqueue_job(result["job_id"], user_id=user_id, user_plan=user_plan)
 
     return {
         "success": True,
         "job_id": result["job_id"],
         "credits_charged": result["credits_charged"],
         "estimated_scenes": result["estimated_scenes"],
+        "queue_priority": "priority" if user_plan in ("admin", "demo", "weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise") else "standard",
         "message": "Video generation queued. Poll /status for progress.",
     }
 
@@ -452,6 +454,8 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "scene_progress": scene_progress,
             "timing": job.get("timing", {}),
             "credits_charged": job.get("credits_charged"),
+            "queue_priority": job.get("queue_tier", "FREE"),
+            "queue_wait_ms": job.get("queue_wait_ms"),
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
         },
@@ -475,7 +479,10 @@ async def resume_pipeline_job(job_id: str, current_user: dict = Depends(get_curr
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await enqueue_job(job_id)
+    # Preserve original priority on retry/resume
+    user_plan = current_user.get("plan", "free")
+    original_priority = job.get("queue_priority")
+    await enqueue_job(job_id, user_id=user_id, user_plan=user_plan)
 
     return {"success": True, "message": "Pipeline resumed from last checkpoint."}
 

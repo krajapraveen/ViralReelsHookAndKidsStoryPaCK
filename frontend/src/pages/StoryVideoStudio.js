@@ -98,6 +98,8 @@ export default function StoryVideoStudio() {
   
   // NEW: Waiting Games state
   const [showGames, setShowGames] = useState(false);
+  // Queue priority badge
+  const [queuePriority, setQueuePriority] = useState(null);
   const [triviaQuestions, setTriviaQuestions] = useState([]);
   const [currentTriviaIndex, setCurrentTriviaIndex] = useState(0);
   const [triviaScore, setTriviaScore] = useState(0);
@@ -807,6 +809,10 @@ export default function StoryVideoStudio() {
       
       if (res.data.success) {
         setRenderJob(res.data);
+        // Capture queue priority from initial response
+        if (res.data.queue_priority) {
+          setQueuePriority(res.data.queue_priority);
+        }
         toast.success('Video rendering started!');
         // Start polling for status
         pollRenderStatus(res.data.job_id);
@@ -830,6 +836,11 @@ export default function StoryVideoStudio() {
           const job = res.data.job;
           setRenderJob(job);
           setGenerationProgress(job.progress || 0);
+          
+          // Capture queue priority for badge display
+          if (job.queue_priority && !queuePriority) {
+            setQueuePriority(job.queue_priority);
+          }
           
           // Detect stale/stuck progress
           if (job.progress === lastProgress && job.status === 'PROCESSING') {
@@ -971,6 +982,7 @@ export default function StoryVideoStudio() {
             <WaitingExperience 
               progress={generationProgress}
               stage={generationStage}
+              queuePriority={queuePriority}
               message={
                 generationStage === 'scene_generation' ? (
                   generationProgress < 30 ? 'Analyzing your story...' :

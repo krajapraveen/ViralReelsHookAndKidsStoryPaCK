@@ -61,7 +61,8 @@ export default function WaitingExperience({
   estimatedTime = null,
   onRetry = null,
   isStalled = false,
-  stallDuration = 0
+  stallDuration = 0,
+  queuePriority = null,
 }) {
   const [currentQuote, setCurrentQuote] = useState(QUOTES[0]);
   const [activeGame, setActiveGame] = useState(null);
@@ -229,6 +230,15 @@ export default function WaitingExperience({
           <div className="flex items-center gap-2">
             <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
             <span className="text-white font-medium">{message}</span>
+            {queuePriority && queuePriority !== 'FREE' && (
+              <span 
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                data-testid="priority-queue-badge"
+              >
+                <Zap className="w-3 h-3" />
+                Priority Queue
+              </span>
+            )}
           </div>
           <span className="text-purple-400 font-bold">{Math.round(progress)}%</span>
         </div>

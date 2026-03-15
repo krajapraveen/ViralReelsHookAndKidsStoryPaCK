@@ -1490,6 +1490,11 @@ async def assemble_video(
             detail=f"Some files are missing and need to be regenerated: {', '.join(missing_files[:5])}{'...' if len(missing_files) > 5 else ''}. Please regenerate images/voices for this project."
         )
     
+    # Determine queue priority from user plan
+    user_plan = str(current_user.get("plan", "free")).lower()
+    paid_plans = ["weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise", "admin", "demo"]
+    queue_tier = "ADMIN" if user_plan in ("admin", "demo") else "PAID" if user_plan in paid_plans else "FREE"
+    
     # Create render job
     job_id = str(uuid.uuid4())
     render_job = {
@@ -1501,6 +1506,9 @@ async def assemble_video(
         "background_music_id": request.background_music_id,
         "music_volume": request.music_volume,
         "created_at": datetime.now(timezone.utc),
+        "queued_at": datetime.now(timezone.utc),
+        "queue_tier": queue_tier,
+        "queue_priority": 0 if user_plan in ("admin", "demo") else 1 if user_plan in paid_plans else 10,
         "progress": 0
     }
     
@@ -1524,6 +1532,7 @@ async def assemble_video(
         "job_id": job_id,
         "project_id": request.project_id,
         "status": "PENDING",
+        "queue_priority": queue_tier,
         "message": "Video rendering started. Check status with /video/status/{job_id}",
         "credits_spent": total_cost
     }
