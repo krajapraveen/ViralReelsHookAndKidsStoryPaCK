@@ -536,6 +536,9 @@ api_router.include_router(engagement_analytics_router)
 from routes.ttfd_analytics import router as ttfd_analytics_router
 api_router.include_router(ttfd_analytics_router)
 
+from routes.public_routes import router as public_router
+api_router.include_router(public_router)
+
 
 
 

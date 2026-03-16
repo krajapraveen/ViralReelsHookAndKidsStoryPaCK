@@ -28,6 +28,22 @@ function proxyUrl(url) {
   return url;
 }
 
+// Draw watermark branding on canvas
+function drawWatermark(ctx, W, H) {
+  const text = 'Created with Visionary Suite AI  |  visionary-suite.com';
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.font = '12px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  // Semi-transparent bar at bottom
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.fillRect(0, H - 28, W, 28);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.fillText(text, W / 2, H - 8);
+  ctx.restore();
+}
+
 function detectExportMode() {
   const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
   const canWebM = hasMediaRecorder && MediaRecorder.isTypeSupported?.('video/webm;codecs=vp8,opus');
@@ -337,6 +353,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
         const sw = img.naturalWidth * scale;
         const sh = img.naturalHeight * scale;
         ctx.drawImage(img, (W - sw) / 2, (H - sh) / 2, sw, sh);
+        drawWatermark(ctx, W, H);
         framesRendered++;
       } else {
         // Draw placeholder with scene number
@@ -381,6 +398,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
           ctx.textAlign = 'center';
           ctx.fillText(`Scene ${i + 1}`, W / 2, H / 2);
         }
+        drawWatermark(ctx, W, H);
         await sleep(frameInterval);
       }
 

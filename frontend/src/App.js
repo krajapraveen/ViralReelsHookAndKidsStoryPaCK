@@ -124,6 +124,9 @@ import PromoVideos from './pages/PromoVideos';
 // LIVE CHAT WIDGET
 import LiveChatWidget from './components/LiveChatWidget';
 import CookieConsent from './components/CookieConsent';
+// DISTRIBUTION LOOP
+import ExplorePage from './pages/ExplorePage';
+import PublicCreation from './pages/PublicCreation';
 import './App.css';
 
 function App() {
@@ -163,6 +166,8 @@ function App() {
         {/* Public Share Page - No auth required */}
         <Route path="/share/:shareId" element={<SharePage />} />
         <Route path="/gallery" element={<Gallery />} />
+        <Route path="/explore" element={<ExplorePage />} />
+        <Route path="/v/:slug" element={<PublicCreation />} />
         
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />

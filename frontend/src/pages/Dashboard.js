@@ -41,34 +41,24 @@ const INTENT_MAP = [
 ];
 
 /* ─── Creation Modes ─── */
-const CREATE_TOOLS = [
-  { name: 'Story Video', desc: 'Cinematic AI video with voice', route: '/app/story-video-studio', icon: Film, cost: '50 cr', accent: 'from-violet-500 to-indigo-600' },
-  { name: 'Reel Generator', desc: 'Viral hooks & scripts', route: '/app/reels', icon: Video, cost: '10 cr', accent: 'from-pink-500 to-rose-600' },
-  { name: 'Photo to Comic', desc: 'Transform any photo', route: '/app/photo-to-comic', icon: ImageIcon, cost: '15 cr', accent: 'from-amber-500 to-orange-600' },
-  { name: 'Comic Storybook', desc: 'Multi-page comic', route: '/app/comic-storybook', icon: Library, cost: '25 cr', accent: 'from-emerald-500 to-teal-600' },
-  { name: 'Bedtime Stories', desc: 'Magical tales for kids', route: '/app/bedtime-story-builder', icon: Moon, cost: '10 cr', accent: 'from-blue-500 to-cyan-600' },
-  { name: 'Reaction GIF', desc: 'Memes & reactions', route: '/app/gif-maker', icon: Zap, cost: '8 cr', accent: 'from-red-500 to-orange-600' },
-];
+const HERO_TOOL = { name: 'Story Video', desc: 'Turn any idea into a cinematic AI video with scenes, illustrations, voiceover, and music — ready in minutes.', route: '/app/story-video-studio', icon: Film, cost: '50 cr', accent: 'from-violet-500 to-indigo-600' };
 
-const REMIX_TOOLS = [
-  { name: 'Story to Video', desc: 'Turn any story into video', route: '/app/story-video-studio', icon: Film, accent: 'from-violet-500 to-purple-600' },
-  { name: 'Photo to Comic', desc: 'Photo into comic panels', route: '/app/photo-to-comic', icon: ImageIcon, accent: 'from-pink-500 to-rose-600' },
-  { name: 'Caption Rewriter', desc: 'Rewrite in any tone', route: '/app/caption-rewriter', icon: RefreshCcw, accent: 'from-cyan-500 to-blue-600' },
-  { name: 'Tone Switcher', desc: 'Change content tone', route: '/app/tone-switcher', icon: Wand2, accent: 'from-amber-500 to-yellow-600' },
-];
-
-const PUBLISH_TOOLS = [
-  { name: 'Gallery', desc: 'Public showcase', route: '/gallery', icon: Globe, accent: 'from-indigo-500 to-blue-600' },
-  { name: 'Story Hooks', desc: 'Viral opening lines', route: '/app/story-hook-generator', icon: Zap, accent: 'from-orange-500 to-red-600' },
+const MORE_TOOLS = [
+  { name: 'Reel Generator', desc: 'Viral hooks & scripts', route: '/app/reels', icon: Video, accent: 'from-pink-500 to-rose-600' },
+  { name: 'Photo to Comic', desc: 'Transform any photo', route: '/app/photo-to-comic', icon: ImageIcon, accent: 'from-amber-500 to-orange-600' },
+  { name: 'Comic Storybook', desc: 'Multi-page comic', route: '/app/comic-storybook', icon: Library, accent: 'from-emerald-500 to-teal-600' },
+  { name: 'Bedtime Stories', desc: 'Magical tales for kids', route: '/app/bedtime-story-builder', icon: Moon, accent: 'from-blue-500 to-cyan-600' },
+  { name: 'Reaction GIF', desc: 'Memes & reactions', route: '/app/gif-maker', icon: Zap, accent: 'from-red-500 to-orange-600' },
+  { name: 'Caption Rewriter', desc: 'Rewrite in any tone', route: '/app/caption-rewriter', icon: Type, accent: 'from-cyan-500 to-blue-600' },
   { name: 'Brand Story', desc: 'Complete narrative', route: '/app/brand-story-builder', icon: Sparkles, accent: 'from-purple-500 to-pink-600' },
-  { name: 'Daily Viral Ideas', desc: 'Trending prompts', route: '/app/daily-viral-ideas', icon: TrendingUp, accent: 'from-emerald-500 to-teal-600' },
+  { name: 'Daily Viral Ideas', desc: 'Trending prompts', route: '/app/daily-viral-ideas', icon: TrendingUp, accent: 'from-teal-500 to-emerald-600' },
 ];
 
 const SUGGESTION_CHIPS = [
-  { text: 'Create a viral Instagram reel', icon: Video },
+  { text: 'Create a kids story video', icon: Film },
+  { text: 'Luxury lifestyle reel', icon: Video },
+  { text: 'Dragon fantasy animation', icon: Sparkles },
   { text: 'Turn photo into comic', icon: ImageIcon },
-  { text: 'Create kids story video', icon: Film },
-  { text: 'Generate YouTube shorts script', icon: Play },
 ];
 
 export default function Dashboard() {
@@ -78,7 +68,6 @@ export default function Dashboard() {
   const [showDailyRewards, setShowDailyRewards] = useState(false);
   const [promptText, setPromptText] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [activeMode, setActiveMode] = useState('create');
   const [engagement, setEngagement] = useState(null);
   const [trending, setTrending] = useState([]);
   const navigate = useNavigate();
@@ -157,8 +146,6 @@ export default function Dashboard() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
   const creditPercent = useMemo(() => credits >= 999999 ? 100 : Math.min(100, Math.round((credits / 500) * 100)), [credits]);
   const streakDays = engagement?.streak?.current || 0;
-
-  const modeTools = activeMode === 'create' ? CREATE_TOOLS : activeMode === 'remix' ? REMIX_TOOLS : PUBLISH_TOOLS;
 
   return (
     <div className="vs-page" data-testid="dashboard-page">
@@ -290,49 +277,47 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ═══════ CREATION MODES ═══════ */}
+        {/* ═══════ HERO CREATION ═══════ */}
         <div className="vs-fade-up-2 vs-section" data-testid="creation-modes-section">
-          {/* Mode tabs */}
-          <div className="flex items-center justify-center gap-1 mb-6">
-            {[
-              { key: 'create', label: 'Create', icon: Sparkles },
-              { key: 'remix', label: 'Remix', icon: RefreshCcw },
-              { key: 'publish', label: 'Publish', icon: Share2 },
-            ].map((mode) => (
-              <button
-                key={mode.key}
-                onClick={() => setActiveMode(mode.key)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-[var(--vs-btn-radius)] text-sm font-medium transition-all ${
-                  activeMode === mode.key
-                    ? 'bg-[var(--vs-cta)] text-white shadow-lg shadow-purple-500/20'
-                    : 'text-[var(--vs-text-muted)] hover:text-white hover:bg-white/[0.04] border border-transparent'
-                }`}
-                style={{ fontFamily: 'var(--vs-font-body)' }}
-                data-testid={`mode-tab-${mode.key}`}
-              >
-                <mode.icon className="w-4 h-4" />
-                {mode.label}
+          {/* Story Video — The Hero */}
+          <Link to={HERO_TOOL.route}>
+            <div className="vs-card group cursor-pointer flex flex-col sm:flex-row items-center gap-6 p-6 mb-6 hover:border-[var(--vs-border-glow)] vs-glow-pulse" data-testid="hero-tool-card">
+              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${HERO_TOOL.accent} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform`}>
+                <HERO_TOOL.icon className="w-8 h-8 text-white" />
+              </div>
+              <div className="flex-1 text-center sm:text-left">
+                <h2 className="vs-h2 mb-1" style={{ fontFamily: 'var(--vs-font-heading)' }}>{HERO_TOOL.name}</h2>
+                <p className="text-[var(--vs-text-secondary)] text-sm leading-relaxed" style={{ fontFamily: 'var(--vs-font-body)' }}>{HERO_TOOL.desc}</p>
+              </div>
+              <button className="vs-btn-primary h-12 px-8 text-base font-semibold flex-shrink-0">
+                <Wand2 className="w-4 h-4" /> Create Video
               </button>
-            ))}
-          </div>
+            </div>
+          </Link>
 
-          {/* Tool grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="creation-tools-grid">
-            {modeTools.map((tool) => (
-              <Link key={tool.route + tool.name} to={tool.route}>
-                <div className="vs-card group cursor-pointer h-full" data-testid={`tool-card-${tool.name.replace(/\s/g, '-').toLowerCase()}`}>
-                  <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${tool.accent} flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
-                    <tool.icon className="w-5 h-5 text-white" />
+          {/* More Tools — collapsed grid */}
+          <details className="group" data-testid="more-tools-section">
+            <summary className="flex items-center gap-2 text-sm text-[var(--vs-text-muted)] cursor-pointer hover:text-white transition-colors mb-3 list-none">
+              <ChevronRight className="w-4 h-4 group-open:rotate-90 transition-transform" />
+              <span style={{ fontFamily: 'var(--vs-font-heading)' }}>More Tools</span>
+              <span className="text-xs text-[var(--vs-text-muted)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>{MORE_TOOLS.length}</span>
+            </summary>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="more-tools-grid">
+              {MORE_TOOLS.map(tool => (
+                <Link key={tool.route + tool.name} to={tool.route}>
+                  <div className="vs-card group cursor-pointer h-full py-3 px-3">
+                    <div className="flex items-center gap-2.5 mb-1.5">
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${tool.accent} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform`}>
+                        <tool.icon className="w-4 h-4 text-white" />
+                      </div>
+                      <h3 className="text-sm font-semibold text-white truncate" style={{ fontFamily: 'var(--vs-font-heading)' }}>{tool.name}</h3>
+                    </div>
+                    <p className="text-xs text-[var(--vs-text-muted)] pl-[42px]">{tool.desc}</p>
                   </div>
-                  <h3 className="text-sm font-semibold text-white mb-0.5" style={{ fontFamily: 'var(--vs-font-heading)' }}>{tool.name}</h3>
-                  <p className="text-xs text-[var(--vs-text-muted)] leading-relaxed">{tool.desc}</p>
-                  {tool.cost && (
-                    <span className="inline-block mt-2 text-xs text-[var(--vs-text-accent)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>{tool.cost}</span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          </details>
         </div>
 
         {/* ═══════ 2-COLUMN: RECENT + SIDEBAR ═══════ */}

@@ -208,9 +208,17 @@ async def create_pipeline_job(
             "outputs": {},
         }
 
+    # Generate URL slug for public sharing
+    import re
+    slug_base = re.sub(r'[^\w\s-]', '', title.lower().strip())
+    slug_base = re.sub(r'[\s_]+', '-', slug_base)
+    slug_base = re.sub(r'-+', '-', slug_base)[:60].strip('-')
+    slug = f"{slug_base}-{job_id[:8]}" if slug_base else job_id[:12]
+
     job_doc = {
         "job_id": job_id,
         "user_id": user_id,
+        "slug": slug,
         "title": title,
         "story_text": story_text,
         "animation_style": animation_style,
@@ -234,6 +242,8 @@ async def create_pipeline_job(
         "output_url": None,
         "error": None,
         "timing": {},
+        "views": 0,
+        "remix_count": 0,
         "created_at": datetime.now(timezone.utc),
         "started_at": None,
         "completed_at": None,
