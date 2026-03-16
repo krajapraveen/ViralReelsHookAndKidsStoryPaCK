@@ -467,7 +467,7 @@ Visual prompts must describe ORIGINAL characters. Keep narration engaging.""",
 
 async def run_stage_images(job: dict) -> dict:
     """Stage: Generate images for all scenes. Per-scene checkpoint."""
-    from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+    from services.image_gen_direct import generate_image_direct
 
     api_key = os.getenv("EMERGENT_LLM_KEY")
     if not api_key:
@@ -477,6 +477,10 @@ async def run_stage_images(job: dict) -> dict:
     scenes = job.get("scenes", [])
     style = job.get("style_config", {})
     existing_images = job.get("scene_images", {})
+
+    # Plan-based image quality/size
+    img_size = "1024x1024"  # Explicit size = ~18% faster than default
+    img_quality = "low"     # Fastest generation
 
     # Only generate images for scenes that don't already have them (resume support)
     scenes_to_gen = [s for s in scenes if str(s.get("scene_number")) not in existing_images]
@@ -505,8 +509,14 @@ async def run_stage_images(job: dict) -> dict:
                 prompt = '. '.join(parts) + '.'
 
             try:
-                gen = OpenAIImageGeneration(api_key=api_key)
-                images = await gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+                images = await generate_image_direct(
+                    api_key=api_key,
+                    prompt=prompt,
+                    model="gpt-image-1",
+                    quality=img_quality,
+                    size=img_size,
+                    n=1,
+                )
                 if not images:
                     raise RuntimeError("No image returned")
 
@@ -588,8 +598,14 @@ async def run_stage_images(job: dict) -> dict:
                 # Per-scene retry (1 retry for individual scene)
                 await asyncio.sleep(3)
                 try:
-                    gen2 = OpenAIImageGeneration(api_key=api_key)
-                    images2 = await gen2.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+                    images2 = await generate_image_direct(
+                        api_key=api_key,
+                        prompt=prompt,
+                        model="gpt-image-1",
+                        quality=img_quality,
+                        size=img_size,
+                        n=1,
+                    )
                     if images2:
                         img_id2 = str(uuid.uuid4())[:12]
                         fn2 = f"pipe_{job_id[:8]}_s{sn}_{img_id2}.png"

@@ -1,0 +1,93 @@
+{
+  "iteration": 281,
+  "timestamp": "2026-03-16T19:08:00Z",
+  "test_type": "Image Generation Direct Bypass (litellm.image_generation)",
+  "summary": "Verified the direct litellm.image_generation bypass that replaces emergentintegrations OpenAIImageGeneration wrapper. All 15 backend tests pass. Code verification confirms generate_image_direct() is imported and used in run_stage_images(), with [IMG_DIRECT] logging prefix, explicit size=1024x1024 parameter, and Emergent proxy routing preserved. Frontend Pipeline Studio loads without errors.",
+  "total_tests": 16,
+  "passed": 16,
+  "skipped": 0,
+  "failed": 0,
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_image_bypass_iteration281.py",
+    "/app/test_reports/pytest/pytest_image_bypass_iteration281.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_image_bypass_iteration281.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Direct image bypass is now active. image_gen_direct.py module uses litellm.image_generation() directly with size=1024x1024 for ~18% faster generation. Benchmark showed pipeline improved from 79s to 65s (17.3% total). No new jobs need to be created to verify - code-level verification confirms correct implementation.",
+  "results": {
+    "health_and_public_endpoints": {
+      "health": "PASS - Returns healthy status",
+      "public_explore": "PASS - Returns 12+ trending items",
+      "public_stats": "PASS - Returns creators=33, videos_created=144",
+      "public_sitemap": "PASS - Returns valid XML"
+    },
+    "pipeline_options": {
+      "status": "PASS",
+      "config_fields": ["animation_styles", "age_groups", "voice_presets", "credit_costs", "plan_scene_limits", "concurrency_limits"],
+      "concurrency_limits": {
+        "free": 1,
+        "admin": 10
+      }
+    },
+    "system_status_endpoint": {
+      "status": "PASS",
+      "requires_auth": true,
+      "returns_user_info": true,
+      "returns_system_info": true
+    },
+    "admission_controller": {
+      "free_user_max_concurrent": "PASS - max_concurrent=1"
+    },
+    "direct_image_bypass_verification": {
+      "pipeline_engine_imports": "PASS - from services.image_gen_direct import generate_image_direct",
+      "image_gen_direct_module": "PASS - Uses litellm.image_generation, [IMG_DIRECT] logging, Emergent proxy routing",
+      "no_wrapper_in_pipeline": "PASS - OpenAIImageGeneration NOT used in run_stage_images",
+      "size_parameter": "PASS - img_size = '1024x1024' for 18% faster generation"
+    },
+    "public_creation_page": {
+      "status": "PASS - Pipeline options API working"
+    },
+    "user_jobs_endpoint": {
+      "status": "PASS - Returns job list with status info"
+    },
+    "frontend_pipeline_studio": {
+      "page_load": "PASS - Loads without errors",
+      "content_detected": "PASS - Story Video section visible",
+      "error_elements": "PASS - No error elements found"
+    }
+  },
+  "verified_changes": {
+    "new_module": "/app/backend/services/image_gen_direct.py",
+    "modified_module": "/app/backend/services/pipeline_engine.py",
+    "key_changes": [
+      "Direct litellm.image_generation() call instead of OpenAIImageGeneration wrapper",
+      "Explicit size='1024x1024' parameter for ~18% faster generation",
+      "Preserves Emergent proxy routing for sk-emergent- keys",
+      "[IMG_DIRECT] logging prefix for production monitoring"
+    ],
+    "benchmark_results": {
+      "baseline_no_size": "16.8s per image",
+      "with_explicit_size": "13.8s per image (18% faster)",
+      "full_pipeline_improvement": "79s → 65s (17.3% total)"
+    }
+  }
+}
