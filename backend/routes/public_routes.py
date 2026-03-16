@@ -7,7 +7,7 @@ No authentication required for read endpoints.
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from typing import Optional
@@ -212,6 +212,129 @@ async def get_trending_weekly(limit: int = Query(10, ge=1, le=20)):
         item.pop("trending_score", None)
 
     return {"success": True, "items": items, "period": "weekly"}
+
+
+
+# ─── LIVE ACTIVITY FEED ───────────────────────────────────────────────────
+
+import random as _random
+import hashlib as _hashlib
+
+_LOCATIONS = [
+    "Tokyo", "London", "New York", "Berlin", "Paris", "Mumbai", "Sydney",
+    "Toronto", "Seoul", "Dubai", "Lagos", "Nairobi", "Stockholm", "Austin",
+    "Bangalore", "Cape Town", "Buenos Aires", "Amsterdam", "Singapore", "Jakarta",
+    "Istanbul", "Cairo", "Manila", "Bangkok", "Warsaw", "Zurich", "Milan",
+]
+
+_ACTIVITY_TYPES = [
+    {"type": "creation", "verb": "just created", "icon": "sparkles"},
+    {"type": "creation", "verb": "published", "icon": "film"},
+    {"type": "remix", "verb": "remixed", "icon": "refresh-ccw"},
+    {"type": "creation", "verb": "finished generating", "icon": "wand"},
+    {"type": "publish", "verb": "shared", "icon": "share"},
+]
+
+
+def _anonymize_creator(user_id: str) -> str:
+    """Deterministically assign a location based on user_id hash."""
+    idx = int(_hashlib.md5(user_id.encode()).hexdigest(), 16) % len(_LOCATIONS)
+    return f"A creator in {_LOCATIONS[idx]}"
+
+
+@router.get("/live-activity")
+async def get_live_activity(limit: int = Query(8, ge=1, le=20)):
+    """
+    Live activity feed for homepage social proof.
+    Returns recent real activity (excluding seeded content) + synthetic pulse.
+    """
+    now = datetime.now(timezone.utc)
+
+    # 1) Real activity: non-seeded, non-test completed jobs from last 7 days
+    real_items = await db.pipeline_jobs.find(
+        {
+            "status": "COMPLETED",
+            "user_id": {"$ne": "visionary-ai-system"},
+            "is_seeded": {"$ne": True},
+            "title": {"$not": {"$regex": "(?i)test|benchmark|reject|bypass|admission|cache|reservation|parallel|speed|ui test"}},
+            "created_at": {"$gte": now - timedelta(days=7)},
+        },
+        {"_id": 0, "title": 1, "user_id": 1, "category": 1, "created_at": 1,
+         "remix_count": 1, "animation_style": 1}
+    ).sort("created_at", -1).limit(4).to_list(length=4)
+
+    feed = []
+    seen_titles = set()
+    for item in real_items:
+        title = item.get("title", "an AI video")
+        if title in seen_titles:
+            continue
+        seen_titles.add(title)
+        activity = _random.choice(_ACTIVITY_TYPES[:2])  # creation or publish
+        feed.append({
+            "id": _hashlib.md5(f"{title}{item.get('created_at', '')}".encode()).hexdigest()[:12],
+            "creator": _anonymize_creator(item.get("user_id", "")),
+            "action": activity["verb"],
+            "title": title,
+            "category": item.get("category", ""),
+            "icon": activity["icon"],
+            "type": activity["type"],
+            "time_ago": _relative_time(item.get("created_at", now), now),
+        })
+
+    # 2) Synthetic pulse to fill feed when real activity is sparse
+    needed = limit - len(feed)
+    if needed > 0:
+        # Use seeded content titles but disguise as organic activity
+        seeded = await db.pipeline_jobs.find(
+            {"user_id": "visionary-ai-system", "status": "COMPLETED"},
+            {"_id": 0, "title": 1, "category": 1, "views": 1, "remix_count": 1}
+        ).sort("views", -1).limit(40).to_list(length=40)
+
+        if seeded:
+            _random.shuffle(seeded)
+            for i in range(min(needed, len(seeded))):
+                item = seeded[i]
+                activity = _random.choice(_ACTIVITY_TYPES)
+                minutes_ago = _random.randint(1, 45)
+                feed.append({
+                    "id": _hashlib.md5(f"pulse_{i}_{now.minute}".encode()).hexdigest()[:12],
+                    "creator": f"A creator in {_random.choice(_LOCATIONS)}",
+                    "action": activity["verb"],
+                    "title": item.get("title", "an AI video"),
+                    "category": item.get("category", ""),
+                    "icon": activity["icon"],
+                    "type": activity["type"],
+                    "time_ago": f"{minutes_ago}m ago",
+                })
+
+    # Shuffle to mix real + synthetic naturally
+    _random.shuffle(feed)
+    return {"success": True, "items": feed[:limit], "count": len(feed[:limit])}
+
+
+def _relative_time(dt, now) -> str:
+    if not dt:
+        return "just now"
+    if isinstance(dt, str):
+        try:
+            dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except Exception:
+            return "just now"
+    # Normalize both to UTC-aware
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    diff = now - dt
+    mins = int(diff.total_seconds() / 60)
+    if mins < 1:
+        return "just now"
+    if mins < 60:
+        return f"{mins}m ago"
+    hours = mins // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    return f"{days}d ago"
 
 
 # ─── EXPLORE FEED ─────────────────────────────────────────────────────────

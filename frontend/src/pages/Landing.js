@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Sparkles, Clapperboard, ArrowRight, Menu, X, Film, Check, Play,
   RefreshCcw, Share2, Users, Eye, Send, Command, Wand2, Image, Mic,
-  ChevronRight, Globe
+  ChevronRight, Globe, Zap
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -13,6 +13,7 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState(null);
   const [trending, setTrending] = useState([]);
+  const [liveFeed, setLiveFeed] = useState([]);
   const [promptText, setPromptText] = useState('');
   const navigate = useNavigate();
 
@@ -21,6 +22,18 @@ export default function Landing() {
     axios.get(`${API}/api/public/stats`).then(r => setStats(r.data)).catch(() => {});
     // Fetch algorithmic trending (weighted by views + remixes + recency)
     axios.get(`${API}/api/public/trending-weekly?limit=10`).then(r => setTrending(r.data.items || [])).catch(() => {});
+    // Fetch initial live feed
+    axios.get(`${API}/api/public/live-activity?limit=8`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
+  }, []);
+
+  // Auto-refresh live feed every 7 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      axios.get(`${API}/api/public/live-activity?limit=8`)
+        .then(r => setLiveFeed(r.data.items || []))
+        .catch(() => {});
+    }, 7000);
+    return () => clearInterval(interval);
   }, []);
 
   const handlePromptSubmit = () => {
@@ -36,6 +49,7 @@ export default function Landing() {
     <div className="vs-page overflow-x-hidden">
       <style>{`
         .grid-bg { background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 80px 80px; }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
       {/* ═══════ NAVBAR ═══════ */}
@@ -309,7 +323,66 @@ export default function Landing() {
         </section>
       )}
 
-      {/* ═══════ 6. REMIX CULTURE ═══════ */}
+      {/* ═══════ 6. LIVE CREATIONS FEED ═══════ */}
+      {liveFeed.length > 0 && (
+        <section className="py-16 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="live-feed-section">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="relative">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 absolute inset-0 animate-ping" />
+              </div>
+              <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--vs-font-heading)' }}>Live on the Platform</h2>
+              <span className="text-xs text-[var(--vs-text-muted)] ml-auto" style={{ fontFamily: 'var(--vs-font-mono)' }}>Updates every few seconds</span>
+            </div>
+
+            <div className="space-y-0 divide-y divide-[var(--vs-border-subtle)]/40">
+              {liveFeed.map((item, idx) => {
+                const iconMap = {
+                  'sparkles': <Sparkles className="w-3.5 h-3.5" />,
+                  'film': <Film className="w-3.5 h-3.5" />,
+                  'refresh-ccw': <RefreshCcw className="w-3.5 h-3.5" />,
+                  'wand': <Wand2 className="w-3.5 h-3.5" />,
+                  'share': <Share2 className="w-3.5 h-3.5" />,
+                };
+                const colorMap = {
+                  'creation': 'text-purple-400',
+                  'remix': 'text-amber-400',
+                  'publish': 'text-emerald-400',
+                };
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 py-3 px-2 rounded-lg transition-colors hover:bg-white/[0.02]"
+                    style={{ animation: `fadeSlideIn 0.4s ease-out ${idx * 0.06}s both` }}
+                    data-testid={`live-feed-item-${idx}`}
+                  >
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      item.type === 'remix' ? 'bg-amber-500/15' : item.type === 'publish' ? 'bg-emerald-500/15' : 'bg-purple-500/15'
+                    }`}>
+                      <span className={colorMap[item.type] || 'text-purple-400'}>
+                        {iconMap[item.icon] || <Zap className="w-3.5 h-3.5" />}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[var(--vs-text-secondary)] truncate">
+                        <span className="text-white font-medium">{item.creator}</span>
+                        {' '}{item.action}{' '}
+                        <span className="text-[var(--vs-text-accent)] font-medium">"{item.title}"</span>
+                      </p>
+                    </div>
+                    <span className="text-xs text-[var(--vs-text-muted)] flex-shrink-0 tabular-nums" style={{ fontFamily: 'var(--vs-font-mono)' }}>
+                      {item.time_ago}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ═══════ 7. REMIX CULTURE ═══════ */}
       <section className="py-20 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="remix-section">
         <div className="max-w-4xl mx-auto text-center">
           <div className="vs-card bg-gradient-to-br from-[var(--vs-primary-from)]/10 via-transparent to-[var(--vs-secondary-to)]/10 border-[var(--vs-border-glow)] py-16 px-8">
