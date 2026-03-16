@@ -488,7 +488,6 @@ async def process_comic_avatar(
             {"$set": {"status": "PROCESSING", "progress": 10, "progressMessage": "Analyzing photo..."}}
         )
         
-        result_url = None
         result_urls = []
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
@@ -608,60 +607,80 @@ AVOID: {negative_prompt}"""
                                 spacing=config["spacing"]
                             )
                         
-                        # Store as base64 data URL (works in all environments)
-                        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-                        url = f"data:image/png;base64,{image_b64}"
-                        result_urls.append(url)
-                        if i == 0:
-                            result_url = url
+                        # Store image bytes for later R2 upload
+                        result_urls.append(image_bytes)
                 
             except Exception as e:
                 import traceback
                 logger.error(f"Comic avatar generation error: {e}")
                 logger.error(f"Full traceback: {traceback.format_exc()}")
         
-        # Placeholder if no results
-        if not result_url:
-            result_url = f"https://placehold.co/512x512/6b21a8/white?text=Comic+Avatar"
-            result_urls = [result_url]
-        
+        # ── Upload to R2 for permanent CDN storage ──────────────────────
+        cdn_urls = []
+        for idx, img_bytes in enumerate(result_urls):
+            if not img_bytes:
+                continue
+            try:
+                from services.cloudflare_r2_storage import upload_image_bytes
+                fname = f"comic_avatar_{job_id[:8]}_{idx}.png"
+                success, cdn_url = await upload_image_bytes(img_bytes, fname, f"comic/{user_id[:8]}")
+                if success and cdn_url:
+                    cdn_urls.append(cdn_url)
+                    logger.info(f"Uploaded avatar {idx} to R2: {cdn_url[:80]}")
+                else:
+                    logger.warning(f"R2 upload failed for avatar {idx}")
+                    # Fallback: store as base64 in DB
+                    b64 = base64.b64encode(img_bytes).decode('utf-8')
+                    cdn_urls.append(f"data:image/png;base64,{b64}")
+            except Exception as up_err:
+                logger.warning(f"R2 upload error for avatar {idx}: {up_err}")
+                b64 = base64.b64encode(img_bytes).decode('utf-8')
+                cdn_urls.append(f"data:image/png;base64,{b64}")
+
+        if not cdn_urls:
+            cdn_urls = ["https://placehold.co/512x512/6b21a8/white?text=Comic+Avatar"]
+
+        primary_url = cdn_urls[0]
+
         # Deduct credits
         await deduct_credits(user_id, cost, f"Comic Avatar: {job_id[:8]}")
-        
-        # Register download with expiry service
-        download_id = None
-        expires_at = None
+
+        # ── Register as permanent user asset ─────────────────────────
+        asset_id = str(uuid.uuid4())
+        asset_doc = {
+            "asset_id": asset_id,
+            "user_id": user_id,
+            "job_id": job_id,
+            "type": "COMIC_AVATAR",
+            "title": f"Comic Avatar — {SAFE_STYLES.get(style, {}).get('name', style)}",
+            "urls": cdn_urls,
+            "primary_url": primary_url,
+            "thumbnail_url": primary_url,
+            "style": style,
+            "permanent": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
         try:
-            from services.download_expiry_service import get_download_service
-            download_service = get_download_service(db)
-            download_info = await download_service.register_download(
-                user_id=user_id,
-                file_path=result_url,  # Could be local path or URL
-                original_filename=f"comic_avatar_{job_id[:8]}.png",
-                file_type="image/png",
-                feature="comic_avatar"
-            )
-            download_id = download_info.get("id")
-            expires_at = download_info.get("expires_at")
-        except Exception as dl_error:
-            logger.warning(f"Failed to register download expiry: {dl_error}")
-        
-        # Update job with download ID
+            await db.user_assets.insert_one(asset_doc)
+        except Exception as asset_err:
+            logger.warning(f"Failed to register asset: {asset_err}")
+
+        # Update job with permanent CDN URLs (no expiry)
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
                 "status": "COMPLETED",
                 "progress": 100,
                 "progressMessage": "Complete!",
-                "resultUrl": result_url,
-                "resultUrls": result_urls,
-                "downloadId": download_id,
-                "expiresAt": expires_at,
+                "resultUrl": primary_url,
+                "resultUrls": cdn_urls,
+                "assetId": asset_id,
+                "permanent": True,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )
-        
-        # Send notification to user
+
+        # Send notification
         try:
             from services.notification_service import get_notification_service
             notification_service = get_notification_service(db)
@@ -669,9 +688,7 @@ AVOID: {negative_prompt}"""
                 user_id=user_id,
                 feature="comic_avatar",
                 job_id=job_id,
-                download_url=result_url,
-                download_id=download_id,
-                expires_at=expires_at
+                download_url=primary_url
             )
         except Exception as notif_error:
             logger.warning(f"Failed to send notification: {notif_error}")
@@ -761,7 +778,7 @@ Format as JSON array:
                 if json_match:
                     try:
                         story_scenes = json.loads(json_match.group())
-                    except:
+                    except Exception:
                         pass
                 
                 await db.photo_to_comic_jobs.update_one(
@@ -871,7 +888,7 @@ AVOID: {negative_prompt}"""
                                         user_plan = user_data.get("plan", "free")
                                     else:
                                         user_plan = "free"
-                                except:
+                                except Exception:
                                     user_plan = "free"
                                 
                                 if should_apply_watermark({"plan": user_plan}):
@@ -884,9 +901,21 @@ AVOID: {negative_prompt}"""
                                         spacing=config["spacing"]
                                     )
                                 
-                                # Store as base64 data URL (works in all environments)
-                                image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-                                panel_data["imageUrl"] = f"data:image/png;base64,{image_b64}"
+                                # Upload panel to R2 for permanent storage
+                                try:
+                                    from services.cloudflare_r2_storage import upload_image_bytes
+                                    fname = f"comic_strip_{job_id[:8]}_panel{i+1}.png"
+                                    success, cdn_url = await upload_image_bytes(image_bytes, fname, f"comic/{user_id[:8]}")
+                                    if success and cdn_url:
+                                        panel_data["imageUrl"] = cdn_url
+                                        logger.info(f"Panel {i+1} uploaded to R2: {cdn_url[:80]}")
+                                    else:
+                                        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                                        panel_data["imageUrl"] = f"data:image/png;base64,{image_b64}"
+                                except Exception as up_err:
+                                    logger.warning(f"R2 upload failed for panel {i+1}: {up_err}")
+                                    image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                                    panel_data["imageUrl"] = f"data:image/png;base64,{image_b64}"
                                 image_generated = True
                                 logger.info(f"Panel {i+1} generated successfully for job {job_id}")
                             else:
@@ -919,8 +948,31 @@ AVOID: {negative_prompt}"""
         
         # Deduct credits
         await deduct_credits(user_id, cost, f"Comic Strip: {job_id[:8]}")
-        
-        # Update job
+
+        # ── Register as permanent user asset ─────────────────────────
+        panel_urls = [p.get("imageUrl", "") for p in panels if p.get("imageUrl")]
+        asset_id = str(uuid.uuid4())
+        asset_doc = {
+            "asset_id": asset_id,
+            "user_id": user_id,
+            "job_id": job_id,
+            "type": "COMIC_STRIP",
+            "title": f"Comic Strip — {genre} ({panel_count} panels)",
+            "urls": panel_urls,
+            "primary_url": panel_urls[0] if panel_urls else "",
+            "thumbnail_url": panel_urls[0] if panel_urls else "",
+            "style": style,
+            "genre": genre,
+            "panel_count": len(panels),
+            "permanent": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            await db.user_assets.insert_one(asset_doc)
+        except Exception as asset_err:
+            logger.warning(f"Failed to register strip asset: {asset_err}")
+
+        # Update job with permanent asset reference
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -928,11 +980,13 @@ AVOID: {negative_prompt}"""
                 "progress": 100,
                 "progressMessage": "Complete!",
                 "panels": panels,
+                "assetId": asset_id,
+                "permanent": True,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )
-        
-        # Send notification to user
+
+        # Send notification
         try:
             from services.notification_service import get_notification_service
             notification_service = get_notification_service(db)
@@ -940,7 +994,7 @@ AVOID: {negative_prompt}"""
                 user_id=user_id,
                 feature="comic_strip",
                 job_id=job_id,
-                download_url=panels[0]["imageUrl"] if panels else None
+                download_url=panel_urls[0] if panel_urls else None
             )
         except Exception as notif_error:
             logger.warning(f"Failed to send notification: {notif_error}")
@@ -990,15 +1044,27 @@ AVOID: {negative_prompt}"""
 
 @router.get("/job/{job_id}")
 async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
-    """Get job status"""
+    """Get job status with presigned CDN URLs."""
     job = await db.photo_to_comic_jobs.find_one(
         {"id": job_id, "userId": user["id"]},
         {"_id": 0}
     )
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
+    # Presign R2 URLs if job is completed
+    if job.get("status") == "COMPLETED":
+        from utils.r2_presign import presign_url
+        if job.get("resultUrl") and ".r2.dev/" in job["resultUrl"]:
+            job["resultUrl"] = presign_url(job["resultUrl"])
+        if job.get("resultUrls"):
+            job["resultUrls"] = [presign_url(u) if ".r2.dev/" in (u or "") else u for u in job["resultUrls"]]
+        if job.get("panels"):
+            for panel in job["panels"]:
+                if panel.get("imageUrl") and ".r2.dev/" in panel["imageUrl"]:
+                    panel["imageUrl"] = presign_url(panel["imageUrl"])
+
     return job
 
 
@@ -1028,62 +1094,85 @@ async def get_history(
 
 @router.post("/download/{job_id}")
 async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
-    """Download comic - may require additional credits"""
+    """Download comic — returns permanent CDN URLs. No expiry."""
     job = await db.photo_to_comic_jobs.find_one(
         {"id": job_id, "userId": user["id"]},
         {"_id": 0}
     )
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     if job.get("status") != "COMPLETED":
         raise HTTPException(status_code=400, detail="Content not ready")
-    
-    # Already downloaded - free re-download
-    if job.get("downloaded"):
-        download_urls = job.get("resultUrls") or [job.get("resultUrl")]
-        if job.get("panels"):
-            download_urls = [p.get("imageUrl") for p in job["panels"] if p.get("imageUrl")]
-        
-        return {
-            "success": True,
-            "downloadUrls": download_urls,
-            "alreadyPurchased": True
-        }
-    
-    # Determine download cost
-    is_strip = job.get("mode") == "strip"
-    download_cost = PRICING["download"]["strip"] if is_strip else PRICING["download"]["avatar"]
-    
-    # Check credits
-    current_credits = user.get("credits", 0)
-    if current_credits < download_cost:
-        return {
-            "success": False,
-            "error": "INSUFFICIENT_CREDITS",
-            "message": f"Need {download_cost} credits to download. You have {current_credits}.",
-            "creditsNeeded": download_cost
-        }
-    
-    # Deduct credits
-    await deduct_credits(user["id"], download_cost, f"Download: {job_id[:8]}")
-    
-    # Mark as downloaded
-    await db.photo_to_comic_jobs.update_one(
-        {"id": job_id},
-        {"$set": {"downloaded": True, "downloadedAt": datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    # Get URLs
-    download_urls = job.get("resultUrls") or [job.get("resultUrl")]
-    if job.get("panels"):
+
+    # Collect all download URLs (CDN-backed)
+    download_urls = []
+    if job.get("resultUrls"):
+        download_urls = [u for u in job["resultUrls"] if u]
+    elif job.get("resultUrl"):
+        download_urls = [job["resultUrl"]]
+    elif job.get("panels"):
         download_urls = [p.get("imageUrl") for p in job["panels"] if p.get("imageUrl")]
-    
+
+    # Presign R2 URLs for download access
+    from utils.r2_presign import presign_url
+    presigned_urls = [presign_url(u) if ".r2.dev/" in (u or "") else u for u in download_urls]
+
+    # Mark as downloaded
+    if not job.get("downloaded"):
+        await db.photo_to_comic_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"downloaded": True, "downloadedAt": datetime.now(timezone.utc).isoformat()}}
+        )
+
     return {
         "success": True,
-        "downloadUrls": download_urls,
-        "creditsDeducted": download_cost
+        "downloadUrls": presigned_urls,
+        "permanent": True,
+    }
+
+
+@router.get("/validate-asset/{job_id}")
+async def validate_asset(job_id: str, user: dict = Depends(get_current_user)):
+    """Validate that generated assets are accessible before enabling download."""
+    job = await db.photo_to_comic_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0, "status": 1, "resultUrl": 1, "resultUrls": 1, "panels": 1, "permanent": 1}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.get("status") != "COMPLETED":
+        return {"valid": False, "reason": "not_completed"}
+
+    urls = []
+    if job.get("resultUrls"):
+        urls = [u for u in job["resultUrls"] if u and not u.startswith("data:")]
+    elif job.get("panels"):
+        urls = [p.get("imageUrl") for p in job.get("panels", []) if p.get("imageUrl") and not p["imageUrl"].startswith("data:")]
+
+    if not urls:
+        return {"valid": True, "permanent": job.get("permanent", False), "cdn_backed": False}
+
+    # Validate first URL with HEAD request
+    valid = False
+    try:
+        import aiohttp
+        from utils.r2_presign import presign_url
+        check_url = presign_url(urls[0]) if ".r2.dev/" in urls[0] else urls[0]
+        async with aiohttp.ClientSession() as session:
+            async with session.head(check_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                valid = resp.status in (200, 206)
+    except Exception as val_err:
+        logger.warning(f"Asset validation failed for {job_id}: {val_err}")
+        valid = False
+
+    return {
+        "valid": valid,
+        "permanent": job.get("permanent", False),
+        "cdn_backed": True,
+        "asset_count": len(urls),
     }
 
 

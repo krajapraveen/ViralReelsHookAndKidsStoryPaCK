@@ -92,6 +92,13 @@ export default function PhotoToComic() {
   const [dialogue, setDialogue] = useState('');
   const [panelCount, setPanelCount] = useState(3);
   
+  // Job polling state
+  const [currentJobId, setCurrentJobId] = useState(null);
+  const [jobProgress, setJobProgress] = useState(0);
+  const [jobMessage, setJobMessage] = useState('');
+  const [assetValidated, setAssetValidated] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
   // Result state
   const [result, setResult] = useState(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -171,23 +178,18 @@ export default function PhotoToComic() {
   };
 
   const handleGenerate = async () => {
-    // Validate
     if (!uploadedPhoto) {
       toast.error('Please upload a photo');
       return;
     }
-    
     if (mode === 'avatar' && !selectedStyle) {
       toast.error('Please select a style');
       return;
     }
-    
     if (mode === 'strip' && !selectedGenre) {
       toast.error('Please select a genre');
       return;
     }
-    
-    // Check copyright
     if (dialogue) {
       const violation = checkCopyrightViolation(dialogue);
       if (violation) {
@@ -195,16 +197,18 @@ export default function PhotoToComic() {
         return;
       }
     }
-    
     const totalCost = calculateTotal();
     if (credits < totalCost) {
       toast.error(`Insufficient credits. Need ${totalCost}, have ${credits}`);
       navigate('/app/billing');
       return;
     }
-    
+
     setGenerating(true);
-    
+    setJobProgress(0);
+    setJobMessage('Submitting...');
+    setAssetValidated(false);
+
     try {
       const formData = new FormData();
       formData.append('photo', uploadedPhoto);
@@ -214,20 +218,18 @@ export default function PhotoToComic() {
       formData.append('dialogue', dialogue);
       formData.append('panel_count', panelCount.toString());
       formData.append('addons', JSON.stringify(addons));
-      
+
       const res = await api.post('/api/photo-to-comic/generate', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
-      if (res.data.success) {
-        setResult(res.data);
-        setLastGenerationId(res.data.generationId);
-        setCredits(res.data.newBalance || credits - totalCost);
+
+      if (res.data.success && res.data.jobId) {
+        setCurrentJobId(res.data.jobId);
+        setLastGenerationId(res.data.jobId);
+        setCredits(prev => prev - totalCost);
         setStep(mode === 'avatar' ? 4 : 6);
-        toast.success('Comic character generated!');
-        
-        setTimeout(() => setShowRatingModal(true), 2000);
-        setTimeout(() => setShowUpsellModal(true), 4000);
+        toast.success('Generation started!');
+        pollJobStatus(res.data.jobId);
       }
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -236,8 +238,85 @@ export default function PhotoToComic() {
       } else {
         toast.error('Generation failed. Please try again.');
       }
-    } finally {
       setGenerating(false);
+    }
+  };
+
+  const pollJobStatus = async (jobId) => {
+    const maxAttempts = 60;
+    let attempt = 0;
+
+    const poll = async () => {
+      if (attempt >= maxAttempts) {
+        setGenerating(false);
+        toast.error('Generation timed out. Check your history for results.');
+        return;
+      }
+      attempt++;
+      try {
+        const res = await api.get(`/api/photo-to-comic/job/${jobId}`);
+        const job = res.data;
+        setJobProgress(job.progress || 0);
+        setJobMessage(job.progressMessage || 'Processing...');
+
+        if (job.status === 'COMPLETED') {
+          setGenerating(false);
+          setResult(job);
+          // Validate asset before enabling download
+          validateAsset(jobId);
+          setTimeout(() => setShowRatingModal(true), 2000);
+          return;
+        }
+        if (job.status === 'FAILED') {
+          setGenerating(false);
+          toast.error(job.error || 'Generation failed.');
+          return;
+        }
+        setTimeout(() => poll(), 2000);
+      } catch {
+        setTimeout(() => poll(), 3000);
+      }
+    };
+    poll();
+  };
+
+  const validateAsset = async (jobId) => {
+    try {
+      const res = await api.get(`/api/photo-to-comic/validate-asset/${jobId}`);
+      setAssetValidated(res.data.valid === true);
+      if (!res.data.valid) {
+        toast.warning('Asset validation pending. Download may not be ready yet.');
+      }
+    } catch {
+      setAssetValidated(true); // Fallback: allow download
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!currentJobId && !lastGenerationId) return;
+    const jobId = currentJobId || lastGenerationId;
+    setDownloading(true);
+    try {
+      const res = await api.post(`/api/photo-to-comic/download/${jobId}`);
+      if (res.data.success && res.data.downloadUrls?.length) {
+        for (const url of res.data.downloadUrls) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `comic_${jobId.slice(0, 8)}.png`;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        toast.success('Download started!');
+      } else {
+        toast.error('No downloadable assets found.');
+      }
+    } catch (error) {
+      toast.error('Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -257,6 +336,12 @@ export default function PhotoToComic() {
       commercial: false,
     });
     setResult(null);
+    setCurrentJobId(null);
+    setJobProgress(0);
+    setJobMessage('');
+    setAssetValidated(false);
+    setDownloading(false);
+    setGenerating(false);
   };
 
   const isPremiumStyle = (styleId) => {
@@ -853,56 +938,124 @@ export default function PhotoToComic() {
   );
 
   // Result Screen
-  const renderResult = () => (
-    <div className="space-y-6 animate-in fade-in duration-500 max-w-3xl mx-auto text-center">
-      <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-        <Check className="w-10 h-10 text-emerald-400" />
-      </div>
-      <h2 className="text-2xl font-bold text-white mb-2">Your Comic is Ready!</h2>
-      <p className="text-slate-400">Download or share your creation</p>
+  const renderResult = () => {
+    const imageUrl = result?.resultUrl || result?.resultUrls?.[0];
+    const panels = result?.panels;
+    const isCompleted = result?.status === 'COMPLETED';
 
-      {result?.imageUrl && (
-        <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-white max-w-md mx-auto">
-          <img src={result.imageUrl} alt="Generated Comic" className="w-full" />
-          {userPlan === 'free' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-              <span className="text-4xl font-bold text-white/30 rotate-[-30deg]">PREVIEW</span>
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500 max-w-3xl mx-auto text-center">
+        {/* Still generating — show progress */}
+        {generating && (
+          <div className="space-y-4">
+            <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto">
+              <Loader2 className="w-10 h-10 text-indigo-400 animate-spin" />
             </div>
-          )}
-        </div>
-      )}
+            <h2 className="text-2xl font-bold text-white">Creating Your Comic...</h2>
+            <p className="text-slate-400">{jobMessage || 'Processing...'}</p>
+            <div className="w-full max-w-sm mx-auto bg-slate-800 rounded-full h-3 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500"
+                style={{ width: `${jobProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-500">{jobProgress}% — Estimated ~25 seconds</p>
+          </div>
+        )}
 
-      <div className="flex gap-4 justify-center flex-wrap">
-        <Button className="bg-gradient-to-r from-purple-600 to-pink-600" data-testid="download-result">
-          <Download className="w-4 h-4 mr-2" />
-          Download
-        </Button>
-        <ShareCreation
-          type={mode === 'avatar' ? 'COMIC_AVATAR' : 'COMIC_STRIP'}
-          title="My Comic Character"
-          preview="Created with Convert Photos To Comic"
-          generationId={lastGenerationId}
-        />
+        {/* Completed — show result */}
+        {!generating && isCompleted && (
+          <>
+            <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check className="w-10 h-10 text-emerald-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Your Comic is Ready!</h2>
+            <p className="text-slate-400">Saved as a permanent asset — download anytime</p>
+
+            {/* Avatar result */}
+            {imageUrl && !panels && (
+              <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-white max-w-md mx-auto">
+                <img src={imageUrl} alt="Generated Comic" className="w-full" crossOrigin="anonymous" />
+                {userPlan === 'free' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <span className="text-4xl font-bold text-white/30 rotate-[-30deg]">PREVIEW</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Strip result */}
+            {panels && panels.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                {panels.map((panel, i) => (
+                  <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-white">
+                    <img src={panel.imageUrl} alt={`Panel ${i + 1}`} className="w-full" crossOrigin="anonymous" />
+                    {panel.dialogue && (
+                      <div className="bg-slate-900 p-2 text-sm text-slate-300">{panel.dialogue}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-4 justify-center flex-wrap">
+              <Button
+                onClick={handleDownload}
+                disabled={downloading || !assetValidated}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50"
+                data-testid="download-result"
+              >
+                {downloading ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Downloading...</>
+                ) : !assetValidated ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validating...</>
+                ) : (
+                  <><Download className="w-4 h-4 mr-2" />Download</>
+                )}
+              </Button>
+              <ShareCreation
+                type={mode === 'avatar' ? 'COMIC_AVATAR' : 'COMIC_STRIP'}
+                title="My Comic Character"
+                preview="Created with Visionary Suite"
+                generationId={lastGenerationId}
+              />
+            </div>
+
+            {userPlan === 'free' && (
+              <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-4 max-w-md mx-auto">
+                <p className="text-purple-300 text-sm">Remove Watermark</p>
+                <Button
+                  onClick={() => navigate('/app/subscription')}
+                  className="mt-2 bg-purple-600 hover:bg-purple-700"
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Upgrade Now
+                </Button>
+              </div>
+            )}
+
+            <Button variant="outline" onClick={resetForm} className="border-slate-600 text-white">
+              Create Another
+            </Button>
+          </>
+        )}
+
+        {/* Failed */}
+        {!generating && !isCompleted && result?.status === 'FAILED' && (
+          <div className="space-y-4">
+            <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-10 h-10 text-red-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-white">Generation Failed</h2>
+            <p className="text-slate-400">Credits have been refunded. Please try again.</p>
+            <Button variant="outline" onClick={resetForm} className="border-slate-600 text-white">
+              Try Again
+            </Button>
+          </div>
+        )}
       </div>
-
-      {userPlan === 'free' && (
-        <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-4 max-w-md mx-auto">
-          <p className="text-purple-300 text-sm">Remove Watermark</p>
-          <Button 
-            onClick={() => navigate('/app/subscription')}
-            className="mt-2 bg-purple-600 hover:bg-purple-700"
-          >
-            <Crown className="w-4 h-4 mr-2" />
-            Upgrade Now
-          </Button>
-        </div>
-      )}
-
-      <Button variant="outline" onClick={resetForm} className="border-slate-600 text-white">
-        Create Another
-      </Button>
-    </div>
-  );
+    );
+  };
 
   // =============================================================================
   // MAIN RENDER
