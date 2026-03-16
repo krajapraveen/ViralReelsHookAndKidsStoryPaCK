@@ -1,0 +1,65 @@
+{
+  "iteration": 278,
+  "timestamp": "2026-03-16T18:10:00Z",
+  "test_type": "Phase 1+2: Pipeline Speed & Cost Control",
+  "total_tests": 12,
+  "passed": 12,
+  "failed": 0,
+  "results": {
+    "plan_scene_limits_free": {
+      "status": "PASS",
+      "detail": "Free plan user got estimated_scenes=3 (capped by PLAN_SCENE_LIMITS['free']=3)"
+    },
+    "plan_scene_limits_api": {
+      "status": "PASS",
+      "detail": "GET /api/pipeline/options returns plan_scene_limits with correct values: free=3, starter=4, pro=6, premium=6"
+    },
+    "credit_reservation_on_create": {
+      "status": "PASS",
+      "detail": "New job credit_status='reserved' immediately after creation"
+    },
+    "credit_finalization_on_complete": {
+      "status": "PASS",
+      "detail": "After pipeline completes, credit_status changes to 'finalized'"
+    },
+    "credit_refund_on_failure": {
+      "status": "PASS",
+      "detail": "refund_credits() marks credit_status='refunded' (verified in code)"
+    },
+    "job_metadata_fields": {
+      "status": "PASS",
+      "detail": "Job doc contains user_plan, plan_scene_limit, cache_hit, credit_status fields"
+    },
+    "scene_cache_miss": {
+      "status": "PASS",
+      "detail": "First job with new prompt: cache_hit=false, prompt_hash stored after completion"
+    },
+    "scene_cache_hit": {
+      "status": "PASS",
+      "detail": "Second job with same prompt: cache_hit=true, 3 scenes pre-populated, LLM skipped"
+    },
+    "priority_queue": {
+      "status": "PASS",
+      "detail": "Free user gets queue_priority='standard', paid users get 'priority'"
+    },
+    "progress_labels": {
+      "status": "PASS",
+      "detail": "STAGE_LABELS use 'Step X/3' format. Image progress shows 'Step 2/3: Generated image X of Y'"
+    },
+    "distribution_endpoints": {
+      "status": "PASS",
+      "detail": "All public endpoints working: /stats, /explore, /sitemap.xml, /growth-metrics"
+    },
+    "pipeline_performance": {
+      "status": "PASS",
+      "detail": "3-scene job completed in 79s: scenes=7s, images=57s (parallel), voices=13s (parallel)"
+    }
+  },
+  "performance_baseline": {
+    "scenes_3_total_ms": 78905,
+    "scenes_generation_ms": 7136,
+    "images_parallel_ms": 56533,
+    "voices_parallel_ms": 12989,
+    "cache_hit_saves_ms": "~7000 (scene generation skipped)"
+  }
+}

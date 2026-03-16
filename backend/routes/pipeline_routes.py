@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from shared import db, get_current_user
 from services.pipeline_engine import (
     create_pipeline_job, resume_pipeline, get_job,
-    ANIMATION_STYLES, AGE_GROUPS, VOICE_PRESETS, CREDIT_COSTS,
+    ANIMATION_STYLES, AGE_GROUPS, VOICE_PRESETS, CREDIT_COSTS, PLAN_SCENE_LIMITS,
 )
 from services.pipeline_worker import enqueue_job, get_worker_stats
 
@@ -339,6 +339,7 @@ async def get_pipeline_options():
             for k, v in VOICE_PRESETS.items()
         ],
         "credit_costs": CREDIT_COSTS,
+        "plan_scene_limits": PLAN_SCENE_LIMITS,
     }
 
 
@@ -364,6 +365,7 @@ async def create_pipeline(
             age_group=request.age_group,
             voice_preset=request.voice_preset,
             include_watermark=request.include_watermark,
+            user_plan=current_user.get("plan", "free"),
         )
     except ValueError as e:
         error_msg = str(e)

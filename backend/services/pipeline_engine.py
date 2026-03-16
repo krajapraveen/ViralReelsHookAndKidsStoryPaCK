@@ -79,6 +79,29 @@ CREDIT_COSTS = {
 MAX_PARALLEL_IMAGES = 5
 MAX_PARALLEL_VOICES = 6
 
+# ─── PLAN-BASED SCENE LIMITS ─────────────────────────────────────────────────
+# Controls cost exposure: fewer scenes = less compute = lower cost
+PLAN_SCENE_LIMITS = {
+    "free": 3,
+    "starter": 4,
+    "weekly": 4,
+    "monthly": 4,
+    "creator": 4,
+    "quarterly": 5,
+    "yearly": 5,
+    "pro": 6,
+    "premium": 6,
+    "enterprise": 6,
+    "admin": 6,
+    "demo": 6,
+}
+
+PAID_PLANS = frozenset([
+    "weekly", "monthly", "quarterly", "yearly",
+    "starter", "creator", "pro", "premium", "enterprise",
+    "admin", "demo"
+])
+
 # ─── COPYRIGHT COMPLIANCE ────────────────────────────────────────────────────
 
 BLOCKED_TERMS = {
@@ -137,9 +160,10 @@ async def create_pipeline_job(
     animation_style: str = "cartoon_2d",
     age_group: str = "kids_5_8",
     voice_preset: str = "narrator_warm",
-    include_watermark: bool = True
+    include_watermark: bool = True,
+    user_plan: str = "free",
 ) -> dict:
-    """Create a new pipeline job. Deducts credits. Returns job doc."""
+    """Create a new pipeline job with credit reservation and plan-based scene limits."""
 
     ok, msg = check_copyright(story_text)
     if not ok:
@@ -152,7 +176,13 @@ async def create_pipeline_job(
     age = AGE_GROUPS.get(age_group, AGE_GROUPS["kids_5_8"])
     voice = VOICE_PRESETS.get(voice_preset, VOICE_PRESETS["narrator_warm"])
 
-    estimated_scenes = min(age["max_scenes"], max(3, len(story_text) // 500))
+    # Plan-based scene limit — overrides age_group max_scenes
+    plan_key = str(user_plan).lower().strip()
+    plan_max = PLAN_SCENE_LIMITS.get(plan_key, PLAN_SCENE_LIMITS["free"])
+    age_max = age["max_scenes"]
+    effective_max = min(plan_max, age_max)
+
+    estimated_scenes = min(effective_max, max(3, len(story_text) // 500))
 
     if estimated_scenes <= 3:
         credit_cost = CREDIT_COSTS["small"]
@@ -161,7 +191,7 @@ async def create_pipeline_job(
     else:
         credit_cost = CREDIT_COSTS["large"]
 
-    # Deduct credits
+    # Look up user
     from bson import ObjectId
     user = None
     try:
@@ -176,19 +206,19 @@ async def create_pipeline_job(
         raise ValueError(f"Insufficient credits. Need {credit_cost}, have {user.get('credits', 0)}")
 
     # Determine watermark based on user plan — free users get watermark, paid don't
-    user_plan = str(user.get("plan", "free")).lower()
-    paid_plans = ["weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise", "admin", "demo"]
-    apply_watermark = user_plan not in paid_plans
+    apply_watermark = plan_key not in PAID_PLANS
 
+    # CREDIT RESERVATION — reserve now, finalize on success, refund on failure
     await db.users.update_one(
         {"_id": user["_id"]},
         {
             "$inc": {"credits": -credit_cost},
             "$push": {"credit_transactions": {
                 "amount": -credit_cost,
-                "description": f"Story Video: {title}",
+                "description": f"Reserved: {title}",
                 "timestamp": datetime.now(timezone.utc),
-                "type": "deduction"
+                "type": "reservation",
+                "status": "reserved",
             }}
         }
     )
@@ -215,9 +245,13 @@ async def create_pipeline_job(
     slug_base = re.sub(r'-+', '-', slug_base)[:60].strip('-')
     slug = f"{slug_base}-{job_id[:8]}" if slug_base else job_id[:12]
 
+    # Check cache: exact prompt match with same style can reuse scene structure
+    cached_scenes = await _get_cached_scenes(story_text, animation_style, estimated_scenes)
+
     job_doc = {
         "job_id": job_id,
         "user_id": user_id,
+        "user_plan": plan_key,
         "slug": slug,
         "title": title,
         "story_text": story_text,
@@ -229,13 +263,15 @@ async def create_pipeline_job(
         "voice_config": voice,
         "include_watermark": apply_watermark,
         "estimated_scenes": estimated_scenes,
+        "plan_scene_limit": plan_max,
         "credits_charged": credit_cost,
+        "credit_status": "reserved",  # reserved → finalized | refunded
         "status": "QUEUED",
         "progress": 0,
         "current_stage": None,
         "current_step": "Queued for processing...",
         "stages": stages,
-        "scenes": [],
+        "scenes": cached_scenes or [],
         "scene_images": {},
         "scene_voices": {},
         "render_path": None,
@@ -244,19 +280,73 @@ async def create_pipeline_job(
         "timing": {},
         "views": 0,
         "remix_count": 0,
+        "cache_hit": bool(cached_scenes),
         "created_at": datetime.now(timezone.utc),
         "started_at": None,
         "completed_at": None,
     }
 
     await db.pipeline_jobs.insert_one(job_doc)
-    logger.info(f"[PIPELINE] Job {job_id[:8]} created for user {user_id[:8]}, {estimated_scenes} scenes, {credit_cost} credits")
+    logger.info(f"[PIPELINE] Job {job_id[:8]} created: user={user_id[:8]}, plan={plan_key}, scenes={estimated_scenes}(max={plan_max}), credits={credit_cost}, cache={'HIT' if cached_scenes else 'MISS'}")
 
     return {
         "job_id": job_id,
         "credits_charged": credit_cost,
         "estimated_scenes": estimated_scenes,
     }
+
+
+# ─── SCENE CACHE ─────────────────────────────────────────────────────────────
+
+import hashlib
+
+def _prompt_hash(story_text: str, style: str, max_scenes: int) -> str:
+    """Create a cache key from prompt + style + scene count."""
+    content = f"{story_text.strip().lower()}|{style}|{max_scenes}"
+    return hashlib.sha256(content.encode()).hexdigest()[:32]
+
+
+async def _get_cached_scenes(story_text: str, animation_style: str, max_scenes: int) -> list:
+    """Look up cached scene structure from a previous job with identical prompt.
+    Returns scenes list if cache hit, empty list if miss."""
+    cache_key = _prompt_hash(story_text, animation_style, max_scenes)
+
+    cached = await db.pipeline_jobs.find_one(
+        {
+            "prompt_hash": cache_key,
+            "status": "COMPLETED",
+            "scenes": {"$exists": True, "$ne": []},
+        },
+        {"_id": 0, "scenes": 1}
+    )
+    if cached and cached.get("scenes"):
+        logger.info(f"[CACHE] Scene cache HIT for hash {cache_key[:12]}")
+        return cached["scenes"][:max_scenes]
+    return []
+
+
+async def _store_prompt_hash(job_id: str, story_text: str, animation_style: str, max_scenes: int):
+    """Store the prompt hash on a completed job for future cache lookups."""
+    cache_key = _prompt_hash(story_text, animation_style, max_scenes)
+    await db.pipeline_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"prompt_hash": cache_key}}
+    )
+
+
+# ─── CREDIT FINALIZATION ─────────────────────────────────────────────────────
+
+async def finalize_credits(job: dict):
+    """Mark reserved credits as finalized after successful job completion."""
+    job_id = job.get("job_id")
+    if job.get("credit_status") == "finalized":
+        return  # Already finalized
+
+    await db.pipeline_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"credit_status": "finalized"}}
+    )
+    logger.info(f"[CREDITS] Finalized {job.get('credits_charged', 0)} credits for job {job_id[:8]}")
 
 
 # ─── JOB HELPERS ─────────────────────────────────────────────────────────────
@@ -297,9 +387,29 @@ async def mark_stage_failed(job_id: str, stage: str, error: str, retry_count: in
 # ─── STAGE IMPLEMENTATIONS ──────────────────────────────────────────────────
 
 async def run_stage_scenes(job: dict) -> dict:
-    """Stage: Generate scenes from story using LLM."""
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    """Stage: Generate scenes from story using LLM. Skips if cache hit."""
     import re
+
+    job_id = job["job_id"]
+
+    # Check if scenes were pre-populated from cache
+    existing_scenes = job.get("scenes", [])
+    if existing_scenes and job.get("cache_hit"):
+        logger.info(f"[PIPE {job_id[:8]}] Scene CACHE HIT — skipping LLM call ({len(existing_scenes)} scenes)")
+        # Broadcast cached scenes
+        try:
+            from routes.websocket_progress import broadcast_asset_ready
+            for scene in existing_scenes:
+                await broadcast_asset_ready(
+                    job_id=job_id, user_id=job.get("user_id", ""),
+                    asset_type="scene_ready", scene_number=scene.get("scene_number", 0),
+                    data={"title": scene.get("title", ""), "narration_text": scene.get("narration_text", ""), "visual_prompt": scene.get("visual_prompt", "")}
+                )
+        except Exception:
+            pass
+        return {"scene_count": len(existing_scenes), "cache_hit": True}
+
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     api_key = os.getenv("EMERGENT_LLM_KEY")
     if not api_key:
@@ -432,7 +542,7 @@ async def run_stage_images(job: dict) -> dict:
                 await update_job(job_id, {
                     f"scene_images.{sn}": result,
                     "progress": pct,
-                    "current_step": f"Generated image {done}/{total}...",
+                    "current_step": f"Step 2/3: Generated image {done} of {total}...",
                 })
 
                 # Record first_image TTFD on first completion only
@@ -582,7 +692,7 @@ async def run_stage_voices(job: dict) -> dict:
                 await update_job(job_id, {
                     f"scene_voices.{sn}": result,
                     "progress": pct,
-                    "current_step": f"Generated voice {done}/{total}...",
+                    "current_step": f"Step 3/3: Created voice {done} of {total}...",
                 })
 
                 # Record first_voice TTFD on first completion only
@@ -1133,9 +1243,9 @@ STAGE_PROGRESS = {
 }
 
 STAGE_LABELS = {
-    "scenes": "Generating scenes...",
-    "images": "Creating images...",
-    "voices": "Generating voiceovers...",
+    "scenes": "Step 1/3: Writing your story scenes...",
+    "images": "Step 2/3: Generating scene images...",
+    "voices": "Step 3/3: Creating narration audio...",
 }
 
 
@@ -1369,6 +1479,15 @@ async def execute_pipeline(job_id: str):
 
     logger.info(f"[PIPE {job_id[:8]}] COMPLETED in {total_ms}ms — assets ready, preview at {preview_path}")
 
+    # Finalize credit reservation → confirmed deduction
+    await finalize_credits(job)
+
+    # Store prompt hash for future cache lookups
+    try:
+        await _store_prompt_hash(job_id, job.get("story_text", ""), job.get("animation_style", ""), job.get("estimated_scenes", 4))
+    except Exception:
+        pass
+
     # Send notification if user subscribed
     if job.get("notify_on_complete"):
         try:
@@ -1450,11 +1569,14 @@ async def _generate_manifest(job: dict) -> dict:
 
 
 async def refund_credits(job: dict):
-    """Refund all credits for a failed job."""
+    """Refund reserved credits for a failed job."""
     user_id = job.get("user_id")
     credit_cost = job.get("credits_charged", 0)
+    job_id = job.get("job_id", "")
     if not user_id or not credit_cost:
         return
+    if job.get("credit_status") == "refunded":
+        return  # Already refunded
 
     try:
         from bson import ObjectId
@@ -1476,6 +1598,11 @@ async def refund_credits(job: dict):
                         "type": "refund",
                     }}
                 }
+            )
+            # Mark job credit status as refunded
+            await db.pipeline_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"credit_status": "refunded"}}
             )
             logger.info(f"[REFUND] {credit_cost} credits returned to {user_id[:8]}")
     except Exception as e:
