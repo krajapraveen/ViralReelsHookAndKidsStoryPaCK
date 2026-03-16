@@ -538,11 +538,11 @@ async def run_stage_images(job: dict) -> dict:
 
                 # Checkpoint: save this scene immediately
                 done += 1
-                pct = int(30 + (done / total) * 25)
+                pct = int(30 + (done / total) * 30)
                 await update_job(job_id, {
                     f"scene_images.{sn}": result,
                     "progress": pct,
-                    "current_step": f"Step 2/3: Generated image {done} of {total}...",
+                    "current_step": f"Generating image {done} of {total}...",
                 })
 
                 # Record first_image TTFD on first completion only
@@ -688,11 +688,9 @@ async def run_stage_voices(job: dict) -> dict:
                 result = {"path": str(path), "url": voice_url, "duration": duration, "scene_number": sn, "r2_key": voice_r2_key}
 
                 done += 1
-                pct = int(55 + (done / total) * 20)
                 await update_job(job_id, {
                     f"scene_voices.{sn}": result,
-                    "progress": pct,
-                    "current_step": f"Step 3/3: Created voice {done} of {total}...",
+                    "current_step": f"Created voice {done} of {total}...",
                 })
 
                 # Record first_voice TTFD on first completion only
@@ -1243,14 +1241,22 @@ STAGE_PROGRESS = {
 }
 
 STAGE_LABELS = {
-    "scenes": "Step 1/3: Writing your story scenes...",
-    "images": "Step 2/3: Generating scene images...",
-    "voices": "Step 3/3: Creating narration audio...",
+    "scenes": "Step 1/2: Writing your story scenes...",
+    "images": "Step 2/2: Generating images & audio...",
+    "voices": "Step 2/2: Generating images & audio...",
+}
+
+# Average stage durations (ms) for time estimates, updated from real timing data
+STAGE_TIME_ESTIMATES = {
+    "scenes_per_scene": 2500,     # ~7s for 3 scenes
+    "images_per_scene": 19000,    # ~57s for 3 scenes (parallel)
+    "voices_per_scene": 4500,     # ~13s for 3 scenes (parallel, overlapping with images)
+    "packaging_ms": 5000,
 }
 
 
 async def execute_pipeline(job_id: str):
-    """Execute the full pipeline stage by stage with checkpoints and retries."""
+    """Execute the full pipeline: scenes → (images + voices parallel) → package."""
     pipeline_start = time.time()
 
     job = await get_job(job_id)
@@ -1269,13 +1275,21 @@ async def execute_pipeline(job_id: str):
         "job_complete": None,
     }
 
+    num_scenes = job.get("estimated_scenes", 3)
+    est_total_sec = (
+        STAGE_TIME_ESTIMATES["scenes_per_scene"] * num_scenes
+        + max(STAGE_TIME_ESTIMATES["images_per_scene"] * num_scenes,
+              STAGE_TIME_ESTIMATES["voices_per_scene"] * num_scenes)
+        + STAGE_TIME_ESTIMATES["packaging_ms"]
+    ) / 1000
+
     await update_job(job_id, {
         "status": "PROCESSING",
         "started_at": datetime.now(timezone.utc),
         "ttfd_metrics": ttfd,
+        "estimated_total_sec": round(est_total_sec),
     })
 
-    # Record scene_start immediately
     ttfd["scene_start"] = time.time()
     await db.pipeline_jobs.update_one(
         {"job_id": job_id},
@@ -1284,29 +1298,26 @@ async def execute_pipeline(job_id: str):
 
     timing = {}
 
-    for stage_name in ["scenes", "images", "voices"]:
-        # Check if stage already completed (resume support)
+    # ─── HELPER: Run one stage with retry logic ─────────────────────────────
+    async def _run_stage(stage_name: str) -> bool:
+        """Run a stage with retry support. Returns True on success."""
+        nonlocal job, timing
+
         stage_info = job.get("stages", {}).get(stage_name, {})
         if stage_info.get("status") == StageStatus.COMPLETED:
             logger.info(f"[PIPE {job_id[:8]}] Skipping {stage_name} (already completed)")
-            continue
+            return True
 
         config = STAGE_CONFIG[stage_name]
         progress_start, progress_end = STAGE_PROGRESS[stage_name]
 
         await update_job(job_id, {
-            "progress": progress_start,
             "current_step": STAGE_LABELS[stage_name],
             "current_stage": stage_name,
         })
         await mark_stage_running(job_id, stage_name)
-
-        # Broadcast stage start via WebSocket
         await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, progress_start, STAGE_LABELS[stage_name])
 
-        # Retry loop
-        success = False
-        last_error = None
         for attempt in range(config["max_retries"] + 1):
             if attempt > 0:
                 backoff = config["backoff"][min(attempt - 1, len(config["backoff"]) - 1)]
@@ -1314,12 +1325,10 @@ async def execute_pipeline(job_id: str):
                 await update_job(job_id, {
                     f"stages.{stage_name}.status": StageStatus.RETRYING,
                     f"stages.{stage_name}.retry_count": attempt,
-                    "current_step": f"Retrying {stage_name} (attempt {attempt + 1})...",
                 })
                 await asyncio.sleep(backoff)
 
             try:
-                # Re-fetch job for latest checkpointed data
                 job = await get_job(job_id)
                 if not job:
                     raise RuntimeError("Job deleted during processing")
@@ -1327,12 +1336,8 @@ async def execute_pipeline(job_id: str):
                 t_start = time.time()
                 runner = STAGE_RUNNERS[stage_name]
 
-                # Execute with timeout
                 try:
-                    outputs = await asyncio.wait_for(
-                        runner(job),
-                        timeout=config["timeout"],
-                    )
+                    outputs = await asyncio.wait_for(runner(job), timeout=config["timeout"])
                 except asyncio.TimeoutError:
                     raise RuntimeError(f"Stage {stage_name} timed out after {config['timeout']}s")
 
@@ -1340,22 +1345,15 @@ async def execute_pipeline(job_id: str):
                 timing[f"{stage_name}_ms"] = duration_ms
 
                 await mark_stage_complete(job_id, stage_name, outputs, duration_ms)
-                await update_job(job_id, {"progress": progress_end})
 
-                # Record TTFD timestamps (batch update per stage, not per asset)
-                ttfd_update = {}
+                # Record TTFD timestamps
                 now_ts = time.time()
+                ttfd_update = {}
                 if stage_name == "scenes":
                     ttfd["first_scene"] = now_ts
                     ttfd_update = {
                         "ttfd_metrics.first_scene": now_ts,
                         "ttfd_metrics.time_to_first_scene": round(now_ts - pipeline_start, 2),
-                    }
-                elif stage_name == "images":
-                    ttfd["first_image"] = now_ts
-                    ttfd_update = {
-                        "ttfd_metrics.first_image": now_ts,
-                        "ttfd_metrics.time_to_first_image": round(now_ts - pipeline_start, 2),
                     }
                 elif stage_name == "voices":
                     ttfd["first_voice"] = now_ts
@@ -1367,57 +1365,115 @@ async def execute_pipeline(job_id: str):
                         "ttfd_metrics.time_to_first_playable_preview": round(now_ts - pipeline_start, 2),
                     }
                 if ttfd_update:
-                    await db.pipeline_jobs.update_one(
-                        {"job_id": job_id}, {"$set": ttfd_update}
-                    )
+                    await db.pipeline_jobs.update_one({"job_id": job_id}, {"$set": ttfd_update})
 
-                # Broadcast stage completion via WebSocket
                 await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, progress_end,
-                                    f"{STAGE_LABELS.get(stage_name, stage_name)} complete")
-
+                                    f"{stage_name} complete")
                 logger.info(f"[PIPE {job_id[:8]}] Stage {stage_name} completed in {duration_ms}ms")
-                success = True
-                break
+                return True
 
             except Exception as e:
                 last_error = str(e)
                 logger.error(f"[PIPE {job_id[:8]}] Stage {stage_name} attempt {attempt + 1} failed: {e}")
 
-                # Classify failure
                 err_str = str(e).lower()
                 non_retriable = ["copyright", "blocked", "invalid", "not configured", "insufficient"]
                 if any(term in err_str for term in non_retriable):
-                    logger.info(f"[PIPE {job_id[:8]}] Non-retriable error, failing fast")
                     break
 
-        if not success:
-            await mark_stage_failed(job_id, stage_name, last_error or "Unknown error", config["max_retries"])
-            await update_job(job_id, {
-                "status": "FAILED",
-                "error": f"Stage '{stage_name}' failed: {last_error}",
-                "current_step": f"Failed at {stage_name}: {(last_error or '')[:80]}",
-                "completed_at": datetime.now(timezone.utc),
-                "timing": timing,
-            })
+        # Stage failed after all retries
+        await mark_stage_failed(job_id, stage_name, last_error or "Unknown error", config["max_retries"])
+        return False
 
-            # Refund credits
-            await refund_credits(job)
+    # ─── STAGE 1: SCENES (sequential — required before images/voices) ────────
+    await update_job(job_id, {"progress": 5, "current_step": STAGE_LABELS["scenes"]})
 
-            # If we have any assets (scenes+images), run fallback pipeline regardless of which stage failed
-            job_check = await get_job(job_id)
-            has_assets = (len(job_check.get("scenes", [])) > 0 and len(job_check.get("scene_images", {})) > 0)
-            if has_assets:
-                try:
-                    from services.fallback_pipeline import run_fallback_pipeline
-                    logger.info(f"[PIPE {job_id[:8]}] Stage '{stage_name}' failed — triggering fallback (assets available)")
-                    await run_fallback_pipeline(job_id, stage_name)
-                except Exception as fb_err:
-                    logger.error(f"[PIPE {job_id[:8]}] Fallback pipeline failed: {fb_err}")
+    scenes_ok = await _run_stage("scenes")
+    if not scenes_ok:
+        last_err = (await get_job(job_id) or {}).get("stages", {}).get("scenes", {}).get("error", "Scenes failed")
+        await update_job(job_id, {
+            "status": "FAILED",
+            "error": f"Stage 'scenes' failed: {last_err}",
+            "current_step": f"Failed at scenes: {str(last_err)[:80]}",
+            "completed_at": datetime.now(timezone.utc),
+            "timing": timing,
+        })
+        await refund_credits(job)
+        await _ws_broadcast(job_id, job.get("user_id", ""), "scenes", 0,
+                            f"Failed at scenes: {str(last_err)[:80]}", status="failed")
+        return
 
-            # Broadcast failure via WebSocket
-            await _ws_broadcast(job_id, job.get("user_id", ""), stage_name, 0,
-                                f"Failed at {stage_name}: {(last_error or '')[:80]}", status="failed")
-            return
+    # ─── STAGE 2: IMAGES + VOICES (parallel — the speed win) ─────────────────
+    elapsed = time.time() - pipeline_start
+    est_remaining = max(0, est_total_sec - elapsed)
+    await update_job(job_id, {
+        "progress": 30,
+        "current_step": f"Step 2/2: Generating images & audio in parallel (~{int(est_remaining)}s left)...",
+        "current_stage": "images",
+        "estimated_remaining_sec": round(est_remaining),
+    })
+    await _ws_broadcast(job_id, job.get("user_id", ""), "parallel",
+                        30, f"Generating images & audio in parallel (~{int(est_remaining)}s left)...")
+
+    logger.info(f"[PIPE {job_id[:8]}] Starting PARALLEL execution: images + voices")
+    t_parallel = time.time()
+
+    # Run both stages concurrently
+    images_ok, voices_ok = await asyncio.gather(
+        _run_stage("images"),
+        _run_stage("voices"),
+        return_exceptions=False,
+    )
+
+    parallel_ms = int((time.time() - t_parallel) * 1000)
+    timing["parallel_ms"] = parallel_ms
+    logger.info(f"[PIPE {job_id[:8]}] Parallel stages completed in {parallel_ms}ms (images={images_ok}, voices={voices_ok})")
+
+    # Handle failures
+    if not images_ok and not voices_ok:
+        last_err = "Both image and voice generation failed"
+        await update_job(job_id, {
+            "status": "FAILED",
+            "error": last_err,
+            "current_step": "Failed: images and voices both failed",
+            "completed_at": datetime.now(timezone.utc),
+            "timing": timing,
+        })
+        await refund_credits(job)
+        await _ws_broadcast(job_id, job.get("user_id", ""), "images", 0, last_err, status="failed")
+        return
+
+    if not images_ok:
+        await update_job(job_id, {
+            "status": "FAILED",
+            "error": "Image generation failed",
+            "current_step": "Failed at image generation",
+            "completed_at": datetime.now(timezone.utc),
+            "timing": timing,
+        })
+        await refund_credits(job)
+
+        # Attempt fallback if we have scene data
+        job_check = await get_job(job_id)
+        if len(job_check.get("scenes", [])) > 0:
+            try:
+                from services.fallback_pipeline import run_fallback_pipeline
+                logger.info(f"[PIPE {job_id[:8]}] Images failed — triggering fallback")
+                await run_fallback_pipeline(job_id, "images")
+            except Exception as fb_err:
+                logger.error(f"[PIPE {job_id[:8]}] Fallback pipeline failed: {fb_err}")
+
+        await _ws_broadcast(job_id, job.get("user_id", ""), "images", 0,
+                            "Image generation failed", status="failed")
+        return
+
+    # Voices failed but images succeeded — partial success, continue with silent video
+    if not voices_ok:
+        logger.warning(f"[PIPE {job_id[:8]}] Voices failed — continuing with images only (silent video)")
+        await update_job(job_id, {
+            "progress": 80,
+            "current_step": "Voice generation failed — creating silent video...",
+        })
 
     # ─── ALL ASSET STAGES COMPLETE — Generate manifest + ZIP ─────────────────
     job = await get_job(job_id)

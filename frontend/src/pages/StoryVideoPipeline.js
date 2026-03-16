@@ -601,6 +601,18 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 // ─── PROCESSING PHASE ─────────────────────────────────────────────────────
 
 function ProcessingPhase({ job }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  // Tick elapsed timer every second
+  useEffect(() => {
+    if (!job?.created_at) return;
+    const start = new Date(job.created_at).getTime();
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [job?.created_at]);
+
   if (!job) return (
     <div className="flex items-center justify-center py-20" data-testid="processing-loading">
       <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
@@ -610,21 +622,39 @@ function ProcessingPhase({ job }) {
 
   const sceneProgress = job.scene_progress || [];
   const stages = job.stages || {};
+  const estTotal = job.estimated_total_sec || 60;
+  const estRemaining = Math.max(0, estTotal - elapsed);
+  const imagesRunning = stages.images?.status === 'RUNNING' || stages.images?.status === 'RETRYING';
+  const voicesRunning = stages.voices?.status === 'RUNNING' || stages.voices?.status === 'RETRYING';
+  const parallelRunning = imagesRunning || voicesRunning;
+
+  // Find first ready image for hero display
+  const firstReadyScene = sceneProgress.find(sp => sp.has_image && sp.image_url);
 
   return (
-    <div className="space-y-8" data-testid="processing-phase">
+    <div className="space-y-6" data-testid="processing-phase">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-white">{job.title || 'Generating Video...'}</h2>
         <p className="text-slate-400 mt-1">{job.current_step || 'Processing...'}</p>
       </div>
 
+      {/* Progress bar + time estimate */}
       <div className="max-w-2xl mx-auto">
         <Progress value={job.progress || 0} className="h-3" />
-        <p className="text-center text-sm text-slate-400 mt-2">{job.progress || 0}%</p>
+        <div className="flex justify-between items-center mt-2">
+          <p className="text-sm text-slate-400">{job.progress || 0}%</p>
+          {job.status === 'PROCESSING' && (
+            <p className="text-sm text-slate-500 flex items-center gap-1" data-testid="time-estimate">
+              <Clock className="w-3.5 h-3.5" />
+              {estRemaining > 0 ? `~${estRemaining}s remaining` : 'Finishing up...'}
+            </p>
+          )}
+        </div>
       </div>
 
+      {/* Stage indicators — show parallel execution */}
       <div className="flex justify-center gap-2" data-testid="stage-indicators">
-        {STAGE_ORDER.map((name) => {
+        {['scenes', 'images', 'voices'].map((name) => {
           const Icon = STAGE_ICONS[name];
           const s = stages[name] || {};
           const isComplete = s.status === 'COMPLETED';
@@ -648,6 +678,28 @@ function ProcessingPhase({ job }) {
         })}
       </div>
 
+      {/* Parallel indicator */}
+      {parallelRunning && (
+        <p className="text-center text-xs text-purple-400 flex items-center justify-center gap-1" data-testid="parallel-indicator">
+          <Sparkles className="w-3 h-3" /> Images & audio generating in parallel for faster results
+        </p>
+      )}
+
+      {/* HERO: Show first ready image immediately */}
+      {firstReadyScene && (
+        <div className="max-w-lg mx-auto" data-testid="first-image-hero">
+          <div className="relative rounded-xl overflow-hidden border border-green-500/30 shadow-lg shadow-green-500/10">
+            <img src={firstReadyScene.image_url} alt={firstReadyScene.title || 'Scene preview'}
+              className="w-full aspect-video object-cover" />
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+              <p className="text-sm text-white font-medium">{firstReadyScene.title}</p>
+              <p className="text-xs text-green-400">Scene ready</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scene filmstrip — shows all scenes with progress */}
       {sceneProgress.length > 0 && (
         <div data-testid="filmstrip">
           <h3 className="text-sm font-medium text-slate-400 mb-3 text-center">Scene Progress</h3>
@@ -661,7 +713,7 @@ function ProcessingPhase({ job }) {
                   <img src={sp.image_url} alt={`Scene ${sp.scene_number}`} className="w-32 h-20 object-cover" />
                 ) : (
                   <div className="w-32 h-20 bg-slate-800/50 flex items-center justify-center">
-                    {job.current_stage === 'images' ? <Loader2 className="w-5 h-5 text-purple-400 animate-spin" /> : <Image className="w-5 h-5 text-slate-600" />}
+                    {imagesRunning ? <Loader2 className="w-5 h-5 text-purple-400 animate-spin" /> : <Image className="w-5 h-5 text-slate-600" />}
                   </div>
                 )}
                 <div className="p-1.5 bg-slate-900/80">

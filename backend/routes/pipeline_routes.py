@@ -507,6 +507,8 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "credits_charged": job.get("credits_charged"),
             "queue_priority": job.get("queue_tier", "FREE"),
             "queue_wait_ms": job.get("queue_wait_ms"),
+            "estimated_total_sec": job.get("estimated_total_sec"),
+            "estimated_remaining_sec": job.get("estimated_remaining_sec"),
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
             "fallback": fallback_data,

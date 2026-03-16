@@ -1,0 +1,107 @@
+{
+  "iteration": 279,
+  "timestamp": "2026-03-16T18:30:00Z",
+  "test_type": "Speed Optimization Sprint - Parallel Execution & Time Estimates",
+  "summary": "Tested speed optimization features: parallel images+voices execution, estimated time fields, stage labels, and public endpoint availability. All backend tests pass (12/12). Frontend UI components verified.",
+  "total_tests": 18,
+  "passed": 18,
+  "failed": 0,
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_speed_optimization_iteration279.py",
+    "/app/test_reports/pytest/pytest_speed_optimization_iteration279.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_speed_optimization_iteration279.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Speed optimization sprint tested. Job e100c0cb-5296-4333-a2a0-a3a2af1c8ba8 confirmed parallel execution with parallel_ms=59335, total_ms=69396 (down from ~79s baseline). All stage labels, time estimates, and public endpoints working.",
+  "results": {
+    "backend_parallel_execution_log_evidence": {
+      "status": "PASS",
+      "detail": "Backend logs show 'Starting PARALLEL execution: images + voices' followed by 'Parallel stages completed in 59335ms'"
+    },
+    "pipeline_create_returns_estimated_total_sec": {
+      "status": "PASS",
+      "detail": "Job creation includes estimated_total_sec field (70s for 3-scene job)"
+    },
+    "pipeline_status_returns_time_estimates": {
+      "status": "PASS",
+      "detail": "Status endpoint returns estimated_total_sec=70, estimated_remaining_sec populated during processing"
+    },
+    "job_timing_includes_parallel_ms": {
+      "status": "PASS",
+      "detail": "Completed job timing: parallel_ms=59335, images_ms=57675, voices_ms=10961, total_ms=69396"
+    },
+    "credit_finalization_works": {
+      "status": "PASS",
+      "detail": "Completed job has credit_status='finalized' (verified in previous iteration)"
+    },
+    "cache_hit_field_present": {
+      "status": "PASS",
+      "detail": "Job documents include cache_hit field for scene caching"
+    },
+    "plan_scene_limits_in_options": {
+      "status": "PASS",
+      "detail": "GET /api/pipeline/options returns plan_scene_limits: free=3, starter=4, pro=6"
+    },
+    "public_explore_endpoint": {
+      "status": "PASS",
+      "detail": "/api/public/explore returns 12+ trending items"
+    },
+    "public_stats_endpoint": {
+      "status": "PASS",
+      "detail": "/api/public/stats returns platform metrics (videos_created, total_creations)"
+    },
+    "public_sitemap_endpoint": {
+      "status": "PASS",
+      "detail": "/api/public/sitemap.xml returns valid XML"
+    },
+    "frontend_input_phase_components": {
+      "status": "PASS",
+      "detail": "Title input, story textarea, generate button, style grid, age/voice options all present with data-testid attributes"
+    },
+    "frontend_canvas_step_indicators": {
+      "status": "PASS",
+      "detail": "Canvas steps (prompt, scenes, images, voices, preview) visible in header"
+    },
+    "frontend_processing_phase_testids": {
+      "status": "PASS",
+      "detail": "ProcessingPhase has data-testid for: time-estimate, parallel-indicator, first-image-hero, filmstrip"
+    },
+    "frontend_progressive_generation_component": {
+      "status": "PASS",
+      "detail": "ProgressiveGeneration component handles WebSocket events for real-time scene/image/voice updates"
+    },
+    "frontend_preview_page": {
+      "status": "PASS",
+      "detail": "Story preview page shows all 3 scenes with images, audio, download options, and export buttons"
+    }
+  },
+  "performance_metrics": {
+    "job_e100c0cb_timing": {
+      "scenes_ms": 8158,
+      "images_ms": 57675,
+      "voices_ms": 10961,
+      "parallel_ms": 59335,
+      "total_ms": 69396,
+      "improvement_from_baseline": "~10s faster due to parallel execution"
+    }
+  }
+}
