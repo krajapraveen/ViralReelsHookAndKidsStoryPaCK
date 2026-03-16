@@ -1,71 +1,80 @@
 # Visionary Suite — PRD (Product Requirements Document)
 
 ## Product Vision
-Visionary Suite is an **AI Creative Operating System** — a creator network centered around the growth loop: **Create → Share → View → Remix → Create**.
+Visionary Suite is an **AI Creative Operating System** — a creator network: **Create → Share → View → Remix → Create**.
 
-## Pipeline Architecture (Optimized)
+## Pipeline Architecture
 ```
-User Prompt → API Gateway → Job Create (credit reservation) → Queue (priority) → Workers
-                                                                    ↓
-                                                            Stage 1: Scenes (LLM)
-                                                                    ↓
-                                                       Stage 2: Images + Voices (PARALLEL)
-                                                                    ↓
-                                                            Stage 3: Package + Export
+User Prompt → Admission Controller → Credit Reserve → Queue (Priority) → Workers
+                    ↓                                         ↓
+            Check: concurrency,                     Stage 1: Scenes (LLM)
+            queue depth, plan                              ↓
+                    ↓                          Stage 2: Images + Voices (PARALLEL)
+            ADMIT / REJECT / QUEUE                         ↓
+                                                Stage 3: Package + Export
 ```
+
+### Admission Controller (LIVE)
+| Check | Behavior |
+|-------|----------|
+| User concurrency | Free=1, Paid=3, Premium=5, Admin=10 |
+| Queue depth ≥ 20 | Free: REJECT with retry message. Paid: queue with ETA. Premium: admit. |
+| Active workers ≥ 10 | Same as above |
 
 ### Performance Metrics
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Total pipeline (3 scenes) | 79s | 69s | -13% |
-| Parallel stage (images+voices) | 70s (sequential) | 59s (parallel) | -16% |
-| Voices tail time | +13s | 0s (overlapped) | -100% |
-| Scene cache hit | N/A | saves ~7s | New |
+| Metric | Value |
+|--------|-------|
+| Total pipeline (3 scenes, parallel) | ~69s |
+| Scenes | ~8s |
+| Images + Voices (parallel) | ~59s |
+| Image generation | 57s (82% of total — **bottleneck**) |
+
+### Image Latency Investigation Results
+- `quality="low"` already used (fastest option)
+- `size` parameter exists in litellm but NOT exposed by emergentintegrations wrapper
+- GPT-Image-1 supports: 1024x1024, 1024x1536, 1536x1024, auto
+- **Path forward**: Either fork wrapper to add size param, or call litellm directly
 
 ### Plan-Based Controls
-| Plan | Max Scenes | Queue Priority | Watermark |
-|------|-----------|---------------|-----------|
-| Free | 3 | Low (10) | Yes |
-| Starter/Monthly | 4 | Medium (1) | No |
-| Pro/Premium | 6 | Medium (1) | No |
+| Plan | Scenes | Queue Priority | Watermark | Concurrent Jobs |
+|------|--------|---------------|-----------|----------------|
+| Free | 3 | Low (10) | Yes | 1 |
+| Starter/Monthly | 4 | Medium (1) | No | 3 |
+| Pro/Premium | 6 | Medium (1) | No | 5 |
+| Admin | 6 | High (0) | No | 10 |
 
 ### Credit System
 - Reserve on job start → Finalize on success → Refund on failure
-- Small (≤3): 10 credits, Medium (4-6): 15, Large (7+): 20
 
 ## Distribution Loop (LIVE)
-- Public pages `/v/{slug}` with OG meta tags, social share buttons
+- Public pages `/v/{slug}` with OG meta tags, social share buttons, prompt display
 - Explore gallery `/explore` with 134+ creations
 - Creator profiles `/creator/{username}`
-- Sitemap `/api/public/sitemap.xml`
-- Admin Growth Dashboard `/app/admin/growth`
-- Content seeded: 40 videos (Phase A), system creator "Visionary AI"
+- Sitemap, Growth Dashboard, Watermark
 
 ## Completed (All Sessions)
 1. Global design system, homepage, dashboard
 2. Story Video Pipeline (multi-stage, durable)
 3. Distribution loop (explore, public pages, remix, share, OG tags)
 4. Content Seeding Phase A (40 videos)
-5. Plan-based scene limits (free=3, paid=4, premium=6)
-6. Credit reservation model
-7. Scene caching for prompt reuse
-8. **Parallel image+voice execution** (saves ~10s per job)
-9. **Streaming first asset to UI** (reduces perceived wait)
-10. **Estimated time remaining** display
-11. Creator Profiles, Sitemap, Social Share Buttons
+5. Plan-based scene limits + credit reservation + scene caching
+6. Parallel image+voice execution (saves ~10s per job)
+7. Streaming first asset to UI + estimated time remaining
+8. **Admission controller** — pre-job gate with concurrency checks
+9. **Per-user concurrency limits** — Free=1, Paid=3, Premium=5, Admin=10
+10. **System status endpoint** — queue depth, active workers, user slots
 
 ## Remaining Backlog
 ### P0
+- [ ] Image latency optimization (bypass wrapper for size control OR faster model)
 - [ ] Content Seeding Phase B+C (80 more → 120 total)
 
 ### P1
-- [ ] Admission controller (queue depth check before job start)
-- [ ] Per-user concurrency limits (free=1, paid=3, premium=5)
-- [ ] Graceful degradation under load
+- [ ] Graceful degradation under load (fewer scenes/lower quality for free users)
+- [ ] Direct-to-storage uploads via signed URLs
+- [ ] Storage lifecycle (auto-delete temp assets after 72h)
 
 ### P2
 - [ ] BYO API / BYO Cloud mode
-- [ ] Storage lifecycle (auto-delete temp assets after 72h)
-- [ ] Direct-to-storage uploads via signed URLs
 - [ ] Creator Challenges, Cashfree payments
 - [ ] Email Notifications (BLOCKED — SendGrid)
