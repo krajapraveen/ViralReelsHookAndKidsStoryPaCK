@@ -19,8 +19,8 @@ export default function Landing() {
   useEffect(() => {
     // Fetch real platform stats
     axios.get(`${API}/api/public/stats`).then(r => setStats(r.data)).catch(() => {});
-    // Fetch trending creations
-    axios.get(`${API}/api/public/explore?tab=trending&limit=6`).then(r => setTrending(r.data.items || [])).catch(() => {});
+    // Fetch algorithmic trending (weighted by views + remixes + recency)
+    axios.get(`${API}/api/public/trending-weekly?limit=10`).then(r => setTrending(r.data.items || [])).catch(() => {});
   }, []);
 
   const handlePromptSubmit = () => {
@@ -239,15 +239,27 @@ export default function Landing() {
       {trending.length > 0 && (
         <section className="py-20 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="trending-section">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="vs-h1 mb-3" style={{ fontFamily: 'var(--vs-font-heading)' }}>Trending Creations</h2>
-              <p className="text-[var(--vs-text-secondary)] text-lg" style={{ fontFamily: 'var(--vs-font-body)' }}>Real AI videos created by our community. Every one started as a simple text prompt.</p>
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-semibold tracking-widest uppercase text-emerald-400" style={{ fontFamily: 'var(--vs-font-mono)' }}>Trending This Week</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-bold text-white" style={{ fontFamily: 'var(--vs-font-heading)' }}>What the Community Loves</h2>
+                <p className="text-sm text-[var(--vs-text-secondary)] mt-1">Ranked by views, remixes, and freshness</p>
+              </div>
+              <Link to="/explore?tab=trending">
+                <button className="vs-btn-secondary px-5 h-9 text-sm hidden sm:flex" data-testid="see-all-trending">
+                  See All <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </button>
+              </Link>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {trending.slice(0, 6).map(item => (
-                <Link key={item.job_id} to={`/v/${item.slug || item.job_id}`}>
-                  <div className="vs-card group p-0 overflow-hidden cursor-pointer" data-testid={`trending-card-${item.job_id}`}>
+            {/* Horizontal scroll carousel */}
+            <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide" style={{ scrollbarWidth: 'none' }} data-testid="trending-carousel">
+              {trending.map((item, idx) => (
+                <Link key={item.job_id} to={`/v/${item.slug || item.job_id}`} className="flex-shrink-0 snap-start" style={{ width: 'min(280px, 75vw)' }}>
+                  <div className="vs-card group p-0 overflow-hidden cursor-pointer h-full" data-testid={`trending-card-${item.job_id}`}>
                     <div className="relative w-full aspect-video bg-[var(--vs-bg-elevated)] overflow-hidden">
                       {item.thumbnail_url ? (
                         <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
@@ -259,15 +271,25 @@ export default function Landing() {
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                         <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
                       </div>
+                      {idx < 3 && (
+                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-md">
+                          <span className="text-xs font-bold text-emerald-400" style={{ fontFamily: 'var(--vs-font-mono)' }}>#{idx + 1}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="p-3">
                       <h3 className="text-sm font-medium text-white truncate group-hover:text-[var(--vs-text-accent)] transition-colors">{item.title}</h3>
                       <div className="flex items-center gap-3 mt-1.5">
-                        <span className="text-xs text-[var(--vs-text-muted)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>{item.animation_style?.replace(/_/g, ' ')}</span>
+                        <span className="flex items-center gap-1 text-xs text-[var(--vs-text-muted)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>
+                          <Eye className="w-3 h-3" /> {item.views || 0}
+                        </span>
                         {item.remix_count > 0 && (
                           <span className="flex items-center gap-1 text-xs text-[var(--vs-text-accent)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>
                             <RefreshCcw className="w-3 h-3" /> {item.remix_count}
                           </span>
+                        )}
+                        {item.category && (
+                          <span className="text-xs text-[var(--vs-text-muted)] ml-auto truncate">{item.category}</span>
                         )}
                       </div>
                     </div>
@@ -276,10 +298,10 @@ export default function Landing() {
               ))}
             </div>
 
-            <div className="text-center mt-8">
-              <Link to="/explore">
-                <button className="vs-btn-secondary px-8 h-11 text-base" data-testid="explore-more-btn">
-                  Explore More <ArrowRight className="w-4 h-4 ml-1" />
+            <div className="text-center mt-6 sm:hidden">
+              <Link to="/explore?tab=trending">
+                <button className="vs-btn-secondary px-8 h-10 text-sm" data-testid="explore-more-mobile">
+                  See All Trending <ArrowRight className="w-4 h-4 ml-1" />
                 </button>
               </Link>
             </div>

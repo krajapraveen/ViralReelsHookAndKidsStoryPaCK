@@ -130,6 +130,90 @@ async def get_public_creation(slug: str):
     }
 
 
+
+# ─── TRENDING THIS WEEK (Algorithmic) ─────────────────────────────────────
+
+@router.get("/trending-weekly")
+async def get_trending_weekly(limit: int = Query(10, ge=1, le=20)):
+    """
+    Algorithmic trending for the homepage carousel.
+    Score = (views * 1.0) + (remix_count * 5.0) + recency_boost
+    Recency boost: items from last 24h get 2x, last 3 days get 1.5x, last 7 days get 1.2x.
+    Only considers content from the last 30 days.
+    """
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = now - timedelta(days=30)
+
+    pipeline = [
+        {"$match": {
+            "status": "COMPLETED",
+            "created_at": {"$gte": thirty_days_ago},
+            "thumbnail_url": {"$exists": True, "$ne": ""},
+        }},
+        {"$addFields": {
+            "age_hours": {
+                "$divide": [
+                    {"$subtract": [now, "$created_at"]},
+                    3600000  # ms to hours
+                ]
+            }
+        }},
+        {"$addFields": {
+            "recency_multiplier": {
+                "$switch": {
+                    "branches": [
+                        {"case": {"$lte": ["$age_hours", 24]}, "then": 2.0},
+                        {"case": {"$lte": ["$age_hours", 72]}, "then": 1.5},
+                        {"case": {"$lte": ["$age_hours", 168]}, "then": 1.2},
+                    ],
+                    "default": 1.0
+                }
+            }
+        }},
+        {"$addFields": {
+            "trending_score": {
+                "$multiply": [
+                    {"$add": [
+                        {"$multiply": [{"$ifNull": ["$views", 0]}, 1.0]},
+                        {"$multiply": [{"$ifNull": ["$remix_count", 0]}, 5.0]},
+                    ]},
+                    "$recency_multiplier"
+                ]
+            }
+        }},
+        {"$sort": {"trending_score": -1}},
+        {"$limit": limit},
+        {"$project": {
+            "_id": 0,
+            "job_id": 1,
+            "slug": 1,
+            "title": 1,
+            "category": 1,
+            "animation_style": 1,
+            "views": 1,
+            "remix_count": 1,
+            "created_at": 1,
+            "thumbnail_url": 1,
+            "trending_score": 1,
+        }}
+    ]
+
+    items = await db.pipeline_jobs.aggregate(pipeline).to_list(length=limit)
+
+    from utils.r2_presign import presign_url
+    for item in items:
+        if item.get("thumbnail_url"):
+            item["thumbnail_url"] = presign_url(item["thumbnail_url"])
+        item.setdefault("views", 0)
+        item.setdefault("remix_count", 0)
+        item.setdefault("slug", item.get("job_id", ""))
+        item.pop("trending_score", None)
+
+    return {"success": True, "items": items, "period": "weekly"}
+
+
 # ─── EXPLORE FEED ─────────────────────────────────────────────────────────
 
 @router.get("/explore")
