@@ -92,7 +92,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
 
   // ─── FFmpeg.wasm MP4 Export ─────────────────────────────────────────────
   const exportWithFFmpeg = useCallback(async () => {
-    const { toBlobURL, fetchFile } = await import('@ffmpeg/util');
+    const { fetchFile } = await import('@ffmpeg/util');
     const startTime = Date.now();
 
     setPhase('loading');
@@ -107,20 +107,13 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
       ffmpeg.on('progress', ({ progress: p }) => {
         setProgress(Math.min(40 + Math.round(p * 55), 95));
       });
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm';
-      try {
-        await ffmpeg.load({
-          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-        });
-      } catch (loadErr) {
-        log(`toBlobURL load failed: ${loadErr.message}, trying direct URLs...`);
-        // Fallback: load directly from CDN (works if CORS is available)
-        await ffmpeg.load({
-          coreURL: `${baseURL}/ffmpeg-core.js`,
-          wasmURL: `${baseURL}/ffmpeg-core.wasm`,
-        });
-      }
+      // Load from same-origin public directory to avoid CORS/COEP Worker import issues
+      const baseURL = window.location.origin + '/ffmpeg-core';
+      log(`Loading ffmpeg core from: ${baseURL}`);
+      await ffmpeg.load({
+        coreURL: `${baseURL}/ffmpeg-core.js`,
+        wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+      });
     }
 
     if (abortRef.current) return;
@@ -515,7 +508,9 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
     );
   }
 
-  const formatLabel = exportMode?.mode === 'ffmpeg' ? 'MP4' : 'WebM';
+  const formatLabel = videoBlob
+    ? (videoBlob.type.includes('webm') ? 'WebM' : 'MP4')
+    : (exportMode?.mode === 'ffmpeg' ? 'MP4' : 'WebM');
   const doneSize = videoBlob ? (videoBlob.size / (1024 * 1024)).toFixed(1) : '0';
 
   return (
