@@ -29,14 +29,12 @@ class StudioErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-8">
+        <div className="vs-page flex items-center justify-center p-8">
           <div className="max-w-md text-center" data-testid="error-boundary">
-            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
-            <p className="text-slate-400 mb-6">The video studio encountered an error. Please try refreshing the page.</p>
-            <Button onClick={() => window.location.reload()} className="bg-purple-600 hover:bg-purple-700">
-              Refresh Page
-            </Button>
+            <AlertCircle className="w-12 h-12 text-[var(--vs-error)] mx-auto mb-4" />
+            <h2 className="vs-h2 mb-2">Something went wrong</h2>
+            <p className="text-[var(--vs-text-secondary)] mb-6">The video studio encountered an error. Please try refreshing the page.</p>
+            <button onClick={() => window.location.reload()} className="vs-btn-primary">Refresh Page</button>
           </div>
         </div>
       );
@@ -326,18 +324,45 @@ function StoryVideoPipelineInner() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-purple-950/30 to-slate-950">
-      <header className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-40">
+    <div className="vs-page">
+      <header className="vs-glass sticky top-0 z-40 border-b border-[var(--vs-border-subtle)]">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/app" className="text-slate-400 hover:text-white"><ArrowLeft className="w-5 h-5" /></Link>
-            <Film className="w-5 h-5 text-purple-400" />
-            <span className="font-semibold text-white text-lg">Story → Video</span>
+            <Link to="/app" className="text-[var(--vs-text-muted)] hover:text-white transition-colors"><ArrowLeft className="w-5 h-5" /></Link>
+            <div className="w-8 h-8 rounded-lg vs-gradient-bg flex items-center justify-center">
+              <Film className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-semibold text-white text-lg" style={{ fontFamily: 'var(--vs-font-heading)' }}>Story Video Studio</span>
           </div>
+
+          {/* Canvas step indicators */}
+          <div className="hidden md:flex items-center gap-1">
+            {[
+              { key: 'prompt', label: 'Prompt', icon: Sparkles, active: phase === 'input' },
+              { key: 'scenes', label: 'Scenes', icon: BookOpen, active: phase === 'processing' && (job?.current_stage === 'scenes' || !job) },
+              { key: 'images', label: 'Images', icon: Image, active: phase === 'processing' && job?.current_stage === 'images' },
+              { key: 'voices', label: 'Voice', icon: Mic, active: phase === 'processing' && job?.current_stage === 'voices' },
+              { key: 'preview', label: 'Preview', icon: Eye, active: phase === 'done' },
+            ].map((step, i) => (
+              <div key={step.key} className="flex items-center">
+                {i > 0 && <div className={`w-6 h-px mx-1 ${step.active || (phase === 'done') || (phase === 'processing' && i <= ['prompt','scenes','images','voices','preview'].indexOf(job?.current_stage || 'scenes')) ? 'bg-[var(--vs-primary-from)]' : 'bg-[var(--vs-border)]'}`} />}
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  step.active ? 'bg-[var(--vs-cta)]/15 text-[var(--vs-text-accent)] border border-[var(--vs-border-glow)]'
+                  : (phase === 'done' || (phase === 'processing' && i < ['prompt','scenes','images','voices','preview'].indexOf(job?.current_stage || 'scenes') + 1))
+                    ? 'text-[var(--vs-success)]'
+                    : 'text-[var(--vs-text-muted)]'
+                }`} data-testid={`canvas-step-${step.key}`}>
+                  <step.icon className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">{step.label}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
           {phase !== 'input' && (
-            <Button onClick={handleNewVideo} variant="outline" size="sm" className="border-slate-700 text-slate-300" data-testid="new-video-header-btn">
-              <Sparkles className="w-4 h-4 mr-1" /> New Video
-            </Button>
+            <button onClick={handleNewVideo} className="vs-btn-secondary h-8 px-3 text-xs" data-testid="new-video-header-btn">
+              <Sparkles className="w-3.5 h-3.5" /> New
+            </button>
           )}
         </div>
       </header>
@@ -414,27 +439,27 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   const canCreate = rateLimitStatus?.can_create !== false;
 
   return (
-    <div className="space-y-8" data-testid="input-phase">
+    <div className="space-y-8 vs-fade-up-1" data-testid="input-phase">
       {/* Active jobs banner */}
       {activeJobs.length > 0 && (
-        <div className="bg-purple-900/30 border border-purple-500/30 rounded-xl p-4 flex items-center justify-between" data-testid="active-job-banner">
+        <div className="vs-panel p-4 flex items-center justify-between border-[var(--vs-border-glow)]" data-testid="active-job-banner">
           <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-            <span className="text-purple-200">You have {activeJobs.length} video{activeJobs.length > 1 ? 's' : ''} in progress</span>
+            <Loader2 className="w-5 h-5 text-[var(--vs-text-accent)] animate-spin" />
+            <span className="text-[var(--vs-text-accent)]">You have {activeJobs.length} video{activeJobs.length > 1 ? 's' : ''} in progress</span>
           </div>
-          <Button onClick={() => onViewJob(activeJobs[0])} size="sm" className="bg-purple-600 hover:bg-purple-700" data-testid="view-progress-btn">
+          <button onClick={() => onViewJob(activeJobs[0])} className="vs-btn-primary h-8 px-4 text-xs" data-testid="view-progress-btn">
             <Eye className="w-4 h-4 mr-1" /> View Progress
-          </Button>
+          </button>
         </div>
       )}
 
       {/* Rate limit warning */}
       {rateLimitStatus && !rateLimitStatus.can_create && (
-        <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3" data-testid="rate-limit-warning">
+        <div className="vs-panel p-4 flex items-start gap-3 border-amber-500/30" data-testid="rate-limit-warning">
           <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-amber-200 font-medium text-sm">{rateLimitStatus.reason}</p>
-            <p className="text-amber-400/60 text-xs mt-1">
+            <p className="text-amber-200 font-medium text-sm" style={{ fontFamily: 'var(--vs-font-body)' }}>{rateLimitStatus.reason}</p>
+            <p className="text-amber-400/60 text-xs mt-1" style={{ fontFamily: 'var(--vs-font-mono)' }}>
               Videos this hour: {rateLimitStatus.recent_count}/{rateLimitStatus.max_per_hour} |
               Active: {rateLimitStatus.concurrent}/{rateLimitStatus.max_concurrent}
             </p>
@@ -445,27 +470,27 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Create a Story Video</h1>
-            <p className="text-slate-400">Enter your story and we'll create an animated video with AI-generated images and voiceover.</p>
+            <h1 className="vs-h1 mb-2">Create a Story Video</h1>
+            <p className="text-[var(--vs-text-secondary)]" style={{ fontFamily: 'var(--vs-font-body)' }}>Enter your story and we'll create an animated video with AI-generated images and voiceover.</p>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-slate-300 mb-1 block">Title <span className="text-red-400">*</span></label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-1 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Title <span className="text-[var(--vs-error)]">*</span></label>
               <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="My Amazing Story..."
-                className="bg-slate-800/50 border-slate-700 text-white" data-testid="title-input" maxLength={100} />
+                className="bg-[var(--vs-bg-panel)] border-[var(--vs-border)] text-white focus:border-[var(--vs-primary-from)] h-11" data-testid="title-input" maxLength={100} />
               {title.length > 0 && title.trim().length < 3 && (
                 <p className="text-xs text-amber-400 mt-1">Title needs at least 3 characters</p>
               )}
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-300 mb-1 block">Story Text <span className="text-red-400">*</span></label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-1 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Story Text <span className="text-[var(--vs-error)]">*</span></label>
               <Textarea value={storyText} onChange={e => setStoryText(e.target.value)}
                 placeholder="Write your story here... (minimum 50 characters)" rows={8}
-                className="bg-slate-800/50 border-slate-700 text-white resize-none" data-testid="story-textarea" />
+                className="bg-[var(--vs-bg-panel)] border-[var(--vs-border)] text-white resize-none focus:border-[var(--vs-primary-from)]" data-testid="story-textarea" />
               <div className="flex justify-between mt-1">
-                <p className={`text-xs ${storyText.trim().length < 50 && storyText.length > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                <p className={`text-xs ${storyText.trim().length < 50 && storyText.length > 0 ? 'text-amber-400' : 'text-[var(--vs-text-muted)]'}`} style={{ fontFamily: 'var(--vs-font-mono)' }}>
                   {storyText.length} / 10,000 characters {storyText.length > 0 && storyText.trim().length < 50 ? `(need ${50 - storyText.trim().length} more)` : '(min 50)'}
                 </p>
               </div>
@@ -474,15 +499,15 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
           {/* Animation Style */}
           <div>
-            <label className="text-sm font-medium text-slate-300 mb-2 block">Animation Style</label>
+            <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Animation Style</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" data-testid="style-grid">
               {styles.map(s => (
                 <button key={s.id} onClick={() => setAnimStyle(s.id)}
-                  className={`p-3 rounded-lg border text-left transition-all ${animStyle === s.id
-                    ? 'border-purple-500 bg-purple-500/20 text-white'
-                    : 'border-slate-700 bg-slate-800/30 text-slate-400 hover:border-slate-600'}`}
+                  className={`p-3 rounded-[var(--vs-card-radius)] border text-left transition-all ${animStyle === s.id
+                    ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
+                    : 'border-[var(--vs-border)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
                   data-testid={`style-${s.id}`}>
-                  <span className="text-sm font-medium">{s.name}</span>
+                  <span className="text-sm font-medium" style={{ fontFamily: 'var(--vs-font-body)' }}>{s.name}</span>
                 </button>
               ))}
             </div>
@@ -491,13 +516,13 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           {/* Age + Voice row */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-300 mb-2 block">Target Age</label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Target Age</label>
               <div className="space-y-1">
                 {ages.map(a => (
                   <button key={a.id} onClick={() => setAgeGroup(a.id)}
-                    className={`w-full p-2 rounded-lg border text-left text-sm transition-all ${ageGroup === a.id
-                      ? 'border-purple-500 bg-purple-500/20 text-white'
-                      : 'border-slate-700/50 bg-slate-800/30 text-slate-400 hover:border-slate-600'}`}
+                    className={`w-full p-2 rounded-[var(--vs-btn-radius)] border text-left text-sm transition-all ${ageGroup === a.id
+                      ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
+                      : 'border-[var(--vs-border-subtle)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
                     data-testid={`age-${a.id}`}>
                     {a.name}
                   </button>
@@ -505,13 +530,13 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-300 mb-2 block">Narrator Voice</label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Narrator Voice</label>
               <div className="space-y-1">
                 {voices.map(v => (
                   <button key={v.id} onClick={() => setVoicePreset(v.id)}
-                    className={`w-full p-2 rounded-lg border text-left text-sm transition-all ${voicePreset === v.id
-                      ? 'border-purple-500 bg-purple-500/20 text-white'
-                      : 'border-slate-700/50 bg-slate-800/30 text-slate-400 hover:border-slate-600'}`}
+                    className={`w-full p-2 rounded-[var(--vs-btn-radius)] border text-left text-sm transition-all ${voicePreset === v.id
+                      ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
+                      : 'border-[var(--vs-border-subtle)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
                     data-testid={`voice-${v.id}`}>
                     {v.name}
                   </button>
@@ -522,36 +547,34 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
           {/* Form error */}
           {formError && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3" data-testid="form-error">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="vs-panel p-4 flex items-start gap-3 border-[var(--vs-error)]/30" data-testid="form-error">
+              <AlertCircle className="w-5 h-5 text-[var(--vs-error)] flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-red-300 text-sm">{formError}</p>
+                <p className="text-red-300 text-sm" style={{ fontFamily: 'var(--vs-font-body)' }}>{formError}</p>
                 {formError.includes('session') && (
-                  <button onClick={() => window.location.href = '/login'} className="text-xs text-purple-400 hover:text-purple-300 underline mt-1">
-                    Go to Login
-                  </button>
+                  <button onClick={() => window.location.href = '/login'} className="text-xs text-[var(--vs-text-accent)] hover:text-white underline mt-1">Go to Login</button>
                 )}
                 {formError.includes('credit') && (
-                  <button onClick={() => window.location.href = '/app/pricing'} className="text-xs text-purple-400 hover:text-purple-300 underline mt-1">
-                    Get More Credits
-                  </button>
+                  <button onClick={() => window.location.href = '/app/pricing'} className="text-xs text-[var(--vs-text-accent)] hover:text-white underline mt-1">Get More Credits</button>
                 )}
               </div>
             </div>
           )}
 
-          {/* Generate Button — always clickable so user gets feedback */}
-          <Button onClick={onGenerate} disabled={submitting}
-            className={`w-full h-14 text-lg ${!canCreate ? 'bg-amber-700 hover:bg-amber-600' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
+          {/* Generate Button */}
+          <button onClick={onGenerate} disabled={submitting}
+            className={`w-full h-14 text-lg font-semibold rounded-[var(--vs-btn-radius)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              !canCreate ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'vs-btn-primary'
+            }`}
+            style={{ fontFamily: 'var(--vs-font-heading)' }}
             data-testid="generate-btn">
-            {submitting ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Creating Job...</>
-              : !canCreate ? <><ShieldAlert className="w-5 h-5 mr-2" /> Generation Unavailable — {rateLimitStatus?.reason || 'Rate limited'}</>
-              : <><Wand2 className="w-5 h-5 mr-2" /> Generate Video</>}
-          </Button>
+            {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating Job...</>
+              : !canCreate ? <><ShieldAlert className="w-5 h-5" /> Generation Unavailable</>
+              : <><Wand2 className="w-5 h-5" /> Generate Video</>}
+          </button>
 
-          {/* Rate limit info */}
           {rateLimitStatus && (
-            <p className="text-xs text-slate-600 text-center">
+            <p className="text-xs text-[var(--vs-text-muted)] text-center" style={{ fontFamily: 'var(--vs-font-mono)' }}>
               {rateLimitStatus.recent_count}/{rateLimitStatus.max_per_hour} videos this hour
             </p>
           )}
@@ -559,14 +582,14 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">Recent Videos</h3>
-          {recentJobs.length === 0 && <p className="text-sm text-slate-500">No videos yet. Create your first!</p>}
+          <h3 className="text-sm font-medium text-[var(--vs-text-muted)] uppercase tracking-wide" style={{ fontFamily: 'var(--vs-font-heading)' }}>Recent Videos</h3>
+          {recentJobs.length === 0 && <p className="text-sm text-[var(--vs-text-muted)]">No videos yet. Create your first!</p>}
           {recentJobs.map(j => (
             <button key={j.job_id} onClick={() => onViewJob(j)}
-              className="w-full p-3 rounded-lg border border-slate-700/50 bg-slate-800/30 text-left hover:border-purple-500/30 transition-all"
+              className="w-full vs-card text-left hover:border-[var(--vs-border-glow)] transition-all"
               data-testid={`recent-job-${j.job_id}`}>
               <p className="text-sm font-medium text-white truncate">{j.title}</p>
-              <p className="text-xs text-slate-500 mt-1">{new Date(j.created_at).toLocaleDateString()}</p>
+              <p className="text-xs text-[var(--vs-text-muted)] mt-1" style={{ fontFamily: 'var(--vs-font-mono)' }}>{new Date(j.created_at).toLocaleDateString()}</p>
             </button>
           ))}
         </div>

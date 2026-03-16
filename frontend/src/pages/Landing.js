@@ -64,41 +64,39 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/80 to-slate-950 text-white overflow-x-hidden">
+    <div className="vs-page overflow-x-hidden">
       <style>{`
         .grid-bg { background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 80px 80px; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-up { animation: fadeUp 0.7s ease-out forwards; }
-        .fade-up-2 { animation: fadeUp 0.7s ease-out 0.15s forwards; opacity: 0; }
-        .fade-up-3 { animation: fadeUp 0.7s ease-out 0.3s forwards; opacity: 0; }
-        .feature-glow:hover { box-shadow: 0 0 40px -12px rgba(99,102,241,0.15); }
+        .feature-glow:hover { box-shadow: 0 0 40px -12px rgba(124,58,237,0.2); }
       `}</style>
 
       {/* ─── Navbar ─── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.04] bg-[#06060b]/80 backdrop-blur-2xl" data-testid="landing-nav">
+      <nav className="fixed top-0 left-0 right-0 z-50 vs-glass border-b border-[var(--vs-border-subtle)]" data-testid="landing-nav">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2.5">
-            <Clapperboard className="w-6 h-6 text-indigo-400" />
-            <span className="text-lg font-bold tracking-tight text-white">Visionary Suite</span>
+            <div className="w-8 h-8 rounded-lg vs-gradient-bg flex items-center justify-center">
+              <Clapperboard className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-lg font-bold tracking-tight text-white" style={{ fontFamily: 'var(--vs-font-heading)' }}>Visionary Suite</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Features</a>
-            <a href="#how-it-works" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">How It Works</a>
-            <Link to="/gallery" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Gallery</Link>
-            <Link to="/pricing" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Pricing</Link>
-            <Link to="/login" className="text-sm font-medium text-slate-400 hover:text-white transition-colors" data-testid="nav-login-link">Login</Link>
+            <a href="#features" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>Features</a>
+            <a href="#how-it-works" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>How It Works</a>
+            <Link to="/gallery" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>Gallery</Link>
+            <Link to="/pricing" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>Pricing</Link>
+            <Link to="/login" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" data-testid="nav-login-link" style={{ fontFamily: 'var(--vs-font-body)' }}>Login</Link>
           </div>
           <button className="md:hidden text-white p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} data-testid="mobile-menu-btn">
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/[0.04] bg-[#06060b]/95 backdrop-blur-2xl px-4 py-4 space-y-3">
-            <a href="#features" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Features</a>
-            <a href="#how-it-works" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
-            <Link to="/gallery" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Gallery</Link>
-            <Link to="/pricing" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
-            <Link to="/login" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Login</Link>
+          <div className="md:hidden border-t border-[var(--vs-border-subtle)] bg-[var(--vs-bg-base)]/95 backdrop-blur-2xl px-4 py-4 space-y-3">
+            <a href="#features" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Features</a>
+            <a href="#how-it-works" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
+            <Link to="/gallery" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Gallery</Link>
+            <Link to="/pricing" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
+            <Link to="/login" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Login</Link>
           </div>
         )}
       </nav>
@@ -106,48 +104,48 @@ export default function Landing() {
       {/* ─── 1. Hero Section ─── */}
       <section className="relative pt-32 pb-16 md:pt-48 md:pb-24 px-4">
         <div className="absolute inset-0 grid-bg pointer-events-none" />
-        <div className="absolute top-16 left-1/3 w-[500px] h-[500px] bg-indigo-600/[0.06] rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute top-16 left-1/3 w-[500px] h-[500px] bg-[var(--vs-primary-from)]/[0.06] rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-0 right-1/3 w-[400px] h-[400px] bg-amber-500/[0.04] rounded-full blur-[120px] pointer-events-none" />
 
         <div className="relative max-w-5xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/[0.04] border border-white/[0.06] rounded-full px-5 py-2 mb-8 fade-up" data-testid="hero-tagline">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span className="text-sm font-medium text-slate-300">AI Story-to-Video Engine</span>
+          <div className="inline-flex items-center gap-2 vs-chip mb-8 vs-fade-up-1" data-testid="hero-tagline">
+            <Sparkles className="w-4 h-4" />
+            <span className="text-sm font-medium">The AI Creative Operating System</span>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-[-0.04em] leading-[0.95] mb-6 fade-up" data-testid="hero-heading">
-            <span className="text-white">Turn Any Story Into a</span><br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-violet-300 to-amber-200">
-              Cinematic AI Video
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-[-0.04em] leading-[0.95] mb-6 vs-fade-up-1" data-testid="hero-heading" style={{ fontFamily: 'var(--vs-font-heading)' }}>
+            <span className="text-white">Turn Any Idea Into</span><br />
+            <span className="vs-gradient-text">
+              Cinematic AI Content
             </span>
           </h1>
 
-          <p className="text-base md:text-lg text-indigo-300/80 font-semibold mb-4 fade-up-2" data-testid="hero-speed-line">
-            Create animated videos from stories in under 90 seconds.
+          <p className="text-base md:text-lg text-[var(--vs-text-accent)] font-semibold mb-4 vs-fade-up-2" data-testid="hero-speed-line" style={{ fontFamily: 'var(--vs-font-body)' }}>
+            Videos, comics, reels — created in under 90 seconds.
           </p>
 
-          <p className="text-lg md:text-xl text-slate-300/90 max-w-2xl mx-auto leading-relaxed mb-10 fade-up-2">
+          <p className="text-lg md:text-xl text-[var(--vs-text-secondary)] max-w-2xl mx-auto leading-relaxed mb-10 vs-fade-up-2" style={{ fontFamily: 'var(--vs-font-body)' }}>
             Write a story and our AI instantly creates a fully narrated animated video with scenes, illustrations, voiceover, and editing — ready to share in minutes.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 fade-up-3">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 vs-fade-up-3">
             <Link to="/signup">
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all hover:scale-[1.02] hover:shadow-[0_0_40px_-8px_rgba(99,102,241,0.5)]" data-testid="hero-cta-btn">
-                Create Your First Video
+              <button className="vs-btn-primary rounded-full px-10 h-14 text-lg font-semibold hover:shadow-[0_0_40px_-8px_rgba(124,58,237,0.5)] transition-all hover:scale-[1.02]" data-testid="hero-cta-btn">
+                Start Creating Free
                 <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
+              </button>
             </Link>
             <Link to="/gallery">
-              <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/[0.04] rounded-full px-8 py-5 text-lg font-medium" data-testid="hero-gallery-btn">
+              <button className="vs-btn-secondary rounded-full px-8 h-14 text-lg font-medium" data-testid="hero-gallery-btn">
                 Explore Gallery
-              </Button>
+              </button>
             </Link>
           </div>
 
-          <div className="flex items-center justify-center gap-6 md:gap-8 text-sm text-slate-400 font-medium fade-up-3">
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Free to start</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> No credit card</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-400" /> Create videos in minutes</span>
+          <div className="flex items-center justify-center gap-6 md:gap-8 text-sm text-[var(--vs-text-muted)] font-medium vs-fade-up-4" style={{ fontFamily: 'var(--vs-font-body)' }}>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[var(--vs-success)]" /> Free to start</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[var(--vs-success)]" /> No credit card</span>
+            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[var(--vs-success)]" /> Create videos in minutes</span>
           </div>
         </div>
       </section>
