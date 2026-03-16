@@ -23,7 +23,7 @@ const throughput = new Counter('throughput');
 const activeUsers = new Gauge('active_users');
 
 // Configuration
-const BASE_URL = __ENV.BASE_URL || 'https://create-share-remix.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://pipeline-optimize.preview.emergentagent.com';
 
 // Test configuration for large-scale testing
 export const options = {

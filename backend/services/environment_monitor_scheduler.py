@@ -16,7 +16,7 @@ CHECK_INTERVAL_MINUTES = 5
 
 # Production URL to check
 PRODUCTION_URL = "https://www.visionary-suite.com"
-PREVIEW_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://create-share-remix.preview.emergentagent.com")
+PREVIEW_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://pipeline-optimize.preview.emergentagent.com")
 
 
 class EnvironmentMonitorScheduler:

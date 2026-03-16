@@ -13,7 +13,7 @@ from services.pipeline_engine import (
     create_pipeline_job, resume_pipeline, get_job,
     ANIMATION_STYLES, AGE_GROUPS, VOICE_PRESETS, CREDIT_COSTS, PLAN_SCENE_LIMITS,
 )
-from services.admission_controller import check_admission, get_system_status, CONCURRENCY_LIMITS
+from services.admission_controller import check_admission, get_system_status, CONCURRENCY_LIMITS, LOAD_NORMAL
 from services.pipeline_worker import enqueue_job, get_worker_stats
 
 logger = logging.getLogger("pipeline_routes")
@@ -401,6 +401,11 @@ async def create_pipeline(
         )
 
     try:
+        # Pass degraded scene limit if admission controller reduced it under load
+        extra_kwargs = {}
+        if admission.degraded_max_scenes and admission.degraded_max_scenes > 0:
+            extra_kwargs["degraded_max_scenes"] = admission.degraded_max_scenes
+
         result = await create_pipeline_job(
             user_id=user_id,
             title=request.title,
@@ -410,6 +415,7 @@ async def create_pipeline(
             voice_preset=request.voice_preset,
             include_watermark=request.include_watermark,
             user_plan=user_plan,
+            **extra_kwargs,
         )
     except ValueError as e:
         error_msg = str(e)
@@ -455,12 +461,16 @@ async def create_pipeline(
         "estimated_scenes": result["estimated_scenes"],
         "queue_priority": "priority" if user_plan in ("admin", "demo", "weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise") else "standard",
         "message": "Video generation queued. Poll /status for progress.",
+        "load_level": admission.load_level,
     }
     # Pass through admission queue warning for paid users under load
     if admission.reason and admission.admitted:
         response["queue_warning"] = admission.reason
         if admission.eta_sec:
             response["estimated_wait_sec"] = admission.eta_sec
+    if admission.degraded_max_scenes:
+        response["degraded"] = True
+        response["degraded_max_scenes"] = admission.degraded_max_scenes
 
     return response
 

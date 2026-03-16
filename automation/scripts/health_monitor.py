@@ -15,7 +15,7 @@ import psycopg2
 import redis
 
 # Configuration
-API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://create-share-remix.preview.emergentagent.com')
+API_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pipeline-optimize.preview.emergentagent.com')
 LOG_FILE = '/app/automation/logs/health_monitor.log'
 REPORT_FILE = '/app/automation/reports/health_report.json'
 

@@ -2,7 +2,7 @@
 
 **Date:** February 21, 2026  
 **Auditor:** Senior QA Lead + Frontend Engineer  
-**Target URL:** https://create-share-remix.preview.emergentagent.com/login  
+**Target URL:** https://pipeline-optimize.preview.emergentagent.com/login  
 **Production URL:** https://visionary-suite.com/login  
 
 ---

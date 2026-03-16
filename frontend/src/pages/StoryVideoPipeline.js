@@ -238,7 +238,9 @@ function StoryVideoPipelineInner() {
         setPhase('processing');
         setFormError('');
         const queueWarn = res.data.queue_warning;
-        if (queueWarn) {
+        if (res.data.degraded) {
+          toast.info(`System is busy — your video will use ${res.data.estimated_scenes} scenes for faster delivery.`);
+        } else if (queueWarn) {
           toast.info(queueWarn);
         } else {
           toast.success(`Video queued! ${res.data.credits_charged} credits charged.`);

@@ -1,10 +1,17 @@
 """
-Admission Controller — Pre-job gate for pipeline protection.
+Admission Controller — Pre-job gate for pipeline protection + graceful degradation.
 
 Checks before any job enters the pipeline:
   1. User concurrency (active jobs per user)
   2. System capacity (queue depth + active workers)
   3. Plan-based admission policy
+  4. Graceful degradation under load
+
+Load Levels:
+  NORMAL   → Full quality for all tiers
+  STRESSED → Reduce free-tier scenes (3→2), prioritize paid
+  SEVERE   → Pause free generation, reduce paid scenes
+  CRITICAL → Only premium/admin jobs accepted
 
 Decision matrix:
   - Free user + at concurrency limit  → REJECT (clear message)
@@ -15,7 +22,7 @@ Decision matrix:
 """
 
 import logging
-import time
+from datetime import datetime, timezone, timedelta
 from shared import db
 
 logger = logging.getLogger("admission_controller")
@@ -39,13 +46,16 @@ CONCURRENCY_LIMITS = {
 
 # ─── SYSTEM CAPACITY THRESHOLDS ───────────────────────────────────────────
 
-# Max queued jobs before system is considered "overloaded"
 QUEUE_OVERLOAD_THRESHOLD = 20
-
-# Max active processing jobs before system is stressed
 ACTIVE_JOBS_STRESS_THRESHOLD = 10
 
-# Premium plans that get priority admission even under load
+# Graceful degradation thresholds
+STRESSED_QUEUE_THRESHOLD = 10       # Queue >= 10 → STRESSED
+SEVERE_QUEUE_THRESHOLD = 20         # Queue >= 20 → SEVERE
+CRITICAL_QUEUE_THRESHOLD = 35       # Queue >= 35 → CRITICAL
+STRESSED_ACTIVE_THRESHOLD = 6       # Active >= 6 → STRESSED
+SEVERE_ACTIVE_THRESHOLD = 12        # Active >= 12 → SEVERE
+
 PREMIUM_PLANS = frozenset(["pro", "premium", "enterprise", "admin", "demo"])
 
 PAID_PLANS = frozenset([
@@ -54,21 +64,52 @@ PAID_PLANS = frozenset([
     "admin", "demo"
 ])
 
+# ─── LOAD LEVELS ──────────────────────────────────────────────────────────
+
+LOAD_NORMAL = "normal"
+LOAD_STRESSED = "stressed"
+LOAD_SEVERE = "severe"
+LOAD_CRITICAL = "critical"
+
+# Scene reduction under load — overrides PLAN_SCENE_LIMITS
+DEGRADED_SCENE_LIMITS = {
+    LOAD_NORMAL: {},  # no override
+    LOAD_STRESSED: {"free": 2},  # free: 3→2
+    LOAD_SEVERE: {"free": 0, "starter": 3, "weekly": 3, "monthly": 3, "creator": 3, "quarterly": 3, "yearly": 3},  # free paused, paid capped at 3
+    LOAD_CRITICAL: {"free": 0, "starter": 0, "weekly": 0, "monthly": 0, "creator": 0, "quarterly": 0, "yearly": 0},  # only premium/admin
+}
+
+
+def _compute_load_level(queued: int, processing: int) -> str:
+    """Determine current system load level from queue + active counts."""
+    if queued >= CRITICAL_QUEUE_THRESHOLD:
+        return LOAD_CRITICAL
+    if queued >= SEVERE_QUEUE_THRESHOLD or processing >= SEVERE_ACTIVE_THRESHOLD:
+        return LOAD_SEVERE
+    if queued >= STRESSED_QUEUE_THRESHOLD or processing >= STRESSED_ACTIVE_THRESHOLD:
+        return LOAD_STRESSED
+    return LOAD_NORMAL
+
 
 class AdmissionResult:
     """Result of an admission check."""
-    __slots__ = ("admitted", "reason", "retry_after_sec", "queue_position", "eta_sec")
+    __slots__ = ("admitted", "reason", "retry_after_sec", "queue_position", "eta_sec", "load_level", "degraded_max_scenes")
 
     def __init__(self, admitted: bool, reason: str = "", retry_after_sec: int = 0,
-                 queue_position: int = 0, eta_sec: int = 0):
+                 queue_position: int = 0, eta_sec: int = 0, load_level: str = LOAD_NORMAL,
+                 degraded_max_scenes: int = 0):
         self.admitted = admitted
         self.reason = reason
         self.retry_after_sec = retry_after_sec
         self.queue_position = queue_position
         self.eta_sec = eta_sec
+        self.load_level = load_level
+        self.degraded_max_scenes = degraded_max_scenes
 
     def to_dict(self):
-        d = {"admitted": self.admitted, "reason": self.reason}
+        d = {"admitted": self.admitted, "reason": self.reason, "load_level": self.load_level}
+        if self.degraded_max_scenes:
+            d["degraded_max_scenes"] = self.degraded_max_scenes
         if not self.admitted:
             if self.retry_after_sec:
                 d["retry_after_sec"] = self.retry_after_sec
@@ -81,9 +122,8 @@ class AdmissionResult:
 
 async def check_admission(user_id: str, user_plan: str) -> AdmissionResult:
     """
-    Pre-job admission check. Must be called BEFORE credit reservation.
-
-    Returns AdmissionResult with admitted=True/False and reason.
+    Pre-job admission check with graceful degradation.
+    Must be called BEFORE credit reservation.
     """
     plan = str(user_plan).lower().strip()
     is_paid = plan in PAID_PLANS
@@ -111,61 +151,95 @@ async def check_admission(user_id: str, user_plan: str) -> AdmissionResult:
                 retry_after_sec=60,
             )
 
-    # ── Check 2: System capacity ──────────────────────────────────────────
+    # ── Check 2: System load level + graceful degradation ─────────────────
     queued_jobs = await db.pipeline_jobs.count_documents({"status": "QUEUED"})
     processing_jobs = await db.pipeline_jobs.count_documents({"status": "PROCESSING"})
+    load_level = _compute_load_level(queued_jobs, processing_jobs)
 
-    system_overloaded = queued_jobs >= QUEUE_OVERLOAD_THRESHOLD
-    system_stressed = processing_jobs >= ACTIVE_JOBS_STRESS_THRESHOLD
+    # Get plan-specific degraded scene limit (0 = paused/blocked)
+    degradation = DEGRADED_SCENE_LIMITS.get(load_level, {})
+    degraded_scenes = degradation.get(plan)  # None = no override
 
-    if system_overloaded or system_stressed:
-        # Premium users: always admit
-        if is_premium:
-            logger.info(f"[ADMISSION] Premium user {user_id[:8]} admitted despite load (queued={queued_jobs}, active={processing_jobs})")
-            return AdmissionResult(admitted=True)
-
-        # Paid users: queue with ETA
-        if is_paid:
-            est_wait = queued_jobs * 70  # ~70s per job estimate
-            logger.info(f"[ADMISSION] Paid user {user_id[:8]} queued with ETA (queued={queued_jobs}, active={processing_jobs})")
-            return AdmissionResult(
-                admitted=True,  # Admitted but with queue warning
-                reason=f"System is busy. Your job is queued. Estimated wait: ~{est_wait // 60} minutes.",
-                queue_position=queued_jobs + 1,
-                eta_sec=est_wait,
-            )
-
-        # Free users: REJECT with clear message
-        retry_min = max(2, queued_jobs // 5)
-        logger.info(f"[ADMISSION] Free user {user_id[:8]} REJECTED — system overloaded (queued={queued_jobs}, active={processing_jobs})")
+    # ── CRITICAL: Only premium/admin ──────────────────────────────────────
+    if load_level == LOAD_CRITICAL and not is_premium:
+        logger.warning(f"[ADMISSION] CRITICAL LOAD — rejecting {plan} user {user_id[:8]} (queued={queued_jobs}, active={processing_jobs})")
         return AdmissionResult(
             admitted=False,
-            reason=f"Our servers are busy right now. Please try again in {retry_min} minutes, or upgrade to skip the queue.",
-            retry_after_sec=retry_min * 60,
+            reason="System is at maximum capacity. Only premium users can generate right now. Please try again in a few minutes or upgrade your plan.",
+            retry_after_sec=180,
+            load_level=load_level,
         )
 
-    # ── Admitted ──────────────────────────────────────────────────────────
-    logger.info(f"[ADMISSION] User {user_id[:8]} admitted (plan={plan}, active={active_jobs}/{max_concurrent}, queue={queued_jobs})")
-    return AdmissionResult(admitted=True)
+    # ── SEVERE: Pause free, degrade paid ──────────────────────────────────
+    if load_level == LOAD_SEVERE:
+        if not is_paid:
+            logger.info(f"[ADMISSION] SEVERE LOAD — pausing free user {user_id[:8]} (queued={queued_jobs}, active={processing_jobs})")
+            return AdmissionResult(
+                admitted=False,
+                reason="Our servers are under heavy load. Free generation is temporarily paused. Please try again in a few minutes or upgrade to skip the queue.",
+                retry_after_sec=120,
+                load_level=load_level,
+            )
+        if is_premium:
+            logger.info(f"[ADMISSION] SEVERE LOAD — premium user {user_id[:8]} admitted (queued={queued_jobs})")
+            return AdmissionResult(admitted=True, load_level=load_level)
+
+        # Paid non-premium: admit with reduced scenes
+        est_wait = queued_jobs * 70
+        logger.info(f"[ADMISSION] SEVERE LOAD — paid user {user_id[:8]} admitted with degradation (queued={queued_jobs})")
+        return AdmissionResult(
+            admitted=True,
+            reason=f"System is busy. Your video will use fewer scenes for faster delivery. Estimated wait: ~{est_wait // 60} minutes.",
+            queue_position=queued_jobs + 1,
+            eta_sec=est_wait,
+            load_level=load_level,
+            degraded_max_scenes=degraded_scenes or 0,
+        )
+
+    # ── STRESSED: Reduce free, prioritize paid ────────────────────────────
+    if load_level == LOAD_STRESSED:
+        if not is_paid:
+            # Admit but with reduced scene count
+            logger.info(f"[ADMISSION] STRESSED — free user {user_id[:8]} admitted with degraded scenes (queued={queued_jobs})")
+            return AdmissionResult(
+                admitted=True,
+                reason="Our servers are busy. Your video will be slightly shorter for faster delivery.",
+                load_level=load_level,
+                degraded_max_scenes=degraded_scenes or 0,
+            )
+        # Paid/premium: normal admission
+        logger.info(f"[ADMISSION] STRESSED — paid user {user_id[:8]} admitted normally (queued={queued_jobs})")
+        return AdmissionResult(admitted=True, load_level=load_level)
+
+    # ── NORMAL: Full admission ────────────────────────────────────────────
+    logger.info(f"[ADMISSION] User {user_id[:8]} admitted (plan={plan}, active={active_jobs}/{max_concurrent}, queue={queued_jobs}, load={load_level})")
+    return AdmissionResult(admitted=True, load_level=load_level)
 
 
 async def get_system_status() -> dict:
-    """Return current system capacity metrics for monitoring."""
+    """Return current system capacity metrics with load level."""
     queued = await db.pipeline_jobs.count_documents({"status": "QUEUED"})
     processing = await db.pipeline_jobs.count_documents({"status": "PROCESSING"})
     failed_recent = await db.pipeline_jobs.count_documents({
         "status": "FAILED",
-        "completed_at": {"$gte": __import__("datetime").datetime.now(__import__("datetime").timezone.utc) - __import__("datetime").timedelta(hours=1)},
+        "completed_at": {"$gte": datetime.now(timezone.utc) - timedelta(hours=1)},
     })
+
+    load_level = _compute_load_level(queued, processing)
 
     return {
         "queued_jobs": queued,
         "processing_jobs": processing,
         "failed_last_hour": failed_recent,
+        "load_level": load_level,
         "system_overloaded": queued >= QUEUE_OVERLOAD_THRESHOLD,
         "system_stressed": processing >= ACTIVE_JOBS_STRESS_THRESHOLD,
+        "degradation_active": load_level != LOAD_NORMAL,
         "capacity": {
             "queue_threshold": QUEUE_OVERLOAD_THRESHOLD,
             "active_threshold": ACTIVE_JOBS_STRESS_THRESHOLD,
+            "stressed_at": STRESSED_QUEUE_THRESHOLD,
+            "severe_at": SEVERE_QUEUE_THRESHOLD,
+            "critical_at": CRITICAL_QUEUE_THRESHOLD,
         },
     }

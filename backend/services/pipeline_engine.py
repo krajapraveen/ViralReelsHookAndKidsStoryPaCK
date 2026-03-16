@@ -162,8 +162,10 @@ async def create_pipeline_job(
     voice_preset: str = "narrator_warm",
     include_watermark: bool = True,
     user_plan: str = "free",
+    degraded_max_scenes: int = 0,
 ) -> dict:
-    """Create a new pipeline job with credit reservation and plan-based scene limits."""
+    """Create a new pipeline job with credit reservation and plan-based scene limits.
+    If degraded_max_scenes > 0, it overrides plan limits (graceful degradation under load)."""
 
     ok, msg = check_copyright(story_text)
     if not ok:
@@ -179,6 +181,12 @@ async def create_pipeline_job(
     # Plan-based scene limit — overrides age_group max_scenes
     plan_key = str(user_plan).lower().strip()
     plan_max = PLAN_SCENE_LIMITS.get(plan_key, PLAN_SCENE_LIMITS["free"])
+
+    # Graceful degradation: if admission controller reduced scenes under load, use that
+    if degraded_max_scenes > 0:
+        plan_max = min(plan_max, degraded_max_scenes)
+        logger.info(f"[PIPELINE] Degraded scene limit applied: {degraded_max_scenes} (plan default was {PLAN_SCENE_LIMITS.get(plan_key, 3)})")
+
     age_max = age["max_scenes"]
     effective_max = min(plan_max, age_max)
 
@@ -281,6 +289,7 @@ async def create_pipeline_job(
         "views": 0,
         "remix_count": 0,
         "cache_hit": bool(cached_scenes),
+        "degraded": degraded_max_scenes > 0,
         "created_at": datetime.now(timezone.utc),
         "started_at": None,
         "completed_at": None,

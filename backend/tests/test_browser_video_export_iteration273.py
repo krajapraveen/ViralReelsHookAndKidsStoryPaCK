@@ -12,7 +12,7 @@ import requests
 import os
 import urllib.parse
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://create-share-remix.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pipeline-optimize.preview.emergentagent.com').rstrip('/')
 TEST_JOB_ID = "a67ff269-1ba5-41d4-a827-9c97cff4d00d"
 
 

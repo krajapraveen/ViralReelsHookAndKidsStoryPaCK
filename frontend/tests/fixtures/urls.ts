@@ -1,4 +1,4 @@
-export const BASE = process.env.BASE_URL ?? "https://create-share-remix.preview.emergentagent.com";
+export const BASE = process.env.BASE_URL ?? "https://pipeline-optimize.preview.emergentagent.com";
 
 export const URLS = {
   // Public pages

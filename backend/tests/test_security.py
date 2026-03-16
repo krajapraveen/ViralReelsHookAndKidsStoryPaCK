@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Test configurations
-API_BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://create-share-remix.preview.emergentagent.com")
+API_BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://pipeline-optimize.preview.emergentagent.com")
 
 
 class TestSecurityHeaders:

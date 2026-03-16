@@ -60,7 +60,7 @@
   },
   "export_test_logs": [
     "[BrowserExport] Loading ffmpeg.wasm...",
-    "[BrowserExport] Loading ffmpeg core from: https://create-share-remix.preview.emergentagent.com/ffmpeg-core",
+    "[BrowserExport] Loading ffmpeg core from: https://pipeline-optimize.preview.emergentagent.com/ffmpeg-core",
     "[BrowserExport] ffmpeg loaded",
     "[BrowserExport] Image 1/2/3 downloaded",
     "[BrowserExport] Audio 1/2/3 downloaded",

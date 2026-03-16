@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 # Configuration
-BASE_URL = "https://create-share-remix.preview.emergentagent.com"
+BASE_URL = "https://pipeline-optimize.preview.emergentagent.com"
 CONCURRENT_USERS = 50  # Reduced for better stability
 TEST_DURATION_SECONDS = 30  # Shorter test
 DEMO_EMAIL = "demo@example.com"

@@ -3,7 +3,7 @@
 **Date:** March 8, 2026  
 **Auditor:** E1 Agent  
 **Production URL:** https://www.visionary-suite.com  
-**Preview URL:** https://create-share-remix.preview.emergentagent.com
+**Preview URL:** https://pipeline-optimize.preview.emergentagent.com
 
 ---
 

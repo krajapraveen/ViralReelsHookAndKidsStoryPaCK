@@ -42,22 +42,22 @@
     "COOP_HEADER_FRONTEND": {
       "status": "VERIFIED WORKING",
       "value": "same-origin",
-      "source": "curl -sI https://create-share-remix.preview.emergentagent.com/"
+      "source": "curl -sI https://pipeline-optimize.preview.emergentagent.com/"
     },
     "COEP_HEADER_FRONTEND": {
       "status": "VERIFIED WORKING", 
       "value": "credentialless",
-      "source": "curl -sI https://create-share-remix.preview.emergentagent.com/"
+      "source": "curl -sI https://pipeline-optimize.preview.emergentagent.com/"
     },
     "COOP_HEADER_BACKEND": {
       "status": "VERIFIED WORKING",
       "value": "same-origin",
-      "source": "curl -sI https://create-share-remix.preview.emergentagent.com/api/health"
+      "source": "curl -sI https://pipeline-optimize.preview.emergentagent.com/api/health"
     },
     "COEP_HEADER_BACKEND": {
       "status": "VERIFIED WORKING",
       "value": "credentialless",
-      "source": "curl -sI https://create-share-remix.preview.emergentagent.com/api/health"
+      "source": "curl -sI https://pipeline-optimize.preview.emergentagent.com/api/health"
     },
     "CROSS_ORIGIN_ISOLATED_BROWSER": {
       "status": "VERIFIED WORKING",

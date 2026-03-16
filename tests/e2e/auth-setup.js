@@ -4,7 +4,7 @@
  */
 import { test as base, expect } from '@playwright/test';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://create-share-remix.preview.emergentagent.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://pipeline-optimize.preview.emergentagent.com';
 
 // Test credentials
 const TEST_USERS = {
