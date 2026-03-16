@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://progressive-pipeline.preview.emergentagent.com)
+**Environment:** Preview (https://durable-jobs-beta.preview.emergentagent.com)
 
 ---
 

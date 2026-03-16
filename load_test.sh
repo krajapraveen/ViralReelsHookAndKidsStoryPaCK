@@ -2,7 +2,7 @@
 # CreatorStudio AI - Load Test Script
 # Run: chmod +x load_test.sh && ./load_test.sh
 
-API_URL="${1:-https://progressive-pipeline.preview.emergentagent.com}"
+API_URL="${1:-https://durable-jobs-beta.preview.emergentagent.com}"
 CONCURRENT_USERS="${2:-100}"
 DURATION="${3:-30}"
 

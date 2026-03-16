@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://progressive-pipeline.preview.emergentagent.com
+**Platform URL:** https://durable-jobs-beta.preview.emergentagent.com
 
 ---
 

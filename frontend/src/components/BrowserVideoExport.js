@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+
 let ffmpegInstance = null;
 
 async function getFFmpeg() {
@@ -16,13 +18,22 @@ async function getFFmpeg() {
   return ffmpegInstance;
 }
 
-// Detect export capabilities
+// Proxy R2 URLs through backend to bypass CORS restrictions
+function proxyUrl(url) {
+  if (!url) return url;
+  // Only proxy cross-origin R2 URLs
+  if (url.includes('r2.cloudflarestorage.com') || url.includes('r2.dev')) {
+    return `${API_URL}/api/pipeline/asset-proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 function detectExportMode() {
+  const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
+  const canWebM = hasMediaRecorder && MediaRecorder.isTypeSupported?.('video/webm;codecs=vp8,opus');
   const hasSAB = typeof SharedArrayBuffer !== 'undefined';
   const isIsolated = typeof window !== 'undefined' && window.crossOriginIsolated === true;
   const hasWasm = typeof WebAssembly !== 'undefined';
-  const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
-  const canWebM = hasMediaRecorder && MediaRecorder.isTypeSupported?.('video/webm;codecs=vp8,opus');
 
   if ((hasSAB || isIsolated) && hasWasm) {
     return { mode: 'ffmpeg', label: 'MP4 Export', format: 'mp4' };
@@ -33,6 +44,33 @@ function detectExportMode() {
   return { mode: 'none', label: 'Export unavailable', reason: 'Browser does not support video export. Use Chrome or Firefox for best results.' };
 }
 
+// Fetch image as blob URL via backend proxy to avoid CORS issues
+async function loadImageAsBlob(url) {
+  const proxied = proxyUrl(url);
+  const res = await fetch(proxied);
+  if (!res.ok) throw new Error(`Image fetch failed (${res.status}): ${url.substring(0, 60)}`);
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ img, blobUrl });
+    img.onerror = () => reject(new Error(`Image decode failed: ${url.substring(0, 60)}`));
+    img.src = blobUrl;
+  });
+}
+
+// Fetch audio as ArrayBuffer via backend proxy and decode for AudioContext
+async function loadAudioBuffer(url, audioCtx) {
+  const proxied = proxyUrl(url);
+  const res = await fetch(proxied);
+  if (!res.ok) throw new Error(`Audio fetch failed (${res.status})`);
+  const arrayBuf = await res.arrayBuffer();
+  const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+  return audioBuf;
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
   const [phase, setPhase] = useState('ready');
   const [progress, setProgress] = useState(0);
@@ -41,15 +79,18 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
   const [videoBlob, setVideoBlob] = useState(null);
   const [renderTime, setRenderTime] = useState(0);
   const [exportMode, setExportMode] = useState(null);
+  const [debugLog, setDebugLog] = useState([]);
   const ffmpegRef = useRef(null);
   const abortRef = useRef(false);
-  const canvasRef = useRef(null);
 
-  useEffect(() => {
-    setExportMode(detectExportMode());
+  useEffect(() => { setExportMode(detectExportMode()); }, []);
+
+  const log = useCallback((msg) => {
+    console.log(`[BrowserExport] ${msg}`);
+    setDebugLog(prev => [...prev.slice(-19), msg]);
   }, []);
 
-  // ─── FFmpeg.wasm MP4 Export ─────────────────────────────────────────────────
+  // ─── FFmpeg.wasm MP4 Export ─────────────────────────────────────────────
   const exportWithFFmpeg = useCallback(async () => {
     const { toBlobURL, fetchFile } = await import('@ffmpeg/util');
     const startTime = Date.now();
@@ -57,6 +98,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
     setPhase('loading');
     setMessage('Loading video encoder...');
     setProgress(5);
+    log('Loading ffmpeg.wasm...');
 
     const ffmpeg = await getFFmpeg();
     ffmpegRef.current = ffmpeg;
@@ -65,15 +107,25 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
       ffmpeg.on('progress', ({ progress: p }) => {
         setProgress(Math.min(40 + Math.round(p * 55), 95));
       });
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      });
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm';
+      try {
+        await ffmpeg.load({
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
+      } catch (loadErr) {
+        log(`toBlobURL load failed: ${loadErr.message}, trying direct URLs...`);
+        // Fallback: load directly from CDN (works if CORS is available)
+        await ffmpeg.load({
+          coreURL: `${baseURL}/ffmpeg-core.js`,
+          wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+        });
+      }
     }
 
     if (abortRef.current) return;
     setProgress(15);
+    log('ffmpeg loaded');
 
     const validScenes = scenes.filter(s => s.image_url);
     if (!validScenes.length) throw new Error('No scene images available');
@@ -81,14 +133,14 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
     setPhase('downloading');
     setMessage('Downloading scene assets...');
 
+    // Download images via backend proxy to avoid CORS
     for (let i = 0; i < validScenes.length; i++) {
       if (abortRef.current) return;
       setMessage(`Downloading image ${i + 1}/${validScenes.length}...`);
       setProgress(15 + Math.round((i / validScenes.length) * 15));
-      try {
-        const imgData = await fetchFile(validScenes[i].image_url);
-        await ffmpeg.writeFile(`img_${i}.png`, imgData);
-      } catch (err) { console.warn(`Image ${i} download failed:`, err); }
+      const imgData = await fetchFile(proxyUrl(validScenes[i].image_url));
+      await ffmpeg.writeFile(`img_${i}.png`, imgData);
+      log(`Image ${i + 1} downloaded (${imgData.length} bytes)`);
     }
 
     const audioScenes = validScenes.filter(s => s.audio_url);
@@ -96,10 +148,9 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
       if (abortRef.current) return;
       setMessage(`Downloading audio ${i + 1}/${audioScenes.length}...`);
       setProgress(30 + Math.round((i / audioScenes.length) * 10));
-      try {
-        const audioData = await fetchFile(audioScenes[i].audio_url);
-        await ffmpeg.writeFile(`audio_${i}.mp3`, audioData);
-      } catch (err) { console.warn(`Audio ${i} download failed:`, err); }
+      const audioData = await fetchFile(proxyUrl(audioScenes[i].audio_url));
+      await ffmpeg.writeFile(`audio_${i}.mp3`, audioData);
+      log(`Audio ${i + 1} downloaded (${audioData.length} bytes)`);
     }
 
     if (abortRef.current) return;
@@ -117,7 +168,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
       const audioIdx = audioScenes.indexOf(scene);
 
       if (audioIdx >= 0) {
-        await ffmpeg.exec([
+        const ret1 = await ffmpeg.exec([
           '-loop', '1', '-i', `img_${i}.png`,
           '-i', `audio_${audioIdx}.mp3`,
           '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28',
@@ -125,8 +176,9 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
           '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k',
           '-shortest', '-movflags', '+faststart', `segment_${i}.mp4`
         ]);
+        if (ret1 !== 0) log(`Warning: segment ${i} with audio exited with code ${ret1}`);
       } else {
-        await ffmpeg.exec([
+        const ret2 = await ffmpeg.exec([
           '-loop', '1', '-t', `${dur}`, '-i', `img_${i}.png`,
           '-f', 'lavfi', '-t', `${dur}`, '-i', 'anullsrc=r=44100:cl=stereo',
           '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28',
@@ -134,22 +186,30 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
           '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest',
           '-movflags', '+faststart', `segment_${i}.mp4`
         ]);
+        if (ret2 !== 0) log(`Warning: segment ${i} without audio exited with code ${ret2}`);
       }
 
       concatLines.push(`file 'segment_${i}.mp4'`);
       setProgress(40 + Math.round(((i + 1) / validScenes.length) * 45));
       setMessage(`Rendering scene ${i + 1}/${validScenes.length}...`);
+      log(`Scene ${i + 1} rendered`);
     }
 
     setMessage('Assembling final video...');
     setProgress(90);
 
     await ffmpeg.writeFile('concat.txt', concatLines.join('\n'));
-    await ffmpeg.exec(['-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy', '-movflags', '+faststart', 'output.mp4']);
+    const concatRet = await ffmpeg.exec(['-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy', '-movflags', '+faststart', 'output.mp4']);
+    if (concatRet !== 0) log(`Warning: concat exited with code ${concatRet}`);
 
     const data = await ffmpeg.readFile('output.mp4');
     const blob = new Blob([data.buffer], { type: 'video/mp4' });
-    const url = URL.createObjectURL(blob);
+
+    log(`Final MP4: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+
+    if (blob.size < 1024) {
+      throw new Error(`Export produced empty video (${blob.size} bytes). Please retry.`);
+    }
 
     // Cleanup
     for (let i = 0; i < validScenes.length; i++) {
@@ -160,136 +220,217 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
     try { await ffmpeg.deleteFile('concat.txt'); } catch {}
     try { await ffmpeg.deleteFile('output.mp4'); } catch {}
 
-    return { url, blob, time: Math.round((Date.now() - startTime) / 1000), format: 'mp4' };
-  }, [scenes]);
+    return { url: URL.createObjectURL(blob), blob, time: Math.round((Date.now() - startTime) / 1000), format: 'mp4' };
+  }, [scenes, log]);
 
-  // ─── MediaRecorder WebM Fallback ──────────────────────────────────────────
+  // ─── MediaRecorder WebM Export (frame-accurate) ─────────────────────────
   const exportWithMediaRecorder = useCallback(async () => {
     const startTime = Date.now();
-
-    setPhase('downloading');
-    setMessage('Preparing scenes...');
-    setProgress(10);
-
     const validScenes = scenes.filter(s => s.image_url);
     if (!validScenes.length) throw new Error('No scene images available');
 
-    // Preload images
-    const images = [];
-    for (let i = 0; i < validScenes.length; i++) {
-      setMessage(`Loading image ${i + 1}/${validScenes.length}...`);
-      setProgress(10 + Math.round((i / validScenes.length) * 20));
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = () => resolve(); // Continue even if image fails
-        img.src = validScenes[i].image_url;
-      });
-      images.push(img);
-    }
+    // Step 1: Preload ALL assets before recording
+    setPhase('downloading');
+    setMessage('Preloading images...');
+    setProgress(5);
+    log(`Preloading ${validScenes.length} scenes...`);
 
-    // Preload audio
-    const audioElements = [];
+    const loadedImages = [];
+    const blobUrls = [];
     for (let i = 0; i < validScenes.length; i++) {
-      if (validScenes[i].audio_url) {
-        const audio = new Audio();
-        audio.crossOrigin = 'anonymous';
-        audio.preload = 'auto';
-        await new Promise((resolve) => {
-          audio.oncanplaythrough = resolve;
-          audio.onerror = () => resolve();
-          audio.src = validScenes[i].audio_url;
-        });
-        audioElements.push(audio);
-      } else {
-        audioElements.push(null);
+      if (abortRef.current) return;
+      setMessage(`Loading image ${i + 1}/${validScenes.length}...`);
+      setProgress(5 + Math.round((i / validScenes.length) * 15));
+      try {
+        const { img, blobUrl } = await loadImageAsBlob(validScenes[i].image_url);
+        loadedImages.push(img);
+        blobUrls.push(blobUrl);
+        log(`Image ${i + 1}: ${img.naturalWidth}x${img.naturalHeight} loaded`);
+      } catch (err) {
+        log(`Image ${i + 1} failed: ${err.message}`);
+        loadedImages.push(null);
+        blobUrls.push(null);
       }
     }
 
-    if (abortRef.current) return;
-
-    setPhase('rendering');
-    setMessage('Recording video...');
-    setProgress(35);
-
-    // Setup canvas
-    const W = 1280, H = 720;
+    // Step 2: Create canvas
+    const W = 960, H = 540;
     const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    // Create audio context for mixing
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Draw first frame immediately to ensure stream has content
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, W, H);
+    if (loadedImages[0] && loadedImages[0].naturalWidth > 0) {
+      const img = loadedImages[0];
+      const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+      const sw = img.naturalWidth * scale;
+      const sh = img.naturalHeight * scale;
+      ctx.drawImage(img, (W - sw) / 2, (H - sh) / 2, sw, sh);
+    }
+    log('First frame drawn to canvas');
+
+    // Step 3: Preload audio buffers
+    setMessage('Preloading audio...');
+    setProgress(25);
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
     const dest = audioCtx.createMediaStreamDestination();
 
-    // Combine canvas video stream + audio
-    const canvasStream = canvas.captureStream(15);
-    const videoTrack = canvasStream.getVideoTracks()[0];
-    const combinedStream = new MediaStream([videoTrack, ...dest.stream.getAudioTracks()]);
+    const audioBuffers = [];
+    for (let i = 0; i < validScenes.length; i++) {
+      if (validScenes[i].audio_url) {
+        try {
+          const buf = await loadAudioBuffer(validScenes[i].audio_url, audioCtx);
+          audioBuffers.push(buf);
+          log(`Audio ${i + 1}: ${buf.duration.toFixed(1)}s loaded`);
+        } catch (err) {
+          log(`Audio ${i + 1} failed: ${err.message}`);
+          audioBuffers.push(null);
+        }
+      } else {
+        audioBuffers.push(null);
+      }
+    }
 
+    if (abortRef.current) { audioCtx.close(); return; }
+
+    // Step 4: Capture canvas stream + audio destination
+    const videoStream = canvas.captureStream(15);
+    const combinedStream = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...dest.stream.getAudioTracks(),
+    ]);
+    log(`Stream: ${combinedStream.getVideoTracks().length} video, ${combinedStream.getAudioTracks().length} audio tracks`);
+
+    // Step 5: Start MediaRecorder
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
       ? 'video/webm;codecs=vp8,opus'
       : 'video/webm';
     const recorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 2500000 });
 
     const chunks = [];
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
 
-    const recordingDone = new Promise((resolve) => { recorder.onstop = resolve; });
-    recorder.start(100);
+    const recordingDone = new Promise(resolve => { recorder.onstop = resolve; });
+    recorder.start(200); // Collect data every 200ms
+    log('MediaRecorder started');
 
-    // Play each scene
+    // Wait a tick so recorder captures the first frame
+    await sleep(100);
+
+    // Step 6: Render each scene while recording
+    setPhase('rendering');
+    let framesRendered = 0;
+
     for (let i = 0; i < validScenes.length; i++) {
-      if (abortRef.current) { recorder.stop(); return; }
+      if (abortRef.current) { recorder.stop(); audioCtx.close(); return; }
 
-      const dur = (validScenes[i].duration || 5) * 1000;
+      const sceneDur = validScenes[i].duration || 5;
       setMessage(`Recording scene ${i + 1}/${validScenes.length}...`);
-      setProgress(35 + Math.round(((i + 1) / validScenes.length) * 55));
+      setProgress(30 + Math.round(((i + 1) / validScenes.length) * 60));
+      log(`Scene ${i + 1}: drawing for ${sceneDur}s`);
 
-      // Draw image on canvas
-      ctx.fillStyle = '#000';
+      // Draw image to canvas
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, W, H);
-      if (images[i]?.complete && images[i].naturalWidth > 0) {
-        const scale = Math.min(W / images[i].naturalWidth, H / images[i].naturalHeight);
-        const sw = images[i].naturalWidth * scale;
-        const sh = images[i].naturalHeight * scale;
-        ctx.drawImage(images[i], (W - sw) / 2, (H - sh) / 2, sw, sh);
+      const img = loadedImages[i];
+      if (img && img.naturalWidth > 0) {
+        const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+        const sw = img.naturalWidth * scale;
+        const sh = img.naturalHeight * scale;
+        ctx.drawImage(img, (W - sw) / 2, (H - sh) / 2, sw, sh);
+        framesRendered++;
+      } else {
+        // Draw placeholder with scene number
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '32px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Scene ${i + 1}`, W / 2, H / 2);
+        framesRendered++;
       }
 
       // Play audio for this scene
-      if (audioElements[i]) {
-        try {
-          const source = audioCtx.createMediaElementSource(audioElements[i]);
-          source.connect(dest);
-          audioElements[i].currentTime = 0;
-          await audioElements[i].play();
-        } catch (e) { console.warn('Audio play failed:', e); }
+      let audioSource = null;
+      if (audioBuffers[i]) {
+        audioSource = audioCtx.createBufferSource();
+        audioSource.buffer = audioBuffers[i];
+        audioSource.connect(dest);
+        audioSource.start(0);
       }
 
-      // Wait for scene duration
-      await new Promise((resolve) => setTimeout(resolve, dur));
-
-      // Stop audio
-      if (audioElements[i]) {
-        try { audioElements[i].pause(); } catch {}
+      // Keep canvas alive during scene — full redraw at 15fps to ensure frames captured
+      const frameInterval = 1000 / 15;
+      const sceneEnd = Date.now() + (sceneDur * 1000);
+      let tick = 0;
+      while (Date.now() < sceneEnd) {
+        if (abortRef.current) break;
+        tick++;
+        // Full redraw each frame to guarantee captureStream emits data
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, W, H);
+        if (img && img.naturalWidth > 0) {
+          const sc = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+          const sw2 = img.naturalWidth * sc;
+          const sh2 = img.naturalHeight * sc;
+          ctx.drawImage(img, (W - sw2) / 2, (H - sh2) / 2, sw2, sh2);
+        } else {
+          ctx.fillStyle = '#1a1a2e';
+          ctx.fillRect(0, 0, W, H);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '32px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`Scene ${i + 1}`, W / 2, H / 2);
+        }
+        await sleep(frameInterval);
       }
+
+      // Stop audio source for this scene
+      if (audioSource) {
+        try { audioSource.stop(); } catch {}
+      }
+
+      log(`Scene ${i + 1} recorded (${framesRendered} frames total)`);
     }
 
+    // Step 7: Stop recording and create blob
+    setMessage('Finalizing video...');
+    setProgress(92);
     recorder.stop();
     await recordingDone;
     audioCtx.close();
 
-    const blob = new Blob(chunks, { type: 'video/webm' });
-    const url = URL.createObjectURL(blob);
+    // Cleanup blob URLs
+    blobUrls.forEach(u => { if (u) URL.revokeObjectURL(u); });
 
-    return { url, blob, time: Math.round((Date.now() - startTime) / 1000), format: 'webm' };
-  }, [scenes]);
+    log(`Recording done: ${chunks.length} chunks, ${framesRendered} frames`);
+
+    // Verify we actually recorded something
+    if (chunks.length === 0) {
+      throw new Error('No video frames were recorded. Try using Chrome or Firefox.');
+    }
+
+    const blob = new Blob(chunks, { type: mimeType });
+    const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+    log(`Final WebM: ${sizeMB}MB, ${chunks.length} chunks`);
+
+    if (blob.size < 1024) {
+      throw new Error(`Export produced empty video (${blob.size} bytes). Please retry or download Story Pack.`);
+    }
+
+    return { url: URL.createObjectURL(blob), blob, time: Math.round((Date.now() - startTime) / 1000), format: 'webm' };
+  }, [scenes, log]);
 
   // ─── Main export handler ──────────────────────────────────────────────────
   const startExport = useCallback(async () => {
     abortRef.current = false;
+    setDebugLog([]);
     try {
       let result;
       if (exportMode?.mode === 'ffmpeg') {
@@ -306,7 +447,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
       setPhase('done');
       setProgress(100);
       setMessage(`${result.format.toUpperCase()} ready!`);
-      toast.success(`Video exported successfully! (${result.format.toUpperCase()})`);
+      toast.success(`Video exported! (${result.format.toUpperCase()}, ${(result.blob.size / 1024 / 1024).toFixed(1)}MB)`);
     } catch (err) {
       console.error('Export failed:', err);
 
@@ -324,7 +465,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
               setPhase('done');
               setProgress(100);
               setMessage('WebM ready (fallback)!');
-              toast.success('Video exported as WebM!');
+              toast.success(`Video exported as WebM! (${(result.blob.size / 1024 / 1024).toFixed(1)}MB)`);
               return;
             }
           } catch (fallbackErr) {
@@ -345,7 +486,9 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
     const a = document.createElement('a');
     a.href = videoUrl;
     a.download = `${title || 'story'}_${jobId?.slice(0, 8) || 'video'}.${ext}`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
   };
 
   const abort = () => {
@@ -355,7 +498,6 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
     setMessage('');
   };
 
-  // No export available at all
   if (exportMode && exportMode.mode === 'none') {
     return (
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6" data-testid="browser-export-unsupported">
@@ -365,8 +507,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
             <h3 className="text-white font-semibold">Browser Export Not Available</h3>
             <p className="text-slate-400 text-sm mt-1">{exportMode.reason}</p>
             <p className="text-slate-400 text-sm mt-2">
-              You can still download the <strong className="text-teal-400">Story Pack</strong> with all your assets,
-              or use the <strong className="text-emerald-400">Instant Preview</strong> to watch your story.
+              Download the <strong className="text-teal-400">Story Pack</strong> or use the <strong className="text-emerald-400">Instant Preview</strong> instead.
             </p>
           </div>
         </div>
@@ -379,7 +520,6 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden" data-testid="browser-video-export">
-      {/* Header */}
       <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
@@ -400,25 +540,20 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
             </p>
           </div>
         </div>
-        {onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-slate-400">
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+        {onClose && <Button variant="ghost" size="icon" onClick={onClose} className="text-slate-400"><X className="w-4 h-4" /></Button>}
       </div>
 
-      {/* Content */}
       <div className="p-5 space-y-4">
         {phase === 'ready' && (
           <div className="text-center space-y-4">
             <div className="flex items-center justify-center gap-4 text-sm text-slate-400">
-              <span className="flex items-center gap-1"><Monitor className="w-4 h-4" /> 720p</span>
+              <span className="flex items-center gap-1"><Monitor className="w-4 h-4" /> {exportMode?.mode === 'ffmpeg' ? '720p' : '540p'}</span>
               <span className="flex items-center gap-1"><Film className="w-4 h-4" /> {formatLabel}</span>
               <span className="flex items-center gap-1"><Smartphone className="w-4 h-4" /> {scenes.length} scenes</span>
             </div>
             {exportMode?.mode === 'mediarecorder' && (
               <p className="text-xs text-amber-400/80 bg-amber-500/10 rounded-lg px-3 py-2">
-                Your browser doesn't support MP4 export. We'll create a WebM video instead — it plays in all modern browsers.
+                Your browser will record the video as WebM. Plays in all modern browsers and devices.
               </p>
             )}
             <Button onClick={startExport} className="bg-purple-600 hover:bg-purple-700 px-8" data-testid="start-export-btn">
@@ -445,9 +580,9 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
             <video src={videoUrl} controls className="w-full rounded-lg bg-black aspect-video" data-testid="exported-video-player" />
             <div className="flex items-center gap-3">
               <Button onClick={downloadVideo} className="bg-emerald-600 hover:bg-emerald-700 flex-1" data-testid="download-exported-video">
-                <Download className="w-4 h-4 mr-2" /> Download {formatLabel}
+                <Download className="w-4 h-4 mr-2" /> Download {formatLabel} ({doneSize}MB)
               </Button>
-              <Button onClick={() => { setPhase('ready'); setVideoUrl(null); setVideoBlob(null); }} variant="outline" className="border-slate-700 text-slate-300">
+              <Button onClick={() => { setPhase('ready'); setVideoUrl(null); setVideoBlob(null); setDebugLog([]); }} variant="outline" className="border-slate-700 text-slate-300">
                 Re-export
               </Button>
             </div>
@@ -456,6 +591,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
 
         {phase === 'error' && (
           <div className="text-center space-y-3">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
             <p className="text-red-400 text-sm">{message}</p>
             <div className="flex items-center justify-center gap-3">
               <Button onClick={startExport} className="bg-purple-600 hover:bg-purple-700" data-testid="retry-export-btn">
@@ -463,9 +599,19 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
               </Button>
             </div>
             <p className="text-xs text-slate-500">
-              If export keeps failing, download the <strong>Story Pack</strong> or share the <strong>Preview URL</strong> instead.
+              If export keeps failing, download the <strong>Story Pack</strong> instead.
             </p>
           </div>
+        )}
+
+        {/* Debug log — visible during export and on error */}
+        {debugLog.length > 0 && ['rendering', 'downloading', 'error', 'done'].includes(phase) && (
+          <details className="text-xs">
+            <summary className="text-slate-500 cursor-pointer hover:text-slate-400">Export log ({debugLog.length} entries)</summary>
+            <div className="mt-2 bg-slate-900/50 rounded-lg p-3 max-h-32 overflow-y-auto font-mono text-slate-500 space-y-0.5">
+              {debugLog.map((l, i) => <div key={i}>{l}</div>)}
+            </div>
+          </details>
         )}
       </div>
     </div>

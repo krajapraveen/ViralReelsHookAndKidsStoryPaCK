@@ -747,3 +747,48 @@ async def manually_generate_fallback(job_id: str, current_user: dict = Depends(g
     # Re-fetch updated job
     updated = await db.pipeline_jobs.find_one({"job_id": job_id}, {"_id": 0, "fallback_outputs": 1, "fallback_status": 1})
     return {"success": True, "message": "Fallback generated", "fallback_status": updated.get("fallback_status")}
+
+
+
+# ─── ASSET PROXY FOR CLIENT-SIDE EXPORT ──────────────────────────────────────
+
+@router.get("/asset-proxy")
+async def proxy_asset_for_export(url: str):
+    """
+    Proxy R2 assets to bypass CORS for client-side video export.
+    Only allows fetching from our R2 bucket domain.
+    """
+    import httpx
+
+    # Validate the URL is from our R2 bucket
+    allowed_domains = [
+        "r2.cloudflarestorage.com",
+        "r2.dev",
+    ]
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if not any(domain in parsed.netloc for domain in allowed_domains):
+        raise HTTPException(status_code=403, detail="Only R2 bucket assets can be proxied")
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail="Failed to fetch asset")
+
+            content_type = resp.headers.get("content-type", "application/octet-stream")
+
+            from fastapi.responses import Response
+            return Response(
+                content=resp.content,
+                media_type=content_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=3600",
+                },
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Asset download timed out")
+    except Exception as e:
+        logger.error(f"Asset proxy error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to proxy asset")

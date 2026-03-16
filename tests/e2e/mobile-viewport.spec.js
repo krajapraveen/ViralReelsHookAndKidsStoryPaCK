@@ -10,7 +10,7 @@
  */
 import { test, expect, devices } from '@playwright/test';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://progressive-pipeline.preview.emergentagent.com';
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://durable-jobs-beta.preview.emergentagent.com';
 
 const TEST_USER = {
   email: 'demo@example.com',

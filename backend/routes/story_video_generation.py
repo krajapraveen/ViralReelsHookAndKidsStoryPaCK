@@ -1956,7 +1956,7 @@ async def download_file(url: str, output_path: str):
         # Also try preview URL pattern
         preview_urls = [
             backend_url,
-            "https://progressive-pipeline.preview.emergentagent.com",  # Preview environment
+            "https://durable-jobs-beta.preview.emergentagent.com",  # Preview environment
         ]
         
         for base_url in preview_urls:

@@ -14,7 +14,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://progressive-pipeline.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://durable-jobs-beta.preview.emergentagent.com')
 
 # Test credentials
 DEMO_USER = {"email": "demo@example.com", "password": "Password123!"}

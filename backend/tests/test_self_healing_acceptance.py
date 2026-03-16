@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 import os
 
 # Configuration
-API_URL = os.environ.get("API_URL", "https://progressive-pipeline.preview.emergentagent.com")
+API_URL = os.environ.get("API_URL", "https://durable-jobs-beta.preview.emergentagent.com")
 ADMIN_EMAIL = "admin@creatorstudio.ai"
 ADMIN_PASSWORD = "Cr3@t0rStud!o#2026"
 DEMO_EMAIL = "demo@example.com"

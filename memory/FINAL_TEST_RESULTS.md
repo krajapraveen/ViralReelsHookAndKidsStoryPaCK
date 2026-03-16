@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://progressive-pipeline.preview.emergentagent.com
+**Website:** https://durable-jobs-beta.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

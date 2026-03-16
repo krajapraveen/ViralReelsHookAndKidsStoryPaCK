@@ -9,7 +9,7 @@ const loginSuccess = new Counter("login_success");
 const loginFailure = new Counter("login_failure");
 
 // Configuration
-const BASE = __ENV.BASE_URL || "https://progressive-pipeline.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://durable-jobs-beta.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

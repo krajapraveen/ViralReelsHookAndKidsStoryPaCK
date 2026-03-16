@@ -18,7 +18,7 @@ on:
           - production
 
 env:
-  PREVIEW_URL: https://progressive-pipeline.preview.emergentagent.com
+  PREVIEW_URL: https://durable-jobs-beta.preview.emergentagent.com
   PRODUCTION_URL: https://visionary-suite.com
 
 jobs:
