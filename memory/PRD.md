@@ -1,112 +1,83 @@
-# Visionary-Suite — Product Requirements Document
+# Visionary Suite — PRD (Product Requirements Document)
 
-## Vision
-**The AI Content Creation Network** — where creators generate, remix, and publish viral AI content.
+## Product Vision
+Visionary Suite is an **AI Creative Operating System** — a creator network centered around the growth loop: **Create → Share → View → Remix → Create**.
 
-**One-sentence positioning:** Create viral AI videos in minutes.
+## Core Architecture
+- **Frontend**: React (CRA) + Tailwind CSS + Shadcn/UI
+- **Backend**: FastAPI + MongoDB (Motor async)
+- **Storage**: Cloudflare R2
+- **AI**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini, ElevenLabs
+- **Auth**: JWT + Google Auth (Emergent-managed)
+- **Payments**: Cashfree (geo-IP based)
 
-## Architecture
+## Flagship Feature
+**Story → Video Pipeline**: User writes a prompt → AI generates script, scenes, images, voiceover → Complete video in ~90 seconds.
 
-### Backend (FastAPI + MongoDB + Redis + Cloudflare R2)
-- Asset-first pipeline: scenes -> images -> voices -> manifest + ZIP -> COMPLETED
-- Public APIs for distribution loop (no auth): /api/public/stats, /api/public/explore, /api/public/creation/{slug}
-- Asset proxy for CORS-free client-side access
+## Distribution Loop (LIVE)
+| Component | Status | Route |
+|-----------|--------|-------|
+| Public Creation Pages | LIVE | `/v/{slug}` |
+| Explore Gallery | LIVE | `/explore` |
+| Remix Button | LIVE | On every public page |
+| Share Buttons (X, LinkedIn, Reddit, Copy) | LIVE | On every public page |
+| Prompt Display for Remix | LIVE | On every public page |
+| OG Meta Tags (share page) | LIVE | `/api/public/s/{slug}` |
+| Dynamic OG Image | LIVE | `/api/public/og-image/{slug}` |
+| Canonical URLs | LIVE | On every public page |
+| Sitemap | LIVE | `/api/public/sitemap.xml` |
+| Creator Profiles | LIVE | `/creator/{username}` |
+| Content Seeding (40 Phase A) | DONE | 40 videos seeded |
+| Admin Growth Dashboard | LIVE | `/app/admin/growth` |
+| Watermark on exports | LIVE | Client-side |
 
-### Frontend (React + TailwindCSS + Shadcn + ffmpeg.wasm)
-- Global Design System (design-system.css) — CSS custom properties
-- AI Command Center homepage with universal prompt routing
-- Canvas-style creation workflows with step indicators
-- Distribution loop: Explore page, Public creation pages, Remix flow
-- Browser-side MP4/WebM export with watermark branding
+## User Personas
+1. **Creator**: Writes prompts, generates videos, shares on social media
+2. **Viewer**: Discovers content on Explore, watches, gets inspired to remix
+3. **Admin**: Monitors growth metrics, content moderation
 
-### Design System
-- **Fonts**: Sora (headings), Inter (body), JetBrains Mono (numbers)
-- **Background**: #0B0F1A (base), #111827 (panels), #1F2937 (cards)
-- **Accent**: #7C3AED (CTA), #6D5BFF→#A855F7 (gradient)
+## Key Metrics (Growth Dashboard)
+- Daily Creations (content velocity)
+- Remix Rate (viral indicator)
+- Public Page Views (discovery)
+- Creator Activation Rate (signup → first creation)
+- Share Rate (future tracking)
 
-## Three Pillars
-1. **CREATE** — Generate cinematic AI videos from prompts (Story Video is the flagship)
-2. **REMIX** — Take any creation, change style/voice/story, make it yours
-3. **PUBLISH** — Every creation gets a public page with views, remixes, sharing
+## Content Seeding Status
+- Phase A: 40 videos (DONE) — Fantasy, Kids, Luxury, Motivational, Sci-Fi, Emotional
+- Phase B: 40 more videos (PENDING)
+- Phase C: 40 final videos (PENDING)
+- System creator: "Visionary AI" (`/creator/visionary-ai`)
 
-## Implemented Features
+## Completed Features
+- Global design system
+- High-conversion homepage (AI Command Center)
+- Simplified dashboard
+- Story Video Pipeline (multi-stage, durable)
+- Distribution loop (explore, public pages, remix, share)
+- OG Meta Tags + Share Pages
+- Dynamic OG Image Generation
+- Sitemap (XML)
+- Social Share Buttons (X, LinkedIn, Reddit, Copy Link)
+- Remix Prompt Display
+- Creator Profiles
+- Admin Growth Dashboard (5 core metrics)
+- Content Seeding Phase A (40 videos)
+- Watermark branding on exports
 
-### Phase 1 — Design System & Identity (Mar 16, 2026)
-- [x] Global CSS design system (colors, typography, cards, buttons, animations)
-- [x] AI Command Center Dashboard — Story Video as hero, 8 tools in "More Tools"
-- [x] Universal prompt box with intent-based routing (16+ tool mappings)
-- [x] Creation Canvas with step indicators (Prompt→Scenes→Images→Voice→Preview)
-- [x] Landing page following high-conversion wireframe
+## Remaining Backlog
+### P0
+- [ ] Content Seeding Phase B (40 more videos)
+- [ ] Content Seeding Phase C (40 final videos)
 
-### Phase 2 — Distribution Loop (Mar 16, 2026)
-- [x] `/explore` page — Trending / Newest / Most Remixed tabs with grid
-- [x] `/v/{slug}` public creation pages — Title, views, remixes, creator, scenes
-- [x] Remix button on every creation page (header + sidebar + CTA)
-- [x] Share button with clipboard copy / Web Share API
-- [x] View tracking (increments on each page visit)
-- [x] Landing page social proof with REAL data from database
-- [x] Landing page trending creations section from explore API
-- [x] Watermark branding on video exports ("Created with Visionary Suite AI")
-- [x] Auto-slug generation for new pipeline jobs
+### P1
+- [ ] UX: Reduce friction to first creation (prompt before login)
+- [ ] Time to First Creation metric tracking
 
-### Core Platform
-- [x] Auth (JWT + Google OAuth), Credit system, Gallery
-- [x] Story Video, Comic, GIF/Reel, Coloring Book generators
-- [x] Asset-first pipeline with auto-resume from checkpoint
-- [x] Browser MP4 export (ffmpeg.wasm) + WebM fallback
-- [x] R2 asset proxy for CORS-free export
-- [x] Admin panel, Analytics, Crash Diagnostics
+### P2
+- [ ] Creator Challenges (weekly engagement)
+- [ ] Live Cashfree Payment Integration
+- [ ] Email Notifications (BLOCKED — SendGrid)
 
-## Growth Loop
-```
-Creator generates AI video
-↓
-Video gets public page (/v/slug)
-↓
-Creator shares link on social media
-↓
-Viewer sees creation + "Created with Visionary Suite AI"
-↓
-Viewer clicks "Remix This"
-↓
-Viewer becomes creator
-↓
-Loop repeats
-```
-
-## Key API Endpoints
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /api/public/stats | No | Real platform stats for social proof |
-| GET | /api/public/explore | No | Trending/newest/most_remixed feed |
-| GET | /api/public/creation/{slug} | No | Public creation page data + view tracking |
-| POST | /api/pipeline/create | Yes | Create new pipeline job |
-| GET | /api/pipeline/status/{id} | Yes | Job status + manifest |
-| GET | /api/pipeline/asset-proxy?url= | No | Proxy R2 assets for export |
-
-## Roadmap
-
-### Phase 3 — SEO & Distribution (NEXT)
-- [ ] SEO meta tags on public creation pages (og:title, og:image, og:description)
-- [ ] Social sharing buttons (Instagram, YouTube, TikTok)
-- [ ] Animated watermark option
-- [ ] Sitemap generation for /v/* pages
-
-### Phase 4 — Addiction Mechanics
-- [ ] Daily creation rewards & streak gamification
-- [ ] Creator status/level system with public display
-- [ ] Weekly creator challenges
-- [ ] Referral program (invite friend → both get credits)
-
-### Phase 5 — Creator Economy
-- [ ] Creator profiles (/creator/{username})
-- [ ] AI Creation Templates Marketplace
-- [ ] AI Assistant (floating Visionary AI)
-- [ ] Cashfree live payment testing
-
-### Blocked
-- [ ] Email notifications (SendGrid external issue)
-
-## Test Credentials
-- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-- Test: test@visionary-suite.com / Test@2026#
+## Technical Debt
+- SendGrid integration blocked (external issue)
