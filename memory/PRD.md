@@ -6,12 +6,14 @@ AI content generation platform (story videos, comics, GIFs, reels).
 ## Final Permanent Architecture (Approved Mar 2026)
 ```
 Backend (FastAPI + MongoDB + Redis + Cloudflare R2):
-  scenes → images → voices → manifest + ZIP → COMPLETED
+  scenes -> images -> voices -> manifest + ZIP -> COMPLETED
   No server-side video rendering in normal user flow.
+  Asset proxy endpoint for CORS-free client-side access to R2 assets.
   
 Frontend (React + TailwindCSS + Shadcn + ffmpeg.wasm):
-  Instant preview → Browser-side MP4 export → Download
+  Instant preview -> Browser-side MP4 export -> Download
   WebM MediaRecorder fallback if SharedArrayBuffer unavailable
+  FFmpeg core (UMD) served from same-origin /ffmpeg-core/ public dir
   
 Server FFmpeg: Admin-only emergency fallback (not user-facing)
 ```
@@ -32,23 +34,25 @@ Server FFmpeg: Admin-only emergency fallback (not user-facing)
 
 ### Core Platform
 - [x] User auth (JWT + Google OAuth), Credit system, Gallery
-- [x] Story → Video, Comic Storybook, GIF/Reel generators
+- [x] Story -> Video, Comic Storybook, GIF/Reel generators
 - [x] Admin panel, TTFD Analytics, Crash Diagnostics
 
 ### Asset-First Pipeline
-- [x] Pipeline: scenes → images → voices (3 stages only)
+- [x] Pipeline: scenes -> images -> voices (3 stages only)
 - [x] Auto manifest generation with presigned asset URLs
 - [x] Auto Story Pack ZIP on completion
 - [x] COMPLETED status after assets (no render required)
 - [x] 100% completion rate (6/6 test runs)
 
-### Cross-Origin Isolation & Browser Export
+### Cross-Origin Isolation & Browser Export (VERIFIED Mar 16, 2026)
 - [x] COOP: same-origin on all responses
 - [x] COEP: credentialless on all responses
 - [x] SharedArrayBuffer available in browser
-- [x] ffmpeg.wasm MP4 export as primary path
+- [x] ffmpeg.wasm MP4 export (UMD core from same-origin /ffmpeg-core/)
 - [x] WebM MediaRecorder fallback for weak browsers
+- [x] Backend asset proxy (/api/pipeline/asset-proxy) for CORS-free R2 access
 - [x] CSP includes blob: and worker-src for wasm workers
+- [x] Download button shows correct format label (MP4 or WebM)
 
 ### Infrastructure Stability
 - [x] Auto-resume from checkpoint on server restart
@@ -63,11 +67,15 @@ Server FFmpeg: Admin-only emergency fallback (not user-facing)
 | GET | /api/pipeline/status/{id} | Job status + manifest + ZIP URL |
 | GET | /api/pipeline/preview/{id} | Public preview data |
 | POST | /api/pipeline/resume/{id} | Resume from checkpoint |
+| GET | /api/pipeline/asset-proxy?url= | Proxy R2 assets for export |
 
 ## Backlog
 
+### P0
+- [x] Fix browser video export (0MB blank video) - COMPLETED Mar 16, 2026
+
 ### P1
-- [ ] Generate showcase video content for gallery
+- [ ] Generate showcase video content for gallery (20-30 videos)
 - [ ] Cashfree live payment testing
 
 ### P2
