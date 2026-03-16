@@ -1,76 +1,67 @@
-# Visionary Suite — PRD (Product Requirements Document)
-
-## Product Vision
-Visionary Suite is an **AI Creative Operating System** — a creator network: **Create → Share → View → Remix → Create**.
+# Visionary Suite — PRD
 
 ## Pipeline Architecture
 ```
-User Prompt → Admission Controller → Credit Reserve → Queue (Priority) → Workers
-                    ↓                                         ↓
-            Check: concurrency,                     Stage 1: Scenes (LLM)
-            queue depth, plan                              ↓
-                    ↓                          Stage 2: Images + Voices (PARALLEL)
-            ADMIT / REJECT / QUEUE                         ↓
-                                                Stage 3: Package + Export
+Prompt → Admission Controller → Credit Reserve → Queue (Priority) → Workers
+              ↓                                        ↓
+     Check: concurrency,                     Stage 1: Scenes (LLM)
+     queue depth, plan                              ↓
+              ↓                        Stage 2: Images + Voices (PARALLEL)
+     ADMIT / REJECT / QUEUE                    ↓ (direct litellm bypass)
+                                        Stage 3: Package + Export
 ```
 
-### Admission Controller (LIVE)
+### Performance History
+| Version | Total Time | Key Change |
+|---------|-----------|------------|
+| v1 (sequential, wrapper) | ~79s | baseline |
+| v2 (parallel, wrapper) | ~69s | images+voices parallel |
+| **v3 (parallel, direct bypass, size=1024x1024)** | **~65s** | **litellm direct, explicit size** |
+
+### Per-Image Benchmark
+| Config | Time per image | vs baseline |
+|--------|---------------|-------------|
+| No size param (wrapper) | 16.8s | baseline |
+| **size=1024x1024 (direct)** | **13.8s** | **-18%** |
+| size=auto | 16.6s | ~same |
+| medium quality | 22.4s | +33% slower |
+
+### Admission Controller
 | Check | Behavior |
 |-------|----------|
-| User concurrency | Free=1, Paid=3, Premium=5, Admin=10 |
-| Queue depth ≥ 20 | Free: REJECT with retry message. Paid: queue with ETA. Premium: admit. |
-| Active workers ≥ 10 | Same as above |
+| Free concurrency (1) | REJECT with clear message |
+| Paid concurrency (3) | REJECT with wait message |
+| Premium concurrency (5) | REJECT with wait message |
+| Queue depth ≥ 20 (free) | REJECT with retry timer |
+| Queue depth ≥ 20 (paid) | QUEUE with ETA |
+| Queue depth ≥ 20 (premium) | ADMIT immediately |
 
-### Performance Metrics
-| Metric | Value |
-|--------|-------|
-| Total pipeline (3 scenes, parallel) | ~69s |
-| Scenes | ~8s |
-| Images + Voices (parallel) | ~59s |
-| Image generation | 57s (82% of total — **bottleneck**) |
-
-### Image Latency Investigation Results
-- `quality="low"` already used (fastest option)
-- `size` parameter exists in litellm but NOT exposed by emergentintegrations wrapper
-- GPT-Image-1 supports: 1024x1024, 1024x1536, 1536x1024, auto
-- **Path forward**: Either fork wrapper to add size param, or call litellm directly
-
-### Plan-Based Controls
-| Plan | Scenes | Queue Priority | Watermark | Concurrent Jobs |
-|------|--------|---------------|-----------|----------------|
-| Free | 3 | Low (10) | Yes | 1 |
-| Starter/Monthly | 4 | Medium (1) | No | 3 |
-| Pro/Premium | 6 | Medium (1) | No | 5 |
-| Admin | 6 | High (0) | No | 10 |
-
-### Credit System
-- Reserve on job start → Finalize on success → Refund on failure
+### Plan Controls
+| Plan | Scenes | Priority | Watermark | Concurrent | Image |
+|------|--------|----------|-----------|------------|-------|
+| Free | 3 | Low | Yes | 1 | 1024, low quality |
+| Paid | 4 | Medium | No | 3 | 1024, low quality |
+| Premium | 6 | High | No | 5 | 1024, low quality |
 
 ## Distribution Loop (LIVE)
-- Public pages `/v/{slug}` with OG meta tags, social share buttons, prompt display
-- Explore gallery `/explore` with 134+ creations
-- Creator profiles `/creator/{username}`
-- Sitemap, Growth Dashboard, Watermark
+Public pages, explore, creator profiles, OG tags, sitemap, share buttons, remix, watermark. 134+ creations seeded.
 
 ## Completed (All Sessions)
-1. Global design system, homepage, dashboard
-2. Story Video Pipeline (multi-stage, durable)
-3. Distribution loop (explore, public pages, remix, share, OG tags)
-4. Content Seeding Phase A (40 videos)
-5. Plan-based scene limits + credit reservation + scene caching
-6. Parallel image+voice execution (saves ~10s per job)
-7. Streaming first asset to UI + estimated time remaining
-8. **Admission controller** — pre-job gate with concurrency checks
-9. **Per-user concurrency limits** — Free=1, Paid=3, Premium=5, Admin=10
-10. **System status endpoint** — queue depth, active workers, user slots
+1. Design system, homepage, dashboard, Story Video Pipeline
+2. Distribution loop (explore, public pages, remix, share, OG tags, sitemap)
+3. Content Seeding Phase A (40 videos), Creator Profiles, Growth Dashboard
+4. Plan-based scene limits, credit reservation, scene caching
+5. Parallel image+voice execution
+6. Streaming first asset, estimated time remaining
+7. Admission controller + per-user concurrency limits
+8. **Direct litellm image bypass** — 18% faster per image, 17% faster total pipeline
 
 ## Remaining Backlog
 ### P0
-- [ ] Image latency optimization (bypass wrapper for size control OR faster model)
 - [ ] Content Seeding Phase B+C (80 more → 120 total)
+- [ ] Graceful degradation under load (fewer scenes/lower quality when stressed)
 
 ### P1
-- [ ] Graceful degradation under load (fewer scenes/lower quality for free users)
 - [ ] Direct-to-storage uploads via signed URLs
 - [ ] Storage lifecycle (auto-delete temp assets after 72h)
 
