@@ -13,6 +13,7 @@ from services.pipeline_engine import (
     create_pipeline_job, resume_pipeline, get_job,
     ANIMATION_STYLES, AGE_GROUPS, VOICE_PRESETS, CREDIT_COSTS, PLAN_SCENE_LIMITS,
 )
+from services.admission_controller import check_admission, get_system_status, CONCURRENCY_LIMITS
 from services.pipeline_worker import enqueue_job, get_worker_stats
 
 logger = logging.getLogger("pipeline_routes")
@@ -340,7 +341,37 @@ async def get_pipeline_options():
         ],
         "credit_costs": CREDIT_COSTS,
         "plan_scene_limits": PLAN_SCENE_LIMITS,
+        "concurrency_limits": CONCURRENCY_LIMITS,
     }
+
+
+@router.get("/system-status")
+async def pipeline_system_status(current_user: dict = Depends(get_current_user)):
+    """System capacity status for admin monitoring and frontend display."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    user_plan = str(current_user.get("plan", "free")).lower()
+
+    sys_status = await get_system_status()
+
+    # User-specific info
+    active_user_jobs = await db.pipeline_jobs.count_documents({
+        "user_id": user_id,
+        "status": {"$in": ["QUEUED", "PROCESSING"]},
+    })
+    max_concurrent = CONCURRENCY_LIMITS.get(user_plan, 1)
+
+    return {
+        "success": True,
+        "system": sys_status,
+        "user": {
+            "active_jobs": active_user_jobs,
+            "max_concurrent": max_concurrent,
+            "slots_available": max(0, max_concurrent - active_user_jobs),
+            "plan": user_plan,
+        },
+        "concurrency_limits": CONCURRENCY_LIMITS,
+    }
+
 
 
 @router.post("/create")
@@ -356,6 +387,19 @@ async def create_pipeline(
     # Enforce rate limits
     await _check_rate_limit(user_id)
 
+    # ── ADMISSION CONTROL ─────────────────────────────────────────────────
+    user_plan = current_user.get("plan", "free")
+    admission = await check_admission(user_id, user_plan)
+    if not admission.admitted:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "admission_rejected",
+                "message": admission.reason,
+                "retry_after_sec": admission.retry_after_sec,
+            },
+        )
+
     try:
         result = await create_pipeline_job(
             user_id=user_id,
@@ -365,7 +409,7 @@ async def create_pipeline(
             age_group=request.age_group,
             voice_preset=request.voice_preset,
             include_watermark=request.include_watermark,
-            user_plan=current_user.get("plan", "free"),
+            user_plan=user_plan,
         )
     except ValueError as e:
         error_msg = str(e)
@@ -404,14 +448,21 @@ async def create_pipeline(
         # Job was created and credits deducted, so still return success
         # The job just might not be enqueued yet
 
-    return {
+    response = {
         "success": True,
         "job_id": result["job_id"],
         "credits_charged": result["credits_charged"],
         "estimated_scenes": result["estimated_scenes"],
-        "queue_priority": "priority" if current_user.get("plan", "free") in ("admin", "demo", "weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise") else "standard",
+        "queue_priority": "priority" if user_plan in ("admin", "demo", "weekly", "monthly", "quarterly", "yearly", "starter", "creator", "pro", "premium", "enterprise") else "standard",
         "message": "Video generation queued. Poll /status for progress.",
     }
+    # Pass through admission queue warning for paid users under load
+    if admission.reason and admission.admitted:
+        response["queue_warning"] = admission.reason
+        if admission.eta_sec:
+            response["estimated_wait_sec"] = admission.eta_sec
+
+    return response
 
 
 @router.get("/status/{job_id}")

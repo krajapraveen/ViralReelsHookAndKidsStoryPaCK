@@ -237,7 +237,12 @@ function StoryVideoPipelineInner() {
         setJobId(res.data.job_id);
         setPhase('processing');
         setFormError('');
-        toast.success(`Video queued! ${res.data.credits_charged} credits charged.`);
+        const queueWarn = res.data.queue_warning;
+        if (queueWarn) {
+          toast.info(queueWarn);
+        } else {
+          toast.success(`Video queued! ${res.data.credits_charged} credits charged.`);
+        }
         startPolling(res.data.job_id);
       } else {
         setFormError(res.data.detail || res.data.message || 'Failed to create video. Please try again.');
@@ -267,7 +272,17 @@ function StoryVideoPipelineInner() {
       } else if (status === 422) {
         setFormError(detail || 'Please check your input. Story must be at least 50 characters and title at least 3 characters.');
       } else if (status === 429) {
-        setFormError(detail || 'Rate limit reached. Please wait before generating another video.');
+        // Admission rejection or rate limit
+        const admissionMsg = rawDetail?.message || rawDetail?.reason || detail;
+        const retryAfter = rawDetail?.retry_after_sec;
+        if (admissionMsg) {
+          setFormError(admissionMsg);
+        } else {
+          setFormError('Rate limit reached. Please wait before generating another video.');
+        }
+        if (retryAfter) {
+          toast.error(`Please try again in ${Math.ceil(retryAfter / 60)} minute(s).`);
+        }
         checkRateLimit();
       } else if (status === 402 || (detail && detail.toLowerCase().includes('credit'))) {
         setFormError(detail || 'Insufficient credits. Please purchase more credits to continue.');
