@@ -5,10 +5,10 @@
 Prompt → Admission Controller → Credit Reserve → Queue (Priority) → Workers
               ↓                                        ↓
      Check: concurrency,                     Stage 1: Scenes (LLM)
-     queue depth, plan                              ↓
-              ↓                        Stage 2: Images + Voices (PARALLEL)
-     ADMIT / REJECT / QUEUE                    ↓ (direct litellm bypass)
-                                        Stage 3: Package + Export
+     queue depth, plan,                              ↓
+     LOAD LEVEL                        Stage 2: Images + Voices (PARALLEL)
+              ↓                        ↓ (direct litellm bypass)
+     ADMIT / DEGRADE / REJECT         Stage 3: Package + Export
 ```
 
 ### Performance History
@@ -18,33 +18,34 @@ Prompt → Admission Controller → Credit Reserve → Queue (Priority) → Work
 | v2 (parallel, wrapper) | ~69s | images+voices parallel |
 | **v3 (parallel, direct bypass, size=1024x1024)** | **~65s** | **litellm direct, explicit size** |
 
-### Per-Image Benchmark
-| Config | Time per image | vs baseline |
-|--------|---------------|-------------|
-| No size param (wrapper) | 16.8s | baseline |
-| **size=1024x1024 (direct)** | **13.8s** | **-18%** |
-| size=auto | 16.6s | ~same |
-| medium quality | 22.4s | +33% slower |
-
-### Admission Controller
-| Check | Behavior |
-|-------|----------|
-| Free concurrency (1) | REJECT with clear message |
-| Paid concurrency (3) | REJECT with wait message |
-| Premium concurrency (5) | REJECT with wait message |
-| Queue depth ≥ 20 (free) | REJECT with retry timer |
-| Queue depth ≥ 20 (paid) | QUEUE with ETA |
-| Queue depth ≥ 20 (premium) | ADMIT immediately |
+### Admission Controller + Graceful Degradation
+| Load Level | Queue | Free Users | Paid Users | Premium Users |
+|-----------|-------|------------|------------|---------------|
+| NORMAL | <10 | Full quality (3 scenes) | Full quality | Full quality |
+| STRESSED | 10-19 | Reduced (2 scenes) | Full quality | Full quality |
+| SEVERE | 20-34 | PAUSED | Reduced (3 scenes) | Full quality |
+| CRITICAL | 35+ | PAUSED | PAUSED | Full quality |
 
 ### Plan Controls
 | Plan | Scenes | Priority | Watermark | Concurrent | Image |
 |------|--------|----------|-----------|------------|-------|
-| Free | 3 | Low | Yes | 1 | 1024, low quality |
+| Free | 3 (2 under stress) | Low | Yes | 1 | 1024, low quality |
 | Paid | 4 | Medium | No | 3 | 1024, low quality |
 | Premium | 6 | High | No | 5 | 1024, low quality |
 
 ## Distribution Loop (LIVE)
-Public pages, explore, creator profiles, OG tags, sitemap, share buttons, remix, watermark. 134+ creations seeded.
+Public pages, explore, creator profiles, OG tags, sitemap, share buttons, remix, watermark. **120 seeded creations** across 6 categories in 3 waves.
+
+## Content Seeding Status
+| Phase | Count | Status |
+|-------|-------|--------|
+| Phase A | 40 | COMPLETE |
+| Phase B+C (Wave 1, 7-21 days ago) | 27 | COMPLETE |
+| Phase B+C (Wave 2, 2-7 days ago) | 27 | COMPLETE |
+| Phase B+C (Wave 3, 0-2 days ago) | 26 | COMPLETE |
+| **Total** | **120** | **COMPLETE** |
+
+Categories: Fantasy(21), Motivational(21), Emotional(21), Sci-Fi(20), Kids(19), Luxury(18)
 
 ## Completed (All Sessions)
 1. Design system, homepage, dashboard, Story Video Pipeline
@@ -54,18 +55,22 @@ Public pages, explore, creator profiles, OG tags, sitemap, share buttons, remix,
 5. Parallel image+voice execution
 6. Streaming first asset, estimated time remaining
 7. Admission controller + per-user concurrency limits
-8. **Direct litellm image bypass** — 18% faster per image, 17% faster total pipeline
+8. Direct litellm image bypass — 18% faster per image
+9. **Content Seeding Phase B+C** — 80 more videos (120 total) in 3 waves
+10. **Graceful degradation under load** — 4 load levels (normal/stressed/severe/critical), auto scene reduction, free-tier pausing
 
 ## Remaining Backlog
 ### P0
-- [ ] Content Seeding Phase B+C (80 more → 120 total)
-- [ ] Graceful degradation under load (fewer scenes/lower quality when stressed)
+- [x] Content Seeding Phase B+C (80 more → 120 total) ✅
+- [x] Graceful degradation under load ✅
 
 ### P1
 - [ ] Direct-to-storage uploads via signed URLs
 - [ ] Storage lifecycle (auto-delete temp assets after 72h)
+- [ ] Creator Profile pages (`/creator/:username`)
 
 ### P2
 - [ ] BYO API / BYO Cloud mode
-- [ ] Creator Challenges, Cashfree payments
+- [ ] Creator Challenges
+- [ ] Cashfree payments (live)
 - [ ] Email Notifications (BLOCKED — SendGrid)
