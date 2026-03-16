@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://durable-jobs-beta.preview.emergentagent.com';
+const BACKEND_URL = 'https://create-share-remix.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

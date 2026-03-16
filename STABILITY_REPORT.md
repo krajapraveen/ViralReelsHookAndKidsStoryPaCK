@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://durable-jobs-beta.preview.emergentagent.com
+API URL: https://create-share-remix.preview.emergentagent.com
 ```
 
 ### Results Summary

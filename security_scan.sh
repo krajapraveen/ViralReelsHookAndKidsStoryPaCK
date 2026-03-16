@@ -2,7 +2,7 @@
 # CreatorStudio AI - Security Scan Script
 # Run: chmod +x security_scan.sh && ./security_scan.sh
 
-API_URL="${1:-https://durable-jobs-beta.preview.emergentagent.com}"
+API_URL="${1:-https://create-share-remix.preview.emergentagent.com}"
 echo "=========================================="
 echo "🔒 CreatorStudio AI Security Scan"
 echo "=========================================="

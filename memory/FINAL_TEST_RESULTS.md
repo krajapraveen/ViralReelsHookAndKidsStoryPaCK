@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://durable-jobs-beta.preview.emergentagent.com
+**Website:** https://create-share-remix.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

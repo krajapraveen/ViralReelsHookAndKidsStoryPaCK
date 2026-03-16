@@ -36,7 +36,7 @@
   },
   "test_credentials": {
     "user": "test@visionary-suite.com / Test@2026#",
-    "api_url": "https://durable-jobs-beta.preview.emergentagent.com"
+    "api_url": "https://create-share-remix.preview.emergentagent.com"
   },
   "seed_data_creation": "Created 5 pipeline jobs during testing",
   "retest_needed": false,

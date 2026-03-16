@@ -1,7 +1,7 @@
 {
   "summary": "Frontend-only testing of Admin Panel dynamic data completed successfully. All admin tabs show dynamic data from MongoDB as expected. Verified: Overview (23 users, 191 generations), Features (REEL 175, STORY 16), Payments (44 transactions), Visitors (with daily trend chart), Self-Healing (healthy status), Audit Logs (6 total actions), User Management (23 users with credits), Template Analytics (feature usage stats).",
   "test_date": "2026-03-01",
-  "preview_url": "https://durable-jobs-beta.preview.emergentagent.com",
+  "preview_url": "https://create-share-remix.preview.emergentagent.com",
   "testing_type": "frontend_only",
   "backend_issues": {
     "critical": [],

@@ -7,7 +7,7 @@ import requests
 import os
 
 # Use production backend URL
-BASE_URL = "https://durable-jobs-beta.preview.emergentagent.com"
+BASE_URL = "https://create-share-remix.preview.emergentagent.com"
 
 class TestAPIHealth:
     """API Health and Basic Connectivity Tests"""

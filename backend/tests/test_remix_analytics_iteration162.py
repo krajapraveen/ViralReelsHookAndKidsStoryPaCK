@@ -14,7 +14,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://durable-jobs-beta.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://create-share-remix.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_USER_EMAIL = "test@visionary-suite.com"

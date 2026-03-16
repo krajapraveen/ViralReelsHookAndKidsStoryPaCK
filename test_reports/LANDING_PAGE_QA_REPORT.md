@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Tester:** E1 (Emergent Agent - Strict QA Mode)  
-**URL Tested:** https://durable-jobs-beta.preview.emergentagent.com/  
+**URL Tested:** https://create-share-remix.preview.emergentagent.com/  
 **Environment:** Desktop Chrome + Mobile Responsive (375px)
 
 ---

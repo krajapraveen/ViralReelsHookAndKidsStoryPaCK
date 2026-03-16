@@ -127,6 +127,9 @@ import CookieConsent from './components/CookieConsent';
 // DISTRIBUTION LOOP
 import ExplorePage from './pages/ExplorePage';
 import PublicCreation from './pages/PublicCreation';
+import CreatorProfile from './pages/CreatorProfile';
+// ADMIN GROWTH DASHBOARD
+import GrowthDashboard from './pages/Admin/GrowthDashboard';
 import './App.css';
 
 function App() {
@@ -168,6 +171,7 @@ function App() {
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/v/:slug" element={<PublicCreation />} />
+        <Route path="/creator/:username" element={<CreatorProfile />} />
         
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
@@ -288,6 +292,8 @@ function App() {
       <Route path="/app/admin/monitoring" element={isAuthenticated ? <MonitoringDashboard /> : <Navigate to="/login" />} />
       {/* GA4 EVENT TESTER */}
       <Route path="/app/admin/ga4-tester" element={isAuthenticated ? <GA4EventTester /> : <Navigate to="/login" />} />
+      {/* GROWTH DASHBOARD */}
+      <Route path="/app/admin/growth" element={isAuthenticated ? <GrowthDashboard /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/cookie-policy" element={<CookiePolicy />} />
       <Route path="/terms" element={<TermsOfService />} />

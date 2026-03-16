@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Testing Tools**: Playwright v1.58.2, curl, Python concurrent.futures  
-**Base URL**: https://durable-jobs-beta.preview.emergentagent.com
+**Base URL**: https://create-share-remix.preview.emergentagent.com
 
 ---
 

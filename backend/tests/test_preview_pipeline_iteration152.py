@@ -1,6 +1,6 @@
 """
 Production Story → Video Pipeline Tests - Iteration 152
-Testing on preview environment: https://durable-jobs-beta.preview.emergentagent.com
+Testing on preview environment: https://create-share-remix.preview.emergentagent.com
 (Production https://www.visionary-suite.com has 502 backend errors)
 
 Tests: Pipeline stages, credit deduction, history, refresh recovery, concurrent runs
@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 
 # Preview URL (Production has 502 errors)
-BASE_URL = "https://durable-jobs-beta.preview.emergentagent.com"
+BASE_URL = "https://create-share-remix.preview.emergentagent.com"
 
 # Test credentials - demo user has unlimited credits
 TEST_USER_EMAIL = "demo@example.com"
