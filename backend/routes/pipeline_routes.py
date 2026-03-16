@@ -479,6 +479,12 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "has_raw_voices": len(scene_voices) > 0,
         }
 
+    # Build story_pack_url from fallback_outputs
+    story_pack_url = None
+    fb_zip = job.get("fallback_outputs", {}).get("story_pack_zip", {})
+    if fb_zip.get("url"):
+        story_pack_url = _make_presigned_url(fb_zip["url"])
+
     return {
         "success": True,
         "job": {
@@ -489,6 +495,9 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "current_stage": job.get("current_stage"),
             "current_step": job.get("current_step"),
             "output_url": _make_presigned_url(job.get("output_url")) if job.get("output_url") else None,
+            "preview_path": job.get("preview_path"),
+            "story_pack_url": story_pack_url,
+            "manifest": job.get("manifest"),
             "error": job.get("error"),
             "stages": stages_summary,
             "scene_progress": scene_progress,
@@ -500,7 +509,7 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "completed_at": job.get("completed_at"),
             "fallback": fallback_data,
             "has_recoverable_assets": has_raw_assets or bool(fallback_data),
-            "crash_logs": job.get("crash_logs", [])[-3:],  # Last 3 crash events for diagnostics
+            "crash_logs": job.get("crash_logs", [])[-3:],
         },
     }
 

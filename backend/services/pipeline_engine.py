@@ -1,8 +1,9 @@
 """
 Story → Video Pipeline Engine
-Durable, stage-based, checkpoint-persisted, resumable pipeline.
-Each stage saves outputs to DB. Failed stages retry independently.
-Per-scene checkpointing for image/voice generation.
+Permanent asset-first architecture: Backend generates assets only.
+Pipeline: scenes → images → voices → manifest/ZIP → COMPLETED
+Client-side browser export handles final video rendering.
+Server-side render kept only as admin/emergency fallback.
 """
 
 import os
@@ -47,7 +48,10 @@ class StageStatus(str, Enum):
     FAILED = "FAILED"
     RETRYING = "RETRYING"
 
-STAGES = ["script", "scenes", "images", "voices", "render", "upload"]
+STAGES = ["script", "scenes", "images", "voices"]
+
+# Admin-only stages (not in normal user flow)
+ADMIN_STAGES = ["render", "upload"]
 
 STAGE_CONFIG = {
     "script":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 60,  "retriable_on_timeout": True},
@@ -1103,25 +1107,25 @@ STAGE_RUNNERS = {
     "scenes": run_stage_scenes,
     "images": run_stage_images,
     "voices": run_stage_voices,
+}
+
+# Admin-only runners (not in normal flow)
+ADMIN_STAGE_RUNNERS = {
     "render": run_stage_render,
     "upload": run_stage_upload,
 }
 
-# Progress breakpoints per stage
+# Progress breakpoints: asset generation fills 0-95%, manifest/ZIP is 95-100%
 STAGE_PROGRESS = {
-    "scenes": (5, 25),
-    "images": (25, 55),
-    "voices": (55, 75),
-    "render": (75, 90),
-    "upload": (90, 100),
+    "scenes": (5, 30),
+    "images": (30, 65),
+    "voices": (65, 95),
 }
 
 STAGE_LABELS = {
     "scenes": "Generating scenes...",
     "images": "Creating images...",
     "voices": "Generating voiceovers...",
-    "render": "Rendering video...",
-    "upload": "Uploading to cloud...",
 }
 
 
@@ -1160,7 +1164,7 @@ async def execute_pipeline(job_id: str):
 
     timing = {}
 
-    for stage_name in ["scenes", "images", "voices", "render", "upload"]:
+    for stage_name in ["scenes", "images", "voices"]:
         # Check if stage already completed (resume support)
         stage_info = job.get("stages", {}).get(stage_name, {})
         if stage_info.get("status") == StageStatus.COMPLETED:
@@ -1295,10 +1299,36 @@ async def execute_pipeline(job_id: str):
                                 f"Failed at {stage_name}: {(last_error or '')[:80]}", status="failed")
             return
 
-    # ─── ALL STAGES COMPLETE ─────────────────────────────────────────────
+    # ─── ALL ASSET STAGES COMPLETE — Generate manifest + ZIP ─────────────────
     job = await get_job(job_id)
-    upload_outputs = job.get("stages", {}).get("upload", {}).get("outputs", {})
-    video_url = upload_outputs.get("url", "")
+
+    # Update progress
+    await update_job(job_id, {
+        "progress": 96,
+        "current_step": "Packaging your story assets...",
+    })
+    await _ws_broadcast(job_id, job.get("user_id", ""), "packaging", 96, "Packaging your story assets...")
+
+    # Generate manifest for browser export
+    manifest = await _generate_manifest(job)
+    await update_job(job_id, {"manifest": manifest})
+
+    # Generate Story Pack ZIP
+    zip_result = None
+    try:
+        from services.fallback_pipeline import generate_story_pack_zip
+        zip_result = await generate_story_pack_zip(job)
+        if zip_result and zip_result.get("success"):
+            await update_job(job_id, {
+                "fallback_outputs.story_pack_zip": {
+                    "url": zip_result["url"],
+                    "file_size_mb": zip_result.get("file_size_mb", 0),
+                },
+                "fallback_status": "AVAILABLE",
+            })
+            logger.info(f"[PIPE {job_id[:8]}] Story Pack ZIP generated: {zip_result.get('file_size_mb', 0):.1f}MB")
+    except Exception as e:
+        logger.warning(f"[PIPE {job_id[:8]}] ZIP generation failed (non-blocking): {e}")
 
     total_ms = int((time.time() - pipeline_start) * 1000)
     timing["total_ms"] = total_ms
@@ -1310,23 +1340,26 @@ async def execute_pipeline(job_id: str):
         "ttfd_metrics.total_generation_time": round(complete_ts - pipeline_start, 2),
     }
 
+    # Determine preview URL for the completed job
+    preview_path = f"/app/story-preview/{job_id}"
+
     await update_job(job_id, {
         "status": "COMPLETED",
         "progress": 100,
-        "output_url": video_url,
-        "current_step": f"Video ready! ({total_ms // 1000}s)",
+        "current_step": f"Your story is ready! ({total_ms // 1000}s)",
         "completed_at": datetime.now(timezone.utc),
         "timing": timing,
+        "preview_path": preview_path,
         **ttfd_final,
     })
 
     # Broadcast completion via WebSocket
     await _ws_broadcast(job_id, job.get("user_id", ""), "complete", 100,
-                        f"Video ready! ({total_ms // 1000}s)", status="completed")
+                        f"Your story is ready! ({total_ms // 1000}s)", status="completed")
 
-    logger.info(f"[PIPE {job_id[:8]}] COMPLETE in {total_ms}ms — {video_url[:60]}")
+    logger.info(f"[PIPE {job_id[:8]}] COMPLETED in {total_ms}ms — assets ready, preview at {preview_path}")
 
-    # Send notification if user subscribed to "notify when ready"
+    # Send notification if user subscribed
     if job.get("notify_on_complete"):
         try:
             from services.notification_service import NotificationService
@@ -1334,14 +1367,14 @@ async def execute_pipeline(job_id: str):
             await notif_svc.create_notification(
                 user_id=job.get("user_id", ""),
                 notification_type="generation_complete",
-                title=f"Video ready: {job.get('title', 'Your Story')}",
-                message=f"Your video '{job.get('title', '')}' is ready to download!",
+                title=f"Story ready: {job.get('title', 'Your Story')}",
+                message=f"Your story '{job.get('title', '')}' is ready! View preview and export your video.",
                 job_id=job_id,
             )
         except Exception as notif_err:
             logger.warning(f"[PIPE {job_id[:8]}] Notify-when-ready failed: {notif_err}")
 
-    # Clean up local temp files (images/audio) now that render is complete & uploaded
+    # Clean up local temp files now that assets are in R2
     try:
         for sn, img in job.get("scene_images", {}).items():
             p = img.get("path", "")
@@ -1354,6 +1387,56 @@ async def execute_pipeline(job_id: str):
         logger.info(f"[PIPE {job_id[:8]}] Cleaned up local temp files")
     except Exception:
         pass
+
+
+async def _generate_manifest(job: dict) -> dict:
+    """Generate a complete manifest with all asset URLs for browser export."""
+    from utils.r2_presign import presign_url
+
+    scenes = sorted(job.get("scenes", []), key=lambda s: s.get("scene_number", 0))
+    scene_images = job.get("scene_images", {})
+    scene_voices = job.get("scene_voices", {})
+
+    manifest_scenes = []
+    for scene in scenes:
+        sn = str(scene.get("scene_number", 0))
+        img_info = scene_images.get(sn, {})
+        voice_info = scene_voices.get(sn, {})
+
+        img_url = img_info.get("url", "")
+        voice_url = voice_info.get("url", "")
+
+        # Presign R2 URLs for direct browser access
+        if img_url and ("r2.dev" in img_url or "r2.cloudflarestorage" in img_url):
+            try:
+                img_url = presign_url(img_url, expiry=7200)
+            except Exception:
+                pass
+        if voice_url and ("r2.dev" in voice_url or "r2.cloudflarestorage" in voice_url):
+            try:
+                voice_url = presign_url(voice_url, expiry=7200)
+            except Exception:
+                pass
+
+        manifest_scenes.append({
+            "scene_number": scene.get("scene_number", 0),
+            "title": scene.get("title", f"Scene {sn}"),
+            "narration": scene.get("narration_text", ""),
+            "visual_prompt": scene.get("visual_prompt", ""),
+            "image_url": img_url,
+            "audio_url": voice_url,
+            "duration": voice_info.get("duration", 5.0),
+        })
+
+    return {
+        "job_id": job["job_id"],
+        "title": job.get("title", "Untitled Story"),
+        "animation_style": job.get("animation_style", ""),
+        "age_group": job.get("age_group", ""),
+        "total_scenes": len(manifest_scenes),
+        "scenes": manifest_scenes,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 async def refund_credits(job: dict):
@@ -1401,7 +1484,7 @@ async def resume_pipeline(job_id: str):
     # Reset any FAILED or RUNNING (interrupted) stage to PENDING so executor will re-run it
     stages = job.get("stages", {})
     reset_done = False
-    for stage_name in STAGES[1:]:  # skip "script"
+    for stage_name in STAGES[1:]:  # scenes, images, voices only
         stage_status = stages.get(stage_name, {}).get("status")
         if stage_status in (StageStatus.FAILED, StageStatus.RUNNING):
             await update_job(job_id, {

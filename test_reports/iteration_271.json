@@ -1,0 +1,122 @@
+{
+  "summary": "Iteration 271: Asset-First Story→Video Architecture - All 14 backend tests passed (100%). Frontend verified: StoryPreview page shows 'Your story is ready' banner with 3 options (Instant Preview, Export MP4, Story Pack), Export MP4 as primary action, Story Pack download working. Pipeline uses only 3 stages (scenes→images→voices). Completed jobs have manifest with job_id/title/scenes/animation_style, story_pack_url (ZIP), and preview_path. No render/upload stages in normal pipeline flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_asset_first_pipeline_iteration271.py",
+    "/app/test_reports/pytest/pytest_asset_first_pipeline_iteration271.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: Backend STAGES=['script','scenes','images','voices'] - no render/upload in pipeline_engine.py",
+    "VERIFIED: Backend STAGE_RUNNERS only has scenes/images/voices - render/upload in ADMIN_STAGE_RUNNERS (admin-only)",
+    "VERIFIED: execute_pipeline stops after voices and generates manifest+ZIP",
+    "VERIFIED: _generate_manifest() creates complete manifest with job_id, title, scenes array, animation_style",
+    "VERIFIED: status endpoint returns manifest, story_pack_url, preview_path for completed jobs",
+    "VERIFIED: Frontend STAGE_ORDER=['scenes','images','voices'] in StoryVideoPipeline.js",
+    "VERIFIED: Frontend STAGE_LABELS only has Scenes/Images/Voices",
+    "VERIFIED: StoryPreview page shows 'Your story is ready' banner (data-testid='ready-banner')",
+    "VERIFIED: StoryPreview banner has 3 options: Instant Preview, Export MP4, Story Pack",
+    "VERIFIED: Export MP4 button is primary action in header (data-testid='browser-export-toggle-btn')",
+    "VERIFIED: Story Pack download button present (data-testid='download-pack-btn')",
+    "VERIFIED: resume_pipeline still works for interrupted jobs (rejects completed jobs correctly)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_asset_first_pipeline_iteration271.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "verified_features": {
+    "PIPELINE_3_STAGES_ONLY": {
+      "status": "VERIFIED WORKING",
+      "details": "Pipeline runs scenes→images→voices only. No render/upload in normal flow.",
+      "evidence": "STAGES=['script','scenes','images','voices'], STAGE_RUNNERS has only scenes/images/voices"
+    },
+    "MANIFEST_GENERATION": {
+      "status": "VERIFIED WORKING",
+      "details": "Completed jobs have manifest with job_id, title, scenes array (each with image_url, audio_url, duration), animation_style",
+      "endpoint": "GET /api/pipeline/status/{job_id}",
+      "evidence": "Job a67ff269 manifest has 3 scenes with all required fields"
+    },
+    "STORY_PACK_ZIP": {
+      "status": "VERIFIED WORKING",
+      "details": "Completed jobs have story_pack_url pointing to R2 ZIP file",
+      "endpoint": "GET /api/pipeline/status/{job_id}",
+      "evidence": "story_pack_url present and starts with https://...r2.cloudflarestorage.com"
+    },
+    "PREVIEW_PATH": {
+      "status": "VERIFIED WORKING",
+      "details": "preview_path = /app/story-preview/{job_id} for completed jobs",
+      "endpoint": "GET /api/pipeline/status/{job_id}"
+    },
+    "PREVIEW_ENDPOINT": {
+      "status": "VERIFIED WORKING",
+      "details": "Returns status, title, total_scenes, scenes_with_images, scenes_with_audio, scenes array, story_pack_url",
+      "endpoint": "GET /api/pipeline/preview/{job_id}"
+    },
+    "FRONTEND_READY_BANNER": {
+      "status": "VERIFIED WORKING",
+      "details": "StoryPreview shows 'Your story is ready' banner with 3 options",
+      "selector": "[data-testid='ready-banner']",
+      "options": ["Instant Preview", "Export MP4", "Story Pack"]
+    },
+    "FRONTEND_EXPORT_MP4_PRIMARY": {
+      "status": "VERIFIED WORKING",
+      "details": "Export MP4 button is primary action in header",
+      "selector": "[data-testid='browser-export-toggle-btn']"
+    },
+    "FRONTEND_STORY_PACK_DOWNLOAD": {
+      "status": "VERIFIED WORKING",
+      "details": "Story Pack button with working download link",
+      "selector": "[data-testid='download-pack-btn']"
+    },
+    "FRONTEND_3_STAGES_ONLY": {
+      "status": "VERIFIED WORKING",
+      "details": "STAGE_ORDER=['scenes','images','voices'] - no Render or Upload",
+      "file": "/app/frontend/src/pages/StoryVideoPipeline.js line 21"
+    },
+    "RESUME_ENDPOINT": {
+      "status": "VERIFIED WORKING",
+      "details": "POST /api/pipeline/resume/{job_id} works for interrupted jobs, correctly rejects completed jobs",
+      "endpoint": "POST /api/pipeline/resume/{job_id}"
+    },
+    "USER_JOBS_ENDPOINT": {
+      "status": "VERIFIED WORKING",
+      "details": "Shows COMPLETED status with manifest for new jobs",
+      "endpoint": "GET /api/pipeline/user-jobs"
+    }
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "No new seed data created - used existing completed jobs",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 271: Verified the new asset-first architecture. Backend pipeline now completes after scenes+images+voices (no render/upload in normal flow). Completed jobs have manifest field with complete scene data, story_pack_url for ZIP download, and preview_path. Frontend StoryPreview page shows 'Your story is ready' banner with 3 options (Instant Preview, Export MP4, Story Pack). The Export MP4 button is the primary action (browser-side rendering). All 14 backend tests passed. Test job used: a67ff269-1ba5-41d4-a827-9c97cff4d00d (Desert Oasis).",
+  "tested_jobs": [
+    {
+      "job_id": "a67ff269-1ba5-41d4-a827-9c97cff4d00d",
+      "title": "Desert Oasis",
+      "status": "COMPLETED",
+      "stages": {
+        "scenes": "COMPLETED (6115ms)",
+        "images": "COMPLETED (47660ms)",
+        "voices": "COMPLETED (12688ms)"
+      },
+      "manifest_scenes": 3,
+      "story_pack_url": "Present (R2 storage)",
+      "preview_path": "/app/story-preview/a67ff269-1ba5-41d4-a827-9c97cff4d00d",
+      "output_url": null
+    }
+  ]
+}

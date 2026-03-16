@@ -18,9 +18,9 @@ import ProgressiveGeneration from '../components/ProgressiveGeneration';
 import { useJobWebSocket } from '../hooks/useJobWebSocket';
 import ContextualUpgrade from '../components/ContextualUpgrade';
 
-const STAGE_ORDER = ['scenes', 'images', 'voices', 'render', 'upload'];
-const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic, render: Video, upload: Upload };
-const STAGE_LABELS = { scenes: 'Scenes', images: 'Images', voices: 'Voices', render: 'Render', upload: 'Upload' };
+const STAGE_ORDER = ['scenes', 'images', 'voices'];
+const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic };
+const STAGE_LABELS = { scenes: 'Scenes', images: 'Images', voices: 'Voices' };
 
 // Error boundary to catch React render crashes
 class StudioErrorBoundary extends React.Component {
@@ -168,24 +168,19 @@ function StoryVideoPipelineInner() {
           if (j.status === 'COMPLETED') {
             clearInterval(pollRef.current);
             pollRef.current = null;
-            setPhase('done');
-            toast.success('Video generated successfully!');
+            toast.success('Your story is ready! Redirecting to preview...', { duration: 4000 });
+            setTimeout(() => navigate(`/app/story-preview/${jid}`), 1500);
           } else if (j.status === 'PARTIAL') {
             clearInterval(pollRef.current);
             pollRef.current = null;
-            if (j.fallback?.fallback_video_url) {
-              toast.info('Slideshow video ready! Redirecting to preview...', { duration: 4000 });
-            } else {
-              toast.info('Story assets ready! Redirecting to preview...', { duration: 4000 });
-            }
+            toast.info('Story assets ready! Redirecting to preview...', { duration: 4000 });
             setTimeout(() => navigate(`/app/story-preview/${jid}`), 1500);
           } else if (j.status === 'FAILED') {
             clearInterval(pollRef.current);
             pollRef.current = null;
-            // Check for any recoverable assets — formal fallback or raw assets
             const hasRecoverable = j.has_recoverable_assets || j.fallback?.has_preview || j.fallback?.story_pack_url;
             if (hasRecoverable) {
-              toast.info('Video render failed but your story assets are available!', { duration: 5000 });
+              toast.info('Generation had an issue, but your story assets are available!', { duration: 5000 });
             }
             setPhase('error');
           }
@@ -704,66 +699,55 @@ function DonePhase({ job, jobId, onNew, storyText, animStyle }) {
           <CheckCircle className="w-8 h-8 text-green-400" />
         </div>
         <h2 className="text-2xl font-bold text-white">{job.title}</h2>
-        <p className="text-green-400 mt-1">Your AI video is ready!</p>
+        <p className="text-green-400 mt-1">Your story is ready!</p>
+        <p className="text-slate-400 text-sm mt-2">Preview your story, export as MP4, or download the Story Pack.</p>
       </div>
 
-      {job.output_url && (
-        <div className="max-w-3xl mx-auto">
-          <div className="rounded-xl overflow-hidden border border-slate-700/50 bg-black" data-testid="video-player">
-            <video src={job.output_url} controls className="w-full" preload="metadata" />
-          </div>
-
-          <div className="flex justify-center gap-3 mt-6">
-            <a href={job.output_url} download target="_blank" rel="noopener noreferrer">
-              <Button className="bg-indigo-600 hover:bg-indigo-700" data-testid="download-btn">
-                <Download className="w-4 h-4 mr-2" /> Download Video
-              </Button>
-            </a>
-            <Button onClick={handleCopyLink} variant="outline" className="border-slate-700 text-slate-300" data-testid="copy-link-btn">
-              {copied ? <CheckCircle className="w-4 h-4 mr-2 text-green-400" /> : <Link2 className="w-4 h-4 mr-2" />}
-              {copied ? 'Copied!' : 'Copy Link'}
+      <div className="flex flex-col items-center gap-3 max-w-sm mx-auto">
+        <Link to={`/app/story-preview/${job.job_id}`} className="w-full">
+          <Button className="bg-purple-600 hover:bg-purple-700 w-full" data-testid="view-preview-btn">
+            <Eye className="w-4 h-4 mr-2" /> View Preview & Export MP4
+          </Button>
+        </Link>
+        {job.story_pack_url && (
+          <a href={job.story_pack_url} target="_blank" rel="noopener noreferrer" className="w-full">
+            <Button variant="outline" className="border-teal-500/50 text-teal-400 hover:bg-teal-500/10 w-full" data-testid="download-zip-btn">
+              <Package className="w-4 h-4 mr-2" /> Download Story Pack ZIP
             </Button>
-          </div>
+          </a>
+        )}
+        <Button onClick={handleCopyLink} variant="outline" className="border-slate-700 text-slate-300 w-full" data-testid="copy-link-btn">
+          {copied ? <CheckCircle className="w-4 h-4 mr-2 text-green-400" /> : <Link2 className="w-4 h-4 mr-2" />}
+          {copied ? 'Copied!' : 'Share Preview Link'}
+        </Button>
+      </div>
 
-          <div className="mt-6 p-4 rounded-xl bg-slate-800/30 border border-slate-700/30" data-testid="share-section">
-            <p className="text-sm text-slate-400 text-center mb-3 flex items-center justify-center gap-2">
-              <Share2 className="w-4 h-4" /> Share your creation
-            </p>
-            <div className="flex justify-center gap-3">
-              <button onClick={() => handleShare('twitter')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1DA1F2]/20 border border-slate-600/50 hover:border-[#1DA1F2]/50 transition-all" data-testid="share-twitter"><span className="text-sm font-bold text-slate-300">X</span></button>
-              <button onClick={() => handleShare('facebook')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1877F2]/20 border border-slate-600/50 hover:border-[#1877F2]/50 transition-all" data-testid="share-facebook"><span className="text-sm font-bold text-slate-300">f</span></button>
-              <button onClick={() => handleShare('whatsapp')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#25D366]/20 border border-slate-600/50 hover:border-[#25D366]/50 transition-all" data-testid="share-whatsapp"><span className="text-sm font-bold text-slate-300">W</span></button>
-              <button onClick={() => handleShare('linkedin')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#0A66C2]/20 border border-slate-600/50 hover:border-[#0A66C2]/50 transition-all" data-testid="share-linkedin"><span className="text-sm font-bold text-slate-300">in</span></button>
-            </div>
-          </div>
-
-          <div className="text-center mt-6">
-            <Button onClick={onNew} variant="ghost" className="text-slate-400 hover:text-white" data-testid="new-video-btn">
-              <Sparkles className="w-4 h-4 mr-2" /> Create Another Video
-            </Button>
-          </div>
-
-          {/* Remix & Variations Engine */}
-          <CreationActionsBar
-            toolType="story-video-studio"
-            originalPrompt={storyText || job.story_text || job.title || ''}
-            originalSettings={{ style: animStyle || job.animation_style, ageGroup: job.age_group }}
-            parentGenerationId={jobId || job.job_id}
-            remixSourceTitle={job.title}
-          />
-
-          {/* Contextual Upgrade */}
-          <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
+      <div className="mt-4 p-4 rounded-xl bg-slate-800/30 border border-slate-700/30" data-testid="share-section">
+        <p className="text-sm text-slate-400 text-center mb-3 flex items-center justify-center gap-2">
+          <Share2 className="w-4 h-4" /> Share your creation
+        </p>
+        <div className="flex justify-center gap-3">
+          <button onClick={() => handleShare('twitter')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1DA1F2]/20 border border-slate-600/50 hover:border-[#1DA1F2]/50 transition-all" data-testid="share-twitter"><span className="text-sm font-bold text-slate-300">X</span></button>
+          <button onClick={() => handleShare('facebook')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1877F2]/20 border border-slate-600/50 hover:border-[#1877F2]/50 transition-all" data-testid="share-facebook"><span className="text-sm font-bold text-slate-300">f</span></button>
+          <button onClick={() => handleShare('whatsapp')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#25D366]/20 border border-slate-600/50 hover:border-[#25D366]/50 transition-all" data-testid="share-whatsapp"><span className="text-sm font-bold text-slate-300">W</span></button>
+          <button onClick={() => handleShare('linkedin')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#0A66C2]/20 border border-slate-600/50 hover:border-[#0A66C2]/50 transition-all" data-testid="share-linkedin"><span className="text-sm font-bold text-slate-300">in</span></button>
         </div>
-      )}
+      </div>
 
-      {!job.output_url && (
-        <div className="text-center py-8" data-testid="no-output-warning">
-          <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-3" />
-          <p className="text-amber-300">Video completed but output URL is missing. Please try generating again.</p>
-          <Button onClick={onNew} className="mt-4 bg-purple-600 hover:bg-purple-700">Create New Video</Button>
-        </div>
-      )}
+      <div className="text-center">
+        <Button onClick={onNew} variant="ghost" className="text-slate-400 hover:text-white" data-testid="new-video-btn">
+          <Sparkles className="w-4 h-4 mr-2" /> Create Another Story
+        </Button>
+      </div>
+
+      <CreationActionsBar
+        toolType="story-video-studio"
+        originalPrompt={storyText || job.story_text || job.title || ''}
+        originalSettings={{ style: animStyle || job.animation_style, ageGroup: job.age_group }}
+        parentGenerationId={jobId || job.job_id}
+        remixSourceTitle={job.title}
+      />
+      <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
 
       {(job.scene_progress || []).length > 0 && (
         <div>
@@ -779,8 +763,8 @@ function DonePhase({ job, jobId, onNew, storyText, animStyle }) {
 
       <div className="max-w-xl mx-auto bg-slate-800/30 rounded-xl border border-slate-700/30 p-4" data-testid="timing-breakdown">
         <h4 className="text-sm font-medium text-slate-400 mb-2">Performance</h4>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
-          {['scenes', 'images', 'voices', 'render', 'upload', 'total'].map(k => (
+        <div className="grid grid-cols-4 gap-2 text-center text-xs">
+          {['scenes', 'images', 'voices', 'total'].map(k => (
             <div key={k}>
               <p className="text-slate-500 capitalize">{k}</p>
               <p className="text-white font-medium">{timing[`${k}_ms`] ? `${(timing[`${k}_ms`] / 1000).toFixed(1)}s` : '-'}</p>
@@ -817,8 +801,8 @@ function ErrorPhase({ job, onResume, onNew }) {
         {isServerRestart
           ? 'The process was interrupted, but your completed assets have been saved. You can resume or view what was generated.'
           : hasAnyAssets
-            ? 'The cinematic render encountered an issue, but we saved your story assets — images, audio, and more.'
-            : (job?.error || 'An error occurred during video generation.')}
+            ? 'Generation encountered an issue, but we saved your story assets — images, audio, and more.'
+            : (job?.error || 'An error occurred during generation.')}
       </p>
       {failedStage && !hasAnyAssets && (
         <p className="text-sm text-slate-500">
@@ -865,7 +849,7 @@ function ErrorPhase({ job, onResume, onNew }) {
         </Button>
       </div>
 
-      <p className="text-xs text-slate-500">Credits have been refunded for the failed render.</p>
+      <p className="text-xs text-slate-500">Credits have been refunded. You can resume or start fresh.</p>
     </div>
   );
 }

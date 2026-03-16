@@ -847,7 +847,7 @@ function JobCard({ job, formatDate, onResume, onGenerateFallback }) {
           {/* Stage progress bar */}
           {totalStages > 0 && (
             <div className="flex gap-1 mt-2">
-              {['scenes', 'images', 'voices', 'render', 'upload'].map(s => {
+              {['scenes', 'images', 'voices'].map(s => {
                 const st = stages[s];
                 if (!st) return null;
                 const clr = st.status === 'COMPLETED' ? 'bg-green-500'

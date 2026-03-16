@@ -97,6 +97,8 @@ export default function StoryPreview() {
     preview.status === 'PARTIAL' ? 'text-amber-400' :
     preview.status === 'PROCESSING' ? 'text-blue-400' : 'text-red-400';
 
+  const isReady = preview.status === 'COMPLETED' || preview.status === 'PARTIAL';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-[#0a0f1f] to-slate-950">
       {/* Header */}
@@ -114,7 +116,7 @@ export default function StoryPreview() {
               </h1>
               <div className="flex items-center gap-3 text-sm">
                 <span className={statusColor} data-testid="preview-status">
-                  {preview.status === 'PARTIAL' ? 'Assets Available' : preview.status}
+                  {preview.status === 'COMPLETED' ? 'Ready' : preview.status === 'PARTIAL' ? 'Assets Available' : preview.status}
                 </span>
                 <span className="text-slate-500">
                   {preview.scenes_with_images}/{preview.total_scenes} images
@@ -128,8 +130,8 @@ export default function StoryPreview() {
 
           {/* Download Actions */}
           <div className="flex items-center gap-2">
-            {/* Browser Export Button — always available when scenes have images */}
-            {preview.scenes?.some(s => s.image_url) && !preview.final_video_url && (
+            {/* Browser Export Button — primary action for all completed jobs */}
+            {preview.scenes?.some(s => s.image_url) && (
               <Button
                 onClick={() => { setShowExport(!showExport); if (!showExport) trackEvent('export_started'); }}
                 className={showExport ? 'bg-purple-700' : 'bg-purple-600 hover:bg-purple-700'}
@@ -139,27 +141,11 @@ export default function StoryPreview() {
                 {showExport ? 'Hide Export' : 'Export MP4'}
               </Button>
             )}
-            {preview.final_video_url && (
-              <a href={preview.final_video_url} target="_blank" rel="noopener noreferrer">
-                <Button className="bg-emerald-600 hover:bg-emerald-700" data-testid="download-video-btn">
-                  <Film className="w-4 h-4 mr-2" />
-                  Download Video
-                </Button>
-              </a>
-            )}
-            {preview.fallback_video_url && !preview.final_video_url && (
-              <a href={preview.fallback_video_url} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10" data-testid="download-fallback-btn">
-                  <Film className="w-4 h-4 mr-2" />
-                  Server Slideshow
-                </Button>
-              </a>
-            )}
             {preview.story_pack_url && (
               <a href={preview.story_pack_url} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('story_pack_downloaded')}>
-                <Button variant="outline" className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10" data-testid="download-pack-btn">
+                <Button variant="outline" className="border-teal-500/50 text-teal-400 hover:bg-teal-500/10" data-testid="download-pack-btn">
                   <Package className="w-4 h-4 mr-2" />
-                  Story Pack ZIP
+                  Story Pack
                 </Button>
               </a>
             )}
@@ -180,16 +166,15 @@ export default function StoryPreview() {
           </div>
         )}
 
-        {/* Fallback Banner */}
-        {preview.status === 'PARTIAL' && (
-          <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl" data-testid="fallback-banner">
+        {/* Story Ready Banner */}
+        {isReady && (
+          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl" data-testid="ready-banner">
             <div className="flex items-start gap-3">
-              <Package className="w-6 h-6 text-amber-400 mt-0.5 flex-shrink-0" />
+              <CheckCircle className="w-6 h-6 text-emerald-400 mt-0.5 flex-shrink-0" />
               <div>
-                <h3 className="text-amber-300 font-semibold">Your story assets are ready</h3>
-                <p className="text-amber-200/70 text-sm mt-1">
-                  The cinematic server render encountered an issue, but all your story assets are preserved.
-                  You have three options:
+                <h3 className="text-emerald-300 font-semibold">Your story is ready</h3>
+                <p className="text-emerald-200/70 text-sm mt-1">
+                  All your scenes, images, and voiceovers have been generated. Choose how to enjoy your story:
                 </p>
                 <div className="mt-3 grid sm:grid-cols-3 gap-2">
                   <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
@@ -198,11 +183,11 @@ export default function StoryPreview() {
                   </div>
                   <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
                     <p className="text-purple-400 text-xs font-semibold">Export MP4</p>
-                    <p className="text-purple-300/60 text-[10px]">Render video in your browser</p>
+                    <p className="text-purple-300/60 text-[10px]">Create downloadable video in your browser</p>
                   </div>
-                  <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                    <p className="text-amber-400 text-xs font-semibold">Story Pack ZIP</p>
-                    <p className="text-amber-300/60 text-[10px]">All images, audio, and text</p>
+                  <div className="p-2 bg-teal-500/10 border border-teal-500/20 rounded-lg">
+                    <p className="text-teal-400 text-xs font-semibold">Story Pack</p>
+                    <p className="text-teal-300/60 text-[10px]">Download all images, audio, and text</p>
                   </div>
                 </div>
               </div>
