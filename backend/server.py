@@ -273,13 +273,14 @@ async def security_headers_middleware(request: Request, call_next):
     # Content Security Policy (CSP) - Prevents XSS and other injection attacks
     csp_directives = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com https://sdk.cashfree.com",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com https://sdk.cashfree.com https://cdn.jsdelivr.net https://unpkg.com blob:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https: http:",
-        "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://*.emergentagent.com wss:",
+        "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://*.emergentagent.com wss: https: blob:",
         "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://auth.emergentagent.com",
         "media-src 'self' blob: https:",
+        "worker-src 'self' blob:",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
@@ -288,11 +289,11 @@ async def security_headers_middleware(request: Request, call_next):
     ]
     response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
     
-    # Additional Security Headers
+    # Cross-Origin Isolation headers — required for SharedArrayBuffer (ffmpeg.wasm)
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(self)"
     response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
-    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     
     return response
