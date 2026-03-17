@@ -44,7 +44,7 @@ export const options = {
 };
 
 // Base URL from environment or default
-const BASE_URL = __ENV.BASE_URL || 'https://pipeline-optimize.preview.emergentagent.com';
+const BASE_URL = __ENV.BASE_URL || 'https://comic-pipeline-v2.preview.emergentagent.com';
 
 // Test user credentials
 const TEST_USER = {

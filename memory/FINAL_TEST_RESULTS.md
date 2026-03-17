@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://pipeline-optimize.preview.emergentagent.com
+**Website:** https://comic-pipeline-v2.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

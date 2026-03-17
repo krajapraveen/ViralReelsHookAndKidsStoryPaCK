@@ -10,7 +10,7 @@ Full production verification including:
 - All endpoint authentication checks
 
 Test User: test@visionary-suite.com / Test@2026#
-Preview URL: https://pipeline-optimize.preview.emergentagent.com
+Preview URL: https://comic-pipeline-v2.preview.emergentagent.com
 """
 
 import pytest

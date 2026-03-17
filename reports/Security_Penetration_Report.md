@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://pipeline-optimize.preview.emergentagent.com
+**Environment:** https://comic-pipeline-v2.preview.emergentagent.com
 
 ---
 

@@ -10,7 +10,7 @@
  */
 import { test, expect, devices } from '@playwright/test';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://pipeline-optimize.preview.emergentagent.com';
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://comic-pipeline-v2.preview.emergentagent.com';
 
 const TEST_USER = {
   email: 'demo@example.com',

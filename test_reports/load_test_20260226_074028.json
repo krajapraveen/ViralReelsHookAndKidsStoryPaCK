@@ -54,7 +54,7 @@
     }
   },
   "test_config": {
-    "api_url": "https://pipeline-optimize.preview.emergentagent.com",
+    "api_url": "https://comic-pipeline-v2.preview.emergentagent.com",
     "start_time": "2026-02-26T07:39:52.271450+00:00",
     "end_time": "2026-02-26T07:40:28.272666+00:00"
   },

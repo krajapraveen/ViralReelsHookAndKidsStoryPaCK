@@ -88,7 +88,7 @@
   "test_credentials": {
     "test_user": "test@visionary-suite.com / Test@2026#",
     "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026",
-    "app_url": "https://pipeline-optimize.preview.emergentagent.com"
+    "app_url": "https://comic-pipeline-v2.preview.emergentagent.com"
   },
 
   "seed_data_creation": "None - used existing 30 showcase items in pipeline_jobs collection",

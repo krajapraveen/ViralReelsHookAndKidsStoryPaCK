@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://pipeline-optimize.preview.emergentagent.com
+API URL: https://comic-pipeline-v2.preview.emergentagent.com
 ```
 
 ### Results Summary

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://pipeline-optimize.preview.emergentagent.com
+**Platform URL:** https://comic-pipeline-v2.preview.emergentagent.com
 
 ---
 

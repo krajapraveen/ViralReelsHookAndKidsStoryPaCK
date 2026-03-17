@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Testing Tools**: Playwright v1.58.2, curl, Python concurrent.futures  
-**Base URL**: https://pipeline-optimize.preview.emergentagent.com
+**Base URL**: https://comic-pipeline-v2.preview.emergentagent.com
 
 ---
 

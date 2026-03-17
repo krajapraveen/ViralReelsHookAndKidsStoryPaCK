@@ -24,7 +24,7 @@
   },
   "test_credentials": {
     "test_user": "test@visionary-suite.com / Test@2026#",
-    "api_url": "https://pipeline-optimize.preview.emergentagent.com"
+    "api_url": "https://comic-pipeline-v2.preview.emergentagent.com"
   },
   "seed_data_creation": "N/A - Uses existing completed job cd85ee04-44af-4a2d-ab52-365eba9edb65 with 10-page comic storybook",
   "retest_needed": false,

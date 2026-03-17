@@ -13,7 +13,7 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://pipeline-optimize.preview.emergentagent.com"
+    BASE_URL = "https://comic-pipeline-v2.preview.emergentagent.com"
 
 # Admin credentials
 ADMIN_EMAIL = "admin@creatorstudio.ai"

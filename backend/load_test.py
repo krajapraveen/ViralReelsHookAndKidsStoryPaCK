@@ -23,7 +23,7 @@ from typing import List, Dict, Any
 from collections import defaultdict
 
 # Configuration
-API_URL = os.environ.get("API_URL", "https://pipeline-optimize.preview.emergentagent.com")
+API_URL = os.environ.get("API_URL", "https://comic-pipeline-v2.preview.emergentagent.com")
 TEST_USER_EMAIL = "demo@example.com"
 TEST_USER_PASSWORD = "Password123!"
 
