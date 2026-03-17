@@ -1,1572 +1,621 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, ArrowRight, Upload, Wand2, Image, Camera, Sparkles, 
-  Loader2, Download, Check, AlertTriangle, Shield, Info,
-  User, Palette, Book, Zap, Crown, Lock, Eye
+import {
+  ArrowLeft, Upload, Wand2, Loader2, Download, Check, Image,
+  Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
+  ChevronDown, Grid3X3, User, Palette
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
-import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
-import VariationSelector from '../components/VariationSelector';
-import PremiumLock, { PremiumBanner } from '../components/PremiumLock';
-import { StylePreviewModal, STYLE_PREVIEWS } from '../components/StylePreview';
-import HelpGuide from '../components/HelpGuide';
-import WaitingWithGames from '../components/WaitingWithGames';
-import DownloadWithExpiry from '../components/DownloadWithExpiry';
-import NotificationBell from '../components/NotificationBell';
-import { useNotifications } from '../contexts/NotificationContext';
-import analytics from '../utils/analytics';
-import CreationActionsBar from '../components/CreationActionsBar';
 
-// Copyright blocked keywords (case-insensitive, substring match)
-const BLOCKED_KEYWORDS = [
-  // Superhero / Comic IP
-  'marvel', 'dc', 'avengers', 'spiderman', 'spider-man', 'batman', 'superman',
-  'ironman', 'iron man', 'captain america', 'thor', 'hulk', 'joker', 
-  'wonder woman', 'flash', 'deadpool', 'x-men', 'wolverine', 'venom',
-  // Disney / Animation
-  'disney', 'pixar', 'frozen', 'elsa', 'anna', 'mickey', 'minnie', 
-  'donald duck', 'goofy', 'toy story', 'lightyear',
-  // Anime / Manga
-  'naruto', 'sasuke', 'dragon ball', 'goku', 'one piece', 'luffy', 
-  'attack on titan', 'demon slayer', 'pokemon', 'pikachu', 'studio ghibli',
-  // Games / Entertainment
-  'fortnite', 'minecraft', 'league of legends', 'valorant', 'pubg', 
-  'call of duty', 'gta', 'harry potter', 'hogwarts',
-  // Brand / Logo
-  'nike', 'adidas', 'coca cola', 'pepsi', 'apple logo', 'tesla logo', 
-  'youtube logo', 'instagram logo', 'facebook logo'
+// ─── Style Presets ─────────────────────────────────────────────────────
+const STYLES = [
+  { id: 'bold_superhero', name: 'Bold Hero', color: 'from-red-600 to-orange-500', tier: 'free' },
+  { id: 'cartoon_fun', name: 'Cartoon', color: 'from-yellow-500 to-amber-400', tier: 'free' },
+  { id: 'retro_action', name: 'Retro Pop', color: 'from-pink-500 to-rose-400', tier: 'free' },
+  { id: 'soft_manga', name: 'Manga', color: 'from-indigo-500 to-violet-400', tier: 'free' },
+  { id: 'cute_chibi', name: 'Chibi', color: 'from-emerald-500 to-teal-400', tier: 'free' },
+  { id: 'kids_storybook', name: 'Storybook', color: 'from-sky-500 to-cyan-400', tier: 'free' },
+  { id: 'noir_comic', name: 'Noir', color: 'from-slate-600 to-zinc-500', tier: 'free' },
+  { id: 'scifi_neon', name: 'Sci-Fi Neon', color: 'from-fuchsia-600 to-purple-500', tier: 'paid' },
+  { id: 'cyberpunk_comic', name: 'Cyberpunk', color: 'from-cyan-500 to-blue-600', tier: 'paid' },
+  { id: 'magical_fantasy', name: 'Fantasy', color: 'from-violet-600 to-indigo-500', tier: 'paid' },
+  { id: 'dreamy_pastel', name: 'Pastel', color: 'from-rose-400 to-pink-300', tier: 'paid' },
+  { id: 'black_white_ink', name: 'Ink Art', color: 'from-gray-700 to-gray-500', tier: 'paid' },
 ];
 
-// Check for blocked keywords
-const checkBlockedContent = (text) => {
-  if (!text) return { blocked: false };
-  const lowerText = text.toLowerCase();
-  for (const keyword of BLOCKED_KEYWORDS) {
-    if (lowerText.includes(keyword)) {
-      return { 
-        blocked: true, 
-        keyword,
-        suggestion: `We create original comic characters only. Try using generic descriptions like "masked hero" or "animated style" instead.`
-      };
-    }
-  }
-  return { blocked: false };
-};
-
-// Safe Style Presets
-const STYLE_PRESETS = {
-  action: [
-    { id: 'bold_superhero', name: 'Bold Superhero', description: 'Dynamic heroic poses with bold colors' },
-    { id: 'dark_vigilante', name: 'Dark Vigilante', description: 'Moody, shadowy crime-fighter style' },
-    { id: 'retro_action', name: 'Retro Action Comic', description: 'Classic 80s action comic aesthetic' },
-    { id: 'dynamic_battle', name: 'Dynamic Battle Scene', description: 'High-energy action sequences' },
-  ],
-  fun: [
-    { id: 'cartoon_fun', name: 'Cartoon Fun', description: 'Bright, playful cartoon style' },
-    { id: 'meme_expression', name: 'Meme Expression', description: 'Exaggerated funny expressions' },
-    { id: 'comic_caricature', name: 'Comic Caricature', description: 'Playful exaggerated features' },
-    { id: 'exaggerated_reaction', name: 'Exaggerated Reaction', description: 'Over-the-top emotional reactions' },
-  ],
-  soft: [
-    { id: 'romance_comic', name: 'Romance Comic', description: 'Soft, dreamy romantic style' },
-    { id: 'dreamy_pastel', name: 'Dreamy Pastel', description: 'Gentle pastel color palette' },
-    { id: 'soft_manga', name: 'Soft Manga Inspired', description: 'Gentle anime-inspired look' },
-    { id: 'cute_chibi', name: 'Cute Chibi', description: 'Adorable mini character style' },
-  ],
-  fantasy: [
-    { id: 'magical_fantasy', name: 'Magical Fantasy', description: 'Enchanted mystical atmosphere' },
-    { id: 'medieval_adventure', name: 'Medieval Adventure', description: 'Knights and castles theme' },
-    { id: 'scifi_neon', name: 'Sci-Fi Neon', description: 'Futuristic neon cyberpunk' },
-    { id: 'cyberpunk_comic', name: 'Cyberpunk Comic', description: 'High-tech dystopian style' },
-  ],
-  kids: [
-    { id: 'kids_storybook', name: 'Kids Storybook Comic', description: 'Friendly children\'s book style' },
-    { id: 'friendly_animal', name: 'Friendly Animal Comic', description: 'Cute animal characters' },
-    { id: 'classroom_comic', name: 'Classroom Comic', description: 'School-themed fun' },
-    { id: 'adventure_kids', name: 'Adventure Kids Style', description: 'Kid-friendly adventures' },
-  ],
-  minimal: [
-    { id: 'black_white_ink', name: 'Black & White Ink', description: 'Classic ink illustration' },
-    { id: 'sketch_outline', name: 'Sketch Outline', description: 'Hand-drawn sketch look' },
-    { id: 'noir_comic', name: 'Noir Comic', description: 'Film noir dramatic shadows' },
-    { id: 'vintage_print', name: 'Vintage Print Style', description: 'Retro newspaper print' },
-  ],
-};
-
-// Genre Presets
-const GENRE_PRESETS = [
-  { id: 'action', name: 'Action', icon: Zap },
-  { id: 'comedy', name: 'Comedy', icon: Sparkles },
-  { id: 'romance', name: 'Romance', icon: Sparkles },
-  { id: 'adventure', name: 'Adventure', icon: Sparkles },
-  { id: 'fantasy', name: 'Fantasy', icon: Sparkles },
-  { id: 'scifi', name: 'Sci-Fi', icon: Sparkles },
-  { id: 'mystery', name: 'Mystery', icon: Sparkles },
-  { id: 'kids_friendly', name: 'Kids Friendly', icon: Sparkles },
-  { id: 'slice_of_life', name: 'Slice of Life', icon: Sparkles },
-  { id: 'motivational', name: 'Motivational', icon: Sparkles },
+const GENRES = [
+  { id: 'action', name: 'Action' },
+  { id: 'comedy', name: 'Comedy' },
+  { id: 'romance', name: 'Romance' },
+  { id: 'adventure', name: 'Adventure' },
+  { id: 'fantasy', name: 'Fantasy' },
+  { id: 'scifi', name: 'Sci-Fi' },
+  { id: 'kids_friendly', name: 'Kids' },
 ];
 
-// Pricing Configuration
-const PRICING = {
-  comic_avatar: {
-    base: 15,
-    add_ons: {
-      transparent_bg: 3,
-      multiple_poses: 5,
-      hd_export: 5,
-    }
-  },
-  comic_strip: {
-    panels: {
-      3: { credits: 25, label: '3 Panels' },
-      4: { credits: 32, label: '4 Panels', popular: true },
-      6: { credits: 45, label: '6 Panels', bestValue: true },
-    },
-    add_ons: {
-      auto_dialogue: 5,
-      custom_speech: 3,
-      hd_export: 8,
-    }
-  }
-};
+const BLOCKED = [
+  'marvel', 'dc', 'disney', 'naruto', 'pokemon', 'avengers', 'spiderman',
+  'batman', 'superman', 'ironman', 'hulk', 'thor', 'captain america',
+  'wonder woman', 'flash', 'joker', 'mickey', 'goku', 'pikachu', 'sonic'
+];
 
 export default function PhotoToComic() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const dropRef = useRef(null);
+
+  // ─── State ───────────────────────────────────────────────────────
   const [credits, setCredits] = useState(0);
   const [userPlan, setUserPlan] = useState('free');
-  
-  // Notifications
-  const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
-  
-  // Mode selection: 'avatar' or 'strip'
-  const [mode, setMode] = useState(null);
-  
-  // Wizard step (1-3 for avatar, 1-5 for strip)
-  const [step, setStep] = useState(1);
-  
-  // Photo upload
-  const [photo, setPhoto] = useState(null);
+
+  // Upload
+  const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  
-  // Style & customization
-  const [styleCategory, setStyleCategory] = useState('action');
-  const [selectedStyle, setSelectedStyle] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [storageKey, setStorageKey] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Config
+  const [mode, setMode] = useState('avatar');
+  const [style, setStyle] = useState('cartoon_fun');
   const [genre, setGenre] = useState('action');
-  const [customDetails, setCustomDetails] = useState('');
-  const [dialogue, setDialogue] = useState('');
-  
-  // Comic Strip specific
   const [panelCount, setPanelCount] = useState(4);
   const [storyPrompt, setStoryPrompt] = useState('');
-  const [includeDialogue, setIncludeDialogue] = useState(true);
-  
-  // Add-ons
-  const [addOns, setAddOns] = useState({
-    transparent_bg: false,
-    multiple_poses: false,
-    hd_export: false,
-    auto_dialogue: true,
-    custom_speech: false,
-  });
-  
-  // Generation state
-  const [loading, setLoading] = useState(false);
-  const [job, setJob] = useState(null);
-  const [pollingInterval, setPollingIntervalState] = useState(null);
-  
-  // CRITICAL: Use refs to prevent infinite loops
-  const toastShownRef = useRef({});
-  const pollingIntervalRef = useRef(null);
-  const isPollingRef = useRef(false);
-  
-  // Modals
+  const [hd, setHd] = useState(false);
+
+  // Generation
+  const [generating, setGenerating] = useState(false);
+  const [jobId, setJobId] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [progressMsg, setProgressMsg] = useState('');
+  const [result, setResult] = useState(null);
+  const [validated, setValidated] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [showRating, setShowRating] = useState(false);
-  const [showUpsell, setShowUpsell] = useState(false);
-  const [contentError, setContentError] = useState(null);
 
   useEffect(() => {
-    fetchCredits();
-    fetchUserPlan();
-    return () => {
-      // Clean up all polling on unmount
-      isPollingRef.current = false;
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      if (pollingInterval) clearInterval(pollingInterval);
-    };
+    (async () => {
+      try {
+        const [cr, ur] = await Promise.all([
+          api.get('/api/credits/balance'),
+          api.get('/api/auth/me')
+        ]);
+        setCredits(cr.data.credits || 0);
+        setUserPlan(ur.data.user?.plan || ur.data.plan || 'free');
+      } catch { /* noop */ }
+    })();
   }, []);
 
-  const fetchCredits = async () => {
-    try {
-      const res = await api.get('/api/credits/balance');
-      setCredits(res.data.credits);
-    } catch (e) {
-      console.error('Failed to fetch credits');
-    }
-  };
+  // ─── Photo handling ──────────────────────────────────────────────
+  const handleFile = useCallback((file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Please upload an image'); return; }
+    if (file.size > 15 * 1024 * 1024) { toast.error('Max 15MB'); return; }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setResult(null);
+    setJobId(null);
+  }, []);
 
-  const fetchUserPlan = async () => {
-    try {
-      const res = await api.get('/api/auth/me');
-      setUserPlan(res.data?.plan || 'free');
-    } catch (e) {
-      console.error('Failed to fetch user plan');
-    }
-  };
+  const onDrop = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    handleFile(file);
+  }, [handleFile]);
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('Image too large. Max 10MB.');
-        return;
-      }
-      if (photoPreview) URL.revokeObjectURL(photoPreview);
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-      setJob(null);
-    }
-  };
-
-  const clearPhoto = () => {
+  const removePhoto = () => {
     if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhoto(null);
+    setPhotoFile(null);
     setPhotoPreview(null);
-    setJob(null);
+    setStorageKey(null);
   };
 
-  // Validate text inputs for blocked content
-  const validateContent = (text) => {
-    const check = checkBlockedContent(text);
-    if (check.blocked) {
-      setContentError(check);
-      return false;
-    }
-    setContentError(null);
-    return true;
-  };
+  // ─── Cost ────────────────────────────────────────────────────────
+  const cost = (() => {
+    let c = mode === 'avatar' ? 3 : ({ 3: 5, 4: 6, 6: 8 }[panelCount] || 6);
+    if (hd) c += 2;
+    const disc = { creator: 0.8, pro: 0.7, studio: 0.6 }[userPlan] || 1;
+    return Math.max(1, Math.round(c * disc));
+  })();
 
-  // Calculate total cost
-  const calculateCost = () => {
-    let total = 0;
-    if (mode === 'avatar') {
-      total = PRICING.comic_avatar.base;
-      if (addOns.transparent_bg) total += PRICING.comic_avatar.add_ons.transparent_bg;
-      if (addOns.multiple_poses) total += PRICING.comic_avatar.add_ons.multiple_poses;
-      if (addOns.hd_export) total += PRICING.comic_avatar.add_ons.hd_export;
-    } else if (mode === 'strip') {
-      total = PRICING.comic_strip.panels[panelCount]?.credits || 25;
-      if (addOns.auto_dialogue) total += PRICING.comic_strip.add_ons.auto_dialogue;
-      if (addOns.custom_speech) total += PRICING.comic_strip.add_ons.custom_speech;
-      if (addOns.hd_export) total += PRICING.comic_strip.add_ons.hd_export;
-    }
-    
-    // Apply plan discount
-    if (userPlan === 'creator') total = Math.floor(total * 0.8);
-    else if (userPlan === 'pro') total = Math.floor(total * 0.7);
-    else if (userPlan === 'studio') total = Math.floor(total * 0.6);
-    
-    return total;
-  };
+  // ─── Generate ────────────────────────────────────────────────────
+  const handleGenerate = async () => {
+    if (!photoFile) { toast.error('Upload a photo first'); return; }
+    if (credits < cost) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }
 
-  // Stop polling helper function
-  const stopPolling = useCallback(() => {
-    isPollingRef.current = false;
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingIntervalState(null);
-    }
-  }, [pollingInterval]);
-
-  // Poll job status with ref-based loop prevention
-  const pollJobStatus = useCallback(async (jobId) => {
-    // Prevent polling if already stopped
-    if (!isPollingRef.current) return;
-    
-    try {
-      const res = await api.get(`/api/photo-to-comic/job/${jobId}`);
-      setJob(res.data);
-      
-      if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
-        // Stop polling immediately
-        stopPolling();
-        setLoading(false);
-        fetchCredits();
-        
-        // Only show toast once per job using ref (not state)
-        if (!toastShownRef.current[jobId]) {
-          toastShownRef.current[jobId] = true;
-          if (res.data.status === 'COMPLETED') {
-            toast.success('Your comic character is ready!');
-            
-            // Trigger notification for completed generation
-            notifyGenerationComplete({
-              feature: mode === 'avatar' ? 'comic_avatar' : 'comic_strip',
-              featureName: mode === 'avatar' ? 'Comic Avatar' : 'Comic Strip',
-              jobId: jobId,
-              downloadUrl: res.data.resultUrl,
-              actionUrl: '/app/comix-ai'
-            });
-            
-            // Refetch notifications to sync
-            refetchNotifications?.();
-            
-            setTimeout(() => setShowRating(true), 2000);
-          } else {
-            toast.error('Generation failed. Please try again.');
-            
-            // Trigger notification for failed generation
-            notifyGenerationFailed({
-              feature: mode === 'avatar' ? 'comic_avatar' : 'comic_strip',
-              featureName: mode === 'avatar' ? 'Comic Avatar' : 'Comic Strip',
-              jobId: jobId,
-              error: res.data.error || 'Generation failed'
-            });
-          }
-        }
+    if (storyPrompt) {
+      const lower = storyPrompt.toLowerCase();
+      for (const kw of BLOCKED) {
+        if (lower.includes(kw)) { toast.error(`Copyrighted content: "${kw}"`); return; }
       }
-    } catch (e) {
-      console.error('Poll error:', e);
     }
-  }, [stopPolling, mode, notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
 
-  // Generate comic avatar
-  const generateAvatar = async () => {
-    if (!photo) {
-      toast.error('Please upload a photo first');
-      return;
-    }
-    
-    if (!selectedStyle) {
-      toast.error('Please select a style');
-      return;
-    }
-    
-    // Validate custom details
-    if (customDetails && !validateContent(customDetails)) {
-      toast.error('Please remove copyrighted references from your description');
-      return;
-    }
-    
-    const cost = calculateCost();
-    if (credits < cost) {
-      toast.error(`Insufficient credits. Need ${cost} credits.`);
-      setShowUpsell(true);
-      return;
-    }
-    
-    // CRITICAL: Clear previous results and stop polling
-    setJob(null);
-    stopPolling();
-    setLoading(true);
-    toastShownRef.current = {}; // Reset toast tracking for new generation
-    
+    setGenerating(true);
+    setProgress(0);
+    setProgressMsg('Uploading...');
+    setResult(null);
+
     try {
       const formData = new FormData();
-      formData.append('photo', photo);
-      formData.append('mode', 'avatar');
-      formData.append('style', selectedStyle);
-      formData.append('style_category', styleCategory);
+      formData.append('photo', photoFile);
+      formData.append('mode', mode);
+      formData.append('style', style);
       formData.append('genre', genre);
-      formData.append('custom_details', customDetails || '');
-      formData.append('transparent_bg', addOns.transparent_bg);
-      formData.append('multiple_poses', addOns.multiple_poses);
-      formData.append('hd_export', addOns.hd_export);
-      formData.append('timestamp', Date.now().toString()); // Prevent caching
-      
-      const res = await api.post('/api/photo-to-comic/generate', formData, {
-        headers: { 
-          'Content-Type': 'multipart/form-data',
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
-      toast.success('Generation started!');
-      
-      // Track comic avatar generation in Google Analytics
-      analytics.trackGeneration('comic_avatar', calculateCost());
-      
-      // Start fresh polling using refs
-      isPollingRef.current = true;
-      const interval = setInterval(() => pollJobStatus(res.data.jobId), 2000);
-      pollingIntervalRef.current = interval;
-      setPollingIntervalState(interval);
-      
-    } catch (e) {
-      setLoading(false);
-      const errorMsg = e.response?.data?.detail || 'Generation failed';
-      if (errorMsg.includes('Copyrighted') || errorMsg.includes('not allowed')) {
-        setContentError({ blocked: true, suggestion: errorMsg });
+      formData.append('panel_count', String(panelCount));
+      formData.append('hd_export', String(hd));
+      formData.append('include_dialogue', 'true');
+      if (mode === 'strip' && storyPrompt) {
+        formData.append('story_prompt', storyPrompt);
       }
-      toast.error(errorMsg);
+
+      const res = await api.post('/api/photo-to-comic/generate', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data.success && res.data.jobId) {
+        setJobId(res.data.jobId);
+        setCredits(p => p - cost);
+        toast.success('Creating your comic!');
+        pollJob(res.data.jobId);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Generation failed';
+      toast.error(msg);
+      setGenerating(false);
     }
   };
 
-  // Generate comic strip
-  const generateStrip = async () => {
-    console.log('=== GENERATE STRIP CLICKED ===');
-    
-    // Show immediate feedback
-    toast.info('Starting generation...');
-    
-    if (!photo) {
-      toast.error('Please upload a photo first');
-      console.log('ERROR: No photo');
-      return;
-    }
-    
-    if (!storyPrompt.trim()) {
-      toast.error('Please describe your comic story');
-      console.log('ERROR: No story');
-      return;
-    }
-    
-    // Validate story prompt
-    if (!validateContent(storyPrompt)) {
-      toast.error('Please remove copyrighted references from your story');
-      console.log('ERROR: Content validation failed');
-      return;
-    }
-    
-    // Validate dialogue
-    if (dialogue && !validateContent(dialogue)) {
-      toast.error('Please remove copyrighted references from dialogue');
-      return;
-    }
-    
-    const cost = calculateCost();
-    console.log('Cost:', cost, 'Credits:', credits);
-    
-    if (credits < cost) {
-      toast.error(`Insufficient credits. Need ${cost} credits.`);
-      setShowUpsell(true);
-      return;
-    }
-    
-    // CRITICAL: Clear previous results and stop polling
-    setJob(null);
-    stopPolling();
-    setLoading(true);
-    toastShownRef.current = {}; // Reset toast tracking for new generation
-    
-    console.log('Sending API request...');
-    
+  const pollJob = async (id) => {
+    let attempts = 0;
+    const poll = async () => {
+      if (attempts++ > 90) { setGenerating(false); toast.error('Timed out'); return; }
+      try {
+        const res = await api.get(`/api/photo-to-comic/job/${id}`);
+        const job = res.data;
+        setProgress(job.progress || 0);
+        setProgressMsg(job.progressMessage || 'Processing...');
+
+        if (job.status === 'COMPLETED') {
+          setGenerating(false);
+          setResult(job);
+          validateAsset(id);
+          setTimeout(() => setShowRating(true), 3000);
+          return;
+        }
+        if (job.status === 'FAILED') {
+          setGenerating(false);
+          toast.error(job.error || 'Generation failed. Credits refunded.');
+          return;
+        }
+      } catch { /* retry */ }
+      setTimeout(poll, 2000);
+    };
+    poll();
+  };
+
+  const validateAsset = async (id) => {
     try {
-      const formData = new FormData();
-      formData.append('photo', photo);
-      formData.append('mode', 'strip');
-      formData.append('style', selectedStyle || 'cartoon_fun');
-      formData.append('style_category', styleCategory);
-      formData.append('genre', genre);
-      formData.append('panel_count', panelCount);
-      formData.append('story_prompt', storyPrompt);
-      formData.append('dialogue', dialogue || '');
-      formData.append('include_dialogue', includeDialogue);
-      formData.append('hd_export', addOns.hd_export);
-      formData.append('timestamp', Date.now().toString()); // Prevent caching
-      
-      console.log('Calling API...');
-      const res = await api.post('/api/photo-to-comic/generate', formData, {
-        headers: { 
-          'Content-Type': 'multipart/form-data',
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      console.log('API Response:', res.data);
-      setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
-      toast.success('Comic strip generation started!');
-      
-      // Track comic strip generation in Google Analytics
-      analytics.trackGeneration('comic_strip', calculateCost());
-      
-      // Start fresh polling using refs
-      isPollingRef.current = true;
-      const interval = setInterval(() => pollJobStatus(res.data.jobId), 2000);
-      pollingIntervalRef.current = interval;
-      setPollingIntervalState(interval);
-      
-    } catch (e) {
-      console.error('Generation error:', e);
-      setLoading(false);
-      const errorMsg = e.response?.data?.detail || e.message || 'Generation failed';
-      if (errorMsg.includes('Copyrighted') || errorMsg.includes('not allowed')) {
-        setContentError({ blocked: true, suggestion: errorMsg });
-      }
-      toast.error(errorMsg);
-    }
+      const res = await api.get(`/api/photo-to-comic/validate-asset/${id}`);
+      setValidated(res.data.valid === true);
+    } catch { setValidated(true); }
   };
 
-  // Download handler
   const handleDownload = async () => {
-    if (!job?.id) return;
-    
+    if (!jobId) return;
+    setDownloading(true);
     try {
-      const res = await api.post(`/api/photo-to-comic/download/${job.id}`);
-      if (res.data.success) {
-        toast.success(res.data.alreadyPurchased ? 'Re-downloading...' : `Downloaded! ${res.data.creditsDeducted || 0} credits used`);
-        
-        // Track download in Google Analytics
-        analytics.trackDownload('image', mode === 'avatar' ? 'comic_avatar' : 'comic_strip');
-        
-        res.data.downloadUrls?.forEach((url, i) => {
-          const fullUrl = url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
-          const link = document.createElement('a');
-          link.href = fullUrl;
-          link.download = `comic_${job.id.slice(0, 8)}_${i + 1}.png`;
-          link.click();
-        });
-        
-        fetchCredits();
+      const res = await api.post(`/api/photo-to-comic/download/${jobId}`);
+      if (res.data.downloadUrls?.length) {
+        for (const url of res.data.downloadUrls) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `comic_${jobId.slice(0, 8)}.png`;
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        toast.success('Downloading!');
       }
-    } catch (e) {
-      toast.error('Download failed');
-    }
+    } catch { toast.error('Download failed'); }
+    setDownloading(false);
   };
 
-  // Get max steps based on mode
-  const getMaxSteps = () => mode === 'avatar' ? 3 : 5;
-
-  // Navigate steps
-  const nextStep = () => {
-    if (step < getMaxSteps()) setStep(step + 1);
-  };
-
-  const prevStep = () => {
-    if (step > 1) setStep(step - 1);
-  };
-
-  // Reset wizard
-  const resetWizard = () => {
-    setMode(null);
-    setStep(1);
-    clearPhoto();
-    setSelectedStyle(null);
-    setCustomDetails('');
-    setDialogue('');
+  const resetAll = () => {
+    removePhoto();
+    setMode('avatar');
+    setStyle('cartoon_fun');
+    setGenre('action');
+    setPanelCount(4);
     setStoryPrompt('');
-    setJob(null);
-    setContentError(null);
-    // CRITICAL: Reset refs to prevent stale state issues
-    stopPolling();
-    toastShownRef.current = {};
-    setAddOns({
-      transparent_bg: false,
-      multiple_poses: false,
-      hd_export: false,
-      auto_dialogue: true,
-      custom_speech: false,
-    });
+    setHd(false);
+    setResult(null);
+    setJobId(null);
+    setProgress(0);
+    setGenerating(false);
+    setValidated(false);
   };
 
-  // Render mode selection
-  const renderModeSelection = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-          Choose Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Creation Mode</span>
-        </h2>
-        <p className="text-slate-400">Transform your photos into amazing comic art</p>
-      </div>
-      
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Comic Avatar Card */}
-        <div 
-          onClick={() => { setMode('avatar'); setStep(1); }}
-          className="bg-slate-800/50 border border-slate-700 rounded-2xl p-8 cursor-pointer hover:border-purple-500 hover:bg-slate-800/70 transition-all group"
-          data-testid="mode-avatar"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-purple-500/20 rounded-xl">
-              <User className="w-8 h-8 text-purple-400" />
-            </div>
-            <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
-              RECOMMENDED
-            </span>
-          </div>
-          <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
-            Comic Avatar
-          </h3>
-          <p className="text-slate-400 mb-4">
-            Transform your photo into a single comic character portrait. Perfect for profile pictures and avatars.
-          </p>
-          <div className="flex items-center gap-4 text-sm text-slate-500">
-            <span className="flex items-center gap-1">
-              <Check className="w-4 h-4 text-green-400" /> 3 Steps
-            </span>
-            <span className="flex items-center gap-1">
-              <Sparkles className="w-4 h-4 text-purple-400" /> From {PRICING.comic_avatar.base} credits
-            </span>
-          </div>
-        </div>
-        
-        {/* Comic Strip Card */}
-        <div 
-          onClick={() => { setMode('strip'); setStep(1); }}
-          className="bg-slate-800/50 border border-slate-700 rounded-2xl p-8 cursor-pointer hover:border-pink-500 hover:bg-slate-800/70 transition-all group"
-          data-testid="mode-strip"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-pink-500/20 rounded-xl">
-              <Book className="w-8 h-8 text-pink-400" />
-            </div>
-            <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-sm font-medium rounded-full">
-              POPULAR
-            </span>
-          </div>
-          <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-pink-300 transition-colors">
-            Comic Strip
-          </h3>
-          <p className="text-slate-400 mb-4">
-            Create a multi-panel comic story featuring you as the main character with AI-generated dialogue.
-          </p>
-          <div className="flex items-center gap-4 text-sm text-slate-500">
-            <span className="flex items-center gap-1">
-              <Check className="w-4 h-4 text-green-400" /> 5 Steps
-            </span>
-            <span className="flex items-center gap-1">
-              <Sparkles className="w-4 h-4 text-pink-400" /> From {PRICING.comic_strip.panels[3].credits} credits
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const isPaid = !['free', ''].includes(userPlan);
+  const isLocked = (tier) => tier === 'paid' && !isPaid;
 
-  // Render Avatar Step 1: Upload Photo
-  const renderAvatarStep1 = () => (
-    <div className="max-w-2xl mx-auto">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full mb-4">
-          <span className="text-purple-400 font-medium">Step 1 of 3</span>
-        </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Upload Your Photo</h3>
-        <p className="text-slate-400">Choose a clear, front-facing photo for best results</p>
-      </div>
-      
-      <div 
-        className="border-2 border-dashed border-slate-600 rounded-2xl p-12 text-center hover:border-purple-500 transition-colors cursor-pointer"
-        onClick={() => document.getElementById('photo-input').click()}
-      >
-        {photoPreview ? (
-          <div className="space-y-4">
-            <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded-xl shadow-lg" />
-            <Button variant="outline" onClick={(e) => { e.stopPropagation(); clearPhoto(); }} className="text-slate-300">
-              Change Photo
-            </Button>
-          </div>
-        ) : (
-          <>
-            <Camera className="w-16 h-16 mx-auto text-slate-500 mb-4" />
-            <p className="text-lg text-slate-300 mb-2">Click to upload or drag and drop</p>
-            <p className="text-sm text-slate-500">PNG, JPG, WEBP up to 10MB</p>
-          </>
-        )}
-      </div>
-      <input
-        id="photo-input"
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handlePhotoUpload}
-        data-testid="photo-input"
-      />
-      
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={() => setMode(null)} className="text-slate-300">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        <Button 
-          onClick={nextStep} 
-          disabled={!photo}
-          className="bg-gradient-to-r from-purple-600 to-pink-600"
-          data-testid="next-step-btn"
-        >
-          Next <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
+  // ─── RENDER ──────────────────────────────────────────────────────
 
-  // Render Avatar Step 2: Style Selection
-  const renderAvatarStep2 = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full mb-4">
-          <span className="text-purple-400 font-medium">Step 2 of 3</span>
-        </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Choose Your Style</h3>
-        <p className="text-slate-400">Select a comic style that matches your vision</p>
-      </div>
-      
-      {/* Style Category Tabs */}
-      <div className="flex flex-wrap justify-center gap-2 mb-6">
-        {Object.keys(STYLE_PRESETS).map((cat) => (
-          <button
-            key={cat}
-            onClick={() => { setStyleCategory(cat); setSelectedStyle(null); }}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              styleCategory === cat 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            {cat.charAt(0).toUpperCase() + cat.slice(1)}
-          </button>
-        ))}
-      </div>
-      
-      {/* Style Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {STYLE_PRESETS[styleCategory]?.map((style) => (
-          <div
-            key={style.id}
-            onClick={() => setSelectedStyle(style.id)}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
-              selectedStyle === style.id
-                ? 'border-purple-500 bg-purple-500/20'
-                : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'
-            }`}
-            data-testid={`style-${style.id}`}
-          >
-            <h4 className="font-medium text-white mb-1">{style.name}</h4>
-            <p className="text-xs text-slate-400">{style.description}</p>
-          </div>
-        ))}
-      </div>
-      
-      {/* Genre Selection */}
-      <div className="mb-6">
-        <label className="block text-sm text-slate-400 mb-2">Genre</label>
-        <div className="flex flex-wrap gap-2">
-          {GENRE_PRESETS.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => setGenre(g.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                genre === g.id
-                  ? 'bg-pink-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-            >
-              {g.name}
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      {/* Custom Details */}
-      <div className="mb-6">
-        <label className="block text-sm text-slate-400 mb-2">Custom Details (Optional)</label>
-        <Textarea
-          placeholder="Add specific details like clothing, accessories, background... (No copyrighted characters!)"
-          value={customDetails}
-          onChange={(e) => {
-            setCustomDetails(e.target.value);
-            validateContent(e.target.value);
-          }}
-          className="bg-slate-700 border-slate-600 text-white"
-          data-testid="custom-details"
-        />
-        {contentError && (
-          <div className="mt-2 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-start gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-red-400 text-sm font-medium">Copyrighted content detected</p>
-              <p className="text-red-300/80 text-xs mt-1">{contentError.suggestion}</p>
+  // === RESULT VIEW ===
+  if (result) {
+    const imageUrl = result.resultUrl || result.resultUrls?.[0];
+    const panels = result.panels;
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Header credits={credits} />
+        <main className="max-w-4xl mx-auto px-4 py-8 space-y-6" data-testid="result-view">
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
+              <Check className="w-8 h-8 text-emerald-400" />
             </div>
+            <h2 className="text-2xl font-bold text-white">Your Comic is Ready</h2>
+            <p className="text-slate-400 text-sm">Permanent asset — download anytime</p>
           </div>
-        )}
-      </div>
-      
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        <Button 
-          onClick={nextStep} 
-          disabled={!selectedStyle || contentError?.blocked}
-          className="bg-gradient-to-r from-purple-600 to-pink-600"
-        >
-          Next <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
 
-  // Render Avatar Step 3: Generate & Result
-  const renderAvatarStep3 = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full mb-4">
-          <span className="text-purple-400 font-medium">Step 3 of 3</span>
-        </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Generate Your Avatar</h3>
-        <p className="text-slate-400">Review your options and generate</p>
-      </div>
-      
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Summary & Add-ons */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-          <h4 className="font-bold text-white mb-4">Summary</h4>
-          
-          <div className="space-y-3 mb-6">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Style:</span>
-              <span className="text-white">{STYLE_PRESETS[styleCategory]?.find(s => s.id === selectedStyle)?.name}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Genre:</span>
-              <span className="text-white">{GENRE_PRESETS.find(g => g.id === genre)?.name}</span>
-            </div>
-          </div>
-          
-          <h4 className="font-bold text-white mb-3">Add-ons</h4>
-          <div className="space-y-3 mb-6">
-            <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-              <span className="text-slate-300 text-sm">Transparent Background</span>
-              <div className="flex items-center gap-2">
-                <span className="text-purple-400 text-sm">+{PRICING.comic_avatar.add_ons.transparent_bg} cr</span>
-                <input 
-                  type="checkbox" 
-                  checked={addOns.transparent_bg}
-                  onChange={(e) => setAddOns({...addOns, transparent_bg: e.target.checked})}
-                  className="w-4 h-4 accent-purple-500"
-                />
-              </div>
-            </label>
-            <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-              <span className="text-slate-300 text-sm">Multiple Poses (3 variations)</span>
-              <div className="flex items-center gap-2">
-                <span className="text-purple-400 text-sm">+{PRICING.comic_avatar.add_ons.multiple_poses} cr</span>
-                <input 
-                  type="checkbox" 
-                  checked={addOns.multiple_poses}
-                  onChange={(e) => setAddOns({...addOns, multiple_poses: e.target.checked})}
-                  className="w-4 h-4 accent-purple-500"
-                />
-              </div>
-            </label>
-            <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-              <span className="text-slate-300 text-sm">HD Export (300 DPI)</span>
-              <div className="flex items-center gap-2">
-                <span className="text-purple-400 text-sm">+{PRICING.comic_avatar.add_ons.hd_export} cr</span>
-                <input 
-                  type="checkbox" 
-                  checked={addOns.hd_export}
-                  onChange={(e) => setAddOns({...addOns, hd_export: e.target.checked})}
-                  className="w-4 h-4 accent-purple-500"
-                />
-              </div>
-            </label>
-          </div>
-          
-          {/* Cost Summary */}
-          <div className="border-t border-slate-600 pt-4">
-            <div className="flex justify-between items-center">
-              <span className="text-lg font-bold text-white">Total Cost:</span>
-              <span className="text-2xl font-bold text-purple-400">{calculateCost()} credits</span>
-            </div>
-            {userPlan !== 'free' && (
-              <p className="text-xs text-green-400 mt-1">
-                {userPlan === 'creator' ? '20%' : userPlan === 'pro' ? '30%' : '40%'} subscriber discount applied!
-              </p>
-            )}
-          </div>
-          
-          <Button 
-            onClick={generateAvatar}
-            disabled={loading || credits < calculateCost()}
-            className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-            data-testid="generate-btn"
-          >
-            {loading ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
-            ) : (
-              <><Wand2 className="w-4 h-4 mr-2" /> Generate Avatar ({calculateCost()} credits)</>
-            )}
-          </Button>
-        </div>
-        
-        {/* Result Panel */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-          <h4 className="font-bold text-white mb-4">Result</h4>
-          
-          {job ? (
-            <div className="space-y-4">
-              {/* Show WaitingWithGames during processing */}
-              {(job.status === 'PROCESSING' || job.status === 'QUEUED') ? (
-                <WaitingWithGames 
-                  progress={job.progress || 0}
-                  status={job.status === 'QUEUED' ? 'In queue...' : 'Creating your comic avatar...'}
-                  estimatedTime="30-60 seconds"
-                  onCancel={() => toast.info('Generation in progress - please wait')}
-                  currentFeature="/app/comix-ai"
-                  showExploreFeatures={true}
-                />
-              ) : (
-                <>
-                  {/* Status Badge */}
-                  <div className="flex items-center justify-between">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      job.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
-                      job.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                      'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {job.status}
-                    </span>
-                  </div>
-                </>
-              )}
-              
-              {/* Result Image */}
-              {job.resultUrl && (
-                <div className="rounded-xl overflow-hidden border border-slate-600">
-                  <img 
-                    src={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
-                    alt="Comic Avatar"
-                    className="w-full"
-                  />
-                </div>
-              )}
-              
-              {/* Download with Expiry Warning */}
-              {job.status === 'COMPLETED' && job.resultUrl && (
-                <DownloadWithExpiry
-                  downloadUrl={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
-                  downloadId={job.downloadId}
-                  filename={`comic_avatar_${job.id}.png`}
-                  fileType="image"
-                  expiresAt={job.expiresAt}
-                  contentType="COMIC"
-                  enableSmartDownload={true}
-                  onExpired={() => {
-                    toast.warning('Your download has expired. Please generate again.');
-                  }}
-                />
-              )}
-              
-              {/* Share Button */}
-              {job.status === 'COMPLETED' && job.resultUrl && (
-                <div className="flex justify-center">
-                  <ShareCreation 
-                    contentType="comic_avatar"
-                    contentId={job.id}
-                    previewUrl={job.resultUrl}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-slate-400">
-              <Image className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-              <p>Your comic avatar will appear here</p>
+          {imageUrl && !panels && (
+            <div className="max-w-md mx-auto rounded-2xl overflow-hidden border border-slate-700 bg-slate-900">
+              <img src={imageUrl} alt="Comic" className="w-full" crossOrigin="anonymous" data-testid="result-image" />
             </div>
           )}
-        </div>
-      </div>
-      
-      {job?.status === 'COMPLETED' && (
-        <CreationActionsBar
-          toolType="photo-to-comic"
-          originalPrompt={storyPrompt || `${selectedStyle || ''} comic character`}
-          originalSettings={{ mode, style: selectedStyle }}
-          parentGenerationId={job?.id}
-          remixSourceTitle={`Comic ${mode === 'avatar' ? 'Avatar' : 'Strip'}`}
-        />
-      )}
 
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300" disabled={loading}>
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        {job?.status === 'COMPLETED' && (
-          <Button onClick={resetWizard} variant="outline" className="text-slate-300">
-            Create Another
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-
-  // Render Strip Steps (1-5)
-  const renderStripStep1 = () => renderAvatarStep1(); // Same photo upload
-
-  const renderStripStep2 = () => (
-    <div className="max-w-2xl mx-auto">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-          <span className="text-pink-400 font-medium">Step 2 of 5</span>
-        </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Describe Your Story</h3>
-        <p className="text-slate-400">What adventure will your comic character have?</p>
-      </div>
-      
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-        <div className="mb-6">
-          <label className="block text-sm text-slate-400 mb-2">Story Description *</label>
-          <Textarea
-            placeholder="Describe your comic story... e.g., 'A day at the beach with friends, building sandcastles and playing volleyball'"
-            value={storyPrompt}
-            onChange={(e) => {
-              setStoryPrompt(e.target.value);
-              validateContent(e.target.value);
-            }}
-            className="bg-slate-700 border-slate-600 text-white min-h-32"
-            data-testid="story-prompt"
-          />
-          {contentError && (
-            <div className="mt-2 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-red-400 text-sm font-medium">Copyrighted content detected</p>
-                <p className="text-red-300/80 text-xs mt-1">{contentError.suggestion}</p>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        {/* Panel Count Selection */}
-        <div className="mb-6">
-          <label className="block text-sm text-slate-400 mb-2">Number of Panels</label>
-          <div className="grid grid-cols-3 gap-3">
-            {Object.entries(PRICING.comic_strip.panels).map(([count, info]) => (
-              <button
-                key={count}
-                onClick={() => setPanelCount(parseInt(count))}
-                className={`p-4 rounded-xl border text-center transition-all ${
-                  panelCount === parseInt(count)
-                    ? 'border-pink-500 bg-pink-500/20'
-                    : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'
-                }`}
-              >
-                <div className="text-2xl font-bold text-white mb-1">{count}</div>
-                <div className="text-xs text-slate-400">Panels</div>
-                <div className="text-sm text-pink-400 mt-2">{info.credits} cr</div>
-                {info.popular && (
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
-                    POPULAR
-                  </span>
-                )}
-                {info.bestValue && (
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
-                    BEST VALUE
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        <Button 
-          onClick={nextStep} 
-          disabled={!storyPrompt.trim() || contentError?.blocked}
-          className="bg-gradient-to-r from-purple-600 to-pink-600"
-        >
-          Next <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
-
-  const renderStripStep3 = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-          <span className="text-pink-400 font-medium">Step 3 of 5</span>
-        </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Choose Style & Genre</h3>
-        <p className="text-slate-400">Customize the look of your comic strip</p>
-      </div>
-      
-      {/* Style Category Tabs */}
-      <div className="flex flex-wrap justify-center gap-2 mb-6">
-        {Object.keys(STYLE_PRESETS).map((cat) => (
-          <button
-            key={cat}
-            onClick={() => { setStyleCategory(cat); setSelectedStyle(null); }}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              styleCategory === cat 
-                ? 'bg-pink-600 text-white' 
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            {cat.charAt(0).toUpperCase() + cat.slice(1)}
-          </button>
-        ))}
-      </div>
-      
-      {/* Style Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {STYLE_PRESETS[styleCategory]?.map((style) => (
-          <div
-            key={style.id}
-            onClick={() => setSelectedStyle(style.id)}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
-              selectedStyle === style.id
-                ? 'border-pink-500 bg-pink-500/20'
-                : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'
-            }`}
-          >
-            <h4 className="font-medium text-white mb-1">{style.name}</h4>
-            <p className="text-xs text-slate-400">{style.description}</p>
-          </div>
-        ))}
-      </div>
-      
-      {/* Genre Selection */}
-      <div className="mb-6">
-        <label className="block text-sm text-slate-400 mb-2">Genre</label>
-        <div className="flex flex-wrap gap-2">
-          {GENRE_PRESETS.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => setGenre(g.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                genre === g.id
-                  ? 'bg-pink-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-            >
-              {g.name}
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        <Button 
-          onClick={nextStep} 
-          disabled={!selectedStyle}
-          className="bg-gradient-to-r from-purple-600 to-pink-600"
-        >
-          Next <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
-
-  const renderStripStep4 = () => (
-    <div className="max-w-2xl mx-auto">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-          <span className="text-pink-400 font-medium">Step 4 of 5</span>
-        </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Dialogue & Add-ons</h3>
-        <p className="text-slate-400">Customize dialogue and extra features</p>
-      </div>
-      
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-        {/* Dialogue Options */}
-        <div className="mb-6">
-          <label className="flex items-center gap-3 mb-4">
-            <input 
-              type="checkbox"
-              checked={includeDialogue}
-              onChange={(e) => setIncludeDialogue(e.target.checked)}
-              className="w-5 h-5 accent-pink-500"
-            />
-            <span className="text-white font-medium">Include Dialogue Bubbles</span>
-          </label>
-          
-          {includeDialogue && (
-            <div className="pl-8 space-y-4">
-              <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer">
-                <span className="text-slate-300 text-sm">Auto-generate dialogue (AI)</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-pink-400 text-sm">+{PRICING.comic_strip.add_ons.auto_dialogue} cr</span>
-                  <input 
-                    type="radio"
-                    name="dialogue-type"
-                    checked={addOns.auto_dialogue && !addOns.custom_speech}
-                    onChange={() => setAddOns({...addOns, auto_dialogue: true, custom_speech: false})}
-                    className="w-4 h-4 accent-pink-500"
-                  />
+          {panels?.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto" data-testid="result-panels">
+              {panels.map((p, i) => (
+                <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
+                  <img src={p.imageUrl} alt={`Panel ${i + 1}`} className="w-full" crossOrigin="anonymous" />
+                  {p.dialogue && <div className="p-2 text-xs text-slate-300 bg-slate-800">{p.dialogue}</div>}
                 </div>
-              </label>
-              
-              <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer">
-                <span className="text-slate-300 text-sm">Write custom dialogue</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-pink-400 text-sm">+{PRICING.comic_strip.add_ons.custom_speech} cr</span>
-                  <input 
-                    type="radio"
-                    name="dialogue-type"
-                    checked={addOns.custom_speech}
-                    onChange={() => setAddOns({...addOns, auto_dialogue: false, custom_speech: true})}
-                    className="w-4 h-4 accent-pink-500"
-                  />
-                </div>
-              </label>
-              
-              {addOns.custom_speech && (
-                <Textarea
-                  placeholder="Write your dialogue... (One line per panel, use | to separate)"
-                  value={dialogue}
-                  onChange={(e) => {
-                    setDialogue(e.target.value);
-                    validateContent(e.target.value);
-                  }}
-                  className="bg-slate-700 border-slate-600 text-white"
-                  data-testid="custom-dialogue"
-                />
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* Other Add-ons */}
-        <div className="border-t border-slate-600 pt-4">
-          <h4 className="font-medium text-white mb-3">Extra Features</h4>
-          <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-            <span className="text-slate-300 text-sm">HD Export (300 DPI)</span>
-            <div className="flex items-center gap-2">
-              <span className="text-pink-400 text-sm">+{PRICING.comic_strip.add_ons.hd_export} cr</span>
-              <input 
-                type="checkbox" 
-                checked={addOns.hd_export}
-                onChange={(e) => setAddOns({...addOns, hd_export: e.target.checked})}
-                className="w-4 h-4 accent-pink-500"
-              />
-            </div>
-          </label>
-        </div>
-        
-        {/* Cost Summary */}
-        <div className="border-t border-slate-600 pt-4 mt-4">
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-bold text-white">Estimated Total:</span>
-            <span className="text-2xl font-bold text-pink-400">{calculateCost()} credits</span>
-          </div>
-          {userPlan !== 'free' && (
-            <p className="text-xs text-green-400 mt-1">
-              Subscriber discount applied!
-            </p>
-          )}
-        </div>
-      </div>
-      
-      {contentError && (
-        <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-start gap-2">
-          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-red-400 text-sm font-medium">Copyrighted content detected</p>
-            <p className="text-red-300/80 text-xs mt-1">{contentError.suggestion}</p>
-          </div>
-        </div>
-      )}
-      
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        <Button 
-          onClick={nextStep} 
-          disabled={contentError?.blocked}
-          className="bg-gradient-to-r from-purple-600 to-pink-600"
-        >
-          Next <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
-
-  const renderStripStep5 = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-          <span className="text-pink-400 font-medium">Step 5 of 5</span>
-        </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Generate Your Comic</h3>
-        <p className="text-slate-400">Review and create your comic strip</p>
-      </div>
-      
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Summary */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-          <h4 className="font-bold text-white mb-4">Summary</h4>
-          
-          <div className="space-y-3 mb-6">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Panels:</span>
-              <span className="text-white">{panelCount}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Style:</span>
-              <span className="text-white">{STYLE_PRESETS[styleCategory]?.find(s => s.id === selectedStyle)?.name || 'Selected'}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Genre:</span>
-              <span className="text-white">{GENRE_PRESETS.find(g => g.id === genre)?.name}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">Dialogue:</span>
-              <span className="text-white">{includeDialogue ? (addOns.auto_dialogue ? 'AI Generated' : 'Custom') : 'None'}</span>
-            </div>
-          </div>
-          
-          <div className="p-3 bg-slate-700/50 rounded-lg mb-4">
-            <p className="text-slate-400 text-xs mb-1">Story:</p>
-            <p className="text-white text-sm">{storyPrompt.slice(0, 100)}...</p>
-          </div>
-          
-          {/* Cost Summary */}
-          <div className="border-t border-slate-600 pt-4">
-            <div className="flex justify-between items-center">
-              <span className="text-lg font-bold text-white">Total Cost:</span>
-              <span className="text-2xl font-bold text-pink-400">{calculateCost()} credits</span>
-            </div>
-          </div>
-          
-          <Button 
-            onClick={() => {
-              console.log('Button clicked!');
-              generateStrip();
-            }}
-            disabled={loading || credits < calculateCost()}
-            className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 cursor-pointer z-10 relative"
-            data-testid="generate-strip-btn"
-            type="button"
-          >
-            {loading ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
-            ) : (
-              <><Wand2 className="w-4 h-4 mr-2" /> Generate Comic Strip ({calculateCost()} credits)</>
-            )}
-          </Button>
-        </div>
-        
-        {/* Result */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6 max-h-[600px] overflow-y-auto">
-          <h4 className="font-bold text-white mb-4">Result</h4>
-          
-          {job ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  job.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
-                  job.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                  'bg-yellow-500/20 text-yellow-400 animate-pulse'
-                }`}>
-                  {job.status === 'PROCESSING' ? 'GENERATING...' : job.status}
-                </span>
-              </div>
-              
-              {/* WaitingWithGames during processing */}
-              {(job.status === 'PROCESSING' || job.status === 'QUEUED') && (
-                <WaitingWithGames 
-                  progress={job.progress || 0}
-                  status={job.progressMessage || (job.status === 'QUEUED' ? 'In queue - preparing your comic strip...' : 'Creating your comic strip...')}
-                  estimatedTime="2-5 minutes for comic strips"
-                  onCancel={() => toast.info('Generation in progress - please wait')}
-                  currentFeature="/app/photo-to-comic"
-                  showExploreFeatures={true}
-                />
-              )}
-              
-              {/* Panel Results */}
-              {job.panels && job.panels.length > 0 && (
-                <div className="space-y-4">
-                  {job.panels.map((panel, i) => (
-                    <div key={i} className="rounded-xl overflow-hidden border border-slate-600 bg-slate-700/50">
-                      <img 
-                        src={panel.imageUrl?.startsWith('http') ? panel.imageUrl : `${process.env.REACT_APP_BACKEND_URL}${panel.imageUrl}`}
-                        alt={`Panel ${i + 1}`}
-                        className="w-full"
-                      />
-                      {panel.dialogue && (
-                        <div className="p-3 border-t border-slate-600">
-                          <p className="text-sm text-slate-300">{panel.dialogue}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {job.status === 'COMPLETED' && job.panels && (
-                <div className="flex gap-2 sticky bottom-0 bg-slate-800/90 p-2 rounded-lg">
-                  <Button onClick={handleDownload} className="flex-1 bg-pink-600 hover:bg-pink-700">
-                    <Download className="w-4 h-4 mr-2" /> Download All
-                  </Button>
-                  <ShareCreation 
-                    contentType="comic_strip"
-                    contentId={job.id}
-                    previewUrl={job.panels[0]?.imageUrl}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-slate-400">
-              <Book className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-              <p>Your comic strip will appear here</p>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {job?.status === 'COMPLETED' && (
-        <CreationActionsBar
-          toolType="photo-to-comic"
-          originalPrompt={storyPrompt || `${selectedStyle || ''} comic strip`}
-          originalSettings={{ mode, style: selectedStyle }}
-          parentGenerationId={job?.id}
-          remixSourceTitle="Comic Strip"
-        />
-      )}
-
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300" disabled={loading}>
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        {job?.status === 'COMPLETED' && (
-          <Button onClick={resetWizard} variant="outline" className="text-slate-300">
-            Create Another
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-
-  // Main render logic
-  const renderCurrentStep = () => {
-    if (!mode) return renderModeSelection();
-    
-    if (mode === 'avatar') {
-      switch (step) {
-        case 1: return renderAvatarStep1();
-        case 2: return renderAvatarStep2();
-        case 3: return renderAvatarStep3();
-        default: return renderAvatarStep1();
-      }
-    }
-    
-    if (mode === 'strip') {
-      switch (step) {
-        case 1: return renderStripStep1();
-        case 2: return renderStripStep2();
-        case 3: return renderStripStep3();
-        case 4: return renderStripStep4();
-        case 5: return renderStripStep5();
-        default: return renderStripStep1();
-      }
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
-      {/* Header */}
-      <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/app" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-                <span>Dashboard</span>
-              </Link>
-              <div className="flex items-center gap-2">
-                <Camera className="w-6 h-6 text-purple-400" />
-                <h1 className="text-xl md:text-2xl font-bold text-white">Convert Photos To Comic Character</h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full px-4 py-2">
-                <span className="text-purple-300 font-medium">{credits.toLocaleString()} Credits</span>
-              </div>
-              <NotificationBell />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Progress Indicator */}
-        {mode && (
-          <div className="max-w-xl mx-auto mb-8">
-            <div className="flex items-center justify-between">
-              {Array.from({ length: getMaxSteps() }).map((_, i) => (
-                <React.Fragment key={i}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                    i + 1 < step ? 'bg-green-500 text-white' :
-                    i + 1 === step ? 'bg-purple-600 text-white' :
-                    'bg-slate-700 text-slate-400'
-                  }`}>
-                    {i + 1 < step ? <Check className="w-4 h-4" /> : i + 1}
-                  </div>
-                  {i < getMaxSteps() - 1 && (
-                    <div className={`flex-1 h-1 mx-2 rounded ${
-                      i + 1 < step ? 'bg-green-500' : 'bg-slate-700'
-                    }`} />
-                  )}
-                </React.Fragment>
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        {renderCurrentStep()}
-        
-        {/* Legal Safety Notice */}
-        <div className="mt-12 bg-slate-800/30 rounded-xl p-4 border border-slate-700 max-w-4xl mx-auto">
-          <div className="flex items-start gap-3">
-            <Shield className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm text-slate-300 font-medium mb-1">Content Policy</p>
-              <p className="text-xs text-slate-400">
-                Upload only images you own or have permission to use. We do not allow copyrighted characters, 
-                celebrity likeness, or brand-based requests. All generated content must be original.
-              </p>
+          <div className="flex gap-3 justify-center flex-wrap pt-2">
+            <Button
+              onClick={handleDownload}
+              disabled={downloading || !validated}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+              data-testid="download-btn"
+            >
+              {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              {downloading ? 'Downloading...' : !validated ? 'Validating...' : 'Download'}
+            </Button>
+            <ShareCreation
+              type={mode === 'avatar' ? 'COMIC_AVATAR' : 'COMIC_STRIP'}
+              title="My Comic"
+              preview="Made with Visionary Suite"
+              generationId={jobId}
+            />
+            <Button variant="outline" onClick={resetAll} className="border-slate-600 text-slate-300 hover:text-white" data-testid="create-another-btn">
+              Create Another
+            </Button>
+          </div>
+
+          {!isPaid && (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 max-w-sm mx-auto text-center">
+              <p className="text-slate-400 text-sm mb-2">Unlock premium styles & HD export</p>
+              <Button onClick={() => navigate('/app/subscription')} size="sm" className="bg-purple-600 hover:bg-purple-700">
+                <Crown className="w-4 h-4 mr-1" /> Upgrade
+              </Button>
+            </div>
+          )}
+        </main>
+        <RatingModal isOpen={showRating} onClose={() => setShowRating(false)} featureKey="photo_to_comic" relatedRequestId={jobId} onSubmitSuccess={() => setShowRating(false)} />
+      </div>
+    );
+  }
+
+  // === GENERATING VIEW ===
+  if (generating) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Header credits={credits} />
+        <main className="max-w-lg mx-auto px-4 py-20 text-center space-y-6" data-testid="generating-view">
+          <div className="w-20 h-20 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto">
+            <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-white">Creating Your Comic</h2>
+          <p className="text-slate-400">{progressMsg}</p>
+          <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${Math.max(progress, 5)}%` }}
+            />
+          </div>
+          <p className="text-xs text-slate-500">{progress}%</p>
+        </main>
+      </div>
+    );
+  }
+
+  // === MAIN BUILDER VIEW (Upload-first) ===
+  return (
+    <div className="min-h-screen bg-slate-950">
+      <Header credits={credits} />
+
+      <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        {/* ── Hero Upload Zone ─────────────────────────────────── */}
+        {!photoPreview ? (
+          <div
+            ref={dropRef}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-300 ${
+              isDragging
+                ? 'border-purple-400 bg-purple-500/10 scale-[1.01]'
+                : 'border-slate-700 hover:border-slate-500 bg-slate-900/50'
+            } py-16 px-8 text-center`}
+            data-testid="upload-zone"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handleFile(e.target.files?.[0])}
+              data-testid="photo-input"
+            />
+            <div className="space-y-4">
+              <div className="w-20 h-20 bg-purple-500/15 rounded-2xl flex items-center justify-center mx-auto">
+                <Camera className="w-10 h-10 text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white">Drop your photo here</h2>
+                <p className="text-slate-400 mt-1">or click to browse — PNG, JPG up to 15MB</p>
+              </div>
+              <div className="flex items-center justify-center gap-6 text-xs text-slate-500 pt-2">
+                <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" /> Face photos work best</span>
+                <span className="flex items-center gap-1"><Shield className="w-3.5 h-3.5" /> 100% original art</span>
+                <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" /> ~30s generation</span>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          /* ── Photo uploaded → show builder ──────────────────── */
+          <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+            {/* LEFT: Preview + Config */}
+            <div className="space-y-5">
+              {/* Photo preview */}
+              <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 max-h-72 flex items-center justify-center" data-testid="photo-preview">
+                <img src={photoPreview} alt="Your photo" className="max-h-72 object-contain" />
+                <button
+                  onClick={removePhoto}
+                  className="absolute top-3 right-3 w-8 h-8 bg-slate-900/80 backdrop-blur rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                  data-testid="remove-photo-btn"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+
+              {/* Mode toggle */}
+              <div className="flex gap-2" data-testid="mode-toggle">
+                {[
+                  { id: 'avatar', label: 'Comic Avatar', icon: User, desc: 'Single character' },
+                  { id: 'strip', label: 'Comic Strip', icon: Grid3X3, desc: '3-6 panel story' },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setMode(m.id)}
+                    className={`flex-1 p-3 rounded-xl border-2 transition-all text-left ${
+                      mode === m.id
+                        ? 'border-purple-500 bg-purple-500/10'
+                        : 'border-slate-700 hover:border-slate-600 bg-slate-900/50'
+                    }`}
+                    data-testid={`mode-${m.id}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <m.icon className={`w-4 h-4 ${mode === m.id ? 'text-purple-400' : 'text-slate-500'}`} />
+                      <span className={`font-medium text-sm ${mode === m.id ? 'text-white' : 'text-slate-300'}`}>{m.label}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5 ml-6">{m.desc}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Style grid */}
+              <div>
+                <h3 className="text-sm font-medium text-slate-400 mb-2 flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5" /> Style
+                </h3>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2" data-testid="style-grid">
+                  {STYLES.map((s) => {
+                    const locked = isLocked(s.tier);
+                    const selected = style === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => !locked && setStyle(s.id)}
+                        disabled={locked}
+                        className={`relative p-2 rounded-xl text-center transition-all ${
+                          selected
+                            ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-950 scale-105'
+                            : locked
+                            ? 'opacity-40 cursor-not-allowed'
+                            : 'hover:scale-105'
+                        }`}
+                        data-testid={`style-${s.id}`}
+                      >
+                        <div className={`w-full aspect-square rounded-lg bg-gradient-to-br ${s.color} mb-1.5 flex items-center justify-center`}>
+                          {locked && <Lock className="w-4 h-4 text-white/70" />}
+                          {selected && <Check className="w-5 h-5 text-white drop-shadow" />}
+                        </div>
+                        <span className="text-[10px] font-medium text-slate-400 leading-tight block">{s.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Strip-specific options */}
+              {mode === 'strip' && (
+                <div className="space-y-3 bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                  <div>
+                    <label className="text-sm font-medium text-slate-400 mb-1.5 block">Genre</label>
+                    <div className="flex flex-wrap gap-1.5" data-testid="genre-picker">
+                      {GENRES.map(g => (
+                        <button
+                          key={g.id}
+                          onClick={() => setGenre(g.id)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                            genre === g.id
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                          data-testid={`genre-${g.id}`}
+                        >
+                          {g.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-slate-400 mb-1.5 block">Panels</label>
+                    <div className="flex gap-2" data-testid="panel-picker">
+                      {[3, 4, 6].map(n => (
+                        <button
+                          key={n}
+                          onClick={() => setPanelCount(n)}
+                          className={`w-12 h-10 rounded-lg font-bold text-sm transition-all ${
+                            panelCount === n
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                          data-testid={`panels-${n}`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-slate-400 mb-1.5 block">Story Prompt (optional)</label>
+                    <textarea
+                      value={storyPrompt}
+                      onChange={e => setStoryPrompt(e.target.value.slice(0, 300))}
+                      placeholder="Describe the story for your comic strip..."
+                      rows={2}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none resize-none"
+                      data-testid="story-prompt-input"
+                    />
+                    <p className="text-[10px] text-slate-600 mt-0.5">{storyPrompt.length}/300</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT: Sticky sidebar — cost + generate */}
+            <div className="lg:sticky lg:top-20 space-y-4 self-start">
+              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4" data-testid="cost-summary">
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-yellow-400" /> Summary
+                </h3>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-slate-300">
+                    <span>{mode === 'avatar' ? 'Comic Avatar' : `${panelCount}-Panel Strip`}</span>
+                    <span>{mode === 'avatar' ? 3 : ({ 3: 5, 4: 6, 6: 8 }[panelCount] || 6)} cr</span>
+                  </div>
+                  {hd && (
+                    <div className="flex justify-between text-slate-400">
+                      <span>HD Export</span>
+                      <span>+2 cr</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-slate-700 pt-3 flex justify-between items-center">
+                  <span className="text-white font-bold">Total</span>
+                  <span className="text-xl font-bold text-purple-400">{cost} cr</span>
+                </div>
+
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Balance</span>
+                  <span className={credits >= cost ? 'text-emerald-400' : 'text-red-400'}>{credits} cr</span>
+                </div>
+
+                {/* HD toggle */}
+                <button
+                  onClick={() => setHd(!hd)}
+                  className={`w-full p-2.5 rounded-lg border text-sm flex items-center justify-between transition-all ${
+                    hd ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-slate-700 text-slate-400 hover:border-slate-600'
+                  }`}
+                  data-testid="hd-toggle"
+                >
+                  <span className="flex items-center gap-2">
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${hd ? 'bg-purple-500 border-purple-500' : 'border-slate-500'}`}>
+                      {hd && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    HD Export
+                  </span>
+                  <span className="text-purple-400 text-xs font-medium">+2 cr</span>
+                </button>
+
+                <Button
+                  onClick={handleGenerate}
+                  disabled={credits < cost}
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold"
+                  data-testid="generate-btn"
+                >
+                  <Wand2 className="w-5 h-5 mr-2" />
+                  Create My Comic
+                </Button>
+
+                {credits < cost && (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate('/app/billing')}
+                    className="w-full border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/10 text-xs"
+                  >
+                    <Coins className="w-3.5 h-3.5 mr-1" /> Get Credits
+                  </Button>
+                )}
+              </div>
+
+              <div className="text-[10px] text-slate-600 text-center flex items-center justify-center gap-1">
+                <Shield className="w-3 h-3" /> 100% original art, no copyrighted characters
+              </div>
+            </div>
+          </div>
+        )}
       </main>
-      
-      {/* Modals */}
-      <RatingModal 
-        isOpen={showRating}
-        onClose={() => setShowRating(false)}
-        featureKey="photo_to_comic"
-        relatedRequestId={job?.id}
-        onSubmitSuccess={() => setShowRating(false)}
-      />
-      
-      {showUpsell && (
-        <UpsellModal
-          isOpen={showUpsell}
-          credits={credits}
-          onClose={() => setShowUpsell(false)}
-        />
-      )}
-      
-      {/* Help Guide */}
-      <HelpGuide pageId="photo-to-comic" />
     </div>
+  );
+}
+
+// ─── Header sub-component ──────────────────────────────────────────────
+function Header({ credits }) {
+  return (
+    <header className="border-b border-slate-800/50 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link to="/app">
+            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white px-2">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-base font-bold text-white">Photo to Comic</h1>
+            <p className="text-[10px] text-slate-500 hidden sm:block">Upload a photo, get original comic art</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 bg-slate-800/50 rounded-full px-3 py-1.5 border border-slate-700">
+          <Coins className="w-3.5 h-3.5 text-yellow-400" />
+          <span className="font-bold text-white text-sm">{credits}</span>
+        </div>
+      </div>
+    </header>
   );
 }

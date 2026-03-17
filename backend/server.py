@@ -94,6 +94,7 @@ from routes.reaction_gif import router as reaction_gif_router
 
 # OBSERVABILITY
 from routes.observability_routes import router as observability_router
+from routes.storage_routes import router as storage_router
 
 # DAILY REWARDS & GAMIFICATION
 from routes.daily_rewards_routes import router as daily_rewards_router
@@ -401,6 +402,7 @@ api_router.include_router(referral_router)
 api_router.include_router(comic_storybook_v2_router)
 api_router.include_router(reaction_gif_router)
 api_router.include_router(observability_router)
+api_router.include_router(storage_router)
 
 # NEW REBUILT FEATURES
 api_router.include_router(story_episode_creator_router)
@@ -902,6 +904,16 @@ async def startup():
         except Exception as e:
             logger.warning(f"Multi-queue startup warning: {e}")
     asyncio.create_task(_delayed_multi_queue_start())
+    
+    # Start storage lifecycle cleanup (hourly)
+    async def _start_storage_lifecycle():
+        await asyncio.sleep(10)
+        try:
+            from routes.storage_routes import cleanup_temp_assets
+            await cleanup_temp_assets()
+        except Exception as e:
+            logger.warning(f"Storage lifecycle warning: {e}")
+    asyncio.create_task(_start_storage_lifecycle())
     
     # IMPORTANT: Stagger heavy service startups to prevent OOM on production
     # Start dedicated pipeline workers for Story → Video (delayed for stability)
