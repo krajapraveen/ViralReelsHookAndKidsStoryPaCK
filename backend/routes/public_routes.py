@@ -383,6 +383,7 @@ async def get_explore_feed(
         "created_at": 1,
         "thumbnail_url": 1,
         "user_id": 1,
+        "scene_images": 1,
     }
 
     cursor = db.pipeline_jobs.find(base_filter, projection)
@@ -392,11 +393,22 @@ async def get_explore_feed(
 
     total = await db.pipeline_jobs.count_documents(base_filter)
 
-    # Presign thumbnails and get creator names
+    # Presign thumbnails, fallback to scene_images
     from utils.r2_presign import presign_url
     for item in items:
+        # Auto-populate thumbnail from scene_images if missing
+        if not item.get("thumbnail_url"):
+            scene_imgs = item.get("scene_images", {})
+            if scene_imgs:
+                first_key = sorted(scene_imgs.keys())[0] if scene_imgs else None
+                if first_key and scene_imgs[first_key].get("url"):
+                    item["thumbnail_url"] = scene_imgs[first_key]["url"]
+        
         if item.get("thumbnail_url"):
             item["thumbnail_url"] = presign_url(item["thumbnail_url"])
+        
+        item.pop("scene_images", None)  # Strip from response
+        item.pop("scenes", None)
         item.setdefault("views", 0)
         item.setdefault("remix_count", 0)
         item.setdefault("slug", item.get("job_id", ""))

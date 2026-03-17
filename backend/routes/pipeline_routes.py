@@ -143,12 +143,14 @@ def _make_presigned_url(stored_url: str) -> str:
 
 @router.get("/gallery")
 async def public_gallery(category: str = None, sort: str = "newest", featured: bool = False):
-    """Public endpoint: return completed videos and showcase items for the gallery."""
+    """Public endpoint: return completed creations with any renderable media for the gallery."""
+    # Broad filter: COMPLETED items with ANY renderable media
     query = {
         "status": "COMPLETED",
         "$or": [
             {"output_url": {"$exists": True, "$nin": [None, ""]}},
             {"thumbnail_url": {"$exists": True, "$nin": [None, ""]}},
+            {"scene_images": {"$exists": True, "$ne": {}}},
             {"is_showcase": True},
         ]
     }
@@ -166,14 +168,28 @@ async def public_gallery(category: str = None, sort: str = "newest", featured: b
         query,
         {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "timing": 1,
          "completed_at": 1, "job_id": 1, "story_text": 1, "remix_count": 1,
-         "age_group": 1, "voice_preset": 1, "is_showcase": 1, "_id": 0}
+         "age_group": 1, "voice_preset": 1, "is_showcase": 1, "scene_images": 1, "_id": 0}
     ).sort(sort_field, sort_dir).to_list(length=48)
 
     for job in jobs:
+        # Presign output_url if present
         if job.get("output_url"):
             job["output_url"] = _make_presigned_url(job["output_url"])
+        
+        # Auto-populate thumbnail from scene_images if missing
+        if not job.get("thumbnail_url"):
+            scene_imgs = job.get("scene_images", {})
+            if scene_imgs:
+                first_key = sorted(scene_imgs.keys())[0] if scene_imgs else None
+                if first_key and scene_imgs[first_key].get("url"):
+                    job["thumbnail_url"] = scene_imgs[first_key]["url"]
+        
         if job.get("thumbnail_url") and not job.get("thumbnail_url", "").startswith("https://static.prod-images"):
             job["thumbnail_url"] = _make_presigned_url(job["thumbnail_url"])
+        
+        # Strip heavy fields from response
+        job.pop("scenes", None)
+        job.pop("scene_images", None)
 
     return {"videos": jobs}
 
@@ -213,7 +229,9 @@ async def gallery_categories():
     """Public endpoint: return available categories with counts."""
     pipe = [
         {"$match": {"status": "COMPLETED", "$or": [
-            {"output_url": {"$exists": True, "$ne": None}},
+            {"output_url": {"$exists": True, "$nin": [None, ""]}},
+            {"thumbnail_url": {"$exists": True, "$nin": [None, ""]}},
+            {"scene_images": {"$exists": True, "$ne": {}}},
             {"is_showcase": True},
         ]}},
         {"$group": {"_id": "$animation_style", "count": {"$sum": 1}}},
@@ -270,6 +288,58 @@ async def get_performance_stats(current_user: dict = Depends(get_current_user)):
         "total_last_hour": total_recent,
         "workers": workers,
         "timestamp": now.isoformat(),
+    }
+
+
+@router.get("/gallery/debug")
+async def gallery_debug():
+    """Diagnostic endpoint: Shows raw DB state for debugging empty galleries."""
+    total = await db.pipeline_jobs.count_documents({})
+    
+    pipeline = [{"$group": {"_id": "$status", "count": {"$sum": 1}}}]
+    status_counts = {}
+    async for doc in db.pipeline_jobs.aggregate(pipeline):
+        status_counts[str(doc["_id"])] = doc["count"]
+    
+    completed = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
+    with_output = await db.pipeline_jobs.count_documents({"status": "COMPLETED", "output_url": {"$exists": True, "$nin": [None, ""]}})
+    with_thumb = await db.pipeline_jobs.count_documents({"status": "COMPLETED", "thumbnail_url": {"$exists": True, "$nin": [None, ""]}})
+    with_scenes = await db.pipeline_jobs.count_documents({"status": "COMPLETED", "scene_images": {"$exists": True, "$ne": {}}})
+    
+    # Gallery query match count
+    gallery_match = await db.pipeline_jobs.count_documents({
+        "status": "COMPLETED",
+        "$or": [
+            {"output_url": {"$exists": True, "$nin": [None, ""]}},
+            {"thumbnail_url": {"$exists": True, "$nin": [None, ""]}},
+            {"scene_images": {"$exists": True, "$ne": {}}},
+            {"is_showcase": True},
+        ]
+    })
+    
+    # Sample 3 items
+    samples = []
+    async for doc in db.pipeline_jobs.find(
+        {"status": "COMPLETED"},
+        {"_id": 0, "title": 1, "output_url": 1, "thumbnail_url": 1, "job_id": 1}
+    ).limit(3):
+        samples.append({
+            "title": doc.get("title"),
+            "has_output_url": bool(doc.get("output_url")),
+            "has_thumbnail_url": bool(doc.get("thumbnail_url")),
+            "output_url_prefix": str(doc.get("output_url", ""))[:60],
+            "thumbnail_url_prefix": str(doc.get("thumbnail_url", ""))[:60],
+        })
+    
+    return {
+        "total_pipeline_jobs": total,
+        "status_distribution": status_counts,
+        "completed": completed,
+        "completed_with_output_url": with_output,
+        "completed_with_thumbnail_url": with_thumb,
+        "completed_with_scene_images": with_scenes,
+        "gallery_query_matches": gallery_match,
+        "sample_items": samples,
     }
 
 
