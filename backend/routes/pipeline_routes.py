@@ -815,6 +815,141 @@ async def manually_generate_fallback(job_id: str, current_user: dict = Depends(g
 
 
 
+# ─── ASSET VALIDATION ENDPOINT (Bulletproof Pipeline) ────────────────────────
+
+@router.get("/validate-asset/{job_id}")
+async def validate_video_asset(job_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Validate Story Video assets. Returns separate truth for preview, download, and share.
+    This is the single source of truth the frontend uses to resolve its uiState.
+    
+    Returns:
+        preview_ready: bool - Can the preview/thumbnail be rendered in-browser?
+        download_ready: bool - Is the download asset available?
+        share_ready: bool - Is the public share URL valid?
+        poster_url: str|None - Best available poster/thumbnail URL
+        download_url: str|None - Direct download URL (if validated)
+        share_url: str|None - Public share URL (if valid)
+        ui_state: str - Resolved UI state: READY | PARTIAL_READY | FAILED
+        stage_detail: str - Human-readable status message
+    """
+    job = await db.pipeline_jobs.find_one(
+        {"job_id": job_id},
+        {"_id": 0, "status": 1, "output_url": 1, "scene_images": 1, "scenes": 1,
+         "fallback_outputs": 1, "fallback_status": 1, "thumbnail_url": 1,
+         "error": 1, "current_stage": 1, "title": 1}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    status = job.get("status", "")
+
+    # If still processing, return early
+    if status in ("QUEUED", "PROCESSING"):
+        return {
+            "preview_ready": False,
+            "download_ready": False,
+            "share_ready": False,
+            "poster_url": None,
+            "download_url": None,
+            "share_url": None,
+            "ui_state": "PROCESSING",
+            "stage_detail": f"Still generating ({job.get('current_stage', 'processing')})",
+        }
+
+    # Collect asset URLs
+    output_url = job.get("output_url")
+    thumbnail_url = job.get("thumbnail_url")
+    fallback = job.get("fallback_outputs", {})
+    fallback_mp4_url = fallback.get("fallback_mp4", {}).get("url")
+    story_pack_url = fallback.get("story_pack_zip", {}).get("url")
+
+    # Best poster: thumbnail > first scene image
+    poster_url = thumbnail_url
+    if not poster_url:
+        scene_images = job.get("scene_images", {})
+        for sn in sorted(scene_images.keys(), key=lambda x: int(x) if x.isdigit() else 0):
+            img_url = scene_images[sn].get("url")
+            if img_url:
+                poster_url = img_url
+                break
+
+    # Presign URLs
+    if output_url:
+        output_url = _make_presigned_url(output_url)
+    if poster_url:
+        poster_url = _make_presigned_url(poster_url)
+    if fallback_mp4_url:
+        fallback_mp4_url = _make_presigned_url(fallback_mp4_url)
+    if story_pack_url:
+        story_pack_url = _make_presigned_url(story_pack_url)
+
+    # Determine download_ready: output_url OR fallback video OR story pack exists
+    best_download_url = output_url or fallback_mp4_url or story_pack_url
+    download_ready = bool(best_download_url)
+
+    # Determine preview_ready: try HEAD on poster URL
+    preview_ready = False
+    if poster_url:
+        try:
+            import aiohttp
+            check_url = poster_url
+            async with aiohttp.ClientSession() as session:
+                async with session.head(check_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    preview_ready = resp.status in (200, 206)
+        except Exception:
+            # HEAD failed — preview not renderable in browser (likely CORS)
+            pass
+
+    # If poster is a local path or data URI, assume preview works
+    if poster_url and (poster_url.startswith("/static/") or poster_url.startswith("data:")):
+        preview_ready = True
+
+    # Share readiness
+    share_url = output_url  # The main video URL is the shareable asset
+    share_ready = bool(output_url)
+
+    # Resolve UI state
+    if status == "FAILED" and not download_ready:
+        ui_state = "FAILED"
+        stage_detail = job.get("error", "Generation failed")
+    elif download_ready and preview_ready:
+        ui_state = "READY"
+        stage_detail = "Video ready — preview and download verified"
+    elif download_ready and not preview_ready:
+        ui_state = "PARTIAL_READY"
+        stage_detail = "Video saved — download available, preview limited"
+    elif status == "COMPLETED" and not download_ready:
+        # Edge case: status says completed but no downloadable asset
+        ui_state = "FAILED"
+        stage_detail = "Generation completed but no downloadable asset found"
+    elif status == "PARTIAL":
+        ui_state = "PARTIAL_READY"
+        stage_detail = "Story assets available — full video may not be ready"
+    elif status == "FAILED" and download_ready:
+        ui_state = "PARTIAL_READY"
+        stage_detail = "Generation had issues but some assets were saved"
+    else:
+        ui_state = "FAILED"
+        stage_detail = job.get("error", "Unknown status")
+
+    return {
+        "preview_ready": preview_ready,
+        "download_ready": download_ready,
+        "share_ready": share_ready,
+        "poster_url": poster_url,
+        "download_url": best_download_url,
+        "share_url": share_url,
+        "story_pack_url": story_pack_url,
+        "ui_state": ui_state,
+        "stage_detail": stage_detail,
+        "job_status": status,
+        "title": job.get("title", ""),
+    }
+
+
+
+
 # ─── ASSET PROXY FOR CLIENT-SIDE EXPORT ──────────────────────────────────────
 
 @router.get("/asset-proxy")

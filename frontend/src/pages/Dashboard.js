@@ -18,6 +18,7 @@ import DailyRewardsModal from '../components/DailyRewardsModal';
 import DelayedCreditsBanner from '../components/DelayedCreditsBanner';
 import { ResumeYourStory } from '../components/ResumeYourStory';
 import { LoginInterstitial } from '../components/LoginInterstitial';
+import { SafeImage } from '../components/SafeImage';
 import { ActionBanner } from '../components/ActionBanner';
 import { ActiveChainsChip } from '../components/ActiveChainsChip';
 import axios from 'axios';
@@ -392,12 +393,13 @@ export default function Dashboard() {
                   {trending.map((t) => (
                     <Link key={t.job_id} to={`/app/story-video-studio?remix=${t.job_id}`}>
                       <div className="vs-card group p-0 overflow-hidden">
-                        {t.thumbnail_url ? (
-                          <img src={t.thumbnail_url} alt={t.title} className="w-full aspect-video object-cover" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }} />
-                        ) : null}
-                        <div className={`w-full aspect-video bg-gradient-to-br from-indigo-600/30 to-cyan-600/20 items-center justify-center ${t.thumbnail_url ? 'hidden' : 'flex'}`}>
-                          <Film className="w-8 h-8 text-[var(--vs-text-muted)]" />
-                        </div>
+                        <SafeImage
+                          src={t.thumbnail_url}
+                          alt={t.title}
+                          aspectRatio="16/9"
+                          titleOverlay={t.title}
+                          fallbackType="gradient"
+                        />
                         <div className="p-3">
                           <h3 className="text-sm font-medium text-white truncate">{t.title}</h3>
                           <div className="flex items-center gap-2 mt-1">

@@ -8,6 +8,7 @@ import {
   Film, Package, Eye, AlertCircle, ChevronRight, ChevronLeft,
   Volume2, VolumeX, Loader2, CheckCircle, ExternalLink
 } from 'lucide-react';
+import { SafeImage } from '../components/SafeImage';
 import api from '../utils/api';
 
 export default function StoryPreview() {
@@ -203,19 +204,14 @@ export default function StoryPreview() {
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden" data-testid="scene-viewer">
                 {/* Scene Image */}
                 <div className="relative aspect-video bg-slate-900 flex items-center justify-center">
-                  {currentScene.image_url ? (
-                    <img
-                      src={currentScene.image_url}
-                      alt={currentScene.title}
-                      className="w-full h-full object-contain"
-                      data-testid={`scene-image-${activeScene}`}
-                    />
-                  ) : (
-                    <div className="text-center text-slate-500">
-                      <Image className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>Image not generated</p>
-                    </div>
-                  )}
+                  <SafeImage
+                    src={currentScene.image_url}
+                    alt={currentScene.title || `Scene ${activeScene + 1}`}
+                    aspectRatio="16/9"
+                    titleOverlay={currentScene.title}
+                    className="w-full h-full"
+                    data-testid={`scene-image-${activeScene}`}
+                  />
 
                   {/* Scene Navigation Overlay */}
                   <div className="absolute inset-y-0 left-0 flex items-center pl-2">
@@ -327,13 +323,13 @@ export default function StoryPreview() {
                   <div className="flex gap-3 p-3">
                     {/* Mini thumbnail */}
                     <div className="w-20 h-14 rounded bg-slate-900 flex-shrink-0 overflow-hidden">
-                      {scene.image_url ? (
-                        <img src={scene.image_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Image className="w-4 h-4 text-slate-600" />
-                        </div>
-                      )}
+                      <SafeImage
+                        src={scene.image_url}
+                        alt={scene.title || `Scene ${idx + 1}`}
+                        aspectRatio="16/10"
+                        titleOverlay={scene.title}
+                        data-testid={`scene-list-thumb-${idx}`}
+                      />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-white truncate">

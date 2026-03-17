@@ -1,16 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Progress } from '../components/ui/progress';
+import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import {
   ArrowLeft, Wand2, Loader2, Film, Image, Mic, CheckCircle,
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
   Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye, Package,
-  Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert
+  Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert,
+  Shield, Check, X
 } from 'lucide-react';
 import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
@@ -18,11 +20,86 @@ import ProgressiveGeneration from '../components/ProgressiveGeneration';
 import { useJobWebSocket } from '../hooks/useJobWebSocket';
 import ContextualUpgrade from '../components/ContextualUpgrade';
 
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STAGE_ORDER = ['scenes', 'images', 'voices'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic };
 const STAGE_LABELS = { scenes: 'Scenes', images: 'Images', voices: 'Voices' };
 
-// Error boundary to catch React render crashes
+// Hard timeout: 5 minutes max for any generation
+const HARD_TIMEOUT_MS = 5 * 60 * 1000;
+// Stale detection: 90 seconds with no progress change
+const STALE_THRESHOLD_MS = 90 * 1000;
+
+// ─── UI STATE MACHINE ─────────────────────────────────────────────────────────
+// Single source of truth. Contradictory states are structurally impossible.
+// States: IDLE | PROCESSING | VALIDATING | READY | PARTIAL_READY | FAILED
+const INITIAL_POST_GEN_STATE = {
+  uiState: 'IDLE',
+  previewReady: false,
+  downloadReady: false,
+  shareReady: false,
+  posterUrl: null,
+  downloadUrl: null,
+  shareUrl: null,
+  storyPackUrl: null,
+  failReason: '',
+  stageDetail: '',
+  jobTitle: '',
+};
+
+function postGenReducer(state, action) {
+  switch (action.type) {
+    case 'START_VALIDATING':
+      return {
+        ...INITIAL_POST_GEN_STATE,
+        uiState: 'VALIDATING',
+        stageDetail: 'Validating assets...',
+        jobTitle: action.title || state.jobTitle,
+      };
+    case 'SET_READY':
+      return {
+        ...state,
+        uiState: 'READY',
+        previewReady: true,
+        downloadReady: true,
+        shareReady: action.shareReady ?? false,
+        posterUrl: action.posterUrl,
+        downloadUrl: action.downloadUrl,
+        shareUrl: action.shareUrl,
+        storyPackUrl: action.storyPackUrl,
+        stageDetail: action.stageDetail || 'Video ready',
+      };
+    case 'SET_PARTIAL_READY':
+      return {
+        ...state,
+        uiState: 'PARTIAL_READY',
+        previewReady: action.previewReady ?? false,
+        downloadReady: action.downloadReady ?? false,
+        shareReady: false,
+        posterUrl: action.posterUrl,
+        downloadUrl: action.downloadUrl,
+        storyPackUrl: action.storyPackUrl,
+        stageDetail: action.stageDetail || 'Video saved — download available, preview limited',
+      };
+    case 'SET_FAILED':
+      return {
+        ...INITIAL_POST_GEN_STATE,
+        uiState: 'FAILED',
+        failReason: action.reason || 'Generation failed',
+        stageDetail: action.stageDetail || action.reason || 'Generation failed',
+        posterUrl: action.posterUrl || null,
+        downloadUrl: action.downloadUrl || null,
+        storyPackUrl: action.storyPackUrl || null,
+        downloadReady: action.downloadReady || false,
+      };
+    case 'RESET':
+      return INITIAL_POST_GEN_STATE;
+    default:
+      return state;
+  }
+}
+
+// ─── ERROR BOUNDARY ───────────────────────────────────────────────────────────
 class StudioErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -33,7 +110,7 @@ class StudioErrorBoundary extends React.Component {
           <div className="max-w-md text-center" data-testid="error-boundary">
             <AlertCircle className="w-12 h-12 text-[var(--vs-error)] mx-auto mb-4" />
             <h2 className="vs-h2 mb-2">Something went wrong</h2>
-            <p className="text-[var(--vs-text-secondary)] mb-6">The video studio encountered an error. Please try refreshing the page.</p>
+            <p className="text-[var(--vs-text-secondary)] mb-6">The video studio encountered an error. Please try refreshing.</p>
             <button onClick={() => window.location.reload()} className="vs-btn-primary">Refresh Page</button>
           </div>
         </div>
@@ -43,9 +120,10 @@ class StudioErrorBoundary extends React.Component {
   }
 }
 
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 function StoryVideoPipelineInner() {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState('input'); // input | processing | done | error
+  const [phase, setPhase] = useState('input'); // input | processing | postgen | error
   const [options, setOptions] = useState(null);
   const [title, setTitle] = useState('');
   const [storyText, setStoryText] = useState('');
@@ -65,16 +143,30 @@ function StoryVideoPipelineInner() {
   const pollRef = useRef(null);
   const [searchParams] = useSearchParams();
 
-  // WebSocket for progressive updates
+  // Duplicate click guard
+  const createLockRef = useRef(false);
+
+  // Post-generation state machine
+  const [postGen, dispatchPostGen] = useReducer(postGenReducer, INITIAL_POST_GEN_STATE);
+
+  // Hard timeout tracking
+  const hardTimeoutRef = useRef(null);
+  const staleTimeoutRef = useRef(null);
+  const lastProgressRef = useRef(0);
+  const lastProgressTimeRef = useRef(Date.now());
+
+  // WebSocket
   const token = localStorage.getItem('token');
   const { wsRef } = useJobWebSocket(jobId, token);
 
+  // ─── INIT ─────────────────────────────────────────────────────────
   useEffect(() => {
     api.get('/api/pipeline/options').then(r => setOptions(r.data)).catch(() => {});
     loadUserJobs();
     checkUpsell();
     checkRateLimit();
 
+    // Handle remix
     const isRemix = searchParams.get('remix');
     if (isRemix) {
       const saved = localStorage.getItem('remix_video');
@@ -92,14 +184,12 @@ function StoryVideoPipelineInner() {
       }
     }
 
-    // Handle new remix_data from Remix & Variations Engine
+    // Handle remix_data from Remix & Variations Engine
     const newRemixData = localStorage.getItem('remix_data');
     if (newRemixData && !isRemix) {
       try {
         const rd = JSON.parse(newRemixData);
-        if (rd.prompt) {
-          setStoryText(rd.prompt);
-        }
+        if (rd.prompt) setStoryText(rd.prompt);
         if (rd.remixFrom) {
           setRemixData(rd.remixFrom);
           if (rd.remixFrom.title) setTitle(`Remix: ${rd.remixFrom.title}`);
@@ -111,6 +201,7 @@ function StoryVideoPipelineInner() {
       } catch { /* ignore */ }
     }
 
+    // Handle onboarding prompt
     const urlPrompt = searchParams.get('prompt');
     const savedPrompt = localStorage.getItem('onboarding_prompt');
     const prompt = urlPrompt || savedPrompt;
@@ -120,17 +211,24 @@ function StoryVideoPipelineInner() {
       localStorage.removeItem('onboarding_prompt');
     }
 
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (hardTimeoutRef.current) clearTimeout(hardTimeoutRef.current);
+      if (staleTimeoutRef.current) clearTimeout(staleTimeoutRef.current);
+    };
   }, [searchParams]);
 
+  // ─── LOAD USER JOBS + RECONNECT SAFETY ────────────────────────────
   const loadUserJobs = async () => {
     try {
       const res = await api.get('/api/pipeline/user-jobs');
       if (res.data.success) {
         setUserJobs(res.data.jobs || []);
+        // Reconnect to active job if any (refresh safety)
         const active = (res.data.jobs || []).find(j => ['QUEUED', 'PROCESSING'].includes(j.status));
         if (active) {
           setJobId(active.job_id);
+          setJob(active);
           setPhase('processing');
           startPolling(active.job_id);
         }
@@ -155,71 +253,150 @@ function StoryVideoPipelineInner() {
     } catch { /* ignore */ }
   };
 
+  // ─── CLEAR TIMEOUTS ──────────────────────────────────────────────
+  const clearAllTimeouts = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (hardTimeoutRef.current) { clearTimeout(hardTimeoutRef.current); hardTimeoutRef.current = null; }
+    if (staleTimeoutRef.current) { clearTimeout(staleTimeoutRef.current); staleTimeoutRef.current = null; }
+  }, []);
+
+  // ─── VALIDATE ASSETS (single source of truth) ────────────────────
+  const validateAndResolve = useCallback(async (jid, jobData) => {
+    dispatchPostGen({ type: 'START_VALIDATING', title: jobData?.title || '' });
+
+    try {
+      const res = await api.get(`/api/pipeline/validate-asset/${jid}`);
+      const v = res.data;
+
+      if (v.ui_state === 'READY') {
+        dispatchPostGen({
+          type: 'SET_READY',
+          posterUrl: v.poster_url,
+          downloadUrl: v.download_url,
+          shareUrl: v.share_url,
+          shareReady: v.share_ready,
+          storyPackUrl: v.story_pack_url,
+          stageDetail: v.stage_detail,
+        });
+      } else if (v.ui_state === 'PARTIAL_READY') {
+        dispatchPostGen({
+          type: 'SET_PARTIAL_READY',
+          previewReady: v.preview_ready,
+          downloadReady: v.download_ready,
+          posterUrl: v.poster_url,
+          downloadUrl: v.download_url,
+          storyPackUrl: v.story_pack_url,
+          stageDetail: v.stage_detail,
+        });
+      } else {
+        dispatchPostGen({
+          type: 'SET_FAILED',
+          reason: v.stage_detail || 'Asset validation failed',
+          posterUrl: v.poster_url,
+          downloadUrl: v.download_url,
+          storyPackUrl: v.story_pack_url,
+          downloadReady: v.download_ready,
+        });
+      }
+    } catch {
+      // Validation endpoint failed — use job data as fallback
+      const hasOutput = !!jobData?.output_url;
+      const hasFallback = !!jobData?.fallback?.fallback_video_url || !!jobData?.fallback?.story_pack_url;
+      if (hasOutput || hasFallback) {
+        dispatchPostGen({
+          type: 'SET_PARTIAL_READY',
+          previewReady: false,
+          downloadReady: true,
+          downloadUrl: jobData?.output_url || jobData?.fallback?.fallback_video_url,
+          storyPackUrl: jobData?.fallback?.story_pack_url,
+          stageDetail: 'Assets may be available — validation check failed',
+        });
+      } else {
+        dispatchPostGen({ type: 'SET_FAILED', reason: 'Could not verify assets' });
+      }
+    }
+  }, []);
+
+  // ─── POLLING with timeout/stale detection ────────────────────────
   const startPolling = useCallback((jid) => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    clearAllTimeouts();
+    lastProgressRef.current = 0;
+    lastProgressTimeRef.current = Date.now();
+
+    // Hard timeout
+    hardTimeoutRef.current = setTimeout(() => {
+      clearAllTimeouts();
+      setPhase('postgen');
+      dispatchPostGen({
+        type: 'SET_FAILED',
+        reason: 'Generation timed out after 5 minutes. Your credits have been preserved.',
+        stageDetail: 'Hard timeout — generation took too long',
+      });
+    }, HARD_TIMEOUT_MS);
+
     const poll = async () => {
       try {
         const res = await api.get(`/api/pipeline/status/${jid}`);
         if (res.data.success) {
           const j = res.data.job;
           setJob(j);
-          if (j.status === 'COMPLETED') {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-            toast.success('Your story is ready! Redirecting to preview...', { duration: 4000 });
-            setTimeout(() => navigate(`/app/story-preview/${jid}`), 1500);
-          } else if (j.status === 'PARTIAL') {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-            toast.info('Story assets ready! Redirecting to preview...', { duration: 4000 });
-            setTimeout(() => navigate(`/app/story-preview/${jid}`), 1500);
+
+          // Stale detection
+          const now = Date.now();
+          if (j.progress !== lastProgressRef.current) {
+            lastProgressRef.current = j.progress;
+            lastProgressTimeRef.current = now;
+          } else if (now - lastProgressTimeRef.current > STALE_THRESHOLD_MS && j.status === 'PROCESSING') {
+            // Progress hasn't changed in 90 seconds
+            toast.warning('Generation is taking longer than usual...', { id: 'stale-warning' });
+          }
+
+          if (j.status === 'COMPLETED' || j.status === 'PARTIAL') {
+            clearAllTimeouts();
+            setPhase('postgen');
+            await validateAndResolve(jid, j);
           } else if (j.status === 'FAILED') {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
+            clearAllTimeouts();
+            // Check if there are recoverable assets
             const hasRecoverable = j.has_recoverable_assets || j.fallback?.has_preview || j.fallback?.story_pack_url;
             if (hasRecoverable) {
-              toast.info('Generation had an issue, but your story assets are available!', { duration: 5000 });
+              setPhase('postgen');
+              await validateAndResolve(jid, j);
+            } else {
+              setPhase('postgen');
+              dispatchPostGen({
+                type: 'SET_FAILED',
+                reason: j.error || 'Generation failed',
+                stageDetail: j.error || 'No recoverable assets',
+              });
             }
-            setPhase('error');
           }
         }
       } catch { /* continue polling */ }
     };
     poll();
     pollRef.current = setInterval(poll, 3000);
-  }, [navigate]);
+  }, [clearAllTimeouts, validateAndResolve]);
 
+  // ─── GENERATE (with duplicate guard) ──────────────────────────────
   const handleGenerate = async () => {
+    if (createLockRef.current) return; // Prevent double-click
     setFormError('');
 
-    // Validation
-    if (!title.trim()) {
-      setFormError('Please enter a title for your video.');
-      return;
-    }
-    if (title.trim().length < 3) {
-      setFormError('Title must be at least 3 characters.');
-      return;
-    }
-    if (title.trim().length > 100) {
-      setFormError('Title must be 100 characters or less.');
-      return;
-    }
-    if (!storyText.trim()) {
-      setFormError('Please enter a story to generate a video from.');
-      return;
-    }
+    if (!title.trim()) { setFormError('Please enter a title for your video.'); return; }
+    if (title.trim().length < 3) { setFormError('Title must be at least 3 characters.'); return; }
+    if (title.trim().length > 100) { setFormError('Title must be 100 characters or less.'); return; }
+    if (!storyText.trim()) { setFormError('Please enter a story to generate a video from.'); return; }
     if (storyText.trim().length < 50) {
       setFormError(`Story must be at least 50 characters. You have ${storyText.trim().length} — need ${50 - storyText.trim().length} more.`);
       return;
     }
-
-    // Check rate limit before calling API
     if (rateLimitStatus && !rateLimitStatus.can_create) {
-      setFormError(rateLimitStatus.reason || 'You cannot create a video right now. Please wait.');
+      setFormError(rateLimitStatus.reason || 'You cannot create a video right now.');
       return;
     }
 
+    createLockRef.current = true;
     setSubmitting(true);
     try {
       const payload = {
@@ -229,36 +406,32 @@ function StoryVideoPipelineInner() {
         age_group: ageGroup,
         voice_preset: voicePreset,
       };
-      if (remixData?.parent_video_id) {
-        payload.parent_video_id = remixData.parent_video_id;
-      }
+      if (remixData?.parent_video_id) payload.parent_video_id = remixData.parent_video_id;
+
       const res = await api.post('/api/pipeline/create', payload);
       if (res.data.success) {
         setJobId(res.data.job_id);
         setPhase('processing');
         setFormError('');
-        const queueWarn = res.data.queue_warning;
+        dispatchPostGen({ type: 'RESET' });
+
         if (res.data.degraded) {
           toast.info(`System is busy — your video will use ${res.data.estimated_scenes} scenes for faster delivery.`);
-        } else if (queueWarn) {
-          toast.info(queueWarn);
+        } else if (res.data.queue_warning) {
+          toast.info(res.data.queue_warning);
         } else {
           toast.success(`Video queued! ${res.data.credits_charged} credits charged.`);
         }
         startPolling(res.data.job_id);
       } else {
-        setFormError(res.data.detail || res.data.message || 'Failed to create video. Please try again.');
+        setFormError(res.data.detail || res.data.message || 'Failed to create video.');
       }
     } catch (e) {
       const status = e.response?.status;
       const rawDetail = e.response?.data?.detail;
-      
-      // Parse error detail - handle Pydantic validation arrays
       let detail = '';
-      if (typeof rawDetail === 'string') {
-        detail = rawDetail;
-      } else if (Array.isArray(rawDetail)) {
-        // Pydantic validation errors come as array of {loc, msg, type}
+      if (typeof rawDetail === 'string') detail = rawDetail;
+      else if (Array.isArray(rawDetail)) {
         detail = rawDetail.map(err => {
           const field = err.loc?.slice(-1)?.[0] || '';
           const fieldName = field === 'story_text' ? 'Story' : field === 'title' ? 'Title' : field;
@@ -268,38 +441,21 @@ function StoryVideoPipelineInner() {
         detail = rawDetail.message || rawDetail.msg || JSON.stringify(rawDetail);
       }
 
-      if (!e.response) {
-        // Network error - no response received at all
-        setFormError('Network error: Could not reach the server. Please check your internet connection and try again.');
-      } else if (status === 422) {
-        setFormError(detail || 'Please check your input. Story must be at least 50 characters and title at least 3 characters.');
-      } else if (status === 429) {
-        // Admission rejection or rate limit
+      if (!e.response) setFormError('Network error: Could not reach the server.');
+      else if (status === 422) setFormError(detail || 'Check your input.');
+      else if (status === 429) {
         const admissionMsg = rawDetail?.message || rawDetail?.reason || detail;
-        const retryAfter = rawDetail?.retry_after_sec;
-        if (admissionMsg) {
-          setFormError(admissionMsg);
-        } else {
-          setFormError('Rate limit reached. Please wait before generating another video.');
-        }
-        if (retryAfter) {
-          toast.error(`Please try again in ${Math.ceil(retryAfter / 60)} minute(s).`);
-        }
+        setFormError(admissionMsg || 'Rate limit reached.');
         checkRateLimit();
-      } else if (status === 402 || (detail && detail.toLowerCase().includes('credit'))) {
-        setFormError(detail || 'Insufficient credits. Please purchase more credits to continue.');
+      } else if (status === 402) {
+        setFormError(detail || 'Insufficient credits.');
         setShowUpsell(true);
-      } else if (status === 400 && detail) {
-        setFormError(detail);
-      } else if (status === 401) {
-        setFormError('Your session has expired. Please log in again.');
-      } else if (status === 500) {
-        setFormError(detail || 'Server error occurred. Our team has been notified. Please try again in a moment.');
-      } else {
-        setFormError(detail || `Unexpected error (${status || 'network'}). Please try again or contact support.`);
-      }
+      } else if (status === 401) setFormError('Session expired. Please log in again.');
+      else if (status === 500) setFormError(detail || 'Server error. Please try again.');
+      else setFormError(detail || `Unexpected error (${status || 'network'}).`);
     } finally {
       setSubmitting(false);
+      createLockRef.current = false;
     }
   };
 
@@ -308,6 +464,7 @@ function StoryVideoPipelineInner() {
     try {
       await api.post(`/api/pipeline/resume/${jobId}`);
       setPhase('processing');
+      dispatchPostGen({ type: 'RESET' });
       startPolling(jobId);
       toast.info('Resuming from last checkpoint...');
     } catch (e) {
@@ -316,6 +473,7 @@ function StoryVideoPipelineInner() {
   };
 
   const handleNewVideo = () => {
+    clearAllTimeouts();
     setPhase('input');
     setJobId(null);
     setJob(null);
@@ -323,29 +481,45 @@ function StoryVideoPipelineInner() {
     setStoryText('');
     setFormError('');
     setRemixData(null);
+    dispatchPostGen({ type: 'RESET' });
     checkRateLimit();
   };
 
   const viewJob = (j) => {
     setJobId(j.job_id);
-    if (j.status === 'COMPLETED') { setJob(j); setPhase('done'); }
-    else if (j.status === 'PARTIAL') { navigate(`/app/story-preview/${j.job_id}`); }
-    else if (j.status === 'FAILED') {
-      if (j.fallback_status && j.fallback_status !== 'none') {
-        navigate(`/app/story-preview/${j.job_id}`);
+    if (['COMPLETED', 'PARTIAL'].includes(j.status)) {
+      setJob(j);
+      setPhase('postgen');
+      validateAndResolve(j.job_id, j);
+    } else if (j.status === 'FAILED') {
+      if (j.has_recoverable_assets || j.fallback_status) {
+        setJob(j);
+        setPhase('postgen');
+        validateAndResolve(j.job_id, j);
       } else {
-        setJob(j); setPhase('error');
+        setJob(j);
+        setPhase('postgen');
+        dispatchPostGen({ type: 'SET_FAILED', reason: j.error || 'Generation failed' });
       }
+    } else {
+      setPhase('processing');
+      startPolling(j.job_id);
     }
-    else { setPhase('processing'); startPolling(j.job_id); }
   };
+
+  // Retry validation
+  const retryValidation = useCallback(() => {
+    if (jobId) validateAndResolve(jobId, job);
+  }, [jobId, job, validateAndResolve]);
 
   return (
     <div className="vs-page">
       <header className="vs-glass sticky top-0 z-40 border-b border-[var(--vs-border-subtle)]">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/app" className="text-[var(--vs-text-muted)] hover:text-white transition-colors"><ArrowLeft className="w-5 h-5" /></Link>
+            <Link to="/app" className="text-[var(--vs-text-muted)] hover:text-white transition-colors" data-testid="back-to-dashboard">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
             <div className="w-8 h-8 rounded-lg vs-gradient-bg flex items-center justify-center">
               <Film className="w-4 h-4 text-white" />
             </div>
@@ -359,13 +533,13 @@ function StoryVideoPipelineInner() {
               { key: 'scenes', label: 'Scenes', icon: BookOpen, active: phase === 'processing' && (job?.current_stage === 'scenes' || !job) },
               { key: 'images', label: 'Images', icon: Image, active: phase === 'processing' && job?.current_stage === 'images' },
               { key: 'voices', label: 'Voice', icon: Mic, active: phase === 'processing' && job?.current_stage === 'voices' },
-              { key: 'preview', label: 'Preview', icon: Eye, active: phase === 'done' },
+              { key: 'result', label: 'Result', icon: Eye, active: phase === 'postgen' },
             ].map((step, i) => (
               <div key={step.key} className="flex items-center">
-                {i > 0 && <div className={`w-6 h-px mx-1 ${step.active || (phase === 'done') || (phase === 'processing' && i <= ['prompt','scenes','images','voices','preview'].indexOf(job?.current_stage || 'scenes')) ? 'bg-[var(--vs-primary-from)]' : 'bg-[var(--vs-border)]'}`} />}
+                {i > 0 && <div className={`w-6 h-px mx-1 ${step.active || (phase === 'postgen') || (phase === 'processing' && i <= ['prompt','scenes','images','voices','result'].indexOf(job?.current_stage || 'scenes')) ? 'bg-[var(--vs-primary-from)]' : 'bg-[var(--vs-border)]'}`} />}
                 <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                   step.active ? 'bg-[var(--vs-cta)]/15 text-[var(--vs-text-accent)] border border-[var(--vs-border-glow)]'
-                  : (phase === 'done' || (phase === 'processing' && i < ['prompt','scenes','images','voices','preview'].indexOf(job?.current_stage || 'scenes') + 1))
+                  : (phase === 'postgen' || (phase === 'processing' && i < ['prompt','scenes','images','voices','result'].indexOf(job?.current_stage || 'scenes') + 1))
                     ? 'text-[var(--vs-success)]'
                     : 'text-[var(--vs-text-muted)]'
                 }`} data-testid={`canvas-step-${step.key}`}>
@@ -398,7 +572,7 @@ function StoryVideoPipelineInner() {
           <div className="mb-8 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl p-6 text-center" data-testid="welcome-overlay">
             <Sparkles className="w-8 h-8 text-indigo-400 mx-auto mb-3" />
             <h2 className="text-xl font-bold text-white mb-2">Let's turn your story into a cinematic video</h2>
-            <p className="text-slate-400 text-sm max-w-md mx-auto mb-4">Your story is pre-filled below. Add a title, pick a style, and hit Generate. AI does the rest in ~90 seconds.</p>
+            <p className="text-slate-400 text-sm max-w-md mx-auto mb-4">Your story is pre-filled below. Add a title, pick a style, and hit Generate.</p>
             <Button onClick={() => setShowWelcome(false)} variant="ghost" className="text-indigo-400 hover:text-indigo-300 text-sm">Got it</Button>
           </div>
         )}
@@ -413,6 +587,7 @@ function StoryVideoPipelineInner() {
           userJobs={userJobs} onViewJob={viewJob}
           rateLimitStatus={rateLimitStatus} formError={formError}
         />}
+
         {phase === 'processing' && (
           <ProgressiveGeneration
             jobId={jobId}
@@ -421,13 +596,24 @@ function StoryVideoPipelineInner() {
             initialStage={job?.current_stage || 'scenes'}
             onComplete={(completedJob) => {
               setJob(completedJob);
-              setPhase('done');
-              toast.success('Video generated successfully!');
+              setPhase('postgen');
+              validateAndResolve(jobId, completedJob);
             }}
           />
         )}
-        {phase === 'done' && <DonePhase job={job} jobId={jobId} onNew={handleNewVideo} storyText={storyText} animStyle={animStyle} />}
-        {phase === 'error' && <ErrorPhase job={job} onResume={handleResume} onNew={handleNewVideo} />}
+
+        {phase === 'postgen' && (
+          <PostGenPhase
+            postGen={postGen}
+            job={job}
+            jobId={jobId}
+            onNew={handleNewVideo}
+            onResume={handleResume}
+            onRetryValidation={retryValidation}
+            storyText={storyText}
+            animStyle={animStyle}
+          />
+        )}
       </main>
     </div>
   );
@@ -441,8 +627,7 @@ export default function StoryVideoPipeline() {
   );
 }
 
-// ─── INPUT PHASE ──────────────────────────────────────────────────────────
-
+// ─── INPUT PHASE ──────────────────────────────────────────────────────────────
 function InputPhase({ options, title, setTitle, storyText, setStoryText,
   animStyle, setAnimStyle, ageGroup, setAgeGroup, voicePreset, setVoicePreset,
   onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError }) {
@@ -451,13 +636,11 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   const ages = options?.age_groups || [];
   const voices = options?.voice_presets || [];
   const activeJobs = userJobs.filter(j => ['QUEUED', 'PROCESSING'].includes(j.status));
-  const recentJobs = userJobs.filter(j => j.status === 'COMPLETED').slice(0, 3);
-
+  const recentJobs = userJobs.filter(j => ['COMPLETED', 'PARTIAL'].includes(j.status)).slice(0, 3);
   const canCreate = rateLimitStatus?.can_create !== false;
 
   return (
     <div className="space-y-8 vs-fade-up-1" data-testid="input-phase">
-      {/* Active jobs banner */}
       {activeJobs.length > 0 && (
         <div className="vs-panel p-4 flex items-center justify-between border-[var(--vs-border-glow)]" data-testid="active-job-banner">
           <div className="flex items-center gap-3">
@@ -470,12 +653,11 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
         </div>
       )}
 
-      {/* Rate limit warning */}
       {rateLimitStatus && !rateLimitStatus.can_create && (
         <div className="vs-panel p-4 flex items-start gap-3 border-amber-500/30" data-testid="rate-limit-warning">
           <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-amber-200 font-medium text-sm" style={{ fontFamily: 'var(--vs-font-body)' }}>{rateLimitStatus.reason}</p>
+            <p className="text-amber-200 font-medium text-sm">{rateLimitStatus.reason}</p>
             <p className="text-amber-400/60 text-xs mt-1" style={{ fontFamily: 'var(--vs-font-mono)' }}>
               Videos this hour: {rateLimitStatus.recent_count}/{rateLimitStatus.max_per_hour} |
               Active: {rateLimitStatus.concurrent}/{rateLimitStatus.max_concurrent}
@@ -493,21 +675,19 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-1 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Title <span className="text-[var(--vs-error)]">*</span></label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-1 block">Title <span className="text-[var(--vs-error)]">*</span></label>
               <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="My Amazing Story..."
                 className="bg-[var(--vs-bg-panel)] border-[var(--vs-border)] text-white focus:border-[var(--vs-primary-from)] h-11" data-testid="title-input" maxLength={100} />
-              {title.length > 0 && title.trim().length < 3 && (
-                <p className="text-xs text-amber-400 mt-1">Title needs at least 3 characters</p>
-              )}
+              {title.length > 0 && title.trim().length < 3 && <p className="text-xs text-amber-400 mt-1">Title needs at least 3 characters</p>}
             </div>
 
             <div>
-              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-1 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Story Text <span className="text-[var(--vs-error)]">*</span></label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-1 block">Story Text <span className="text-[var(--vs-error)]">*</span></label>
               <Textarea value={storyText} onChange={e => setStoryText(e.target.value)}
                 placeholder="Write your story here... (minimum 50 characters)" rows={8}
                 className="bg-[var(--vs-bg-panel)] border-[var(--vs-border)] text-white resize-none focus:border-[var(--vs-primary-from)]" data-testid="story-textarea" />
               <div className="flex justify-between mt-1">
-                <p className={`text-xs ${storyText.trim().length < 50 && storyText.length > 0 ? 'text-amber-400' : 'text-[var(--vs-text-muted)]'}`} style={{ fontFamily: 'var(--vs-font-mono)' }}>
+                <p className={`text-xs ${storyText.trim().length < 50 && storyText.length > 0 ? 'text-amber-400' : 'text-[var(--vs-text-muted)]'}`}>
                   {storyText.length} / 10,000 characters {storyText.length > 0 && storyText.trim().length < 50 ? `(need ${50 - storyText.trim().length} more)` : '(min 50)'}
                 </p>
               </div>
@@ -516,7 +696,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
           {/* Animation Style */}
           <div>
-            <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Animation Style</label>
+            <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block">Animation Style</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" data-testid="style-grid">
               {styles.map(s => (
                 <button key={s.id} onClick={() => setAnimStyle(s.id)}
@@ -524,39 +704,35 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                     ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
                     : 'border-[var(--vs-border)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
                   data-testid={`style-${s.id}`}>
-                  <span className="text-sm font-medium" style={{ fontFamily: 'var(--vs-font-body)' }}>{s.name}</span>
+                  <span className="text-sm font-medium">{s.name}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Age + Voice row */}
+          {/* Age + Voice */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Target Age</label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block">Target Age</label>
               <div className="space-y-1">
                 {ages.map(a => (
                   <button key={a.id} onClick={() => setAgeGroup(a.id)}
                     className={`w-full p-2 rounded-[var(--vs-btn-radius)] border text-left text-sm transition-all ${ageGroup === a.id
                       ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
                       : 'border-[var(--vs-border-subtle)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
-                    data-testid={`age-${a.id}`}>
-                    {a.name}
-                  </button>
+                    data-testid={`age-${a.id}`}>{a.name}</button>
                 ))}
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block" style={{ fontFamily: 'var(--vs-font-body)' }}>Narrator Voice</label>
+              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block">Narrator Voice</label>
               <div className="space-y-1">
                 {voices.map(v => (
                   <button key={v.id} onClick={() => setVoicePreset(v.id)}
                     className={`w-full p-2 rounded-[var(--vs-btn-radius)] border text-left text-sm transition-all ${voicePreset === v.id
                       ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
                       : 'border-[var(--vs-border-subtle)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
-                    data-testid={`voice-${v.id}`}>
-                    {v.name}
-                  </button>
+                    data-testid={`voice-${v.id}`}>{v.name}</button>
                 ))}
               </div>
             </div>
@@ -567,23 +743,18 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
             <div className="vs-panel p-4 flex items-start gap-3 border-[var(--vs-error)]/30" data-testid="form-error">
               <AlertCircle className="w-5 h-5 text-[var(--vs-error)] flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-red-300 text-sm" style={{ fontFamily: 'var(--vs-font-body)' }}>{formError}</p>
-                {formError.includes('session') && (
-                  <button onClick={() => window.location.href = '/login'} className="text-xs text-[var(--vs-text-accent)] hover:text-white underline mt-1">Go to Login</button>
-                )}
-                {formError.includes('credit') && (
-                  <button onClick={() => window.location.href = '/app/pricing'} className="text-xs text-[var(--vs-text-accent)] hover:text-white underline mt-1">Get More Credits</button>
-                )}
+                <p className="text-red-300 text-sm">{formError}</p>
+                {formError.includes('session') && <button onClick={() => window.location.href = '/login'} className="text-xs text-[var(--vs-text-accent)] underline mt-1">Go to Login</button>}
+                {formError.includes('credit') && <button onClick={() => window.location.href = '/app/billing'} className="text-xs text-[var(--vs-text-accent)] underline mt-1">Get More Credits</button>}
               </div>
             </div>
           )}
 
-          {/* Generate Button */}
+          {/* Generate */}
           <button onClick={onGenerate} disabled={submitting}
             className={`w-full h-14 text-lg font-semibold rounded-[var(--vs-btn-radius)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
               !canCreate ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'vs-btn-primary'
             }`}
-            style={{ fontFamily: 'var(--vs-font-heading)' }}
             data-testid="generate-btn">
             {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating Job...</>
               : !canCreate ? <><ShieldAlert className="w-5 h-5" /> Generation Unavailable</>
@@ -599,14 +770,14 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-[var(--vs-text-muted)] uppercase tracking-wide" style={{ fontFamily: 'var(--vs-font-heading)' }}>Recent Videos</h3>
+          <h3 className="text-sm font-medium text-[var(--vs-text-muted)] uppercase tracking-wide">Recent Videos</h3>
           {recentJobs.length === 0 && <p className="text-sm text-[var(--vs-text-muted)]">No videos yet. Create your first!</p>}
           {recentJobs.map(j => (
             <button key={j.job_id} onClick={() => onViewJob(j)}
               className="w-full vs-card text-left hover:border-[var(--vs-border-glow)] transition-all"
               data-testid={`recent-job-${j.job_id}`}>
               <p className="text-sm font-medium text-white truncate">{j.title}</p>
-              <p className="text-xs text-[var(--vs-text-muted)] mt-1" style={{ fontFamily: 'var(--vs-font-mono)' }}>{new Date(j.created_at).toLocaleDateString()}</p>
+              <p className="text-xs text-[var(--vs-text-muted)] mt-1">{new Date(j.created_at).toLocaleDateString()}</p>
             </button>
           ))}
         </div>
@@ -615,371 +786,279 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   );
 }
 
-// ─── PROCESSING PHASE ─────────────────────────────────────────────────────
-
-function ProcessingPhase({ job }) {
-  const [elapsed, setElapsed] = useState(0);
-
-  // Tick elapsed timer every second
-  useEffect(() => {
-    if (!job?.created_at) return;
-    const start = new Date(job.created_at).getTime();
-    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [job?.created_at]);
-
-  if (!job) return (
-    <div className="flex items-center justify-center py-20" data-testid="processing-loading">
-      <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-      <span className="ml-3 text-slate-400">Connecting to pipeline...</span>
-    </div>
-  );
-
-  const sceneProgress = job.scene_progress || [];
-  const stages = job.stages || {};
-  const estTotal = job.estimated_total_sec || 60;
-  const estRemaining = Math.max(0, estTotal - elapsed);
-  const imagesRunning = stages.images?.status === 'RUNNING' || stages.images?.status === 'RETRYING';
-  const voicesRunning = stages.voices?.status === 'RUNNING' || stages.voices?.status === 'RETRYING';
-  const parallelRunning = imagesRunning || voicesRunning;
-
-  // Find first ready image for hero display
-  const firstReadyScene = sceneProgress.find(sp => sp.has_image && sp.image_url);
-
-  return (
-    <div className="space-y-6" data-testid="processing-phase">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-white">{job.title || 'Generating Video...'}</h2>
-        <p className="text-slate-400 mt-1">{job.current_step || 'Processing...'}</p>
-      </div>
-
-      {/* Progress bar + time estimate */}
-      <div className="max-w-2xl mx-auto">
-        <Progress value={job.progress || 0} className="h-3" />
-        <div className="flex justify-between items-center mt-2">
-          <p className="text-sm text-slate-400">{job.progress || 0}%</p>
-          {job.status === 'PROCESSING' && (
-            <p className="text-sm text-slate-500 flex items-center gap-1" data-testid="time-estimate">
-              <Clock className="w-3.5 h-3.5" />
-              {estRemaining > 0 ? `~${estRemaining}s remaining` : 'Finishing up...'}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Stage indicators — show parallel execution */}
-      <div className="flex justify-center gap-2" data-testid="stage-indicators">
-        {['scenes', 'images', 'voices'].map((name) => {
-          const Icon = STAGE_ICONS[name];
-          const s = stages[name] || {};
-          const isComplete = s.status === 'COMPLETED';
-          const isRunning = s.status === 'RUNNING' || s.status === 'RETRYING';
-          const isFailed = s.status === 'FAILED';
-          return (
-            <div key={name} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all
-              ${isComplete ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                : isRunning ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse'
-                : isFailed ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                : 'bg-slate-800/50 text-slate-500 border border-slate-700/30'}`}
-              data-testid={`stage-${name}`}>
-              {isComplete ? <CheckCircle className="w-4 h-4" />
-                : isRunning ? <Loader2 className="w-4 h-4 animate-spin" />
-                : isFailed ? <XCircle className="w-4 h-4" />
-                : <Icon className="w-4 h-4" />}
-              {STAGE_LABELS[name]}
-              {s.retry_count > 0 && <span className="text-xs opacity-60">(retry {s.retry_count})</span>}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Parallel indicator */}
-      {parallelRunning && (
-        <p className="text-center text-xs text-purple-400 flex items-center justify-center gap-1" data-testid="parallel-indicator">
-          <Sparkles className="w-3 h-3" /> Images & audio generating in parallel for faster results
-        </p>
-      )}
-
-      {/* HERO: Show first ready image immediately */}
-      {firstReadyScene && (
-        <div className="max-w-lg mx-auto" data-testid="first-image-hero">
-          <div className="relative rounded-xl overflow-hidden border border-green-500/30 shadow-lg shadow-green-500/10">
-            <img src={firstReadyScene.image_url} alt={firstReadyScene.title || 'Scene preview'}
-              className="w-full aspect-video object-cover" />
-            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-              <p className="text-sm text-white font-medium">{firstReadyScene.title}</p>
-              <p className="text-xs text-green-400">Scene ready</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Scene filmstrip — shows all scenes with progress */}
-      {sceneProgress.length > 0 && (
-        <div data-testid="filmstrip">
-          <h3 className="text-sm font-medium text-slate-400 mb-3 text-center">Scene Progress</h3>
-          <div className="flex justify-center gap-3 flex-wrap">
-            {sceneProgress.map(sp => (
-              <div key={sp.scene_number}
-                className={`w-32 rounded-lg overflow-hidden border transition-all ${
-                  sp.has_image ? 'border-green-500/40' : 'border-slate-700/40'}`}
-                data-testid={`scene-thumb-${sp.scene_number}`}>
-                {sp.has_image && sp.image_url ? (
-                  <img src={sp.image_url} alt={`Scene ${sp.scene_number}`} className="w-32 h-20 object-cover" />
-                ) : (
-                  <div className="w-32 h-20 bg-slate-800/50 flex items-center justify-center">
-                    {imagesRunning ? <Loader2 className="w-5 h-5 text-purple-400 animate-spin" /> : <Image className="w-5 h-5 text-slate-600" />}
-                  </div>
-                )}
-                <div className="p-1.5 bg-slate-900/80">
-                  <p className="text-xs text-slate-400 truncate">{sp.title}</p>
-                  <div className="flex gap-1 mt-0.5">
-                    {sp.has_image && <CheckCircle className="w-3 h-3 text-green-400" />}
-                    {sp.has_voice && <Mic className="w-3 h-3 text-blue-400" />}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="text-center">
-        <p className="text-xs text-slate-500 flex items-center justify-center gap-1">
-          <Clock className="w-3 h-3" /> Video generation continues safely in the background. You can leave and return.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── DONE PHASE ───────────────────────────────────────────────────────────
-
-function DonePhase({ job, jobId, onNew, storyText, animStyle }) {
+// ─── POST-GENERATION PHASE (State Machine Driven) ─────────────────────────────
+// Renders based on postGen.uiState ONLY. No contradictory states possible.
+function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation, storyText, animStyle }) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const navigate = useNavigate();
-  if (!job) return null;
-  const timing = job.timing || {};
+  const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
+  const displayTitle = jobTitle || job?.title || 'Your Video';
+  const timing = job?.timing || {};
+
+  // Status badge configuration — driven by uiState only
+  const STATUS_CONFIG = {
+    VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Validating Assets', subtitle: 'Checking preview and download availability...' },
+    READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <CheckCircle className="w-5 h-5 text-emerald-400" />, title: 'Video Ready', subtitle: 'Preview and download verified' },
+    PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Video Saved', subtitle: downloadReady ? 'Download available — preview may be limited' : 'Processing assets...' },
+    FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <AlertCircle className="w-5 h-5 text-red-400" />, title: 'Generation Issue', subtitle: failReason || 'Something went wrong' },
+  };
+  const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
   const handleCopyLink = () => {
-    if (job.output_url) {
-      navigator.clipboard.writeText(job.output_url).then(() => {
+    const url = shareUrl || downloadUrl;
+    if (url) {
+      navigator.clipboard.writeText(url).then(() => {
         setCopied(true);
-        toast.success('Video link copied!');
+        toast.success('Link copied!');
         setTimeout(() => setCopied(false), 2000);
       });
     }
   };
 
+  const handleDownload = async () => {
+    if (!downloadReady || !downloadUrl) return;
+    setDownloading(true);
+    try {
+      window.open(downloadUrl, '_blank');
+      toast.success('Download started!');
+    } catch {
+      toast.error('Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleShare = (platform) => {
-    const url = encodeURIComponent(job.output_url || '');
-    const text = encodeURIComponent(`Check out this AI-generated story video: "${job.title}" — Made with Visionary Suite`);
+    const url = encodeURIComponent(shareUrl || downloadUrl || '');
+    const text = encodeURIComponent(`Check out this AI-generated story video: "${displayTitle}" — Made with Visionary Suite`);
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
       whatsapp: `https://wa.me/?text=${text}%20${url}`,
     };
     if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400');
   };
 
   return (
-    <div className="space-y-8" data-testid="done-phase">
-      <div className="text-center">
-        <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center mb-4">
-          <CheckCircle className="w-8 h-8 text-green-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white">{job.title}</h2>
-        <p className="text-green-400 mt-1">Your story is ready!</p>
-        <p className="text-slate-400 text-sm mt-2">Preview your story, export as MP4, or download the Story Pack.</p>
-      </div>
-
-      <div className="flex flex-col items-center gap-3 max-w-sm mx-auto">
-        <Link to={`/app/story-preview/${job.job_id}`} className="w-full">
-          <Button className="bg-purple-600 hover:bg-purple-700 w-full" data-testid="view-preview-btn">
-            <Eye className="w-4 h-4 mr-2" /> View Preview & Export MP4
-          </Button>
-        </Link>
-        {job.story_pack_url && (
-          <a href={job.story_pack_url} target="_blank" rel="noopener noreferrer" className="w-full">
-            <Button variant="outline" className="border-teal-500/50 text-teal-400 hover:bg-teal-500/10 w-full" data-testid="download-zip-btn">
-              <Package className="w-4 h-4 mr-2" /> Download Story Pack ZIP
-            </Button>
-          </a>
-        )}
-        <Button onClick={handleCopyLink} variant="outline" className="border-slate-700 text-slate-300 w-full" data-testid="copy-link-btn">
-          {copied ? <CheckCircle className="w-4 h-4 mr-2 text-green-400" /> : <Link2 className="w-4 h-4 mr-2" />}
-          {copied ? 'Copied!' : 'Share Preview Link'}
-        </Button>
-      </div>
-
-      <div className="mt-4 p-4 rounded-xl bg-slate-800/30 border border-slate-700/30" data-testid="share-section">
-        <p className="text-sm text-slate-400 text-center mb-3 flex items-center justify-center gap-2">
-          <Share2 className="w-4 h-4" /> Share your creation
-        </p>
-        <div className="flex justify-center gap-3">
-          <button onClick={() => handleShare('twitter')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1DA1F2]/20 border border-slate-600/50 hover:border-[#1DA1F2]/50 transition-all" data-testid="share-twitter"><span className="text-sm font-bold text-slate-300">X</span></button>
-          <button onClick={() => handleShare('facebook')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#1877F2]/20 border border-slate-600/50 hover:border-[#1877F2]/50 transition-all" data-testid="share-facebook"><span className="text-sm font-bold text-slate-300">f</span></button>
-          <button onClick={() => handleShare('whatsapp')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#25D366]/20 border border-slate-600/50 hover:border-[#25D366]/50 transition-all" data-testid="share-whatsapp"><span className="text-sm font-bold text-slate-300">W</span></button>
-          <button onClick={() => handleShare('linkedin')} className="p-2.5 rounded-xl bg-slate-700/50 hover:bg-[#0A66C2]/20 border border-slate-600/50 hover:border-[#0A66C2]/50 transition-all" data-testid="share-linkedin"><span className="text-sm font-bold text-slate-300">in</span></button>
-        </div>
-      </div>
-
-      <div className="text-center">
-        <Button onClick={onNew} variant="ghost" className="text-slate-400 hover:text-white" data-testid="new-video-btn">
-          <Sparkles className="w-4 h-4 mr-2" /> Create Another Story
-        </Button>
-      </div>
-
-      <CreationActionsBar
-        toolType="story-video-studio"
-        originalPrompt={storyText || job.story_text || job.title || ''}
-        originalSettings={{ style: animStyle || job.animation_style, ageGroup: job.age_group }}
-        parentGenerationId={jobId || job.job_id}
-        remixSourceTitle={job.title}
-      />
-
-      {/* ── Story Video Chain Actions ── */}
-      <div className="bg-slate-900/80 border border-indigo-500/20 rounded-xl p-5 space-y-4" data-testid="video-chain-actions">
-        <h3 className="text-base font-semibold text-white flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-indigo-400" />
-          Continue Your Story
-        </h3>
-        <p className="text-sm text-slate-400">Turn this into a series — create the next episode with the same characters and style.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => {
-              const jid = jobId || job?.job_id;
-              if (jid) navigate(`/app/story-video-studio?continue=${jid}`);
-            }}
-            className="flex items-center gap-3 p-3 rounded-lg border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-all text-left"
-            data-testid="video-continue-btn"
-          >
-            <Play className="w-5 h-5 shrink-0" />
-            <div>
-              <p className="text-xs font-semibold">Quick Continue</p>
-              <p className="text-[10px] opacity-70">Same characters & style</p>
-            </div>
-          </button>
-          <button
-            onClick={onNew}
-            className="flex items-center gap-3 p-3 rounded-lg border border-pink-500/30 text-pink-400 hover:bg-pink-500/10 transition-all text-left"
-            data-testid="video-remix-btn"
-          >
-            <RefreshCw className="w-5 h-5 shrink-0" />
-            <div>
-              <p className="text-xs font-semibold">Remix</p>
-              <p className="text-[10px] opacity-70">New story, fresh start</p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
-
-      {(job.scene_progress || []).length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-3 text-center">Scenes</h3>
-          <div className="flex justify-center gap-3 flex-wrap">
-            {(job.scene_progress || []).map(sp => sp.has_image && sp.image_url && (
-              <img key={sp.scene_number} src={sp.image_url} alt={`Scene ${sp.scene_number}`}
-                className="w-28 h-18 object-cover rounded-lg border border-slate-700/40" />
-            ))}
+    <div className="space-y-6 vs-fade-up-1" data-testid="postgen-phase">
+      {/* Status Badge — single truth from uiState */}
+      <div className={`rounded-xl border p-5 ${statusCfg.bg}`} data-testid="status-badge">
+        <div className="flex items-center gap-3">
+          {statusCfg.icon}
+          <div>
+            <h2 className="text-lg font-bold text-white" data-testid="status-title">{statusCfg.title}</h2>
+            <p className="text-sm text-[var(--vs-text-secondary)]" data-testid="status-subtitle">{statusCfg.subtitle}</p>
           </div>
         </div>
-      )}
+      </div>
 
-      <div className="max-w-xl mx-auto bg-slate-800/30 rounded-xl border border-slate-700/30 p-4" data-testid="timing-breakdown">
-        <h4 className="text-sm font-medium text-slate-400 mb-2">Performance</h4>
-        <div className="grid grid-cols-4 gap-2 text-center text-xs">
-          {['scenes', 'images', 'voices', 'total'].map(k => (
-            <div key={k}>
-              <p className="text-slate-500 capitalize">{k}</p>
-              <p className="text-white font-medium">{timing[`${k}_ms`] ? `${(timing[`${k}_ms`] / 1000).toFixed(1)}s` : '-'}</p>
+      <div className="grid lg:grid-cols-5 gap-6">
+        {/* LEFT: Preview Area */}
+        <div className="lg:col-span-3">
+          {/* Preview Image / Fallback */}
+          <div className="rounded-xl overflow-hidden border border-[var(--vs-border)]" data-testid="preview-container">
+            {uiState === 'VALIDATING' ? (
+              <div className="aspect-video bg-slate-800 flex items-center justify-center animate-pulse">
+                <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+              </div>
+            ) : previewReady && posterUrl ? (
+              <SafeImage
+                src={posterUrl}
+                alt={displayTitle}
+                aspectRatio="16/9"
+                titleOverlay={displayTitle}
+                className="rounded-xl"
+                data-testid="preview-image"
+              />
+            ) : (
+              <SafeImage
+                src={null}
+                alt={displayTitle}
+                aspectRatio="16/9"
+                titleOverlay={displayTitle}
+                fallbackType="gradient"
+                className="rounded-xl"
+                data-testid="preview-fallback"
+              />
+            )}
+          </div>
+
+          {/* Scene thumbnails — use SafeImage */}
+          {(job?.scene_progress || []).length > 0 && (
+            <div className="mt-4" data-testid="scene-thumbnails">
+              <h3 className="text-sm font-medium text-[var(--vs-text-muted)] mb-3">Scenes</h3>
+              <div className="flex gap-2 flex-wrap">
+                {(job.scene_progress || []).map(sp => (
+                  <div key={sp.scene_number} className="w-24 rounded-lg overflow-hidden border border-[var(--vs-border-subtle)]">
+                    <SafeImage
+                      src={sp.image_url}
+                      alt={sp.title || `Scene ${sp.scene_number}`}
+                      aspectRatio="16/10"
+                      titleOverlay={sp.title}
+                      data-testid={`scene-thumb-${sp.scene_number}`}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
+
+          {/* View Full Preview link */}
+          {jobId && (uiState === 'READY' || uiState === 'PARTIAL_READY') && (
+            <div className="mt-4">
+              <Link to={`/app/story-preview/${jobId}`} className="w-full">
+                <Button className="w-full bg-purple-600 hover:bg-purple-700" data-testid="view-full-preview-btn">
+                  <Eye className="w-4 h-4 mr-2" /> View Full Preview & Export MP4
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Actions Panel — gated by uiState */}
+        <div className="lg:col-span-2 space-y-4">
+          <h3 className="text-white font-semibold text-lg" data-testid="video-title">{displayTitle}</h3>
+
+          {/* Download — only when downloadReady is true */}
+          <Button
+            onClick={handleDownload}
+            disabled={!downloadReady || downloading || uiState === 'VALIDATING'}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            data-testid="download-btn"
+          >
+            {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+            {downloading ? 'Downloading...' : !downloadReady ? (uiState === 'VALIDATING' ? 'Verifying...' : 'Unavailable') : 'Download Video'}
+          </Button>
+
+          {/* Story Pack */}
+          {storyPackUrl && downloadReady && (
+            <a href={storyPackUrl} target="_blank" rel="noopener noreferrer" className="block">
+              <Button variant="outline" className="w-full border-teal-500/50 text-teal-400 hover:bg-teal-500/10" data-testid="download-pack-btn">
+                <Package className="w-4 h-4 mr-2" /> Download Story Pack
+              </Button>
+            </a>
+          )}
+
+          {/* Share — only when shareReady is true */}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleCopyLink} disabled={!shareReady && !downloadReady} className="flex-1 border-slate-700 text-slate-300 hover:text-white text-xs disabled:opacity-40" data-testid="share-copy-btn">
+              {copied ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
+              {copied ? 'Copied' : 'Copy Link'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleShare('twitter')} disabled={!shareReady} className="border-slate-700 text-slate-300 hover:text-white px-3 disabled:opacity-40" data-testid="share-twitter-btn">
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleShare('whatsapp')} disabled={!shareReady} className="border-slate-700 text-slate-300 hover:text-white px-3 disabled:opacity-40" data-testid="share-whatsapp-btn">
+              <Share2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+
+          {/* FAILED state: show reason + retry/resume */}
+          {uiState === 'FAILED' && (
+            <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 space-y-3" data-testid="fail-details">
+              <p className="text-red-300 text-sm">{failReason}</p>
+              <div className="flex gap-2">
+                <Button onClick={onResume} size="sm" className="bg-purple-600 hover:bg-purple-700 flex-1" data-testid="resume-btn">
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Resume
+                </Button>
+                <Button onClick={onNew} size="sm" variant="outline" className="border-slate-700 text-slate-300 flex-1" data-testid="start-over-btn">
+                  Start Over
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">Credits have been preserved for retry.</p>
+            </div>
+          )}
+
+          {/* PARTIAL_READY: explain and offer retry */}
+          {uiState === 'PARTIAL_READY' && !previewReady && (
+            <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3" data-testid="partial-ready-info">
+              <p className="text-amber-300 text-xs mb-2">Preview unavailable — {stageDetail}</p>
+              <Button onClick={onRetryValidation} size="sm" variant="outline" className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs" data-testid="retry-validation-btn">
+                <RefreshCw className="w-3 h-3 mr-1" /> Retry Preview
+              </Button>
+            </div>
+          )}
+
+          {/* Performance timing */}
+          {(timing.total_ms || timing.scenes_ms) && (
+            <div className="bg-slate-800/30 rounded-lg border border-slate-700/30 p-3" data-testid="timing-breakdown">
+              <h4 className="text-xs font-medium text-slate-400 mb-2">Performance</h4>
+              <div className="grid grid-cols-4 gap-1 text-center text-xs">
+                {['scenes', 'images', 'voices', 'total'].map(k => (
+                  <div key={k}>
+                    <p className="text-slate-500 capitalize">{k}</p>
+                    <p className="text-white font-medium">{timing[`${k}_ms`] ? `${(timing[`${k}_ms`] / 1000).toFixed(1)}s` : '-'}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Credits */}
+          {job?.credits_charged > 0 && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <Coins className="w-3 h-3" /> {job.credits_charged} credits used
+            </p>
+          )}
+
+          {/* New Video */}
+          {uiState !== 'FAILED' && (
+            <Button onClick={onNew} variant="ghost" className="w-full text-slate-400 hover:text-white" data-testid="new-video-btn">
+              <Sparkles className="w-4 h-4 mr-2" /> Create Another Story
+            </Button>
+          )}
         </div>
       </div>
 
-      <p className="text-center text-xs text-slate-500">
-        <Coins className="w-3 h-3 inline mr-1" /> {job.credits_charged || 0} credits used
-      </p>
-    </div>
-  );
-}
+      {/* Story Chain Actions */}
+      {(uiState === 'READY' || uiState === 'PARTIAL_READY') && (
+        <>
+          <CreationActionsBar
+            toolType="story-video-studio"
+            originalPrompt={storyText || job?.story_text || job?.title || ''}
+            originalSettings={{ style: animStyle || job?.animation_style, ageGroup: job?.age_group }}
+            parentGenerationId={jobId || job?.job_id}
+            remixSourceTitle={displayTitle}
+          />
 
-// ─── ERROR PHASE ──────────────────────────────────────────────────────────
-
-function ErrorPhase({ job, onResume, onNew }) {
-  const stages = job?.stages || {};
-  const failedStage = Object.entries(stages).find(([, v]) => v.status === 'FAILED');
-  const hasFallback = job?.fallback?.has_preview || job?.fallback?.story_pack_url || job?.fallback?.fallback_video_url;
-  const hasAnyAssets = hasFallback || job?.has_recoverable_assets || (job?.scene_progress?.some(s => s.has_image));
-  const isServerRestart = job?.error?.includes('server restart') || job?.error?.includes('interrupted');
-
-  return (
-    <div className="max-w-lg mx-auto text-center space-y-6 py-12" data-testid="error-phase">
-      <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${hasAnyAssets ? 'bg-amber-500/20' : 'bg-red-500/20'}`}>
-        {hasAnyAssets ? <Package className="w-8 h-8 text-amber-400" /> : <AlertCircle className="w-8 h-8 text-red-400" />}
-      </div>
-      <h2 className="text-xl font-bold text-white">
-        {hasAnyAssets ? 'Your Story Assets Are Ready' : 'Generation Failed'}
-      </h2>
-      <p className="text-slate-400">
-        {isServerRestart
-          ? 'The process was interrupted, but your completed assets have been saved. You can resume or view what was generated.'
-          : hasAnyAssets
-            ? 'Generation encountered an issue, but we saved your story assets — images, audio, and more.'
-            : (job?.error || 'An error occurred during generation.')}
-      </p>
-      {failedStage && !hasAnyAssets && (
-        <p className="text-sm text-slate-500">
-          Failed at: <span className="text-red-400 font-medium">{failedStage[0]}</span>
-          {failedStage[1].retry_count > 0 && ` (after ${failedStage[1].retry_count} retries)`}
-        </p>
-      )}
-
-      <div className="flex justify-center gap-2">
-        {STAGE_ORDER.map(name => {
-          const s = stages[name] || {};
-          return (
-            <div key={name} className={`px-2 py-1 rounded text-xs font-medium ${
-              s.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400'
-                : s.status === 'FAILED' ? 'bg-red-500/20 text-red-400'
-                : 'bg-slate-800/50 text-slate-500'}`}>
-              {STAGE_LABELS[name]}
+          <div className="bg-slate-900/80 border border-indigo-500/20 rounded-xl p-5 space-y-4" data-testid="video-chain-actions">
+            <h3 className="text-base font-semibold text-white flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-indigo-400" />
+              Continue Your Story
+            </h3>
+            <p className="text-sm text-slate-400">Turn this into a series — create the next episode.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  const jid = jobId || job?.job_id;
+                  if (jid) navigate(`/app/story-video-studio?continue=${jid}`);
+                }}
+                className="flex items-center gap-3 p-3 rounded-lg border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-all text-left"
+                data-testid="video-continue-btn"
+              >
+                <Play className="w-5 h-5 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold">Quick Continue</p>
+                  <p className="text-[10px] opacity-70">Same characters & style</p>
+                </div>
+              </button>
+              <button
+                onClick={onNew}
+                className="flex items-center gap-3 p-3 rounded-lg border border-pink-500/30 text-pink-400 hover:bg-pink-500/10 transition-all text-left"
+                data-testid="video-remix-btn"
+              >
+                <RefreshCw className="w-5 h-5 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold">Remix</p>
+                  <p className="text-[10px] opacity-70">New story, fresh start</p>
+                </div>
+              </button>
             </div>
-          );
-        })}
-      </div>
+          </div>
 
-      <div className="flex flex-col items-center gap-3">
-        {/* Primary actions — always show preview and resume when assets exist */}
-        {hasAnyAssets && (
-          <Link to={`/app/story-preview/${job.job_id}`}>
-            <Button className="bg-amber-600 hover:bg-amber-700 w-64" data-testid="view-assets-btn">
-              <Eye className="w-4 h-4 mr-2" /> Open Preview
-            </Button>
-          </Link>
-        )}
-        {job?.fallback?.story_pack_url && (
-          <a href={job.fallback.story_pack_url} target="_blank" rel="noopener noreferrer">
-            <Button className="bg-teal-600 hover:bg-teal-700 w-64" data-testid="download-zip-btn">
-              <Download className="w-4 h-4 mr-2" /> Download Story Pack ZIP
-            </Button>
-          </a>
-        )}
-        <Button onClick={onResume} className="bg-purple-600 hover:bg-purple-700 w-64" data-testid="resume-btn">
-          <RotateCcw className="w-4 h-4 mr-2" /> Resume from Checkpoint
-        </Button>
-        <Button onClick={onNew} variant="outline" className="border-slate-700 text-slate-300 w-64" data-testid="new-video-btn-error">
-          Start Over
-        </Button>
-      </div>
-
-      <p className="text-xs text-slate-500">Credits have been refunded. You can resume or start fresh.</p>
+          <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
+        </>
+      )}
     </div>
   );
 }

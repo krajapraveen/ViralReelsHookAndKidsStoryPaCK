@@ -8,6 +8,7 @@ import {
   Loader2, Volume2, Eye, Clock, Zap, SkipForward
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SafeImage } from '../components/SafeImage';
 import api from '../utils/api';
 
 // Web Preview Player — plays scene images as slideshow with synced audio
@@ -98,7 +99,7 @@ function PreviewPlayer({ scenes, autoPlay = false }) {
       {/* Image Display */}
       <div className="relative aspect-video bg-slate-900 flex items-center justify-center">
         {hasImage ? (
-          <img src={scene.image_url} alt={scene.title} className="w-full h-full object-contain" />
+          <SafeImage src={scene.image_url} alt={scene.title} aspectRatio="16/9" titleOverlay={scene.title} />
         ) : (
           <div className="text-center text-slate-500">
             <Image className="w-12 h-12 mx-auto mb-2 opacity-40" />
@@ -180,7 +181,7 @@ function SceneCard({ scene, index, total }) {
       {/* Thumbnail / placeholder */}
       <div className="w-24 h-16 rounded bg-slate-900 flex-shrink-0 overflow-hidden">
         {hasImage ? (
-          <img src={scene.image_url} alt="" className="w-full h-full object-cover" />
+          <SafeImage src={scene.image_url} alt={scene.title || `Scene ${scene.scene_number}`} aspectRatio="16/10" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Loader2 className="w-4 h-4 text-slate-600 animate-spin" />
@@ -296,10 +297,8 @@ export default function ProgressiveGeneration({
       onComplete?.(data);
     }
     if (data.status === 'failed') {
-      // Check for fallback
-      if (data.metadata?.fallback_status) {
-        navigate(`/app/story-preview/${jobId}`);
-      }
+      // Let parent handle failure — do not navigate
+      onComplete?.({ status: 'FAILED', error: data.error || data.message, ...data.metadata });
     }
   }, [jobId, navigate, onComplete]);
 
@@ -351,15 +350,15 @@ export default function ProgressiveGeneration({
               setStage(job.status === 'COMPLETED' ? 'complete' : 'preview');
             }
           } catch {}
-          if (job.status === 'COMPLETED') onComplete?.(job);
+          // Signal parent for both COMPLETED and PARTIAL
+          onComplete?.(job);
           return;
         }
 
         if (job.status === 'FAILED') {
           clearInterval(pollRef.current);
-          if (job.fallback?.has_preview || job.fallback?.story_pack_url) {
-            navigate(`/app/story-preview/${jobId}`);
-          }
+          // Let parent handle failure transitions — do not navigate away
+          onComplete?.(job);
         }
       } catch {}
     };
