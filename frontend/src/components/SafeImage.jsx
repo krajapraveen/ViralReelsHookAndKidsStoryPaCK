@@ -70,7 +70,6 @@ export function SafeImage({
           src={src}
           alt={alt}
           loading="lazy"
-          {...(!isDataUri && { crossOrigin: 'anonymous' })}
           style={{ objectFit }}
           className={`w-full h-full transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} ${imgClassName}`}
           onLoad={() => setLoaded(true)}

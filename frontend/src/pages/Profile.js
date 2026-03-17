@@ -771,7 +771,7 @@ function MyJobsDashboard({ jobs, loading, filter, setFilter, onRefresh, onResume
             {filter === 'all' ? 'Create your first Story Video to see it here.' : 'No jobs match this filter.'}
           </p>
           {filter === 'all' && (
-            <Link to="/app/story-video">
+            <Link to="/app/story-video-studio">
               <Button className="bg-purple-600 hover:bg-purple-700">
                 <Film className="w-4 h-4 mr-2" /> Create Story Video
               </Button>

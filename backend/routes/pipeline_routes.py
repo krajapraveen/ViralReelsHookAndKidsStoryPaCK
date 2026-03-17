@@ -147,7 +147,8 @@ async def public_gallery(category: str = None, sort: str = "newest", featured: b
     query = {
         "status": "COMPLETED",
         "$or": [
-            {"output_url": {"$exists": True, "$ne": None}},
+            {"output_url": {"$exists": True, "$nin": [None, ""]}},
+            {"thumbnail_url": {"$exists": True, "$nin": [None, ""]}},
             {"is_showcase": True},
         ]
     }
