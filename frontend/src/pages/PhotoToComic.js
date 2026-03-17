@@ -4,7 +4,8 @@ import {
   ArrowLeft, Upload, Wand2, Loader2, Download, Check, Image,
   Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
   Grid3X3, User, Palette, RefreshCw, BookOpen, Share2,
-  Copy, Twitter, MessageCircle, ExternalLink, ChevronRight
+  Copy, Twitter, MessageCircle, ExternalLink, ChevronRight,
+  GitBranch
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
@@ -83,38 +84,27 @@ export default function PhotoToComic() {
     })();
   }, []);
 
-  // ─── Signed URL Upload ───────────────────────────────────────────
+  // ─── Upload to R2 (via server proxy — no CORS issues) ────────
   const uploadToR2 = useCallback(async (file) => {
     setUploadProgress(10);
     try {
-      // Step 1: Get presigned URL
-      const presigned = await api.post('/api/storage/presigned-upload', {
-        filename: file.name,
-        content_type: file.type,
-        file_size: file.size,
-        purpose: 'photo_upload',
-      });
-      const { upload_url, storage_key: key } = presigned.data;
+      const formData = new FormData();
+      formData.append('file', file);
       setUploadProgress(30);
 
-      // Step 2: Direct upload to R2
-      const putResp = await fetch(upload_url, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
+      const res = await api.post('/api/storage/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => {
+          if (e.total) setUploadProgress(Math.round(30 + (e.loaded / e.total) * 60));
+        },
       });
-      if (!putResp.ok) throw new Error('PUT failed');
-      setUploadProgress(80);
 
-      // Step 3: Confirm upload
-      await api.post('/api/storage/confirm-upload', { storage_key: key });
       setUploadProgress(100);
-
-      setStorageKey(key);
-      return key;
+      setStorageKey(res.data.storage_key);
+      return res.data.storage_key;
     } catch (err) {
-      console.warn('Direct R2 upload unavailable, using fallback:', err.message);
-      setUploadProgress(100); // Show complete — will use FormData fallback
+      console.warn('R2 upload failed, using fallback:', err.message);
+      setUploadProgress(100);
       setStorageKey(null);
       return null;
     }
@@ -469,6 +459,16 @@ export default function PhotoToComic() {
                   See all styles <ChevronRight className="w-3 h-3" />
                 </button>
               </div>
+
+              {/* Story Chain link */}
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/app/story-chain/${jobId}`)}
+                className="w-full border-slate-700 text-slate-300 hover:text-white hover:border-purple-500/40"
+                data-testid="view-story-chain-btn"
+              >
+                <GitBranch className="w-4 h-4 mr-2 text-purple-400" /> View Story Chain
+              </Button>
 
               {/* Create new */}
               <Button

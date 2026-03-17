@@ -477,7 +477,11 @@ async def generate_comic(
     }
     
     await db.photo_to_comic_jobs.insert_one(job_data)
-    
+
+    # Assign story chain fields
+    from services.story_chain import ensure_chain_fields
+    await ensure_chain_fields(job_id, user["id"], parent_job_id=None, branch_type="original")
+
     # Process in background
     if mode == "avatar":
         background_tasks.add_task(
@@ -1508,6 +1512,10 @@ async def continue_story(
     }
     await db.photo_to_comic_jobs.insert_one(job_data)
 
+    # Assign story chain fields (continuation from parent)
+    from services.story_chain import ensure_chain_fields
+    await ensure_chain_fields(job_id, user["id"], parent_job_id=request.parentJobId, branch_type="continuation")
+
     hd_export = parent.get("addOns", {}).get("hd_export", False)
     background_tasks.add_task(
         process_comic_strip,
@@ -1565,3 +1573,74 @@ async def get_remix_config(job_id: str, user: dict = Depends(get_current_user)):
         "sourcePhotoUrl": source_url,
         "storageKey": job.get("source_storage_key"),
     }
+
+
+
+# ── STORY CHAIN ENDPOINTS ───────────────────────────────────────────────
+
+@router.get("/chain/{chain_id}")
+async def get_story_chain(chain_id: str, user: dict = Depends(get_current_user)):
+    """Get the full story chain tree."""
+    from services.story_chain import get_chain_tree
+    chain = await get_chain_tree(chain_id, user["id"])
+    if not chain:
+        raise HTTPException(status_code=404, detail="Story chain not found")
+    return chain
+
+
+@router.get("/my-chains")
+async def get_user_chains(user: dict = Depends(get_current_user)):
+    """Get all story chains for the current user, grouped."""
+    from services.story_chain import backfill_chain_ids
+
+    # Backfill any jobs missing chain IDs
+    backfilled = await backfill_chain_ids(user["id"])
+    if backfilled:
+        logger.info(f"[CHAIN] Backfilled {backfilled} jobs for user {user['id'][:8]}")
+
+    # Get distinct chain IDs
+    pipeline = [
+        {"$match": {"userId": user["id"], "story_chain_id": {"$exists": True}}},
+        {"$group": {
+            "_id": "$story_chain_id",
+            "root_job_id": {"$first": "$root_job_id"},
+            "total_episodes": {"$sum": 1},
+            "completed": {"$sum": {"$cond": [{"$in": ["$status", ["COMPLETED", "PARTIAL_COMPLETE"]]}, 1, 0]}},
+            "last_updated": {"$max": "$createdAt"},
+            "styles": {"$addToSet": "$style"},
+            "continuations": {"$sum": {"$cond": [{"$eq": ["$branch_type", "continuation"]}, 1, 0]}},
+            "remixes": {"$sum": {"$cond": [{"$eq": ["$branch_type", "remix"]}, 1, 0]}},
+        }},
+        {"$sort": {"last_updated": -1}},
+        {"$limit": 50},
+    ]
+    chains = await db.photo_to_comic_jobs.aggregate(pipeline).to_list(50)
+
+    # Enrich with root job info
+    result = []
+    for c in chains:
+        root = await db.photo_to_comic_jobs.find_one(
+            {"id": c["root_job_id"]},
+            {"_id": 0, "id": 1, "resultUrl": 1, "resultUrls": 1, "panels": 1,
+             "title": 1, "style": 1, "genre": 1, "mode": 1, "storyPrompt": 1}
+        )
+        preview = None
+        if root:
+            preview = root.get("resultUrl") or (root.get("panels", [{}])[0].get("imageUrl") if root.get("panels") else None)
+
+        result.append({
+            "chain_id": c["_id"],
+            "root_job_id": c["root_job_id"],
+            "total_episodes": c["total_episodes"],
+            "completed": c["completed"],
+            "continuations": c["continuations"],
+            "remixes": c["remixes"],
+            "styles_used": c["styles"],
+            "last_updated": c["last_updated"],
+            "preview_url": preview,
+            "root_title": root.get("title") if root else None,
+            "root_style": root.get("style") if root else None,
+            "root_mode": root.get("mode") if root else None,
+        })
+
+    return {"chains": result, "total": len(result)}

@@ -1,12 +1,13 @@
 """
-Storage API — Direct-to-R2 signed URL uploads + lifecycle management.
+Storage API — R2 uploads + lifecycle management.
 
 Endpoints:
-  POST /api/storage/presigned-upload  — Get a signed URL for direct browser → R2 upload
+  POST /api/storage/presigned-upload  — Get a signed URL for direct browser -> R2 upload
+  POST /api/storage/upload            — Server-side proxy: browser -> backend -> R2 (no CORS)
   POST /api/storage/confirm-upload    — Confirm upload completion, register asset
   POST /api/storage/cleanup-temp      — Admin: trigger temp asset cleanup
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -14,6 +15,7 @@ import os
 import sys
 import asyncio
 import logging
+import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -90,6 +92,64 @@ async def get_presigned_upload_url(request: PresignedUploadRequest, user: dict =
     except Exception as e:
         logger.error(f"Presigned upload error: {e}")
         raise HTTPException(status_code=500, detail="Storage error")
+
+
+@router.post("/upload")
+async def proxy_upload(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Server-side upload proxy: browser -> backend -> R2.
+    Eliminates CORS dependency. Returns storage_key for use in generate.
+    """
+    if not file.content_type or file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed: {', '.join(ALLOWED_TYPES)}")
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB.")
+
+    try:
+        from services.cloudflare_r2_storage import CloudflareR2Storage
+        r2 = CloudflareR2Storage()
+        if not r2.is_configured:
+            raise HTTPException(status_code=503, detail="Storage service not configured")
+
+        ext = os.path.splitext(file.filename or "upload.jpg")[1] or ".jpg"
+        safe_name = f"upload{ext}"
+        project_id = f"uploads/{user['id'][:12]}"
+
+        ok, public_url, key = await r2.upload_bytes(content, "image", safe_name, project_id)
+        if not ok:
+            raise HTTPException(status_code=500, detail="Upload to storage failed")
+
+        # Track in pending_uploads
+        await db.pending_uploads.insert_one({
+            "user_id": user["id"],
+            "storage_key": key,
+            "public_url": public_url,
+            "content_type": file.content_type,
+            "file_size": len(content),
+            "purpose": "photo_upload",
+            "status": "confirmed",
+            "is_temp": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "confirmed_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=TEMP_TTL_HOURS)).isoformat(),
+        })
+
+        return {
+            "success": True,
+            "storage_key": key,
+            "public_url": public_url,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Proxy upload error: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed")
 
 
 class ConfirmUploadRequest(BaseModel):
