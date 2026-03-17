@@ -1,69 +1,81 @@
 # Visionary Suite — PRD
 
 ## Product Vision
-AI Creative Operating System with a **Create → Share → View → Remix** growth loop.
-Every output is a permanent CDN-backed asset in the network.
+AI Creative Operating System: **Create → Share → View → Remix**
+Every output is a permanent CDN-backed asset.
 
-### Strategic Focus (User Directive)
+### Strategic Principle
 > 1 flagship feature, 2 supporting features, everything else secondary.
 > Stop adding surface area. Deepen what exists.
 
+## Architecture Principles
+1. **DB must never claim success before storage confirms success**
+2. **Downloads are permanent CDN assets — no temp expiry**
+3. **Stage-based pipelines — not monolithic jobs**
+4. **Per-panel/per-page retries — never rerun entire job**
+5. **Assets validate before exposing download**
+
 ## Pipeline Architecture
 ```
-Prompt → Admission Controller → Credit Reserve → Queue (Priority) → Workers
-              ↓                                        ↓
-     Check: concurrency,                     Stage 1: Scenes (LLM)
-     queue depth, plan,                              ↓
-     LOAD LEVEL                        Stage 2: Images + Voices (PARALLEL)
-              ↓                        ↓ (direct litellm bypass)
-     ADMIT / DEGRADE / REJECT         Stage 3: Package + Export → R2 Upload
+Comic Story Book (8-stage pipeline):
+  stage_1: story_outline       → story_json persisted to DB
+  stage_2: page_plan           → page structure persisted
+  stage_3: panel_prompts       → prompts persisted (resumable)
+  stage_4: image_generation    → per-page retries (up to 3x each)
+  stage_5: page_assembly       → assembled pages
+  stage_6: export_creation     → actual PDF via reportlab
+  stage_7: storage_upload      → R2 upload + HEAD validation
+  stage_8: asset_registration  → user_assets DB records (status=ready)
+
+Story Video Pipeline (parallel):
+  admission → credit reserve → scenes(LLM) → images+voices(parallel) → package → R2
 ```
 
 ### Download Architecture (FIXED)
 ```
-Generation → Upload to R2 → Register in user_assets DB → Return CDN URL
+Generation → Upload to R2 → HEAD validate → Register in user_assets → Mark downloadable
 ```
-- All generated assets are **permanent** — no 5-minute expiry
-- Download buttons reference CDN URLs only
-- Asset validation (HEAD request) before enabling download
+- **user_assets** collection: asset_id, user_id, job_id, cdn_url, status=ready, is_downloadable=true, permanent=true
+- My Downloads reads ONLY from user_assets with status=ready
+- No 5-minute/30-minute expiry. No countdown. No temp files.
+- DownloadWithExpiry → PermanentDownload (backwards compatible)
 
 ### Graceful Degradation
-| Load Level | Queue | Free Users | Paid Users | Premium Users |
-|-----------|-------|------------|------------|---------------|
-| NORMAL | <10 | Full quality | Full quality | Full quality |
-| STRESSED | 10-19 | Reduced (2 scenes) | Full quality | Full quality |
-| SEVERE | 20-34 | PAUSED | Reduced (3 scenes) | Full quality |
-| CRITICAL | 35+ | PAUSED | PAUSED | Full quality |
+| Load Level | Free | Paid | Premium |
+|-----------|------|------|---------|
+| NORMAL | Full | Full | Full |
+| STRESSED | 2 scenes | Full | Full |
+| SEVERE | PAUSED | 3 scenes | Full |
+| CRITICAL | PAUSED | PAUSED | Full |
 
-## Distribution Loop (LIVE)
-- Public pages, explore, OG tags, sitemap, share, remix, watermark
-- **120 seeded creations** across 6 categories in 3 waves
-- **Creator Profiles** at `/creator/:username`
-- **Trending This Week** algorithmic carousel (views + remixes*5 + recency)
-- **Live Creations Feed** — real-time social proof, 7s auto-refresh, anonymized locations
+## Data Model
+- **comic_storybook_v2_jobs**: id, userId, status, current_stage, pages, pdfUrl, coverUrl, permanent, assets[]
+- **job_stage_runs**: job_id, stage_name, status, attempt_count, started_at, finished_at, error_message
+- **user_assets**: asset_id, user_id, job_id, asset_type, cdn_url, status, is_downloadable, permanent
+- **pipeline_jobs**: (story videos) with admission control + degradation
 
 ## Completed (All Sessions)
 1. Design system, homepage, dashboard, Story Video Pipeline
 2. Distribution loop (explore, public pages, remix, share, OG tags, sitemap)
-3. Content Seeding Phase A+B+C (120 videos total)
+3. Content Seeding (120 videos, 3 waves, 6 categories)
 4. Plan-based scene limits, credit reservation, scene caching
-5. Parallel image+voice execution, direct litellm bypass
-6. Admission controller + graceful degradation (4 load levels)
-7. Download architecture fix — permanent CDN assets, R2 upload, user_assets collection
-8. Creator Profile pages — `/creator/:username`
-9. Trending This Week — algorithmic carousel with weighted scoring
-10. **Live Creations Feed** — real-time activity feed, excludes seeded content, diverse locations
+5. Parallel execution, direct litellm bypass
+6. Admission controller + graceful degradation (4 tiers)
+7. Creator Profile pages, Trending This Week carousel, Live Creations Feed
+8. **Download architecture fix** — permanent CDN assets, user_assets collection
+9. **Comic Story Book REBUILT** — 8-stage pipeline, per-page retries, R2 upload, PDF via reportlab
+10. **My Downloads REBUILT** — permanent assets only, no expiry, validated CDN URLs
 
 ## Remaining Backlog
 ### P0
-- [ ] Photo to Comic UX improvements (hero section, upload-first flow, style presets, social proof)
+- [ ] Photo to Comic UX improvements (hero section, upload-first, style presets)
 
 ### P1
-- [ ] Direct-to-storage uploads via signed URLs (browser → R2, bypass backend)
-- [ ] Storage lifecycle (auto-delete temp assets after 72h)
+- [ ] Direct-to-storage uploads via signed URLs
+- [ ] Storage lifecycle (auto-delete temp intermediates after 72h)
 
 ### P2
-- [ ] BYO API / BYO Cloud mode
+- [ ] BYO API mode
 - [ ] Creator Challenges
 - [ ] Cashfree payments (live)
 - [ ] Email Notifications (BLOCKED — SendGrid)
