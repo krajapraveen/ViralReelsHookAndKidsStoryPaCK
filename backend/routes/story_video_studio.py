@@ -385,7 +385,13 @@ async def create_project(
         "status": "draft",
         "credits_spent": 0,
         "created_at": now,
-        "updated_at": now
+        "updated_at": now,
+        # Chain fields
+        "story_chain_id": project_id,
+        "root_project_id": project_id,
+        "parent_project_id": None,
+        "branch_type": "original",
+        "sequence_number": 0,
     }
     
     await db.story_projects.insert_one(project)
@@ -763,3 +769,152 @@ async def get_analytics():
             "total_credits_spent": total_credits
         }
     }
+
+
+# =============================================================================
+# STORY VIDEO CHAIN ENDPOINTS
+# =============================================================================
+
+class ContinueVideoRequest(BaseModel):
+    parent_project_id: str
+    story_text: str
+    title: Optional[str] = None
+    keep_style: bool = True
+
+
+@router.post("/continue-video")
+async def continue_video(req: ContinueVideoRequest, user_id: str = None):
+    """Quick Continue: create a new video project that continues an existing chain."""
+    if not user_id:
+        user_id = "test_user"
+
+    parent = await db.story_projects.find_one({"project_id": req.parent_project_id}, {"_id": 0})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent project not found")
+
+    # Inherit chain metadata
+    chain_id = parent.get("story_chain_id", parent["project_id"])
+    root_id = parent.get("root_project_id", parent["project_id"])
+
+    # Count existing episodes for sequence number
+    seq = await db.story_projects.count_documents({"story_chain_id": chain_id})
+
+    style_id = parent["style_id"] if req.keep_style else "storybook"
+    style = next((s for s in VIDEO_STYLES if s.id == style_id), VIDEO_STYLES[0])
+
+    project_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+
+    project = {
+        "project_id": project_id,
+        "user_id": user_id,
+        "title": req.title or f"{parent.get('title', 'Story')} — Ep. {seq + 1}",
+        "original_story": req.story_text,
+        "language": parent.get("language", "english"),
+        "age_group": parent.get("age_group", "kids_5_8"),
+        "style_id": style_id,
+        "style_prompt": style.prompt_style,
+        "characters": parent.get("characters", []),
+        "scenes": [],
+        "voice_scripts": [],
+        "status": "draft",
+        "credits_spent": 0,
+        "created_at": now,
+        "updated_at": now,
+        "story_chain_id": chain_id,
+        "root_project_id": root_id,
+        "parent_project_id": req.parent_project_id,
+        "branch_type": "continuation",
+        "sequence_number": seq,
+    }
+
+    await db.story_projects.insert_one(project)
+    project.pop("_id", None)
+
+    return {
+        "success": True,
+        "project_id": project_id,
+        "chain_id": chain_id,
+        "sequence_number": seq,
+        "message": f"Continuation episode {seq + 1} created.",
+        "data": project,
+    }
+
+
+@router.get("/active-video-chains")
+async def get_active_video_chains(user_id: str = None):
+    """Get user's active video story chains for dashboard resume."""
+    if not user_id:
+        user_id = "test_user"
+
+    pipeline = [
+        {"$match": {"user_id": user_id, "story_chain_id": {"$exists": True}}},
+        {"$group": {
+            "_id": "$story_chain_id",
+            "root_project_id": {"$first": "$root_project_id"},
+            "total_episodes": {"$sum": 1},
+            "has_video": {"$sum": {"$cond": [{"$ifNull": ["$final_video_url", False]}, 1, 0]}},
+            "last_updated": {"$max": "$updated_at"},
+            "styles": {"$addToSet": "$style_id"},
+            "latest_project_id": {"$last": "$project_id"},
+        }},
+        {"$sort": {"last_updated": -1}},
+        {"$limit": 3},
+    ]
+    chains = await db.story_projects.aggregate(pipeline).to_list(3)
+
+    result = []
+    for c in chains:
+        root = await db.story_projects.find_one(
+            {"project_id": c["root_project_id"]},
+            {"_id": 0, "project_id": 1, "title": 1, "style_id": 1}
+        )
+        total = c["total_episodes"]
+        has_video = c["has_video"]
+        progress_pct = round(has_video / total * 100) if total else 0
+        episodes_to_milestone = max(0, 5 - total) if total < 5 else max(0, 10 - total)
+        momentum_msg = f"{episodes_to_milestone} more to reach {5 if total < 5 else 10}-episode milestone" if episodes_to_milestone > 0 else "Milestone reached!"
+
+        result.append({
+            "chain_id": c["_id"],
+            "root_project_id": c["root_project_id"],
+            "total_episodes": total,
+            "has_video": has_video,
+            "progress_pct": progress_pct,
+            "last_updated": c["last_updated"],
+            "styles_used": c["styles"],
+            "root_title": root.get("title") if root else None,
+            "root_style": root.get("style_id") if root else None,
+            "latest_project_id": c["latest_project_id"],
+            "momentum_msg": momentum_msg,
+        })
+
+    return {"chains": result, "total": len(result)}
+
+
+@router.get("/video-chain/{chain_id}")
+async def get_video_chain(chain_id: str, user_id: str = None):
+    """Get all projects in a video story chain."""
+    if not user_id:
+        user_id = "test_user"
+
+    projects = await db.story_projects.find(
+        {"story_chain_id": chain_id, "user_id": user_id},
+        {"_id": 0, "original_story": 0}
+    ).sort("sequence_number", 1).to_list(50)
+
+    if not projects:
+        raise HTTPException(status_code=404, detail="Chain not found")
+
+    total = len(projects)
+    has_video = sum(1 for p in projects if p.get("final_video_url"))
+    progress_pct = round(has_video / total * 100) if total else 0
+
+    return {
+        "chain_id": chain_id,
+        "projects": projects,
+        "total_episodes": total,
+        "has_video": has_video,
+        "progress_pct": progress_pct,
+    }
+

@@ -1660,6 +1660,17 @@ async def get_active_chains(user: dict = Depends(get_current_user)):
         completed = c["completed"]
         progress_pct = round((completed / total) * 100) if total > 0 else 0
 
+        # Momentum messaging
+        milestone_next = 5 if total < 5 else (10 if total < 10 else (25 if total < 25 else 50))
+        episodes_to_milestone = milestone_next - total
+        momentum_msg = None
+        if total >= 3 and progress_pct < 100:
+            momentum_msg = f"{total - completed} episode{'s' if total - completed != 1 else ''} left to complete"
+        elif total >= 2:
+            momentum_msg = f"{episodes_to_milestone} more to reach {milestone_next}-episode milestone"
+        elif total == 1:
+            momentum_msg = "Continue to start building your series"
+
         result.append({
             "chain_id": c["_id"],
             "root_job_id": c["root_job_id"],
@@ -1677,6 +1688,9 @@ async def get_active_chains(user: dict = Depends(get_current_user)):
             "root_prompt": root.get("storyPrompt") if root else None,
             "continue_job_id": last_strip["id"] if last_strip else None,
             "last_dialogue": (last_strip.get("panels", [{}])[-1].get("dialogue", "") if last_strip and last_strip.get("panels") else ""),
+            "momentum_msg": momentum_msg,
+            "milestone_next": milestone_next,
+            "episodes_to_milestone": episodes_to_milestone,
         })
 
     return {"chains": result, "total": len(result)}
@@ -1691,10 +1705,18 @@ async def get_chain_suggestions(
     request: SuggestionRequest,
     user: dict = Depends(get_current_user)
 ):
-    """Generate AI-powered 'Next Episode' suggestions based on chain context."""
+    """Generate AI-powered 'Next Episode' suggestions — context-aware, validated, cached."""
     chain_id = request.chain_id
 
-    # Gather chain context
+    # ── Check cache (1h TTL) ──
+    cached = await db.suggestion_cache.find_one(
+        {"chain_id": chain_id, "ts": {"$gte": datetime.now(timezone.utc) - timedelta(hours=1)}},
+        {"_id": 0}
+    )
+    if cached:
+        return cached["payload"]
+
+    # ── Gather chain context ──
     jobs = await db.photo_to_comic_jobs.find(
         {"story_chain_id": chain_id, "userId": user["id"],
          "status": {"$in": ["COMPLETED", "PARTIAL_COMPLETE"]}},
@@ -1705,26 +1727,47 @@ async def get_chain_suggestions(
     if not jobs:
         raise HTTPException(status_code=404, detail="No completed episodes in this chain")
 
-    # Build context from existing episodes
     style = jobs[-1].get("style", "cartoon_fun")
     genre = jobs[-1].get("genre", "action")
     style_name = SAFE_STYLES.get(style, {}).get("name", style)
 
-    # Collect all dialogues and scene descriptions
-    story_context = []
+    # ── Extract rich context: characters, scenes, tone, dialogue ──
+    characters_seen = set()
+    scenes_list = []
+    dialogues = []
+    prompts_list = []
     for j in jobs:
         prompt = j.get("storyPrompt", "")
         if prompt:
-            story_context.append(prompt)
+            prompts_list.append(prompt)
         for p in j.get("panels", []):
             if p.get("dialogue"):
-                story_context.append(f'Panel dialogue: "{p["dialogue"]}"')
+                dialogues.append(p["dialogue"])
             if p.get("scene"):
-                story_context.append(f"Scene: {p['scene']}")
+                scenes_list.append(p["scene"])
+            # Extract character names from dialogue attribution
+            dlg = p.get("dialogue", "")
+            if ":" in dlg:
+                char_name = dlg.split(":")[0].strip()
+                if len(char_name) < 30:
+                    characters_seen.add(char_name)
 
-    context_text = "\n".join(story_context[-15:])  # Last 15 pieces of context
+    chars_str = ", ".join(list(characters_seen)[:8]) or "unnamed protagonist"
+    last_scenes = "\n".join(f"- {s}" for s in scenes_list[-6:]) or "No scene descriptions"
+    last_dialogues = "\n".join(f'- "{d}"' for d in dialogues[-6:]) or "No dialogue yet"
+    prompts_str = "\n".join(f"- {p}" for p in prompts_list[-5:]) or "No prompts"
 
-    # Generate suggestions via LLM
+    # ── Detect tone from dialogue ──
+    all_text = " ".join(dialogues[-10:] + prompts_list[-5:]).lower()
+    tone = "adventurous"
+    if any(w in all_text for w in ["funny", "laugh", "joke", "haha", "silly"]):
+        tone = "comedic"
+    elif any(w in all_text for w in ["dark", "shadow", "danger", "fear", "death"]):
+        tone = "dark and suspenseful"
+    elif any(w in all_text for w in ["love", "heart", "kiss", "together"]):
+        tone = "romantic"
+
+    # ── Generate via LLM ──
     suggestions = []
     if LLM_AVAILABLE and EMERGENT_LLM_KEY:
         try:
@@ -1732,50 +1775,88 @@ async def get_chain_suggestions(
             chat = LlmChat(
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"chain-suggest-{chain_id[:8]}-{datetime.now().timestamp()}",
-                system_message="You are a creative comic story advisor."
+                system_message="You are a creative comic story advisor who writes highly specific continuation ideas."
             )
             chat.with_model("gemini", "gemini-2.0-flash")
 
-            suggest_prompt = f"""Based on this comic story chain, suggest 3 compelling directions for the NEXT episode.
+            suggest_prompt = f"""You are continuing a comic story chain. Suggest 3 highly specific directions for the NEXT episode.
 
-Story context so far:
-{context_text}
-
-Current style: {style_name}
+## STORY CONTEXT
+Characters established: {chars_str}
+Visual style: {style_name}
 Genre: {genre}
+Narrative tone: {tone}
 Episodes so far: {len(jobs)}
 
-Provide exactly 3 suggestions as a JSON array. Each suggestion should have:
-- "title": a short catchy title (max 6 words)
-- "prompt": the story prompt for the next episode (1-2 sentences)
-- "hook": why this direction is exciting (1 sentence)
-- "type": one of "escalation", "twist", "deepening" (describes the narrative direction)
+## RECENT SCENES
+{last_scenes}
 
-Format: [{{"title": "...", "prompt": "...", "hook": "...", "type": "..."}}]"""
+## RECENT DIALOGUE
+{last_dialogues}
+
+## STORY PROMPTS USED
+{prompts_str}
+
+## INSTRUCTIONS
+- Each suggestion MUST reference at least one existing character by name
+- Each suggestion MUST build on the most recent scene or dialogue
+- Each prompt must be a concrete 2-sentence story beat (not vague)
+- Maintain the {tone} tone and {style_name} visual style
+
+Return ONLY a JSON array with exactly 3 objects. Each must have these fields:
+- "title": string (catchy, max 6 words)
+- "prompt": string (2 concrete sentences for the next episode)
+- "hook": string (1 sentence — why this is exciting)
+- "type": one of "escalation", "twist", "deepening"
+- "references_character": string (name of character referenced)
+- "continues_from": string (brief description of which scene/dialogue it continues)
+
+JSON array only, no markdown:"""
 
             response = await chat.send_message(UserMessage(text=suggest_prompt))
             json_match = re.search(r'\[.*\]', response, re.DOTALL)
             if json_match:
                 parsed = json.loads(json_match.group())
-                suggestions = parsed[:3]
+                # Validate each suggestion
+                valid = []
+                required_keys = {"title", "prompt", "hook", "type"}
+                for s in parsed[:3]:
+                    if isinstance(s, dict) and required_keys.issubset(s.keys()):
+                        if s["type"] not in ("escalation", "twist", "deepening"):
+                            s["type"] = "twist"
+                        valid.append(s)
+                suggestions = valid
         except Exception as e:
             logger.warning(f"[CHAIN] AI suggestion failed: {e}")
 
-    # Fallback suggestions
+    # ── Fallback — still context-aware ──
     if not suggestions:
+        char = list(characters_seen)[0] if characters_seen else "the hero"
+        last_scene = scenes_list[-1] if scenes_list else "the last scene"
         suggestions = [
-            {"title": "The Plot Thickens", "prompt": f"Continue the {genre} story with a surprising twist", "hook": "Add an unexpected turn", "type": "twist"},
-            {"title": "Raise the Stakes", "prompt": "Escalate the conflict — the hero faces a bigger challenge", "hook": "Push the tension higher", "type": "escalation"},
-            {"title": "New Character Arrives", "prompt": "Introduce a mysterious new character who changes everything", "hook": "Expand your story world", "type": "deepening"},
+            {"title": f"{char}'s Turning Point", "prompt": f"After {last_scene}, {char} discovers something that changes everything. The stakes rise dramatically.", "hook": "A pivotal moment for the story", "type": "twist", "references_character": char, "continues_from": last_scene},
+            {"title": "The Stakes Escalate", "prompt": f"Building on what just happened, {char} faces a much bigger threat. Allies are nowhere to be found.", "hook": "Raises tension to the next level", "type": "escalation", "references_character": char, "continues_from": last_scene},
+            {"title": "A Deeper Truth", "prompt": f"{char} reflects on recent events and uncovers a hidden connection. A new ally or enemy emerges from the shadows.", "hook": "Adds rich depth to the narrative", "type": "deepening", "references_character": char, "continues_from": last_scene},
         ]
 
-    return {
+    payload = {
         "chain_id": chain_id,
         "current_style": style,
         "current_genre": genre,
         "episode_count": len(jobs),
+        "characters": list(characters_seen)[:8],
+        "tone": tone,
         "suggestions": suggestions,
     }
+
+    # ── Cache for 1h ──
+    await db.suggestion_cache.update_one(
+        {"chain_id": chain_id},
+        {"$set": {"chain_id": chain_id, "payload": payload, "ts": datetime.now(timezone.utc)}},
+        upsert=True
+    )
+
+    return payload
 
 
 @router.get("/my-chains")

@@ -38,6 +38,7 @@ export default function StoryChainView() {
     try {
       const res = await api.post('/api/photo-to-comic/chain/suggestions', { chain_id: chainId });
       setSuggestions(res.data);
+      api.post('/api/metrics/track', { event: 'suggestion_view', chain_id: chainId }).catch(() => {});
     } catch {
       toast.error('Could not generate suggestions');
     } finally {
@@ -120,6 +121,13 @@ export default function StoryChainView() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1.5">{completed} of {total_episodes} completed</p>
+              {/* Momentum messaging */}
+              {(() => {
+                const milestone = total_episodes < 5 ? 5 : total_episodes < 10 ? 10 : 25;
+                const left = milestone - total_episodes;
+                if (left > 0) return <p className="text-xs text-amber-400/80 mt-1 flex items-center gap-1" data-testid="momentum-msg"><TrendingUp className="w-3 h-3" /> {left} more episode{left !== 1 ? 's' : ''} to reach {milestone}-episode milestone</p>;
+                return <p className="text-xs text-emerald-400/80 mt-1" data-testid="momentum-msg">Milestone reached! Keep building your series.</p>;
+              })()}
             </div>
 
             {/* Next Episode CTA */}
@@ -195,6 +203,7 @@ export default function StoryChainView() {
                   <button
                     key={i}
                     onClick={() => {
+                      api.post('/api/metrics/track', { event: 'suggestion_click', chain_id: chainId, meta: { suggestion_type: s.type, index: i } }).catch(() => {});
                       if (latest_continuable_job_id) {
                         navigate(`/app/photo-to-comic?continue=${latest_continuable_job_id}`, {
                           state: { suggestedPrompt: s.prompt }

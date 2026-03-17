@@ -2297,6 +2297,50 @@ export default function StoryVideoStudio() {
               remixSourceTitle={project?.title}
             />
 
+            {/* ── Story Video Chain Actions ── */}
+            <div className="bg-slate-900/80 border border-indigo-500/20 rounded-xl p-5 space-y-4" data-testid="video-chain-actions">
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-indigo-400" />
+                Continue Your Story
+              </h3>
+              <p className="text-sm text-slate-400">Turn this into a series — continue with the same characters and style.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    const projectId = project?.project_id;
+                    if (projectId) navigate(`/app/story-video?continue=${projectId}`);
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-all text-left"
+                  data-testid="video-continue-btn"
+                >
+                  <Play className="w-5 h-5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold">Quick Continue</p>
+                    <p className="text-[10px] opacity-70">Same characters & style</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setProject(null);
+                    setStoryText('');
+                    setTitle('');
+                    setGeneratedImages([]);
+                    setGeneratedVoices([]);
+                    setRenderJob(null);
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-pink-500/30 text-pink-400 hover:bg-pink-500/10 transition-all text-left"
+                  data-testid="video-remix-btn"
+                >
+                  <RefreshCw className="w-5 h-5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold">Remix</p>
+                    <p className="text-[10px] opacity-70">New story, fresh start</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* Contextual Upgrade - After Generation */}
             <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
 

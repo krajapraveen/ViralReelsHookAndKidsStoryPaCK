@@ -170,6 +170,9 @@ from routes.account_lock_routes import router as account_lock_router
 from routes.environment_monitor_routes import router as environment_monitor_router
 from services.environment_monitor_scheduler import start_env_scheduler, stop_env_scheduler
 
+# Re-engagement Metrics
+from routes.metrics_routes import router as metrics_router
+
 # WebSocket Real-Time Progress
 from routes.websocket_progress import router as websocket_progress_router
 
@@ -544,6 +547,8 @@ api_router.include_router(ttfd_analytics_router)
 
 from routes.public_routes import router as public_router
 api_router.include_router(public_router)
+
+api_router.include_router(metrics_router)
 
 
 

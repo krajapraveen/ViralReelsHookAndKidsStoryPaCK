@@ -17,6 +17,9 @@ import NotificationBell from '../components/NotificationBell';
 import DailyRewardsModal from '../components/DailyRewardsModal';
 import DelayedCreditsBanner from '../components/DelayedCreditsBanner';
 import { ResumeYourStory } from '../components/ResumeYourStory';
+import { LoginInterstitial } from '../components/LoginInterstitial';
+import { ActionBanner } from '../components/ActionBanner';
+import { ActiveChainsChip } from '../components/ActiveChainsChip';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -176,6 +179,7 @@ export default function Dashboard() {
           </nav>
 
           <div className="flex items-center gap-1.5">
+            <ActiveChainsChip />
             {isAdmin && (
               <Link to="/app/admin">
                 <Button variant="ghost" size="sm" className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" data-testid="admin-dashboard-btn">
@@ -201,7 +205,9 @@ export default function Dashboard() {
       </header>
 
       <div className="vs-container py-8">
+        <LoginInterstitial />
         <DelayedCreditsBanner onCreditsAdded={(b) => setCredits(b)} />
+        <ActionBanner />
 
         {/* ═══════ AI COMMAND CENTER ═══════ */}
         <div className="vs-fade-up-1 mb-10">
