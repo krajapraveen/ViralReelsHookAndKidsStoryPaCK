@@ -114,6 +114,8 @@ async def get_public_creation(slug: str):
             "status": job.get("status"),
             "animation_style": job.get("animation_style"),
             "age_group": job.get("age_group"),
+            "voice_preset": job.get("voice_preset"),
+            "tool_type": job.get("tool_type", "story-video-studio"),
             "scenes": scenes,
             "thumbnail_url": thumbnail,
             "views": job.get("views", 0) + 1,
@@ -128,6 +130,19 @@ async def get_public_creation(slug: str):
             "tags": job.get("tags", []),
         }
     }
+
+
+
+@router.post("/creation/{slug}/remix")
+async def track_remix(slug: str):
+    """Increment remix count when someone clicks Remix/Try Prompt."""
+    result = await db.pipeline_jobs.update_one(
+        {"$or": [{"slug": slug}, {"job_id": slug}]},
+        {"$inc": {"remix_count": 1}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Creation not found")
+    return {"success": True}
 
 
 

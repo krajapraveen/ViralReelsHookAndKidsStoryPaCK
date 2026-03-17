@@ -58,8 +58,14 @@ export default function AuthCallback({ setAuth }) {
         
         toast.success(`Welcome, ${user.name}!`);
         
-        // Navigate to dashboard immediately
-        navigate('/app', { replace: true });
+        // Check for remix return URL (from public page conversion)
+        const returnUrl = localStorage.getItem('remix_return_url');
+        if (returnUrl) {
+          localStorage.removeItem('remix_return_url');
+          navigate(returnUrl, { replace: true });
+        } else {
+          navigate('/app', { replace: true });
+        }
         
       } catch (error) {
         console.error('Auth callback error:', error?.response?.data || error);

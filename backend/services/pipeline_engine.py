@@ -431,15 +431,41 @@ async def run_stage_scenes(job: dict) -> dict:
     chat = LlmChat(
         api_key=api_key,
         session_id=f"pipe_{job['job_id'][:8]}",
-        system_message=f"""Break stories into {max_scenes} visual scenes for animation.
-Style: {style.get('name', 'Cartoon')}. Target: {age.get('name', 'Kids')}.
-Return ONLY a JSON array. Each scene: {{"scene_number":N,"title":"...","narration_text":"...","visual_prompt":"..."}}
-Visual prompts must describe ORIGINAL characters. Keep narration engaging.""",
+        system_message=f"""You are a visual storyboard director creating {max_scenes} scenes for an animated story.
+Style: {style.get('name', 'Cartoon')}. Target audience: {age.get('name', 'Kids')}.
+
+CRITICAL RULES FOR CHARACTER CONSISTENCY:
+1. First, define each main character with EXACT physical details (hair color/style, eye color, skin tone, outfit, body build, distinguishing features).
+2. REPEAT these exact character descriptions in EVERY scene's visual_prompt. Never omit character details.
+3. Use the SAME clothing and colors across all scenes unless the story explicitly changes them.
+
+CRITICAL RULES FOR MOTION & CINEMATIC QUALITY:
+1. Every visual_prompt must include a specific ACTION (walking, running, reaching, turning, jumping, gesturing).
+2. Include CAMERA ANGLE (close-up, wide shot, over-the-shoulder, low angle, bird's eye view). Vary these.
+3. Include EMOTION on faces (smiling wide, eyes wide with surprise, furrowed brow with determination).
+4. Include LIGHTING (warm sunset glow, dramatic side-lighting, soft morning light).
+5. Describe scene TRANSITIONS (zooming in on, pulling back to reveal, panning across).
+
+Return ONLY a JSON array. Each scene object:
+{{"scene_number":N,"title":"...","narration_text":"...","visual_prompt":"...","characters":"..."}}
+
+The "characters" field must contain the full physical description of all characters in that scene.
+The "visual_prompt" must include: character descriptions + action + camera angle + emotion + lighting.
+Keep narration vivid and engaging.""",
     )
     chat.with_model("openai", "gpt-4o-mini")
 
     response = await chat.send_message(
-        UserMessage(text=f"Break into {max_scenes} scenes:\n\n{job['story_text'][:3000]}\n\nReturn JSON array only:")
+        UserMessage(text=f"""Create {max_scenes} animated scenes from this story:
+
+{job['story_text'][:3000]}
+
+REMEMBER:
+- Define characters with EXACT physical details in scene 1, repeat in ALL scenes
+- Every scene needs: action verb + camera angle + facial emotion + lighting
+- Make it feel like animation frames, NOT static images
+
+Return JSON array only:""")
     )
 
     json_match = re.search(r'\[[\s\S]*\]', response)
@@ -505,17 +531,31 @@ async def run_stage_images(job: dict) -> dict:
         nonlocal done
         sn = scene.get("scene_number", 0)
         async with semaphore:
-            prompt = f"{scene.get('visual_prompt', '')}. Style: {style.get('style_prompt', '')}. Avoid: {LEGAL_NEGATIVE}"
+            # Build character-consistent prompt with cinematic quality
+            char_desc = scene.get('characters', '')
+            visual = scene.get('visual_prompt', '')
+            style_prompt = style.get('style_prompt', '')
+            
+            # Compose: character sheet + visual action + style + legal compliance
+            parts = []
+            if char_desc:
+                parts.append(f"Characters: {char_desc}")
+            parts.append(visual)
+            parts.append(f"Art style: {style_prompt}")
+            parts.append(f"Scene {sn} of {total} in a continuous story sequence")
+            parts.append(f"NOT allowed: {LEGAL_NEGATIVE}")
+            
+            prompt = '. '.join(parts)
             if len(prompt) > 3800:
                 sentences = prompt.split('. ')
-                parts, curr_len = [], 0
+                trimmed, curr_len = [], 0
                 for s in sentences:
                     if curr_len + len(s) + 2 <= 3800:
-                        parts.append(s)
+                        trimmed.append(s)
                         curr_len += len(s) + 2
                     else:
                         break
-                prompt = '. '.join(parts) + '.'
+                prompt = '. '.join(trimmed) + '.'
 
             try:
                 images = await generate_image_direct(

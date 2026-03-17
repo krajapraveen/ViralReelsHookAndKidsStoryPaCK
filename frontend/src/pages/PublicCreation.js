@@ -1,11 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { Film, Eye, RefreshCcw, Share2, Play, ArrowLeft, Command, User, ChevronRight, Copy, Check, MessageSquare, Quote } from 'lucide-react';
+import {
+  Film, Eye, RefreshCcw, Share2, Play, ArrowRight, Command,
+  User, Copy, Check, Quote, Zap, Sparkles, ExternalLink
+} from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { SafeImage } from '../components/SafeImage';
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+// ─── TOOL ROUTING MAP ──────────────────────────────────────────────
+const TOOL_ROUTES = {
+  'story-video-studio': { path: '/app/story-video-studio', label: 'Story Video', verb: 'Create a Story Video' },
+  'photo-to-comic': { path: '/app/photo-to-comic', label: 'Comic', verb: 'Create a Comic' },
+  'reels': { path: '/app/reels', label: 'Reel Script', verb: 'Generate a Reel Script' },
+  'gif-maker': { path: '/app/gif-maker', label: 'GIF', verb: 'Create a GIF' },
+  'comic-storybook': { path: '/app/comic-storybook', label: 'Comic Storybook', verb: 'Create a Comic Book' },
+  'bedtime-story-builder': { path: '/app/bedtime-story-builder', label: 'Bedtime Story', verb: 'Create a Bedtime Story' },
+  'caption-rewriter': { path: '/app/caption-rewriter', label: 'Caption', verb: 'Rewrite Captions' },
+  'brand-story-builder': { path: '/app/brand-story-builder', label: 'Brand Story', verb: 'Build a Brand Story' },
+};
+
+function getToolRoute(creation) {
+  const toolType = creation?.tool_type || 'story-video-studio';
+  return TOOL_ROUTES[toolType] || TOOL_ROUTES['story-video-studio'];
+}
 
 export default function PublicCreation() {
   const { slug } = useParams();
@@ -29,36 +50,66 @@ export default function PublicCreation() {
     setLoading(false);
   };
 
+  // ─── REMIX HANDLER (uses auto-prefill system) ─────────────────────
   const handleRemix = () => {
     if (!creation) return;
-    navigate('/app/story-video-studio', {
-      state: { prompt: creation.story_text || creation.prompt, remixFrom: creation.job_id, title: `Remix of ${creation.title}` }
-    });
+    const tool = getToolRoute(creation);
+    const prompt = creation.story_text || creation.prompt || '';
+
+    // Store remix data for auto-prefill
+    localStorage.setItem('remix_data', JSON.stringify({
+      prompt,
+      timestamp: Date.now(),
+      source_tool: 'public-page',
+      remixFrom: {
+        tool: creation.tool_type || 'story-video-studio',
+        prompt,
+        settings: {
+          animation_style: creation.animation_style,
+          style: creation.animation_style,
+          age_group: creation.age_group,
+          voice_preset: creation.voice_preset,
+        },
+        title: creation.title,
+        parentId: creation.job_id,
+      },
+    }));
+
+    // Store return URL so login redirects back to the tool
+    localStorage.setItem('remix_return_url', tool.path);
+    navigate(tool.path);
   };
 
-  // Share URL uses the backend OG share page for rich previews
-  const shareUrl = `${API}/api/public/s/${slug}`;
-  const pageUrl = `${window.location.origin}/v/${slug}`;
+  // ─── "TRY THIS EXACT PROMPT" HANDLER ─────────────────────────────
+  const handleTryPrompt = () => {
+    if (!creation) return;
+    const tool = getToolRoute(creation);
+    const prompt = creation.story_text || creation.prompt || '';
 
-  const shareToTwitter = () => {
-    const text = `This video was generated with AI using Visionary-Suite.\n\nPrompt: "${(creation?.prompt || creation?.story_text || '').slice(0, 100)}"\n\nRemix it:`;
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
-  };
+    localStorage.setItem('remix_data', JSON.stringify({
+      prompt,
+      timestamp: Date.now(),
+      source_tool: 'public-page-exact',
+      remixFrom: {
+        tool: creation.tool_type || 'story-video-studio',
+        prompt,
+        settings: {
+          animation_style: creation.animation_style,
+          style: creation.animation_style,
+          age_group: creation.age_group,
+          voice_preset: creation.voice_preset,
+        },
+        title: `Exact: ${creation.title}`,
+        parentId: creation.job_id,
+      },
+    }));
 
-  const shareToLinkedIn = () => {
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank');
-  };
+    localStorage.setItem('remix_return_url', tool.path);
 
-  const shareToReddit = () => {
-    const title = `AI-Generated Video: ${creation?.title}`;
-    window.open(`https://reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(title)}`, '_blank');
-  };
-
-  const copyLink = async () => {
-    await navigator.clipboard.writeText(pageUrl);
-    setCopied(true);
-    toast.success('Link copied!');
-    setTimeout(() => setCopied(false), 2000);
+    // Increment remix count
+    axios.post(`${API}/api/public/creation/${slug}/remix`).catch(() => {});
+    navigate(tool.path);
+    toast.success('Prompt loaded — ready to generate!');
   };
 
   const playSceneAudio = (idx) => {
@@ -70,21 +121,40 @@ export default function PublicCreation() {
     }
   };
 
-  // OG meta data
-  const ogTitle = creation ? `${creation.title} — Visionary Suite AI` : 'Visionary Suite AI';
+  // Share helpers
+  const shareUrl = `${API}/api/public/s/${slug}`;
+  const pageUrl = `${window.location.origin}/v/${slug}`;
+  const ogTitle = creation ? `${creation.title} — Made with AI` : 'AI Creation — Visionary Suite';
   const ogDescription = creation?.prompt
-    ? `AI-generated video: ${creation.prompt.slice(0, 150)}`
-    : creation?.title
-      ? `Watch "${creation.title}" — created with Visionary Suite AI. Remix it!`
-      : 'AI-generated video — Visionary Suite';
+    ? `AI-generated in seconds: "${creation.prompt.slice(0, 120)}" — Remix it yourself!`
+    : 'AI-generated creation — Remix it yourself on Visionary Suite';
   const ogImage = `${API}/api/public/og-image/${slug}`;
 
+  const shareTo = (platform) => {
+    const text = `This was created with AI in seconds! Remix it yourself:`;
+    const urls = {
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
+      reddit: `https://reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(`AI-Created: ${creation?.title}`)}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${shareUrl}`)}`,
+    };
+    if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400');
+  };
+
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(pageUrl);
+    setCopied(true);
+    toast.success('Link copied!');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // ─── LOADING STATE ──────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="vs-page min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="animate-pulse text-center">
-          <Film className="w-12 h-12 text-[var(--vs-text-muted)] mx-auto mb-4" />
-          <p className="text-[var(--vs-text-muted)]">Loading creation...</p>
+          <Film className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+          <p className="text-slate-500">Loading creation...</p>
         </div>
       </div>
     );
@@ -92,11 +162,11 @@ export default function PublicCreation() {
 
   if (error || !creation) {
     return (
-      <div className="vs-page min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="text-center" data-testid="creation-not-found">
-          <Film className="w-12 h-12 text-[var(--vs-text-muted)] mx-auto mb-4" />
-          <h2 className="vs-h2 mb-2">{error || 'Creation not found'}</h2>
-          <Link to="/explore"><button className="vs-btn-primary mt-4">Explore Creations</button></Link>
+          <Film className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">{error || 'Creation not found'}</h2>
+          <Link to="/explore"><button className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm">Explore Creations</button></Link>
         </div>
       </div>
     );
@@ -104,9 +174,10 @@ export default function PublicCreation() {
 
   const currentScene = creation.scenes?.[activeScene];
   const prompt = creation.prompt || creation.story_text || '';
+  const tool = getToolRoute(creation);
 
   return (
-    <div className="vs-page min-h-screen" data-testid="public-creation-page">
+    <div className="min-h-screen bg-[#0a0a0f]" data-testid="public-creation-page">
       <Helmet>
         <title>{ogTitle}</title>
         <meta name="description" content={ogDescription} />
@@ -125,225 +196,238 @@ export default function PublicCreation() {
         <meta name="twitter:image" content={ogImage} />
       </Helmet>
 
-      {/* Header */}
-      <header className="vs-glass sticky top-0 z-40 border-b border-[var(--vs-border-subtle)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/explore" className="text-[var(--vs-text-muted)] hover:text-white"><ArrowLeft className="w-5 h-5" /></Link>
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg vs-gradient-bg flex items-center justify-center">
-                <Command className="w-3.5 h-3.5 text-white" />
-              </div>
-              <span className="text-sm font-semibold text-white hidden sm:inline" style={{ fontFamily: 'var(--vs-font-heading)' }}>Visionary Suite</span>
-            </Link>
-          </div>
+      {/* Minimal header */}
+      <header className="sticky top-0 z-40 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+              <Command className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-sm font-semibold text-white hidden sm:inline">Visionary Suite</span>
+          </Link>
           <div className="flex items-center gap-2">
-            {/* Share dropdown */}
             <div className="relative">
-              <button
-                onClick={() => setShowShareMenu(!showShareMenu)}
-                className="vs-btn-secondary h-8 px-3 text-xs flex items-center gap-1.5"
-                data-testid="share-btn"
-              >
+              <button onClick={() => setShowShareMenu(!showShareMenu)} className="px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-white/10 rounded-lg flex items-center gap-1.5 transition-colors" data-testid="share-btn">
                 <Share2 className="w-3.5 h-3.5" /> Share
               </button>
               {showShareMenu && (
-                <div className="absolute right-0 top-10 w-52 vs-panel p-2 rounded-xl shadow-2xl z-50 border border-[var(--vs-border)]" data-testid="share-menu">
-                  <button onClick={shareToTwitter} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--vs-text-secondary)] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors" data-testid="share-twitter">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                    Share to X
-                  </button>
-                  <button onClick={shareToLinkedIn} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--vs-text-secondary)] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors" data-testid="share-linkedin">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                    Share to LinkedIn
-                  </button>
-                  <button onClick={shareToReddit} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--vs-text-secondary)] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors" data-testid="share-reddit">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg>
-                    Share to Reddit
-                  </button>
-                  <div className="border-t border-[var(--vs-border)] my-1"></div>
-                  <button onClick={copyLink} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--vs-text-secondary)] hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors" data-testid="copy-link-btn">
-                    {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                <div className="absolute right-0 top-10 w-48 bg-slate-900 border border-white/10 rounded-xl p-1.5 shadow-2xl z-50" data-testid="share-menu">
+                  {[
+                    { id: 'twitter', label: 'X / Twitter' },
+                    { id: 'linkedin', label: 'LinkedIn' },
+                    { id: 'whatsapp', label: 'WhatsApp' },
+                    { id: 'reddit', label: 'Reddit' },
+                  ].map(p => (
+                    <button key={p.id} onClick={() => { shareTo(p.id); setShowShareMenu(false); }}
+                      className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors"
+                      data-testid={`share-${p.id}`}
+                    >{p.label}</button>
+                  ))}
+                  <div className="border-t border-white/[0.06] my-1" />
+                  <button onClick={() => { copyLink(); setShowShareMenu(false); }} className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors flex items-center gap-2" data-testid="copy-link-btn">
+                    {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                     {copied ? 'Copied!' : 'Copy Link'}
                   </button>
                 </div>
               )}
             </div>
-            <button onClick={handleRemix} className="vs-btn-primary h-8 px-4 text-xs flex items-center gap-1.5" data-testid="remix-btn">
-              <RefreshCcw className="w-3.5 h-3.5" /> Remix This
+            <button onClick={handleRemix} className="px-4 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-1.5 transition-colors" data-testid="header-remix-btn">
+              <RefreshCcw className="w-3.5 h-3.5" /> Remix
             </button>
           </div>
         </div>
       </header>
-
-      {/* Close share menu on outside click */}
       {showShareMenu && <div className="fixed inset-0 z-30" onClick={() => setShowShareMenu(false)} />}
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6 vs-fade-up-1">
-            {/* Scene Viewer */}
-            <div className="vs-panel overflow-hidden" data-testid="scene-viewer">
-              <div className="relative w-full aspect-video bg-[var(--vs-bg-elevated)]">
-                {currentScene?.image_url ? (
-                  <img src={currentScene.image_url} alt={`Scene ${activeScene + 1}`} className="w-full h-full object-contain" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center"><Film className="w-16 h-16 text-[var(--vs-text-muted)]" /></div>
-                )}
-                {currentScene?.audio_url && (
-                  <button onClick={() => playSceneAudio(activeScene)} className="absolute bottom-4 right-4 w-12 h-12 rounded-full bg-[var(--vs-cta)] hover:bg-[var(--vs-cta-hover)] flex items-center justify-center shadow-lg transition-all" data-testid="play-scene-audio">
-                    <Play className="w-5 h-5 text-white ml-0.5" />
-                  </button>
-                )}
-              </div>
-              {creation.scenes?.length > 1 && (
-                <div className="flex gap-2 p-3 overflow-x-auto" data-testid="scene-thumbnails">
-                  {creation.scenes.map((s, i) => (
-                    <button key={i} onClick={() => setActiveScene(i)} className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-all ${i === activeScene ? 'border-[var(--vs-primary-from)] ring-1 ring-[var(--vs-primary-from)]/30' : 'border-transparent opacity-60 hover:opacity-100'}`}>
-                      {s.image_url ? <img src={s.image_url} alt={`Scene ${i + 1}`} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-[var(--vs-bg-card)] flex items-center justify-center"><span className="text-xs text-[var(--vs-text-muted)]">{i + 1}</span></div>}
-                    </button>
-                  ))}
-                </div>
-              )}
+      {/* ═══════════════════════════════════════════════════════════════
+           ABOVE THE FOLD — HERO CTA ZONE
+         ═══════════════════════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden" data-testid="hero-section">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.06] to-transparent pointer-events-none" />
+
+        <div className="max-w-6xl mx-auto px-4 pt-8 pb-6">
+          {/* Viral hook */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium mb-4" data-testid="viral-hook-badge">
+              <Zap className="w-3 h-3" /> This was created using AI in seconds
             </div>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2" data-testid="creation-title">
+              {creation.title}
+            </h1>
 
-            {/* Narration Text */}
-            {currentScene?.narration && (
-              <div className="vs-panel p-5">
-                <p className="text-sm text-[var(--vs-text-secondary)] leading-relaxed italic" style={{ fontFamily: 'var(--vs-font-body)' }}>"{currentScene.narration}"</p>
-              </div>
-            )}
-
-            {/* Prompt + Remix CTA */}
-            <div className="vs-card bg-gradient-to-r from-[var(--vs-primary-from)]/10 to-[var(--vs-secondary-to)]/10 border-[var(--vs-border-glow)] py-8 px-6" data-testid="remix-cta">
-              {prompt && (
-                <div className="mb-5" data-testid="prompt-display">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Quote className="w-4 h-4 text-[var(--vs-text-accent)]" />
-                    <span className="text-xs font-medium text-[var(--vs-text-accent)] uppercase tracking-wider">Prompt used</span>
-                  </div>
-                  <p className="text-sm text-[var(--vs-text-secondary)] leading-relaxed bg-black/20 rounded-lg p-4 border border-[var(--vs-border)]" style={{ fontFamily: 'var(--vs-font-body)' }}>
-                    "{prompt.length > 300 ? prompt.slice(0, 300) + '...' : prompt}"
-                  </p>
-                </div>
-              )}
-              <div className="text-center">
-                <h3 className="vs-h3 mb-2">Make It Yours</h3>
-                <p className="text-sm text-[var(--vs-text-secondary)] mb-4">Create your own version with different styles, voices, or stories.</p>
-                <button onClick={handleRemix} className="vs-btn-primary px-8 h-12 text-base" data-testid="remix-main-btn">
-                  <RefreshCcw className="w-4 h-4" /> Remix This Creation
-                </button>
-              </div>
+            {/* Social Proof — LOUD */}
+            <div className="flex items-center justify-center gap-4 text-sm" data-testid="social-proof">
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <Eye className="w-4 h-4 text-blue-400" />
+                <strong className="text-white font-mono">{(creation.views || 0).toLocaleString()}</strong> views
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <RefreshCcw className="w-4 h-4 text-pink-400" />
+                <strong className="text-white font-mono">{(creation.remix_count || 0).toLocaleString()}</strong> remixes
+              </span>
             </div>
           </div>
 
-          {/* Sidebar */}
-          <aside className="space-y-4 vs-fade-up-2">
-            <div className="vs-panel p-5" data-testid="creation-meta">
-              <h1 className="vs-h2 mb-3" data-testid="creation-title">{creation.title}</h1>
-              <div className="flex items-center gap-4 mb-4">
-                <span className="flex items-center gap-1.5 text-sm text-[var(--vs-text-muted)]">
-                  <Eye className="w-4 h-4" /> <span style={{ fontFamily: 'var(--vs-font-mono)' }}>{creation.views}</span> views
-                </span>
-                <span className="flex items-center gap-1.5 text-sm text-[var(--vs-text-muted)]">
-                  <RefreshCcw className="w-4 h-4" /> <span style={{ fontFamily: 'var(--vs-font-mono)' }}>{creation.remix_count}</span> remixes
-                </span>
+          <div className="grid lg:grid-cols-5 gap-6">
+            {/* LEFT: Scene Viewer */}
+            <div className="lg:col-span-3">
+              <div className="rounded-xl overflow-hidden border border-white/[0.08]" data-testid="scene-viewer">
+                <div className="relative w-full aspect-video bg-slate-900">
+                  {currentScene?.image_url ? (
+                    <SafeImage src={currentScene.image_url} alt={`Scene ${activeScene + 1}`} aspectRatio="16/9" titleOverlay={`Scene ${activeScene + 1}`} className="rounded-none" />
+                  ) : creation.thumbnail_url ? (
+                    <SafeImage src={creation.thumbnail_url} alt={creation.title} aspectRatio="16/9" titleOverlay={creation.title} className="rounded-none" />
+                  ) : (
+                    <SafeImage src={null} alt={creation.title} aspectRatio="16/9" titleOverlay={creation.title} fallbackType="gradient" className="rounded-none" />
+                  )}
+                  {currentScene?.audio_url && (
+                    <button onClick={() => playSceneAudio(activeScene)} className="absolute bottom-4 right-4 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center shadow-xl transition-all" data-testid="play-scene-audio">
+                      <Play className="w-5 h-5 text-white ml-0.5" />
+                    </button>
+                  )}
+                </div>
+                {creation.scenes?.length > 1 && (
+                  <div className="flex gap-2 p-3 overflow-x-auto bg-slate-900/50" data-testid="scene-thumbnails">
+                    {creation.scenes.map((s, i) => (
+                      <button key={i} onClick={() => setActiveScene(i)} className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-all ${i === activeScene ? 'border-indigo-500 ring-1 ring-indigo-500/30' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                        {s.image_url ? <SafeImage src={s.image_url} alt={`Scene ${i + 1}`} aspectRatio="16/10" /> : <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xs text-slate-500">{i + 1}</div>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {creation.tags?.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-4" data-testid="creation-tags">
-                  {creation.tags.map((tag, i) => (
-                    <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-[var(--vs-bg-elevated)] text-[var(--vs-text-muted)] border border-[var(--vs-border)]">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-3 py-3 border-t border-[var(--vs-border)]">
-                <div className="w-8 h-8 rounded-full bg-[var(--vs-bg-card)] flex items-center justify-center">
-                  <User className="w-4 h-4 text-[var(--vs-text-muted)]" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-white">{creation.creator?.name || 'Anonymous'}</p>
-                  <p className="text-xs text-[var(--vs-text-muted)]">Creator</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="vs-panel p-5 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-[var(--vs-text-muted)]">Style</span>
-                <span className="text-white" style={{ fontFamily: 'var(--vs-font-mono)' }}>{creation.animation_style?.replace(/_/g, ' ')}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-[var(--vs-text-muted)]">Scenes</span>
-                <span className="text-white" style={{ fontFamily: 'var(--vs-font-mono)' }}>{creation.scenes?.length || 0}</span>
-              </div>
-              {creation.category && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-[var(--vs-text-muted)]">Category</span>
-                  <span className="text-white">{creation.category}</span>
-                </div>
-              )}
-              {creation.age_group && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-[var(--vs-text-muted)]">Age Group</span>
-                  <span className="text-white">{creation.age_group}</span>
-                </div>
-              )}
-              {creation.created_at && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-[var(--vs-text-muted)]">Created</span>
-                  <span className="text-white">{new Date(creation.created_at).toLocaleDateString()}</span>
+              {currentScene?.narration && (
+                <div className="mt-3 bg-slate-900/50 border border-white/[0.06] rounded-lg p-4">
+                  <p className="text-sm text-slate-300 italic leading-relaxed">"{currentScene.narration}"</p>
                 </div>
               )}
             </div>
 
-            {/* Social Share Buttons */}
-            <div className="vs-panel p-5" data-testid="social-share-panel">
-              <p className="text-xs font-medium text-[var(--vs-text-muted)] uppercase tracking-wider mb-3">Share this creation</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={shareToTwitter} className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium text-white bg-black/40 hover:bg-black/60 rounded-lg border border-[var(--vs-border)] transition-colors" data-testid="sidebar-share-twitter">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                  X / Twitter
-                </button>
-                <button onClick={shareToLinkedIn} className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium text-white bg-[#0077B5]/20 hover:bg-[#0077B5]/40 rounded-lg border border-[var(--vs-border)] transition-colors" data-testid="sidebar-share-linkedin">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                  LinkedIn
-                </button>
-                <button onClick={shareToReddit} className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium text-white bg-[#FF4500]/15 hover:bg-[#FF4500]/30 rounded-lg border border-[var(--vs-border)] transition-colors" data-testid="sidebar-share-reddit">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg>
-                  Reddit
-                </button>
-                <button onClick={copyLink} className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium text-white bg-white/[0.06] hover:bg-white/[0.12] rounded-lg border border-[var(--vs-border)] transition-colors" data-testid="sidebar-copy-link">
-                  {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? 'Copied!' : 'Copy Link'}
-                </button>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="space-y-2">
-              <button onClick={handleRemix} className="w-full vs-btn-primary h-11 text-sm flex items-center justify-center gap-2" data-testid="sidebar-remix-btn">
-                <RefreshCcw className="w-4 h-4" /> Remix This Video
+            {/* RIGHT: PRIMARY CTA ZONE */}
+            <div className="lg:col-span-2 space-y-4" data-testid="cta-zone">
+              {/* PRIMARY CTA — Remix This */}
+              <button
+                onClick={handleRemix}
+                className="w-full group relative overflow-hidden rounded-xl p-5 text-left transition-all hover:scale-[1.01]"
+                data-testid="remix-main-btn"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-purple-700 opacity-90 group-hover:opacity-100 transition-opacity" />
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <RefreshCcw className="w-5 h-5 text-white" />
+                    <span className="text-lg font-bold text-white">Remix This</span>
+                  </div>
+                  <p className="text-sm text-white/70 mb-3">Make your own version — different style, story, or voice</p>
+                  <div className="flex items-center gap-2 text-xs text-white/50">
+                    <Sparkles className="w-3 h-3" /> Auto-prefilled — ready to generate
+                  </div>
+                </div>
+                <ArrowRight className="absolute top-5 right-5 w-5 h-5 text-white/30 group-hover:text-white/70 group-hover:translate-x-1 transition-all z-10" />
               </button>
-              <Link to="/app/story-video-studio" className="block">
-                <button className="w-full vs-btn-secondary h-11 text-sm flex items-center justify-center gap-2">
-                  Create Your Own <ChevronRight className="w-4 h-4" />
+
+              {/* SECONDARY CTA — Try This Exact Prompt */}
+              {prompt && (
+                <button
+                  onClick={handleTryPrompt}
+                  className="w-full group relative overflow-hidden rounded-xl border border-amber-500/20 bg-amber-500/[0.06] hover:bg-amber-500/[0.1] p-4 text-left transition-all"
+                  data-testid="try-prompt-btn"
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span className="text-sm font-bold text-white">Try This Exact Prompt</span>
+                  </div>
+                  <p className="text-xs text-slate-400">Generate in 1 click — no typing needed</p>
+                  <ArrowRight className="absolute top-4 right-4 w-4 h-4 text-amber-400/30 group-hover:text-amber-400/70 group-hover:translate-x-1 transition-all" />
+                </button>
+              )}
+
+              {/* TERTIARY CTA — Create Your Own */}
+              <Link to={tool.path} className="block">
+                <button className="w-full rounded-xl border border-white/[0.08] hover:border-white/[0.15] bg-white/[0.02] hover:bg-white/[0.04] p-4 text-left transition-all group" data-testid="create-own-btn">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                    <span className="text-sm font-semibold text-white">Create Your Own</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Start fresh with {tool.label} — no skills needed</p>
+                  <ArrowRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/0 group-hover:text-white/40 transition-all" />
                 </button>
               </Link>
-            </div>
 
-            {/* Branding */}
-            <div className="text-center pt-4">
-              <p className="text-xs text-[var(--vs-text-muted)]">Created with</p>
-              <Link to="/" className="text-sm font-semibold vs-gradient-text" style={{ fontFamily: 'var(--vs-font-heading)' }}>
-                Visionary Suite AI
-              </Link>
+              {/* Prompt Display */}
+              {prompt && (
+                <div className="bg-slate-900/50 border border-white/[0.06] rounded-lg p-4" data-testid="prompt-display">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Quote className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-[10px] font-medium text-indigo-400 uppercase tracking-wider">Prompt used</span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    "{prompt.length > 250 ? prompt.slice(0, 250) + '...' : prompt}"
+                  </p>
+                </div>
+              )}
+
+              {/* Creation Meta */}
+              <div className="bg-slate-900/30 border border-white/[0.04] rounded-lg p-4 space-y-2" data-testid="creation-meta">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center">
+                    <User className="w-3.5 h-3.5 text-slate-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-white">{creation.creator?.name || 'Anonymous'}</p>
+                    <p className="text-[10px] text-slate-500">Creator</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-white/[0.04]">
+                  {creation.animation_style && (
+                    <div><span className="text-slate-500">Style</span> <span className="text-slate-300 ml-1">{creation.animation_style.replace(/_/g, ' ')}</span></div>
+                  )}
+                  <div><span className="text-slate-500">Scenes</span> <span className="text-slate-300 ml-1">{creation.scenes?.length || 0}</span></div>
+                  {creation.category && (
+                    <div><span className="text-slate-500">Category</span> <span className="text-slate-300 ml-1">{creation.category}</span></div>
+                  )}
+                  {creation.created_at && (
+                    <div><span className="text-slate-500">Created</span> <span className="text-slate-300 ml-1">{new Date(creation.created_at).toLocaleDateString()}</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Share Buttons */}
+              <div className="grid grid-cols-4 gap-2" data-testid="share-buttons">
+                {[
+                  { id: 'twitter', label: 'X' },
+                  { id: 'linkedin', label: 'In' },
+                  { id: 'whatsapp', label: 'WA' },
+                  { id: 'reddit', label: 'Rd' },
+                ].map(p => (
+                  <button key={p.id} onClick={() => shareTo(p.id)}
+                    className="py-2 text-[10px] font-medium text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] rounded-lg border border-white/[0.06] transition-colors"
+                    data-testid={`share-${p.id}-btn`}
+                  >{p.label}</button>
+                ))}
+              </div>
             </div>
-          </aside>
+          </div>
         </div>
-      </main>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
+           CTA BRANDING FOOTER — "Create yours"
+         ═══════════════════════════════════════════════════════════════ */}
+      <footer className="border-t border-white/[0.04] py-6" data-testid="cta-footer">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs text-slate-500">
+            Powered by AI — no design skills required
+          </p>
+          <Link to="/" className="flex items-center gap-2 group" data-testid="cta-branding-link">
+            <span className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+              Create yours
+            </span>
+            <ExternalLink className="w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
+            <span className="text-xs text-slate-500">visionary-suite.com</span>
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }

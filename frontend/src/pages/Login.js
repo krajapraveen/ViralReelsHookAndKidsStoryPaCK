@@ -143,7 +143,13 @@ export default function Login({ setAuth }) {
       }
       setAuth(true);
       toast.success('Login successful!');
-      navigate('/app', { replace: true });
+      const returnUrl = localStorage.getItem('remix_return_url');
+      if (returnUrl) {
+        localStorage.removeItem('remix_return_url');
+        navigate(returnUrl, { replace: true });
+      } else {
+        navigate('/app', { replace: true });
+      }
     } catch (error) {
       const status = error.response?.status;
       const message = error.response?.data?.detail || '';
