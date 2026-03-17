@@ -21,6 +21,8 @@ import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
 import CreationActionsBar from '../components/CreationActionsBar';
 import NextActionHooks from '../components/NextActionHooks';
+import RemixBanner from '../components/RemixBanner';
+import { useRemixData, mapRemixToFields } from '../hooks/useRemixData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -133,10 +135,18 @@ export default function BedtimeStoryBuilder() {
   const [story, setStory] = useState(null);
   const [creditsUsed, setCreditsUsed] = useState(0);
   const [remainingCredits, setRemainingCredits] = useState(null);
+  const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('bedtime-story-builder');
   
   // Fetch config
   useEffect(() => {
     fetchConfig();
+    // Cross-tool auto-prefill
+    if (hasRemix && incomingRemix) {
+      const fields = mapRemixToFields(incomingRemix, 'bedtime-story-builder');
+      if (fields.theme) setTheme(fields.theme);
+      if (fields.ageGroup) setAgeGroup(fields.ageGroup);
+      if (fields.moral) setMoral(fields.moral);
+    }
   }, []);
   
   const fetchConfig = async () => {
@@ -286,6 +296,7 @@ export default function BedtimeStoryBuilder() {
         
         {/* Main Card */}
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 md:p-8">
+          {hasRemix && <div className="mb-4"><RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} /></div>}
           {step < 5 && <StepIndicator currentStep={step} totalSteps={4} />}
           
           {/* Step 1: Age Group */}

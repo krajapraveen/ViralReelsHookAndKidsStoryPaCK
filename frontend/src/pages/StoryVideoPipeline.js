@@ -19,6 +19,7 @@ import CreationActionsBar from '../components/CreationActionsBar';
 import ProgressiveGeneration from '../components/ProgressiveGeneration';
 import { useJobWebSocket } from '../hooks/useJobWebSocket';
 import ContextualUpgrade from '../components/ContextualUpgrade';
+import RemixBanner from '../components/RemixBanner';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STAGE_ORDER = ['scenes', 'images', 'voices'];
@@ -138,6 +139,9 @@ function StoryVideoPipelineInner() {
   const [showUpsell, setShowUpsell] = useState(false);
   const [userCredits, setUserCredits] = useState(null);
   const [remixData, setRemixData] = useState(null);
+  const [showRemixBanner, setShowRemixBanner] = useState(false);
+  const [remixSourceTool, setRemixSourceTool] = useState(null);
+  const [remixSourceTitle, setRemixSourceTitle] = useState(null);
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
   const [formError, setFormError] = useState('');
   const pollRef = useRef(null);
@@ -184,20 +188,28 @@ function StoryVideoPipelineInner() {
       }
     }
 
-    // Handle remix_data from Remix & Variations Engine
+    // Handle remix_data from Remix & Variations Engine / Cross-tool hooks
     const newRemixData = localStorage.getItem('remix_data');
     if (newRemixData && !isRemix) {
       try {
         const rd = JSON.parse(newRemixData);
-        if (rd.prompt) setStoryText(rd.prompt);
-        if (rd.remixFrom) {
-          setRemixData(rd.remixFrom);
-          if (rd.remixFrom.title) setTitle(`Remix: ${rd.remixFrom.title}`);
-          if (rd.remixFrom.settings?.animation_style) setAnimStyle(rd.remixFrom.settings.animation_style);
-          if (rd.remixFrom.settings?.age_group) setAgeGroup(rd.remixFrom.settings.age_group);
-          if (rd.remixFrom.settings?.voice_preset) setVoicePreset(rd.remixFrom.settings.voice_preset);
+        // TTL check (10 min)
+        if (rd.timestamp && Date.now() - rd.timestamp > 10 * 60 * 1000) {
+          localStorage.removeItem('remix_data');
+        } else {
+          if (rd.prompt) setStoryText(rd.prompt);
+          if (rd.remixFrom) {
+            setRemixData(rd.remixFrom);
+            if (rd.remixFrom.title) setTitle(`From: ${rd.remixFrom.title}`);
+            if (rd.remixFrom.settings?.animation_style || rd.remixFrom.settings?.style) setAnimStyle(rd.remixFrom.settings.animation_style || rd.remixFrom.settings.style);
+            if (rd.remixFrom.settings?.age_group || rd.remixFrom.settings?.ageGroup) setAgeGroup(rd.remixFrom.settings.age_group || rd.remixFrom.settings.ageGroup);
+            if (rd.remixFrom.settings?.voice_preset) setVoicePreset(rd.remixFrom.settings.voice_preset);
+            setRemixSourceTool(rd.remixFrom.tool || rd.source_tool);
+            setRemixSourceTitle(rd.remixFrom.title);
+            setShowRemixBanner(true);
+          }
+          localStorage.removeItem('remix_data');
         }
-        setTimeout(() => localStorage.removeItem('remix_data'), 1000);
       } catch { /* ignore */ }
     }
 
@@ -586,6 +598,8 @@ function StoryVideoPipelineInner() {
           onGenerate={handleGenerate} submitting={submitting}
           userJobs={userJobs} onViewJob={viewJob}
           rateLimitStatus={rateLimitStatus} formError={formError}
+          showRemixBanner={showRemixBanner} remixSourceTool={remixSourceTool}
+          remixSourceTitle={remixSourceTitle} onDismissRemix={() => setShowRemixBanner(false)}
         />}
 
         {phase === 'processing' && (
@@ -630,7 +644,8 @@ export default function StoryVideoPipeline() {
 // ─── INPUT PHASE ──────────────────────────────────────────────────────────────
 function InputPhase({ options, title, setTitle, storyText, setStoryText,
   animStyle, setAnimStyle, ageGroup, setAgeGroup, voicePreset, setVoicePreset,
-  onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError }) {
+  onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError,
+  showRemixBanner, remixSourceTool, remixSourceTitle, onDismissRemix }) {
 
   const styles = options?.animation_styles || [];
   const ages = options?.age_groups || [];
@@ -665,6 +680,8 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           </div>
         </div>
       )}
+
+      {showRemixBanner && <RemixBanner sourceTool={remixSourceTool} sourceTitle={remixSourceTitle} onDismiss={onDismissRemix} />}
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">

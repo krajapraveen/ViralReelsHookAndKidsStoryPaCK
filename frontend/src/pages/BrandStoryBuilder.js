@@ -4,6 +4,8 @@ import { ArrowLeft, Sparkles, Copy, Check, AlertTriangle, BookOpen, Building2, D
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
 import NextActionHooks from '../components/NextActionHooks';
+import RemixBanner from '../components/RemixBanner';
+import { useRemixData, mapRemixToFields } from '../hooks/useRemixData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -23,9 +25,17 @@ const BrandStoryBuilder = () => {
   
   // Results
   const [result, setResult] = useState(null);
+  const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('brand-story-builder');
 
   useEffect(() => {
     fetchConfig();
+    // Cross-tool auto-prefill
+    if (hasRemix && incomingRemix) {
+      const fields = mapRemixToFields(incomingRemix, 'brand-story-builder');
+      if (fields.mission) setMission(fields.mission);
+      if (fields.industry) setIndustry(fields.industry);
+      if (fields.tone) setTone(fields.tone);
+    }
   }, []);
 
   const fetchConfig = async () => {
@@ -150,6 +160,9 @@ const BrandStoryBuilder = () => {
             All generated content is original and generic. Do not include copyrighted or trademarked content.
           </p>
         </div>
+
+        {/* Remix Banner */}
+        {hasRemix && !result && <div className="mb-4"><RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} /></div>}
 
         {/* Generator Form */}
         <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 mb-6">

@@ -13,6 +13,8 @@ import ShareButton from '../components/ShareButton';
 import ShareCreation from '../components/ShareCreation';
 import CreationActionsBar from '../components/CreationActionsBar';
 import NextActionHooks from '../components/NextActionHooks';
+import RemixBanner from '../components/RemixBanner';
+import { useRemixData, mapRemixToFields } from '../hooks/useRemixData';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
 import UpsellModal from '../components/UpsellModal';
@@ -34,6 +36,7 @@ export default function ReelGenerator() {
   const [lastGenerationId, setLastGenerationId] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('reels');
 
   const [formData, setFormData] = useState({
     topic: '',
@@ -90,17 +93,13 @@ export default function ReelGenerator() {
 
   useEffect(() => {
     fetchCredits();
-    // Handle remix/variation navigation state
-    const navState = location.state || window.history?.state?.usr;
-    let remixData = navState;
-    if (!remixData?.prompt) {
-      try {
-        const stored = localStorage.getItem('remix_data');
-        if (stored) { remixData = JSON.parse(stored); setTimeout(() => localStorage.removeItem('remix_data'), 1000); }
-      } catch {}
-    }
-    if (remixData?.prompt) {
-      setFormData(prev => ({ ...prev, topic: remixData.prompt }));
+    // Cross-tool auto-prefill
+    if (hasRemix && incomingRemix) {
+      const fields = mapRemixToFields(incomingRemix, 'reels');
+      if (fields.topic) setFormData(prev => ({ ...prev, topic: fields.topic }));
+      if (fields.niche) setFormData(prev => ({ ...prev, niche: fields.niche }));
+      if (fields.tone) setFormData(prev => ({ ...prev, tone: fields.tone }));
+      if (fields.duration) setFormData(prev => ({ ...prev, duration: fields.duration }));
     }
   }, []);
 
@@ -244,6 +243,7 @@ export default function ReelGenerator() {
           {/* Input Form */}
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 sm:p-6 shadow-xl">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-5 sm:mb-6">Generate Reel Script</h2>
+            {hasRemix && <RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} />}
             <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6" data-testid="reel-form">
               <div>
                 <Label htmlFor="topic" className="text-slate-300 font-medium text-sm mb-2 block">Topic *</Label>

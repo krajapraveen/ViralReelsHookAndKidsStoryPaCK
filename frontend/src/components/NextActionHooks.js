@@ -106,6 +106,8 @@ export default function NextActionHooks({ toolType, prompt = '', settings = {}, 
     // Store remix context for the target tool
     const stateData = {
       prompt: finalPrompt,
+      timestamp: Date.now(),
+      source_tool: toolType,
       remixFrom: {
         tool: toolType,
         prompt,

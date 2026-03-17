@@ -19,6 +19,8 @@ import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import NextActionHooks from '../components/NextActionHooks';
+import RemixBanner from '../components/RemixBanner';
+import { useRemixData, mapRemixToFields } from '../hooks/useRemixData';
 
 // ============================================
 // COPYRIGHT BLOCKED KEYWORDS
@@ -430,10 +432,17 @@ export default function ComicStorybookBuilder() {
   // Modals
   const [showRating, setShowRating] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
+  const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('comic-storybook-builder');
 
   useEffect(() => {
     fetchCredits();
     fetchUserPlan();
+    // Cross-tool auto-prefill
+    if (hasRemix && incomingRemix) {
+      const fields = mapRemixToFields(incomingRemix, 'comic-storybook-builder');
+      if (fields.storyIdea) setStoryIdea(fields.storyIdea);
+      if (fields.genre) setSelectedGenre(fields.genre);
+    }
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
@@ -1360,6 +1369,8 @@ export default function ComicStorybookBuilder() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Remix Banner */}
+        {hasRemix && <div className="max-w-xl mx-auto mb-4"><RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} /></div>}
         {/* Progress Indicator */}
         <div className="max-w-xl mx-auto mb-8">
           <div className="flex items-center justify-between">

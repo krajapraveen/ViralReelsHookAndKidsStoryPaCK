@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
 import NextActionHooks from '../components/NextActionHooks';
+import RemixBanner from '../components/RemixBanner';
+import { useRemixData, mapRemixToFields } from '../hooks/useRemixData';
 
 const TONES = [
   { id: 'funny', name: 'Funny', emoji: '😂', icon: Smile, color: 'from-yellow-500 to-orange-500', description: 'Add humor and make people laugh' },
@@ -48,9 +50,16 @@ export default function CaptionRewriterPro() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('caption-rewriter');
 
   useEffect(() => {
     fetchInitialData();
+    // Cross-tool auto-prefill
+    if (hasRemix && incomingRemix) {
+      const fields = mapRemixToFields(incomingRemix, 'caption-rewriter');
+      if (fields.text) setText(fields.text);
+      if (fields.tone) setTone(fields.tone);
+    }
   }, []);
 
   const fetchInitialData = async () => {
@@ -589,6 +598,7 @@ export default function CaptionRewriterPro() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
+        {hasRemix && !result && <div className="mb-4"><RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} /></div>}
         {result ? renderResult() : (
           <>
             {step === 1 && renderStep1()}

@@ -18,6 +18,8 @@ import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import analytics from '../utils/analytics';
 import CreationActionsBar from '../components/CreationActionsBar';
 import NextActionHooks from '../components/NextActionHooks';
+import RemixBanner from '../components/RemixBanner';
+import { useRemixData, mapRemixToFields } from '../hooks/useRemixData';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(null);
@@ -54,6 +56,7 @@ export default function GifMaker() {
   const [selectedVariation, setSelectedVariation] = useState('single');
   const [userPlan, setUserPlan] = useState('free');
   const navigate = useNavigate();
+  const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('gif-maker');
 
   const emotionIcons = {
     happy: '😀',
@@ -74,6 +77,13 @@ export default function GifMaker() {
     fetchCredits();
     fetchEmotions();
     fetchHistory();
+    // Cross-tool auto-prefill
+    if (hasRemix && incomingRemix) {
+      const fields = mapRemixToFields(incomingRemix, 'gif-maker');
+      if (fields.emotion) setSelectedEmotion(fields.emotion);
+      if (fields.style) setSelectedStyle(fields.style);
+      if (fields.background) setSelectedBackground(fields.background);
+    }
     return () => {
       if (pollingInterval) clearInterval(pollingInterval);
     };
@@ -406,6 +416,8 @@ export default function GifMaker() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Remix Banner */}
+        {hasRemix && <div className="mb-4"><RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} /></div>}
         {/* Hero Section */}
         <div className="text-center mb-8">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
