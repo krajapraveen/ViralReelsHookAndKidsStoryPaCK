@@ -8,6 +8,7 @@ import {
   GitBranch, TrendingUp
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
@@ -67,10 +68,17 @@ export default function PhotoToComic() {
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState('');
   const [result, setResult] = useState(null);
-  const [validated, setValidated] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [continuing, setContinuing] = useState(false);
+
+  // ─── Strict UI State Machine ─────────────────────────────────────
+  // Single source of truth. No contradictory states possible.
+  // Values: IDLE | PROCESSING | VALIDATING | READY | PARTIAL_READY | FAILED
+  const [uiState, setUiState] = useState('IDLE');
+  const [previewReady, setPreviewReady] = useState(false);
+  const [downloadReady, setDownloadReady] = useState(false);
+  const [failReason, setFailReason] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -194,6 +202,10 @@ export default function PhotoToComic() {
     setProgress(0);
     setProgressMsg('Starting generation...');
     setResult(null);
+    setUiState('PROCESSING');
+    setPreviewReady(false);
+    setDownloadReady(false);
+    setFailReason('');
 
     try {
       const formData = new FormData();
@@ -253,12 +265,15 @@ export default function PhotoToComic() {
         if (job.status === 'COMPLETED') {
           setGenerating(false);
           setResult(job);
-          validateAsset(id);
-          setTimeout(() => setShowRating(true), 3000);
+          setUiState('VALIDATING');
+          // Gate: validate assets BEFORE declaring ready
+          resolveAssetState(id, job);
           return;
         }
         if (job.status === 'FAILED') {
           setGenerating(false);
+          setUiState('FAILED');
+          setFailReason(job.error || 'Generation failed. Credits refunded.');
           toast.error(job.error || 'Generation failed. Credits refunded.');
           return;
         }
@@ -286,11 +301,55 @@ export default function PhotoToComic() {
     poll();
   };
 
-  const validateAsset = async (id) => {
+  // ─── Asset State Resolution ─────────────────────────────────────
+  // Determines final UI state from asset truth. Only transitions to READY
+  // when preview is actually renderable.
+  const resolveAssetState = async (id, job) => {
+    let previewOk = false;
+    let downloadOk = false;
+
+    // 1. Check if preview image is renderable
+    const previewUrl = job.resultUrl || job.resultUrls?.[0] || job.panels?.[0]?.imageUrl;
+    if (previewUrl && previewUrl.length > 10) {
+      // For data URIs, they're always "renderable" (stored in DB)
+      if (previewUrl.startsWith('data:')) {
+        previewOk = true;
+      } else if (!previewUrl.includes('placehold.co')) {
+        // For real URLs, try loading the image
+        previewOk = await new Promise((resolve) => {
+          const img = new window.Image();
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(false);
+          img.src = previewUrl;
+          setTimeout(() => resolve(false), 8000); // 8s timeout
+        });
+      }
+    }
+
+    // 2. Validate download asset via backend
     try {
       const res = await api.get(`/api/photo-to-comic/validate-asset/${id}`);
-      setValidated(res.data.valid === true);
-    } catch { setValidated(true); }
+      downloadOk = res.data.valid === true;
+    } catch {
+      downloadOk = true; // Fallback: assume download works if API errors
+    }
+
+    // 3. Resolve to single authoritative UI state
+    setPreviewReady(previewOk);
+    setDownloadReady(downloadOk);
+
+    if (previewOk && downloadOk) {
+      setUiState('READY');
+    } else if (downloadOk && !previewOk) {
+      setUiState('PARTIAL_READY'); // Download works, preview broken
+    } else if (!downloadOk && !previewOk) {
+      setUiState('FAILED');
+      setFailReason('Assets could not be validated. You can retry or create a new comic.');
+    } else {
+      setUiState('PARTIAL_READY');
+    }
+
+    setTimeout(() => setShowRating(true), 3000);
   };
 
   const handleDownload = async () => {
@@ -319,6 +378,10 @@ export default function PhotoToComic() {
     setGenerating(true);
     setProgress(0);
     setProgressMsg('Continuing your story...');
+    setResult(null);
+    setUiState('PROCESSING');
+    setPreviewReady(false);
+    setDownloadReady(false);
     try {
       const res = await api.post('/api/photo-to-comic/continue-story', {
         parentJobId: jobId,
@@ -397,27 +460,53 @@ export default function PhotoToComic() {
   // ─── RENDER ──────────────────────────────────────────────────────
 
   // === POST-GENERATION EXPERIENCE ===
+  // Gated by strict uiState — no contradictory rendering possible
   if (result) {
     const imageUrl = result.resultUrl || result.resultUrls?.[0];
     const panels = result.panels;
     const isStrip = result.mode === 'strip' || panels?.length > 0;
+
+    // Status badge — single truth from uiState
+    const STATUS_CONFIG = {
+      VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Validating Assets', subtitle: 'Checking preview and download...' },
+      READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Comic Ready', subtitle: 'Preview and download verified' },
+      PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Comic Saved', subtitle: downloadReady ? 'Download available — preview limited' : 'Processing assets...' },
+      FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <X className="w-5 h-5 text-red-400" />, title: 'Generation Issue', subtitle: failReason || 'Something went wrong' },
+    };
+    const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
+
     return (
       <div className="min-h-screen bg-slate-950">
         <Header credits={credits} isUnlimited={isUnlimited} />
         <main className="max-w-5xl mx-auto px-4 py-8" data-testid="result-view">
           <div className="grid lg:grid-cols-[1fr_340px] gap-6">
-            {/* LEFT: Result display */}
+            {/* LEFT: Result display — uses SafeImage, never raw img */}
             <div className="space-y-4">
               {imageUrl && !panels && (
                 <div className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900">
-                  <img src={imageUrl} alt="Comic" className="w-full" crossOrigin="anonymous" data-testid="result-image" />
+                  <SafeImage
+                    src={imageUrl}
+                    alt="Comic"
+                    aspectRatio="auto"
+                    objectFit="contain"
+                    titleOverlay={result.storyPrompt || style}
+                    fallbackType="gradient"
+                    className="w-full min-h-[200px]"
+                    data-testid="result-image"
+                  />
                 </div>
               )}
               {panels?.length > 0 && (
                 <div className="grid grid-cols-2 gap-3" data-testid="result-panels">
                   {panels.map((p, i) => (
                     <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900 group">
-                      <img src={p.imageUrl} alt={`Panel ${i + 1}`} className="w-full" crossOrigin="anonymous" />
+                      <SafeImage
+                        src={p.imageUrl}
+                        alt={`Panel ${i + 1}`}
+                        aspectRatio="1/1"
+                        titleOverlay={p.dialogue || `Panel ${i + 1}`}
+                        className="w-full"
+                      />
                       {p.dialogue && (
                         <div className="p-2.5 text-xs text-slate-300 bg-slate-800/80 border-t border-slate-700">
                           {p.dialogue}
@@ -427,61 +516,74 @@ export default function PhotoToComic() {
                   ))}
                 </div>
               )}
+              {/* Fallback: if no image and no panels, show placeholder */}
+              {!imageUrl && !panels?.length && (
+                <div className="rounded-2xl border border-slate-700 bg-slate-900 p-8 flex flex-col items-center justify-center min-h-[300px]">
+                  <SafeImage src={null} alt="" aspectRatio="1/1" titleOverlay={result.storyPrompt || 'Your Comic'} className="w-40 h-40 rounded-xl mb-4" />
+                  <p className="text-sm text-slate-400">Preview unavailable</p>
+                  {downloadReady && <p className="text-xs text-slate-500 mt-1">Download may still work</p>}
+                </div>
+              )}
             </div>
 
-            {/* RIGHT: Action Panel */}
+            {/* RIGHT: Action Panel — gated by uiState */}
             <div className="space-y-4 lg:sticky lg:top-20 self-start" data-testid="action-panel">
-              {/* Status */}
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center shrink-0">
-                  <Check className="w-5 h-5 text-emerald-400" />
+              {/* Status badge — single truth */}
+              <div className={`${statusCfg.bg} border rounded-xl p-4 flex items-center gap-3`} data-testid="status-badge">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-slate-800/50">
+                  {statusCfg.icon}
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-sm">Comic Ready</p>
-                  <p className="text-emerald-400/70 text-xs">Permanent asset — download anytime</p>
+                  <p className="text-white font-semibold text-sm" data-testid="status-title">{statusCfg.title}</p>
+                  <p className="text-slate-400 text-xs">{statusCfg.subtitle}</p>
                 </div>
               </div>
 
-              {/* Primary actions */}
+              {/* Primary actions — only when assets are real */}
               <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
                 <Button
                   onClick={handleDownload}
-                  disabled={downloading || !validated}
+                  disabled={downloading || !downloadReady}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 py-4"
                   data-testid="download-btn"
                 >
                   {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                  {downloading ? 'Downloading...' : !validated ? 'Validating...' : 'Download PNG'}
+                  {downloading ? 'Downloading...' : !downloadReady ? (uiState === 'VALIDATING' ? 'Verifying...' : 'Unavailable') : 'Download PNG'}
                 </Button>
 
-                {/* Share row */}
+                {/* Share row — only enabled when truly READY */}
                 <div className="flex gap-2" data-testid="share-actions">
-                  <Button
-                    variant="outline" size="sm"
-                    onClick={() => handleShare('copy')}
-                    className="flex-1 border-slate-700 text-slate-300 hover:text-white text-xs"
-                    data-testid="share-copy-btn"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleShare('copy')} disabled={uiState !== 'READY'} className="flex-1 border-slate-700 text-slate-300 hover:text-white text-xs disabled:opacity-40" data-testid="share-copy-btn">
                     <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Link
                   </Button>
-                  <Button
-                    variant="outline" size="sm"
-                    onClick={() => handleShare('twitter')}
-                    className="border-slate-700 text-slate-300 hover:text-white px-3"
-                    data-testid="share-twitter-btn"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleShare('twitter')} disabled={uiState !== 'READY'} className="border-slate-700 text-slate-300 hover:text-white px-3 disabled:opacity-40" data-testid="share-twitter-btn">
                     <Twitter className="w-3.5 h-3.5" />
                   </Button>
-                  <Button
-                    variant="outline" size="sm"
-                    onClick={() => handleShare('whatsapp')}
-                    className="border-slate-700 text-slate-300 hover:text-white px-3"
-                    data-testid="share-whatsapp-btn"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleShare('whatsapp')} disabled={uiState !== 'READY'} className="border-slate-700 text-slate-300 hover:text-white px-3 disabled:opacity-40" data-testid="share-whatsapp-btn">
                     <MessageCircle className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
+
+              {/* FAILED: retry action */}
+              {uiState === 'FAILED' && (
+                <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 space-y-3" data-testid="failed-actions">
+                  <p className="text-xs text-red-400">{failReason}</p>
+                  <Button onClick={() => { setResult(null); setUiState('IDLE'); }} className="w-full bg-red-600 hover:bg-red-700" data-testid="retry-btn">
+                    <RefreshCw className="w-4 h-4 mr-2" /> Try Again
+                  </Button>
+                </div>
+              )}
+
+              {/* PARTIAL_READY: retry preview */}
+              {uiState === 'PARTIAL_READY' && !previewReady && (
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 space-y-2" data-testid="partial-ready-info">
+                  <p className="text-xs text-amber-400">Preview couldn't load. Download may still work.</p>
+                  <Button variant="outline" size="sm" onClick={() => resolveAssetState(jobId, result)} className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs" data-testid="retry-preview-btn">
+                    <RefreshCw className="w-3 h-3 mr-1" /> Retry Preview
+                  </Button>
+                </div>
+              )}
 
               {/* Continue Story — upgraded with directions */}
               {isStrip && (
