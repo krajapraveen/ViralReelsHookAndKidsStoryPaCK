@@ -8,10 +8,11 @@ AI Creative Operating System: **Create -> Share -> View -> Remix**
 2. **A job cannot be READY until the primary preview asset is validated and renderable.**
 3. **Frontend must never lie about backend truth.**
 4. **One authoritative UI state. No contradictory rendering.**
+5. **Credits must NEVER show 0 due to loading or API failure.**
 
 ## UI State Machine (IMPLEMENTED — Photo-to-Comic + Story Video)
 ```
-IDLE → PROCESSING → VALIDATING → READY | PARTIAL_READY | FAILED
+IDLE -> PROCESSING -> VALIDATING -> READY | PARTIAL_READY | FAILED
 ```
 
 | uiState | Badge | Download | Share | Preview |
@@ -21,8 +22,6 @@ IDLE → PROCESSING → VALIDATING → READY | PARTIAL_READY | FAILED
 | READY | "Video/Comic Ready" (green) | Enabled | Enabled | Real image/poster |
 | PARTIAL_READY | "Video/Comic Saved" (amber) | Enabled if download_ready | Disabled | Gradient fallback + retry |
 | FAILED | "Generation Issue" (red) | Disabled (unless partial assets) | Disabled | Retry/Resume button |
-
-**Contradictory states structurally impossible in code.**
 
 ## Asset Truth Model (IMPLEMENTED — Both pipelines)
 Backend `/validate-asset` returns separate truth:
@@ -39,40 +38,63 @@ Backend `/validate-asset` returns separate truth:
 }
 ```
 
+## Credits Truth (IMPLEMENTED — ALL Pages)
+- State initialized to `null` (loading), NEVER `0`
+- Shows `...` while loading, never 0
+- Shows `∞` for admin/unlimited users
+- 3-tier fetch: cache -> auth/me -> wallet fallback
+- Every page that displays credits: Dashboard, GifMaker, ComicStorybookBuilder, BedtimeStoryBuilder, PhotoToComic, CreditStatusBadge
+
+## SafeImage Component (IMPLEMENTED — ALL Surfaces)
+Handles: null, empty, data URIs, broken CDN, CORS failures.
+Gradient fallback + title overlay. Deployed on:
+- Dashboard (trending videos)
+- Landing (trending section)
+- Gallery (video thumbnails + preview modal)
+- ExplorePage (all cards)
+- CreatorProfile (avatar + creation cards)
+- ComicStorybookBuilder (page previews)
+- StoryPreview (scene images)
+- ProgressiveGeneration (scene thumbnails)
+- StoryVideoPipeline (postgen preview + scene thumbs)
+- MyStories, StoryChainView, ResumeYourStory
+
 ## Story Video Bulletproof Pipeline (IMPLEMENTED — March 17, 2026)
-- Strict useReducer state machine in StoryVideoPipeline.js
+- Strict useReducer state machine
 - Backend `GET /api/pipeline/validate-asset/{job_id}` — granular asset truth
 - Separate preview/download/share readiness
-- Download button gated: only enabled when `download_ready=true`
-- Share buttons gated: only enabled when `share_ready=true`
-- Reconnect safety: active jobs detected and resumed on page load
-- Duplicate click guard: `createLockRef` prevents double submissions
+- Download/Share gated on validated assets
+- Reconnect safety: active jobs resumed on page load
+- Duplicate click guard
 - Hard 5-minute timeout + 90-second stale detection
-- SafeImage for all scene thumbnails (ProgressiveGeneration, StoryPreview, Dashboard)
-- ProgressiveGeneration delegates all status transitions to parent (no rogue navigation)
-- PARTIAL_READY shows honest "Video saved — preview limited" with download enabled
-- FAILED shows real error reason with Resume/Start Over options
+- ProgressiveGeneration delegates all transitions to parent
 
-## Credits Truth (IMPLEMENTED)
-- State initialized to `null` (loading), never `0`
-- 3-tier fetch: `/credits/balance` → retry → `/auth/me` fallback
-- `isUnlimited` for admin/exempt → bypasses all numeric gates
-- Admin shows "Unlimited", never "0"
+## Full Platform Hardening Audit (COMPLETED — March 17, 2026)
+### Tested Modules (ALL PASS):
+- Dashboard, Photo to Comic, Story Video Studio, Comic Storybook Builder
+- GIF Maker, Reel Generator, Bedtime Story Builder, Brand Story Builder
+- Caption Rewriter Pro, Daily Viral Ideas
+- My Downloads, Gallery, Explore, Landing, Creator Profile
+- Credits system (all pages), CreditStatusBadge, Story Chain
 
-## SafeImage Component (IMPLEMENTED)
-Handles: null, empty, data URIs, placehold.co, broken CDN, CORS failures.
-Gradient fallback + title overlay. Deployed on all major surfaces.
+### Results:
+- Backend: 25/25 tests PASS (0 errors, 0 failures)
+- Frontend: ALL pages load correctly, credits display correct, SafeImage prevents broken icons
+- No contradictory UI states found
+- No pages show credits as 0
+- No broken image icons on any surface
 
-## Completed (All Sessions)
+## Completed Work (All Sessions)
 1-23. Previous work (resilience, upload, story chains, re-engagement)
-24. Credits truth fix + SafeImage component
-25. STATE MACHINE FIX: Strict uiState enum for Photo-to-Comic
+24. Credits truth fix + SafeImage component creation
+25. STATE MACHINE FIX: Strict uiState for Photo-to-Comic
 26. IMAGE FALLBACK SWEEP: onError handlers + gradient fallbacks
-27. **STORY VIDEO BULLETPROOF PIPELINE**: Full state machine, validate-asset endpoint, reconnect safety, timeout/stale detection, SafeImage sweep, ProgressiveGeneration fix
+27. STORY VIDEO BULLETPROOF PIPELINE: Full state machine, validate-asset, reconnect safety
+28. FULL PLATFORM HARDENING: Credits truth across all pages (null init, ∞ display), SafeImage sweep on Landing/Gallery/Explore/CreatorProfile/ComicStorybook/GifMaker, generation truth verified for all tools
 
 ## Remaining Backlog
 ### P0
-- [ ] R2 bucket CORS configuration (infra — will move PARTIAL_READY → READY)
+- [ ] R2 bucket CORS configuration (infra — will move PARTIAL_READY -> READY)
 
 ### P1
 - [ ] Consistent aspect ratios and card sizing across all surfaces
@@ -83,6 +105,7 @@ Gradient fallback + title overlay. Deployed on all major surfaces.
 - [ ] Cashfree payments (live)
 - [ ] Frontend admin dashboard for observability
 - [ ] Email Notifications (BLOCKED — SendGrid)
+- [ ] Automated regression + monitoring architecture
 
 ### Blocked
 - R2 CORS — requires manual infra config

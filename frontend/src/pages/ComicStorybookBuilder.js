@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
+import { SafeImage } from '../components/SafeImage';
 import ShareCreation from '../components/ShareCreation';
 import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
@@ -387,7 +388,7 @@ const STORY_TEMPLATES = {
 
 export default function ComicStorybookBuilder() {
   // User state
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(null);
   const [userPlan, setUserPlan] = useState('free');
   
   // Wizard state
@@ -1051,8 +1052,8 @@ export default function ComicStorybookBuilder() {
           </div>
           <div className="text-right">
             <p className="text-slate-400 text-sm">Your Balance</p>
-            <p className={`text-xl font-bold ${credits >= calculateCost() ? 'text-green-400' : 'text-red-400'}`}>
-              {credits.toLocaleString()} credits
+            <p className={`text-xl font-bold ${(credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`}>
+              {credits === null ? '...' : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} credits`}
             </p>
           </div>
         </div>
@@ -1258,22 +1259,13 @@ export default function ComicStorybookBuilder() {
                   <div className="grid grid-cols-2 gap-4">
                     {previewPages.map((page, idx) => (
                       <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-800">
-                        <img 
-                          src={page.url} 
-                          alt={`Preview ${idx + 1}`}
-                          className="w-full aspect-[3/4] object-cover"
-                          onError={(e) => {
-                            // Fallback to gradient placeholder on error
-                            e.target.style.display = 'none';
-                            e.target.parentElement.querySelector('.fallback-placeholder').style.display = 'flex';
-                          }}
+                        <SafeImage
+                          src={page.url}
+                          alt={page.type === 'cover' ? 'Cover Preview' : `Page ${idx}`}
+                          aspectRatio="3/4"
+                          titleOverlay={page.type === 'cover' ? 'Cover' : `Page ${idx}`}
+                          fallbackType="gradient"
                         />
-                        <div className="fallback-placeholder hidden w-full aspect-[3/4] items-center justify-center bg-gradient-to-br from-purple-900 to-indigo-900">
-                          <div className="text-center">
-                            <BookOpen className="w-12 h-12 mx-auto text-purple-400 mb-2" />
-                            <span className="text-purple-300 text-sm">{page.type === 'cover' ? 'Cover Preview' : `Page ${idx}`}</span>
-                          </div>
-                        </div>
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                           <span className="text-white text-xs font-medium">
                             {page.type === 'cover' ? 'Cover' : `Page ${idx}`}
@@ -1349,7 +1341,7 @@ export default function ComicStorybookBuilder() {
             </div>
             <div className="flex items-center gap-4">
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full px-4 py-2">
-                <span className="text-purple-300 font-medium">{credits.toLocaleString()} Credits</span>
+                <span className="text-purple-300 font-medium" data-testid="storybook-credits">{credits === null ? '...' : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
               </div>
             </div>
           </div>

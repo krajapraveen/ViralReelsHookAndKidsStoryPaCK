@@ -8,6 +8,7 @@ import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
+import { SafeImage } from '../components/SafeImage';
 import UpsellModal from '../components/UpsellModal';
 import ShareCreation from '../components/ShareCreation';
 import VariationSelector from '../components/VariationSelector';
@@ -18,7 +19,7 @@ import analytics from '../utils/analytics';
 import CreationActionsBar from '../components/CreationActionsBar';
 
 export default function GifMaker() {
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(null);
   const [loading, setLoading] = useState(false);
   const [emotions, setEmotions] = useState({});
   const [styles, setStyles] = useState({});
@@ -396,7 +397,7 @@ export default function GifMaker() {
             </div>
             <div className="flex items-center gap-4">
               <div className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 rounded-full px-4 py-2">
-                <span className="text-pink-300 font-medium">{credits.toLocaleString()} Credits</span>
+                <span className="text-pink-300 font-medium" data-testid="gifmaker-credits">{credits === null ? '...' : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
               </div>
             </div>
           </div>

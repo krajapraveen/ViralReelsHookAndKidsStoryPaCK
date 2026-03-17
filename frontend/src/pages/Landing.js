@@ -6,6 +6,7 @@ import {
   ChevronRight, Globe, Zap
 } from 'lucide-react';
 import axios from 'axios';
+import { SafeImage } from '../components/SafeImage';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -275,12 +276,7 @@ export default function Landing() {
                 <Link key={item.job_id} to={`/v/${item.slug || item.job_id}`} className="flex-shrink-0 snap-start" style={{ width: 'min(280px, 75vw)' }}>
                   <div className="vs-card group p-0 overflow-hidden cursor-pointer h-full" data-testid={`trending-card-${item.job_id}`}>
                     <div className="relative w-full aspect-video bg-[var(--vs-bg-elevated)] overflow-hidden">
-                      {item.thumbnail_url ? (
-                        <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }} />
-                      ) : null}
-                      <div className={`w-full h-full bg-gradient-to-br from-purple-600/30 to-pink-600/20 items-center justify-center ${item.thumbnail_url ? 'hidden' : 'flex'}`}>
-                        <Film className="w-10 h-10 text-[var(--vs-text-muted)]" />
-                      </div>
+                      <SafeImage src={item.thumbnail_url} alt={item.title} aspectRatio="16/9" titleOverlay={item.title} fallbackType="gradient" className="group-hover:scale-105 transition-transform duration-300" />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                         <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
                       </div>

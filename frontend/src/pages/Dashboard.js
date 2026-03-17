@@ -67,7 +67,7 @@ const SUGGESTION_CHIPS = [
 ];
 
 export default function Dashboard() {
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(null);
   const [user, setUser] = useState(null);
   const [recentGenerations, setRecentGenerations] = useState([]);
   const [showDailyRewards, setShowDailyRewards] = useState(false);
@@ -149,7 +149,7 @@ export default function Dashboard() {
   };
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'admin';
-  const creditPercent = useMemo(() => credits >= 999999 ? 100 : Math.min(100, Math.round((credits / 500) * 100)), [credits]);
+  const creditPercent = useMemo(() => credits === null ? 0 : credits >= 999999 ? 100 : Math.min(100, Math.round(((credits || 0) / 500) * 100)), [credits]);
   const streakDays = engagement?.streak?.current || 0;
 
   return (
@@ -460,10 +460,10 @@ export default function Dashboard() {
                 <span className="text-xs font-semibold text-[var(--vs-text-muted)] uppercase tracking-wider" style={{ fontFamily: 'var(--vs-font-heading)' }}>Credits</span>
                 <Link to="/app/billing" className="text-xs text-[var(--vs-text-accent)] hover:text-white transition-colors">Top up</Link>
               </div>
-              <div className="text-3xl font-bold text-white mb-0.5" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-                {credits >= 999999 ? '∞' : credits.toLocaleString()}
+              <div className="text-3xl font-bold text-white mb-0.5" style={{ fontFamily: 'var(--vs-font-mono)' }} data-testid="credits-display">
+                {credits === null ? '...' : credits >= 999999 ? '∞' : credits.toLocaleString()}
               </div>
-              <p className="text-xs text-[var(--vs-text-muted)] mb-3">available</p>
+              <p className="text-xs text-[var(--vs-text-muted)] mb-3">{credits === null ? 'loading' : credits >= 999999 ? 'unlimited' : 'available'}</p>
               <div className="w-full h-1.5 rounded-full bg-[var(--vs-bg-card)] overflow-hidden mb-4">
                 <div className="h-full rounded-full vs-gradient-bg transition-all duration-700" style={{ width: `${creditPercent}%` }} />
               </div>

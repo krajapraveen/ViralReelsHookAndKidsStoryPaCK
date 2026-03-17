@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Film, Eye, RefreshCcw, User, Command, ArrowLeft, Play, Calendar } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
+import { SafeImage } from '../components/SafeImage';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -75,11 +76,10 @@ export default function CreatorProfile() {
         {/* Creator Header */}
         <div className="vs-panel p-6 mb-8 vs-fade-up-1" data-testid="creator-header">
           <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--vs-primary-from)] to-[var(--vs-secondary-to)] flex items-center justify-center flex-shrink-0">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--vs-primary-from)] to-[var(--vs-secondary-to)] flex items-center justify-center flex-shrink-0 overflow-hidden">
               {creator.avatar_url ? (
-                <img src={creator.avatar_url} alt={creator.name} className="w-full h-full rounded-full object-cover" onError={(e) => { e.target.style.display='none'; }} />
-              ) : null}
-              {!creator.avatar_url && (
+                <SafeImage src={creator.avatar_url} alt={creator.name} aspectRatio="1/1" titleOverlay={creator.name?.[0]?.toUpperCase()} className="w-20 h-20 rounded-full" />
+              ) : (
                 <span className="text-2xl font-bold text-white">{creator.name?.[0]?.toUpperCase() || '?'}</span>
               )}
             </div>
@@ -117,10 +117,7 @@ export default function CreatorProfile() {
               <Link key={item.job_id} to={`/v/${item.slug || item.job_id}`}>
                 <div className="vs-card group p-0 overflow-hidden cursor-pointer" data-testid={`creator-card-${item.job_id}`}>
                   <div className="relative w-full aspect-video bg-[var(--vs-bg-elevated)] overflow-hidden">
-                    {item.thumbnail_url ? (
-                      <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }} />
-                    ) : null}
-                    <div className={`w-full h-full items-center justify-center bg-gradient-to-br from-indigo-600/30 to-cyan-600/20 ${item.thumbnail_url ? 'hidden' : 'flex'}`}><Film className="w-10 h-10 text-[var(--vs-text-muted)]" /></div>
+                    <SafeImage src={item.thumbnail_url} alt={item.title} aspectRatio="16/9" titleOverlay={item.title} fallbackType="gradient" className="group-hover:scale-105 transition-transform duration-300" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                       <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
                     </div>

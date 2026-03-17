@@ -131,7 +131,7 @@ export default function BedtimeStoryBuilder() {
   // Results
   const [story, setStory] = useState(null);
   const [creditsUsed, setCreditsUsed] = useState(0);
-  const [remainingCredits, setRemainingCredits] = useState(0);
+  const [remainingCredits, setRemainingCredits] = useState(null);
   
   // Fetch config
   useEffect(() => {

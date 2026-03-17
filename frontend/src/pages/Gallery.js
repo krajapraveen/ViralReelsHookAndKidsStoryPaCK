@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { SafeImage } from '../components/SafeImage';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -162,12 +163,7 @@ export default function Gallery() {
                   data-testid={`leaderboard-item-${i}`}
                 >
                   <div className="aspect-video bg-black/50 relative group cursor-pointer" onClick={() => handlePreview(video)}>
-                    {video.thumbnail_url ? (
-                      <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }} />
-                    ) : null}
-                    <div className={`w-full h-full items-center justify-center bg-gradient-to-br from-indigo-900/40 to-purple-900/30 ${video.thumbnail_url ? 'hidden' : 'flex'}`}>
-                      <Play className="w-8 h-8 text-white/20" />
-                    </div>
+                    <SafeImage src={video.thumbnail_url} alt={video.title} aspectRatio="16/9" titleOverlay={video.title} fallbackType="gradient" />
                     {/* Rank badge */}
                     <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-black border ${RANK_STYLES[i] || 'text-slate-500 bg-slate-500/10 border-slate-500/20'}`}>
                       #{i + 1}
@@ -358,7 +354,7 @@ export default function Gallery() {
                 />
               ) : previewVideo.thumbnail_url ? (
                 <div className="relative w-full h-full">
-                  <img src={previewVideo.thumbnail_url} alt={previewVideo.title} className="w-full h-full object-contain" onError={(e) => { e.target.style.display='none'; }} />
+                  <SafeImage src={previewVideo.thumbnail_url} alt={previewVideo.title} aspectRatio="16/9" titleOverlay={previewVideo.title} fallbackType="gradient" />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                     <span className="px-4 py-2 bg-indigo-600/80 backdrop-blur-sm rounded-full text-white text-sm font-medium">
                       Story Preview
