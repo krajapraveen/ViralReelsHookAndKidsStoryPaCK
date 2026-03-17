@@ -17,6 +17,7 @@ import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import analytics from '../utils/analytics';
 import CreationActionsBar from '../components/CreationActionsBar';
+import NextActionHooks from '../components/NextActionHooks';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(null);
@@ -730,6 +731,17 @@ export default function GifMaker() {
                     </div>
                   )}
 
+                  {/* Next Action Hooks — PRIMARY ACTION ZONE */}
+                  {currentJob?.status === 'COMPLETED' && (
+                    <NextActionHooks
+                      toolType="gif-maker"
+                      prompt={`${selectedEmotion} ${selectedStyle} reaction GIF`}
+                      settings={{ emotion: selectedEmotion, style: selectedStyle, background: selectedBackground }}
+                      generationId={currentJob?.id}
+                      title={`${selectedEmotion} GIF`}
+                    />
+                  )}
+                  
                   {/* Remix & Variations Engine */}
                   {currentJob?.status === 'COMPLETED' && (
                     <CreationActionsBar

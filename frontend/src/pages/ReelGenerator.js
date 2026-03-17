@@ -12,6 +12,7 @@ import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle, LogOu
 import ShareButton from '../components/ShareButton';
 import ShareCreation from '../components/ShareCreation';
 import CreationActionsBar from '../components/CreationActionsBar';
+import NextActionHooks from '../components/NextActionHooks';
 import UpgradeBanner from '../components/UpgradeBanner';
 import UpgradeModal from '../components/UpgradeModal';
 import UpsellModal from '../components/UpsellModal';
@@ -631,6 +632,15 @@ export default function ReelGenerator() {
                     </ul>
                   </div>
                 )}
+
+                {/* Next Action Hooks — PRIMARY ACTION ZONE */}
+                <NextActionHooks
+                  toolType="reels"
+                  prompt={formData.topic}
+                  settings={{ niche: formData.niche, tone: formData.tone, duration: formData.duration }}
+                  generationId={lastGenerationId}
+                  title={result.best_hook}
+                />
 
                 {/* Remix & Variations Engine */}
                 <CreationActionsBar

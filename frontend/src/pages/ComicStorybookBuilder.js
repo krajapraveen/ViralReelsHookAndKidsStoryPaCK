@@ -18,6 +18,7 @@ import ShareCreation from '../components/ShareCreation';
 import HelpGuide from '../components/HelpGuide';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
+import NextActionHooks from '../components/NextActionHooks';
 
 // ============================================
 // COPYRIGHT BLOCKED KEYWORDS
@@ -1245,6 +1246,15 @@ export default function ComicStorybookBuilder() {
                     <ShareCreation 
                       contentType="comic_storybook"
                       contentId={job.id}
+                    />
+
+                    {/* Next Action Hooks — PRIMARY ACTION ZONE */}
+                    <NextActionHooks
+                      toolType="comic-storybook"
+                      prompt={storyIdea || `${selectedGenre || ''} comic story`}
+                      settings={{ genre: selectedGenre }}
+                      generationId={job?.id}
+                      title={`Comic Storybook`}
                     />
                   </div>
                 )}

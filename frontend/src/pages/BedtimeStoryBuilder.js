@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
 import CreationActionsBar from '../components/CreationActionsBar';
+import NextActionHooks from '../components/NextActionHooks';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -682,6 +683,16 @@ export default function BedtimeStoryBuilder() {
             </p>
           </div>
         </div>
+
+        {/* Next Action Hooks — PRIMARY ACTION ZONE */}
+        {story && step === 5 && (
+          <NextActionHooks
+            toolType="bedtime-story-builder"
+            prompt={`${theme || ''} bedtime story about ${story?.metadata?.character || 'a character'}`}
+            settings={{ ageGroup, theme, moral }}
+            title={story?.title || 'Bedtime Story'}
+          />
+        )}
 
         {/* Remix & Variations Engine */}
         {story && step === 5 && (

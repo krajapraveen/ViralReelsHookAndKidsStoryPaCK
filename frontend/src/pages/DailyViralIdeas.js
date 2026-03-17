@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Copy, Check, TrendingUp, Lock, Crown, BookOpen, Flame, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
+import NextActionHooks from '../components/NextActionHooks';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -282,6 +283,16 @@ const DailyViralIdeas = () => {
             ))
           )}
         </div>
+
+        {/* Next Action Hooks — PRIMARY ACTION ZONE */}
+        {filteredIdeas.length > 0 && (
+          <NextActionHooks
+            toolType="daily-viral-ideas"
+            prompt={filteredIdeas[0]?.idea || ''}
+            settings={{ niche: selectedNiche || filteredIdeas[0]?.niche }}
+            title={filteredIdeas[0]?.idea?.slice(0, 60) || 'Viral Idea'}
+          />
+        )}
 
         {/* Unlock Button - Show only if free user with only 1 idea */}
         {!isPro && fullPack.length === 0 && freeIdea && (

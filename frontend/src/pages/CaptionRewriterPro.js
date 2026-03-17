@@ -10,6 +10,7 @@ import {
   AlertTriangle, Crown, Eye, X
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
+import NextActionHooks from '../components/NextActionHooks';
 
 const TONES = [
   { id: 'funny', name: 'Funny', emoji: '😂', icon: Smile, color: 'from-yellow-500 to-orange-500', description: 'Add humor and make people laugh' },
@@ -476,6 +477,14 @@ export default function CaptionRewriterPro() {
           </div>
         ))}
       </div>
+
+      {/* Next Action Hooks — PRIMARY ACTION ZONE */}
+      <NextActionHooks
+        toolType="caption-rewriter"
+        prompt={text}
+        settings={{ tone, pack: packType }}
+        title={result?.original_text?.slice(0, 50) || 'Caption'}
+      />
     </div>
   );
 

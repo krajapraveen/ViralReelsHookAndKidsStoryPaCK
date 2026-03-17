@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Copy, Check, AlertTriangle, BookOpen, Building2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
+import NextActionHooks from '../components/NextActionHooks';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -303,6 +304,14 @@ const BrandStoryBuilder = () => {
               </div>
               <p className="text-slate-300 whitespace-pre-line">{result.about_section}</p>
             </div>
+
+            {/* Next Action Hooks — PRIMARY ACTION ZONE */}
+            <NextActionHooks
+              toolType="brand-story-builder"
+              prompt={`${businessName} brand story - ${industry}`}
+              settings={{ industry, tone }}
+              title={businessName || 'Brand Story'}
+            />
           </div>
         )}
 
