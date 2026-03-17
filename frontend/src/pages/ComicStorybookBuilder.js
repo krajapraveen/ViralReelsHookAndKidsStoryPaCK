@@ -604,20 +604,28 @@ export default function ComicStorybookBuilder() {
     
     try {
       const res = await api.post(`/api/comic-storybook-v2/download/${job.id}`, { type });
-      if (res.data.success) {
+      if (res.data.success && res.data.downloadUrls) {
         toast.success('Download started!');
         
-        const url = res.data.downloadUrl;
-        const fullUrl = url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
-        const link = document.createElement('a');
-        link.href = fullUrl;
-        link.download = `comic_${job.id.slice(0, 8)}.${type}`;
-        link.click();
+        const urls = res.data.downloadUrls;
+        const url = type === 'pdf' ? urls.pdf : (urls.cover || urls.pdf);
+        if (url) {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `comic_${job.id.slice(0, 8)}.${type === 'pdf' ? 'pdf' : 'png'}`;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          toast.error('Download URL not available');
+        }
         
         fetchCredits();
       }
     } catch (e) {
-      toast.error('Download failed');
+      toast.error(e.response?.data?.detail || 'Download failed');
     }
   };
 
@@ -1193,27 +1201,39 @@ export default function ComicStorybookBuilder() {
                 {/* Download Buttons */}
                 {job.status === 'COMPLETED' && (
                   <div className="space-y-3 mt-6">
-                    {/* Smart Download with Watermark Support */}
-                    {job.resultUrl && (
+                    {/* PDF Download — permanent CDN-backed asset */}
+                    {job.pdfUrl && (
                       <DownloadWithExpiry
-                        downloadUrl={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
-                        downloadId={job.downloadId}
-                        filename={`comic_storybook_${job.id}.pdf`}
-                        fileType="document"
-                        expiresAt={job.expiresAt}
+                        downloadUrl={job.pdfUrl}
+                        filename={`comic_storybook_${job.id.slice(0, 8)}.pdf`}
+                        fileType="application/pdf"
+                        isPremium={userPlan !== 'free'}
                         contentType="STORYBOOK"
-                        enableSmartDownload={true}
-                        showWarning={true}
-                        onExpired={() => {
-                          toast.warning('Your download has expired. Please generate again.');
-                        }}
                       />
                     )}
-                    
+
+                    {/* Cover Image Download */}
+                    {job.coverUrl && (
+                      <Button
+                        onClick={() => {
+                          const a = document.createElement('a');
+                          a.href = job.coverUrl;
+                          a.download = `cover_${job.id.slice(0, 8)}.png`;
+                          a.target = '_blank';
+                          a.click();
+                          toast.success('Cover download started!');
+                        }}
+                        variant="outline"
+                        className="w-full border-slate-600 text-slate-300"
+                      >
+                        <Download className="w-4 h-4 mr-2" /> Download Cover Image
+                      </Button>
+                    )}
+
                     {/* Print Version (if HD print add-on selected) */}
                     {selectedAddOns.hd_print && (
                       <Button 
-                        onClick={() => handleDownload('print')}
+                        onClick={() => handleDownload('pdf')}
                         variant="outline"
                         className="w-full border-slate-600 text-slate-300"
                       >
