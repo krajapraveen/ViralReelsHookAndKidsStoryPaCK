@@ -3,15 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Wand2, Loader2, Download, Check, Image,
   Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
-  ChevronDown, Grid3X3, User, Palette
+  Grid3X3, User, Palette, RefreshCw, BookOpen, Share2,
+  Copy, Twitter, MessageCircle, ExternalLink, ChevronRight
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
-import ShareCreation from '../components/ShareCreation';
 
-// ─── Style Presets ─────────────────────────────────────────────────────
+// ─── Constants ─────────────────────────────────────────────────────────
 const STYLES = [
   { id: 'bold_superhero', name: 'Bold Hero', color: 'from-red-600 to-orange-500', tier: 'free' },
   { id: 'cartoon_fun', name: 'Cartoon', color: 'from-yellow-500 to-amber-400', tier: 'free' },
@@ -28,12 +28,9 @@ const STYLES = [
 ];
 
 const GENRES = [
-  { id: 'action', name: 'Action' },
-  { id: 'comedy', name: 'Comedy' },
-  { id: 'romance', name: 'Romance' },
-  { id: 'adventure', name: 'Adventure' },
-  { id: 'fantasy', name: 'Fantasy' },
-  { id: 'scifi', name: 'Sci-Fi' },
+  { id: 'action', name: 'Action' }, { id: 'comedy', name: 'Comedy' },
+  { id: 'romance', name: 'Romance' }, { id: 'adventure', name: 'Adventure' },
+  { id: 'fantasy', name: 'Fantasy' }, { id: 'scifi', name: 'Sci-Fi' },
   { id: 'kids_friendly', name: 'Kids' },
 ];
 
@@ -43,31 +40,26 @@ const BLOCKED = [
   'wonder woman', 'flash', 'joker', 'mickey', 'goku', 'pikachu', 'sonic'
 ];
 
+const API = process.env.REACT_APP_BACKEND_URL;
+
 export default function PhotoToComic() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const dropRef = useRef(null);
 
-  // ─── State ───────────────────────────────────────────────────────
+  // State
   const [credits, setCredits] = useState(0);
   const [userPlan, setUserPlan] = useState('free');
-
-  // Upload
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [uploading, setUploading] = useState(false);
   const [storageKey, setStorageKey] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
-
-  // Config
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [mode, setMode] = useState('avatar');
   const [style, setStyle] = useState('cartoon_fun');
   const [genre, setGenre] = useState('action');
   const [panelCount, setPanelCount] = useState(4);
   const [storyPrompt, setStoryPrompt] = useState('');
   const [hd, setHd] = useState(false);
-
-  // Generation
   const [generating, setGenerating] = useState(false);
   const [jobId, setJobId] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -76,6 +68,7 @@ export default function PhotoToComic() {
   const [validated, setValidated] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showRating, setShowRating] = useState(false);
+  const [continuing, setContinuing] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -90,8 +83,44 @@ export default function PhotoToComic() {
     })();
   }, []);
 
-  // ─── Photo handling ──────────────────────────────────────────────
-  const handleFile = useCallback((file) => {
+  // ─── Signed URL Upload ───────────────────────────────────────────
+  const uploadToR2 = useCallback(async (file) => {
+    setUploadProgress(10);
+    try {
+      // Step 1: Get presigned URL
+      const presigned = await api.post('/api/storage/presigned-upload', {
+        filename: file.name,
+        content_type: file.type,
+        file_size: file.size,
+        purpose: 'photo_upload',
+      });
+      const { upload_url, storage_key: key } = presigned.data;
+      setUploadProgress(30);
+
+      // Step 2: Direct upload to R2
+      const putResp = await fetch(upload_url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!putResp.ok) throw new Error('PUT failed');
+      setUploadProgress(80);
+
+      // Step 3: Confirm upload
+      await api.post('/api/storage/confirm-upload', { storage_key: key });
+      setUploadProgress(100);
+
+      setStorageKey(key);
+      return key;
+    } catch (err) {
+      console.warn('Direct R2 upload unavailable, using fallback:', err.message);
+      setUploadProgress(100); // Show complete — will use FormData fallback
+      setStorageKey(null);
+      return null;
+    }
+  }, []);
+
+  const handleFile = useCallback(async (file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) { toast.error('Please upload an image'); return; }
     if (file.size > 15 * 1024 * 1024) { toast.error('Max 15MB'); return; }
@@ -99,13 +128,15 @@ export default function PhotoToComic() {
     setPhotoPreview(URL.createObjectURL(file));
     setResult(null);
     setJobId(null);
-  }, []);
+
+    // Upload to R2 in background
+    uploadToR2(file);
+  }, [uploadToR2]);
 
   const onDrop = useCallback((e) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer?.files?.[0];
-    handleFile(file);
+    handleFile(e.dataTransfer?.files?.[0]);
   }, [handleFile]);
 
   const removePhoto = () => {
@@ -113,6 +144,7 @@ export default function PhotoToComic() {
     setPhotoFile(null);
     setPhotoPreview(null);
     setStorageKey(null);
+    setUploadProgress(0);
   };
 
   // ─── Cost ────────────────────────────────────────────────────────
@@ -122,12 +154,13 @@ export default function PhotoToComic() {
     const disc = { creator: 0.8, pro: 0.7, studio: 0.6 }[userPlan] || 1;
     return Math.max(1, Math.round(c * disc));
   })();
+  const isPaid = !['free', ''].includes(userPlan);
+  const isLocked = (tier) => tier === 'paid' && !isPaid;
 
   // ─── Generate ────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!photoFile) { toast.error('Upload a photo first'); return; }
     if (credits < cost) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }
-
     if (storyPrompt) {
       const lower = storyPrompt.toLowerCase();
       for (const kw of BLOCKED) {
@@ -137,12 +170,16 @@ export default function PhotoToComic() {
 
     setGenerating(true);
     setProgress(0);
-    setProgressMsg('Uploading...');
+    setProgressMsg('Starting generation...');
     setResult(null);
 
     try {
       const formData = new FormData();
-      formData.append('photo', photoFile);
+      if (storageKey) {
+        formData.append('storage_key', storageKey);
+      } else {
+        formData.append('photo', photoFile);
+      }
       formData.append('mode', mode);
       formData.append('style', style);
       formData.append('genre', genre);
@@ -164,8 +201,7 @@ export default function PhotoToComic() {
         pollJob(res.data.jobId);
       }
     } catch (err) {
-      const msg = err.response?.data?.detail || 'Generation failed';
-      toast.error(msg);
+      toast.error(err.response?.data?.detail || 'Generation failed');
       setGenerating(false);
     }
   };
@@ -179,7 +215,6 @@ export default function PhotoToComic() {
         const job = res.data;
         setProgress(job.progress || 0);
         setProgressMsg(job.progressMessage || 'Processing...');
-
         if (job.status === 'COMPLETED') {
           setGenerating(false);
           setResult(job);
@@ -213,17 +248,71 @@ export default function PhotoToComic() {
       if (res.data.downloadUrls?.length) {
         for (const url of res.data.downloadUrls) {
           const a = document.createElement('a');
-          a.href = url;
-          a.download = `comic_${jobId.slice(0, 8)}.png`;
+          a.href = url; a.download = `comic_${jobId.slice(0, 8)}.png`;
           a.target = '_blank';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
         }
         toast.success('Downloading!');
       }
     } catch { toast.error('Download failed'); }
     setDownloading(false);
+  };
+
+  // ─── Continue Story ──────────────────────────────────────────────
+  const handleContinueStory = async (prompt = '') => {
+    if (!jobId) return;
+    if (credits < 6) { toast.error('Need at least 6 credits'); navigate('/app/billing'); return; }
+    setContinuing(true);
+    setGenerating(true);
+    setProgress(0);
+    setProgressMsg('Continuing your story...');
+    try {
+      const res = await api.post('/api/photo-to-comic/continue-story', {
+        parentJobId: jobId,
+        prompt,
+        panelCount: 4,
+        keepStyle: true,
+      });
+      if (res.data.success && res.data.jobId) {
+        setJobId(res.data.jobId);
+        setCredits(p => p - (res.data.estimatedCredits || 6));
+        toast.success('Continuing your story!');
+        pollJob(res.data.jobId);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Continue failed');
+      setGenerating(false);
+    }
+    setContinuing(false);
+  };
+
+  // ─── Remix ───────────────────────────────────────────────────────
+  const handleRemix = (newStyle) => {
+    if (newStyle) setStyle(newStyle);
+    setResult(null);
+    setJobId(null);
+    setValidated(false);
+    // Keep photo + storage key, go back to builder with new style
+  };
+
+  // ─── Share ───────────────────────────────────────────────────────
+  const handleShare = async (platform) => {
+    const imageUrl = result?.resultUrl || result?.resultUrls?.[0] || result?.panels?.[0]?.imageUrl;
+    const shareUrl = `${window.location.origin}/share/comic/${jobId}`;
+    const text = 'Check out my AI-generated comic!';
+
+    if (platform === 'copy') {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied!');
+      } catch { toast.error('Copy failed'); }
+      return;
+    }
+    const urls = {
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(text + ' ' + shareUrl)}`,
+    };
+    if (urls[platform]) window.open(urls[platform], '_blank');
   };
 
   const resetAll = () => {
@@ -241,73 +330,166 @@ export default function PhotoToComic() {
     setValidated(false);
   };
 
-  const isPaid = !['free', ''].includes(userPlan);
-  const isLocked = (tier) => tier === 'paid' && !isPaid;
-
   // ─── RENDER ──────────────────────────────────────────────────────
 
-  // === RESULT VIEW ===
+  // === POST-GENERATION EXPERIENCE ===
   if (result) {
     const imageUrl = result.resultUrl || result.resultUrls?.[0];
     const panels = result.panels;
+    const isStrip = result.mode === 'strip' || panels?.length > 0;
     return (
       <div className="min-h-screen bg-slate-950">
         <Header credits={credits} />
-        <main className="max-w-4xl mx-auto px-4 py-8 space-y-6" data-testid="result-view">
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
-              <Check className="w-8 h-8 text-emerald-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-white">Your Comic is Ready</h2>
-            <p className="text-slate-400 text-sm">Permanent asset — download anytime</p>
-          </div>
-
-          {imageUrl && !panels && (
-            <div className="max-w-md mx-auto rounded-2xl overflow-hidden border border-slate-700 bg-slate-900">
-              <img src={imageUrl} alt="Comic" className="w-full" crossOrigin="anonymous" data-testid="result-image" />
-            </div>
-          )}
-
-          {panels?.length > 0 && (
-            <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto" data-testid="result-panels">
-              {panels.map((p, i) => (
-                <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
-                  <img src={p.imageUrl} alt={`Panel ${i + 1}`} className="w-full" crossOrigin="anonymous" />
-                  {p.dialogue && <div className="p-2 text-xs text-slate-300 bg-slate-800">{p.dialogue}</div>}
+        <main className="max-w-5xl mx-auto px-4 py-8" data-testid="result-view">
+          <div className="grid lg:grid-cols-[1fr_340px] gap-6">
+            {/* LEFT: Result display */}
+            <div className="space-y-4">
+              {imageUrl && !panels && (
+                <div className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900">
+                  <img src={imageUrl} alt="Comic" className="w-full" crossOrigin="anonymous" data-testid="result-image" />
                 </div>
-              ))}
+              )}
+              {panels?.length > 0 && (
+                <div className="grid grid-cols-2 gap-3" data-testid="result-panels">
+                  {panels.map((p, i) => (
+                    <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900 group">
+                      <img src={p.imageUrl} alt={`Panel ${i + 1}`} className="w-full" crossOrigin="anonymous" />
+                      {p.dialogue && (
+                        <div className="p-2.5 text-xs text-slate-300 bg-slate-800/80 border-t border-slate-700">
+                          {p.dialogue}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
 
-          <div className="flex gap-3 justify-center flex-wrap pt-2">
-            <Button
-              onClick={handleDownload}
-              disabled={downloading || !validated}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
-              data-testid="download-btn"
-            >
-              {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              {downloading ? 'Downloading...' : !validated ? 'Validating...' : 'Download'}
-            </Button>
-            <ShareCreation
-              type={mode === 'avatar' ? 'COMIC_AVATAR' : 'COMIC_STRIP'}
-              title="My Comic"
-              preview="Made with Visionary Suite"
-              generationId={jobId}
-            />
-            <Button variant="outline" onClick={resetAll} className="border-slate-600 text-slate-300 hover:text-white" data-testid="create-another-btn">
-              Create Another
-            </Button>
-          </div>
+            {/* RIGHT: Action Panel */}
+            <div className="space-y-4 lg:sticky lg:top-20 self-start" data-testid="action-panel">
+              {/* Status */}
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center shrink-0">
+                  <Check className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">Comic Ready</p>
+                  <p className="text-emerald-400/70 text-xs">Permanent asset — download anytime</p>
+                </div>
+              </div>
 
-          {!isPaid && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 max-w-sm mx-auto text-center">
-              <p className="text-slate-400 text-sm mb-2">Unlock premium styles & HD export</p>
-              <Button onClick={() => navigate('/app/subscription')} size="sm" className="bg-purple-600 hover:bg-purple-700">
-                <Crown className="w-4 h-4 mr-1" /> Upgrade
+              {/* Primary actions */}
+              <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+                <Button
+                  onClick={handleDownload}
+                  disabled={downloading || !validated}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 py-4"
+                  data-testid="download-btn"
+                >
+                  {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                  {downloading ? 'Downloading...' : !validated ? 'Validating...' : 'Download PNG'}
+                </Button>
+
+                {/* Share row */}
+                <div className="flex gap-2" data-testid="share-actions">
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => handleShare('copy')}
+                    className="flex-1 border-slate-700 text-slate-300 hover:text-white text-xs"
+                    data-testid="share-copy-btn"
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Link
+                  </Button>
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => handleShare('twitter')}
+                    className="border-slate-700 text-slate-300 hover:text-white px-3"
+                    data-testid="share-twitter-btn"
+                  >
+                    <Twitter className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => handleShare('whatsapp')}
+                    className="border-slate-700 text-slate-300 hover:text-white px-3"
+                    data-testid="share-whatsapp-btn"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Continue Story — only for strips */}
+              {isStrip && (
+                <div className="bg-slate-900/80 border border-purple-500/30 rounded-xl p-4 space-y-3" data-testid="continue-story-section">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-purple-400" />
+                    <h3 className="text-sm font-semibold text-white">Continue Story</h3>
+                  </div>
+                  <p className="text-xs text-slate-400">Generate 4 more panels that continue where this story left off.</p>
+                  <Button
+                    onClick={() => handleContinueStory()}
+                    disabled={continuing || credits < 6}
+                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+                    data-testid="continue-story-btn"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Continue Story ({Math.max(1, Math.round(6 * ({ creator: 0.8, pro: 0.7, studio: 0.6 }[userPlan] || 1)))} cr)
+                  </Button>
+                </div>
+              )}
+
+              {/* Remix — try different style */}
+              <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3" data-testid="remix-section">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-pink-400" />
+                  <h3 className="text-sm font-semibold text-white">Remix</h3>
+                </div>
+                <p className="text-xs text-slate-400">Same photo, different style. Quick re-create.</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {STYLES.filter(s => s.id !== style).slice(0, 4).map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => handleRemix(s.id)}
+                      className="rounded-lg overflow-hidden group hover:ring-2 hover:ring-pink-500 transition-all"
+                      data-testid={`remix-style-${s.id}`}
+                    >
+                      <div className={`aspect-square bg-gradient-to-br ${s.color} flex items-center justify-center`}>
+                        <RefreshCw className="w-3 h-3 text-white/0 group-hover:text-white/80 transition-all" />
+                      </div>
+                      <p className="text-[9px] text-slate-500 text-center py-0.5 bg-slate-800 truncate">{s.name}</p>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => handleRemix(null)}
+                  className="text-xs text-pink-400 hover:text-pink-300 flex items-center gap-1 transition-colors"
+                  data-testid="remix-all-styles-btn"
+                >
+                  See all styles <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Create new */}
+              <Button
+                variant="outline"
+                onClick={resetAll}
+                className="w-full border-slate-700 text-slate-400 hover:text-white"
+                data-testid="create-another-btn"
+              >
+                <Camera className="w-4 h-4 mr-2" /> New Photo
               </Button>
+
+              {!isPaid && (
+                <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 text-center">
+                  <p className="text-slate-500 text-xs mb-2">Unlock premium styles & HD</p>
+                  <Button onClick={() => navigate('/app/subscription')} size="sm" className="bg-purple-600 hover:bg-purple-700 text-xs h-7 px-3">
+                    <Crown className="w-3 h-3 mr-1" /> Upgrade
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </main>
         <RatingModal isOpen={showRating} onClose={() => setShowRating(false)} featureKey="photo_to_comic" relatedRequestId={jobId} onSubmitSuccess={() => setShowRating(false)} />
       </div>
@@ -326,10 +508,7 @@ export default function PhotoToComic() {
           <h2 className="text-2xl font-bold text-white">Creating Your Comic</h2>
           <p className="text-slate-400">{progressMsg}</p>
           <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-700 ease-out"
-              style={{ width: `${Math.max(progress, 5)}%` }}
-            />
+            <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.max(progress, 5)}%` }} />
           </div>
           <p className="text-xs text-slate-500">{progress}%</p>
         </main>
@@ -341,12 +520,10 @@ export default function PhotoToComic() {
   return (
     <div className="min-h-screen bg-slate-950">
       <Header credits={credits} />
-
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {/* ── Hero Upload Zone ─────────────────────────────────── */}
         {!photoPreview ? (
           <div
-            ref={dropRef}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={onDrop}
@@ -358,14 +535,7 @@ export default function PhotoToComic() {
             } py-16 px-8 text-center`}
             data-testid="upload-zone"
           >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => handleFile(e.target.files?.[0])}
-              data-testid="photo-input"
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} data-testid="photo-input" />
             <div className="space-y-4">
               <div className="w-20 h-20 bg-purple-500/15 rounded-2xl flex items-center justify-center mx-auto">
                 <Camera className="w-10 h-10 text-purple-400" />
@@ -382,20 +552,29 @@ export default function PhotoToComic() {
             </div>
           </div>
         ) : (
-          /* ── Photo uploaded → show builder ──────────────────── */
+          /* ── Builder ─────────────────────────────────────────── */
           <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-            {/* LEFT: Preview + Config */}
             <div className="space-y-5">
-              {/* Photo preview */}
+              {/* Photo preview + upload progress */}
               <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 max-h-72 flex items-center justify-center" data-testid="photo-preview">
                 <img src={photoPreview} alt="Your photo" className="max-h-72 object-contain" />
-                <button
-                  onClick={removePhoto}
-                  className="absolute top-3 right-3 w-8 h-8 bg-slate-900/80 backdrop-blur rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                  data-testid="remove-photo-btn"
-                >
+                <button onClick={removePhoto} className="absolute top-3 right-3 w-8 h-8 bg-slate-900/80 backdrop-blur rounded-full flex items-center justify-center hover:bg-red-600 transition-colors" data-testid="remove-photo-btn">
                   <X className="w-4 h-4 text-white" />
                 </button>
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-slate-900/80 p-2">
+                    <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1 text-center">Uploading to CDN...</p>
+                  </div>
+                )}
+                {uploadProgress >= 100 && (
+                  <div className="absolute bottom-3 right-3 bg-emerald-500/20 backdrop-blur rounded-full px-2 py-1 flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span className="text-[10px] text-emerald-400">CDN ready</span>
+                  </div>
+                )}
               </div>
 
               {/* Mode toggle */}
@@ -405,12 +584,9 @@ export default function PhotoToComic() {
                   { id: 'strip', label: 'Comic Strip', icon: Grid3X3, desc: '3-6 panel story' },
                 ].map((m) => (
                   <button
-                    key={m.id}
-                    onClick={() => setMode(m.id)}
+                    key={m.id} onClick={() => setMode(m.id)}
                     className={`flex-1 p-3 rounded-xl border-2 transition-all text-left ${
-                      mode === m.id
-                        ? 'border-purple-500 bg-purple-500/10'
-                        : 'border-slate-700 hover:border-slate-600 bg-slate-900/50'
+                      mode === m.id ? 'border-purple-500 bg-purple-500/10' : 'border-slate-700 hover:border-slate-600 bg-slate-900/50'
                     }`}
                     data-testid={`mode-${m.id}`}
                   >
@@ -434,15 +610,10 @@ export default function PhotoToComic() {
                     const selected = style === s.id;
                     return (
                       <button
-                        key={s.id}
-                        onClick={() => !locked && setStyle(s.id)}
-                        disabled={locked}
+                        key={s.id} onClick={() => !locked && setStyle(s.id)} disabled={locked}
                         className={`relative p-2 rounded-xl text-center transition-all ${
-                          selected
-                            ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-950 scale-105'
-                            : locked
-                            ? 'opacity-40 cursor-not-allowed'
-                            : 'hover:scale-105'
+                          selected ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-950 scale-105'
+                          : locked ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105'
                         }`}
                         data-testid={`style-${s.id}`}
                       >
@@ -464,126 +635,64 @@ export default function PhotoToComic() {
                     <label className="text-sm font-medium text-slate-400 mb-1.5 block">Genre</label>
                     <div className="flex flex-wrap gap-1.5" data-testid="genre-picker">
                       {GENRES.map(g => (
-                        <button
-                          key={g.id}
-                          onClick={() => setGenre(g.id)}
-                          className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                            genre === g.id
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-slate-800 text-slate-400 hover:text-white'
-                          }`}
-                          data-testid={`genre-${g.id}`}
-                        >
-                          {g.name}
-                        </button>
+                        <button key={g.id} onClick={() => setGenre(g.id)} className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${genre === g.id ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`} data-testid={`genre-${g.id}`}>{g.name}</button>
                       ))}
                     </div>
                   </div>
-
                   <div>
                     <label className="text-sm font-medium text-slate-400 mb-1.5 block">Panels</label>
                     <div className="flex gap-2" data-testid="panel-picker">
                       {[3, 4, 6].map(n => (
-                        <button
-                          key={n}
-                          onClick={() => setPanelCount(n)}
-                          className={`w-12 h-10 rounded-lg font-bold text-sm transition-all ${
-                            panelCount === n
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-slate-800 text-slate-400 hover:text-white'
-                          }`}
-                          data-testid={`panels-${n}`}
-                        >
-                          {n}
-                        </button>
+                        <button key={n} onClick={() => setPanelCount(n)} className={`w-12 h-10 rounded-lg font-bold text-sm transition-all ${panelCount === n ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`} data-testid={`panels-${n}`}>{n}</button>
                       ))}
                     </div>
                   </div>
-
                   <div>
                     <label className="text-sm font-medium text-slate-400 mb-1.5 block">Story Prompt (optional)</label>
-                    <textarea
-                      value={storyPrompt}
-                      onChange={e => setStoryPrompt(e.target.value.slice(0, 300))}
-                      placeholder="Describe the story for your comic strip..."
-                      rows={2}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none resize-none"
-                      data-testid="story-prompt-input"
-                    />
+                    <textarea value={storyPrompt} onChange={e => setStoryPrompt(e.target.value.slice(0, 300))} placeholder="Describe the story..." rows={2} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none resize-none" data-testid="story-prompt-input" />
                     <p className="text-[10px] text-slate-600 mt-0.5">{storyPrompt.length}/300</p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* RIGHT: Sticky sidebar — cost + generate */}
+            {/* RIGHT: Cost sidebar */}
             <div className="lg:sticky lg:top-20 space-y-4 self-start">
               <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4" data-testid="cost-summary">
                 <h3 className="font-semibold text-white flex items-center gap-2">
                   <Coins className="w-4 h-4 text-yellow-400" /> Summary
                 </h3>
-
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-slate-300">
                     <span>{mode === 'avatar' ? 'Comic Avatar' : `${panelCount}-Panel Strip`}</span>
                     <span>{mode === 'avatar' ? 3 : ({ 3: 5, 4: 6, 6: 8 }[panelCount] || 6)} cr</span>
                   </div>
-                  {hd && (
-                    <div className="flex justify-between text-slate-400">
-                      <span>HD Export</span>
-                      <span>+2 cr</span>
-                    </div>
-                  )}
+                  {hd && <div className="flex justify-between text-slate-400"><span>HD Export</span><span>+2 cr</span></div>}
                 </div>
-
                 <div className="border-t border-slate-700 pt-3 flex justify-between items-center">
                   <span className="text-white font-bold">Total</span>
                   <span className="text-xl font-bold text-purple-400">{cost} cr</span>
                 </div>
-
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Balance</span>
                   <span className={credits >= cost ? 'text-emerald-400' : 'text-red-400'}>{credits} cr</span>
                 </div>
-
-                {/* HD toggle */}
-                <button
-                  onClick={() => setHd(!hd)}
-                  className={`w-full p-2.5 rounded-lg border text-sm flex items-center justify-between transition-all ${
-                    hd ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-slate-700 text-slate-400 hover:border-slate-600'
-                  }`}
-                  data-testid="hd-toggle"
-                >
+                <button onClick={() => setHd(!hd)} className={`w-full p-2.5 rounded-lg border text-sm flex items-center justify-between transition-all ${hd ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-slate-700 text-slate-400 hover:border-slate-600'}`} data-testid="hd-toggle">
                   <span className="flex items-center gap-2">
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${hd ? 'bg-purple-500 border-purple-500' : 'border-slate-500'}`}>
-                      {hd && <Check className="w-3 h-3 text-white" />}
-                    </div>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${hd ? 'bg-purple-500 border-purple-500' : 'border-slate-500'}`}>{hd && <Check className="w-3 h-3 text-white" />}</div>
                     HD Export
                   </span>
                   <span className="text-purple-400 text-xs font-medium">+2 cr</span>
                 </button>
-
-                <Button
-                  onClick={handleGenerate}
-                  disabled={credits < cost}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold"
-                  data-testid="generate-btn"
-                >
-                  <Wand2 className="w-5 h-5 mr-2" />
-                  Create My Comic
+                <Button onClick={handleGenerate} disabled={credits < cost} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
+                  <Wand2 className="w-5 h-5 mr-2" /> Create My Comic
                 </Button>
-
                 {credits < cost && (
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate('/app/billing')}
-                    className="w-full border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/10 text-xs"
-                  >
+                  <Button variant="outline" onClick={() => navigate('/app/billing')} className="w-full border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/10 text-xs">
                     <Coins className="w-3.5 h-3.5 mr-1" /> Get Credits
                   </Button>
                 )}
               </div>
-
               <div className="text-[10px] text-slate-600 text-center flex items-center justify-center gap-1">
                 <Shield className="w-3 h-3" /> 100% original art, no copyrighted characters
               </div>
@@ -595,16 +704,13 @@ export default function PhotoToComic() {
   );
 }
 
-// ─── Header sub-component ──────────────────────────────────────────────
 function Header({ credits }) {
   return (
     <header className="border-b border-slate-800/50 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link to="/app">
-            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white px-2">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
+            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white px-2"><ArrowLeft className="w-4 h-4" /></Button>
           </Link>
           <div>
             <h1 className="text-base font-bold text-white">Photo to Comic</h1>

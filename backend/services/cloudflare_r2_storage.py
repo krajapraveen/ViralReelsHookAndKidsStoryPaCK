@@ -133,6 +133,10 @@ class CloudflareR2Storage:
     
     def _get_public_url(self, key: str) -> str:
         """Get the public URL for an asset - prefers custom domain for CDN caching"""
+        return self.get_public_url(key)
+
+    def get_public_url(self, key: str) -> str:
+        """Public accessor: get CDN URL for a stored file."""
         # Prefer custom domain for CDN acceleration
         if R2_CUSTOM_DOMAIN:
             return f"https://{R2_CUSTOM_DOMAIN}/{key}"
@@ -386,7 +390,7 @@ class CloudflareR2Storage:
                             UploadId=upload_id
                         )
                     )
-            except:
+            except Exception:
                 pass
             return False, "", ""
     
@@ -502,22 +506,33 @@ class CloudflareR2Storage:
             logger.error(f"Failed to upload bytes to R2: {e}")
             return False, "", ""
     
-    async def download_file(self, key: str, local_path: str) -> bool:
-        """Download a file from R2 to local path with timing."""
+    async def download_file(self, key: str, local_path: str = None) -> bool:
+        """Download a file from R2. If local_path given, save to disk. Otherwise return bytes."""
         if not self._client:
-            return False
+            return False if local_path else None
         
         with PerformanceTimer(f"download_file ({key})"):
             try:
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(
-                    None,
-                    lambda: self._client.download_file(R2_BUCKET_NAME, key, local_path)
-                )
-                return True
+                if local_path:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(
+                        None,
+                        lambda: self._client.download_file(R2_BUCKET_NAME, key, local_path)
+                    )
+                    return True
+                else:
+                    # Return bytes
+                    import io as _io
+                    buf = _io.BytesIO()
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(
+                        None,
+                        lambda: self._client.download_fileobj(R2_BUCKET_NAME, key, buf)
+                    )
+                    return buf.getvalue()
             except Exception as e:
                 logger.error(f"Failed to download from R2: {e}")
-                return False
+                return False if local_path else None
     
     async def delete_file(self, key: str) -> bool:
         """Delete a file from R2."""
@@ -547,7 +562,7 @@ class CloudflareR2Storage:
                 lambda: self._client.head_object(Bucket=R2_BUCKET_NAME, Key=key)
             )
             return True
-        except:
+        except Exception:
             return False
     
     def get_stats(self) -> dict:

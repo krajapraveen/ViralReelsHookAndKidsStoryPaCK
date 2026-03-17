@@ -11,6 +11,7 @@ Features:
 - Revenue-optimized pricing
 """
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
+from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 import uuid
@@ -325,7 +326,8 @@ async def get_pricing(user: dict = Depends(get_current_user)):
 @router.post("/generate")
 async def generate_comic(
     background_tasks: BackgroundTasks,
-    photo: UploadFile = File(...),
+    photo: UploadFile = File(None),
+    storage_key: Optional[str] = Form(None),
     mode: str = Form(...),  # 'avatar' or 'strip'
     style: str = Form("cartoon_fun"),
     style_category: str = Form("fun"),
@@ -343,12 +345,18 @@ async def generate_comic(
 ):
     """
     Generate comic character or strip from uploaded photo.
-    Implements strict copyright safety checks.
+    Accepts either:
+      - photo: traditional file upload (FormData)
+      - storage_key: reference to a file already uploaded via presigned URL to R2
     """
     
     # Validate mode
     if mode not in ["avatar", "strip"]:
         raise HTTPException(status_code=400, detail="Mode must be 'avatar' or 'strip'")
+
+    # Must have either photo or storage_key
+    if not photo and not storage_key:
+        raise HTTPException(status_code=400, detail="Either photo file or storage_key required")
     
     # ============================================
     # COPYRIGHT SAFETY CHECK - BLOCK KEYWORDS
@@ -385,13 +393,29 @@ async def generate_comic(
     if style not in SAFE_STYLES:
         style = "cartoon_fun"  # Default to safe style
     
-    # Validate file
-    if not photo.content_type or not photo.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image (PNG, JPG, WEBP)")
-    
-    photo_content = await photo.read()
-    if len(photo_content) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image too large. Max 10MB.")
+    # ============================================
+    # GET PHOTO CONTENT (file upload or R2 storage key)
+    # ============================================
+    if storage_key:
+        # Direct-from-R2: download the file server-side for processing
+        try:
+            from services.cloudflare_r2_storage import CloudflareR2Storage
+            r2 = CloudflareR2Storage()
+            photo_content = await r2.download_file(storage_key)
+            if not photo_content:
+                raise HTTPException(status_code=400, detail="Could not retrieve file from storage. Upload may have failed.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"R2 download for storage_key {storage_key}: {e}")
+            raise HTTPException(status_code=400, detail="Failed to retrieve uploaded file from storage")
+    else:
+        # Traditional file upload
+        if not photo.content_type or not photo.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="File must be an image (PNG, JPG, WEBP)")
+        photo_content = await photo.read()
+        if len(photo_content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Image too large. Max 10MB.")
     
     # ============================================
     # CALCULATE COST
@@ -448,6 +472,7 @@ async def generate_comic(
         },
         "progress": 0,
         "downloaded": False,
+        "source_storage_key": storage_key,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     
@@ -679,6 +704,9 @@ AVOID: {negative_prompt}"""
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )
+
+        # Auto-promote source upload to permanent
+        await promote_upload_on_completion(job_id, user_id)
 
         # Send notification
         try:
@@ -985,6 +1013,9 @@ AVOID: {negative_prompt}"""
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )
+
+        # Auto-promote source upload to permanent
+        await promote_upload_on_completion(job_id, user_id)
 
         # Send notification
         try:
@@ -1350,3 +1381,187 @@ async def test_image_generation(user: dict = Depends(get_current_user)):
         result["image_generation"]["error_type"] = type(e).__name__
     
     return result
+
+
+
+# ── STORAGE AUTO-PROMOTION ──────────────────────────────────────────────
+
+async def promote_upload_on_completion(job_id: str, user_id: str):
+    """
+    Auto-promotion: when a photo-to-comic job completes successfully,
+    promote the source upload from temporary to permanent.
+    On failure, leave temporary for lifecycle cleanup.
+    """
+    try:
+        job = await db.photo_to_comic_jobs.find_one(
+            {"id": job_id}, {"_id": 0, "source_storage_key": 1, "status": 1}
+        )
+        if not job or not job.get("source_storage_key"):
+            return
+        
+        storage_key = job["source_storage_key"]
+        
+        if job.get("status") == "COMPLETED":
+            # Promote to permanent
+            await db.pending_uploads.update_one(
+                {"storage_key": storage_key, "user_id": user_id},
+                {"$set": {
+                    "status": "permanent",
+                    "is_temp": False,
+                    "linked_job_id": job_id,
+                    "promoted_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            logger.info(f"[AUTO-PROMO] Upload {storage_key[:30]} promoted to permanent for job {job_id[:8]}")
+        # FAILED/abandoned: leave as temp for lifecycle cleanup (no action needed)
+    except Exception as e:
+        logger.warning(f"[AUTO-PROMO] Failed for job {job_id[:8]}: {e}")
+
+
+# ── CONTINUE STORY ──────────────────────────────────────────────────────
+
+class ContinueStoryRequest(BaseModel):
+    parentJobId: str
+    prompt: str = ""
+    panelCount: int = 4
+    keepStyle: bool = True
+
+
+@router.post("/continue-story")
+async def continue_story(
+    request: ContinueStoryRequest,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Continue a completed comic strip with additional panels.
+    Uses the same photo, style, and genre from the parent job.
+    """
+    parent = await db.photo_to_comic_jobs.find_one(
+        {"id": request.parentJobId, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent job not found")
+    if parent.get("status") != "COMPLETED":
+        raise HTTPException(status_code=400, detail="Parent job must be completed")
+    if parent.get("mode") != "strip":
+        raise HTTPException(status_code=400, detail="Continue story only works with comic strips")
+
+    # Get photo content from source storage key or stored reference
+    photo_content = None
+    if parent.get("source_storage_key"):
+        try:
+            from services.cloudflare_r2_storage import CloudflareR2Storage
+            r2 = CloudflareR2Storage()
+            photo_content = await r2.download_file(parent["source_storage_key"])
+        except Exception as e:
+            logger.warning(f"Could not download source photo for continue: {e}")
+
+    if not photo_content and parent.get("photoBase64"):
+        photo_content = base64.b64decode(parent["photoBase64"])
+
+    if not photo_content:
+        raise HTTPException(
+            status_code=400,
+            detail="Source photo no longer available. Please upload again."
+        )
+
+    # Calculate cost
+    panel_count = min(max(request.panelCount, 3), 6)
+    cost = PRICING["comic_strip"]["panels"].get(panel_count, 25)
+    cost += PRICING["comic_strip"]["add_ons"].get("auto_dialogue", 0)
+    user_plan = user.get("plan", "free")
+    discount = {"creator": 0.8, "pro": 0.7, "studio": 0.6}.get(user_plan, 1.0)
+    cost = int(cost * discount)
+
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost}.")
+
+    # Build continuation prompt
+    parent_prompt = parent.get("storyPrompt", "")
+    parent_panels = parent.get("panels", [])
+    last_dialogue = parent_panels[-1].get("dialogue", "") if parent_panels else ""
+    
+    continuation_prompt = f"Continue this comic story. Previous story: {parent_prompt}. Last panel dialogue: '{last_dialogue}'. {request.prompt}. Create the NEXT {panel_count} panels that advance the plot."
+
+    job_id = str(uuid.uuid4())
+    job_data = {
+        "id": job_id,
+        "userId": user["id"],
+        "mode": "strip",
+        "type": "COMIC_STRIP",
+        "status": "QUEUED",
+        "style": parent["style"] if request.keepStyle else "cartoon_fun",
+        "genre": parent.get("genre", "action"),
+        "cost": cost,
+        "panelCount": panel_count,
+        "storyPrompt": continuation_prompt,
+        "includeDialogue": True,
+        "parentJobId": request.parentJobId,
+        "isContinuation": True,
+        "addOns": parent.get("addOns", {}),
+        "progress": 0,
+        "downloaded": False,
+        "source_storage_key": parent.get("source_storage_key"),
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.photo_to_comic_jobs.insert_one(job_data)
+
+    hd_export = parent.get("addOns", {}).get("hd_export", False)
+    background_tasks.add_task(
+        process_comic_strip,
+        job_id, photo_content, job_data["style"], job_data["genre"],
+        continuation_prompt, None, panel_count, True, user["id"], cost, hd_export
+    )
+
+    return {
+        "success": True,
+        "jobId": job_id,
+        "status": "QUEUED",
+        "estimatedCredits": cost,
+        "parentJobId": request.parentJobId,
+        "message": f"Continuing your story with {panel_count} new panels..."
+    }
+
+
+# ── REMIX ───────────────────────────────────────────────────────────────
+
+@router.post("/remix/{job_id}")
+async def get_remix_config(job_id: str, user: dict = Depends(get_current_user)):
+    """
+    Return config from a completed job so frontend can pre-fill the builder for remixing.
+    """
+    job = await db.photo_to_comic_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0, "mode": 1, "style": 1, "genre": 1, "panelCount": 1,
+         "storyPrompt": 1, "addOns": 1, "source_storage_key": 1,
+         "resultUrl": 1, "resultUrls": 1, "panels": 1, "title": 1}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Check if source photo still exists
+    has_source = False
+    source_url = None
+    if job.get("source_storage_key"):
+        try:
+            from services.cloudflare_r2_storage import CloudflareR2Storage
+            r2 = CloudflareR2Storage()
+            has_source = await r2.file_exists(job["source_storage_key"])
+            if has_source:
+                source_url = r2.get_public_url(job["source_storage_key"])
+        except Exception:
+            pass
+
+    return {
+        "mode": job.get("mode", "avatar"),
+        "style": job.get("style", "cartoon_fun"),
+        "genre": job.get("genre", "action"),
+        "panelCount": job.get("panelCount", 4),
+        "storyPrompt": job.get("storyPrompt", ""),
+        "addOns": job.get("addOns", {}),
+        "hasSourcePhoto": has_source,
+        "sourcePhotoUrl": source_url,
+        "storageKey": job.get("source_storage_key"),
+    }
