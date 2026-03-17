@@ -10,6 +10,7 @@ Tiers: free, paid, premium (collapsed from plan names)
 
 TIER_MAP = {
     "free": "free",
+    "paid": "paid",
     "starter": "paid", "weekly": "paid", "monthly": "paid",
     "creator": "paid", "quarterly": "paid", "yearly": "paid",
     "pro": "premium", "premium": "premium", "enterprise": "premium",
