@@ -393,12 +393,11 @@ export default function Dashboard() {
                     <Link key={t.job_id} to={`/app/story-video-studio?remix=${t.job_id}`}>
                       <div className="vs-card group p-0 overflow-hidden">
                         {t.thumbnail_url ? (
-                          <img src={t.thumbnail_url} alt={t.title} className="w-full aspect-video object-cover" loading="lazy" />
-                        ) : (
-                          <div className="w-full aspect-video bg-[var(--vs-bg-elevated)] flex items-center justify-center">
-                            <Film className="w-8 h-8 text-[var(--vs-text-muted)]" />
-                          </div>
-                        )}
+                          <img src={t.thumbnail_url} alt={t.title} className="w-full aspect-video object-cover" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }} />
+                        ) : null}
+                        <div className={`w-full aspect-video bg-gradient-to-br from-indigo-600/30 to-cyan-600/20 items-center justify-center ${t.thumbnail_url ? 'hidden' : 'flex'}`}>
+                          <Film className="w-8 h-8 text-[var(--vs-text-muted)]" />
+                        </div>
                         <div className="p-3">
                           <h3 className="text-sm font-medium text-white truncate">{t.title}</h3>
                           <div className="flex items-center gap-2 mt-1">

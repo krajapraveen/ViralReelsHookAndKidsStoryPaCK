@@ -77,8 +77,9 @@ export default function CreatorProfile() {
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--vs-primary-from)] to-[var(--vs-secondary-to)] flex items-center justify-center flex-shrink-0">
               {creator.avatar_url ? (
-                <img src={creator.avatar_url} alt={creator.name} className="w-full h-full rounded-full object-cover" />
-              ) : (
+                <img src={creator.avatar_url} alt={creator.name} className="w-full h-full rounded-full object-cover" onError={(e) => { e.target.style.display='none'; }} />
+              ) : null}
+              {!creator.avatar_url && (
                 <span className="text-2xl font-bold text-white">{creator.name?.[0]?.toUpperCase() || '?'}</span>
               )}
             </div>
@@ -117,10 +118,9 @@ export default function CreatorProfile() {
                 <div className="vs-card group p-0 overflow-hidden cursor-pointer" data-testid={`creator-card-${item.job_id}`}>
                   <div className="relative w-full aspect-video bg-[var(--vs-bg-elevated)] overflow-hidden">
                     {item.thumbnail_url ? (
-                      <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><Film className="w-10 h-10 text-[var(--vs-text-muted)]" /></div>
-                    )}
+                      <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }} />
+                    ) : null}
+                    <div className={`w-full h-full items-center justify-center bg-gradient-to-br from-indigo-600/30 to-cyan-600/20 ${item.thumbnail_url ? 'hidden' : 'flex'}`}><Film className="w-10 h-10 text-[var(--vs-text-muted)]" /></div>
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                       <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
                     </div>

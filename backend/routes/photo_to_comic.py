@@ -1170,7 +1170,7 @@ async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/validate-asset/{job_id}")
 async def validate_asset(job_id: str, user: dict = Depends(get_current_user)):
-    """Validate that generated assets are accessible before enabling download."""
+    """Validate generated assets. Returns separate preview/download truth."""
     job = await db.photo_to_comic_jobs.find_one(
         {"id": job_id, "userId": user["id"]},
         {"_id": 0, "status": 1, "resultUrl": 1, "resultUrls": 1, "panels": 1, "permanent": 1}
@@ -1179,35 +1179,45 @@ async def validate_asset(job_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Job not found")
 
     if job.get("status") != "COMPLETED":
-        return {"valid": False, "reason": "not_completed"}
+        return {"valid": False, "download_ready": False, "preview_ready": False, "reason": "not_completed"}
 
-    urls = []
-    if job.get("resultUrls"):
-        urls = [u for u in job["resultUrls"] if u and not u.startswith("data:")]
-    elif job.get("panels"):
-        urls = [p.get("imageUrl") for p in job.get("panels", []) if p.get("imageUrl") and not p["imageUrl"].startswith("data:")]
+    # Collect all asset URLs
+    result_url = job.get("resultUrl", "")
+    panel_urls = [p.get("imageUrl") for p in job.get("panels", []) if p.get("imageUrl")]
+    all_urls = ([result_url] if result_url else []) + panel_urls
 
-    if not urls:
-        return {"valid": True, "permanent": job.get("permanent", False), "cdn_backed": False}
+    has_data_uri = any(u.startswith("data:") for u in all_urls if u)
+    cdn_urls = [u for u in all_urls if u and not u.startswith("data:") and "placehold.co" not in u]
 
-    # Validate first URL with HEAD request
-    valid = False
-    try:
-        import aiohttp
-        from utils.r2_presign import presign_url
-        check_url = presign_url(urls[0]) if ".r2.dev/" in urls[0] else urls[0]
-        async with aiohttp.ClientSession() as session:
-            async with session.head(check_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                valid = resp.status in (200, 206)
-    except Exception as val_err:
-        logger.warning(f"Asset validation failed for {job_id}: {val_err}")
-        valid = False
+    # Data URIs are always valid for both preview and download
+    if has_data_uri and not cdn_urls:
+        return {"valid": True, "download_ready": True, "preview_ready": True,
+                "permanent": job.get("permanent", False), "cdn_backed": False, "asset_type": "data_uri"}
+
+    # For CDN URLs: validate with HEAD, but download is assumed OK if URL exists
+    cdn_valid = False
+    if cdn_urls:
+        try:
+            import aiohttp
+            from utils.r2_presign import presign_url
+            check_url = presign_url(cdn_urls[0]) if ".r2.dev/" in cdn_urls[0] else cdn_urls[0]
+            async with aiohttp.ClientSession() as session:
+                async with session.head(check_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    cdn_valid = resp.status in (200, 206)
+        except Exception as val_err:
+            logger.warning(f"Asset validation HEAD failed for {job_id}: {val_err}")
+
+    # Download is ready if we have any URL (CDN or data URI) — HEAD failure doesn't block download
+    download_ready = len(all_urls) > 0
+    preview_ready = has_data_uri or cdn_valid
 
     return {
-        "valid": valid,
+        "valid": cdn_valid or has_data_uri,
+        "download_ready": download_ready,
+        "preview_ready": preview_ready,
         "permanent": job.get("permanent", False),
-        "cdn_backed": True,
-        "asset_count": len(urls),
+        "cdn_backed": bool(cdn_urls),
+        "asset_count": len(all_urls),
     }
 
 

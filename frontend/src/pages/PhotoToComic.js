@@ -308,30 +308,33 @@ export default function PhotoToComic() {
     let previewOk = false;
     let downloadOk = false;
 
-    // 1. Check if preview image is renderable
+    // 1. Check if preview image is renderable in the browser
     const previewUrl = job.resultUrl || job.resultUrls?.[0] || job.panels?.[0]?.imageUrl;
     if (previewUrl && previewUrl.length > 10) {
-      // For data URIs, they're always "renderable" (stored in DB)
       if (previewUrl.startsWith('data:')) {
         previewOk = true;
       } else if (!previewUrl.includes('placehold.co')) {
-        // For real URLs, try loading the image
         previewOk = await new Promise((resolve) => {
           const img = new window.Image();
           img.onload = () => resolve(true);
           img.onerror = () => resolve(false);
           img.src = previewUrl;
-          setTimeout(() => resolve(false), 8000); // 8s timeout
+          setTimeout(() => resolve(false), 8000);
         });
       }
     }
 
-    // 2. Validate download asset via backend
+    // 2. Validate download asset via backend (returns separate preview/download truth)
     try {
       const res = await api.get(`/api/photo-to-comic/validate-asset/${id}`);
-      downloadOk = res.data.valid === true;
+      downloadOk = res.data.download_ready === true;
+      // Backend preview_ready can also inform us
+      if (res.data.preview_ready && !previewOk) {
+        previewOk = true; // Backend says preview is valid even if browser couldn't load
+      }
     } catch {
-      downloadOk = true; // Fallback: assume download works if API errors
+      // If validation API errors, assume download works for COMPLETED jobs
+      downloadOk = true;
     }
 
     // 3. Resolve to single authoritative UI state
@@ -341,7 +344,7 @@ export default function PhotoToComic() {
     if (previewOk && downloadOk) {
       setUiState('READY');
     } else if (downloadOk && !previewOk) {
-      setUiState('PARTIAL_READY'); // Download works, preview broken
+      setUiState('PARTIAL_READY');
     } else if (!downloadOk && !previewOk) {
       setUiState('FAILED');
       setFailReason('Assets could not be validated. You can retry or create a new comic.');

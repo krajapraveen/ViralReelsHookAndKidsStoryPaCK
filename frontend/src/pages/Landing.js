@@ -276,12 +276,11 @@ export default function Landing() {
                   <div className="vs-card group p-0 overflow-hidden cursor-pointer h-full" data-testid={`trending-card-${item.job_id}`}>
                     <div className="relative w-full aspect-video bg-[var(--vs-bg-elevated)] overflow-hidden">
                       {item.thumbnail_url ? (
-                        <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Film className="w-10 h-10 text-[var(--vs-text-muted)]" />
-                        </div>
-                      )}
+                        <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onError={(e) => { e.target.style.display='none'; e.target.nextSibling && (e.target.nextSibling.style.display='flex'); }} />
+                      ) : null}
+                      <div className={`w-full h-full bg-gradient-to-br from-purple-600/30 to-pink-600/20 items-center justify-center ${item.thumbnail_url ? 'hidden' : 'flex'}`}>
+                        <Film className="w-10 h-10 text-[var(--vs-text-muted)]" />
+                      </div>
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                         <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
                       </div>
