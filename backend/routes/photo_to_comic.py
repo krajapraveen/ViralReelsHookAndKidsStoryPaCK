@@ -1580,12 +1580,202 @@ async def get_remix_config(job_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/chain/{chain_id}")
 async def get_story_chain(chain_id: str, user: dict = Depends(get_current_user)):
-    """Get the full story chain tree."""
+    """Get the full story chain tree with progress data."""
     from services.story_chain import get_chain_tree
     chain = await get_chain_tree(chain_id, user["id"])
     if not chain:
         raise HTTPException(status_code=404, detail="Story chain not found")
+
+    # Enrich with progress data
+    total = chain.get("total_episodes", 0)
+    completed = chain.get("completed", 0)
+    chain["progress_pct"] = round((completed / total) * 100) if total > 0 else 0
+    chain["total_panels"] = sum(
+        len(j.get("panels", [])) or (1 if j.get("resultUrl") else 0)
+        for j in chain.get("flat", [])
+    )
+
+    # Find the latest completed strip for "continue" CTA
+    flat = chain.get("flat", [])
+    latest_strip = None
+    for j in reversed(flat):
+        if j.get("status") in ("COMPLETED", "PARTIAL_COMPLETE") and j.get("mode") == "strip":
+            latest_strip = j
+            break
+    chain["latest_continuable_job_id"] = latest_strip["id"] if latest_strip else None
+    chain["latest_continuable_style"] = latest_strip.get("style") if latest_strip else None
+
     return chain
+
+
+@router.get("/active-chains")
+async def get_active_chains(user: dict = Depends(get_current_user)):
+    """Get user's most recent active story chains for dashboard 'Resume Your Story'."""
+    from services.story_chain import backfill_chain_ids
+    await backfill_chain_ids(user["id"])
+
+    pipeline = [
+        {"$match": {"userId": user["id"], "story_chain_id": {"$exists": True}}},
+        {"$group": {
+            "_id": "$story_chain_id",
+            "root_job_id": {"$first": "$root_job_id"},
+            "total_episodes": {"$sum": 1},
+            "completed": {"$sum": {"$cond": [{"$in": ["$status", ["COMPLETED", "PARTIAL_COMPLETE"]]}, 1, 0]}},
+            "last_updated": {"$max": "$createdAt"},
+            "styles": {"$addToSet": "$style"},
+            "continuations": {"$sum": {"$cond": [{"$eq": ["$branch_type", "continuation"]}, 1, 0]}},
+            "remixes": {"$sum": {"$cond": [{"$eq": ["$branch_type", "remix"]}, 1, 0]}},
+            "latest_job_id": {"$last": "$id"},
+            "latest_mode": {"$last": "$mode"},
+            "latest_prompt": {"$last": "$storyPrompt"},
+            "total_panels": {"$sum": "$panelCount"},
+        }},
+        {"$match": {"completed": {"$gte": 1}}},
+        {"$sort": {"last_updated": -1}},
+        {"$limit": 3},
+    ]
+    chains = await db.photo_to_comic_jobs.aggregate(pipeline).to_list(3)
+
+    result = []
+    for c in chains:
+        # Get root job for preview
+        root = await db.photo_to_comic_jobs.find_one(
+            {"id": c["root_job_id"]},
+            {"_id": 0, "id": 1, "resultUrl": 1, "panels": 1,
+             "style": 1, "genre": 1, "mode": 1, "storyPrompt": 1}
+        )
+        preview = None
+        if root:
+            preview = root.get("resultUrl") or (root.get("panels", [{}])[0].get("imageUrl") if root.get("panels") else None)
+
+        # Get the last completed strip for continue CTA
+        last_strip = await db.photo_to_comic_jobs.find_one(
+            {"story_chain_id": c["_id"], "userId": user["id"],
+             "status": {"$in": ["COMPLETED", "PARTIAL_COMPLETE"]}, "mode": "strip"},
+            {"_id": 0, "id": 1, "style": 1, "storyPrompt": 1, "panels": 1},
+            sort=[("sequence_number", -1)]
+        )
+
+        total = c["total_episodes"]
+        completed = c["completed"]
+        progress_pct = round((completed / total) * 100) if total > 0 else 0
+
+        result.append({
+            "chain_id": c["_id"],
+            "root_job_id": c["root_job_id"],
+            "total_episodes": total,
+            "completed": completed,
+            "progress_pct": progress_pct,
+            "continuations": c["continuations"],
+            "remixes": c["remixes"],
+            "total_panels": c.get("total_panels", 0),
+            "styles_used": c["styles"],
+            "last_updated": c["last_updated"],
+            "preview_url": preview,
+            "root_style": root.get("style") if root else None,
+            "root_genre": root.get("genre") if root else None,
+            "root_prompt": root.get("storyPrompt") if root else None,
+            "continue_job_id": last_strip["id"] if last_strip else None,
+            "last_dialogue": (last_strip.get("panels", [{}])[-1].get("dialogue", "") if last_strip and last_strip.get("panels") else ""),
+        })
+
+    return {"chains": result, "total": len(result)}
+
+
+class SuggestionRequest(BaseModel):
+    chain_id: str
+
+
+@router.post("/chain/suggestions")
+async def get_chain_suggestions(
+    request: SuggestionRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Generate AI-powered 'Next Episode' suggestions based on chain context."""
+    chain_id = request.chain_id
+
+    # Gather chain context
+    jobs = await db.photo_to_comic_jobs.find(
+        {"story_chain_id": chain_id, "userId": user["id"],
+         "status": {"$in": ["COMPLETED", "PARTIAL_COMPLETE"]}},
+        {"_id": 0, "storyPrompt": 1, "style": 1, "genre": 1,
+         "panels": 1, "branch_type": 1, "sequence_number": 1}
+    ).sort("sequence_number", 1).to_list(20)
+
+    if not jobs:
+        raise HTTPException(status_code=404, detail="No completed episodes in this chain")
+
+    # Build context from existing episodes
+    style = jobs[-1].get("style", "cartoon_fun")
+    genre = jobs[-1].get("genre", "action")
+    style_name = SAFE_STYLES.get(style, {}).get("name", style)
+
+    # Collect all dialogues and scene descriptions
+    story_context = []
+    for j in jobs:
+        prompt = j.get("storyPrompt", "")
+        if prompt:
+            story_context.append(prompt)
+        for p in j.get("panels", []):
+            if p.get("dialogue"):
+                story_context.append(f'Panel dialogue: "{p["dialogue"]}"')
+            if p.get("scene"):
+                story_context.append(f"Scene: {p['scene']}")
+
+    context_text = "\n".join(story_context[-15:])  # Last 15 pieces of context
+
+    # Generate suggestions via LLM
+    suggestions = []
+    if LLM_AVAILABLE and EMERGENT_LLM_KEY:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"chain-suggest-{chain_id[:8]}-{datetime.now().timestamp()}",
+                system_message="You are a creative comic story advisor."
+            )
+            chat.with_model("gemini", "gemini-2.0-flash")
+
+            suggest_prompt = f"""Based on this comic story chain, suggest 3 compelling directions for the NEXT episode.
+
+Story context so far:
+{context_text}
+
+Current style: {style_name}
+Genre: {genre}
+Episodes so far: {len(jobs)}
+
+Provide exactly 3 suggestions as a JSON array. Each suggestion should have:
+- "title": a short catchy title (max 6 words)
+- "prompt": the story prompt for the next episode (1-2 sentences)
+- "hook": why this direction is exciting (1 sentence)
+- "type": one of "escalation", "twist", "deepening" (describes the narrative direction)
+
+Format: [{{"title": "...", "prompt": "...", "hook": "...", "type": "..."}}]"""
+
+            response = await chat.send_message(UserMessage(text=suggest_prompt))
+            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group())
+                suggestions = parsed[:3]
+        except Exception as e:
+            logger.warning(f"[CHAIN] AI suggestion failed: {e}")
+
+    # Fallback suggestions
+    if not suggestions:
+        suggestions = [
+            {"title": "The Plot Thickens", "prompt": f"Continue the {genre} story with a surprising twist", "hook": "Add an unexpected turn", "type": "twist"},
+            {"title": "Raise the Stakes", "prompt": "Escalate the conflict — the hero faces a bigger challenge", "hook": "Push the tension higher", "type": "escalation"},
+            {"title": "New Character Arrives", "prompt": "Introduce a mysterious new character who changes everything", "hook": "Expand your story world", "type": "deepening"},
+        ]
+
+    return {
+        "chain_id": chain_id,
+        "current_style": style,
+        "current_genre": genre,
+        "episode_count": len(jobs),
+        "suggestions": suggestions,
+    }
 
 
 @router.get("/my-chains")
@@ -1628,11 +1818,16 @@ async def get_user_chains(user: dict = Depends(get_current_user)):
         if root:
             preview = root.get("resultUrl") or (root.get("panels", [{}])[0].get("imageUrl") if root.get("panels") else None)
 
+        total = c["total_episodes"]
+        completed = c["completed"]
+        progress_pct = round((completed / total) * 100) if total > 0 else 0
+
         result.append({
             "chain_id": c["_id"],
             "root_job_id": c["root_job_id"],
-            "total_episodes": c["total_episodes"],
-            "completed": c["completed"],
+            "total_episodes": total,
+            "completed": completed,
+            "progress_pct": progress_pct,
             "continuations": c["continuations"],
             "remixes": c["remixes"],
             "styles_used": c["styles"],

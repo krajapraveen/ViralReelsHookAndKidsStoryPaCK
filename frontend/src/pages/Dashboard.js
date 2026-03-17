@@ -16,6 +16,7 @@ import CreditStatusBadge from '../components/CreditStatusBadge';
 import NotificationBell from '../components/NotificationBell';
 import DailyRewardsModal from '../components/DailyRewardsModal';
 import DelayedCreditsBanner from '../components/DelayedCreditsBanner';
+import { ResumeYourStory } from '../components/ResumeYourStory';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -276,6 +277,9 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* ═══════ RESUME YOUR STORY ═══════ */}
+        <ResumeYourStory />
 
         {/* ═══════ HERO CREATION ═══════ */}
         <div className="vs-fade-up-2 vs-section" data-testid="creation-modes-section">

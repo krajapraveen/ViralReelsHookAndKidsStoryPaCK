@@ -5,7 +5,7 @@ import {
   Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
   Grid3X3, User, Palette, RefreshCw, BookOpen, Share2,
   Copy, Twitter, MessageCircle, ExternalLink, ChevronRight,
-  GitBranch
+  GitBranch, TrendingUp
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
@@ -276,6 +276,17 @@ export default function PhotoToComic() {
     setContinuing(false);
   };
 
+  // ─── Continue with Direction ────────────────────────────────────
+  const [showDirections, setShowDirections] = useState(false);
+  const [customContinuePrompt, setCustomContinuePrompt] = useState('');
+
+  const CONTINUE_DIRECTIONS = [
+    { id: 'next', label: 'Continue the Story', desc: 'Pick up right where it left off', prompt: '', icon: ChevronRight, color: 'border-blue-500/30 text-blue-400 hover:bg-blue-500/10' },
+    { id: 'twist', label: 'Add a Plot Twist', desc: 'Surprise turn nobody expects', prompt: 'Add an unexpected plot twist that changes the direction of the story.', icon: Zap, color: 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' },
+    { id: 'escalate', label: 'Raise the Stakes', desc: 'Bigger conflict, higher tension', prompt: 'Escalate the conflict dramatically. The hero faces a much bigger challenge.', icon: Sparkles, color: 'border-red-500/30 text-red-400 hover:bg-red-500/10' },
+    { id: 'custom', label: 'Your Direction', desc: 'Write your own next chapter', prompt: '', icon: BookOpen, color: 'border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10' },
+  ];
+
   // ─── Remix ───────────────────────────────────────────────────────
   const handleRemix = (newStyle) => {
     if (newStyle) setStyle(newStyle);
@@ -409,23 +420,74 @@ export default function PhotoToComic() {
                 </div>
               </div>
 
-              {/* Continue Story — only for strips */}
+              {/* Continue Story — upgraded with directions */}
               {isStrip && (
-                <div className="bg-slate-900/80 border border-purple-500/30 rounded-xl p-4 space-y-3" data-testid="continue-story-section">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-purple-400" />
-                    <h3 className="text-sm font-semibold text-white">Continue Story</h3>
+                <div className="bg-slate-900/80 border border-indigo-500/30 rounded-xl p-4 space-y-3" data-testid="continue-story-section">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-indigo-400" />
+                      <h3 className="text-sm font-semibold text-white">Continue Story</h3>
+                    </div>
+                    <span className="text-[10px] text-indigo-400/70 bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                      {Math.max(1, Math.round(6 * ({ creator: 0.8, pro: 0.7, studio: 0.6 }[userPlan] || 1)))} cr
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-400">Generate 4 more panels that continue where this story left off.</p>
-                  <Button
-                    onClick={() => handleContinueStory()}
-                    disabled={continuing || credits < 6}
-                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
-                    data-testid="continue-story-btn"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Continue Story ({Math.max(1, Math.round(6 * ({ creator: 0.8, pro: 0.7, studio: 0.6 }[userPlan] || 1)))} cr)
-                  </Button>
+
+                  {!showDirections ? (
+                    <>
+                      <p className="text-xs text-slate-400">Choose a direction for your next 4 panels.</p>
+                      <Button
+                        onClick={() => setShowDirections(true)}
+                        disabled={continuing || credits < 6}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                        data-testid="continue-story-btn"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" /> Choose Direction
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="space-y-2" data-testid="continue-directions">
+                      {CONTINUE_DIRECTIONS.map(d => (
+                        <button
+                          key={d.id}
+                          onClick={() => {
+                            if (d.id === 'custom') {
+                              if (customContinuePrompt.trim()) {
+                                handleContinueStory(customContinuePrompt);
+                              }
+                              return;
+                            }
+                            handleContinueStory(d.prompt);
+                          }}
+                          disabled={continuing || credits < 6 || (d.id === 'custom' && !customContinuePrompt.trim())}
+                          className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all disabled:opacity-50 ${d.color}`}
+                          data-testid={`direction-${d.id}`}
+                        >
+                          <d.icon className="w-4 h-4 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold">{d.label}</p>
+                            <p className="text-[10px] opacity-70">{d.desc}</p>
+                          </div>
+                          {d.id !== 'custom' && <ChevronRight className="w-3.5 h-3.5 opacity-50" />}
+                        </button>
+                      ))}
+                      <input
+                        type="text"
+                        value={customContinuePrompt}
+                        onChange={(e) => setCustomContinuePrompt(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && customContinuePrompt.trim() && handleContinueStory(customContinuePrompt)}
+                        placeholder="Your custom direction..."
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        data-testid="custom-direction-input"
+                      />
+                      <button
+                        onClick={() => setShowDirections(false)}
+                        className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
