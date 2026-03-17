@@ -9,7 +9,7 @@ const loginSuccess = new Counter("login_success");
 const loginFailure = new Counter("login_failure");
 
 // Configuration
-const BASE = __ENV.BASE_URL || "https://trust-rebuild-10.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://watchdog-stable.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

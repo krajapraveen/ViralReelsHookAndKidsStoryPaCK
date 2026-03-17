@@ -12,49 +12,53 @@ AI Creative Operating System: **Create -> Share -> View -> Remix**
 6. Tests catch regressions. Health checks catch failures. Watchdog heals. Alerts notify.
 
 ## Self-Defending Infrastructure
+- Regression Suite: 35 tests, run before/after every change
+- Deep Health: `GET /api/health/deep`
+- Watchdog: Auto every 5 min, SLA guardrails, max 3 retries, structured logs
+- Alerts: Auto-triggers watchdog on critical issues
+- Confidence Score: `GET /api/watchdog/confidence` (0-100)
 
-### Regression Suite (35 tests)
-- Run: `pytest tests/regression/test_trust_regression.py -v`
-- Credits truth (6), Photo to Comic (3), Story Video (5), Comic Storybook (3), Downloads (2), Smoke (10), Tools (6)
+## Full Platform UAT Status (March 17, 2026)
+### ALL 13 SECTIONS PASS:
+| Section | Status | Key Verifications |
+|---|---|---|
+| Navigation | PASS | Logo, nav links, credits ∞, profile, logout |
+| Dashboard | PASS | Quick create, prompts, More Tools (8 cards), credits ∞ |
+| Story Video | PASS | Full state machine, 6 styles, validate-asset, postgen |
+| Photo to Comic | PASS | Upload, history, validate-asset truth |
+| Comic Storybook | PASS | 5-step wizard, 8 genres, credits ∞ |
+| Reel Generator | PASS | All form fields, 422 on empty |
+| GIF Maker | PASS | 4-step wizard, emotions, credits |
+| Bedtime Story | PASS | 4-step wizard, 422 on empty |
+| My Downloads | PASS | Only ready assets, download URLs valid |
+| Gallery/Explore | PASS | 58 items, SafeImage, filters |
+| Credits All Pages | PASS | ∞ on Dashboard, P2C, CSB, Reel, GIF |
+| UI Alignment | PASS | Cards uniform, grids aligned |
+| Admin Panel | PASS | 18 sections, stats, charts |
+| Health/Watchdog | PASS | All endpoints operational |
+| My Stories | PASS | 8 chains, SafeImage fallbacks |
 
-### Deep Health: `GET /api/health/deep`
-- API, DB, Redis, Queue, Workers, Storage, Asset validation, Credits, AI providers, Failure rate
+### Test Infrastructure:
+- Regression: 35/35 PASS
+- Full UAT: 38/41 backend (93%), 100% frontend
+- Watchdog: Healthy, 0 active alerts
+- Confidence: 70/100 (good, improving)
 
-### Self-Healing Watchdog (Auto: every 5 min)
-- `POST /api/watchdog/run` | `GET /api/watchdog/status` | `GET /api/watchdog/logs` | `GET /api/watchdog/confidence`
-- Detects: stuck jobs, completed-no-assets, starved queue, credit corruption, broken chains
-- SLA: 10min processing, 5min queue, 2min validation, 3 retries max
-- Actions: requeue, fail honestly, restore credits — all logged
-- Confidence score 0-100 based on failure rate, queue, corrections, alerts
-
-### Production Alerts: `GET /api/alerts/check`
-- Failure spikes, queue spikes, timeouts, broken downloads, credit mismatches, provider outages
-- Alert → Watchdog coupling: critical alerts auto-trigger watchdog
-
-## UI State Machine (Photo-to-Comic + Story Video)
-IDLE -> PROCESSING -> VALIDATING -> READY | PARTIAL_READY | FAILED
-
-## Asset Truth: `/validate-asset` returns separate preview_ready, download_ready, share_ready
-
-## Credits Truth: All pages init to null, show "..." loading, "∞" unlimited
-
-## SafeImage: All surfaces — Dashboard, Landing, Gallery, Explore, CreatorProfile, ComicStorybook, StoryPreview, ProgressiveGeneration, StoryVideoPipeline, MyStories, StoryChainView
-
-## Completed Work
-1-23. Core platform build
-24-26. Credits truth + SafeImage + PhotoToComic state machine
+## Completed Work (All Sessions)
+1-26. Core platform + Credits truth + SafeImage + State machines
 27. Story Video Bulletproof Pipeline
-28. Full Platform Hardening (all-module UAT, SafeImage sweep, credits null-init)
-29. Self-Defending Infrastructure (regression suite, deep health, watchdog, alerts)
-30. Continuous Self-Healing (scheduled watchdog, structured logs, alert-action coupling, SLA guardrails, confidence score, retry limits)
+28. Full Platform Hardening (all-module UAT, SafeImage sweep)
+29. Self-Defending Infrastructure (regression, health, watchdog, alerts)
+30. Continuous Self-Healing (scheduled watchdog, logs, alert-action coupling, SLA, confidence)
+31. Full-Depth Destructive UAT (all 13 sections verified, zero critical issues)
 
 ## Remaining Backlog
 ### P0
 - [ ] R2 bucket CORS configuration (infra)
 
 ### P1
-- [ ] Consistent aspect ratios and card sizing
-- [ ] Post-generation parity for Story Video
+- [ ] Consistent aspect ratios and card sizing refinement
+- [ ] Post-generation parity for Story Video (Continue/Remix/Share)
 
 ### P2
 - [ ] Style preset thumbnails

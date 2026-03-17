@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://trust-rebuild-10.preview.emergentagent.com
+API URL: https://watchdog-stable.preview.emergentagent.com
 ```
 
 ### Results Summary

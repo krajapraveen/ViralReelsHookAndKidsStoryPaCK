@@ -314,7 +314,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://trust-rebuild-10.preview.emergentagent.com",
+    "https://watchdog-stable.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]

@@ -7,7 +7,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://trust-rebuild-10.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://watchdog-stable.preview.emergentagent.com')
 
 class TestContentFiltering:
     """Test content filtering for inappropriate words"""

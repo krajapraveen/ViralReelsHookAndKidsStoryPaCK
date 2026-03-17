@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://trust-rebuild-10.preview.emergentagent.com';
+const BACKEND_URL = 'https://watchdog-stable.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {
