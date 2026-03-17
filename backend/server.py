@@ -957,6 +957,14 @@ async def startup():
     except Exception as e:
         logger.warning(f"Payment reconciliation task warning: {e}")
     
+    # Start self-healing watchdog scheduler (every 5 min)
+    try:
+        from routes.watchdog import start_scheduler as start_watchdog_scheduler
+        start_watchdog_scheduler()
+        logger.info("Watchdog scheduler started (every 5 min)")
+    except Exception as e:
+        logger.warning(f"Watchdog scheduler start warning: {e}")
+    
     # Start daily analytics aggregation (runs once per hour, aggregates yesterday)
     async def _daily_aggregation_loop():
         await asyncio.sleep(60)  # Let server stabilize

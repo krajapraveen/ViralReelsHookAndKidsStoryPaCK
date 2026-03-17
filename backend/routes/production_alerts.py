@@ -177,10 +177,10 @@ async def _check_all_alerts():
 
 @router.get("/check")
 async def check_alerts(admin: dict = Depends(get_admin_user)):
-    """Run all alert checks and return results. Also saves to DB."""
+    """Run all alert checks. If critical issues found, triggers watchdog automatically."""
     alerts = await _check_all_alerts()
 
-    # Persist new alerts (upsert by id to avoid duplicates)
+    # Persist new alerts
     for alert in alerts:
         await db.production_alerts.update_one(
             {"id": alert["id"]},
@@ -188,13 +188,26 @@ async def check_alerts(admin: dict = Depends(get_admin_user)):
             upsert=True
         )
 
+    # Alert → Action coupling: critical alerts trigger watchdog
+    has_critical = any(a["severity"] == "critical" for a in alerts)
+    has_actionable = any(a["type"] in ("stuck_jobs", "failure_rate_spike", "credit_truth_mismatch", "broken_downloads") for a in alerts)
+    watchdog_triggered = False
+    if has_critical and has_actionable:
+        try:
+            from routes.watchdog import alert_triggered_watchdog
+            await alert_triggered_watchdog()
+            watchdog_triggered = True
+        except Exception as e:
+            logger.error(f"Alert-triggered watchdog failed: {e}")
+
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_alerts": len(alerts),
         "critical": len([a for a in alerts if a["severity"] == "critical"]),
         "warnings": len([a for a in alerts if a["severity"] == "warning"]),
         "alerts": alerts,
-        "system_status": "HEALTHY" if len(alerts) == 0 else "DEGRADED" if any(a["severity"] == "critical" for a in alerts) else "WARNING",
+        "system_status": "HEALTHY" if len(alerts) == 0 else "DEGRADED" if has_critical else "WARNING",
+        "watchdog_auto_triggered": watchdog_triggered,
     }
 
 
