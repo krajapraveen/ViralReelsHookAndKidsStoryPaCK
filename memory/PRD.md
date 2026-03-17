@@ -32,45 +32,39 @@ Every output is a permanent CDN-backed asset. Every creation is a living object,
 - POST /api/storage/presigned-upload — Signed URL for direct browser -> R2 (needs R2 CORS config)
 - POST /api/storage/confirm-upload — Validate direct uploads
 - Server-side proxy is the primary path (eliminates CORS dependency)
-- Generate endpoint accepts storage_key OR photo file
-
-## Storage Lifecycle (IMPLEMENTED)
-- Background hourly cleanup of temp uploads > 72h
-- Auto-promotion: on job COMPLETED, source upload promoted temp -> permanent
-- On FAILED/abandoned, left as temp for lifecycle cleanup
 
 ## Story Chain Model (IMPLEMENTED + ENHANCED)
-A real relational object, not a stitched scroll:
+A real relational object:
 ```
-story_chain_id  — shared across all jobs in the chain
-root_job_id     — the original job that started the chain
-parent_job_id   — direct parent (null for originals)
-branch_type     — "original" | "continuation" | "remix"
-sequence_number — order within the chain (0 for original)
+story_chain_id, root_job_id, parent_job_id, branch_type (original|continuation|remix), sequence_number
 ```
-### Progression System (NEW - March 2026)
-- GET /api/photo-to-comic/chain/{chain_id} — enhanced with progress_pct, total_panels, latest_continuable_job_id
-- GET /api/photo-to-comic/active-chains — top 3 active chains for "Resume Your Story" dashboard entry point
-- POST /api/photo-to-comic/chain/suggestions — AI-generated context-aware "Next Episode" suggestions
-- GET /api/photo-to-comic/my-chains — enhanced with progress_pct
-- Frontend: "Resume Your Story" component on Dashboard (primary chain card + secondary compact cards)
-- Frontend: StoryChainView with progression header, progress bar, episode/panel counts, AI suggestions panel
-- Frontend: MyStories with progress bars on chain cards
-- Frontend: PhotoToComic post-gen panel with direction options (Continue/Twist/Escalate/Custom)
 
-## Photo to Comic (REBUILT - Conversion + Retention)
-- Upload-first hero: full-width drop zone as primary CTA
-- Single-screen builder: photo preview + mode + style + cost sidebar
-- 12 visual style presets with gradient color cards
-- Server-side upload with progress indicator + CDN ready badge
-- Post-generation action panel:
-  - Download, Share (copy/twitter/whatsapp)
-  - Continue Story with multiple directions (Next/Twist/Escalate/Custom prompt)
-  - Remix (same photo, different style)
-  - View Story Chain (navigate to chain timeline)
-  - Create New
-- POST /api/photo-to-comic/continue-story (inherits chain)
-- POST /api/photo-to-comic/remix/{job_id} (returns config for pre-fill)
+### Progression System (March 2026)
+- Enhanced chain/{id} with progress_pct, total_panels, latest_continuable_job_id
+- GET /active-chains — top 3 with momentum_msg, milestones
+- POST /chain/suggestions — AI context-aware suggestions with character refs, scene refs, tone detection, validation, 1h caching
+
+### Re-Engagement System (March 2026 — NEW)
+- **Login Interstitial**: Modal on first session visit showing active chain with progress, momentum msg, and direct Continue CTA
+- **Action Banner**: Persistent banner with deep-link Continue CTA, 4h resurface after dismiss
+- **Active Chains Nav Chip**: "Stories" badge in header nav, opens Resume Drawer with top 3 chains
+- **Resume Drawer**: Dropdown showing chains with progress bars, momentum messages, View/Continue CTAs
+- **Momentum Messaging**: Milestone targets (5/10/25 episodes), episodes remaining, completion percentage
+- **Metrics Instrumentation**: continue_rate, 24h_return_rate, avg_chain_length, suggestion_ctr, resume_from_banner_rate, login_interstitial_rate
+- **POST /api/metrics/track**: Lightweight event ingestion
+- **GET /api/metrics/reengagement**: Admin-only aggregated metrics dashboard
+
+### Story Video Chain Model (March 2026 — NEW)
+- story_projects collection extended with: story_chain_id, root_project_id, parent_project_id, branch_type, sequence_number
+- POST /api/story-video-studio/continue-video: Quick Continue — inherits characters, style, chain
+- GET /api/story-video-studio/active-video-chains: Resume data for video chains
+- GET /api/story-video-studio/video-chain/{chain_id}: Full chain view
+- Post-gen panel in StoryVideoPipeline: Quick Continue + Remix buttons
+
+## Photo to Comic (REBUILT)
+- Upload-first hero, 12 style presets
+- Post-gen action panel: Direction-based continuation (Next/Twist/Escalate/Custom), Remix, Share, View Chain
+- POST /api/photo-to-comic/continue-story, POST /api/photo-to-comic/remix/{job_id}
 
 ## Completed (All Sessions)
 1. Design system, homepage, dashboard, Story Video Pipeline
@@ -92,14 +86,18 @@ sequence_number — order within the chain (0 for original)
 17. Server-side upload proxy (eliminates CORS dependency)
 18. Story Chain model — relational story objects with tree structure
 19. Story Chain Progression System — resume entry points, progress indicators, AI suggestions, direction-based continuation
+20. Re-Engagement System — login interstitial, action banner, nav chip + resume drawer, momentum messaging
+21. Metrics Instrumentation — 6 key retention metrics tracked and dashboarded
+22. Story Video Chain Model — continuation, chains, post-gen panel with Quick Continue + Remix
+23. Context-Aware AI Suggestions — character references, scene continuity, tone detection, validation, caching
 
 ## Remaining Backlog
 ### P0
 - [ ] Configure R2 bucket CORS via Cloudflare dashboard (enables direct PUT uploads)
 
 ### P1
-- [ ] Story Video post-gen experience (continue/remix/share parity with Photo to Comic)
-- [ ] Story Video chain model (reuse same pattern)
+- [ ] Story Video chain view page (like StoryChainView for comics)
+- [ ] Include video chains in "Resume Your Story" / Action Banner
 
 ### P2
 - [ ] Style preset preview thumbnails
@@ -108,4 +106,4 @@ sequence_number — order within the chain (0 for original)
 - [ ] Cashfree payments (live)
 - [ ] Email Notifications (BLOCKED — SendGrid)
 - [ ] Instant Preview Mode, Export Packs
-- [ ] Frontend admin dashboard for observability
+- [ ] Frontend admin dashboard for observability + metrics
