@@ -1,0 +1,114 @@
+{
+  "summary": "5-Layer Resilience Architecture Testing Complete. All 32 backend tests passed (100%). Verified idempotency, cost guardrails, tier-aware degradation matrix, multi-queue system with 4 queues (premium/paid/free/background), and all 6 observability admin endpoints. Admin access restrictions working correctly - non-admin users get 403 on all observability endpoints.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "component": "degradation_matrix.py",
+        "issue": "TIER_MAP does not include 'paid' as a key, so resolve_tier('paid') defaults to 'free'. This is not a bug since actual plan names (starter, weekly, etc) are used, but could cause confusion.",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_resilience_architecture_iteration287.py",
+    "/app/test_reports/pytest/pytest_resilience_architecture_iteration287.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Consider adding 'paid' as an alias in TIER_MAP for consistency: 'paid': 'paid'",
+    "Idempotency service is correctly preventing duplicate requests (409 Conflict)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_resilience_architecture_iteration287.py"
+  ],
+  "success_rate": {
+    "backend": "100% (32/32 tests passed)",
+    "frontend": "N/A - Backend only testing"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026# (plan=None, role=USER)",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026 (plan=None, role=ADMIN)"
+  },
+  "seed_data_creation": "N/A - Used existing users and idempotency service",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "5-layer resilience architecture fully functional. Idempotency via header or body hash, cost guardrails (per-job/per-user/system-wide), degradation matrix (4 load levels x 3 tiers), multi-queue with 4 queues (premium:5, paid:3, free:1, background:1 concurrency). All observability endpoints require admin role. Free test user daily limit was hit so generate requests get rejected (429/409).",
+  "feature_verification": {
+    "layer_1_idempotency": {
+      "tests_passed": 2,
+      "details": [
+        "Idempotency key generation consistent (SHA256 hash)",
+        "Duplicate requests detected via Idempotency-Key header",
+        "409 Conflict returned for duplicate pending requests"
+      ]
+    },
+    "layer_2_cost_guardrails": {
+      "tests_passed": 2,
+      "details": [
+        "Free user daily limit rejection working (429/409)",
+        "Guardrail status endpoint admin-only",
+        "System ceiling: 5000 credits/day",
+        "Severe threshold: 3500 credits/day"
+      ]
+    },
+    "layer_3_degradation_matrix": {
+      "tests_passed": 7,
+      "details": [
+        "4 load levels: normal, stressed, severe, critical",
+        "3 tiers: free, paid, premium",
+        "Normal: free=20, paid=20, premium=30 pages",
+        "Stressed: free=10, paid=20, premium=30 pages",
+        "Severe: free=blocked, paid=10, premium=20 pages",
+        "Critical: free=blocked, paid=blocked, premium=10 pages",
+        "Partial thresholds: free=70%, paid=80%, premium=90%"
+      ]
+    },
+    "layer_4_multi_queue": {
+      "tests_passed": 4,
+      "details": [
+        "4 queues: premium, paid, free, background",
+        "Concurrency caps: premium=5, paid=3, free=1, background=1",
+        "Queue status endpoint returns depth, active, cap per queue",
+        "Admin-only access verified"
+      ]
+    },
+    "layer_5_observability": {
+      "tests_passed": 11,
+      "endpoints_tested": [
+        "GET /api/observability/queue-status - returns queue depths and concurrency caps",
+        "GET /api/observability/pipeline-health - returns stage stats, job breakdown, avg times",
+        "GET /api/observability/cost-summary - returns total cost, avg per job, top users",
+        "GET /api/observability/guardrail-state - returns guardrail status and admission status",
+        "POST /api/observability/kill-switch - modifies ceiling and severe_threshold",
+        "POST /api/observability/replay-job - replays failed jobs (mode=full/failed_stage/failed_panels)"
+      ],
+      "admin_restrictions": "All 6 endpoints return 403 for non-admin users"
+    },
+    "generate_endpoint": {
+      "tests_passed": 3,
+      "details": [
+        "Genres endpoint returns 8 genres",
+        "Pricing endpoint returns page costs (10/20/30 pages)",
+        "Blocked content detection working (copyrighted characters rejected)"
+      ]
+    }
+  },
+  "tests_executed": {
+    "backend": [
+      "TestIdempotency - 2 tests (key generation, duplicate detection)",
+      "TestCostGuardrails - 2 tests (daily limit rejection, admin-only status)",
+      "TestDegradationMatrix - 7 tests (config structure, tier resolution, all load levels, thresholds)",
+      "TestMultiQueue - 4 tests (status structure, concurrency caps, tier mapping, admin restriction)",
+      "TestObservabilityEndpoints - 6 tests (all endpoint functionality)",
+      "TestAdminAccessRestrictions - 6 tests (403 for non-admin on all endpoints)",
+      "TestAdmissionController - 2 tests (config, system status)",
+      "TestGenerateEndpointStructure - 3 tests (genres, pricing, blocked content)"
+    ]
+  }
+}

@@ -92,6 +92,9 @@ from routes.referral import router as referral_router
 from routes.comic_storybook_v2 import router as comic_storybook_v2_router
 from routes.reaction_gif import router as reaction_gif_router
 
+# OBSERVABILITY
+from routes.observability_routes import router as observability_router
+
 # DAILY REWARDS & GAMIFICATION
 from routes.daily_rewards_routes import router as daily_rewards_router
 
@@ -397,6 +400,7 @@ api_router.include_router(photo_to_comic_router)
 api_router.include_router(referral_router)
 api_router.include_router(comic_storybook_v2_router)
 api_router.include_router(reaction_gif_router)
+api_router.include_router(observability_router)
 
 # NEW REBUILT FEATURES
 api_router.include_router(story_episode_creator_router)
@@ -883,6 +887,21 @@ async def startup():
     
     # Start job worker
     asyncio.create_task(job_worker_loop())
+    
+    # Start multi-queue service for comic pipeline
+    async def _delayed_multi_queue_start():
+        await asyncio.sleep(5)
+        try:
+            from services.multi_queue import get_multi_queue
+            from routes.comic_storybook_v2 import run_pipeline_from_job, run_panel_regeneration
+            mq = get_multi_queue()
+            mq.register_handler("COMIC_STORYBOOK", run_pipeline_from_job)
+            mq.register_handler("PANEL_REGENERATION", run_panel_regeneration)
+            await mq.start(worker_count=3)
+            logger.info("Multi-queue service started with comic handlers")
+        except Exception as e:
+            logger.warning(f"Multi-queue startup warning: {e}")
+    asyncio.create_task(_delayed_multi_queue_start())
     
     # IMPORTANT: Stagger heavy service startups to prevent OOM on production
     # Start dedicated pipeline workers for Story → Video (delayed for stability)

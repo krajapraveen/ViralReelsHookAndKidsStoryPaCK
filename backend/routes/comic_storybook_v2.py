@@ -15,7 +15,7 @@ Architecture:
 Each stage: status = queued|running|completed|failed|retrying
 DB must never claim success before storage confirms success.
 """
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header
 from pydantic import BaseModel
 from datetime import datetime, timezone
 from typing import Optional, Dict
@@ -36,6 +36,11 @@ from shared import (
     LLM_AVAILABLE, EMERGENT_LLM_KEY
 )
 from services.watermark_service import add_diagonal_watermark, should_apply_watermark, get_watermark_config
+from services.degradation_matrix import resolve_tier, get_degraded_limits, get_partial_threshold
+from services.cost_guardrails import check_guardrails
+from services.admission_controller import check_admission
+from services.idempotency_service import get_idempotency_service
+from services.multi_queue import get_multi_queue, TIER_TO_QUEUE
 
 router = APIRouter(prefix="/comic-storybook-v2", tags=["Comic Story Book Builder"])
 
@@ -203,8 +208,27 @@ class GenerateComicRequest(BaseModel):
 
 
 @router.post("/generate")
-async def generate_comic_book(request: GenerateComicRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    """Submit comic book generation job."""
+async def generate_comic_book(
+    request: GenerateComicRequest,
+    user: dict = Depends(get_current_user),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+):
+    """
+    Submit comic book generation job.
+
+    Admission order:
+      1. Idempotency check
+      2. Cost guardrails
+      3. Admission controller (load-based)
+      4. Tier-aware degradation
+      5. Queue placement
+      6. Job creation
+    """
+    user_id = user["id"]
+    user_plan = user.get("plan", "free")
+    tier = resolve_tier(user_plan)
+
+    # ── 0. Content check ──────────────────────────────────────────────
     is_blocked, kw = check_blocked(request.storyIdea)
     if is_blocked:
         raise HTTPException(status_code=400, detail=f"Blocked content: '{kw}'")
@@ -213,67 +237,149 @@ async def generate_comic_book(request: GenerateComicRequest, background_tasks: B
         raise HTTPException(status_code=400, detail=f"Blocked content in title: '{kw}'")
 
     genre = request.genre if request.genre in STORY_GENRES else "kids_adventure"
-    page_count = request.pageCount if request.pageCount in [10, 20, 30] else 20
     add_ons = request.addOns or {}
 
-    cost = PRICING["pages"].get(page_count, 45)
-    for addon_id, addon_cost in PRICING["add_ons"].items():
-        if add_ons.get(addon_id):
-            cost += addon_cost
+    # ── 1. Idempotency ────────────────────────────────────────────────
+    idem_svc = await get_idempotency_service(db)
+    if not idempotency_key:
+        # Body fingerprint fallback
+        body_hash = hashlib.sha256(json.dumps({
+            "user_id": user_id, "genre": genre, "title": request.title,
+            "storyIdea": request.storyIdea[:200], "pageCount": request.pageCount,
+        }, sort_keys=True).encode()).hexdigest()[:32]
+        idempotency_key = body_hash
 
-    user_plan = user.get("plan", "free")
-    discount = {"creator": 0.8, "pro": 0.7, "studio": 0.6}.get(user_plan, 1.0)
-    cost = int(cost * discount)
+    is_dup, cached = await idem_svc.check_and_store(idempotency_key)
+    if is_dup:
+        if cached:
+            return cached
+        # Pending from another request — tell client to poll
+        raise HTTPException(status_code=409, detail="Duplicate request in progress. Please poll job status.")
 
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost}.")
+    try:
+        # ── 2. Cost guardrails ────────────────────────────────────────
+        guardrail = await check_guardrails(user_id, user_plan, request.pageCount)
+        if not guardrail.allowed:
+            await idem_svc.mark_failed(idempotency_key, guardrail.reason)
+            raise HTTPException(status_code=429, detail=guardrail.reason)
 
-    job_id = str(uuid.uuid4())
-    job = {
-        "id": job_id,
-        "userId": user["id"],
-        "type": "COMIC_STORYBOOK",
-        "status": "QUEUED",
-        "genre": genre,
-        "storyIdea": request.storyIdea,
-        "title": request.title,
-        "author": request.author,
-        "pageCount": page_count,
-        "addOns": add_ons,
-        "dedicationText": request.dedicationText,
-        "cost": cost,
-        "progress": 0,
-        "current_stage": "queued",
-        "pages": [],
-        "assets": [],
-        "pdfUrl": None,
-        "coverUrl": None,
-        "permanent": False,
-        "purchased": user_plan != "free",
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.comic_storybook_v2_jobs.insert_one(job)
+        # ── 3. Admission controller ──────────────────────────────────
+        admission = await check_admission(user_id, user_plan)
+        if not admission.admitted:
+            await idem_svc.mark_failed(idempotency_key, admission.reason)
+            raise HTTPException(
+                status_code=503,
+                detail=admission.reason,
+                headers={"Retry-After": str(admission.retry_after_sec)} if admission.retry_after_sec else {},
+            )
 
-    # Create stage run records
-    for stage in STAGES:
-        await db.job_stage_runs.insert_one({
-            "job_id": job_id, "stage_name": stage, "status": "queued",
-            "attempt_count": 0, "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+        # ── 4. Tier-aware degradation ────────────────────────────────
+        load_level = admission.load_level
+        limits = get_degraded_limits(load_level, user_plan)
+        if limits["blocked"]:
+            await idem_svc.mark_failed(idempotency_key, "Blocked by degradation matrix")
+            raise HTTPException(status_code=503, detail="System under heavy load. Your tier is temporarily paused. Please try again shortly or upgrade.")
 
-    background_tasks.add_task(
-        run_pipeline, job_id, genre, request.storyIdea, request.title,
-        request.author, page_count, add_ons, request.dedicationText,
-        user["id"], cost, user_plan
-    )
+        enforced_pages = min(request.pageCount, limits["max_pages"])
+        if enforced_pages not in [10, 20, 30]:
+            enforced_pages = max(p for p in [10, 20, 30] if p <= enforced_pages) if enforced_pages >= 10 else 10
+        max_retries = limits["max_retries"]
 
-    return {"success": True, "jobId": job_id, "status": "QUEUED", "estimatedCredits": cost, "stages": len(STAGES)}
+        # ── 5. Cost calculation ──────────────────────────────────────
+        cost = PRICING["pages"].get(enforced_pages, 45)
+        for addon_id, addon_cost in PRICING["add_ons"].items():
+            if add_ons.get(addon_id):
+                cost += addon_cost
+        discount = {"creator": 0.8, "pro": 0.7, "studio": 0.6}.get(user_plan, 1.0)
+        cost = int(cost * discount)
+
+        if user.get("credits", 0) < cost:
+            await idem_svc.mark_failed(idempotency_key, "Insufficient credits")
+            raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost}.")
+
+        # ── 6. Job creation + queue placement ────────────────────────
+        job_id = str(uuid.uuid4())
+        queue_name = TIER_TO_QUEUE.get(tier, "free")
+
+        job = {
+            "id": job_id,
+            "userId": user_id,
+            "type": "COMIC_STORYBOOK",
+            "status": "QUEUED",
+            "genre": genre,
+            "storyIdea": request.storyIdea,
+            "title": request.title,
+            "author": request.author,
+            "pageCount": enforced_pages,
+            "requestedPageCount": request.pageCount,
+            "addOns": add_ons,
+            "dedicationText": request.dedicationText,
+            "cost": cost,
+            "progress": 0,
+            "current_stage": "queued",
+            "pages": [],
+            "assets": [],
+            "pdfUrl": None,
+            "coverUrl": None,
+            "permanent": False,
+            "purchased": user_plan != "free",
+            "queue_name": queue_name,
+            "load_level": load_level,
+            "max_retries": max_retries,
+            "tier": tier,
+            "idempotency_key": idempotency_key,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.comic_storybook_v2_jobs.insert_one(job)
+
+        # Create stage run records
+        for stage in STAGES:
+            await db.job_stage_runs.insert_one({
+                "job_id": job_id, "stage_name": stage, "status": "queued",
+                "attempt_count": 0, "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+        # Enqueue into tier-based multi-queue
+        mq = get_multi_queue()
+        await mq.enqueue(job_id, queue_name)
+
+        # Cache result in idempotency store
+        result = {
+            "success": True, "jobId": job_id, "status": "QUEUED",
+            "estimatedCredits": cost, "stages": len(STAGES),
+            "enforcedPages": enforced_pages, "loadLevel": load_level,
+            "queueName": queue_name,
+        }
+        await idem_svc.update_result(idempotency_key, result)
+
+        degradation_note = ""
+        if enforced_pages < request.pageCount:
+            degradation_note = f" (reduced from {request.pageCount} to {enforced_pages} pages due to system load)"
+
+        return {**result, "note": degradation_note} if degradation_note else result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await idem_svc.mark_failed(idempotency_key, str(e))
+        raise
 
 
 # ── STAGE-BASED PIPELINE ─────────────────────────────────────────────────
 
-async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add_ons, dedication, user_id, cost, user_plan):
-    """Execute all pipeline stages sequentially with per-stage error handling."""
+async def run_pipeline_from_job(job: dict):
+    """Entry point called by multi-queue worker. Loads params from job doc."""
+    await run_pipeline(
+        job["id"], job["genre"], job["storyIdea"], job["title"],
+        job.get("author", "Anonymous"), job["pageCount"],
+        job.get("addOns", {}), job.get("dedicationText"),
+        job["userId"], job["cost"], job.get("tier", "free"),
+        max_retries=job.get("max_retries", 2),
+    )
+
+
+async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add_ons, dedication, user_id, cost, user_plan, max_retries=2):
+    """Execute all pipeline stages with partial success support."""
     try:
         await db.comic_storybook_v2_jobs.update_one({"id": job_id}, {"$set": {"status": "PROCESSING"}})
 
@@ -289,7 +395,25 @@ async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add
         panel_prompts = await stage_panel_prompts(job_id, page_plan, genre, title)
 
         # Stage 4: Image generation (per-panel, retryable)
-        generated_images = await stage_image_generation(job_id, panel_prompts, genre, title, user_plan, page_count)
+        generated_images = await stage_image_generation(job_id, panel_prompts, genre, title, user_plan, page_count, max_retries)
+
+        # ── Partial success check ────────────────────────────────────
+        total_panels = len(panel_prompts)
+        successful_panels = sum(1 for v in generated_images.values() if v is not None)
+        failed_panel_pages = [pn for pn, v in generated_images.items() if v is None]
+        threshold = get_partial_threshold(user_plan)
+        success_ratio = successful_panels / total_panels if total_panels > 0 else 0
+
+        if successful_panels == 0:
+            raise RuntimeError("All image generations failed")
+
+        is_partial = len(failed_panel_pages) > 0 and success_ratio >= threshold
+
+        if success_ratio < threshold:
+            raise RuntimeError(
+                f"Too many panel failures ({successful_panels}/{total_panels}, "
+                f"need {threshold*100:.0f}%). Job cannot be completed."
+            )
 
         # Stage 5: Page assembly
         assembled_pages = await stage_page_assembly(job_id, page_plan, generated_images)
@@ -303,30 +427,140 @@ async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add
         # Stage 8: Asset registration (user_assets records)
         await stage_asset_registration(job_id, uploaded_assets, user_id, title, genre, cost)
 
-        # Deduct credits only after full success
+        # Deduct credits only after success
         await deduct_credits(user_id, cost, f"Comic Story Book: {job_id[:8]}")
+
+        final_status = "PARTIAL_COMPLETE" if is_partial else "COMPLETED"
+        final_msg = "Your comic book is ready!" if not is_partial else f"Your comic book is ready! {len(failed_panel_pages)} page(s) used placeholders — regenerating in background."
 
         await db.comic_storybook_v2_jobs.update_one(
             {"id": job_id},
             {"$set": {
-                "status": "COMPLETED", "progress": 100, "permanent": True,
-                "progressMessage": "Your comic book is ready!",
+                "status": final_status, "progress": 100, "permanent": True,
+                "progressMessage": final_msg,
+                "failed_panels": failed_panel_pages,
+                "success_ratio": round(success_ratio, 2),
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
             }}
         )
-        logger.info(f"[COMIC] Job {job_id[:8]} completed successfully")
+        logger.info(f"[COMIC] Job {job_id[:8]} → {final_status} ({successful_panels}/{total_panels} panels)")
+
+        # Queue background regeneration for failed panels
+        if failed_panel_pages:
+            await queue_background_regeneration(job_id, failed_panel_pages, genre, title, user_plan, user_id)
 
     except Exception as e:
         logger.error(f"[COMIC] Pipeline failed for {job_id[:8]}: {e}")
         await db.comic_storybook_v2_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "FAILED", "error": str(e), "progressMessage": f"Failed: {str(e)[:100]}"}}
+            {"$set": {"status": "FAILED", "error": str(e)[:500], "progressMessage": f"Failed: {str(e)[:100]}"}}
         )
         try:
             from services.auto_refund import handle_generation_failure
             await handle_generation_failure(db, user_id, "comic_storybook", str(e))
         except Exception:
             pass
+
+
+async def queue_background_regeneration(job_id: str, failed_pages: list, genre: str, title: str, user_plan: str, user_id: str):
+    """Queue failed panels for background regeneration."""
+    regen_id = str(uuid.uuid4())
+    regen_job = {
+        "id": regen_id,
+        "parent_job_id": job_id,
+        "userId": user_id,
+        "type": "PANEL_REGENERATION",
+        "status": "QUEUED",
+        "failed_pages": failed_pages,
+        "genre": genre,
+        "title": title,
+        "user_plan": user_plan,
+        "queue_name": "background",
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.comic_storybook_v2_jobs.insert_one(regen_job)
+    mq = get_multi_queue()
+    await mq.enqueue(regen_id, "background")
+    logger.info(f"[REGEN] Queued regeneration {regen_id[:8]} for {len(failed_pages)} failed pages of job {job_id[:8]}")
+
+
+async def run_panel_regeneration(job: dict):
+    """Background handler: regenerate failed panels and re-export."""
+    regen_id = job["id"]
+    parent_id = job["parent_job_id"]
+    failed_pages = job.get("failed_pages", [])
+    genre = job.get("genre", "kids_adventure")
+    title = job.get("title", "Comic")
+    user_plan = job.get("user_plan", "free")
+    user_id = job["userId"]
+
+    logger.info(f"[REGEN] Starting regeneration {regen_id[:8]} for parent {parent_id[:8]}, pages: {failed_pages}")
+
+    try:
+        await db.comic_storybook_v2_jobs.update_one({"id": regen_id}, {"$set": {"status": "PROCESSING"}})
+
+        # Load parent job to get prompts
+        parent = await db.comic_storybook_v2_jobs.find_one({"id": parent_id}, {"_id": 0})
+        if not parent:
+            raise RuntimeError("Parent job not found")
+
+        panel_prompts = parent.get("panel_prompts", [])
+        regen_prompts = [p for p in panel_prompts if p["page_number"] in failed_pages]
+
+        if not regen_prompts:
+            logger.info(f"[REGEN] No prompts to regenerate for {regen_id[:8]}")
+            await db.comic_storybook_v2_jobs.update_one({"id": regen_id}, {"$set": {"status": "COMPLETED"}})
+            return
+
+        # Regenerate images
+        generated = await stage_image_generation(regen_id, regen_prompts, genre, title, user_plan, len(regen_prompts), max_retries=3)
+
+        new_successes = {pn: img for pn, img in generated.items() if img is not None}
+        if not new_successes:
+            logger.warning(f"[REGEN] No new images generated for {regen_id[:8]}")
+            await db.comic_storybook_v2_jobs.update_one({"id": regen_id}, {"$set": {"status": "FAILED", "error": "All regeneration attempts failed"}})
+            return
+
+        # Upload new images to R2
+        from services.cloudflare_r2_storage import upload_image_bytes
+        project = f"comic/{user_id[:8]}"
+        new_page_urls = []
+        for pn, img_bytes in new_successes.items():
+            try:
+                ok, url = await upload_image_bytes(img_bytes, f"page_{parent_id[:8]}_{pn}_regen.png", project)
+                if ok and url:
+                    new_page_urls.append({"page": pn, "url": url})
+            except Exception as e:
+                logger.warning(f"[REGEN] Upload failed for page {pn}: {e}")
+
+        # Update parent job with new page URLs
+        if new_page_urls:
+            existing_urls = parent.get("page_urls", [])
+            # Replace old entries for regenerated pages
+            regen_page_nums = {u["page"] for u in new_page_urls}
+            kept = [u for u in existing_urls if u["page"] not in regen_page_nums]
+            merged = kept + new_page_urls
+
+            remaining_failed = [p for p in failed_pages if p not in {u["page"] for u in new_page_urls}]
+            new_status = "COMPLETED" if not remaining_failed else parent.get("status", "PARTIAL_COMPLETE")
+
+            await db.comic_storybook_v2_jobs.update_one(
+                {"id": parent_id},
+                {"$set": {
+                    "page_urls": merged,
+                    "failed_panels": remaining_failed,
+                    "status": new_status,
+                    "progressMessage": "Your comic book is ready!" if not remaining_failed else f"{len(remaining_failed)} page(s) still regenerating.",
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            logger.info(f"[REGEN] Updated parent {parent_id[:8]} with {len(new_page_urls)} regenerated pages")
+
+        await db.comic_storybook_v2_jobs.update_one({"id": regen_id}, {"$set": {"status": "COMPLETED", "updatedAt": datetime.now(timezone.utc).isoformat()}})
+
+    except Exception as e:
+        logger.error(f"[REGEN] Regeneration failed for {regen_id[:8]}: {e}")
+        await db.comic_storybook_v2_jobs.update_one({"id": regen_id}, {"$set": {"status": "FAILED", "error": str(e)[:500]}})
 
 
 # ── STAGE 1: STORY OUTLINE ───────────────────────────────────────────────
@@ -425,7 +659,7 @@ AVOID: {UNIVERSAL_NEGATIVE}"""
 
 # ── STAGE 4: IMAGE GENERATION (per-panel, retryable) ─────────────────────
 
-async def stage_image_generation(job_id, panel_prompts, genre, title, user_plan, page_count):
+async def stage_image_generation(job_id, panel_prompts, genre, title, user_plan, page_count, max_retries=2):
     stage = "image_generation"
     await update_stage(job_id, stage, "running")
 
@@ -441,7 +675,7 @@ async def stage_image_generation(job_id, panel_prompts, genre, title, user_plan,
             await update_stage(job_id, stage, "running", detail=detail_msg)
 
             success = False
-            for attempt in range(3):  # Up to 3 retries per page
+            for attempt in range(max_retries):  # Tier-aware retry count
                 try:
                     chat = LlmChat(
                         api_key=EMERGENT_LLM_KEY,
