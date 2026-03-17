@@ -10,6 +10,7 @@ import { collectFingerprint } from '../utils/fingerprint';
 import analytics from '../utils/analytics';
 import { useRecaptcha } from '../hooks/useRecaptcha';
 import { trackSignupCompleted } from '../utils/growthAnalytics';
+import { trackConversion } from '../lib/abTesting';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -219,6 +220,11 @@ export default function Signup({ setAuth }) {
       // Track funnel step - Signup complete
       analytics.trackFunnelStep('signup_complete', { method: 'email' });
       trackSignupCompleted();
+
+      // Track A/B experiment conversions
+      trackConversion('cta_copy', 'signup_completed');
+      trackConversion('hook_text', 'signup_completed');
+      trackConversion('login_timing', 'signup_completed');
       
       // Show appropriate message based on credit system
       const delayedInfo = response.data.delayed_credits_info;

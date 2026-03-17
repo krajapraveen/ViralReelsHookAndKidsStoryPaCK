@@ -789,9 +789,26 @@ async def startup():
         await db.pipeline_jobs.create_index([("user_id", 1), ("created_at", -1)])
         await db.pipeline_jobs.create_index("status")
         
+        # A/B testing indexes
+        await db.ab_experiments.create_index("experiment_id", unique=True)
+        await db.ab_assignments.create_index([("session_id", 1), ("experiment_id", 1)], unique=True)
+        await db.ab_conversions.create_index([("session_id", 1), ("experiment_id", 1), ("event", 1)], unique=True)
+        await db.ab_conversions.create_index([("experiment_id", 1), ("variant_id", 1)])
+        
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
+    
+    # Seed A/B experiments (idempotent)
+    try:
+        from routes.ab_testing import INITIAL_EXPERIMENTS
+        for exp in INITIAL_EXPERIMENTS:
+            existing = await db.ab_experiments.find_one({"experiment_id": exp["experiment_id"]})
+            if not existing:
+                await db.ab_experiments.insert_one(exp)
+                logger.info(f"Seeded A/B experiment: {exp['experiment_id']}")
+    except Exception as e:
+        logger.warning(f"A/B seed warning: {e}")
     
     # Create admin user if not exists (ONE-TIME SEED ONLY)
     # SECURITY FIX: Do NOT reset admin password on every restart

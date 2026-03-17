@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BarChart3, TrendingUp, Users, Eye, RefreshCcw, Zap, AlertTriangle,
-  ArrowDown, ArrowRight, CheckCircle, Target, Activity, Flame
+  ArrowDown, ArrowRight, CheckCircle, Target, Activity, Flame, FlaskConical
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -148,6 +148,7 @@ export default function GrowthDashboard() {
   const [viral, setViral] = useState(null);
   const [funnel, setFunnel] = useState(null);
   const [trends, setTrends] = useState(null);
+  const [experiments, setExperiments] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
 
@@ -156,16 +157,18 @@ export default function GrowthDashboard() {
     const token = localStorage.getItem('token');
     const h = { Authorization: `Bearer ${token}` };
     try {
-      const [mRes, vRes, fRes, tRes] = await Promise.all([
+      const [mRes, vRes, fRes, tRes, eRes] = await Promise.all([
         axios.get(`${API}/api/growth/metrics?days=${days}`, { headers: h }),
         axios.get(`${API}/api/growth/viral-coefficient?days=${days}`, { headers: h }),
         axios.get(`${API}/api/growth/funnel?days=${days}`, { headers: h }),
         axios.get(`${API}/api/growth/trends?days=${days}`, { headers: h }),
+        axios.get(`${API}/api/ab/results`, { headers: h }),
       ]);
       setMetrics(mRes.data);
       setViral(vRes.data);
       setFunnel(fRes.data);
       setTrends(tRes.data);
+      setExperiments(eRes.data?.experiments || []);
     } catch (e) {
       console.error('Growth data fetch error:', e);
     }
@@ -362,6 +365,76 @@ export default function GrowthDashboard() {
           <p className="text-2xl font-bold font-mono text-indigo-400">{(rates.overall_conversion || 0).toFixed(2)}%</p>
         </div>
       </div>
+
+      {/* A/B Experiment Results */}
+      {experiments && experiments.length > 0 && (
+        <div className="bg-slate-900/30 border border-white/[0.06] rounded-xl p-5" data-testid="ab-experiments-section">
+          <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <FlaskConical className="w-4 h-4 text-purple-400" /> A/B Experiments
+          </h2>
+          <div className="space-y-4">
+            {experiments.map(exp => (
+              <div key={exp.experiment_id} className="bg-slate-800/50 border border-white/[0.04] rounded-lg p-4" data-testid={`exp-${exp.experiment_id}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs font-semibold text-white">{exp.name}</p>
+                    <p className="text-[10px] text-slate-500">Primary: {exp.primary_event.replace(/_/g, ' ')}</p>
+                  </div>
+                  {exp.tentative_winner && (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" data-testid={`winner-${exp.experiment_id}`}>
+                      WINNER: {exp.variants.find(v => v.variant_id === exp.tentative_winner)?.label}
+                    </span>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/[0.06]">
+                        <th className="text-left py-1.5 text-slate-500 font-normal">Variant</th>
+                        <th className="text-right py-1.5 text-slate-500 font-normal">Sessions</th>
+                        <th className="text-right py-1.5 text-slate-500 font-normal">Remixes</th>
+                        <th className="text-right py-1.5 text-slate-500 font-normal">Generates</th>
+                        <th className="text-right py-1.5 text-slate-500 font-normal">Signups</th>
+                        <th className="text-right py-1.5 text-slate-500 font-normal">Conv %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exp.variants.map(v => {
+                        const isBest = exp.variants.length > 1 &&
+                          v.primary_conv_rate === Math.max(...exp.variants.map(x => x.primary_conv_rate)) &&
+                          v.primary_conv_rate > 0;
+                        return (
+                          <tr key={v.variant_id} className={`border-b border-white/[0.03] ${isBest ? 'bg-emerald-500/[0.04]' : ''}`} data-testid={`variant-row-${v.variant_id}`}>
+                            <td className="py-1.5 text-slate-300">{v.label}</td>
+                            <td className="py-1.5 text-right text-white font-mono">{v.sessions}</td>
+                            <td className="py-1.5 text-right text-pink-400 font-mono">{v.conversions?.remix_click || 0}</td>
+                            <td className="py-1.5 text-right text-blue-400 font-mono">{v.conversions?.generate_click || 0}</td>
+                            <td className="py-1.5 text-right text-emerald-400 font-mono">{v.conversions?.signup_completed || 0}</td>
+                            <td className={`py-1.5 text-right font-bold font-mono ${isBest ? 'text-emerald-400' : 'text-slate-300'}`}>{v.primary_conv_rate}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden flex">
+                    {exp.variants.map((v, i) => {
+                      const total = exp.variants.reduce((s, x) => s + x.sessions, 0);
+                      const pct = total > 0 ? (v.sessions / total) * 100 : 100 / exp.variants.length;
+                      const colors = ['bg-indigo-500', 'bg-amber-500', 'bg-emerald-500'];
+                      return <div key={i} className={`h-full ${colors[i % 3]}`} style={{ width: `${pct}%` }} />;
+                    })}
+                  </div>
+                  <span className="text-[9px] text-slate-600">
+                    {exp.variants.reduce((s, v) => s + v.sessions, 0)} total sessions
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

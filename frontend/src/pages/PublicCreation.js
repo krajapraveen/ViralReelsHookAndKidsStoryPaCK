@@ -9,6 +9,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { SafeImage } from '../components/SafeImage';
 import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growthAnalytics';
+import { getAssignments, trackConversion } from '../lib/abTesting';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -38,6 +39,26 @@ export default function PublicCreation() {
   const [activeScene, setActiveScene] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
+
+  // A/B experiment variants
+  const [abVariants, setAbVariants] = useState({});
+  const [showPreviewGate, setShowPreviewGate] = useState(false);
+
+  useEffect(() => { fetchCreation(); loadAbVariants(); }, [slug]);
+
+  const loadAbVariants = async () => {
+    const assignments = await getAssignments();
+    setAbVariants(assignments);
+    // Store login timing variant for downstream use
+    const loginTiming = assignments?.login_timing?.variant_data?.gate_timing;
+    if (loginTiming) {
+      sessionStorage.setItem('ab_login_timing', loginTiming);
+    }
+  };
+
+  // Get A/B variant values with fallbacks
+  const ctaText = abVariants?.cta_copy?.variant_data?.cta_text || 'Create This in 1 Click';
+  const hookText = abVariants?.hook_text?.variant_data?.hook_text || 'Made in 30 seconds. No skills needed.';
 
   useEffect(() => { fetchCreation(); }, [slug]);
 
@@ -80,7 +101,25 @@ export default function PublicCreation() {
     // Store return URL so login redirects back to the tool
     localStorage.setItem('remix_return_url', tool.path);
     trackRemixClick(slug, creation.tool_type || 'story-video-studio');
-    navigate(tool.path);
+
+    // Track A/B conversions for all active experiments
+    trackConversion('cta_copy', 'remix_click');
+    trackConversion('hook_text', 'remix_click');
+    trackConversion('login_timing', 'remix_click');
+
+    const isLoggedIn = !!localStorage.getItem('token');
+    const gateTiming = abVariants?.login_timing?.variant_data?.gate_timing || 'after_generate';
+
+    if (isLoggedIn) {
+      navigate(tool.path);
+    } else if (gateTiming === 'before_generate') {
+      navigate('/signup');
+    } else if (gateTiming === 'after_preview') {
+      setShowPreviewGate(true);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    } else {
+      navigate(tool.path);
+    }
   };
 
   // ─── "TRY THIS EXACT PROMPT" HANDLER ─────────────────────────────
@@ -254,7 +293,7 @@ export default function PublicCreation() {
           {/* Viral hook */}
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium mb-4" data-testid="viral-hook-badge">
-              <Zap className="w-3 h-3" /> This was created using AI in seconds
+              <Zap className="w-3 h-3" /> {hookText}
             </div>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2" data-testid="creation-title">
               {creation.title}
@@ -310,7 +349,7 @@ export default function PublicCreation() {
 
             {/* RIGHT: PRIMARY CTA ZONE */}
             <div className="lg:col-span-2 space-y-4" data-testid="cta-zone">
-              {/* PRIMARY CTA — Remix This */}
+              {/* PRIMARY CTA — A/B Tested */}
               <button
                 onClick={handleRemix}
                 className="w-full group relative overflow-hidden rounded-xl p-5 text-left transition-all hover:scale-[1.01]"
@@ -319,12 +358,12 @@ export default function PublicCreation() {
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-purple-700 opacity-90 group-hover:opacity-100 transition-opacity" />
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-2">
-                    <RefreshCcw className="w-5 h-5 text-white" />
-                    <span className="text-lg font-bold text-white">Remix This</span>
+                    <Sparkles className="w-5 h-5 text-white" />
+                    <span className="text-lg font-bold text-white">{ctaText}</span>
                   </div>
                   <p className="text-sm text-white/70 mb-3">Make your own version — different style, story, or voice</p>
                   <div className="flex items-center gap-2 text-xs text-white/50">
-                    <Sparkles className="w-3 h-3" /> Auto-prefilled — ready to generate
+                    <Zap className="w-3 h-3" /> Auto-prefilled — ready to generate
                   </div>
                 </div>
                 <ArrowRight className="absolute top-5 right-5 w-5 h-5 text-white/30 group-hover:text-white/70 group-hover:translate-x-1 transition-all z-10" />
@@ -414,6 +453,31 @@ export default function PublicCreation() {
           </div>
         </div>
       </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
+           PREVIEW GATE — A/B "after_preview" variant
+         ═══════════════════════════════════════════════════════════════ */}
+      {showPreviewGate && (
+        <section className="border-t border-indigo-500/20 bg-gradient-to-b from-indigo-500/[0.04] to-transparent py-10" data-testid="preview-gate-section">
+          <div className="max-w-2xl mx-auto px-4 text-center">
+            <h2 className="text-xl font-bold text-white mb-2">Ready to create your own?</h2>
+            <p className="text-sm text-slate-400 mb-6">
+              Sign up free — your prompt is already loaded. Just hit generate.
+            </p>
+            <button
+              onClick={() => {
+                trackConversion('login_timing', 'generate_click');
+                navigate('/signup');
+              }}
+              className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all hover:scale-[1.02]"
+              data-testid="preview-gate-signup-btn"
+            >
+              Sign Up & Generate
+            </button>
+            <p className="text-xs text-slate-600 mt-3">Free account. No credit card needed.</p>
+          </div>
+        </section>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════
            CTA BRANDING FOOTER — "Create yours"
