@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { trackToolOpenPrefilled } from '../utils/growthAnalytics';
 
 const TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -66,6 +67,9 @@ export function useRemixData(currentTool) {
         sourceTitle: raw.remixFrom?.title || raw.title || null,
         consumed: true,
       });
+
+      // Track prefilled tool open
+      trackToolOpenPrefilled(currentTool, raw.remixFrom?.parentId || raw.source_slug);
 
       // Clear immediately — single consumption
       localStorage.removeItem('remix_data');

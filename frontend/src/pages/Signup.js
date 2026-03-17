@@ -9,6 +9,7 @@ import api from '../utils/api';
 import { collectFingerprint } from '../utils/fingerprint';
 import analytics from '../utils/analytics';
 import { useRecaptcha } from '../hooks/useRecaptcha';
+import { trackSignupCompleted } from '../utils/growthAnalytics';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -217,6 +218,7 @@ export default function Signup({ setAuth }) {
       
       // Track funnel step - Signup complete
       analytics.trackFunnelStep('signup_complete', { method: 'email' });
+      trackSignupCompleted();
       
       // Show appropriate message based on credit system
       const delayedInfo = response.data.delayed_credits_info;
@@ -230,7 +232,11 @@ export default function Signup({ setAuth }) {
       
       // Onboarding: redirect to Story→Video studio if user came from a prompt
       const onboardingPrompt = localStorage.getItem('onboarding_prompt');
-      if (onboardingPrompt) {
+      const returnUrl = localStorage.getItem('remix_return_url');
+      if (returnUrl) {
+        localStorage.removeItem('remix_return_url');
+        navigate(returnUrl, { replace: true });
+      } else if (onboardingPrompt) {
         navigate('/app/story-video-studio', { replace: true });
       } else {
         navigate('/app/story-video-studio', { replace: true });

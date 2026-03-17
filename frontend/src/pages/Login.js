@@ -8,6 +8,7 @@ import { Sparkles, Eye, EyeOff, Loader2, ArrowLeft, Mail, Lock, CheckCircle2 } f
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import analytics from '../utils/analytics';
 import { useRecaptcha } from '../hooks/useRecaptcha';
+import { trackSignupCompleted } from '../utils/growthAnalytics';
 
 export default function Login({ setAuth }) {
   const [email, setEmail] = useState('');

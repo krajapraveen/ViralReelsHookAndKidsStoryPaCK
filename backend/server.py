@@ -560,6 +560,9 @@ api_router.include_router(watchdog_router)
 from routes.production_alerts import router as alerts_router
 api_router.include_router(alerts_router)
 
+from routes.growth_analytics import router as growth_router
+api_router.include_router(growth_router)
+
 
 
 # Include API router in app

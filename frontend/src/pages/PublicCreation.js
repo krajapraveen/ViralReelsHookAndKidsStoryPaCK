@@ -8,6 +8,7 @@ import {
 import axios from 'axios';
 import { toast } from 'sonner';
 import { SafeImage } from '../components/SafeImage';
+import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growthAnalytics';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -44,6 +45,7 @@ export default function PublicCreation() {
     try {
       const r = await axios.get(`${API}/api/public/creation/${slug}`);
       setCreation(r.data.creation);
+      trackPageView(slug);
     } catch (e) {
       setError(e.response?.status === 404 ? 'Creation not found' : 'Failed to load');
     }
@@ -77,6 +79,7 @@ export default function PublicCreation() {
 
     // Store return URL so login redirects back to the tool
     localStorage.setItem('remix_return_url', tool.path);
+    trackRemixClick(slug, creation.tool_type || 'story-video-studio');
     navigate(tool.path);
   };
 
@@ -132,6 +135,7 @@ export default function PublicCreation() {
 
   const shareTo = (platform) => {
     const text = `This was created with AI in seconds! Remix it yourself:`;
+    trackShareClick(slug, platform);
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
       linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
