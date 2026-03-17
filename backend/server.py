@@ -550,6 +550,15 @@ api_router.include_router(public_router)
 
 api_router.include_router(metrics_router)
 
+# Self-defending infrastructure
+from routes.deep_health import router as deep_health_router
+api_router.include_router(deep_health_router)
+
+from routes.watchdog import router as watchdog_router
+api_router.include_router(watchdog_router)
+
+from routes.production_alerts import router as alerts_router
+api_router.include_router(alerts_router)
 
 
 
