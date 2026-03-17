@@ -786,15 +786,37 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   );
 }
 
+// ─── ANIMATION STYLE SWATCHES FOR REMIX ───────────────────────────────────────
+const ANIM_STYLES = [
+  { id: 'cartoon_2d', name: '2D Cartoon', gradient: 'from-yellow-400 to-orange-500' },
+  { id: 'anime_style', name: 'Anime', gradient: 'from-indigo-500 to-violet-400' },
+  { id: '3d_pixar', name: '3D Animation', gradient: 'from-sky-400 to-cyan-500' },
+  { id: 'watercolor', name: 'Watercolor', gradient: 'from-rose-300 to-pink-400' },
+  { id: 'comic_book', name: 'Comic Book', gradient: 'from-red-500 to-orange-400' },
+  { id: 'claymation', name: 'Claymation', gradient: 'from-amber-500 to-yellow-400' },
+];
+
+// ─── CONTINUE DIRECTIONS ──────────────────────────────────────────────────────
+const CONTINUE_DIRECTIONS = [
+  { id: 'next', label: 'Continue the Story', desc: 'Pick up right where it left off', modifier: 'Continue this story seamlessly from where it ended. Keep the same characters, tone, and world.', icon: Play, color: 'border-blue-500/30 text-blue-400 hover:bg-blue-500/10' },
+  { id: 'twist', label: 'Add a Plot Twist', desc: 'Surprise turn nobody expects', modifier: 'Add an unexpected plot twist that changes the direction of the story dramatically.', icon: Sparkles, color: 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' },
+  { id: 'escalate', label: 'Raise the Stakes', desc: 'Bigger conflict, higher tension', modifier: 'Escalate the conflict dramatically. The hero faces a much bigger challenge than before.', icon: AlertCircle, color: 'border-red-500/30 text-red-400 hover:bg-red-500/10' },
+  { id: 'episode', label: 'New Episode', desc: 'Fresh chapter, same universe', modifier: 'Create a brand new episode in the same universe with the same characters, but a completely new adventure.', icon: Film, color: 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10' },
+  { id: 'custom', label: 'Your Direction', desc: 'Write your own next chapter', modifier: '', icon: BookOpen, color: 'border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10' },
+];
+
 // ─── POST-GENERATION PHASE (State Machine Driven) ─────────────────────────────
 // Renders based on postGen.uiState ONLY. No contradictory states possible.
 function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation, storyText, animStyle }) {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [showDirections, setShowDirections] = useState(false);
+  const [customDirection, setCustomDirection] = useState('');
   const navigate = useNavigate();
   const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
   const displayTitle = jobTitle || job?.title || 'Your Video';
   const timing = job?.timing || {};
+  const currentStyle = animStyle || job?.animation_style || 'cartoon_2d';
 
   // Status badge configuration — driven by uiState only
   const STATUS_CONFIG = {
@@ -838,6 +860,42 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     };
     if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400');
   };
+
+  const handleContinue = (direction) => {
+    const jid = jobId || job?.job_id;
+    const baseStory = storyText || job?.story_text || '';
+    const modifier = direction.id === 'custom' ? customDirection : direction.modifier;
+    if (!modifier.trim()) return;
+
+    const continuePrompt = `[Continuation of "${displayTitle}"]\n\nPrevious story:\n${baseStory.slice(0, 500)}...\n\nDirection: ${modifier}`;
+
+    localStorage.setItem('remix_video', JSON.stringify({
+      parent_video_id: jid,
+      title: displayTitle,
+      story_text: continuePrompt,
+      animation_style: currentStyle,
+      age_group: job?.age_group,
+      voice_preset: job?.voice_preset,
+    }));
+    navigate(`/app/story-video-studio?remix=continue`);
+    toast.success(`Creating continuation: ${direction.label}`);
+  };
+
+  const handleStyleRemix = (newStyleId) => {
+    const jid = jobId || job?.job_id;
+    localStorage.setItem('remix_video', JSON.stringify({
+      parent_video_id: jid,
+      title: `Remix: ${displayTitle}`,
+      story_text: storyText || job?.story_text || '',
+      animation_style: newStyleId,
+      age_group: job?.age_group,
+      voice_preset: job?.voice_preset,
+    }));
+    navigate(`/app/story-video-studio?remix=style`);
+    toast.success('Remixing with new style...');
+  };
+
+  const isActionable = uiState === 'READY' || uiState === 'PARTIAL_READY';
 
   return (
     <div className="space-y-6 vs-fade-up-1" data-testid="postgen-phase">
@@ -904,7 +962,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           )}
 
           {/* View Full Preview link */}
-          {jobId && (uiState === 'READY' || uiState === 'PARTIAL_READY') && (
+          {jobId && isActionable && (
             <div className="mt-4">
               <Link to={`/app/story-preview/${jobId}`} className="w-full">
                 <Button className="w-full bg-purple-600 hover:bg-purple-700" data-testid="view-full-preview-btn">
@@ -1004,57 +1062,123 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           {/* New Video */}
           {uiState !== 'FAILED' && (
             <Button onClick={onNew} variant="ghost" className="w-full text-slate-400 hover:text-white" data-testid="new-video-btn">
-              <Sparkles className="w-4 h-4 mr-2" /> Create Another Story
+              <Sparkles className="w-4 h-4 mr-2" /> Create New Story
             </Button>
           )}
         </div>
       </div>
 
-      {/* Story Chain Actions */}
-      {(uiState === 'READY' || uiState === 'PARTIAL_READY') && (
+      {/* ── ENGAGEMENT LOOP ACTIONS (only when generation succeeded) ────── */}
+      {isActionable && (
         <>
+          {/* ── Continue Story — Rich Directions ────────────────────── */}
+          <div className="bg-slate-900/80 border border-indigo-500/20 rounded-xl p-5 space-y-4" data-testid="continue-story-section">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-indigo-400" />
+                Continue Your Story
+              </h3>
+              <span className="text-[10px] text-indigo-400/70 bg-indigo-500/10 px-2 py-0.5 rounded-full">Creates next episode</span>
+            </div>
+
+            {!showDirections ? (
+              <>
+                <p className="text-sm text-slate-400">Turn this into a series — choose a direction for the next episode.</p>
+                <Button
+                  onClick={() => setShowDirections(true)}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  data-testid="choose-direction-btn"
+                >
+                  <Play className="w-4 h-4 mr-2" /> Choose Direction
+                </Button>
+              </>
+            ) : (
+              <div className="space-y-2" data-testid="continue-directions">
+                {CONTINUE_DIRECTIONS.map(d => (
+                  <button
+                    key={d.id}
+                    onClick={() => {
+                      if (d.id === 'custom') {
+                        if (customDirection.trim()) handleContinue(d);
+                        return;
+                      }
+                      handleContinue(d);
+                    }}
+                    disabled={d.id === 'custom' && !customDirection.trim()}
+                    className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all disabled:opacity-40 ${d.color}`}
+                    data-testid={`direction-${d.id}`}
+                  >
+                    <d.icon className="w-4 h-4 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold">{d.label}</p>
+                      <p className="text-[10px] opacity-70">{d.desc}</p>
+                    </div>
+                    {d.id !== 'custom' && <Play className="w-3.5 h-3.5 opacity-50" />}
+                  </button>
+                ))}
+                <input
+                  type="text"
+                  value={customDirection}
+                  onChange={(e) => setCustomDirection(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && customDirection.trim() && handleContinue(CONTINUE_DIRECTIONS[4])}
+                  placeholder="Your custom direction for the next episode..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  data-testid="custom-direction-input"
+                />
+                <button
+                  onClick={() => setShowDirections(false)}
+                  className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Remix — Visual Style Swatches ──────────────────────── */}
+          <div className="bg-slate-900/80 border border-pink-500/15 rounded-xl p-5 space-y-4" data-testid="remix-section">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-pink-400" />
+              <h3 className="text-base font-semibold text-white">Remix with Different Style</h3>
+            </div>
+            <p className="text-sm text-slate-400">Same story, completely different look. Quick re-create.</p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2" data-testid="remix-style-grid">
+              {ANIM_STYLES.filter(s => s.id !== currentStyle).map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => handleStyleRemix(s.id)}
+                  className="rounded-lg overflow-hidden group hover:ring-2 hover:ring-pink-500 transition-all"
+                  data-testid={`remix-style-${s.id}`}
+                >
+                  <div className={`aspect-square bg-gradient-to-br ${s.gradient} flex items-center justify-center`}>
+                    <RefreshCw className="w-4 h-4 text-white/0 group-hover:text-white/80 transition-all" />
+                  </div>
+                  <p className="text-[9px] text-slate-500 text-center py-1 bg-slate-800 truncate px-1">{s.name}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Cross-Tool Conversions via CreationActionsBar ─────── */}
           <CreationActionsBar
             toolType="story-video-studio"
             originalPrompt={storyText || job?.story_text || job?.title || ''}
-            originalSettings={{ style: animStyle || job?.animation_style, ageGroup: job?.age_group }}
+            originalSettings={{ style: currentStyle, ageGroup: job?.age_group }}
             parentGenerationId={jobId || job?.job_id}
             remixSourceTitle={displayTitle}
           />
 
-          <div className="bg-slate-900/80 border border-indigo-500/20 rounded-xl p-5 space-y-4" data-testid="video-chain-actions">
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-indigo-400" />
-              Continue Your Story
-            </h3>
-            <p className="text-sm text-slate-400">Turn this into a series — create the next episode.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  const jid = jobId || job?.job_id;
-                  if (jid) navigate(`/app/story-video-studio?continue=${jid}`);
-                }}
-                className="flex items-center gap-3 p-3 rounded-lg border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-all text-left"
-                data-testid="video-continue-btn"
-              >
-                <Play className="w-5 h-5 shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold">Quick Continue</p>
-                  <p className="text-[10px] opacity-70">Same characters & style</p>
-                </div>
-              </button>
-              <button
-                onClick={onNew}
-                className="flex items-center gap-3 p-3 rounded-lg border border-pink-500/30 text-pink-400 hover:bg-pink-500/10 transition-all text-left"
-                data-testid="video-remix-btn"
-              >
-                <RefreshCw className="w-5 h-5 shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold">Remix</p>
-                  <p className="text-[10px] opacity-70">New story, fresh start</p>
-                </div>
-              </button>
-            </div>
-          </div>
+          {/* ── Story Chain Link ──────────────────────────────────── */}
+          {(jobId || job?.job_id) && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/app/story-chain/${jobId || job?.job_id}`)}
+              className="w-full border-slate-700 text-slate-300 hover:text-white hover:border-purple-500/40"
+              data-testid="view-story-chain-btn"
+            >
+              <Link2 className="w-4 h-4 mr-2 text-purple-400" /> View Story Chain
+            </Button>
+          )}
 
           <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
         </>
