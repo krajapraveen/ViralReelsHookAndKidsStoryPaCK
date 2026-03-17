@@ -12,13 +12,13 @@ AI Creative Operating System: **Create -> Share -> View -> Remix -> Loop**
 6. Tests catch regressions. Health checks catch failures. Watchdog heals. Alerts notify.
 7. **Every tool output screen must answer: "What should I do next?"**
 8. **No tool should end in a dead-end state.**
+9. **Zero-friction transitions: Click → Prefill → Generate. No thinking. No typing.**
 
 ## Self-Defending Infrastructure
-- Regression Suite: 35 tests, run before/after every change
+- Regression Suite: 35 tests
 - Deep Health: `GET /api/health/deep`
-- Watchdog: Auto every 5 min, SLA guardrails, max 3 retries, structured logs
-- Alerts: Auto-triggers watchdog on critical issues
-- Confidence Score: `GET /api/watchdog/confidence` (0-100)
+- Watchdog: Auto every 5 min, SLA guardrails
+- Alerts + Confidence Score
 
 ## Engagement Loop Architecture
 Every tool now follows the engagement loop pattern:
@@ -26,39 +26,38 @@ Every tool now follows the engagement loop pattern:
 User -> Create -> [PRIMARY ACTION ZONE] -> Continue/Remix/Convert/Expand -> Create -> Loop
 ```
 
-### Tool-Level Hook Coverage:
-| Tool | Continue | Remix | Convert | Expand | Share |
-|------|----------|-------|---------|--------|-------|
-| Photo-to-Comic | 5 Directions | Style Swatches | Video, GIF | Story Chain | Copy/Twitter/WA |
-| Story Video | 5 Directions | 6 Style Swatches | Comic, GIF | Story Chain | Copy/Twitter/WA |
-| GIF Maker | Emotion Switch | Style Switch | Comic, Video, Reel | - | Copy/Share |
-| Reel Generator | Tone Switch | - | Video, Comic, Story | Expand to Story | Copy/Share |
-| Comic Storybook | Next Chapter | Art Style | Video, Bedtime | - | ShareCreation |
-| Bedtime Story | Next Episode | Narration | Video, Comic | - | - |
-| Caption Rewriter | Tone Switch | - | Reel, Video, Script | Expand Script | - |
-| Brand Story | Website Copy | - | Reel, Video, Social | Expand Copy | - |
-| Daily Viral Ideas | - | - | Reel, Video, Comic, Caption | - | Copy |
+### Cross-Tool Auto-Prefill System
+```
+Tool A (hook click) → localStorage.remix_data (with timestamp) → Tool B → useRemixData hook → mapRemixToFields → Prefill inputs → RemixBanner("Prefilled from Tool A") → Clear localStorage
+```
+- TTL: 10 minutes
+- Single consumption: cleared after first read
+- Type validation: field mapping per target tool
+- Visual: amber "Prefilled from..." banner with dismiss
 
-## Full Platform UAT Status (March 17, 2026)
-### ALL 13 SECTIONS PASS (from previous UAT)
+### Tool-Level Coverage:
+| Tool | Hooks | Prefill Consumer | RemixBanner |
+|------|-------|-----------------|-------------|
+| Photo-to-Comic | Custom (5 dir + style swatches) | N/A (image-based) | N/A |
+| Story Video | Custom (5 dir + 6 styles) | Yes (remix_data + remix_video) | Yes |
+| GIF Maker | 4 hooks | Yes (emotion, style, bg) | Yes |
+| Reel Generator | 4 hooks | Yes (topic, niche, tone, duration) | Yes |
+| Comic Storybook | 4 hooks | Yes (storyIdea, genre) | Yes |
+| Bedtime Story | 4 hooks | Yes (theme, ageGroup, moral) | Yes |
+| Caption Rewriter | 4 hooks | Yes (text, tone) | Yes |
+| Brand Story | 4 hooks | Yes (mission, industry, tone) | Yes |
+| Daily Viral Ideas | 4 hooks | N/A (display only) | N/A |
 
 ## Completed Work (All Sessions)
-1-26. Core platform + Credits truth + SafeImage + State machines
-27. Story Video Bulletproof Pipeline
-28. Full Platform Hardening (all-module UAT, SafeImage sweep)
-29. Self-Defending Infrastructure (regression, health, watchdog, alerts)
-30. Continuous Self-Healing (scheduled watchdog, logs, alert-action coupling, SLA, confidence)
-31. Full-Depth Destructive UAT (all 13 sections verified, zero critical issues)
-32. **Story Video Post-Generation Parity** (Feb 2026) — Rich engagement loop with 5 Continue Directions, Visual Style Remix, Story Chain
-33. **Next Action Hooks Across ALL Tools** (Feb 2026) — Reusable NextActionHooks component deployed to all 7 remaining tools:
-    - GIF Maker: Try Different Reaction, Turn Into Comic, Create Story Video, Make a Reel Script
-    - Reel Generator: Generate Video, Rewrite Different Tone, Expand Into Story, Turn Into Comic
-    - Comic Storybook: Add Next Chapter, Change Art Style, Convert to Video, Make Bedtime Story
-    - Bedtime Story: Convert to Video, Next Episode, Change Narration, Create Illustrations
-    - Caption Rewriter: Generate Reel Script, Rewrite Again, Expand to Full Script, Create Story Video
-    - Brand Story: Create Reel Script, Generate Video Ad, Expand Website Copy, Create Social Series
-    - Daily Viral Ideas: Generate Reel Script, Create Story Video, Generate Captions, Make a Comic
-    - Testing: iteration_298 — all pages load, hooks verified, bug fixed (CaptionRewriter selectedPack)
+1-31. Core platform + Stability + Self-defending infrastructure + Full UAT
+32. Story Video Post-Generation Parity — Rich engagement loop
+33. Next Action Hooks Across ALL Tools — 7 tools with 4 hooks each
+34. **Cross-Tool Auto-Prefill** (Feb 2026) — Zero-friction transitions:
+    - Created `useRemixData` hook with TTL (10min), type validation, auto-clear
+    - Created `RemixBanner` component ("Prefilled from [Tool] — [Title]")
+    - Updated `NextActionHooks` to include timestamp in payload
+    - Integrated consumption in 8 tools: Story Video, Reel Generator, GIF Maker, Comic Storybook, Bedtime Story, Caption Rewriter, Brand Story (+ Daily Viral Ideas has hooks but no prefill since display-only)
+    - Testing: iteration_299 — Backend 100% (12/12), Frontend 100% (all pages load, all remix features verified)
 
 ## Remaining Backlog
 ### P0
@@ -67,6 +66,7 @@ User -> Create -> [PRIMARY ACTION ZONE] -> Continue/Remix/Convert/Expand -> Crea
 ### P1
 - [x] ~~Post-generation parity for Story Video~~ DONE
 - [x] ~~Next Action Hooks across ALL tools~~ DONE
+- [x] ~~Cross-tool auto-prefill~~ DONE
 - [ ] UI Consistency (aspect ratios, card sizing, grid alignment)
 
 ### P2
@@ -76,10 +76,9 @@ User -> Create -> [PRIMARY ACTION ZONE] -> Continue/Remix/Convert/Expand -> Crea
 - [ ] Email Notifications (BLOCKED — SendGrid)
 
 ### Future (Growth & Viral)
-- [ ] Viral growth loop design (create -> share -> new users -> create)
+- [ ] Viral growth loop (create → share → new users → create)
 - [ ] Instant Preview Mode for comics
 - [ ] Export Packs (Instagram, etc.)
-- [ ] Cross-tool remix data consumption (tools reading localStorage remix_data on load)
 
 ### Blocked
 - R2 CORS — infra config
