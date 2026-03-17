@@ -46,7 +46,7 @@
   },
   "test_credentials": {
     "user": "test@visionary-suite.com / Test@2026#",
-    "api_url": "https://comic-pipeline-v2.preview.emergentagent.com"
+    "api_url": "https://narrative-suite.preview.emergentagent.com"
   },
   "seed_data_creation": "Created 2 test pipeline jobs during testing: TEST_Iteration150_Performance_Test, TEST_Iteration150_Run1_BraveLion",
   "retest_needed": false,

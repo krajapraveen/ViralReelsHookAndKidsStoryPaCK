@@ -3,7 +3,7 @@
 **Audit Date:** February 21, 2026  
 **Audit Type:** Full A-to-Z End-to-End Audit  
 **Role:** Chief QA Architect + Security Auditor + Performance Engineer + UI Reviewer  
-**Target:** https://visionary-suite.com/app (Preview: https://comic-pipeline-v2.preview.emergentagent.com)
+**Target:** https://visionary-suite.com/app (Preview: https://narrative-suite.preview.emergentagent.com)
 
 ---
 

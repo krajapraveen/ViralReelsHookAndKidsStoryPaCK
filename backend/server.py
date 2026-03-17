@@ -311,7 +311,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://comic-pipeline-v2.preview.emergentagent.com",
+    "https://narrative-suite.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]

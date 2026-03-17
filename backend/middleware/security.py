@@ -244,7 +244,7 @@ def get_cors_config():
         "allow_origins": [
             "https://creatorstudio.ai",
             "https://www.creatorstudio.ai",
-            "https://comic-pipeline-v2.preview.emergentagent.com",
+            "https://narrative-suite.preview.emergentagent.com",
             "http://localhost:3000",
             "http://localhost:8001"
         ],

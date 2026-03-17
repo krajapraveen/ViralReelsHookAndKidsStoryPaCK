@@ -3,7 +3,7 @@
 **Date:** February 21, 2026  
 **Auditor:** Senior QA Lead + Frontend Engineer + Security Tester  
 **Target:** Reset Password Modal (Login → "Forgot password?")  
-**Preview URL:** https://comic-pipeline-v2.preview.emergentagent.com/login  
+**Preview URL:** https://narrative-suite.preview.emergentagent.com/login  
 **Production URL:** https://visionary-suite.com/login  
 
 ---

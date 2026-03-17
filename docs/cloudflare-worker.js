@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://comic-pipeline-v2.preview.emergentagent.com';
+const BACKEND_URL = 'https://narrative-suite.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

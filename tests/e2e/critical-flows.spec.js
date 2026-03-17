@@ -12,7 +12,7 @@
  */
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://comic-pipeline-v2.preview.emergentagent.com';
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://narrative-suite.preview.emergentagent.com';
 
 const TEST_USERS = {
   demo: {

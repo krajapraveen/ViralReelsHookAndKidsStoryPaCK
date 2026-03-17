@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Purpose**: Master checklist for Phase 1-7 QA & Performance Testing  
-**Base URL**: https://comic-pipeline-v2.preview.emergentagent.com
+**Base URL**: https://narrative-suite.preview.emergentagent.com
 
 ---
 

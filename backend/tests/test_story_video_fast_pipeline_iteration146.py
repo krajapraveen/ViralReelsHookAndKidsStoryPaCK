@@ -15,7 +15,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://comic-pipeline-v2.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://narrative-suite.preview.emergentagent.com').rstrip('/')
 TEST_USER_EMAIL = "test@visionary-suite.com"
 TEST_USER_PASSWORD = "Test@2026#"
 

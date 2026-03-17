@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://comic-pipeline-v2.preview.emergentagent.com)
+**Environment:** Preview (https://narrative-suite.preview.emergentagent.com)
 
 ---
 

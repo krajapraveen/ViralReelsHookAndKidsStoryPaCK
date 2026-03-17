@@ -1,6 +1,6 @@
 {
   "timestamp": "2026-02-15T17:11:45.147686",
-  "target": "https://comic-pipeline-v2.preview.emergentagent.com",
+  "target": "https://narrative-suite.preview.emergentagent.com",
   "summary": {
     "vulnerabilities": 11,
     "warnings": 8,

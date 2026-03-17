@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://comic-pipeline-v2.preview.emergentagent.com  
+**Base URL:** https://narrative-suite.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---
