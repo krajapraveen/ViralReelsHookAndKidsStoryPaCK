@@ -39,7 +39,7 @@ Every output is a permanent CDN-backed asset. Every creation is a living object,
 - Auto-promotion: on job COMPLETED, source upload promoted temp -> permanent
 - On FAILED/abandoned, left as temp for lifecycle cleanup
 
-## Story Chain Model (IMPLEMENTED)
+## Story Chain Model (IMPLEMENTED + ENHANCED)
 A real relational object, not a stitched scroll:
 ```
 story_chain_id  — shared across all jobs in the chain
@@ -48,11 +48,15 @@ parent_job_id   — direct parent (null for originals)
 branch_type     — "original" | "continuation" | "remix"
 sequence_number — order within the chain (0 for original)
 ```
-- GET /api/photo-to-comic/chain/{chain_id} — full tree with flat list
-- GET /api/photo-to-comic/my-chains — all user chains (grouped, with backfill)
-- Frontend: /app/my-stories — chain cards with episode counts, previews
-- Frontend: /app/story-chain/:chainId — vertical timeline with badges, panel previews, continue/remix actions
-- Retroactive backfill: existing jobs get chain IDs on first load
+### Progression System (NEW - March 2026)
+- GET /api/photo-to-comic/chain/{chain_id} — enhanced with progress_pct, total_panels, latest_continuable_job_id
+- GET /api/photo-to-comic/active-chains — top 3 active chains for "Resume Your Story" dashboard entry point
+- POST /api/photo-to-comic/chain/suggestions — AI-generated context-aware "Next Episode" suggestions
+- GET /api/photo-to-comic/my-chains — enhanced with progress_pct
+- Frontend: "Resume Your Story" component on Dashboard (primary chain card + secondary compact cards)
+- Frontend: StoryChainView with progression header, progress bar, episode/panel counts, AI suggestions panel
+- Frontend: MyStories with progress bars on chain cards
+- Frontend: PhotoToComic post-gen panel with direction options (Continue/Twist/Escalate/Custom)
 
 ## Photo to Comic (REBUILT - Conversion + Retention)
 - Upload-first hero: full-width drop zone as primary CTA
@@ -61,7 +65,7 @@ sequence_number — order within the chain (0 for original)
 - Server-side upload with progress indicator + CDN ready badge
 - Post-generation action panel:
   - Download, Share (copy/twitter/whatsapp)
-  - Continue Story (strips: 4 more panels from same photo/style)
+  - Continue Story with multiple directions (Next/Twist/Escalate/Custom prompt)
   - Remix (same photo, different style)
   - View Story Chain (navigate to chain timeline)
   - Create New
@@ -87,6 +91,7 @@ sequence_number — order within the chain (0 for original)
 16. Storage auto-promotion — temp->permanent on job success
 17. Server-side upload proxy (eliminates CORS dependency)
 18. Story Chain model — relational story objects with tree structure
+19. Story Chain Progression System — resume entry points, progress indicators, AI suggestions, direction-based continuation
 
 ## Remaining Backlog
 ### P0
