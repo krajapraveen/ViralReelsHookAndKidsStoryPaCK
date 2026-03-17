@@ -8,8 +8,8 @@ AI Creative Operating System: **Create -> Share -> Remix -> Loop -> Grow -> Meas
 2. Zero-friction transitions: Click -> Prefill -> Generate.
 3. Every shared creation is a user acquisition channel.
 4. Growth must be measured, not assumed.
-5. The dashboard tells you what to fix, not just what happened.
-6. Speed of learning > quality of code. Ship experiments fast.
+5. Speed of learning > quality of code. Ship experiments fast.
+6. **A content platform with no visible content = dead product. Validate content rendering FIRST.**
 
 ## Architecture
 
@@ -28,61 +28,48 @@ Winner heuristic: 20%+ uplift after 200 sessions per variant
 Dashboard: /app/admin/growth -> A/B Experiments section
 ```
 
-### Growth Intelligence System
+### Content Discovery Pipeline
 ```
-Events: page_view -> remix_click -> tool_open_prefilled -> generate_click -> signup -> creation -> share
-Metrics: Conversion rates at each stage, K factor, drop-off detection, auto-diagnosis
-Alerts: Threshold-based (remix <5%, signup <10%, etc.)
-Dashboard: /app/admin/growth
+pipeline_jobs (COMPLETED) -> Gallery/Explore -> thumbnail rendering
+Thumbnail priority: thumbnail_url -> scene_images[first].url
+Query: COMPLETED + (output_url | thumbnail_url | scene_images | is_showcase)
+Debug: GET /api/pipeline/gallery/debug for raw data state
 ```
-
-### Self-Defending Infrastructure
-- Regression Suite: 35 tests | Watchdog: Auto every 5 min | Health: /api/health/deep
-
-### Payment System (Cashfree)
-- Status: Production, fully wired | Products: 5 | Currency: INR
 
 ## Production Test History
-- Iteration 301: PRODUCTION GO (Backend 94%, Frontend 100%)
-- Iteration 302: Growth Intelligence (Backend 36/36, Frontend 17/17)
 - Iteration 303: A/B Testing System (Backend 26/26 - 100%)
-- Iteration 304: Critical Bug Fixes (Backend 13/13, Frontend 100%)
+- Iteration 304: Initial Bug Fixes (Backend 13/13, Frontend 100%)
+- Iteration 305: Deep Root Cause Fix (Backend 94%, Frontend 100%) - Gallery/Explore verified
 
 ## Completed Work
 1-40. Core platform + Stability + Growth Engine + Analytics + UAT
-41. **Lean A/B Testing System** (Feb 2026):
-    - Backend: POST /api/ab/assign, /assign-all, /convert, GET /results
-    - 3 experiments: CTA Copy, Hook Text, Login Gate Timing
-    - Deterministic session-based assignment, deduped conversion tracking
-    - Winner heuristic: 20%+ uplift after 200 sessions
-    - Frontend: PublicCreation.js renders A/B variants, Growth Dashboard shows results
-
-42. **Critical Bug Fixes — Root Cause Analysis** (Feb 2026):
-    - **FIX 1**: SafeImage crossOrigin='anonymous' removed → R2 presigned images now render on Explore/Gallery/all pages
-    - **FIX 2**: Gallery query filter expanded ($or: output_url | thumbnail_url | is_showcase) → Gallery no longer shows 0 items for image-only creations
-    - **FIX 3**: Profile.js broken link /app/story-video → fixed to /app/story-video-studio
+41. Lean A/B Testing System (3 experiments live)
+42. **Critical Root Cause Fixes** (Feb 2026):
+    - ROOT CAUSE 1: SafeImage crossOrigin='anonymous' blocked ALL R2 image rendering → removed
+    - ROOT CAUSE 2: Gallery query too strict (only output_url) → expanded to include thumbnail_url + scene_images
+    - ROOT CAUSE 3: Missing thumbnail fallback → scene_images[first].url auto-populates empty thumbnails
+    - ROOT CAUSE 4: Profile broken link /app/story-video → /app/story-video-studio
+    - Added /api/pipeline/gallery/debug diagnostic endpoint
+    - Result: Gallery 0 → 74 items, Explore gradient placeholders → real images
 
 ## Active A/B Experiments
-1. **cta_copy** — Primary: remix_click
-   - "Create This in 1 Click" | "Make Your Own Now" | "Generate This in Seconds"
-2. **hook_text** — Primary: remix_click
-   - "Made in 30 seconds. No skills needed." | "Created with AI - try it yourself." | "Anyone can make this."
-3. **login_timing** — Primary: signup_completed
-   - Before Generate | After Generate | After Preview
+1. **cta_copy** — "Create This in 1 Click" | "Make Your Own Now" | "Generate This in Seconds"
+2. **hook_text** — "Made in 30 seconds." | "Created with AI." | "Anyone can make this."
+3. **login_timing** — Before Generate | After Generate | After Preview
 
 ## Remaining Backlog
 ### P0
-- [ ] CTA Placement experiment (after first 3 experiments are running with traffic)
-- [ ] Monitor experiment data, declare winners when 200+ sessions reached
+- [ ] CTA Placement experiment (after first 3 running with traffic)
+- [ ] Monitor experiment data, declare winners at 200+ sessions
 
 ### P1
 - [ ] UI Consistency (aspect ratios, card sizing, grid alignment)
 
 ### P2
-- [ ] Style preset preview thumbnails for Photo-to-Comic
+- [ ] Style preset thumbnails for Photo-to-Comic
 - [ ] Admin Observability Dashboard
-- [ ] Cashfree: Enable USD
+- [ ] Cashfree USD support
 
 ### Blocked
-- R2 CORS — infra config (graceful fallback in place)
+- R2 CORS — infra config (graceful fallback in place, images now load without CORS)
 - SendGrid — plan upgrade
