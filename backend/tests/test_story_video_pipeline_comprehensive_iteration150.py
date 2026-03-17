@@ -10,7 +10,7 @@ Full production verification including:
 - All endpoint authentication checks
 
 Test User: test@visionary-suite.com / Test@2026#
-Preview URL: https://watchdog-stable.preview.emergentagent.com
+Preview URL: https://remix-boost.preview.emergentagent.com
 """
 
 import pytest

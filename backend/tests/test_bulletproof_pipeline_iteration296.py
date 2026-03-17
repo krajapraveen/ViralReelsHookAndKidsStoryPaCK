@@ -15,7 +15,7 @@ from datetime import datetime
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://watchdog-stable.preview.emergentagent.com"
+    BASE_URL = "https://remix-boost.preview.emergentagent.com"
 
 # Test credentials
 ADMIN_EMAIL = "admin@creatorstudio.ai"

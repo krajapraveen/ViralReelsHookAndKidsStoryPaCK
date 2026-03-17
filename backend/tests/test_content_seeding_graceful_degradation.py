@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://watchdog-stable.preview.emergentagent.com"
+    BASE_URL = "https://remix-boost.preview.emergentagent.com"
 
 SYSTEM_USER_ID = "visionary-ai-system"
 EXPECTED_CATEGORIES = {"Fantasy", "Motivational", "Emotional", "Sci-Fi", "Kids", "Luxury"}

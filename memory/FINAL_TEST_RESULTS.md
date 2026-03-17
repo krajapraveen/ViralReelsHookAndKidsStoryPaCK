@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://watchdog-stable.preview.emergentagent.com
+**Website:** https://remix-boost.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

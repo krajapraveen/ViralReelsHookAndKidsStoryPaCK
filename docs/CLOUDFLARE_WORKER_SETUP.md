@@ -35,7 +35,7 @@ This guide will help you set up a Cloudflare Worker to proxy all `/api/*` reques
  * CreatorStudio AI (visionary-suite.com)
  */
 
-const BACKEND_URL = 'https://watchdog-stable.preview.emergentagent.com';
+const BACKEND_URL = 'https://remix-boost.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {
@@ -187,7 +187,7 @@ After completing these steps:
 |---------|-------|
 | Worker Name | `api-proxy` |
 | Route | `visionary-suite.com/api/*` |
-| Backend URL | `https://watchdog-stable.preview.emergentagent.com` |
+| Backend URL | `https://remix-boost.preview.emergentagent.com` |
 | Zone | `visionary-suite.com` |
 
 ---
