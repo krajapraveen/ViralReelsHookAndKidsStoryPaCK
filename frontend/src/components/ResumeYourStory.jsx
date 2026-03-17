@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, ChevronRight, Sparkles, GitBranch, Play, Loader2 } from 'lucide-react';
+import { BookOpen, ChevronRight, Sparkles, GitBranch, Play } from 'lucide-react';
 import { Button } from './ui/button';
+import { SafeImage } from './SafeImage';
 import api from '../utils/api';
 
 export function ResumeYourStory() {
@@ -46,15 +47,14 @@ export function ResumeYourStory() {
         data-testid="resume-primary-chain"
       >
         <div className="flex flex-col sm:flex-row">
-          {/* Preview image */}
-          <div className="sm:w-48 h-32 sm:h-auto bg-[var(--vs-bg-elevated)] relative overflow-hidden shrink-0">
-            {primary.preview_url ? (
-              <img src={primary.preview_url} alt="" className="w-full h-full object-cover" crossOrigin="anonymous" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <BookOpen className="w-8 h-8 text-[var(--vs-text-muted)]" />
-              </div>
-            )}
+          <div className="sm:w-48 relative shrink-0">
+            <SafeImage
+              src={primary.preview_url}
+              alt="Story chain preview"
+              aspectRatio="4/3"
+              titleOverlay={primary.root_style || 'Comic'}
+              className="w-full h-full rounded-none"
+            />
             <div className="absolute top-2 left-2">
               <span className="bg-black/60 backdrop-blur text-[10px] text-white font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
                 <GitBranch className="w-3 h-3" /> {primary.total_episodes} episode{primary.total_episodes !== 1 ? 's' : ''}
@@ -62,7 +62,6 @@ export function ResumeYourStory() {
             </div>
           </div>
 
-          {/* Info + CTA */}
           <div className="flex-1 p-4 flex flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center gap-2 mb-1.5">
@@ -70,29 +69,23 @@ export function ResumeYourStory() {
                   {primary.root_style || 'comic'} &middot; {primary.root_genre || 'story'}
                 </span>
                 {primary.continuations > 0 && (
-                  <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded-full">
-                    {primary.continuations} cont.
-                  </span>
+                  <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded-full">{primary.continuations} cont.</span>
                 )}
                 {primary.remixes > 0 && (
-                  <span className="text-[10px] bg-pink-500/10 text-pink-400 px-1.5 py-0.5 rounded-full">
-                    {primary.remixes} remix
-                  </span>
+                  <span className="text-[10px] bg-pink-500/10 text-pink-400 px-1.5 py-0.5 rounded-full">{primary.remixes} remix</span>
                 )}
               </div>
 
-              {/* Progress bar */}
               <div className="flex items-center gap-3 mb-2">
                 <div className="flex-1 h-1.5 rounded-full bg-[var(--vs-bg-card)] overflow-hidden">
-                  <div
-                    className="h-full rounded-full vs-gradient-bg transition-all duration-700"
-                    style={{ width: `${primary.progress_pct}%` }}
-                  />
+                  <div className="h-full rounded-full vs-gradient-bg transition-all duration-700" style={{ width: `${primary.progress_pct}%` }} />
                 </div>
-                <span className="text-xs text-[var(--vs-text-muted)] shrink-0" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-                  {primary.progress_pct}%
-                </span>
+                <span className="text-xs text-[var(--vs-text-muted)] shrink-0" style={{ fontFamily: 'var(--vs-font-mono)' }}>{primary.progress_pct}%</span>
               </div>
+
+              {primary.momentum_msg && (
+                <p className="text-xs text-amber-400/80 mb-1">{primary.momentum_msg}</p>
+              )}
 
               <p className="text-xs text-[var(--vs-text-secondary)] line-clamp-1">
                 {primary.total_panels || 0} panels &middot; {primary.completed} of {primary.total_episodes} completed
@@ -101,30 +94,15 @@ export function ResumeYourStory() {
 
             <div className="flex gap-2 mt-3">
               {primary.continue_job_id ? (
-                <Button
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); navigate(`/app/photo-to-comic?continue=${primary.continue_job_id}`); }}
-                  className="vs-btn-primary h-8 px-4 text-xs"
-                  data-testid="resume-continue-btn"
-                >
+                <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/app/photo-to-comic?continue=${primary.continue_job_id}`); }} className="vs-btn-primary h-8 px-4 text-xs" data-testid="resume-continue-btn">
                   <Sparkles className="w-3.5 h-3.5 mr-1" /> Next Episode
                 </Button>
               ) : (
-                <Button
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); navigate(`/app/story-chain/${primary.chain_id}`); }}
-                  className="vs-btn-primary h-8 px-4 text-xs"
-                  data-testid="resume-view-chain-btn"
-                >
+                <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/app/story-chain/${primary.chain_id}`); }} className="vs-btn-primary h-8 px-4 text-xs" data-testid="resume-view-chain-btn">
                   <BookOpen className="w-3.5 h-3.5 mr-1" /> View Chain
                 </Button>
               )}
-              <Button
-                variant="ghost" size="sm"
-                onClick={(e) => { e.stopPropagation(); navigate(`/app/story-chain/${primary.chain_id}`); }}
-                className="text-[var(--vs-text-muted)] hover:text-white h-8 px-3 text-xs"
-                data-testid="resume-timeline-btn"
-              >
+              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/app/story-chain/${primary.chain_id}`); }} className="text-[var(--vs-text-muted)] hover:text-white h-8 px-3 text-xs" data-testid="resume-timeline-btn">
                 Timeline <ChevronRight className="w-3 h-3 ml-0.5" />
               </Button>
             </div>
@@ -136,21 +114,8 @@ export function ResumeYourStory() {
       {rest.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {rest.map((c) => (
-            <Link
-              key={c.chain_id}
-              to={`/app/story-chain/${c.chain_id}`}
-              className="vs-card group p-3 flex items-center gap-3 hover:border-[var(--vs-border-glow)] transition-all"
-              data-testid={`resume-secondary-${c.chain_id}`}
-            >
-              <div className="w-10 h-10 rounded-lg bg-[var(--vs-bg-elevated)] overflow-hidden shrink-0">
-                {c.preview_url ? (
-                  <img src={c.preview_url} alt="" className="w-full h-full object-cover" crossOrigin="anonymous" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <BookOpen className="w-4 h-4 text-[var(--vs-text-muted)]" />
-                  </div>
-                )}
-              </div>
+            <Link key={c.chain_id} to={`/app/story-chain/${c.chain_id}`} className="vs-card group p-3 flex items-center gap-3 hover:border-[var(--vs-border-glow)] transition-all" data-testid={`resume-secondary-${c.chain_id}`}>
+              <SafeImage src={c.preview_url} alt="" aspectRatio="1/1" titleOverlay={c.root_style} className="w-10 h-10 rounded-lg shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-white font-medium truncate">{c.total_episodes} ep &middot; {c.root_style}</p>
                 <div className="flex items-center gap-2 mt-0.5">

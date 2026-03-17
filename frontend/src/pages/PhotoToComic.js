@@ -48,7 +48,8 @@ export default function PhotoToComic() {
   const fileInputRef = useRef(null);
 
   // State
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(null); // null = loading, not 0
+  const [isUnlimited, setIsUnlimited] = useState(false);
   const [userPlan, setUserPlan] = useState('free');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -73,14 +74,44 @@ export default function PhotoToComic() {
 
   useEffect(() => {
     (async () => {
+      // Attempt 1: credits/balance API
       try {
-        const [cr, ur] = await Promise.all([
-          api.get('/api/credits/balance'),
-          api.get('/api/auth/me')
-        ]);
-        setCredits(cr.data.credits || 0);
-        setUserPlan(ur.data.user?.plan || ur.data.plan || 'free');
-      } catch { /* noop */ }
+        const cr = await api.get('/api/credits/balance');
+        const d = cr.data;
+        setCredits(d.credits ?? d.balance ?? 0);
+        setUserPlan(d.plan || 'free');
+        if (d.unlimited) setIsUnlimited(true);
+        return; // success
+      } catch { /* fall through to retry */ }
+
+      // Attempt 2: retry once
+      try {
+        const cr = await api.get('/api/credits/balance');
+        const d = cr.data;
+        setCredits(d.credits ?? d.balance ?? 0);
+        setUserPlan(d.plan || 'free');
+        if (d.unlimited) setIsUnlimited(true);
+        return;
+      } catch { /* fall through to auth/me fallback */ }
+
+      // Attempt 3: fallback to /auth/me
+      try {
+        const ur = await api.get('/api/auth/me');
+        const u = ur.data.user || ur.data;
+        const role = (u.role || '').toUpperCase();
+        const plan = u.plan || 'free';
+        const isAdmin = role === 'ADMIN' || plan === 'admin';
+        setUserPlan(isAdmin ? 'pro' : plan);
+        if (isAdmin) {
+          setIsUnlimited(true);
+          setCredits(999999);
+        } else {
+          setCredits(u.credits ?? 0);
+        }
+      } catch {
+        // Absolute last resort: do NOT default to 0 — set null to show loading
+        setCredits(null);
+      }
     })();
   }, []);
 
@@ -146,11 +177,12 @@ export default function PhotoToComic() {
   })();
   const isPaid = !['free', ''].includes(userPlan);
   const isLocked = (tier) => tier === 'paid' && !isPaid;
+  const canAfford = isUnlimited || (credits !== null && credits >= cost);
 
   // ─── Generate ────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!photoFile) { toast.error('Upload a photo first'); return; }
-    if (credits < cost) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }
+    if (!canAfford) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }
     if (storyPrompt) {
       const lower = storyPrompt.toLowerCase();
       for (const kw of BLOCKED) {
@@ -198,13 +230,26 @@ export default function PhotoToComic() {
 
   const pollJob = async (id) => {
     let attempts = 0;
+    let lastProgressAt = Date.now();
+    let lastProgress = -1;
+    const STAGE_TIMEOUT = 60000; // 60s no progress = stale
+
     const poll = async () => {
-      if (attempts++ > 90) { setGenerating(false); toast.error('Timed out'); return; }
+      attempts++;
       try {
         const res = await api.get(`/api/photo-to-comic/job/${id}`);
         const job = res.data;
-        setProgress(job.progress || 0);
+        const currentProgress = job.progress || 0;
+
+        setProgress(currentProgress);
         setProgressMsg(job.progressMessage || 'Processing...');
+
+        // Track real progress changes
+        if (currentProgress !== lastProgress) {
+          lastProgress = currentProgress;
+          lastProgressAt = Date.now();
+        }
+
         if (job.status === 'COMPLETED') {
           setGenerating(false);
           setResult(job);
@@ -217,7 +262,25 @@ export default function PhotoToComic() {
           toast.error(job.error || 'Generation failed. Credits refunded.');
           return;
         }
-      } catch { /* retry */ }
+
+        // Check for stale job — no progress update for 60s
+        const staleMs = Date.now() - lastProgressAt;
+        if (staleMs > STAGE_TIMEOUT && currentProgress < 90) {
+          setProgressMsg('Taking longer than usual — hang tight or retry');
+        }
+
+        // Hard timeout: 3 minutes total
+        if (attempts > 90) {
+          setGenerating(false);
+          toast.error('Generation timed out. Please try again.');
+          return;
+        }
+      } catch {
+        // Network error — keep trying
+        if (attempts > 5) {
+          setProgressMsg('Connection issue — retrying...');
+        }
+      }
       setTimeout(poll, 2000);
     };
     poll();
@@ -251,7 +314,7 @@ export default function PhotoToComic() {
   // ─── Continue Story ──────────────────────────────────────────────
   const handleContinueStory = async (prompt = '') => {
     if (!jobId) return;
-    if (credits < 6) { toast.error('Need at least 6 credits'); navigate('/app/billing'); return; }
+    if (!isUnlimited && credits < 6) { toast.error('Need at least 6 credits'); navigate('/app/billing'); return; }
     setContinuing(true);
     setGenerating(true);
     setProgress(0);
@@ -340,7 +403,7 @@ export default function PhotoToComic() {
     const isStrip = result.mode === 'strip' || panels?.length > 0;
     return (
       <div className="min-h-screen bg-slate-950">
-        <Header credits={credits} />
+        <Header credits={credits} isUnlimited={isUnlimited} />
         <main className="max-w-5xl mx-auto px-4 py-8" data-testid="result-view">
           <div className="grid lg:grid-cols-[1fr_340px] gap-6">
             {/* LEFT: Result display */}
@@ -438,7 +501,7 @@ export default function PhotoToComic() {
                       <p className="text-xs text-slate-400">Choose a direction for your next 4 panels.</p>
                       <Button
                         onClick={() => setShowDirections(true)}
-                        disabled={continuing || credits < 6}
+                        disabled={continuing || (!isUnlimited && credits < 6)}
                         className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
                         data-testid="continue-story-btn"
                       >
@@ -459,7 +522,7 @@ export default function PhotoToComic() {
                             }
                             handleContinueStory(d.prompt);
                           }}
-                          disabled={continuing || credits < 6 || (d.id === 'custom' && !customContinuePrompt.trim())}
+                          disabled={continuing || (!isUnlimited && credits < 6) || (d.id === 'custom' && !customContinuePrompt.trim())}
                           className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all disabled:opacity-50 ${d.color}`}
                           data-testid={`direction-${d.id}`}
                         >
@@ -562,7 +625,7 @@ export default function PhotoToComic() {
   if (generating) {
     return (
       <div className="min-h-screen bg-slate-950">
-        <Header credits={credits} />
+        <Header credits={credits} isUnlimited={isUnlimited} />
         <main className="max-w-lg mx-auto px-4 py-20 text-center space-y-6" data-testid="generating-view">
           <div className="w-20 h-20 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto">
             <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
@@ -737,7 +800,9 @@ export default function PhotoToComic() {
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Balance</span>
-                  <span className={credits >= cost ? 'text-emerald-400' : 'text-red-400'}>{credits} cr</span>
+                  <span className={canAfford ? 'text-emerald-400' : 'text-red-400'}>
+                    {isUnlimited ? 'Unlimited' : credits === null ? '...' : `${credits} cr`}
+                  </span>
                 </div>
                 <button onClick={() => setHd(!hd)} className={`w-full p-2.5 rounded-lg border text-sm flex items-center justify-between transition-all ${hd ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-slate-700 text-slate-400 hover:border-slate-600'}`} data-testid="hd-toggle">
                   <span className="flex items-center gap-2">
@@ -746,10 +811,10 @@ export default function PhotoToComic() {
                   </span>
                   <span className="text-purple-400 text-xs font-medium">+2 cr</span>
                 </button>
-                <Button onClick={handleGenerate} disabled={credits < cost} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
+                <Button onClick={handleGenerate} disabled={!canAfford || credits === null} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
                   <Wand2 className="w-5 h-5 mr-2" /> Create My Comic
                 </Button>
-                {credits < cost && (
+                {!canAfford && credits !== null && (
                   <Button variant="outline" onClick={() => navigate('/app/billing')} className="w-full border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/10 text-xs">
                     <Coins className="w-3.5 h-3.5 mr-1" /> Get Credits
                   </Button>
@@ -766,7 +831,7 @@ export default function PhotoToComic() {
   );
 }
 
-function Header({ credits }) {
+function Header({ credits, isUnlimited }) {
   return (
     <header className="border-b border-slate-800/50 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -781,7 +846,9 @@ function Header({ credits }) {
         </div>
         <div className="flex items-center gap-1.5 bg-slate-800/50 rounded-full px-3 py-1.5 border border-slate-700">
           <Coins className="w-3.5 h-3.5 text-yellow-400" />
-          <span className="font-bold text-white text-sm">{credits}</span>
+          <span className="font-bold text-white text-sm" data-testid="credit-display">
+            {isUnlimited ? '∞' : credits === null ? '...' : credits}
+          </span>
         </div>
       </div>
     </header>

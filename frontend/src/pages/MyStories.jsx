@@ -5,6 +5,7 @@ import {
   Loader2, Sparkles, Plus, Image
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { SafeImage } from '../components/SafeImage';
 import api from '../utils/api';
 
 export default function MyStories() {
@@ -75,14 +76,14 @@ export default function MyStories() {
                   data-testid={`chain-card-${chain.chain_id}`}
                 >
                   {/* Preview */}
-                  <div className="aspect-video bg-slate-800 relative overflow-hidden">
-                    {chain.preview_url ? (
-                      <img src={chain.preview_url} alt="" className="w-full h-full object-cover" crossOrigin="anonymous" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Image className="w-8 h-8 text-slate-700" />
-                      </div>
-                    )}
+                  <div className="aspect-video relative overflow-hidden">
+                    <SafeImage
+                      src={chain.preview_url}
+                      alt="Chain preview"
+                      aspectRatio="16/9"
+                      titleOverlay={chain.root_style || 'Story'}
+                      className="w-full h-full rounded-none"
+                    />
                     <div className="absolute top-2 left-2 flex gap-1.5">
                       <span className="bg-slate-900/80 backdrop-blur text-[10px] text-white font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
                         <GitBranch className="w-3 h-3" /> {chain.total_episodes} ep

@@ -6,6 +6,7 @@ import {
   Lightbulb, ArrowUpRight, Zap, TrendingUp, Layers
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -264,15 +265,13 @@ export default function StoryChainView() {
                 }`}>
                   <div className="flex gap-4 p-4">
                     {/* Preview */}
-                    {imageUrl ? (
-                      <div className="w-24 h-24 rounded-lg overflow-hidden border border-slate-700 shrink-0 bg-slate-800">
-                        <img src={imageUrl} alt={`Episode ${idx + 1}`} className="w-full h-full object-cover" crossOrigin="anonymous" />
-                      </div>
-                    ) : (
-                      <div className="w-24 h-24 rounded-lg bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center">
-                        <Loader2 className={`w-5 h-5 text-slate-600 ${!isCompleted ? 'animate-spin' : ''}`} />
-                      </div>
-                    )}
+                    <SafeImage
+                      src={imageUrl}
+                      alt={`Episode ${idx + 1}`}
+                      aspectRatio="1/1"
+                      titleOverlay={`Ep ${idx + 1}`}
+                      className="w-24 h-24 rounded-lg border border-slate-700 shrink-0"
+                    />
 
                     {/* Info */}
                     <div className="flex-1 min-w-0 space-y-1.5">
@@ -305,9 +304,7 @@ export default function StoryChainView() {
                       {job.panels?.length > 1 && (
                         <div className="flex gap-1 pt-1">
                           {job.panels.slice(0, 4).map((p, pi) => (
-                            <div key={pi} className="w-12 h-12 rounded overflow-hidden border border-slate-700 shrink-0">
-                              <img src={p.imageUrl} alt="" className="w-full h-full object-cover" crossOrigin="anonymous" />
-                            </div>
+                            <SafeImage key={pi} src={p.imageUrl} alt="" aspectRatio="1/1" className="w-12 h-12 rounded border border-slate-700 shrink-0" />
                           ))}
                           {job.panels.length > 4 && (
                             <div className="w-12 h-12 rounded bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] text-slate-500">
