@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://narrative-suite.preview.emergentagent.com
+**Platform URL:** https://trust-rebuild-10.preview.emergentagent.com
 
 ---
 

@@ -12,7 +12,7 @@ export default defineConfig({
     ['html', { open: 'never' }]
   ],
   use: {
-    baseURL: 'https://narrative-suite.preview.emergentagent.com',
+    baseURL: 'https://trust-rebuild-10.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'off',
