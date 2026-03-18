@@ -958,62 +958,103 @@ AVOID: {negative_prompt}"""
                             logger.error(f"Panel {i+1} generation error (retry {retry_count}): {panel_error}")
                             retry_count += 1
                     
-                    # Use placeholder if all retries failed
+                    # Mark panel as FAILED if all retries exhausted
                     if not image_generated:
-                        logger.warning(f"Using placeholder for panel {i+1} after {max_retries} retries")
-                        panel_data["imageUrl"] = f"https://placehold.co/800x600/6b21a8/white?text=Panel+{i+1}+Generation+Pending"
+                        logger.warning(f"Panel {i+1} FAILED after {max_retries} retries")
+                        panel_data["imageUrl"] = None
+                        panel_data["status"] = "FAILED"
+                    else:
+                        panel_data["status"] = "READY"
                     
                     panels.append(panel_data)
                     
             except Exception as e:
                 logger.error(f"Comic strip generation error: {e}")
         
-        # Placeholder panels if generation failed
+        # If LLM not available or entire generation failed, mark all panels FAILED
         if not panels:
             for i in range(panel_count):
                 panels.append({
                     "panelNumber": i + 1,
                     "scene": f"Scene {i + 1}",
-                    "dialogue": f"Panel {i + 1}",
-                    "imageUrl": f"https://placehold.co/800x600/6b21a8/white?text=Panel+{i+1}"
+                    "dialogue": None,
+                    "imageUrl": None,
+                    "status": "FAILED"
                 })
         
-        # Deduct credits
-        await deduct_credits(user_id, cost, f"Comic Strip: {job_id[:8]}")
+        # Count actual vs failed panels
+        ready_panels = [p for p in panels if p.get("status") == "READY"]
+        failed_panels = [p for p in panels if p.get("status") == "FAILED"]
+        
+        # Determine job status based on panel results
+        if len(ready_panels) == 0:
+            job_status = "FAILED"
+        elif len(failed_panels) > 0:
+            job_status = "PARTIAL_READY"
+        else:
+            job_status = "COMPLETED"
+        
+        # Only deduct credits if at least one panel was generated
+        if len(ready_panels) > 0:
+            # Pro-rate: charge per successful panel
+            per_panel_cost = max(1, cost // panel_count)
+            actual_cost = per_panel_cost * len(ready_panels)
+            await deduct_credits(user_id, actual_cost, f"Comic Strip: {job_id[:8]} ({len(ready_panels)}/{panel_count} panels)")
+        elif job_status == "FAILED":
+            # No panels generated — auto-refund (don't charge)
+            logger.info(f"No panels generated for job {job_id}, no credits deducted")
+            try:
+                from services.auto_refund import handle_generation_failure
+                await handle_generation_failure(db, user_id, "comic_strip", "All panels failed to generate")
+            except Exception as refund_error:
+                logger.error(f"Auto-refund notification failed: {refund_error}")
 
-        # ── Register as permanent user asset ─────────────────────────
-        panel_urls = [p.get("imageUrl", "") for p in panels if p.get("imageUrl")]
+        # ── Register as permanent user asset (only if we have real panels) ──
+        panel_urls = [p.get("imageUrl", "") for p in panels if p.get("imageUrl") and not p["imageUrl"].startswith("data:")]
         asset_id = str(uuid.uuid4())
-        asset_doc = {
-            "asset_id": asset_id,
-            "user_id": user_id,
-            "job_id": job_id,
-            "type": "COMIC_STRIP",
-            "title": f"Comic Strip — {genre} ({panel_count} panels)",
-            "urls": panel_urls,
-            "primary_url": panel_urls[0] if panel_urls else "",
-            "thumbnail_url": panel_urls[0] if panel_urls else "",
-            "style": style,
-            "genre": genre,
-            "panel_count": len(panels),
-            "permanent": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        try:
-            await db.user_assets.insert_one(asset_doc)
-        except Exception as asset_err:
-            logger.warning(f"Failed to register strip asset: {asset_err}")
+        
+        if panel_urls:
+            asset_doc = {
+                "asset_id": asset_id,
+                "user_id": user_id,
+                "job_id": job_id,
+                "type": "COMIC_STRIP",
+                "title": f"Comic Strip — {genre} ({len(ready_panels)}/{panel_count} panels)",
+                "urls": panel_urls,
+                "primary_url": panel_urls[0] if panel_urls else "",
+                "thumbnail_url": panel_urls[0] if panel_urls else "",
+                "style": style,
+                "genre": genre,
+                "panel_count": len(ready_panels),
+                "permanent": True,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            try:
+                await db.user_assets.insert_one(asset_doc)
+            except Exception as asset_err:
+                logger.warning(f"Failed to register strip asset: {asset_err}")
 
-        # Update job with permanent asset reference
+        # Compute status message
+        if job_status == "COMPLETED":
+            progress_msg = "Complete!"
+        elif job_status == "PARTIAL_READY":
+            progress_msg = f"{len(ready_panels)} of {panel_count} panels ready. {len(failed_panels)} failed."
+        else:
+            progress_msg = "Generation failed. No credits were charged."
+
+        # Update job with final state
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
-                "status": "COMPLETED",
+                "status": job_status,
                 "progress": 100,
-                "progressMessage": "Complete!",
+                "progressMessage": progress_msg,
                 "panels": panels,
-                "assetId": asset_id,
-                "permanent": True,
+                "assetId": asset_id if panel_urls else None,
+                "permanent": bool(panel_urls),
+                "readyPanels": len(ready_panels),
+                "failedPanels": len(failed_panels),
+                "totalPanels": panel_count,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )

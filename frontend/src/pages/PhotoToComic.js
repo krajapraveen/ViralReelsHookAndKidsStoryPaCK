@@ -262,19 +262,26 @@ export default function PhotoToComic() {
           lastProgressAt = Date.now();
         }
 
-        if (job.status === 'COMPLETED') {
+        if (job.status === 'COMPLETED' || job.status === 'PARTIAL_READY') {
           setGenerating(false);
           setResult(job);
-          setUiState('VALIDATING');
-          // Gate: validate assets BEFORE declaring ready
-          resolveAssetState(id, job);
+          if (job.status === 'PARTIAL_READY') {
+            // Backend already determined partial — skip asset validation
+            setUiState('PARTIAL_READY');
+            setDownloadReady(job.readyPanels > 0);
+            setPreviewReady(job.readyPanels > 0);
+          } else {
+            setUiState('VALIDATING');
+            resolveAssetState(id, job);
+          }
           return;
         }
         if (job.status === 'FAILED') {
           setGenerating(false);
           setUiState('FAILED');
-          setFailReason(job.error || 'Generation failed. Credits refunded.');
-          toast.error(job.error || 'Generation failed. Credits refunded.');
+          setResult(job);
+          setFailReason(job.progressMessage || job.error || 'Generation failed. No credits were charged.');
+          toast.error(job.progressMessage || job.error || 'Generation failed. Credits were not charged.');
           return;
         }
 
@@ -472,9 +479,9 @@ export default function PhotoToComic() {
     // Status badge — single truth from uiState
     const STATUS_CONFIG = {
       VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Validating Assets', subtitle: 'Checking preview and download...' },
-      READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Comic Ready', subtitle: 'Preview and download verified' },
-      PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Comic Saved', subtitle: downloadReady ? 'Download available — preview limited' : 'Processing assets...' },
-      FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <X className="w-5 h-5 text-red-400" />, title: 'Generation Issue', subtitle: failReason || 'Something went wrong' },
+      READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Comic Ready', subtitle: 'All panels generated and verified' },
+      PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Partial Result', subtitle: result.failedPanels ? `${result.readyPanels}/${result.totalPanels} panels ready` : (downloadReady ? 'Download available — preview limited' : 'Processing assets...') },
+      FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <X className="w-5 h-5 text-red-400" />, title: 'Generation Failed', subtitle: failReason || 'No panels could be generated. Credits were not charged.' },
     };
     const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
@@ -500,23 +507,46 @@ export default function PhotoToComic() {
                 </div>
               )}
               {panels?.length > 0 && (
-                <div className="grid grid-cols-2 gap-3" data-testid="result-panels">
-                  {panels.map((p, i) => (
-                    <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900 group">
-                      <SafeImage
-                        src={p.imageUrl}
-                        alt={`Panel ${i + 1}`}
-                        aspectRatio="1/1"
-                        titleOverlay={p.dialogue || `Panel ${i + 1}`}
-                        className="w-full"
-                      />
-                      {p.dialogue && (
-                        <div className="p-2.5 text-xs text-slate-300 bg-slate-800/80 border-t border-slate-700">
-                          {p.dialogue}
-                        </div>
-                      )}
+                <div data-testid="result-panels">
+                  {/* Panel status summary */}
+                  {result.failedPanels > 0 && (
+                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2 text-xs text-amber-400" data-testid="partial-ready-banner">
+                      <Shield className="w-3.5 h-3.5" />
+                      {result.readyPanels} of {result.totalPanels} panels generated. {result.failedPanels} failed.
                     </div>
-                  ))}
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    {panels.map((p, i) => (
+                      <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900 group relative" data-testid={`panel-${i+1}`}>
+                        {p.status === 'FAILED' || !p.imageUrl ? (
+                          <div className="aspect-square flex flex-col items-center justify-center bg-slate-800/50 p-4">
+                            <X className="w-8 h-8 text-red-400/60 mb-2" />
+                            <p className="text-xs text-red-400 font-medium">Panel {i + 1} Failed</p>
+                            <p className="text-[10px] text-slate-500 mt-1">Generation unsuccessful</p>
+                          </div>
+                        ) : (
+                          <SafeImage
+                            src={p.imageUrl}
+                            alt={`Panel ${i + 1}`}
+                            aspectRatio="1/1"
+                            titleOverlay={p.dialogue || `Panel ${i + 1}`}
+                            className="w-full"
+                          />
+                        )}
+                        {p.dialogue && p.status !== 'FAILED' && (
+                          <div className="p-2.5 text-xs text-slate-300 bg-slate-800/80 border-t border-slate-700">
+                            {p.dialogue}
+                          </div>
+                        )}
+                        {/* Panel number badge */}
+                        <div className={`absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          p.status === 'FAILED' ? 'bg-red-500/20 text-red-400' : 'bg-black/40 text-white/70'
+                        }`}>
+                          {i + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               {/* Fallback: if no image and no panels, show placeholder */}
