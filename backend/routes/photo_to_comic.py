@@ -92,13 +92,19 @@ BLOCKED_KEYWORDS = [
 # UNIVERSAL NEGATIVE PROMPTS (Auto-injected)
 # ============================================
 UNIVERSAL_NEGATIVE_PROMPTS = [
-    "blurry", "low resolution", "distorted face", "extra fingers", "extra limbs",
-    "bad anatomy", "cropped head", "duplicate body", "disfigured hands",
-    "warped proportions", "watermark", "logo", "text overlay", "brand name",
+    "low quality", "blurry", "pixelated", "distorted", "deformed", "bad anatomy",
+    "bad proportions", "extra limbs", "extra fingers", "missing fingers", "mutated hands",
+    "poorly drawn face", "asymmetrical face", "duplicate characters",
+    "inconsistent character design", "changing face", "changing hairstyle",
+    "changing clothing", "inconsistent proportions", "inconsistent art style",
+    "unrealistic features", "unnatural pose", "stiff pose", "lifeless expression",
+    "emotionless", "flat lighting", "overexposed", "underexposed", "noise", "grain",
+    "artifacts", "watermark", "text", "logo", "caption", "subtitle", "cropped",
+    "cut off", "out of frame", "wrong perspective", "bad composition",
+    "cluttered background", "realistic human style", "photorealistic",
+    "horror", "scary", "creepy", "dark theme", "violent", "gore", "blood",
     "copyrighted character", "celebrity likeness", "trademark symbol",
-    "nsfw", "nudity", "gore", "violence", "blood", "weapon", "hate symbol",
-    "political propaganda", "real person replication", "hyper-realistic skin texture",
-    "photo-realistic celebrity face"
+    "nsfw", "nudity", "real person replication"
 ]
 
 # ============================================
@@ -667,7 +673,13 @@ AVOID: {negative_prompt}"""
                 cdn_urls.append(f"data:image/png;base64,{b64}")
 
         if not cdn_urls:
-            cdn_urls = ["https://placehold.co/512x512/6b21a8/white?text=Comic+Avatar"]
+            # TRUTH: No images were generated. Mark as FAILED — never fake it.
+            logger.error(f"[AVATAR] No images produced for job {job_id}. Marking FAILED.")
+            await db.comic_avatar_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"status": "FAILED", "error": "Image generation produced no results", "completed_at": datetime.now(timezone.utc).isoformat()}}
+            )
+            return
 
         primary_url = cdn_urls[0]
 
@@ -1697,7 +1709,10 @@ async def get_active_chains(user: dict = Depends(get_current_user)):
         )
         preview = None
         if root:
-            preview = root.get("resultUrl") or (root.get("panels", [{}])[0].get("imageUrl") if root.get("panels") else None)
+            candidate = root.get("resultUrl") or (root.get("panels", [{}])[0].get("imageUrl") if root.get("panels") else None)
+            # TRUTH: Filter out fake/invalid URLs — never return placehold.co
+            if candidate and isinstance(candidate, str) and "placehold.co" not in candidate and candidate.startswith(("http://", "https://")):
+                preview = candidate
 
         # Get the last completed strip for continue CTA
         last_strip = await db.photo_to_comic_jobs.find_one(

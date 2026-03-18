@@ -31,6 +31,17 @@ from services.watermark_service import add_diagonal_watermark, should_apply_wate
 
 router = APIRouter(prefix="/gif-maker", tags=["GIF Maker"])
 
+# Universal quality negative prompt
+GIF_NEGATIVE_PROMPT = (
+    "low quality, blurry, pixelated, distorted, deformed, bad anatomy, bad proportions, "
+    "extra limbs, extra fingers, missing fingers, mutated hands, poorly drawn face, "
+    "asymmetrical face, inconsistent character design, "
+    "flat lighting, overexposed, underexposed, artifacts, watermark, text, logo, "
+    "cropped, out of frame, bad composition, realistic human style, photorealistic, "
+    "horror, scary, dark theme, violent, gore, blood, "
+    "copyrighted character, celebrity likeness, nsfw, nudity"
+)
+
 # Emotion presets
 EMOTIONS = {
     "happy": {
@@ -661,7 +672,8 @@ async def process_gif_generation(
                     # Optimized prompt for faster generation
                     prompt = f"""Transform to {style_info['name']} cartoon: {emotion_info['name']} expression.
 Frame {i+1}: {frame_desc}
-Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}"""
+Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}
+Avoid: {GIF_NEGATIVE_PROMPT}"""
                     
                     image_bytes = await generate_image_fast(
                         prompt,
@@ -713,7 +725,13 @@ Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}"""
                 logger.error(f"Fallback GIF error: {e}")
         
         if not result_url:
-            result_url = f"https://placehold.co/512x512/ff69b4/white?text={emotion_info['emoji']}+{emotion}"
+            # TRUTH: GIF generation failed — mark FAILED, never fake output
+            logger.error(f"[GIF] Generation failed for job {job_id}")
+            await db.gif_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "FAILED", "error": "GIF generation failed", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            return
         
         # Step 5: Finalize
         progress, msg = get_progress_for_step("gif", "finalizing")
@@ -931,7 +949,7 @@ async def process_gif_batch(batch_id: str, photo_content: bytes, emotions: list,
                     )
                     chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
                     
-                    prompt = f"Transform photo into {style_info['name']} character showing {emotion_info['name']}. {emotion_info['description']}. Kid-friendly, cute."
+                    prompt = f"Transform photo into {style_info['name']} character showing {emotion_info['name']}. {emotion_info['description']}. Kid-friendly, cute. Avoid: {GIF_NEGATIVE_PROMPT}"
                     
                     msg = UserMessage(
                         text=prompt,
@@ -990,7 +1008,15 @@ async def process_gif_batch(batch_id: str, photo_content: bytes, emotions: list,
                     logger.error(f"Batch GIF error: {e}")
             
             if not result_url:
-                result_url = f"https://placehold.co/512x512/ff69b4/white?text={emotion_info['emoji']}"
+                # TRUTH: This emotion's GIF failed — report honestly
+                results.append({
+                    "emotion": emotion,
+                    "emoji": emotion_info["emoji"],
+                    "url": None,
+                    "status": "FAILED",
+                    "error": "GIF generation failed"
+                })
+                continue
             
             results.append({
                 "emotion": emotion,

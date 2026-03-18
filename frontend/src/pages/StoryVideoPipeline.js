@@ -930,13 +930,16 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       <div className="grid lg:grid-cols-5 gap-6">
         {/* LEFT: Preview Area */}
         <div className="lg:col-span-3">
-          {/* Preview Image / Fallback */}
-          <div className="rounded-xl overflow-hidden border border-[var(--vs-border)]" data-testid="preview-container">
-            {uiState === 'VALIDATING' ? (
+          {/* Preview — TRUTH: only show when we have a real asset */}
+          {uiState === 'VALIDATING' ? (
+            <div className="rounded-xl overflow-hidden border border-[var(--vs-border)]" data-testid="preview-container">
               <div className="aspect-video bg-slate-800 flex items-center justify-center animate-pulse">
                 <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+                <span className="ml-3 text-slate-400 text-sm">Validating your video...</span>
               </div>
-            ) : previewReady && posterUrl ? (
+            </div>
+          ) : previewReady && posterUrl ? (
+            <div className="rounded-xl overflow-hidden border border-[var(--vs-border)]" data-testid="preview-container">
               <SafeImage
                 src={posterUrl}
                 alt={displayTitle}
@@ -945,18 +948,48 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                 className="rounded-xl"
                 data-testid="preview-image"
               />
-            ) : (
-              <SafeImage
-                src={null}
-                alt={displayTitle}
-                aspectRatio="16/9"
-                titleOverlay={displayTitle}
-                fallbackType="gradient"
-                className="rounded-xl"
-                data-testid="preview-fallback"
-              />
-            )}
-          </div>
+            </div>
+          ) : downloadReady && downloadUrl ? (
+            /* Video exists but no preview image — show action prompt instead of empty box */
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center" data-testid="video-ready-no-preview">
+              <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">Your video is ready!</h3>
+              <p className="text-slate-400 text-sm mb-6">Click below to view or download your creation.</p>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={() => window.open(downloadUrl, '_blank')} className="bg-emerald-600 hover:bg-emerald-700" data-testid="view-video-btn">
+                  <Play className="w-4 h-4 mr-2" /> View Video
+                </Button>
+                <Button onClick={handleDownload} variant="outline" className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" data-testid="download-video-inline-btn">
+                  <Download className="w-4 h-4 mr-2" /> Download
+                </Button>
+              </div>
+            </div>
+          ) : uiState === 'FAILED' ? (
+            /* Generation failed — no fake preview */
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-8 text-center" data-testid="generation-failed-panel">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-white mb-2">Generation Issue</h3>
+              <p className="text-red-300 text-sm mb-4">{failReason || 'Video generation did not produce output.'}</p>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={onResume} className="bg-purple-600 hover:bg-purple-700" data-testid="retry-failed-btn">
+                  <RotateCcw className="w-4 h-4 mr-2" /> Retry
+                </Button>
+                <Button onClick={onNew} variant="outline" className="border-slate-600 text-slate-300" data-testid="start-fresh-btn">
+                  Start Fresh
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* PARTIAL_READY with no preview and no download — honest state */
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-8 text-center" data-testid="no-output-panel">
+              <AlertCircle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2">Output Not Available</h3>
+              <p className="text-amber-300/80 text-sm mb-4">This generation did not produce a viewable output. No credits were charged for failed generations.</p>
+              <Button onClick={onNew} className="bg-indigo-600 hover:bg-indigo-700" data-testid="create-new-btn">
+                <Sparkles className="w-4 h-4 mr-2" /> Create New Video
+              </Button>
+            </div>
+          )}
 
           {/* Scene thumbnails — use SafeImage */}
           {(job?.scene_progress || []).length > 0 && (

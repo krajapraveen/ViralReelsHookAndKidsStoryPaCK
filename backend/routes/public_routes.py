@@ -364,7 +364,7 @@ async def get_explore_feed(
     Get explore feed — trending, newest, or most remixed creations.
     No auth required.
     """
-    base_filter = {"status": "COMPLETED"}
+    base_filter = {"status": "COMPLETED", "output_url": {"$exists": True, "$nin": [None, ""]}}
 
     sort_map = {
         "trending": [("views", -1), ("remix_count", -1)],

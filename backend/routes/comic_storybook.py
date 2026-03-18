@@ -32,6 +32,18 @@ from shared import (
 
 router = APIRouter(prefix="/comic-storybook", tags=["Comic Story Book"])
 
+# Universal quality negative prompt
+STORYBOOK_NEGATIVE_PROMPT = (
+    "low quality, blurry, pixelated, distorted, deformed, bad anatomy, bad proportions, "
+    "extra limbs, extra fingers, missing fingers, mutated hands, poorly drawn face, "
+    "asymmetrical face, duplicate characters, inconsistent character design, "
+    "inconsistent proportions, inconsistent art style, unrealistic features, "
+    "flat lighting, overexposed, underexposed, artifacts, watermark, text, logo, "
+    "cropped, out of frame, bad composition, realistic human style, photorealistic, "
+    "horror, scary, dark theme, violent, gore, blood, "
+    "copyrighted character, celebrity likeness, nsfw, nudity"
+)
+
 # Extended comic styles
 STORYBOOK_STYLES = {
     "classic": {
@@ -495,7 +507,8 @@ Story context: {title}
 Scene: {scene.get('description', '')[:500]}
 Style: {style_info['prompt_modifier']}
 
-Make it original, copyright-free, visually engaging, and appropriate for all ages."""
+Make it original, copyright-free, visually engaging, and appropriate for all ages.
+Avoid: {STORYBOOK_NEGATIVE_PROMPT}"""
                         
                         msg = UserMessage(text=prompt)
                         text_response, images = await chat.send_message_multimodal_response(msg)
@@ -518,9 +531,11 @@ Make it original, copyright-free, visually engaging, and appropriate for all age
                     except Exception as e:
                         logger.error(f"Storybook panel generation error: {e}")
                 
-                # Placeholder if no AI result
+                # TRUTH: Mark panel as failed — never fake it
                 if not panel_data["imageUrl"]:
-                    panel_data["imageUrl"] = f"https://placehold.co/800x600/4a1d96/white?text=Page+{page_idx+1}+Panel+{scene_idx+1}"
+                    panel_data["status"] = "FAILED"
+                    panel_data["error"] = "Image generation failed for this panel"
+                    logger.warning(f"[STORYBOOK] Panel page {page_idx+1} scene {scene_idx+1} has no image")
                 
                 page_panels.append(panel_data)
             

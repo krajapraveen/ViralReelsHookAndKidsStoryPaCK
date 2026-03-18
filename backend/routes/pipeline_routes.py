@@ -679,7 +679,7 @@ async def get_user_pipeline_jobs(current_user: dict = Depends(get_current_user))
     """Get all pipeline jobs for the current user."""
     user_id = current_user.get("id") or str(current_user.get("_id"))
     jobs = await db.pipeline_jobs.find(
-        {"user_id": user_id},
+        {"user_id": user_id, "status": {"$nin": ["ORPHANED"]}},
         {"_id": 0, "story_text": 0, "scenes": 0, "scene_images": 0, "scene_voices": 0},
     ).sort("created_at", -1).to_list(length=50)
 

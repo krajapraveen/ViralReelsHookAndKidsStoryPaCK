@@ -32,6 +32,18 @@ from services.watermark_service import add_diagonal_watermark, should_apply_wate
 
 router = APIRouter(prefix="/comix", tags=["Comix AI"])
 
+# Universal quality negative prompt — applied to all image generations
+COMIX_NEGATIVE_PROMPT = (
+    "low quality, blurry, pixelated, distorted, deformed, bad anatomy, bad proportions, "
+    "extra limbs, extra fingers, missing fingers, mutated hands, poorly drawn face, "
+    "asymmetrical face, duplicate characters, inconsistent character design, changing face, "
+    "inconsistent proportions, inconsistent art style, unrealistic features, unnatural pose, "
+    "stiff pose, lifeless expression, flat lighting, overexposed, underexposed, artifacts, "
+    "watermark, text, logo, cropped, out of frame, bad composition, "
+    "realistic human style, photorealistic, horror, scary, dark theme, violent, gore, blood, "
+    "copyrighted character, celebrity likeness, nsfw, nudity"
+)
+
 # Comic styles available
 COMIC_STYLES = {
     "classic": {
@@ -209,6 +221,9 @@ async def generate_comic_character(
     if custom_prompt:
         base_prompt += f", {custom_prompt}"
     
+    # Append universal negative prompt
+    base_prompt += f". Avoid: {COMIX_NEGATIVE_PROMPT}"
+    
     # Store job
     job_data = {
         "id": job_id,
@@ -294,9 +309,14 @@ async def process_comic_character(job_id: str, photo_content: bytes, prompt: str
             except Exception as e:
                 logger.error(f"Comic character generation error: {e}")
         
-        # If no AI result, create placeholder
+        # If no AI result, mark FAILED — never fake output
         if not result_url:
-            result_url = f"https://placehold.co/512x512/4a1d96/white?text=Comic+Character+{job_id[:8]}"
+            logger.error(f"[COMIX] Character generation failed for job {job_id}")
+            await db.comix_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "FAILED", "error": "Character image generation failed", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            return {"success": False, "error": "Image generation failed"}
         
         # Deduct credits
         await deduct_credits(user_id, cost, f"Comic character: {job_id[:8]}")
@@ -366,6 +386,7 @@ async def generate_comic_panel(
         prompt += f" Layout: {layout_info['grid']} grid, {panel_count} sequential panels telling a story."
     if include_speech_bubbles and speech_text:
         prompt += f" Include speech bubble with text: '{speech_text}'"
+    prompt += f". Avoid: {COMIX_NEGATIVE_PROMPT}"
     
     # Store job
     job_data = {
@@ -442,10 +463,14 @@ async def process_comic_panel(job_id: str, prompt: str, user_id: str, cost: int,
             except Exception as e:
                 logger.error(f"Comic panel generation error: {e}")
         
-        # Placeholder if no results
+        # TRUTH: If no images generated, mark FAILED — never fake panels
         if not result_urls:
-            for i in range(panel_count):
-                result_urls.append(f"https://placehold.co/800x600/4a1d96/white?text=Panel+{i+1}")
+            logger.error(f"[COMIX] Panel generation failed for job {job_id}")
+            await db.comix_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "FAILED", "error": "Panel image generation failed", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            return {"success": False, "error": "Panel generation failed"}
         
         # Deduct credits
         await deduct_credits(user_id, cost, f"Comic panels: {panel_count}")
@@ -659,7 +684,8 @@ Style: {style_info['prompt_modifier']}
 Genre: {genre}
 Panel {i+1} of {panel_count}{character_ref}
 
-Make it visually dynamic and engaging, appropriate for all ages."""
+Make it visually dynamic and engaging, appropriate for all ages.
+Avoid: {COMIX_NEGATIVE_PROMPT}"""
                     
                     # Include character images if provided
                     if character_data:
@@ -703,7 +729,9 @@ Make it visually dynamic and engaging, appropriate for all ages."""
                     logger.error(f"Panel {i+1} generation error: {e}")
             
             if not panel_data.get("imageUrl"):
-                panel_data["imageUrl"] = f"https://placehold.co/800x450/4a1d96/white?text={scene.get('scene', f'Panel+{i+1}')}"
+                panel_data["status"] = "FAILED"
+                panel_data["error"] = "Image generation failed for this panel"
+                logger.warning(f"[COMIX] Panel {i+1} has no image for story job {job_id}")
             
             panels.append(panel_data)
         

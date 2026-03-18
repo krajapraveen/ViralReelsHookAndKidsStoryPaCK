@@ -169,6 +169,19 @@ BLOCKED_TERMS = {
 
 LEGAL_NEGATIVE = "copyrighted character, trademarked character, brand logo, celebrity face, real person, nsfw, nudity, violence, gore"
 
+# UNIVERSAL QUALITY NEGATIVE PROMPT — Applied to ALL image generation across the platform
+UNIVERSAL_NEGATIVE_PROMPT = (
+    "low quality, blurry, pixelated, distorted, deformed, bad anatomy, bad proportions, "
+    "extra limbs, extra fingers, missing fingers, mutated hands, poorly drawn face, "
+    "asymmetrical face, duplicate characters, inconsistent character design, changing face, "
+    "changing hairstyle, changing clothing, inconsistent proportions, inconsistent art style, "
+    "unrealistic features, unnatural pose, stiff pose, lifeless expression, emotionless, "
+    "flat lighting, overexposed, underexposed, noise, grain, artifacts, watermark, text, "
+    "logo, caption, subtitle, cropped, cut off, out of frame, wrong perspective, "
+    "bad composition, cluttered background, realistic human style, photorealistic, "
+    "horror, scary, creepy, dark theme, violent, gore, blood"
+)
+
 
 def check_copyright(text: str) -> tuple:
     text_lower = text.lower()
@@ -591,7 +604,7 @@ async def run_stage_images(job: dict) -> dict:
             visual = scene.get('visual_prompt', '')
             style_prompt = style.get('style_prompt', '')
             
-            # Compose: character sheet + visual action + style + legal compliance
+            # Compose: character sheet + visual action + style + legal compliance + quality control
             parts = []
             if char_desc:
                 parts.append(f"Characters: {char_desc}")
@@ -599,6 +612,7 @@ async def run_stage_images(job: dict) -> dict:
             parts.append(f"Art style: {style_prompt}")
             parts.append(f"Scene {sn} of {total} in a continuous story sequence")
             parts.append(f"NOT allowed: {LEGAL_NEGATIVE}")
+            parts.append(f"Avoid: {UNIVERSAL_NEGATIVE_PROMPT}")
             
             prompt = '. '.join(parts)
             if len(prompt) > 3800:
