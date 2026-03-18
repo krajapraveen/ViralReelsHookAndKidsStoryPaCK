@@ -41,7 +41,7 @@ export default function PublicCharacterPage() {
     if (!data?.remix_data) return;
     // Store remix_data in localStorage for StoryVideoStudio to pick up
     localStorage.setItem('remix_data', JSON.stringify(data.remix_data));
-    navigate('/app/create', { state: data.remix_data });
+    navigate('/app/story-video-studio', { state: data.remix_data });
   };
 
   if (loading) {
@@ -106,15 +106,19 @@ export default function PublicCharacterPage() {
               {social_proof.episode_count > 0 && (
                 <span className="text-slate-400 flex items-center gap-1.5">
                   <Film className="w-4 h-4 text-cyan-400" />
-                  Featured in <span className="text-white font-semibold">{social_proof.episode_count}</span> episodes
+                  Used in <span className="text-white font-semibold">{social_proof.episode_count}</span> episodes
                 </span>
               )}
-              {social_proof.series_title && (
-                <span className="text-slate-500">
-                  from "{social_proof.series_title}"
+              {social_proof.total_usage > 0 && (
+                <span className="text-slate-400 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span className="text-white font-semibold">{social_proof.total_usage}</span> story moments
                 </span>
               )}
             </div>
+          )}
+          {social_proof.series_title && (
+            <p className="text-xs text-slate-500 mb-6 -mt-4">from "{social_proof.series_title}"</p>
           )}
 
           {/* PRIMARY CTA — MOST IMPORTANT */}

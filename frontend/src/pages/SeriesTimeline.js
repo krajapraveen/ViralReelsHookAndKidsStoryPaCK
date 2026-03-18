@@ -628,6 +628,18 @@ export default function SeriesTimeline() {
                         <div className="text-[10px] text-slate-500">{c.species_or_type} {c.role}</div>
                       </div>
                       <Lock className="w-3 h-3 text-amber-500/40 flex-shrink-0" title="Visual locked" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const url = `${window.location.origin}/character/${c.character_id}`;
+                          navigator.clipboard.writeText(url).then(() => toast.success(`Share link for ${c.name} copied!`));
+                        }}
+                        className="text-slate-600 hover:text-cyan-400 transition-colors flex-shrink-0"
+                        title="Copy share link"
+                        data-testid={`share-char-${c.character_id}`}
+                      >
+                        <Share2 className="w-3 h-3" />
+                      </button>
                     </button>
                   ))}
                 </div>
