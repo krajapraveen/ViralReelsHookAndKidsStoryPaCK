@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import {
@@ -9,6 +9,7 @@ import {
   GitBranch, Share2, Lock, Unlock, Heart, TrendingUp
 } from 'lucide-react';
 import api from '../utils/api';
+import { UpgradeModal } from '../components/UpgradeModal';
 
 const STATUS_CONFIG = {
   planned: { color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20', label: 'Planned', icon: Clock },
@@ -26,6 +27,9 @@ const DIRECTION_ACTIONS = [
 export default function SeriesTimeline() {
   const { seriesId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusEpId = searchParams.get('focus');
+  const focusRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
@@ -38,6 +42,7 @@ export default function SeriesTimeline() {
   const [emotionalArc, setEmotionalArc] = useState([]);
   const [enhancing, setEnhancing] = useState(null);
   const [sharing, setSharing] = useState(false);
+  const [upgradeModal, setUpgradeModal] = useState({ open: false, reason: '', context: {} });
 
   const fetchSeries = useCallback(async () => {
     try {
@@ -52,6 +57,17 @@ export default function SeriesTimeline() {
   }, [seriesId, navigate]);
 
   useEffect(() => { fetchSeries(); }, [fetchSeries]);
+
+  // Auto-focus: expand + scroll to the focused episode, auto-load suggestions
+  useEffect(() => {
+    if (!data?.episodes || !focusEpId) return;
+    setExpandedEp(focusEpId);
+    setTimeout(() => {
+      if (focusRef.current) focusRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    // Auto-load suggestions when arriving from "Continue" CTA
+    if (suggestions.length === 0) fetchSuggestions();
+  }, [data?.episodes, focusEpId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll generating episodes
   useEffect(() => {
@@ -109,7 +125,13 @@ export default function SeriesTimeline() {
         await fetchSeries();
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Planning failed');
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail || 'Planning failed';
+      if (status === 403) {
+        setUpgradeModal({ open: true, reason: 'episode_limit', context: { message: detail, limit: episodes.length } });
+      } else {
+        toast.error(detail);
+      }
     } finally {
       setPlanning(false);
     }
@@ -299,9 +321,12 @@ export default function SeriesTimeline() {
                 return (
                   <div
                     key={ep.episode_id}
+                    ref={ep.episode_id === focusEpId ? focusRef : null}
                     className={`bg-slate-900/60 border rounded-xl overflow-hidden transition-all ${
                       isExpanded ? 'border-indigo-500/40' : 'border-slate-800'
-                    } ${ep.is_branch ? 'ml-6 border-l-2 border-l-amber-500/30' : ''}`}
+                    } ${ep.is_branch ? 'ml-6 border-l-2 border-l-amber-500/30' : ''} ${
+                      ep.episode_id === focusEpId ? 'ring-1 ring-indigo-500/50' : ''
+                    }`}
                     data-testid={`episode-card-${ep.episode_id}`}
                   >
                     <button
@@ -584,6 +609,13 @@ export default function SeriesTimeline() {
           </div>
         </div>
       </main>
+
+      <UpgradeModal
+        open={upgradeModal.open}
+        onClose={() => setUpgradeModal({ open: false, reason: '', context: {} })}
+        reason={upgradeModal.reason}
+        context={upgradeModal.context}
+      />
     </div>
   );
 }

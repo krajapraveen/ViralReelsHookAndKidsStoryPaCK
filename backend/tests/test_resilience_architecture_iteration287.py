@@ -16,7 +16,7 @@ import os
 import hashlib
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://stateful-stories.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pricing-paywall.preview.emergentagent.com').rstrip('/')
 
 # Test credentials from review request
 TEST_USER_EMAIL = "test@visionary-suite.com"

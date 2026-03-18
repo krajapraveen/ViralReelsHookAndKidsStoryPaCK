@@ -8,7 +8,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://stateful-stories.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pricing-paywall.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_USER = {"email": "test@visionary-suite.com", "password": "Test@2026#"}

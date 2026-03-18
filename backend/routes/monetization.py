@@ -17,8 +17,10 @@ from config.monetization import (
     SUBSCRIPTION_PLANS, VARIATION_PRICING, UPSELL_OPTIONS,
     BUNDLE_PRICING, PREMIUM_STYLES, CREDIT_PSYCHOLOGY,
     DASHBOARD_PRIORITY, CREATOR_BOOST_PACK,
+    TOPUP_PACKS, TOOL_CREDIT_COSTS,
     get_variation_cost, is_style_premium, can_access_style,
-    get_upsell_cost, get_bundle_cost, get_all_styles
+    get_upsell_cost, get_bundle_cost, get_all_styles,
+    get_series_limits
 )
 
 router = APIRouter(prefix="/monetization", tags=["Monetization"])
@@ -57,6 +59,39 @@ async def get_subscription_plans():
             "symbol": "₹"
         }
     }
+
+
+@router.get("/topups")
+async def get_topup_packs():
+    """Get credit top-up packs"""
+    return {
+        "success": True,
+        "packs": list(TOPUP_PACKS.values()),
+        "currency": {"primary": "INR", "symbol": "INR"}
+    }
+
+
+@router.get("/tool-costs")
+async def get_tool_costs():
+    """Get credit cost per tool"""
+    return {"success": True, "costs": TOOL_CREDIT_COSTS}
+
+
+@router.get("/my-limits")
+async def get_my_limits(user: dict = Depends(get_current_user)):
+    """Get current user's plan limits including series limits"""
+    user_plan = user.get("plan", "free")
+    plan = SUBSCRIPTION_PLANS.get(user_plan, SUBSCRIPTION_PLANS["free"])
+    series_limits = get_series_limits(user_plan)
+    return {
+        "success": True,
+        "plan": user_plan,
+        "plan_name": plan.get("name", "Free"),
+        "credits": user.get("credits", plan.get("credits", 0)),
+        "series_limits": series_limits,
+        "limitations": plan.get("limitations", {}),
+    }
+
 
 
 @router.get("/variations")

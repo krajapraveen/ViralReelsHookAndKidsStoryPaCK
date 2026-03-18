@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://stateful-stories.preview.emergentagent.com';
+const BACKEND_URL = 'https://pricing-paywall.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

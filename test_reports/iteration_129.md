@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://stateful-stories.preview.emergentagent.com)
+**Environment:** Preview (https://pricing-paywall.preview.emergentagent.com)
 
 ---
 

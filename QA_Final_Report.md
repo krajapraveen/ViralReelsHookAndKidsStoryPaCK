@@ -3,7 +3,7 @@
 
 **Generated**: February 25, 2026  
 **Testing Tools**: Playwright v1.58.2, curl, Python concurrent.futures  
-**Base URL**: https://stateful-stories.preview.emergentagent.com
+**Base URL**: https://pricing-paywall.preview.emergentagent.com
 
 ---
 

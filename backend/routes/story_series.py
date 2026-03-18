@@ -108,6 +108,14 @@ async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series") 
 @router.post("/create")
 async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_current_user)):
     user_id = user["id"]
+    user_plan = user.get("plan", "free")
+
+    # Enforce series limit
+    from config.monetization import check_series_limit
+    current_count = await db.story_series.count_documents({"user_id": user_id, "status": {"$in": ["active", "paused"]}})
+    limit_check = check_series_limit(user_plan, current_count)
+    if not limit_check["can_create"]:
+        raise HTTPException(status_code=403, detail=limit_check["upgrade_message"])
 
     series_id = _uuid()
     character_bible_id = _uuid()
@@ -339,10 +347,25 @@ async def get_my_series(user: dict = Depends(get_current_user)):
             sort=[("episode_number", -1)],
         )
         s["latest_episode"] = latest_ep
+
+        # Compulsion data: unfinished count, next episode, hooks
+        all_eps = await db.story_episodes.find(
+            {"series_id": s["series_id"]},
+            {"_id": 0, "status": 1, "episode_number": 1, "episode_id": 1},
+        ).to_list(100)
+        ready_count = sum(1 for e in all_eps if e.get("status") == "ready")
+        planned_eps = [e for e in all_eps if e.get("status") == "planned"]
+        next_planned = planned_eps[0] if planned_eps else None
+        s["ready_count"] = ready_count
+        s["total_episodes"] = len(all_eps)
+        s["next_episode"] = next_planned
+        s["episodes_left"] = len(all_eps) - ready_count
+
         memory = await db.story_memories.find_one(
-            {"series_id": s["series_id"]}, {"_id": 0, "pending_hooks": 1}
+            {"series_id": s["series_id"]}, {"_id": 0, "pending_hooks": 1, "open_loops": 1}
         )
         s["next_hook"] = (memory.get("pending_hooks") or [None])[0] if memory else None
+        s["open_loops_count"] = len(memory.get("open_loops", [])) if memory else 0
 
     return {"success": True, "series": series_list, "total": len(series_list)}
 
@@ -389,6 +412,14 @@ async def plan_episode(series_id: str, request: PlanEpisodeRequest, user: dict =
     )
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
+
+    # Enforce episode limit
+    from config.monetization import check_episode_limit
+    user_plan = user.get("plan", "free")
+    ep_count = await db.story_episodes.count_documents({"series_id": series_id})
+    ep_check = check_episode_limit(user_plan, ep_count)
+    if not ep_check["can_create"]:
+        raise HTTPException(status_code=403, detail=ep_check["upgrade_message"])
 
     char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
     world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})

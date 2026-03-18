@@ -37,6 +37,7 @@ import StorySeries from './pages/StorySeries';
 import CreateSeries from './pages/CreateSeries';
 import SeriesTimeline from './pages/SeriesTimeline';
 import PublicSeries from './pages/PublicSeries';
+import PricingPage from './pages/PricingPage';
 import ChallengeGenerator from './pages/ChallengeGenerator';
 import ToneSwitcher from './pages/ToneSwitcher';
 import UserManual from './pages/UserManual';
@@ -222,6 +223,7 @@ function App() {
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/story-series/create" element={isAuthenticated ? <CreateSeries /> : <Navigate to="/login" />} />
       <Route path="/app/story-series/:seriesId" element={isAuthenticated ? <SeriesTimeline /> : <Navigate to="/login" />} />
+      <Route path="/app/pricing" element={isAuthenticated ? <PricingPage /> : <Navigate to="/login" />} />
       <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/tone-switcher" element={isAuthenticated ? <ToneSwitcher /> : <Navigate to="/login" />} />
       {/* NEW REBUILT FEATURES - Simple Wizard UIs */}

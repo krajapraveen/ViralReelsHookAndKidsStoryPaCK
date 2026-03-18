@@ -6,21 +6,23 @@ from typing import Dict, Any, List
 from enum import Enum
 
 # =============================================================================
-# SUBSCRIPTION PLANS (Updated for Revenue Optimization)
+# SUBSCRIPTION PLANS
 # =============================================================================
 
 SUBSCRIPTION_PLANS = {
     "free": {
         "id": "free",
-        "name": "Free Trial",
+        "name": "Free",
         "tier": "FREE",
         "duration_days": 0,
         "credits": 10,
         "price_inr": 0,
         "price_usd": 0,
         "monthly_credits": 0,
+        "daily_generations": 3,
         "features": [
-            "10 trial credits",
+            "3 generations/day",
+            "1 story series (3 episodes max)",
             "Basic styles only",
             "Watermarked outputs",
             "Standard queue"
@@ -30,7 +32,11 @@ SUBSCRIPTION_PLANS = {
             "watermark_free": False,
             "hd_download": False,
             "priority_queue": False,
-            "commercial_license": False
+            "commercial_license": False,
+            "max_series": 1,
+            "max_episodes_per_series": 3,
+            "daily_gen_limit": 3,
+            "monthly_gen_limit": 0,
         }
     },
     "creator": {
@@ -42,11 +48,13 @@ SUBSCRIPTION_PLANS = {
         "price_inr": 499,
         "price_usd": 5.99,
         "monthly_credits": 200,
+        "daily_generations": 999,
         "features": [
-            "200 credits/month",
-            "Basic styles",
+            "50 generations/month",
+            "5 story series (15 episodes each)",
             "Watermark removal",
-            "Standard queue",
+            "Full Story Series Engine",
+            "Basic remix + continue loops",
             "Email support"
         ],
         "limitations": {
@@ -54,65 +62,176 @@ SUBSCRIPTION_PLANS = {
             "watermark_free": True,
             "hd_download": True,
             "priority_queue": False,
-            "commercial_license": False
+            "commercial_license": False,
+            "max_series": 5,
+            "max_episodes_per_series": 15,
+            "daily_gen_limit": 999,
+            "monthly_gen_limit": 50,
         },
-        "badge": "STARTER"
+        "badge": "POPULAR"
     },
     "pro": {
         "id": "pro",
         "name": "Pro",
         "tier": "PRO",
         "duration_days": 30,
-        "credits": 800,
-        "price_inr": 1499,
-        "price_usd": 17.99,
-        "monthly_credits": 800,
+        "credits": 500,
+        "price_inr": 999,
+        "price_usd": 11.99,
+        "monthly_credits": 500,
+        "daily_generations": 999,
         "features": [
-            "800 credits/month",
-            "🔓 All premium styles",
-            "Watermark-free outputs",
-            "HD downloads included",
-            "Priority support"
+            "150 generations/month",
+            "Unlimited story series",
+            "30+ episodes per series",
+            "Priority queue",
+            "Advanced styles (cinematic, anime)",
+            "HD export",
+            "Full remix + branching"
         ],
         "limitations": {
             "premium_styles": True,
             "watermark_free": True,
             "hd_download": True,
             "priority_queue": False,
-            "commercial_license": True
+            "commercial_license": True,
+            "max_series": 999,
+            "max_episodes_per_series": 30,
+            "daily_gen_limit": 999,
+            "monthly_gen_limit": 150,
         },
-        "badge": "POPULAR",
+        "badge": "BEST VALUE",
         "savings": "40%"
     },
-    "studio": {
-        "id": "studio",
-        "name": "Studio",
-        "tier": "STUDIO",
+    "elite": {
+        "id": "elite",
+        "name": "Elite",
+        "tier": "ELITE",
         "duration_days": 30,
-        "credits": 3000,
-        "price_inr": 3999,
-        "price_usd": 47.99,
-        "monthly_credits": 3000,
+        "credits": 1500,
+        "price_inr": 1999,
+        "price_usd": 23.99,
+        "monthly_credits": 1500,
+        "daily_generations": 999,
         "features": [
-            "3000 credits/month",
-            "🔓 All premium styles",
-            "Watermark-free outputs",
-            "HD downloads included",
-            "⚡ Priority queue",
-            "Commercial license",
-            "Dedicated support"
+            "400 generations/month",
+            "Unlimited everything",
+            "Fastest queue",
+            "Premium rendering",
+            "Early access features",
+            "No restrictions"
         ],
         "limitations": {
             "premium_styles": True,
             "watermark_free": True,
             "hd_download": True,
             "priority_queue": True,
-            "commercial_license": True
+            "commercial_license": True,
+            "max_series": 999,
+            "max_episodes_per_series": 999,
+            "daily_gen_limit": 999,
+            "monthly_gen_limit": 400,
         },
-        "badge": "BEST VALUE",
+        "badge": "ELITE",
         "savings": "50%"
     }
 }
+
+
+# =============================================================================
+# TOOL CREDIT COSTS
+# =============================================================================
+
+TOOL_CREDIT_COSTS = {
+    "caption": 1,
+    "text": 1,
+    "bio": 1,
+    "comment_reply": 1,
+    "tone_switcher": 1,
+    "gif": 2,
+    "gif_maker": 2,
+    "photo_to_comic": 3,
+    "comix": 3,
+    "coloring_book": 3,
+    "comic_storybook": 5,
+    "storybook": 5,
+    "reel": 5,
+    "story_video": 10,
+    "story_series_episode": 10,
+    "thumbnail": 2,
+    "brand_story": 3,
+    "challenge": 1,
+    "daily_viral": 1,
+}
+
+
+# =============================================================================
+# TOP-UP PACKS
+# =============================================================================
+
+TOPUP_PACKS = {
+    "small": {
+        "id": "small",
+        "credits": 20,
+        "price_inr": 199,
+        "price_usd": 2.49,
+        "label": "20 Credits",
+    },
+    "medium": {
+        "id": "medium",
+        "credits": 50,
+        "price_inr": 399,
+        "price_usd": 4.99,
+        "label": "50 Credits",
+        "badge": "POPULAR",
+    },
+    "large": {
+        "id": "large",
+        "credits": 100,
+        "price_inr": 699,
+        "price_usd": 8.49,
+        "label": "100 Credits",
+        "badge": "BEST VALUE",
+        "savings": "15%",
+    },
+}
+
+
+# =============================================================================
+# SERIES-SPECIFIC LIMITS
+# =============================================================================
+
+def get_series_limits(user_plan: str) -> dict:
+    plan = SUBSCRIPTION_PLANS.get(user_plan, SUBSCRIPTION_PLANS["free"])
+    limits = plan.get("limitations", {})
+    return {
+        "max_series": limits.get("max_series", 1),
+        "max_episodes_per_series": limits.get("max_episodes_per_series", 3),
+    }
+
+
+def check_series_limit(user_plan: str, current_series_count: int) -> dict:
+    limits = get_series_limits(user_plan)
+    can_create = current_series_count < limits["max_series"]
+    return {
+        "can_create": can_create,
+        "current": current_series_count,
+        "limit": limits["max_series"],
+        "upgrade_needed": not can_create,
+        "upgrade_message": f"You've reached your {limits['max_series']} series limit. Upgrade to create more." if not can_create else None,
+    }
+
+
+def check_episode_limit(user_plan: str, current_episode_count: int) -> dict:
+    limits = get_series_limits(user_plan)
+    can_create = current_episode_count < limits["max_episodes_per_series"]
+    return {
+        "can_create": can_create,
+        "current": current_episode_count,
+        "limit": limits["max_episodes_per_series"],
+        "upgrade_needed": not can_create,
+        "upgrade_message": f"You've reached Episode {limits['max_episodes_per_series']} limit. Upgrade to continue your story." if not can_create else None,
+    }
 
 
 # =============================================================================
@@ -128,21 +247,21 @@ VARIATION_PRICING = {
     },
     "triple": {
         "count": 3,
-        "multiplier": 1.5,  # 50% discount vs 3 singles
+        "multiplier": 1.5,
         "extra_credits": 5,
         "label": "3 Variations",
         "badge": "SAVE 50%"
     },
     "five": {
         "count": 5,
-        "multiplier": 2.0,  # 60% discount vs 5 singles
+        "multiplier": 2.0,
         "extra_credits": 10,
         "label": "5 Variations",
         "badge": "POPULAR"
     },
     "ten": {
         "count": 10,
-        "multiplier": 3.0,  # 70% discount vs 10 singles
+        "multiplier": 3.0,
         "extra_credits": 20,
         "label": "10 Variations",
         "badge": "BEST VALUE"
@@ -170,7 +289,7 @@ UPSELL_OPTIONS = {
         "credits": 3,
         "icon": "x-circle",
         "available_for": ["comix", "gif", "storybook"],
-        "free_for_plans": ["creator", "pro", "studio"]
+        "free_for_plans": ["creator", "pro", "elite"]
     },
     "commercial_license": {
         "id": "commercial_license",
@@ -179,7 +298,7 @@ UPSELL_OPTIONS = {
         "credits": 10,
         "icon": "briefcase",
         "available_for": ["comix", "storybook", "gif", "story", "reel"],
-        "free_for_plans": ["pro", "studio"]
+        "free_for_plans": ["pro", "elite"]
     },
     "batch_download": {
         "id": "batch_download",
@@ -287,13 +406,20 @@ CREDIT_PSYCHOLOGY = {
     "low_balance_threshold": 20,
     "critical_balance_threshold": 5,
     "daily_login_reward": 3,
-    "trending_badge_threshold": 50,  # Show trending badge for tools with >50 uses/day
-    "urgency_messages": [
-        "Only {credits} credits left!",
-        "Running low on credits",
-        "Top up to keep creating",
-        "🔥 Limited credits remaining"
-    ]
+    "trending_badge_threshold": 50,
+    "urgency_messages": {
+        "low": "Only {credits} credits left! Top up to keep creating.",
+        "critical": "Running low! Your story is getting interesting...",
+        "series_limit": "You've reached Episode {limit} limit. Upgrade to continue.",
+        "daily_limit": "You've hit today's limit. Upgrade for unlimited daily use.",
+    },
+    "compulsion_messages": {
+        "unfinished_series": "{count} episode{s} left to finish your arc",
+        "cliffhanger": "A twist is waiting...",
+        "unresolved": "{count} unresolved plot point{s}",
+        "continue_cta": "Continue Episode {next_ep}",
+        "character_waiting": "{name} is still waiting for resolution",
+    }
 }
 
 
@@ -321,57 +447,48 @@ CREATOR_BOOST_PACK = [
 # =============================================================================
 
 def get_variation_cost(base_cost: int, variation_type: str) -> int:
-    """Calculate cost for batch variations"""
     variation = VARIATION_PRICING.get(variation_type, VARIATION_PRICING["single"])
     return base_cost + variation["extra_credits"]
 
 
 def is_style_premium(feature: str, style_id: str) -> bool:
-    """Check if a style is premium"""
     styles = PREMIUM_STYLES.get(feature, {})
     premium_list = styles.get("premium_styles", [])
     return any(s["id"] == style_id for s in premium_list)
 
 
 def can_access_style(user_plan: str, feature: str, style_id: str) -> bool:
-    """Check if user can access a style based on their plan"""
     if not is_style_premium(feature, style_id):
         return True
-    
     plan = SUBSCRIPTION_PLANS.get(user_plan, SUBSCRIPTION_PLANS["free"])
     return plan.get("limitations", {}).get("premium_styles", False)
 
 
 def get_upsell_cost(upsell_id: str, user_plan: str) -> int:
-    """Get upsell cost, considering plan benefits"""
     upsell = UPSELL_OPTIONS.get(upsell_id)
     if not upsell:
         return 0
-    
-    # Check if free for user's plan
     free_for = upsell.get("free_for_plans", [])
     if user_plan in free_for:
         return 0
-    
     return upsell.get("credits", 0)
 
 
 def get_bundle_cost(feature: str, bundle_id: str) -> int:
-    """Get bundle cost"""
     bundles = BUNDLE_PRICING.get(feature, {})
     bundle = bundles.get(bundle_id, {})
     return bundle.get("credits", 0)
 
 
 def get_all_styles(feature: str) -> List[Dict[str, Any]]:
-    """Get all styles for a feature with premium status"""
     styles = PREMIUM_STYLES.get(feature, {})
     all_styles = []
-    
     for style in styles.get("free_styles", []):
         all_styles.append({**style, "locked": False})
-    
     for style in styles.get("premium_styles", []):
         all_styles.append({**style, "locked": True})
-    
     return all_styles
+
+
+def get_tool_credit_cost(tool: str) -> int:
+    return TOOL_CREDIT_COSTS.get(tool, 5)

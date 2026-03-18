@@ -244,7 +244,7 @@ def get_cors_config():
         "allow_origins": [
             "https://creatorstudio.ai",
             "https://www.creatorstudio.ai",
-            "https://stateful-stories.preview.emergentagent.com",
+            "https://pricing-paywall.preview.emergentagent.com",
             "http://localhost:3000",
             "http://localhost:8001"
         ],

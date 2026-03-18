@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://stateful-stories.preview.emergentagent.com
+**Website:** https://pricing-paywall.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

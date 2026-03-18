@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://stateful-stories.preview.emergentagent.com
+**Platform URL:** https://pricing-paywall.preview.emergentagent.com
 
 ---
 

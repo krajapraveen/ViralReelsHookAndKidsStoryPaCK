@@ -42,7 +42,7 @@ const INTENT_MAP = [
   { keywords: ['challenge', 'content plan', 'planner'], route: '/app/content-challenge-planner', label: 'Content Planner', icon: Calendar },
   { keywords: ['reply', 'comment'], route: '/app/comment-reply-bank', label: 'Comment Reply Bank', icon: MessageSquare },
   { keywords: ['story', 'tale', 'fiction', 'adventure'], route: '/app/stories', label: 'Story Generator', icon: BookOpen },
-  { keywords: ['series', 'episodes', 'continue story', 'story series', 'multi episode'], route: '/app/story-series', label: 'Story Series', icon: BookOpen },
+  { keywords: ['series', 'episodes', 'continue story', 'story series', 'multi episode', 'next part', 'sequel', 'continue my', 'episode 2', 'episode 3', 'make sequel', 'next episode', 'continue', 'part 2', 'keep going'], route: '/app/story-series', label: 'Story Series', icon: BookOpen },
   { keywords: ['idea', 'trending', 'daily'], route: '/app/daily-viral-ideas', label: 'Daily Viral Ideas', icon: TrendingUp },
 ];
 
@@ -50,7 +50,7 @@ const INTENT_MAP = [
 const HERO_TOOL = { name: 'Story Video', desc: 'Turn any idea into a cinematic AI video with scenes, illustrations, voiceover, and music — ready in minutes.', route: '/app/story-video-studio', icon: Film, cost: '50 cr', accent: 'from-violet-500 to-indigo-600' };
 
 const MORE_TOOLS = [
-  { name: 'Story Series', desc: 'Multi-episode universes', route: '/app/story-series', icon: BookOpen, accent: 'from-indigo-500 to-violet-600' },
+  { name: 'Story Series', desc: 'Turn one story into many', route: '/app/story-series', icon: BookOpen, accent: 'from-indigo-500 to-violet-600' },
   { name: 'Reel Generator', desc: 'Viral hooks & scripts', route: '/app/reels', icon: Video, accent: 'from-pink-500 to-rose-600' },
   { name: 'Photo to Comic', desc: 'Transform any photo', route: '/app/photo-to-comic', icon: ImageIcon, accent: 'from-amber-500 to-orange-600' },
   { name: 'Comic Storybook', desc: 'Multi-page comic', route: '/app/comic-storybook', icon: Library, accent: 'from-emerald-500 to-teal-600' },
