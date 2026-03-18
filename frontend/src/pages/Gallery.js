@@ -113,9 +113,9 @@ export default function Gallery() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#060B1A] text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
       {/* Nav */}
-      <nav className="border-b border-white/[0.04] bg-[#060B1A]/90 backdrop-blur-2xl sticky top-0 z-50">
+      <nav className="border-b border-white/[0.04] bg-slate-950/90 backdrop-blur-2xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
             <Clapperboard className="w-6 h-6 text-indigo-400" />

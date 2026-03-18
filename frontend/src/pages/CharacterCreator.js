@@ -101,6 +101,15 @@ export default function CharacterCreator() {
         {/* Step Content */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 space-y-5">
 
+          {/* Inline guidance */}
+          {step === 0 && !form.name && (
+            <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-lg px-4 py-2.5">
+              <p className="text-xs text-slate-400">
+                <span className="text-indigo-400 font-medium">Describe your character like:</span> "Brave fox with blue scarf who protects forest animals"
+              </p>
+            </div>
+          )}
+
           {/* Step 0: Identity */}
           {step === 0 && (
             <>
@@ -358,6 +367,10 @@ export default function CharacterCreator() {
             </Button>
           )}
         </div>
+
+        <p className="text-[10px] text-slate-700 text-center mt-3">
+          Do not create characters based on copyrighted IP or real people without consent. AI-generated characters are original creations.
+        </p>
       </div>
     </div>
   );

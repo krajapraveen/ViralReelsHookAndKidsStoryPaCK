@@ -196,7 +196,7 @@ export default function PublicCreation() {
   // ─── LOADING STATE ──────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
         <div className="animate-pulse text-center">
           <Film className="w-12 h-12 text-slate-500 mx-auto mb-4" />
           <p className="text-slate-500">Loading creation...</p>
@@ -207,7 +207,7 @@ export default function PublicCreation() {
 
   if (error || !creation) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
         <div className="text-center" data-testid="creation-not-found">
           <Film className="w-12 h-12 text-slate-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-white mb-2">{error || 'Creation not found'}</h2>
@@ -222,7 +222,7 @@ export default function PublicCreation() {
   const tool = getToolRoute(creation);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]" data-testid="public-creation-page">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950" data-testid="public-creation-page">
       <Helmet>
         <title>{ogTitle}</title>
         <meta name="description" content={ogDescription} />
@@ -242,7 +242,7 @@ export default function PublicCreation() {
       </Helmet>
 
       {/* Minimal header */}
-      <header className="sticky top-0 z-40 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06]">
+      <header className="sticky top-0 z-40 bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950/80 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
@@ -509,7 +509,7 @@ export default function PublicCreation() {
            FLOATING CTA — A/B "floating" variant
          ═══════════════════════════════════════════════════════════════ */}
       {ctaPosition === 'floating' && (
-        <div className="fixed bottom-0 inset-x-0 z-50 bg-[#0a0a0f]/90 backdrop-blur-xl border-t border-indigo-500/20 p-3" data-testid="floating-cta">
+        <div className="fixed bottom-0 inset-x-0 z-50 bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950/90 backdrop-blur-xl border-t border-indigo-500/20 p-3" data-testid="floating-cta">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <Sparkles className="w-5 h-5 text-indigo-400 flex-shrink-0" />

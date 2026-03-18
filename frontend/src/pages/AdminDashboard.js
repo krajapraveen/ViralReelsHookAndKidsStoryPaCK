@@ -118,7 +118,7 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
           <p className="text-slate-400">Loading analytics...</p>

@@ -92,8 +92,8 @@ export default function MyDownloads() {
   }, {});
 
   return (
-    <div className="min-h-screen bg-[var(--vs-bg-primary,#0a0a12)]">
-      <header className="border-b border-[var(--vs-border-subtle,#1e1e2e)] bg-[var(--vs-bg-surface,#12121a)]/80 backdrop-blur-sm sticky top-0 z-40">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app" className="text-slate-400 hover:text-white transition-colors">
@@ -171,7 +171,7 @@ export default function MyDownloads() {
 
             <div className="space-y-3">
               {items.map((item) => (
-                <div key={item.id} className="bg-[var(--vs-bg-surface,#12121a)] rounded-xl border border-[var(--vs-border-subtle,#1e1e2e)] hover:border-purple-500/30 transition-all p-4" data-testid={`download-item-${item.id}`}>
+                <div key={item.id} className="bg-slate-900/60 rounded-xl border border-slate-800 hover:border-purple-500/30 transition-all p-4" data-testid={`download-item-${item.id}`}>
                   <div className="flex items-center gap-4">
                     <div className="p-3 rounded-lg bg-slate-800/50">
                       {getFileIcon(item.file_type)}

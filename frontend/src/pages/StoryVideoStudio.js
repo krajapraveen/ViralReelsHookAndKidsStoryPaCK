@@ -1270,6 +1270,13 @@ export default function StoryVideoStudio() {
                     <p className="text-xs text-slate-500 mt-1">
                       {storyText.length} / 50,000 characters
                     </p>
+                    {!storyText && (
+                      <div className="mt-2 bg-slate-800/40 border border-slate-700/30 rounded-lg px-3 py-2">
+                        <p className="text-xs text-slate-400">
+                          <span className="text-indigo-400 font-medium">Try:</span> "A brave little fox named Finn discovers a hidden magical forest where animals can talk. He must find the source of an ancient curse before winter arrives."
+                        </p>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex items-center justify-center">
@@ -1416,6 +1423,9 @@ export default function StoryVideoStudio() {
                     </>
                   )}
                 </Button>
+                <p className="text-[10px] text-slate-600 text-center mt-2">
+                  All content is AI-generated and original. Do not include copyrighted characters or real-person likenesses without consent.
+                </p>
               </div>
             </div>
           </div>

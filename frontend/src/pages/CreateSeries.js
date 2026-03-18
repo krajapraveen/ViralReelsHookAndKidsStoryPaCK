@@ -374,6 +374,13 @@ export default function CreateSeries() {
             data-testid="series-prompt-input"
           />
           <p className="text-xs text-slate-600 mt-2 text-right">{form.initial_prompt.length}/2000</p>
+          {!form.initial_prompt && (
+            <div className="mt-2 bg-slate-800/40 border border-slate-700/30 rounded-lg px-3 py-2">
+              <p className="text-xs text-slate-400">
+                <span className="text-amber-400 font-medium">Try:</span> "A brave fox named Finn and a curious rabbit named Luna explore an enchanted forest, helping lost animals find their way home while uncovering an ancient mystery."
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Settings Grid */}
@@ -449,6 +456,9 @@ export default function CreateSeries() {
 
         <p className="text-xs text-slate-600 text-center">
           AI will generate characters, world, and Episode 1 plan from your prompt.
+        </p>
+        <p className="text-[10px] text-slate-700 text-center">
+          All generated content is original. Do not reference copyrighted characters, brands, or real people without consent.
         </p>
       </main>
     </div>

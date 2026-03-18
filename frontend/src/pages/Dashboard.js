@@ -21,6 +21,7 @@ import { LoginInterstitial } from '../components/LoginInterstitial';
 import { SafeImage } from '../components/SafeImage';
 import { ActionBanner } from '../components/ActionBanner';
 import { ActiveChainsChip } from '../components/ActiveChainsChip';
+import QuickStartGuide from '../components/QuickStartGuide';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -79,9 +80,17 @@ export default function Dashboard() {
   const [suggestions, setSuggestions] = useState([]);
   const [engagement, setEngagement] = useState(null);
   const [trending, setTrending] = useState([]);
+  const [showQuickStart, setShowQuickStart] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { fetchData(); }, []);
+
+  // Show quick start for new users (never seen it before + no recent content)
+  useEffect(() => {
+    if (user && !localStorage.getItem('quickstart_seen') && recentGenerations.length === 0) {
+      setShowQuickStart(true);
+    }
+  }, [user, recentGenerations]);
 
   const fetchData = async () => {
     const token = localStorage.getItem('token');
@@ -575,12 +584,19 @@ export default function Dashboard() {
                   <Icon className="w-4 h-4" /><span className="text-sm" style={{ fontFamily: 'var(--vs-font-body)' }}>{label}</span>
                 </Link>
               ))}
+              <button onClick={() => setShowQuickStart(true)} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--vs-text-muted)] hover:text-white hover:bg-white/[0.03] transition-colors">
+                <Lightbulb className="w-4 h-4" /><span className="text-sm" style={{ fontFamily: 'var(--vs-font-body)' }}>Quick Start Guide</span>
+              </button>
             </div>
           </aside>
         </div>
       </div>
 
       <DailyRewardsModal isOpen={showDailyRewards} onClose={() => setShowDailyRewards(false)} />
+
+      {showQuickStart && (
+        <QuickStartGuide onDismiss={() => { setShowQuickStart(false); localStorage.setItem('quickstart_seen', 'true'); }} />
+      )}
     </div>
   );
 }

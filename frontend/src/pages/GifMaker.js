@@ -725,6 +725,9 @@ export default function GifMaker() {
                 Generate: <strong>{pricing.generate} credits</strong> | Download: <strong>{pricing.download} credits</strong>
               </p>
             </div>
+            <p className="text-[10px] text-slate-600 text-center">
+              Do not upload copyrighted images or real-person photos without consent.
+            </p>
           </div>
 
           {/* Right: Results */}

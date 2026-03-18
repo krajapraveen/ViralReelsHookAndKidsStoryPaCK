@@ -89,7 +89,7 @@ export default function AutomationDashboard() {
       case 'critical':
         return 'bg-red-100 text-red-700 border-red-200';
       default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+        return 'bg-slate-100 text-slate-300 border-slate-800';
     }
   };
 
@@ -163,28 +163,28 @@ export default function AutomationDashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-4">
             <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
               <Activity className="w-4 h-4" />
               Checks Performed
             </div>
-            <p className="text-3xl font-bold text-slate-900">{status?.checks_performed || 0}</p>
+            <p className="text-3xl font-bold text-white">{status?.checks_performed || 0}</p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-4">
             <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
               <Zap className="w-4 h-4" />
               Recoveries Run
             </div>
             <p className="text-3xl font-bold text-indigo-600">{status?.recoveries_performed || 0}</p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-4">
             <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
               <Shield className="w-4 h-4" />
               Issues Fixed
             </div>
             <p className="text-3xl font-bold text-green-600">{status?.issues_fixed || 0}</p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-4">
             <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
               <Clock className="w-4 h-4" />
               Last Health Check
@@ -194,7 +194,7 @@ export default function AutomationDashboard() {
         </div>
 
         {/* Service Status */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-6">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Server className="w-5 h-5 text-indigo-500" />
             Service Status
@@ -223,7 +223,7 @@ export default function AutomationDashboard() {
         </div>
 
         {/* Infrastructure Status */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-6">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Database className="w-5 h-5 text-indigo-500" />
             Infrastructure Status
@@ -245,7 +245,7 @@ export default function AutomationDashboard() {
                       <XCircle className="w-5 h-5 text-red-500" />
                     )}
                   </div>
-                  <p className="text-sm text-slate-600 mt-1">{value.message || value.status}</p>
+                  <p className="text-sm text-slate-400 mt-1">{value.message || value.status}</p>
                 </div>
               );
             })}
@@ -254,7 +254,7 @@ export default function AutomationDashboard() {
 
         {/* Actions Taken */}
         {healthReport?.actions_taken && healthReport.actions_taken.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-indigo-500" />
               Recent Actions Taken
@@ -272,7 +272,7 @@ export default function AutomationDashboard() {
 
         {/* Issues */}
         {healthReport?.issues && healthReport.issues.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
               <AlertTriangle className="w-5 h-5" />
               Current Issues
@@ -292,17 +292,17 @@ export default function AutomationDashboard() {
         <div className="bg-slate-100 rounded-xl p-6">
           <h3 className="font-semibold mb-4">Automation Schedule</h3>
           <div className="grid md:grid-cols-3 gap-4 text-sm">
-            <div className="bg-white rounded-lg p-4">
+            <div className="bg-slate-900/60 rounded-lg border border-slate-800 p-4">
               <div className="font-medium text-indigo-600">Health Check</div>
               <div className="text-slate-400">Every 1 minute</div>
               <div className="text-xs text-slate-400 mt-1">Auto-restarts failed services</div>
             </div>
-            <div className="bg-white rounded-lg p-4">
+            <div className="bg-slate-900/60 rounded-lg border border-slate-800 p-4">
               <div className="font-medium text-indigo-600">API Validation</div>
               <div className="text-slate-400">Every 5 minutes</div>
               <div className="text-xs text-slate-400 mt-1">Tests all API endpoints</div>
             </div>
-            <div className="bg-white rounded-lg p-4">
+            <div className="bg-slate-900/60 rounded-lg border border-slate-800 p-4">
               <div className="font-medium text-indigo-600">Database Maintenance</div>
               <div className="text-slate-400">Every 1 hour</div>
               <div className="text-xs text-slate-400 mt-1">Cleanup & optimization</div>

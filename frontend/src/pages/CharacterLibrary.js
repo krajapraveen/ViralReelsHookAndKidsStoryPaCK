@@ -97,16 +97,23 @@ export default function CharacterLibrary() {
         {/* Empty state */}
         {characters.length === 0 ? (
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-12 text-center">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-indigo-500/15 flex items-center justify-center mb-4">
-              <User className="w-8 h-8 text-indigo-400" />
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-cyan-500/15 flex items-center justify-center mb-4">
+              <User className="w-8 h-8 text-cyan-400" />
             </div>
-            <h2 className="text-lg font-semibold text-white mb-2">No characters yet</h2>
-            <p className="text-sm text-slate-400 mb-6 max-w-md mx-auto">
-              Create persistent characters with locked visual identity, personality, and memory that stay consistent across every episode.
+            <h2 className="text-lg font-semibold text-white mb-2">Build Your Character Cast</h2>
+            <p className="text-sm text-slate-400 mb-3 max-w-md mx-auto">
+              Characters created here get persistent visual identity, personality memory, and stay consistent across every story tool.
             </p>
-            <Button size="sm" onClick={() => navigate('/app/characters/create')} className="bg-indigo-600 hover:bg-indigo-500">
-              Create Your First Character
-            </Button>
+            <div className="bg-slate-800/60 border border-slate-700/40 rounded-lg px-4 py-2.5 inline-block mb-6">
+              <p className="text-xs text-slate-500">
+                <span className="text-cyan-400 font-medium">Tip:</span> Characters are also auto-detected when you create a Story Series
+              </p>
+            </div>
+            <div>
+              <Button size="sm" onClick={() => navigate('/app/characters/create')} className="bg-cyan-600 hover:bg-cyan-500 text-white">
+                Create Your First Character
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

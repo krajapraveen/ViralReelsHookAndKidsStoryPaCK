@@ -75,21 +75,27 @@ export default function StorySeries() {
       <main className="max-w-5xl mx-auto px-4 py-8">
         {series.length === 0 ? (
           <div className="text-center py-24" data-testid="empty-series-state">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-slate-800 flex items-center justify-center">
-              <Film className="w-10 h-10 text-slate-600" />
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+              <Film className="w-10 h-10 text-indigo-400" />
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">No series yet</h2>
-            <p className="text-sm text-slate-500 mb-8 max-w-md mx-auto">
-              Create your first story series — a multi-episode universe with characters,
-              world-building, and narrative continuity.
+            <h2 className="text-xl font-semibold text-white mb-2">Your Story Universe Awaits</h2>
+            <p className="text-sm text-slate-400 mb-4 max-w-md mx-auto">
+              Create a multi-episode series with persistent characters, world continuity, and AI-generated storylines.
             </p>
-            <Button
-              onClick={() => navigate('/app/story-series/create')}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-              data-testid="create-first-series-btn"
-            >
-              <Sparkles className="w-4 h-4" /> Create Your First Series
-            </Button>
+            <div className="bg-slate-900/60 border border-slate-800 rounded-lg px-5 py-3 inline-block mb-6">
+              <p className="text-xs text-slate-500">
+                <span className="text-indigo-400 font-medium">How it works:</span> Describe a story idea &rarr; AI creates Episode 1 with characters &rarr; Continue into more episodes
+              </p>
+            </div>
+            <div>
+              <Button
+                onClick={() => navigate('/app/story-series/create')}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                data-testid="create-first-series-btn"
+              >
+                <Sparkles className="w-4 h-4" /> Create Your First Series
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4" data-testid="series-list">

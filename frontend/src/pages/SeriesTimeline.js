@@ -748,7 +748,10 @@ export default function SeriesTimeline() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-600 text-center py-4">Click Refresh to get AI story ideas</p>
+                <div className="text-center py-4">
+                  <p className="text-xs text-slate-500 mb-2">Click Refresh to get AI story ideas</p>
+                  <p className="text-[10px] text-slate-600">AI suggests what happens next based on your story memory</p>
+                </div>
               )}
             </div>
 
