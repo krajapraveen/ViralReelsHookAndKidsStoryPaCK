@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://remix-boost.preview.emergentagent.com)
+**Environment:** Preview (https://growth-funnel-stable.preview.emergentagent.com)
 
 ---
 

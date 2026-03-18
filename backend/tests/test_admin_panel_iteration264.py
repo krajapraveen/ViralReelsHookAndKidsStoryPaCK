@@ -13,7 +13,7 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://remix-boost.preview.emergentagent.com"
+    BASE_URL = "https://growth-funnel-stable.preview.emergentagent.com"
 
 # Admin credentials
 ADMIN_EMAIL = "admin@creatorstudio.ai"

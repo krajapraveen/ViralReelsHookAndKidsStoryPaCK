@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://remix-boost.preview.emergentagent.com
+**Website:** https://growth-funnel-stable.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

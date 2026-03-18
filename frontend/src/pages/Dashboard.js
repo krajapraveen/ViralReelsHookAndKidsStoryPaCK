@@ -308,10 +308,10 @@ export default function Dashboard() {
 
           {/* More Tools — collapsed grid */}
           <details className="group" data-testid="more-tools-section">
-            <summary className="flex items-center gap-2 text-sm text-[var(--vs-text-muted)] cursor-pointer hover:text-white transition-colors mb-3 list-none">
+            <summary className="flex items-center gap-2 text-sm text-white/80 cursor-pointer hover:text-white transition-colors mb-3 list-none font-medium">
               <ChevronRight className="w-4 h-4 group-open:rotate-90 transition-transform" />
               <span style={{ fontFamily: 'var(--vs-font-heading)' }}>More Tools</span>
-              <span className="text-xs text-[var(--vs-text-muted)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>{MORE_TOOLS.length}</span>
+              <span className="text-xs bg-white/10 text-white/60 px-2 py-0.5 rounded-full" style={{ fontFamily: 'var(--vs-font-mono)' }}>{MORE_TOOLS.length}</span>
             </summary>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="more-tools-grid">
               {MORE_TOOLS.map(tool => (

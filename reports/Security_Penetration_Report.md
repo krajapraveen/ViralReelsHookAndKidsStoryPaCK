@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://remix-boost.preview.emergentagent.com
+**Environment:** https://growth-funnel-stable.preview.emergentagent.com
 
 ---
 

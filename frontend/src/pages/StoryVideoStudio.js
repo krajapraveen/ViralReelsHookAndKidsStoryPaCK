@@ -44,6 +44,15 @@ const LANGUAGES = [
   { id: 'tamil', name: 'Tamil' },
 ];
 
+const ANIMATION_STYLES = [
+  { id: 'auto', name: 'Auto (Varied)', description: 'Mix of zoom, pan, and parallax per scene' },
+  { id: 'zoom_in', name: 'Zoom In', description: 'Slow cinematic zoom into each scene' },
+  { id: 'zoom_out', name: 'Zoom Out', description: 'Dramatic pull-out reveal' },
+  { id: 'pan_right', name: 'Pan Right', description: 'Smooth left-to-right sweep' },
+  { id: 'pan_left', name: 'Pan Left', description: 'Right-to-left cinematic pan' },
+  { id: 'pan_up', name: 'Pan Up', description: 'Slow upward reveal' },
+];
+
 export default function StoryVideoStudio() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,6 +72,7 @@ export default function StoryVideoStudio() {
   const [language, setLanguage] = useState('english');
   const [ageGroup, setAgeGroup] = useState('kids_5_8');
   const [styleId, setStyleId] = useState('storybook');
+  const [animationStyle, setAnimationStyle] = useState('auto');
   
   // Project state
   const [project, setProject] = useState(null);
@@ -806,7 +816,8 @@ export default function StoryVideoStudio() {
         project_id: project.project_id,
         include_watermark: includeWatermark,
         background_music_id: selectedMusic,
-        music_volume: musicVolume
+        music_volume: musicVolume,
+        animation_style: animationStyle
       });
       
       if (res.data.success) {
@@ -1296,7 +1307,7 @@ export default function StoryVideoStudio() {
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Language</label>
                       <Select value={language} onValueChange={setLanguage}>
-                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white">
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white" data-testid="language-select">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1308,15 +1319,54 @@ export default function StoryVideoStudio() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Age Group</label>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Target Age</label>
                       <Select value={ageGroup} onValueChange={setAgeGroup}>
-                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white">
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white" data-testid="age-group-select">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {AGE_GROUPS.map(age => (
                             <SelectItem key={age.id} value={age.id}>{age.name}</SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Animation Style</label>
+                      <Select value={animationStyle} onValueChange={setAnimationStyle}>
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white" data-testid="animation-style-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ANIMATION_STYLES.map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Narrator Voice</label>
+                      <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white" data-testid="narrator-voice-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {voiceConfig?.available_voices?.length > 0 ? (
+                            voiceConfig.available_voices.map(v => (
+                              <SelectItem key={v.id} value={v.id}>{v.name} - {v.description}</SelectItem>
+                            ))
+                          ) : (
+                            <>
+                              <SelectItem value="alloy">Alloy - Neutral, balanced</SelectItem>
+                              <SelectItem value="echo">Echo - Warm, conversational</SelectItem>
+                              <SelectItem value="fable">Fable - British, narrative</SelectItem>
+                              <SelectItem value="onyx">Onyx - Deep, authoritative</SelectItem>
+                              <SelectItem value="nova">Nova - Friendly, upbeat</SelectItem>
+                              <SelectItem value="shimmer">Shimmer - Clear, expressive</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>

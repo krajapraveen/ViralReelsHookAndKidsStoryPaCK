@@ -82,6 +82,7 @@ class VideoAssemblyRequest(BaseModel):
     include_watermark: bool = True
     background_music_id: Optional[str] = None
     music_volume: float = 0.3  # 0.0 to 1.0
+    animation_style: str = "auto"  # auto, zoom_in, zoom_out, pan_left, pan_right, ken_burns
 
 class MusicTrack(BaseModel):
     id: str
@@ -1524,7 +1525,8 @@ async def assemble_video(
         request.include_watermark,
         request.background_music_id,
         request.music_volume,
-        user_id
+        user_id,
+        request.animation_style
     )
     
     return {
@@ -1546,7 +1548,8 @@ async def render_video_optimized(
     include_watermark: bool,
     background_music_id: Optional[str],
     music_volume: float,
-    user_id: str
+    user_id: str,
+    animation_style: str = "auto"
 ):
     """Use the optimized video renderer for faster processing"""
     from services.optimized_video_renderer import get_optimized_renderer
@@ -1561,7 +1564,8 @@ async def render_video_optimized(
         include_watermark=include_watermark,
         background_music_id=background_music_id,
         music_volume=music_volume,
-        user_id=user_id
+        user_id=user_id,
+        animation_style=animation_style
     )
     
     if success:
@@ -1956,7 +1960,7 @@ async def download_file(url: str, output_path: str):
         # Also try preview URL pattern
         preview_urls = [
             backend_url,
-            "https://remix-boost.preview.emergentagent.com",  # Preview environment
+            "https://growth-funnel-stable.preview.emergentagent.com",  # Preview environment
         ]
         
         for base_url in preview_urls:

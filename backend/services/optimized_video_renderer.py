@@ -105,7 +105,8 @@ class OptimizedVideoRenderer:
         include_watermark: bool = True,
         background_music_id: Optional[str] = None,
         music_volume: float = 0.3,
-        user_id: str = None
+        user_id: str = None,
+        animation_style: str = "auto"
     ) -> Tuple[bool, str, dict]:
         """
         Main render entry point with full optimization
@@ -147,7 +148,7 @@ class OptimizedVideoRenderer:
             progress.update("encoding", 25, "Encoding video segments")
             await self._broadcast_progress(progress, "encoding", 25, "Encoding video segments")
             
-            segments = await self._encode_all_segments(scene_data, temp_dir, progress)
+            segments = await self._encode_all_segments(scene_data, temp_dir, progress, animation_style)
             
             encode_duration = (time.time() - encode_start) * 1000
             progress.log_stage("encode_all_segments", encode_duration)
@@ -382,49 +383,156 @@ class OptimizedVideoRenderer:
     # VIDEO ENCODING
     # =========================================================================
     
+    # =========================================================================
+    # KEN BURNS MOTION SYSTEM — Makes videos feel dynamic, not slideshows
+    # =========================================================================
+    
+    # Motion types cycled per scene for visual variety
+    MOTION_PATTERNS = [
+        "zoom_in",       # Slow zoom into center
+        "pan_right",     # Pan from left to right
+        "zoom_out",      # Start zoomed in, pull out
+        "pan_left",      # Pan from right to left
+        "zoom_in_top",   # Zoom toward top-right
+        "pan_up",        # Slow pan upward
+    ]
+    
+    def _get_motion_filter(self, scene_index: int, duration: float, animation_style: str = "auto") -> str:
+        """
+        Build the FFmpeg zoompan filter for a scene.
+        Each scene gets a different motion for visual variety.
+        Duration is in seconds; we produce OUTPUT_FPS frames/sec.
+        """
+        total_frames = int(duration * OUTPUT_FPS)
+        # Ensure minimum frames
+        total_frames = max(total_frames, OUTPUT_FPS * 2)
+        
+        if animation_style and animation_style != "auto":
+            motion = animation_style
+        else:
+            motion = self.MOTION_PATTERNS[scene_index % len(self.MOTION_PATTERNS)]
+        
+        # All zoompan expressions output at 1280x720 with smooth motion
+        # z = zoom level, d = total duration in frames
+        # x/y = top-left corner of the zoom viewport
+        
+        if motion == "zoom_in":
+            # Slow zoom from 1.0x → 1.25x toward center
+            zp = (
+                f"zoompan=z='min(1+0.25*on/{total_frames},1.25)'"
+                f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                f":d={total_frames}:s=1280x720:fps={OUTPUT_FPS}"
+            )
+        elif motion == "zoom_out":
+            # Start zoomed to 1.25x, pull back to 1.0x
+            zp = (
+                f"zoompan=z='if(eq(on,1),1.25,max(1.0,zoom-0.25/{total_frames}))'"
+                f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                f":d={total_frames}:s=1280x720:fps={OUTPUT_FPS}"
+            )
+        elif motion == "pan_right":
+            # Pan from left edge to right edge
+            zp = (
+                f"zoompan=z='1.15'"
+                f":x='(iw*0.15)*on/{total_frames}':y='ih/2-(ih/zoom/2)'"
+                f":d={total_frames}:s=1280x720:fps={OUTPUT_FPS}"
+            )
+        elif motion == "pan_left":
+            # Pan from right edge to left edge
+            zp = (
+                f"zoompan=z='1.15'"
+                f":x='(iw*0.15)*(1-on/{total_frames})':y='ih/2-(ih/zoom/2)'"
+                f":d={total_frames}:s=1280x720:fps={OUTPUT_FPS}"
+            )
+        elif motion == "zoom_in_top":
+            # Zoom toward top-right quadrant
+            zp = (
+                f"zoompan=z='min(1+0.25*on/{total_frames},1.25)'"
+                f":x='iw*0.6-(iw/zoom/2)':y='ih*0.35-(ih/zoom/2)'"
+                f":d={total_frames}:s=1280x720:fps={OUTPUT_FPS}"
+            )
+        elif motion == "pan_up":
+            # Slow pan from bottom to top
+            zp = (
+                f"zoompan=z='1.15'"
+                f":x='iw/2-(iw/zoom/2)':y='(ih*0.15)*(1-on/{total_frames})'"
+                f":d={total_frames}:s=1280x720:fps={OUTPUT_FPS}"
+            )
+        else:
+            # Default: gentle zoom in
+            zp = (
+                f"zoompan=z='min(1+0.15*on/{total_frames},1.15)'"
+                f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                f":d={total_frames}:s=1280x720:fps={OUTPUT_FPS}"
+            )
+        
+        return zp
+
     async def _encode_all_segments(
         self,
         scene_data: List[dict],
         temp_dir: str,
-        progress: RenderProgress
+        progress: RenderProgress,
+        animation_style: str = "auto"
     ) -> List[str]:
-        """Encode all scene segments in PARALLEL with optimized FFmpeg settings"""
+        """Encode all scene segments with KEN BURNS motion effects"""
         total = len(scene_data)
         
         # Limit concurrent ffmpeg processes to avoid CPU overload
-        encode_semaphore = asyncio.Semaphore(min(3, total))
+        encode_semaphore = asyncio.Semaphore(min(2, total))
         completed_count = 0
         
-        async def encode_single_scene(scene):
+        async def encode_single_scene(scene, scene_index):
             nonlocal completed_count
             async with encode_semaphore:
                 scene_num = scene["scene_number"]
                 segment_path = os.path.join(temp_dir, f"segment_{scene_num}.mp4")
+                scene_duration = scene["duration"]
                 
-                cmd = [
+                # Build the Ken Burns motion filter for this scene
+                motion_filter = self._get_motion_filter(scene_index, scene_duration, animation_style)
+                
+                # Step 1: Upscale the source image so zoompan has headroom
+                # zoompan needs a source larger than output to pan/zoom within it
+                scaled_img_path = os.path.join(temp_dir, f"scene_{scene_num}_scaled.png")
+                scale_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", scene["image_path"],
+                    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+                    "-frames:v", "1",
+                    scaled_img_path
+                ]
+                
+                scale_proc = await asyncio.create_subprocess_exec(
+                    *scale_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await asyncio.wait_for(scale_proc.communicate(), timeout=15)
+                
+                # Use scaled image if available, else fallback to original
+                src_image = scaled_img_path if os.path.exists(scaled_img_path) else scene["image_path"]
+                
+                # Step 2: Generate the motion video from image
+                motion_video_path = os.path.join(temp_dir, f"motion_{scene_num}.mp4")
+                motion_cmd = [
                     "ffmpeg", "-y",
                     "-loop", "1",
-                    "-i", scene["image_path"],
-                    "-i", scene["audio_path"],
+                    "-i", src_image,
+                    "-vf", motion_filter,
                     "-c:v", "libx264",
                     "-preset", FFMPEG_PRESET,
-                    "-tune", "stillimage",
                     "-crf", str(FFMPEG_CRF),
-                    "-c:a", "aac",
-                    "-b:a", AUDIO_BITRATE,
                     "-pix_fmt", "yuv420p",
-                    "-vf", f"scale={OUTPUT_RESOLUTION}:force_original_aspect_ratio=decrease,pad={OUTPUT_RESOLUTION}:(ow-iw)/2:(oh-ih)/2",
-                    "-r", str(OUTPUT_FPS),
-                    "-shortest",
-                    "-t", str(scene["duration"] + 0.5),
+                    "-t", str(scene_duration + 0.5),
                     "-threads", "2",
-                    segment_path
+                    motion_video_path
                 ]
                 
                 start_time = time.time()
                 try:
                     process = await asyncio.create_subprocess_exec(
-                        *cmd,
+                        *motion_cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE
                     )
@@ -432,15 +540,47 @@ class OptimizedVideoRenderer:
                     try:
                         stdout, stderr = await asyncio.wait_for(
                             process.communicate(),
-                            timeout=FFMPEG_SCENE_TIMEOUT
+                            timeout=FFMPEG_SCENE_TIMEOUT * 2  # Motion encoding takes longer
                         )
                     except asyncio.TimeoutError:
                         process.kill()
-                        raise subprocess.TimeoutExpired(cmd, FFMPEG_SCENE_TIMEOUT)
+                        raise subprocess.TimeoutExpired(motion_cmd, FFMPEG_SCENE_TIMEOUT * 2)
                     
                     if process.returncode != 0:
                         error_output = stderr.decode()[:500] if stderr else "Unknown error"
-                        raise Exception(f"FFmpeg encode failed for scene {scene_num}: {error_output}")
+                        logger.warning(f"[VIDEO_RENDER] Motion encode failed for scene {scene_num}, falling back to static: {error_output}")
+                        # FALLBACK: static image if motion fails
+                        motion_video_path = await self._encode_static_fallback(
+                            scene, temp_dir, scene_num
+                        )
+                    
+                    # Step 3: Merge motion video with audio
+                    merge_cmd = [
+                        "ffmpeg", "-y",
+                        "-i", motion_video_path,
+                        "-i", scene["audio_path"],
+                        "-c:v", "copy",
+                        "-c:a", "aac",
+                        "-b:a", AUDIO_BITRATE,
+                        "-shortest",
+                        "-t", str(scene_duration + 0.5),
+                        segment_path
+                    ]
+                    
+                    merge_proc = await asyncio.create_subprocess_exec(
+                        *merge_cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    
+                    try:
+                        await asyncio.wait_for(merge_proc.communicate(), timeout=FFMPEG_SCENE_TIMEOUT)
+                    except asyncio.TimeoutError:
+                        merge_proc.kill()
+                        raise subprocess.TimeoutExpired(merge_cmd, FFMPEG_SCENE_TIMEOUT)
+                    
+                    if merge_proc.returncode != 0:
+                        raise Exception(f"Audio merge failed for scene {scene_num}")
                     
                 finally:
                     duration = (time.time() - start_time) * 1000
@@ -456,9 +596,13 @@ class OptimizedVideoRenderer:
                 
                 return scene_num, segment_path
         
+        async def _fallback_static(scene, scene_num):
+            """Encode a plain static segment as a last resort"""
+            return await self._encode_static_fallback(scene, temp_dir, scene_num)
+        
         # Run all scene encodings in parallel
         results = await asyncio.gather(
-            *[encode_single_scene(scene) for scene in scene_data],
+            *[encode_single_scene(scene, idx) for idx, scene in enumerate(scene_data)],
             return_exceptions=True
         )
         
@@ -473,9 +617,52 @@ class OptimizedVideoRenderer:
         segments.sort(key=lambda x: x[0])
         return [path for _, path in segments]
     
+    async def _encode_static_fallback(self, scene: dict, temp_dir: str, scene_num: int) -> str:
+        """Fallback: encode a static segment (no motion) if Ken Burns fails"""
+        fallback_path = os.path.join(temp_dir, f"static_{scene_num}.mp4")
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1",
+            "-i", scene["image_path"],
+            "-c:v", "libx264",
+            "-preset", FFMPEG_PRESET,
+            "-tune", "stillimage",
+            "-crf", str(FFMPEG_CRF),
+            "-pix_fmt", "yuv420p",
+            "-vf", f"scale={OUTPUT_RESOLUTION}:force_original_aspect_ratio=decrease,pad={OUTPUT_RESOLUTION}:(ow-iw)/2:(oh-ih)/2",
+            "-r", str(OUTPUT_FPS),
+            "-t", str(scene["duration"] + 0.5),
+            fallback_path
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=FFMPEG_SCENE_TIMEOUT)
+        return fallback_path
+    
     async def _concatenate_segments(self, segments: List[str], temp_dir: str, include_watermark: bool = False) -> str:
-        """Concatenate video segments. If watermark=True, bake it in same pass (avoids separate re-encode)"""
+        """Concatenate video segments with crossfade transitions for cinematic feel"""
         
+        # If only one segment, skip concat
+        if len(segments) == 1:
+            if include_watermark:
+                output_path = os.path.join(temp_dir, "concat_video.mp4")
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-i", segments[0],
+                    "-vf", "drawtext=text='visionary-suite.com':fontcolor=white@0.5:fontsize=18:x=w-tw-10:y=h-th-10",
+                    "-c:v", "libx264", "-preset", FFMPEG_PRESET, "-crf", str(FFMPEG_CRF),
+                    "-c:a", "copy",
+                    output_path
+                ]
+                process = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                await asyncio.wait_for(process.communicate(), timeout=FFMPEG_CONCAT_TIMEOUT)
+                return output_path
+            return segments[0]
+        
+        # Use simple concat (crossfade adds too much complexity/time for many scenes)
         concat_file = os.path.join(temp_dir, "concat.txt")
         with open(concat_file, "w") as f:
             for seg in segments:

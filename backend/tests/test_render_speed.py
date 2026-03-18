@@ -10,7 +10,7 @@ import time
 import sys
 import os
 
-API_URL = os.environ.get("API_URL", "https://remix-boost.preview.emergentagent.com")
+API_URL = os.environ.get("API_URL", "https://growth-funnel-stable.preview.emergentagent.com")
 EMAIL = "test@visionary-suite.com"
 PASSWORD = "Test@2026#"
 

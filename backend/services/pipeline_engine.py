@@ -65,10 +65,10 @@ STAGE_CONFIG = {
 # ─── RENDER SETTINGS (production-safe fast defaults) ─────────────────────────
 RENDER_WIDTH = 960
 RENDER_HEIGHT = 540
-RENDER_FPS = 15
+RENDER_FPS = 24
 RENDER_PRESET = "ultrafast"
-RENDER_CRF = 28
-RENDER_THREADS = 1
+RENDER_CRF = 26
+RENDER_THREADS = 2
 
 CREDIT_COSTS = {
     "small": 10,   # <=3 scenes
@@ -78,6 +78,61 @@ CREDIT_COSTS = {
 
 MAX_PARALLEL_IMAGES = 5
 MAX_PARALLEL_VOICES = 6
+
+# ─── KEN BURNS MOTION SYSTEM ─────────────────────────────────────────────────
+# Each scene gets a different motion type for visual variety
+MOTION_PATTERNS = [
+    "zoom_in",       # Slow zoom into center
+    "pan_right",     # Pan from left to right
+    "zoom_out",      # Start zoomed in, pull out
+    "pan_left",      # Pan from right to left
+    "zoom_in_top",   # Zoom toward top-right
+    "pan_up",        # Slow pan upward
+]
+
+def _build_ken_burns_filter(scene_idx: int, dur: float, w: int, h: int, fps: int) -> tuple:
+    """
+    Build zoompan filter for Ken Burns effect.
+    Returns (source_width, source_height, filter_string).
+    Source is scaled 1.5x larger to give zoompan headroom for panning/zooming.
+    """
+    total_frames = max(int(dur * fps), fps * 2)
+    # Scale source 1.5x larger for headroom
+    src_w = int(w * 1.5)
+    src_h = int(h * 1.5)
+
+    motion = MOTION_PATTERNS[scene_idx % len(MOTION_PATTERNS)]
+
+    if motion == "zoom_in":
+        zp = (f"zoompan=z='min(1+0.25*on/{total_frames},1.25)'"
+              f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+              f":d={total_frames}:s={w}x{h}:fps={fps}")
+    elif motion == "zoom_out":
+        zp = (f"zoompan=z='if(eq(on,1),1.25,max(1.0,zoom-0.25/{total_frames}))'"
+              f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+              f":d={total_frames}:s={w}x{h}:fps={fps}")
+    elif motion == "pan_right":
+        zp = (f"zoompan=z='1.15'"
+              f":x='(iw*0.15)*on/{total_frames}':y='ih/2-(ih/zoom/2)'"
+              f":d={total_frames}:s={w}x{h}:fps={fps}")
+    elif motion == "pan_left":
+        zp = (f"zoompan=z='1.15'"
+              f":x='(iw*0.15)*(1-on/{total_frames})':y='ih/2-(ih/zoom/2)'"
+              f":d={total_frames}:s={w}x{h}:fps={fps}")
+    elif motion == "zoom_in_top":
+        zp = (f"zoompan=z='min(1+0.25*on/{total_frames},1.25)'"
+              f":x='iw*0.6-(iw/zoom/2)':y='ih*0.35-(ih/zoom/2)'"
+              f":d={total_frames}:s={w}x{h}:fps={fps}")
+    elif motion == "pan_up":
+        zp = (f"zoompan=z='1.15'"
+              f":x='iw/2-(iw/zoom/2)':y='(ih*0.15)*(1-on/{total_frames})'"
+              f":d={total_frames}:s={w}x{h}:fps={fps}")
+    else:
+        zp = (f"zoompan=z='min(1+0.15*on/{total_frames},1.15)'"
+              f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+              f":d={total_frames}:s={w}x{h}:fps={fps}")
+
+    return src_w, src_h, zp
 
 # ─── PLAN-BASED SCENE LIMITS ─────────────────────────────────────────────────
 # Controls cost exposure: fewer scenes = less compute = lower cost
@@ -1143,12 +1198,16 @@ async def run_stage_render(job: dict) -> dict:
             inputs.extend(["-loop", "1", "-t", f"{dur:.2f}", "-i", image_paths[sn]])
             inputs.extend(["-i", audio_paths[sn]])
 
-            # Video filter: scale + pad to exact resolution, set fps
+            # Ken Burns motion filter: scale image 1.5x, then zoompan for dynamic motion
+            src_w, src_h, zoompan_filter = _build_ken_burns_filter(
+                scene_idx=i, dur=dur, w=RENDER_WIDTH, h=RENDER_HEIGHT, fps=RENDER_FPS
+            )
             filter_parts.append(
-                f"[{v_idx}:v]scale={RENDER_WIDTH}:{RENDER_HEIGHT}:"
+                f"[{v_idx}:v]scale={src_w}:{src_h}:"
                 f"force_original_aspect_ratio=decrease,"
-                f"pad={RENDER_WIDTH}:{RENDER_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
-                f"setsar=1,fps={RENDER_FPS}[v{i}]"
+                f"pad={src_w}:{src_h}:(ow-iw)/2:(oh-ih)/2:black,"
+                f"{zoompan_filter},"
+                f"setsar=1[v{i}]"
             )
 
         # Concat all video streams
@@ -1200,7 +1259,7 @@ async def run_stage_render(job: dict) -> dict:
                      f"{RENDER_PRESET}, CRF {RENDER_CRF}, total_dur={total_duration:.1f}s")
 
         # Execute with real-time progress monitoring
-        encode_timeout = max(180, n * 40)  # generous but bounded
+        encode_timeout = max(300, n * 60)  # generous for Ken Burns motion encoding
         rc, stdout, stderr = await _run_ffmpeg_with_progress(
             cmd, job_id, total_duration, n, timeout=encode_timeout
         )

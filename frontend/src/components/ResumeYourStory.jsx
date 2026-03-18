@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, ChevronRight, Sparkles, GitBranch, Play } from 'lucide-react';
+import { BookOpen, ChevronRight, Sparkles, GitBranch, Play, ImageOff, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { SafeImage } from './SafeImage';
 import api from '../utils/api';
@@ -26,6 +26,31 @@ export function ResumeYourStory() {
   const primary = chains[0];
   const rest = chains.slice(1);
 
+  // Truthful preview: show real thumbnail, generating skeleton, or "unavailable"
+  const ChainPreview = ({ src, alt, style, className, aspectRatio }) => {
+    if (src && src !== '' && !src.includes('placehold.co')) {
+      return (
+        <SafeImage
+          src={src}
+          alt={alt || 'Story chain preview'}
+          aspectRatio={aspectRatio || '4/3'}
+          titleOverlay={style || 'Comic'}
+          className={className}
+        />
+      );
+    }
+    // No valid preview — show truthful fallback
+    return (
+      <div 
+        className={`flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 ${className || ''}`}
+        style={{ aspectRatio: aspectRatio || '4/3' }}
+      >
+        <ImageOff className="w-6 h-6 text-slate-600 mb-1" />
+        <span className="text-[10px] text-slate-500">Preview unavailable</span>
+      </div>
+    );
+  };
+
   return (
     <div className="vs-fade-up-1 mb-8" data-testid="resume-your-story">
       <div className="flex items-center justify-between mb-3">
@@ -48,11 +73,11 @@ export function ResumeYourStory() {
       >
         <div className="flex flex-col sm:flex-row">
           <div className="sm:w-48 relative shrink-0">
-            <SafeImage
+            <ChainPreview
               src={primary.preview_url}
               alt="Story chain preview"
               aspectRatio="4/3"
-              titleOverlay={primary.root_style || 'Comic'}
+              style={primary.root_style || 'Comic'}
               className="w-full h-full rounded-none"
             />
             <div className="absolute top-2 left-2">
@@ -115,7 +140,7 @@ export function ResumeYourStory() {
         <div className="grid grid-cols-2 gap-2">
           {rest.map((c) => (
             <Link key={c.chain_id} to={`/app/story-chain/${c.chain_id}`} className="vs-card group p-3 flex items-center gap-3 hover:border-[var(--vs-border-glow)] transition-all" data-testid={`resume-secondary-${c.chain_id}`}>
-              <SafeImage src={c.preview_url} alt="" aspectRatio="1/1" titleOverlay={c.root_style} className="w-10 h-10 rounded-lg shrink-0" />
+              <ChainPreview src={c.preview_url} alt="" aspectRatio="1/1" style={c.root_style} className="w-10 h-10 rounded-lg shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-white font-medium truncate">{c.total_episodes} ep &middot; {c.root_style}</p>
                 <div className="flex items-center gap-2 mt-0.5">

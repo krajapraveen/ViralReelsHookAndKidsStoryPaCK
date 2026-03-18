@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://remix-boost.preview.emergentagent.com  
+**Base URL:** https://growth-funnel-stable.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---

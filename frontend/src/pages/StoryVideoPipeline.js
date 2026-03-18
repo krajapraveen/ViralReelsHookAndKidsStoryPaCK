@@ -713,13 +713,13 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
           {/* Animation Style */}
           <div>
-            <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block">Animation Style</label>
+            <label className="text-sm font-medium text-slate-200 mb-2 block">Animation Style</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" data-testid="style-grid">
               {styles.map(s => (
                 <button key={s.id} onClick={() => setAnimStyle(s.id)}
                   className={`p-3 rounded-[var(--vs-card-radius)] border text-left transition-all ${animStyle === s.id
-                    ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
-                    : 'border-[var(--vs-border)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
+                    ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white ring-1 ring-[var(--vs-primary-from)]/50'
+                    : 'border-slate-600 bg-slate-800/60 text-slate-200 hover:border-slate-400 hover:bg-slate-700/50 cursor-pointer'}`}
                   data-testid={`style-${s.id}`}>
                   <span className="text-sm font-medium">{s.name}</span>
                 </button>
@@ -730,25 +730,25 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           {/* Age + Voice */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block">Target Age</label>
+              <label className="text-sm font-medium text-slate-200 mb-2 block">Target Age</label>
               <div className="space-y-1">
                 {ages.map(a => (
                   <button key={a.id} onClick={() => setAgeGroup(a.id)}
                     className={`w-full p-2 rounded-[var(--vs-btn-radius)] border text-left text-sm transition-all ${ageGroup === a.id
-                      ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
-                      : 'border-[var(--vs-border-subtle)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
+                      ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white ring-1 ring-[var(--vs-primary-from)]/50'
+                      : 'border-slate-600 bg-slate-800/60 text-slate-200 hover:border-slate-400 hover:bg-slate-700/50 cursor-pointer'}`}
                     data-testid={`age-${a.id}`}>{a.name}</button>
                 ))}
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-2 block">Narrator Voice</label>
+              <label className="text-sm font-medium text-slate-200 mb-2 block">Narrator Voice</label>
               <div className="space-y-1">
                 {voices.map(v => (
                   <button key={v.id} onClick={() => setVoicePreset(v.id)}
                     className={`w-full p-2 rounded-[var(--vs-btn-radius)] border text-left text-sm transition-all ${voicePreset === v.id
-                      ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white'
-                      : 'border-[var(--vs-border-subtle)] bg-[var(--vs-bg-panel)] text-[var(--vs-text-muted)] hover:border-[var(--vs-text-muted)]'}`}
+                      ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white ring-1 ring-[var(--vs-primary-from)]/50'
+                      : 'border-slate-600 bg-slate-800/60 text-slate-200 hover:border-slate-400 hover:bg-slate-700/50 cursor-pointer'}`}
                     data-testid={`voice-${v.id}`}>{v.name}</button>
                 ))}
               </div>
