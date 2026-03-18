@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import {
   ArrowLeft, Loader2, User, Palette, BookOpen, Shield,
   ImageIcon, Clock, Target, AlertTriangle, CheckCircle,
-  Volume2, Mic, Edit3, Save, Users, Heart, TrendingUp
+  Volume2, Mic, Edit3, Save, Users, Heart, TrendingUp, Share2, Copy
 } from 'lucide-react';
 
 const VOICE_IDS = [
@@ -155,6 +155,17 @@ export default function CharacterDetail() {
               {profile.species_or_type} {profile.role} · {profile.age_band} · {profile.status}
             </p>
           </div>
+          <Button
+            size="sm" variant="outline"
+            onClick={() => {
+              const shareUrl = `${window.location.origin}/character/${characterId}`;
+              navigator.clipboard.writeText(shareUrl).then(() => toast.success('Share link copied!'));
+            }}
+            className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 gap-1.5 text-xs"
+            data-testid="share-character-btn"
+          >
+            <Share2 className="w-3 h-3" /> Share
+          </Button>
           <Button
             size="sm" variant="outline"
             onClick={handleGeneratePortrait}

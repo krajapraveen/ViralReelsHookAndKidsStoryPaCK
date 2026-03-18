@@ -7,7 +7,7 @@ import requests
 import os
 
 # Use production backend URL
-BASE_URL = "https://pricing-paywall.preview.emergentagent.com"
+BASE_URL = "https://viral-loop-2.preview.emergentagent.com"
 
 class TestAPIHealth:
     """API Health and Basic Connectivity Tests"""

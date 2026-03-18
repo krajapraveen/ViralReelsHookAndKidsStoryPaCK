@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://pricing-paywall.preview.emergentagent.com
+**Platform URL:** https://viral-loop-2.preview.emergentagent.com
 
 ---
 

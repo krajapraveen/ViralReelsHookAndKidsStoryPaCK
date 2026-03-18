@@ -82,6 +82,10 @@ class UpdateMemoryRequest(BaseModel):
     episode_id: str
 
 
+class ConfirmCharactersRequest(BaseModel):
+    characters: list  # [{name, role, confirmed: bool, ...}]
+
+
 # ─── LLM HELPERS ──────────────────────────────────────────────────────────────
 
 async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series") -> dict:
@@ -189,6 +193,9 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
     characters = foundation.get("characters", [])
     world = foundation.get("world", {})
     ep1 = foundation.get("episode_1", {})
+
+    # ── AUTO-CHARACTER EXTRACTION: Score, deduplicate, prepare for confirmation ──
+    extracted_characters = _score_and_deduplicate_characters(characters, ep1)
 
     char_bible = {
         "character_bible_id": character_bible_id,
@@ -298,6 +305,8 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
         "episode_count": 1,
         "branch_count": 0,
         "cover_asset_url": None,
+        "extraction_status": "pending_confirmation",
+        "extracted_characters": extracted_characters,
         "created_at": _now(),
         "updated_at": _now(),
     }
@@ -320,12 +329,307 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
             {"name": c.get("name"), "role": c.get("role"), "appearance": c.get("appearance", "")}
             for c in characters
         ],
+        "extracted_characters": extracted_characters,
+        "extraction_status": "pending_confirmation",
         "world": {
             "name": world.get("world_name", ""),
             "setting": world.get("setting_description", "")[:200],
         },
         "cliffhanger": ep1.get("cliffhanger", ""),
         "status": "planned",
+    }
+
+
+# ─── CHARACTER EXTRACTION: Scoring & Deduplication ────────────────────────────
+
+MAIN_ROLES = {"protagonist", "antagonist", "main", "hero", "heroine", "villain"}
+SUPPORTING_ROLES = {"sidekick", "mentor", "supporting", "ally", "companion", "guide"}
+BACKGROUND_ROLES = {"background", "minor", "extra", "narrator", "crowd"}
+
+
+def _score_and_deduplicate_characters(characters: list, episode_data: dict) -> list:
+    """
+    Score each character for confidence and role importance.
+    Deduplicate by name similarity. Return max 3, confidence >= 0.7.
+    """
+    if not characters:
+        return []
+
+    # Count scene appearances for each character
+    scenes = episode_data.get("scenes", [])
+    char_scene_counts = {}
+    for scene in scenes:
+        for char_name in scene.get("characters", []):
+            key = char_name.strip().lower()
+            char_scene_counts[key] = char_scene_counts.get(key, 0) + 1
+
+    total_scenes = max(len(scenes), 1)
+    scored = []
+
+    for c in characters:
+        name = c.get("name", "").strip()
+        if not name:
+            continue
+
+        role_raw = c.get("role", "").strip().lower()
+
+        # Role importance score (0.0 - 0.4)
+        if role_raw in MAIN_ROLES:
+            role_score = 0.4
+            role_label = "main"
+        elif role_raw in SUPPORTING_ROLES:
+            role_score = 0.25
+            role_label = "supporting"
+        elif role_raw in BACKGROUND_ROLES:
+            role_score = 0.05
+            role_label = "background"
+        else:
+            role_score = 0.2
+            role_label = "supporting"
+
+        # Scene presence score (0.0 - 0.3)
+        appearances = char_scene_counts.get(name.lower(), 0)
+        presence_score = min(appearances / total_scenes, 1.0) * 0.3
+
+        # Detail richness score (0.0 - 0.3)
+        detail_fields = [
+            c.get("appearance"), c.get("clothing"), c.get("personality_traits"),
+            c.get("goals"), c.get("fears"), c.get("consistency_prompt"),
+        ]
+        filled = sum(1 for f in detail_fields if f)
+        detail_score = (filled / max(len(detail_fields), 1)) * 0.3
+
+        confidence = round(role_score + presence_score + detail_score, 2)
+
+        scored.append({
+            "extraction_id": _uuid(),
+            "name": name,
+            "role": c.get("role", "unknown"),
+            "role_importance": role_label,
+            "confidence": confidence,
+            "appearance": c.get("appearance", ""),
+            "clothing": c.get("clothing", ""),
+            "personality_traits": c.get("personality_traits", []),
+            "goals": c.get("goals", ""),
+            "fears": c.get("fears", ""),
+            "voice_style": c.get("voice_style", ""),
+            "consistency_prompt": c.get("consistency_prompt", ""),
+            "scene_appearances": appearances,
+        })
+
+    # Sort by confidence descending
+    scored.sort(key=lambda x: x["confidence"], reverse=True)
+
+    # Deduplicate by name similarity
+    deduped = []
+    seen_names = set()
+    for char in scored:
+        name_key = char["name"].lower().replace("_", " ").replace("-", " ").strip()
+        # Check for near-duplicates (Fox, Fox_2, The Fox)
+        is_dup = False
+        for seen in seen_names:
+            if name_key in seen or seen in name_key:
+                is_dup = True
+                break
+            # Simple word overlap check
+            words_a = set(name_key.split())
+            words_b = set(seen.split())
+            if words_a and words_b and len(words_a & words_b) / max(len(words_a | words_b), 1) > 0.5:
+                is_dup = True
+                break
+        if not is_dup:
+            seen_names.add(name_key)
+            deduped.append(char)
+
+    # Filter: confidence >= 0.7, max 3
+    qualified = [c for c in deduped if c["confidence"] >= 0.7][:3]
+
+    # If no characters meet threshold, take top 2 if confidence >= 0.5
+    if not qualified:
+        qualified = [c for c in deduped if c["confidence"] >= 0.5][:2]
+
+    return qualified
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API: CONFIRM EXTRACTED CHARACTERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{series_id}/confirm-characters")
+async def confirm_characters(series_id: str, request: ConfirmCharactersRequest, user: dict = Depends(get_current_user)):
+    """
+    User confirms/edits extracted characters. Creates persistent character_profiles
+    and attaches them to the series.
+    """
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    confirmed_chars = [c for c in request.characters if c.get("confirmed", True)]
+    if not confirmed_chars:
+        # No characters confirmed — just mark as dismissed
+        await db.story_series.update_one(
+            {"series_id": series_id},
+            {"$set": {"extraction_status": "dismissed", "updated_at": _now()}}
+        )
+        return {"success": True, "message": "No characters confirmed", "created": 0}
+
+    from routes.characters import screen_safety
+
+    created_ids = []
+    for char in confirmed_chars[:3]:
+        name = char.get("name", "").strip()
+        if not name:
+            continue
+
+        # Safety check
+        safety = screen_safety(name, char.get("appearance", ""))
+        if not safety["safe"]:
+            logger.warning(f"Character '{name}' failed safety: {safety['reason']}")
+            continue
+
+        character_id = _uuid()
+        visual_bible_id = _uuid()
+        safety_profile_id = _uuid()
+
+        role = char.get("role", "hero")
+        appearance = char.get("appearance", "")
+        clothing = char.get("clothing", "")
+        consistency_prompt = char.get("consistency_prompt", "")
+        personality = ", ".join(char.get("personality_traits", [])) if isinstance(char.get("personality_traits"), list) else str(char.get("personality_traits", ""))
+
+        # Build canonical description
+        canonical = consistency_prompt or f"{name}: {appearance}. Wearing {clothing}." if appearance else f"{name}, a {role} character."
+
+        profile = {
+            "character_id": character_id,
+            "series_id": series_id,
+            "owner_user_id": user["id"],
+            "name": name,
+            "species_or_type": "character",
+            "role": role,
+            "age_band": "adult",
+            "gender_presentation": None,
+            "personality_summary": personality,
+            "backstory_summary": None,
+            "core_goals": char.get("goals", ""),
+            "core_fears": char.get("fears", ""),
+            "speech_style": char.get("voice_style", ""),
+            "default_emotional_range": "neutral",
+            "portrait_url": None,
+            "status": "active",
+            "auto_extracted": True,
+            "source_series_id": series_id,
+            "created_at": _now(),
+            "updated_at": _now(),
+        }
+
+        visual_bible = {
+            "visual_bible_id": visual_bible_id,
+            "character_id": character_id,
+            "version": 1,
+            "canonical_description": canonical,
+            "face_description": "",
+            "hair_description": "",
+            "body_description": appearance,
+            "clothing_description": clothing,
+            "color_palette": "",
+            "accessories": "",
+            "style_lock": series.get("style", "cartoon_2d"),
+            "do_not_change_rules": [
+                f"Always use same appearance for {name}",
+                f"Same clothing: {clothing}" if clothing else f"Consistent outfit for {name}",
+                f"Same art style: {series.get('style', 'cartoon_2d')}",
+            ],
+            "reference_asset_ids": [],
+            "negative_constraints": ["no character redesign", "no style drift"],
+            "created_at": _now(),
+            "updated_at": _now(),
+        }
+
+        safety_profile = {
+            "safety_profile_id": safety_profile_id,
+            "character_id": character_id,
+            "is_user_uploaded_likeness": False,
+            "consent_status": "not_required",
+            "is_minor_like": False,
+            "disallowed_transformations": ["photorealistic", "nsfw", "violent"],
+            "copyright_risk_flags": [],
+            "celebrity_similarity_block": False,
+            "brand_similarity_block": False,
+            "protected_ip_similarity_block": False,
+            "compliance_notes": "Auto-extracted from series Episode 1",
+            "created_at": _now(),
+        }
+
+        await db.character_profiles.insert_one(profile)
+        await db.character_visual_bibles.insert_one(visual_bible)
+        await db.character_safety_profiles.insert_one(safety_profile)
+        created_ids.append(character_id)
+
+        logger.info(f"Auto-extracted character created: {character_id} '{name}' for series {series_id}")
+
+    # Attach all to series
+    if created_ids:
+        await db.story_series.update_one(
+            {"series_id": series_id},
+            {
+                "$set": {
+                    "extraction_status": "confirmed",
+                    "updated_at": _now(),
+                },
+                "$addToSet": {"attached_characters": {"$each": created_ids}},
+            }
+        )
+
+    return {
+        "success": True,
+        "created": len(created_ids),
+        "character_ids": created_ids,
+        "extraction_status": "confirmed",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API: DISMISS EXTRACTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{series_id}/dismiss-extraction")
+async def dismiss_extraction(series_id: str, user: dict = Depends(get_current_user)):
+    """User dismisses auto-extracted characters."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0, "series_id": 1}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    await db.story_series.update_one(
+        {"series_id": series_id},
+        {"$set": {"extraction_status": "dismissed", "updated_at": _now()}}
+    )
+    return {"success": True, "extraction_status": "dismissed"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API: GET EXTRACTED CHARACTERS (for timeline banner re-display)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/{series_id}/extracted-characters")
+async def get_extracted_characters(series_id: str, user: dict = Depends(get_current_user)):
+    """Get pending extracted characters for a series."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]},
+        {"_id": 0, "extracted_characters": 1, "extraction_status": 1}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    return {
+        "success": True,
+        "extracted_characters": series.get("extracted_characters", []),
+        "extraction_status": series.get("extraction_status", "none"),
     }
 
 
@@ -1477,3 +1781,166 @@ async def generate_series_cover(series_id: str, user: dict = Depends(get_current
     except Exception as e:
         logger.error(f"Cover generation failed for {series_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Cover generation failed: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SERIES COMPLETION REWARDS — Retention Engine
+# Triggers on story milestones. Offers emotional + functional rewards.
+# Makes completion → new start loop.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+MILESTONE_CONFIG = [
+    {
+        "threshold": 3,
+        "title": "Story Taking Shape",
+        "subtitle": "3 episodes crafted",
+        "emotional_message": "Your story world is alive. The characters are finding their voice.",
+        "rewards": [
+            {"type": "unlock", "label": "Alternate Ending", "description": "Create a branching storyline"},
+        ],
+        "next_loop": {"type": "continue", "label": "Keep Building", "description": "Your story has momentum"},
+    },
+    {
+        "threshold": 5,
+        "title": "Story Complete",
+        "subtitle": "A full story arc delivered",
+        "emotional_message": "You did it. A complete story, beginning to end. Few creators make it this far.",
+        "rewards": [
+            {"type": "unlock", "label": "Start Season 2", "description": "Continue the saga with new arcs"},
+            {"type": "unlock", "label": "Villain Origin Story", "description": "Tell the antagonist's side"},
+        ],
+        "next_loop": {"type": "season_2", "label": "Start Season 2", "description": "New arcs, same beloved characters"},
+    },
+    {
+        "threshold": 10,
+        "title": "Epic Saga",
+        "subtitle": "10 episodes. Legendary.",
+        "emotional_message": "This is no longer a story. This is a universe. You've built something extraordinary.",
+        "rewards": [
+            {"type": "unlock", "label": "Alternate Universe", "description": "What if everything was different?"},
+            {"type": "unlock", "label": "Character Spinoff", "description": "Give a side character their own series"},
+            {"type": "bonus_credits", "label": "50 Bonus Credits", "description": "A reward for dedication", "amount": 50},
+        ],
+        "next_loop": {"type": "spinoff", "label": "Create Spinoff Series", "description": "Your characters deserve new stories"},
+    },
+]
+
+
+def _check_milestones(episode_count: int, claimed_milestones: list) -> list:
+    """Check which milestones have been reached but not yet claimed."""
+    unclaimed = []
+    for m in MILESTONE_CONFIG:
+        if episode_count >= m["threshold"] and m["threshold"] not in claimed_milestones:
+            unclaimed.append(m)
+    return unclaimed
+
+
+@router.get("/{series_id}/rewards")
+async def get_series_rewards(series_id: str, user: dict = Depends(get_current_user)):
+    """Get reward status for a series: pending milestones and claimed rewards."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]},
+        {"_id": 0, "series_id": 1, "title": 1}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    ep_count = await db.story_episodes.count_documents({"series_id": series_id})
+
+    # Get claimed milestones
+    reward_doc = await db.series_rewards.find_one(
+        {"series_id": series_id, "user_id": user["id"]},
+        {"_id": 0}
+    )
+    claimed = reward_doc.get("claimed_milestones", []) if reward_doc else []
+
+    pending = _check_milestones(ep_count, claimed)
+
+    # Progress to next milestone
+    next_milestone = None
+    for m in MILESTONE_CONFIG:
+        if ep_count < m["threshold"]:
+            next_milestone = {
+                "threshold": m["threshold"],
+                "title": m["title"],
+                "episodes_remaining": m["threshold"] - ep_count,
+                "progress": round(ep_count / m["threshold"] * 100),
+            }
+            break
+
+    return {
+        "success": True,
+        "episode_count": ep_count,
+        "series_title": series.get("title"),
+        "pending_rewards": pending,
+        "claimed_milestones": claimed,
+        "next_milestone": next_milestone,
+        "all_milestones": [
+            {
+                "threshold": m["threshold"],
+                "title": m["title"],
+                "claimed": m["threshold"] in claimed,
+                "reached": ep_count >= m["threshold"],
+            }
+            for m in MILESTONE_CONFIG
+        ],
+    }
+
+
+@router.post("/{series_id}/claim-reward")
+async def claim_reward(series_id: str, milestone: int = 0, user: dict = Depends(get_current_user)):
+    """Claim a specific milestone reward."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]},
+        {"_id": 0, "series_id": 1, "title": 1}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    ep_count = await db.story_episodes.count_documents({"series_id": series_id})
+
+    # Validate milestone exists and is reached
+    milestone_config = next((m for m in MILESTONE_CONFIG if m["threshold"] == milestone), None)
+    if not milestone_config:
+        raise HTTPException(status_code=400, detail="Invalid milestone")
+    if ep_count < milestone:
+        raise HTTPException(status_code=400, detail=f"Need {milestone} episodes, have {ep_count}")
+
+    # Check if already claimed
+    reward_doc = await db.series_rewards.find_one(
+        {"series_id": series_id, "user_id": user["id"]},
+        {"_id": 0}
+    )
+    claimed = reward_doc.get("claimed_milestones", []) if reward_doc else []
+    if milestone in claimed:
+        raise HTTPException(status_code=400, detail="Already claimed")
+
+    # Process rewards
+    for reward in milestone_config.get("rewards", []):
+        if reward["type"] == "bonus_credits" and reward.get("amount"):
+            await db.users.update_one(
+                {"id": user["id"]},
+                {"$inc": {"credits": reward["amount"]}}
+            )
+            logger.info(f"Awarded {reward['amount']} bonus credits to {user['id']} for milestone {milestone}")
+
+    # Record claim
+    await db.series_rewards.update_one(
+        {"series_id": series_id, "user_id": user["id"]},
+        {
+            "$addToSet": {"claimed_milestones": milestone},
+            "$set": {"updated_at": _now()},
+            "$setOnInsert": {"created_at": _now()},
+        },
+        upsert=True,
+    )
+
+    return {
+        "success": True,
+        "milestone": milestone,
+        "title": milestone_config["title"],
+        "subtitle": milestone_config["subtitle"],
+        "emotional_message": milestone_config["emotional_message"],
+        "rewards": milestone_config["rewards"],
+        "next_loop": milestone_config["next_loop"],
+    }

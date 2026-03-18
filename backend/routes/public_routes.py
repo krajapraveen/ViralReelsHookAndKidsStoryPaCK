@@ -752,3 +752,130 @@ async def seed_status():
     """Check how many seeded videos exist."""
     count = await db.pipeline_jobs.count_documents({"user_id": "visionary-ai-system"})
     return {"seeded_count": count}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PUBLIC CHARACTER PAGE — Viral Sharing Loop
+# No auth required. Drives user acquisition through character-based sharing.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/character/{character_id}")
+async def get_public_character(character_id: str):
+    """
+    Public character page data. No login required.
+    Returns character profile, visual bible, sample scenes, social proof stats.
+    """
+    profile = await db.character_profiles.find_one(
+        {"character_id": character_id, "status": "active"}, {"_id": 0}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    # Visual bible
+    visual_bible = await db.character_visual_bibles.find_one(
+        {"character_id": character_id}, {"_id": 0}
+    )
+
+    # Social proof: episode count
+    episode_count = 0
+    series_title = None
+    series_id = profile.get("source_series_id") or profile.get("series_id")
+    if series_id:
+        episode_count = await db.story_episodes.count_documents({"series_id": series_id})
+        series = await db.story_series.find_one(
+            {"series_id": series_id},
+            {"_id": 0, "title": 1, "genre": 1, "style": 1, "audience_type": 1, "description": 1}
+        )
+        if series:
+            series_title = series.get("title")
+
+    # Sample scenes (from memory logs or episodes)
+    sample_scenes = []
+    memory_logs = await db.character_memory_logs.find(
+        {"character_id": character_id},
+        {"_id": 0, "event_summary": 1, "emotion_state": 1, "episode_id": 1}
+    ).sort("created_at", -1).to_list(5)
+    for log in memory_logs:
+        sample_scenes.append({
+            "summary": log.get("event_summary", ""),
+            "emotion": log.get("emotion_state", "neutral"),
+        })
+
+    # Total usage across all tools
+    total_usage = await db.character_memory_logs.count_documents({"character_id": character_id})
+
+    # Creator info (public name only)
+    creator_name = None
+    if profile.get("owner_user_id"):
+        creator = await db.users.find_one(
+            {"id": profile["owner_user_id"]},
+            {"_id": 0, "name": 1}
+        )
+        if creator:
+            creator_name = creator.get("name")
+
+    # Relationships
+    relationships = []
+    rels = await db.character_relationships.find(
+        {"$or": [{"character_id_a": character_id}, {"character_id_b": character_id}]},
+        {"_id": 0}
+    ).to_list(10)
+    for rel in rels:
+        other_id = rel["character_id_b"] if rel["character_id_a"] == character_id else rel["character_id_a"]
+        other = await db.character_profiles.find_one(
+            {"character_id": other_id, "status": "active"},
+            {"_id": 0, "name": 1, "role": 1, "character_id": 1}
+        )
+        if other:
+            relationships.append({
+                "character_id": other["character_id"],
+                "name": other.get("name"),
+                "role": other.get("role"),
+                "relationship_type": rel.get("relationship_type"),
+                "state": rel.get("state", "active"),
+            })
+
+    # Build remix prompt from character data
+    canonical = visual_bible.get("canonical_description", "") if visual_bible else ""
+    personality = profile.get("personality_summary", "")
+    goals = profile.get("core_goals", "")
+    char_name = profile.get("name", "Unknown")
+    remix_prompt = f"A story featuring {char_name}. {canonical} {personality}. {f'Their goal: {goals}' if goals else ''}".strip()
+
+    return {
+        "success": True,
+        "character": {
+            "character_id": profile["character_id"],
+            "name": char_name,
+            "role": profile.get("role"),
+            "personality_summary": personality,
+            "core_goals": goals,
+            "core_fears": profile.get("core_fears", ""),
+            "speech_style": profile.get("speech_style", ""),
+            "portrait_url": profile.get("portrait_url"),
+            "species_or_type": profile.get("species_or_type", "character"),
+        },
+        "visual_bible": {
+            "canonical_description": canonical,
+            "clothing_description": visual_bible.get("clothing_description", "") if visual_bible else "",
+            "style_lock": visual_bible.get("style_lock", "") if visual_bible else "",
+            "color_palette": visual_bible.get("color_palette", "") if visual_bible else "",
+        } if visual_bible else None,
+        "social_proof": {
+            "episode_count": episode_count,
+            "total_usage": total_usage,
+            "series_title": series_title,
+            "creator_name": creator_name,
+        },
+        "sample_scenes": sample_scenes,
+        "relationships": relationships,
+        "remix_data": {
+            "prompt": remix_prompt,
+            "remixFrom": {
+                "title": f"Story with {char_name}",
+                "character_id": character_id,
+                "character_name": char_name,
+                "type": "character_share",
+            },
+        },
+    }

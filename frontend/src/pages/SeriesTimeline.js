@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { UpgradeModal } from '../components/UpgradeModal';
+import { RewardModal, MilestoneProgress } from '../components/SeriesRewards';
 
 const STATUS_CONFIG = {
   planned: { color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20', label: 'Planned', icon: Clock },
@@ -49,6 +50,10 @@ export default function SeriesTimeline() {
   const [myChars, setMyChars] = useState([]);
   const [showCharPicker, setShowCharPicker] = useState(false);
   const [attaching, setAttaching] = useState(false);
+  const [confirmingExtraction, setConfirmingExtraction] = useState(false);
+  const [rewardsData, setRewardsData] = useState(null);
+  const [activeReward, setActiveReward] = useState(null);
+  const [claimingReward, setClaimingReward] = useState(false);
 
   const fetchSeries = useCallback(async () => {
     try {
@@ -112,6 +117,36 @@ export default function SeriesTimeline() {
     setPolling(id);
     return () => clearInterval(id);
   }, [data?.episodes, seriesId, polling, fetchSeries]);
+
+  // Fetch rewards data
+  useEffect(() => {
+    if (!seriesId) return;
+    api.get(`/api/story-series/${seriesId}/rewards`).then(res => {
+      setRewardsData(res.data);
+      // Auto-show first pending reward
+      if (res.data.pending_rewards?.length > 0) {
+        setActiveReward(res.data.pending_rewards[0]);
+      }
+    }).catch(() => {});
+  }, [seriesId, data?.episodes?.length]);
+
+  const handleClaimReward = async (milestone) => {
+    setClaimingReward(true);
+    try {
+      const res = await api.post(`/api/story-series/${seriesId}/claim-reward?milestone=${milestone}`);
+      if (res.data.success) {
+        toast.success(`${res.data.title} claimed!`);
+        setActiveReward(null);
+        // Refresh rewards
+        const rewardsRes = await api.get(`/api/story-series/${seriesId}/rewards`);
+        setRewardsData(rewardsRes.data);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to claim reward');
+    } finally {
+      setClaimingReward(false);
+    }
+  };
 
   const fetchSuggestions = async () => {
     setLoadingSuggestions(true);
@@ -232,6 +267,30 @@ export default function SeriesTimeline() {
     }
   };
 
+  const handleConfirmExtraction = async () => {
+    if (!data?.series?.extracted_characters?.length) return;
+    setConfirmingExtraction(true);
+    try {
+      const chars = data.series.extracted_characters.map(c => ({ ...c, confirmed: true }));
+      const res = await api.post(`/api/story-series/${seriesId}/confirm-characters`, { characters: chars });
+      if (res.data.success) {
+        toast.success(`${res.data.created} character${res.data.created !== 1 ? 's' : ''} locked!`);
+        await fetchSeries();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Confirmation failed');
+    } finally {
+      setConfirmingExtraction(false);
+    }
+  };
+
+  const handleDismissExtraction = async () => {
+    try {
+      await api.post(`/api/story-series/${seriesId}/dismiss-extraction`);
+      await fetchSeries();
+    } catch { /* non-critical */ }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -324,6 +383,59 @@ export default function SeriesTimeline() {
                 </p>
               )}
             </div>
+
+            {/* Extraction Confirmation Banner */}
+            {series.extraction_status === 'pending_confirmation' && series.extracted_characters?.length > 0 && (
+              <div className="bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 border border-cyan-500/30 rounded-xl p-4" data-testid="extraction-banner">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Users className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-white mb-1">Characters Detected</h3>
+                    <div className="space-y-1.5 mb-3">
+                      {series.extracted_characters.map((c, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <CheckCircle className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                          <span className="text-white font-medium">{c.name}</span>
+                          <span className="text-slate-500">({c.role_importance || c.role})</span>
+                          <span className="text-slate-600 ml-auto">{Math.round(c.confidence * 100)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleConfirmExtraction}
+                        disabled={confirmingExtraction}
+                        className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs gap-1.5"
+                        data-testid="confirm-extraction-btn"
+                      >
+                        {confirmingExtraction ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                        Lock All
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleDismissExtraction}
+                        className="text-slate-400 hover:text-white text-xs"
+                        data-testid="dismiss-extraction-btn"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Milestone Progress & Rewards */}
+            {rewardsData && (
+              <MilestoneProgress
+                rewards={rewardsData}
+                onViewReward={(reward) => setActiveReward(reward)}
+              />
+            )}
 
             {/* Emotional Arc (Phase 3) */}
             {emotionalArc.length > 1 && (
@@ -744,6 +856,16 @@ export default function SeriesTimeline() {
         reason={upgradeModal.reason}
         context={upgradeModal.context}
       />
+
+      {activeReward && (
+        <RewardModal
+          reward={activeReward}
+          seriesId={seriesId}
+          onClaim={handleClaimReward}
+          onDismiss={() => setActiveReward(null)}
+          claiming={claimingReward}
+        />
+      )}
     </div>
   );
 }

@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://pricing-paywall.preview.emergentagent.com
+**Website:** https://viral-loop-2.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

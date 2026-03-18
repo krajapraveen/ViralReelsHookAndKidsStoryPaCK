@@ -141,6 +141,7 @@ import GrowthDashboard from './pages/Admin/GrowthDashboard';
 import CharacterCreator from './pages/CharacterCreator';
 import CharacterLibrary from './pages/CharacterLibrary';
 import CharacterDetail from './pages/CharacterDetail';
+import PublicCharacterPage from './pages/PublicCharacterPage';
 import './App.css';
 
 function App() {
@@ -182,6 +183,7 @@ function App() {
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/v/:slug" element={<PublicCreation />} />
+        <Route path="/character/:characterId" element={<PublicCharacterPage />} />
         <Route path="/creator/:username" element={<CreatorProfile />} />
         <Route path="/series/:seriesId" element={<PublicSeries />} />
         

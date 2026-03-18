@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://pricing-paywall.preview.emergentagent.com  
+**Base URL:** https://viral-loop-2.preview.emergentagent.com  
 **Fork Session:** Final Release Verification
 
 ---

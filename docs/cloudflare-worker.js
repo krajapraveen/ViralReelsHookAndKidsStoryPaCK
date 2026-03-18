@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://pricing-paywall.preview.emergentagent.com';
+const BACKEND_URL = 'https://viral-loop-2.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {
