@@ -192,7 +192,7 @@ async def generate_preview(request: PreviewComicRequest, user: dict = Depends(ge
             logger.error(f"Preview generation error: {e}")
 
     if not preview_pages:
-        preview_pages = [{"url": "https://placehold.co/400x600/6b21a8/white?text=Cover+Preview", "type": "cover"}]
+        return {"success": False, "previewPages": [], "message": "Preview generation unavailable. Your book will be created when you click Generate."}
 
     return {"success": True, "previewPages": preview_pages}
 
@@ -1037,6 +1037,10 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
             job["coverUrl"] = presign_url(job["coverUrl"])
         if job.get("thumbnailUrl") and ".r2.dev/" in job["thumbnailUrl"]:
             job["thumbnailUrl"] = presign_url(job["thumbnailUrl"])
+        # Presign individual page URLs
+        for page in job.get("page_urls", []):
+            if page.get("url") and ".r2.dev/" in page["url"]:
+                page["url"] = presign_url(page["url"])
 
     # Get stage details
     stages = await db.job_stage_runs.find({"job_id": job_id}, {"_id": 0}).to_list(20)

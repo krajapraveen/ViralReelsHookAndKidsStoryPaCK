@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, ArrowRight, Wand2, BookOpen, Loader2, Download, 
-  Check, AlertTriangle, Shield, Sparkles, Crown, Eye,
+  Check, CheckCircle, AlertTriangle, Shield, Sparkles, Crown, Eye,
   Palette, FileText, Star, Zap, Heart, Ghost, Rocket, Search, Smile
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -515,16 +515,13 @@ export default function ComicStorybookBuilder() {
         pageCount: selectedPages
       });
       
-      if (res.data.previewPages) {
+      if (res.data.success && res.data.previewPages?.length > 0) {
         setPreviewPages(res.data.previewPages);
       }
+      // If preview generation failed, previewPages stays empty — honest UI will handle it
     } catch (e) {
-      toast.error('Failed to generate preview');
-      // Use placeholder previews
-      setPreviewPages([
-        { url: 'https://placehold.co/400x600/6b21a8/white?text=Cover+Preview', type: 'cover' },
-        { url: 'https://placehold.co/400x600/7c3aed/white?text=Page+1+Preview', type: 'page' }
-      ]);
+      // Preview failed — leave previewPages empty, UI shows honest "unavailable" state
+      console.warn('Preview generation unavailable:', e.message);
     }
     
     setPreviewLoading(false);
@@ -1212,6 +1209,40 @@ export default function ComicStorybookBuilder() {
                 {/* Download Buttons */}
                 {job.status === 'COMPLETED' && (
                   <div className="space-y-3 mt-6">
+                    {/* Generated Page Gallery */}
+                    {(job.page_urls?.length > 0 || job.coverUrl) && (
+                      <div className="mb-4" data-testid="generated-pages-gallery">
+                        <p className="text-xs text-slate-400 mb-2 font-medium">Your Generated Pages</p>
+                        <div className="grid grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                          {job.coverUrl && (
+                            <div className="relative rounded-lg overflow-hidden border border-slate-700 bg-slate-800" data-testid="generated-cover">
+                              <img 
+                                src={job.coverUrl} 
+                                alt="Cover" 
+                                className="w-full aspect-[3/4] object-cover"
+                                loading="lazy"
+                              />
+                              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
+                                <span className="text-[10px] text-white font-medium">Cover</span>
+                              </div>
+                            </div>
+                          )}
+                          {(job.page_urls || []).map((p, i) => (
+                            <div key={i} className="relative rounded-lg overflow-hidden border border-slate-700 bg-slate-800" data-testid={`generated-page-${p.page}`}>
+                              <img 
+                                src={p.url} 
+                                alt={`Page ${p.page}`} 
+                                className="w-full aspect-[3/4] object-cover"
+                                loading="lazy"
+                              />
+                              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
+                                <span className="text-[10px] text-white font-medium">Page {p.page}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {/* PDF Download — permanent CDN-backed asset */}
                     {job.pdfUrl && (
                       <DownloadWithExpiry
@@ -1271,13 +1302,14 @@ export default function ComicStorybookBuilder() {
             ) : (
               <div className="space-y-4">
                 {previewLoading ? (
-                  <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+                    <p className="text-sm text-slate-400">Generating cover preview...</p>
                   </div>
                 ) : previewPages.length > 0 ? (
                   <div className="grid grid-cols-2 gap-4">
                     {previewPages.map((page, idx) => (
-                      <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-800">
+                      <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-600 bg-slate-800" data-testid={`preview-card-${idx}`}>
                         <SafeImage
                           src={page.url}
                           alt={page.type === 'cover' ? 'Cover Preview' : `Page ${idx}`}
@@ -1290,23 +1322,23 @@ export default function ComicStorybookBuilder() {
                             {page.type === 'cover' ? 'Cover' : `Page ${idx}`}
                           </span>
                         </div>
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                          <span className="text-white text-xs bg-black/50 px-2 py-1 rounded">PREVIEW</span>
+                        <div className="absolute top-2 right-2">
+                          <span className="text-[9px] text-white/60 bg-black/40 px-1.5 py-0.5 rounded">AI Preview</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <BookOpen className="w-16 h-16 mx-auto text-slate-600 mb-4" />
-                    <p className="text-slate-400">Preview will appear here</p>
-                    <Button 
-                      onClick={generatePreview}
-                      variant="outline"
-                      className="mt-4 border-slate-600 text-slate-300"
-                    >
-                      <Eye className="w-4 h-4 mr-2" /> Generate Preview
-                    </Button>
+                  <div className="text-center py-8 border border-dashed border-slate-700 rounded-xl bg-slate-800/30" data-testid="preview-unavailable">
+                    <BookOpen className="w-10 h-10 mx-auto text-slate-600 mb-3" />
+                    <p className="text-sm text-slate-300 font-medium mb-1">Preview not available</p>
+                    <p className="text-xs text-slate-500 max-w-xs mx-auto mb-4">
+                      Your {selectedPages}-page {selectedGenre?.replace(/_/g, ' ')} comic book will be generated when you click the button below.
+                    </p>
+                    <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                      <CheckCircle className="w-3 h-3 text-emerald-500" />
+                      <span>All settings confirmed — ready to generate</span>
+                    </div>
                   </div>
                 )}
               </div>
