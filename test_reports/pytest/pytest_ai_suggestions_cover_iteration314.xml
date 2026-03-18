@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="25" time="76.866" timestamp="2026-03-18T15:55:56.768647+00:00" hostname="agent-env-fdc838dd-53f8-4d14-8bd0-e5aaa79b86f9"><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_requires_auth" time="0.858" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_returns_200" time="12.153" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_returns_success_true" time="0.014"><failure message="requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))">/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:791: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:537: in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:461: in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:1395: in getresponse
+    response.begin()
+/usr/local/lib/python3.11/http/client.py:325: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:294: in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+E   http.client.RemoteDisconnected: Remote end closed connection without response
+
+During handling of the above exception, another exception occurred:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:644: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:845: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:470: in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/util/util.py:38: in reraise
+    raise value.with_traceback(tb)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:791: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:537: in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:461: in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:1395: in getresponse
+    response.begin()
+/usr/local/lib/python3.11/http/client.py:325: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:294: in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+E   urllib3.exceptions.ProtocolError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+
+During handling of the above exception, another exception occurred:
+tests/test_ai_suggestions_cover_generation_iteration314.py:77: in test_suggestions_returns_success_true
+    response = authenticated_client.post(
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:637: in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:659: in send
+    raise ConnectionError(err, request=request)
+E   requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))</failure></testcase><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_returns_array" time="6.344" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_returns_4_items" time="8.186" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestion_has_required_fields" time="8.241" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestion_direction_types" time="8.807" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_reference_characters" time="7.875" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_not_generic" time="8.615" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestAISuggestions" name="test_suggestions_404_for_invalid_series" time="0.069" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestCoverGeneration" name="test_generate_cover_requires_auth" time="0.176" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestCoverGeneration" name="test_generate_cover_404_for_invalid_series" time="0.065" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSeriesDetails" name="test_get_series_returns_200" time="0.060" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSeriesDetails" name="test_series_has_cover_asset_url" time="0.074" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSeriesDetails" name="test_cover_asset_url_is_valid_url" time="0.071" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSeriesDetails" name="test_cover_url_is_r2_url" time="0.067" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSeriesDetails" name="test_series_has_character_bible" time="0.066" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSeriesDetails" name="test_series_has_world_bible" time="0.063" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSeriesDetails" name="test_series_has_story_memory" time="0.066" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestMySeriesCover" name="test_my_series_returns_200" time="0.060" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestMySeriesCover" name="test_my_series_has_series_array" time="0.058" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestMySeriesCover" name="test_series_in_list_has_cover_asset_url" time="0.064" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestMySeriesCover" name="test_fox_forest_has_cover_url" time="0.066" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSuggestionsContext" name="test_suggestions_reference_world_elements" time="7.554" /><testcase classname="tests.test_ai_suggestions_cover_generation_iteration314.TestSuggestionsContext" name="test_suggestions_have_varied_excitement" time="6.990" /></testsuite></testsuites>

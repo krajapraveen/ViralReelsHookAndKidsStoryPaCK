@@ -670,25 +670,91 @@ async def get_suggestions(series_id: str, user: dict = Depends(get_current_user)
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
+    # Fetch rich context: memory, characters, world, recent episodes
     memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
-    mem_ctx = json.dumps(
-        {k: v for k, v in (memory or {}).items() if k not in ("_id", "story_memory_id", "series_id", "updated_at")},
-        indent=2,
-    )[:3000]
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    recent_eps = await db.story_episodes.find(
+        {"series_id": series_id},
+        {"_id": 0, "title": 1, "episode_number": 1, "summary": 1, "cliffhanger": 1, "status": 1},
+    ).sort("episode_number", -1).to_list(5)
+
+    # Build structured context
+    ctx_parts = [f"Series: {series.get('title')}", f"Genre: {series.get('genre')}"]
+
+    # Characters with goals and relationships
+    if char_bible and char_bible.get("characters"):
+        chars = char_bible["characters"][:6]
+        char_lines = []
+        for c in chars:
+            line = f"- {c.get('name', '?')} ({c.get('role', '?')}): {c.get('personality_traits', [])}"
+            if c.get("goals"):
+                line += f" | Goal: {c['goals']}"
+            if c.get("backstory"):
+                line += f" | Backstory: {str(c['backstory'])[:80]}"
+            if c.get("relationships"):
+                rels = c["relationships"]
+                if isinstance(rels, list):
+                    line += f" | Rels: {', '.join(str(r)[:40] for r in rels[:3])}"
+                elif isinstance(rels, dict):
+                    line += f" | Rels: {json.dumps(rels)[:120]}"
+            char_lines.append(line)
+        ctx_parts.append("\nCharacters:\n" + "\n".join(char_lines))
+
+    # World setting
+    if world_bible:
+        world_info = f"\nWorld: {world_bible.get('world_name', '')}"
+        if world_bible.get("setting_description"):
+            world_info += f" - {world_bible['setting_description'][:150]}"
+        if world_bible.get("lore"):
+            world_info += f"\nLore: {json.dumps(world_bible['lore'])[:200]}"
+        if world_bible.get("locations"):
+            world_info += f"\nLocations: {json.dumps(world_bible['locations'])[:200]}"
+        ctx_parts.append(world_info)
+
+    # Recent episode arc
+    if recent_eps:
+        ep_lines = []
+        for ep in reversed(recent_eps):
+            line = f"Ep{ep.get('episode_number', '?')}: {ep.get('title', '?')} [{ep.get('status', '?')}]"
+            if ep.get("summary"):
+                line += f" - {ep['summary'][:100]}"
+            if ep.get("cliffhanger"):
+                line += f" | Cliffhanger: {ep['cliffhanger'][:80]}"
+            ep_lines.append(line)
+        ctx_parts.append("\nRecent Episodes:\n" + "\n".join(ep_lines))
+
+    # Memory: open loops, pending hooks, character states
+    if memory:
+        mem_parts = []
+        if memory.get("open_loops"):
+            mem_parts.append(f"Open Loops: {json.dumps(memory['open_loops'][:5])}")
+        if memory.get("pending_hooks"):
+            mem_parts.append(f"Pending Hooks: {json.dumps(memory['pending_hooks'][:5])}")
+        if memory.get("character_states"):
+            mem_parts.append(f"Character States: {json.dumps(memory['character_states'])[:300]}")
+        if memory.get("canon_events"):
+            mem_parts.append(f"Canon Events (last 5): {json.dumps(memory['canon_events'][-5:])}")
+        if mem_parts:
+            ctx_parts.append("\nStory Memory:\n" + "\n".join(mem_parts))
+
+    user_msg = "\n".join(ctx_parts)[:4000]
 
     system_msg = (
-        'Generate 4 exciting next episode suggestions. Return ONLY valid JSON:\n'
-        '{"suggestions":[{"title":"string","description":"1-2 sentences",'
+        "You are a master storyteller. Given the full context of a series — its characters, world, "
+        "recent episodes, open plot threads, and emotional arc — generate 4 compelling next episode suggestions.\n\n"
+        "Each suggestion should:\n"
+        "- Reference specific characters, locations, or unresolved plot threads from the context\n"
+        "- Vary in tone and direction (one continuation, one twist, one high-stakes, one wildcard)\n"
+        "- Have a hook that makes the reader NEED to know what happens next\n\n"
+        'Return ONLY valid JSON:\n'
+        '{"suggestions":[{"title":"string","description":"2-3 sentences referencing characters/events",'
         '"direction_type":"continue | twist | stakes | custom",'
         '"excitement_level":"low | medium | high","emoji":"relevant_emoji"}]}'
     )
 
     try:
-        result = await _llm_json(
-            system_msg,
-            f"Series: {series.get('title')}\nGenre: {series.get('genre')}\n\nMemory:\n{mem_ctx}",
-            f"suggest_{series_id[:8]}",
-        )
+        result = await _llm_json(system_msg, user_msg, f"suggest_{series_id[:8]}")
         return {"success": True, "suggestions": result.get("suggestions", [])}
     except Exception:
         return {
@@ -1238,3 +1304,96 @@ async def get_emotional_arc(series_id: str, user: dict = Depends(get_current_use
         })
 
     return {"success": True, "series_id": series_id, "arc": arc}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 15: GENERATE SERIES COVER IMAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{series_id}/generate-cover")
+async def generate_series_cover(series_id: str, user: dict = Depends(get_current_user)):
+    """Generate a cover image for a series based on its characters, world, and genre."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
+
+    # Build an image prompt from series data
+    char_desc = ""
+    if char_bible and char_bible.get("characters"):
+        main_chars = [c for c in char_bible["characters"] if c.get("role") in ("protagonist", "sidekick")][:2]
+        if not main_chars:
+            main_chars = char_bible["characters"][:2]
+        char_desc = ", ".join(
+            f"{c.get('name', '')} ({c.get('appearance', '')[:80]}, {c.get('clothing', '')[:60]})"
+            for c in main_chars
+        )
+
+    world_desc = ""
+    if world_bible:
+        world_desc = f"{world_bible.get('world_name', '')}: {world_bible.get('setting_description', '')[:120]}"
+
+    style_map = {
+        "cartoon_2d": "vibrant cartoon illustration, clean lines, bold colors",
+        "anime": "anime art style, dramatic lighting",
+        "watercolor": "watercolor painting style, soft edges",
+        "comic": "comic book cover style, dynamic composition",
+        "cinematic": "cinematic digital painting, dramatic lighting, movie poster quality",
+    }
+    style_prompt = style_map.get(series.get("style", ""), "vibrant digital illustration, professional quality")
+
+    genre = series.get("genre", "adventure")
+    title = series.get("title", "Untitled")
+    description = series.get("description", "")[:200]
+
+    prompt = (
+        f"A stunning series cover illustration for '{title}', a {genre} story. "
+        f"{description}. "
+        f"Characters: {char_desc}. " if char_desc else f"A stunning series cover illustration for '{title}', a {genre} story. {description}. "
+    )
+    if world_desc:
+        prompt += f"Setting: {world_desc}. "
+    prompt += f"Style: {style_prompt}. Cinematic composition, eye-catching, no text or words on the image."
+
+    try:
+        from services.image_gen_direct import generate_image_direct
+        api_key = _get_llm_key()
+        image_bytes_list = await generate_image_direct(
+            api_key=api_key,
+            prompt=prompt[:4000],
+            model="gpt-image-1",
+            quality="medium",
+            size="1024x1536",
+            n=1,
+        )
+        if not image_bytes_list:
+            raise HTTPException(status_code=500, detail="Image generation returned no results")
+
+        # Upload to R2
+        from services.cloudflare_r2_storage import upload_image_bytes
+        success, cover_url = await upload_image_bytes(
+            image_bytes_list[0],
+            f"cover_{series_id[:8]}.png",
+            series_id,
+        )
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to upload cover image")
+
+        # Save URL to series
+        await db.story_series.update_one(
+            {"series_id": series_id},
+            {"$set": {"cover_asset_url": cover_url, "updated_at": _now()}},
+        )
+
+        logger.info(f"Generated cover for series {series_id}: {cover_url}")
+        return {"success": True, "cover_url": cover_url, "series_id": series_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Cover generation failed for {series_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Cover generation failed: {str(e)}")

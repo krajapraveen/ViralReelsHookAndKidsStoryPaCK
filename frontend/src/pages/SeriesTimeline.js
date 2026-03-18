@@ -6,7 +6,8 @@ import {
   ArrowLeft, Loader2, Play, Sparkles, Flame, Zap,
   RotateCcw, ChevronDown, Film, Clock, CheckCircle,
   AlertCircle, Users, Globe, BookOpen, Eye, Download,
-  GitBranch, Share2, Lock, Unlock, Heart, TrendingUp
+  GitBranch, Share2, Lock, Unlock, Heart, TrendingUp,
+  ImageIcon
 } from 'lucide-react';
 import api from '../utils/api';
 import { UpgradeModal } from '../components/UpgradeModal';
@@ -42,6 +43,7 @@ export default function SeriesTimeline() {
   const [emotionalArc, setEmotionalArc] = useState([]);
   const [enhancing, setEnhancing] = useState(null);
   const [sharing, setSharing] = useState(false);
+  const [generatingCover, setGeneratingCover] = useState(false);
   const [upgradeModal, setUpgradeModal] = useState({ open: false, reason: '', context: {} });
 
   const fetchSeries = useCallback(async () => {
@@ -201,6 +203,21 @@ export default function SeriesTimeline() {
     }
   };
 
+  const handleGenerateCover = async () => {
+    setGeneratingCover(true);
+    try {
+      const res = await api.post(`/api/story-series/${seriesId}/generate-cover`);
+      if (res.data.success) {
+        toast.success('Cover image generated!');
+        await fetchSeries();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Cover generation failed');
+    } finally {
+      setGeneratingCover(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -240,6 +257,17 @@ export default function SeriesTimeline() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGenerateCover}
+                disabled={generatingCover}
+                className="border-slate-700 text-slate-400 hover:text-white gap-1.5 text-xs"
+                data-testid="generate-cover-btn"
+              >
+                {generatingCover ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImageIcon className="w-3 h-3" />}
+                {generatingCover ? 'Generating...' : series.cover_asset_url ? 'Regenerate Cover' : 'Generate Cover'}
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -435,6 +463,17 @@ export default function SeriesTimeline() {
 
           {/* Right Sidebar (2 cols) */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Cover Image */}
+            {series.cover_asset_url && (
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden" data-testid="cover-image-zone">
+                <img
+                  src={series.cover_asset_url}
+                  alt={`${series.title} cover`}
+                  className="w-full aspect-[2/3] object-cover"
+                />
+              </div>
+            )}
+
             {/* Action Zone */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid="action-zone">
               <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">

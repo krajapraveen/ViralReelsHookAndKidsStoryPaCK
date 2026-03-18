@@ -119,7 +119,11 @@ function SeriesCompulsionCard({ series: s, navigate }) {
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-lg bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
-              <BookOpen className="w-4 h-4 text-indigo-400" />
+              {s.cover_asset_url ? (
+                <img src={s.cover_asset_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
+              ) : (
+                <BookOpen className="w-4 h-4 text-indigo-400" />
+              )}
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-white truncate">{s.title}</h3>
