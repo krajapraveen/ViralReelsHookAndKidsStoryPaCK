@@ -19,7 +19,7 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
 
 ## Story Series Engine — Complete Architecture
 
-### Backend: 14 API Endpoints
+### Backend: 15 API Endpoints
 | # | Endpoint | Phase | Auth | Description |
 |---|----------|-------|------|-------------|
 | 1 | POST /create | 1 | Yes | Creates series with LLM foundation |
@@ -27,7 +27,7 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
 | 3 | GET /{id} | 1 | Yes | Full details + timeline |
 | 4 | POST /{id}/plan-episode | 1 | Yes | LLM plans next episode |
 | 5 | POST /{id}/generate-episode | 1 | Yes | Generates via pipeline |
-| 6 | POST /{id}/suggestions | 1 | Yes | AI next-episode ideas |
+| 6 | POST /{id}/suggestions | 1 | Yes | AI next-episode ideas (enriched) |
 | 7 | POST /{id}/update-memory | 1 | Yes | Atomic memory update |
 | 8 | GET /{id}/episode/{eid}/status | 1 | Yes | Strict validation |
 | 9 | POST /{id}/branch-episode | 2 | Yes | Branch from any episode |
@@ -36,23 +36,34 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
 | 12 | POST /{id}/enhance-characters | 3 | Yes | Deep backstory/relationships |
 | 13 | POST /{id}/enhance-world | 3 | Yes | Lore/locations/secrets |
 | 14 | GET /{id}/emotional-arc | 3 | Yes | Emotional progression |
+| 15 | POST /{id}/generate-cover | 4 | Yes | Cover image from series data |
 
-### Frontend: 4 Pages
+### Frontend: 4 Pages + Components
 - `/app/story-series` — My Series hub
 - `/app/story-series/create` — Create series form
-- `/app/story-series/:seriesId` — Timeline (4 zones: episodes, actions, suggestions, info)
+- `/app/story-series/:seriesId` — Timeline (4 zones: episodes, actions, suggestions, info + cover)
 - `/series/:seriesId` — Public series page (no auth)
+- `/app/pricing` — 4-tier subscription plans
 
 ### Data Model
-- `story_series` — Series metadata, public state
+- `story_series` — Series metadata, public state, cover_asset_url
 - `story_episodes` — Episodes with plan, status, branch info
 - `character_bibles` — Characters with backstory, relationships (enhanced)
 - `world_bibles` — World with lore, locations, secrets (enhanced)
 - `story_memories` — Canon events, open loops, character states, hooks
 
+## Monetization Engine
+- **4-tier pricing**: Free / Creator ($5.99) / Pro ($11.99) / Elite ($23.99)
+- **Credit top-ups**: 20/$2.49, 50/$4.99, 100/$8.49
+- **Per-tool credit costs**: caption=1, gif=2, photo_to_comic=3, storybook=5, story_video=10
+- **Paywall enforcement**: Backend returns 403 on series/episode limits, frontend shows UpgradeModal
+- **Behavioral compulsion**: ResumeYourStory card with urgency CTAs, SeriesTimeline auto-focus
+
 ## Testing History
 - Iteration 311: Story Series Phase 1 — 37/37 backend + all frontend (100%)
 - Iteration 312: Phase 2+3 + CTA A/B + UI — 53/53 backend + all frontend (100%)
+- Iteration 313: Pricing & Compulsion Engine — 45/45 backend + all frontend (100%)
+- Iteration 314: AI Suggestions + Cover Image — 24/25 backend + all frontend (100%)
 
 ## Completed Work Summary
 1-50. Core platform + Stability + Growth Engine + Analytics + UAT + Truth-Repair + GIF Download Pack
@@ -62,14 +73,16 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
 54. Story Series Phase 2 (branching, public series, share/growth) - DONE
 55. Story Series Phase 3 (deeper character/world bibles, emotional memory) - DONE
 56. UI Consistency pass (min-heights, aspect ratios, card sizing) - DONE
+57. Behavioral Compulsion Engine (urgency CTAs, auto-focus, action-driven copy) - DONE
+58. Pricing & Monetization Engine (4-tier plans, credits, top-ups, paywalls) - DONE
+59. Improved AI Suggestions (enriched with chars, world, episodes, memory) - DONE
+60. Series Cover Image Generation (gpt-image-1, R2 upload, sidebar display) - DONE
 
 ## Remaining Backlog
 ### P0
 - [ ] End-to-end verify Ken Burns motion in actual generated video (needs credits)
 
 ### P1
-- [ ] Improve AI suggestions quality with more memory context
-- [ ] Series cover image generation from first episode
 - [ ] Admin Dashboard UI for observability APIs
 
 ### P2
