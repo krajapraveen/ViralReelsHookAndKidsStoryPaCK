@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-18T17:05:08.507460",
+  "timestamp": "2026-03-18T17:19:32.433866",
   "status": "critical",
   "services": {
     "springboot": {
@@ -44,6 +44,6 @@
   ],
   "api_validation": {
     "/api/auth/login": true,
-    "/api/payments/products": true
+    "/api/payments/products": false
   }
 }

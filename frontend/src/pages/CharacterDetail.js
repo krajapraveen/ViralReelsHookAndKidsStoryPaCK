@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import {
   ArrowLeft, Loader2, User, Palette, BookOpen, Shield,
   ImageIcon, Clock, Target, AlertTriangle, CheckCircle,
-  Volume2, Mic
+  Volume2, Mic, Edit3, Save, Users, Heart, TrendingUp
 } from 'lucide-react';
 
 const VOICE_IDS = [
@@ -29,6 +29,11 @@ export default function CharacterDetail() {
   const [savingVoice, setSavingVoice] = useState(false);
   const [continuityData, setContinuityData] = useState(null);
   const [validating, setValidating] = useState(false);
+  const [editingVB, setEditingVB] = useState(false);
+  const [vbForm, setVbForm] = useState({});
+  const [savingVB, setSavingVB] = useState(false);
+  const [relationships, setRelationships] = useState([]);
+  const [emotionalArc, setEmotionalArc] = useState(null);
 
   const fetchData = () => {
     api.get(`/api/characters/${characterId}`)
@@ -51,6 +56,12 @@ export default function CharacterDetail() {
       }).catch(() => {});
     api.get(`/api/characters/${characterId}/continuity-history`)
       .then(r => setContinuityData(r.data))
+      .catch(() => {});
+    api.get(`/api/characters/${characterId}/relationships`)
+      .then(r => setRelationships(r.data.relationships || []))
+      .catch(() => {});
+    api.get(`/api/characters/${characterId}/emotional-arc`)
+      .then(r => setEmotionalArc(r.data))
       .catch(() => {});
   }, [characterId]);
 
@@ -77,6 +88,24 @@ export default function CharacterDetail() {
       }
     } catch (err) { toast.error('Failed to save voice profile'); }
     finally { setSavingVoice(false); }
+  };
+
+  const handleSaveVB = async () => {
+    setSavingVB(true);
+    try {
+      const res = await api.patch(`/api/characters/${characterId}/visual-bible`, vbForm);
+      if (res.data.success) {
+        toast.success(`Visual bible updated (v${res.data.new_version}). Continuity: ${res.data.continuity_check.score}/100`);
+        if (res.data.impact_warning) toast.warning(res.data.impact_warning);
+        setEditingVB(false);
+        fetchData();
+        api.get(`/api/characters/${characterId}/continuity-history`).then(r => setContinuityData(r.data)).catch(() => {});
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : detail?.reason || 'Failed to save');
+    }
+    finally { setSavingVB(false); }
   };
 
   const handleGeneratePortrait = async () => {
@@ -169,8 +198,19 @@ export default function CharacterDetail() {
           {/* Center: Visual Bible */}
           <div className="space-y-4">
             <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
-              <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5"><Palette className="w-3.5 h-3.5" /> Visual Bible</h3>
-              {vb && (
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5" /> Visual Bible
+                  {vb?.version && <span className="text-[10px] text-slate-600 ml-1">v{vb.version}</span>}
+                </h3>
+                <Button size="sm" variant="ghost" onClick={() => {
+                  if (!editingVB && vb) setVbForm({ clothing_description: vb.clothing_description, accessories: vb.accessories, color_palette: vb.color_palette, face_description: vb.face_description, hair_description: vb.hair_description });
+                  setEditingVB(!editingVB);
+                }} className="text-xs text-slate-500 h-6 px-2" data-testid="edit-vb-btn">
+                  {editingVB ? 'Cancel' : <><Edit3 className="w-3 h-3 mr-1" />Edit</>}
+                </Button>
+              </div>
+              {vb && !editingVB && (
                 <div className="space-y-2 text-xs">
                   <p className="text-slate-400">{vb.canonical_description}</p>
                   {vb.do_not_change_rules?.length > 0 && (
@@ -194,6 +234,25 @@ export default function CharacterDetail() {
                       <p className="text-slate-500 text-[10px]">{vb.negative_constraints.join(', ')}</p>
                     </div>
                   )}
+                </div>
+              )}
+              {editingVB && (
+                <div className="space-y-2">
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2 text-[10px] text-amber-300/80 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" /> Changes may affect consistency across previous episodes. Version will be bumped.
+                  </div>
+                  {['face_description', 'hair_description', 'clothing_description', 'accessories', 'color_palette'].map(field => (
+                    <div key={field}>
+                      <label className="text-[10px] text-slate-500 capitalize">{field.replace('_', ' ')}</label>
+                      <input type="text" value={vbForm[field] || ''} onChange={e => setVbForm(p => ({...p, [field]: e.target.value}))}
+                        className="w-full bg-slate-800/60 border border-slate-700 rounded px-2 py-1 text-[11px] text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  ))}
+                  <Button size="sm" onClick={handleSaveVB} disabled={savingVB} className="w-full bg-indigo-600 hover:bg-indigo-500 text-xs h-7" data-testid="save-vb-btn">
+                    {savingVB ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Save className="w-3 h-3 mr-1" />}
+                    Save & Validate
+                  </Button>
                 </div>
               )}
             </div>
@@ -355,6 +414,71 @@ export default function CharacterDetail() {
                 </div>
               )}
             </div>
+
+            {/* Relationships */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4" data-testid="relationships-zone">
+              <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5 mb-3">
+                <Users className="w-3.5 h-3.5" /> Relationships
+                <span className="ml-auto text-xs text-slate-500">{relationships.length}</span>
+              </h3>
+              {relationships.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-2">No relationships yet. Add one from another character's page or attach characters to the same series.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {relationships.map((r, i) => (
+                    <button key={i} onClick={() => navigate(`/app/characters/${r.related_character_id}`)}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg bg-slate-800/40 hover:bg-slate-800 transition-all text-left"
+                    >
+                      {r.related_portrait_url ? (
+                        <img src={r.related_portrait_url} alt="" className="w-6 h-6 rounded-md object-cover" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-md bg-slate-700 flex items-center justify-center"><User className="w-3 h-3 text-slate-500" /></div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs text-white">{r.related_name || 'Unknown'}</span>
+                        <span className="text-[10px] text-slate-500 ml-1.5">{r.related_species} {r.related_role}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          r.relationship_type === 'friend' || r.relationship_type === 'ally' ? 'bg-green-500/15 text-green-400' :
+                          r.relationship_type === 'enemy' || r.relationship_type === 'rival' ? 'bg-red-500/15 text-red-400' :
+                          'bg-slate-700 text-slate-400'
+                        }`}>{r.relationship_type}</span>
+                        <div className="text-[9px] text-slate-600 mt-0.5">{r.relationship_state}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Emotional Arc */}
+            {emotionalArc && emotionalArc.total_entries > 0 && (
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4" data-testid="emotional-arc-zone">
+                <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5 mb-3">
+                  <Heart className="w-3.5 h-3.5" /> Emotional Arc
+                  <span className="ml-auto text-xs text-slate-500 flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" /> {emotionalArc.trend}
+                  </span>
+                </h3>
+                <div className="space-y-1">
+                  {emotionalArc.arc.map((a, i) => {
+                    const emojiMap = { happy: '😊', sad: '😢', tense: '😰', scared: '😨', confident: '😤', angry: '😠', neutral: '😐', hopeful: '🌟', determined: '💪' };
+                    const barColor = { happy: 'bg-green-500', sad: 'bg-blue-500', tense: 'bg-amber-500', scared: 'bg-red-500', confident: 'bg-indigo-500', angry: 'bg-red-600', neutral: 'bg-slate-500', hopeful: 'bg-cyan-500', determined: 'bg-purple-500' };
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-[10px]">
+                        <span className="w-4 text-center">{emojiMap[a.emotion] || '😐'}</span>
+                        <span className="w-16 text-slate-500 truncate capitalize">{a.emotion}</span>
+                        <div className="flex-1 bg-slate-800 rounded-full h-1.5">
+                          <div className={`h-full rounded-full ${barColor[a.emotion] || 'bg-slate-500'}`} style={{ width: `${(a.intensity / 5) * 100}%` }} />
+                        </div>
+                        <span className="text-slate-600 w-20 truncate">{a.event_summary?.slice(0, 20)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

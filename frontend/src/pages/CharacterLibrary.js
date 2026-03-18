@@ -2,19 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { Button } from '../components/ui/button';
-import { ArrowLeft, Plus, Loader2, User, BookOpen } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, User, BookOpen, Search } from 'lucide-react';
+
+const ROLE_FILTERS = ['all', 'hero', 'villain', 'sidekick', 'narrator', 'mentor', 'trickster'];
 
 export default function CharacterLibrary() {
   const navigate = useNavigate();
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('updated_at');
 
-  useEffect(() => {
-    api.get('/api/characters/my-characters')
-      .then(res => { setCharacters(res.data.characters || []); })
+  const fetchCharacters = () => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('q', searchQuery);
+    if (roleFilter !== 'all') params.set('role', roleFilter);
+    params.set('sort_by', sortBy);
+
+    const url = searchQuery || roleFilter !== 'all'
+      ? `/api/characters/search/query?${params}`
+      : '/api/characters/my-characters';
+
+    api.get(url)
+      .then(res => setCharacters(res.data.characters || []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchCharacters(); }, [roleFilter, sortBy]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    fetchCharacters();
+  };
 
   if (loading) {
     return (
@@ -41,6 +63,35 @@ export default function CharacterLibrary() {
           <Button size="sm" onClick={() => navigate('/app/characters/create')} className="bg-indigo-600 hover:bg-indigo-500 gap-1.5" data-testid="create-character-btn">
             <Plus className="w-4 h-4" /> New Character
           </Button>
+        </div>
+
+        {/* Search / Filter / Sort */}
+        <div className="flex items-center gap-3 mb-6">
+          <form onSubmit={handleSearch} className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <input
+              type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by name..."
+              className="w-full bg-slate-900/60 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              data-testid="search-input"
+            />
+          </form>
+          <div className="flex items-center gap-1.5">
+            {ROLE_FILTERS.map(r => (
+              <button key={r} onClick={() => { setRoleFilter(r); setLoading(true); }}
+                className={`px-2.5 py-1.5 rounded-md text-xs capitalize transition-all ${roleFilter === r ? 'bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/30' : 'bg-slate-900/60 text-slate-500 hover:text-slate-300'}`}
+                data-testid={`filter-${r}`}
+              >{r}</button>
+            ))}
+          </div>
+          <select value={sortBy} onChange={e => { setSortBy(e.target.value); setLoading(true); }}
+            className="bg-slate-900/60 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 outline-none"
+            data-testid="sort-select"
+          >
+            <option value="updated_at">Last used</option>
+            <option value="created_at">Created</option>
+            <option value="name">Name</option>
+          </select>
         </div>
 
         {/* Empty state */}

@@ -260,6 +260,7 @@ async def create_character(request: CreateCharacterRequest, user: dict = Depends
     visual_bible = {
         "visual_bible_id": visual_bible_id,
         "character_id": character_id,
+        "version": 1,
         "canonical_description": visual_bible_data.get("canonical_description", ""),
         "face_description": visual_bible_data.get("face_description", request.face_description or ""),
         "hair_description": visual_bible_data.get("hair_description", request.hair_description or ""),
@@ -1266,3 +1267,355 @@ async def get_series_character_contexts(series_id: str, tool_type: str = "story_
         if ctx:
             contexts.append(ctx)
     return contexts
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPRINT C.1: EDITABLE VISUAL BIBLES (with versioning + validation)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Editable fields (safe to change)
+EDITABLE_VB_FIELDS = {
+    "clothing_description", "accessories", "color_palette",
+    "face_description", "hair_description", "body_description",
+    "canonical_description", "do_not_change_rules", "negative_constraints",
+}
+# Locked fields (require explicit style_reset flag)
+LOCKED_VB_FIELDS = {"style_lock"}
+
+
+class EditVisualBibleRequest(BaseModel):
+    clothing_description: Optional[str] = None
+    accessories: Optional[str] = None
+    color_palette: Optional[str] = None
+    face_description: Optional[str] = None
+    hair_description: Optional[str] = None
+    body_description: Optional[str] = None
+    canonical_description: Optional[str] = None
+    do_not_change_rules: Optional[List[str]] = None
+    negative_constraints: Optional[List[str]] = None
+    style_lock: Optional[str] = None
+    style_reset: bool = False  # Must be true to change style_lock
+
+
+@router.patch("/{character_id}/visual-bible")
+async def edit_visual_bible(character_id: str, request: EditVisualBibleRequest, user: dict = Depends(get_current_user)):
+    """
+    Edit visual bible with versioning + automatic continuity validation.
+    - Editable fields: clothing, accessories, color_palette, face, hair, body, canonical desc, rules
+    - Locked: style_lock (requires style_reset=true)
+    - Every edit bumps version and triggers validation
+    """
+    profile = await db.character_profiles.find_one(
+        {"character_id": character_id, "owner_user_id": user["id"]}, {"_id": 0}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    current_vb = await db.character_visual_bibles.find_one({"character_id": character_id}, {"_id": 0})
+    if not current_vb:
+        raise HTTPException(status_code=404, detail="No visual bible found")
+
+    updates = {}
+    for field in EDITABLE_VB_FIELDS:
+        val = getattr(request, field, None)
+        if val is not None:
+            updates[field] = val
+
+    # Style lock requires explicit reset
+    if request.style_lock and request.style_lock != current_vb.get("style_lock"):
+        if not request.style_reset:
+            raise HTTPException(status_code=422, detail={
+                "error": "style_lock_protected",
+                "reason": "Changing style_lock requires style_reset=true. This may affect consistency across previous episodes.",
+                "current_style": current_vb.get("style_lock"),
+            })
+        updates["style_lock"] = request.style_lock
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Safety re-check on canonical description
+    if "canonical_description" in updates:
+        safety = screen_safety(profile["name"], updates["canonical_description"])
+        if not safety["safe"]:
+            raise HTTPException(status_code=422, detail={
+                "error": "safety_block", "reason": safety["reason"], "tier": safety["tier"],
+            })
+
+    # Version bump
+    old_version = current_vb.get("version", 1)
+    new_version = old_version + 1
+    updates["version"] = new_version
+    updates["updated_at"] = _now()
+
+    # Archive old version
+    await db.character_visual_bible_history.insert_one({
+        "character_id": character_id,
+        "version": old_version,
+        "snapshot": {k: v for k, v in current_vb.items() if k != "_id"},
+        "archived_at": _now(),
+    })
+
+    await db.character_visual_bibles.update_one(
+        {"character_id": character_id}, {"$set": updates}
+    )
+
+    # Auto-validate continuity after edit
+    await db.character_visual_bibles.find_one({"character_id": character_id}, {"_id": 0})
+    pkg = await build_character_prompt_package(character_id)
+    prompt_text = format_prompt_package_for_llm(pkg) if pkg else ""
+    validation = await validate_character_continuity(character_id, prompt_text, profile.get("portrait_url"), "visual_edit")
+
+    logger.info(f"Visual bible edited for {character_id}: v{old_version}->v{new_version}, continuity={validation['continuity_score']}")
+
+    return {
+        "success": True,
+        "character_id": character_id,
+        "old_version": old_version,
+        "new_version": new_version,
+        "updated_fields": list(updates.keys()),
+        "continuity_check": {
+            "score": validation["continuity_score"],
+            "drift_flags": validation["drift_flags"],
+            "summary": validation["summary"],
+        },
+        "impact_warning": "This change may affect consistency across previous episodes." if new_version > 2 else None,
+    }
+
+
+@router.get("/{character_id}/visual-bible-history")
+async def get_visual_bible_history(character_id: str, user: dict = Depends(get_current_user)):
+    """Get version history of visual bible edits."""
+    profile = await db.character_profiles.find_one(
+        {"character_id": character_id, "owner_user_id": user["id"]}, {"_id": 0, "character_id": 1}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    history = await db.character_visual_bible_history.find(
+        {"character_id": character_id}, {"_id": 0}
+    ).sort("version", -1).to_list(50)
+
+    current = await db.character_visual_bibles.find_one({"character_id": character_id}, {"_id": 0})
+
+    return {
+        "success": True,
+        "character_id": character_id,
+        "current_version": current.get("version", 1) if current else 0,
+        "history": history,
+        "total_versions": len(history) + 1,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPRINT C.2: RELATIONSHIP GRAPH (lightweight)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+RELATIONSHIP_TYPES = {"friend", "enemy", "mentor", "family", "rival", "ally", "unknown"}
+RELATIONSHIP_STATES = {"trusting", "conflict", "neutral", "developing", "broken"}
+
+
+class AddRelationshipRequest(BaseModel):
+    related_character_id: str
+    relationship_type: str = "unknown"
+    relationship_state: str = "neutral"
+
+
+@router.post("/{character_id}/relationships")
+async def add_relationship(character_id: str, request: AddRelationshipRequest, user: dict = Depends(get_current_user)):
+    """Add or update a relationship between two characters."""
+    # Verify both characters owned by user
+    profile = await db.character_profiles.find_one(
+        {"character_id": character_id, "owner_user_id": user["id"]}, {"_id": 0, "character_id": 1, "name": 1}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    related = await db.character_profiles.find_one(
+        {"character_id": request.related_character_id, "owner_user_id": user["id"]}, {"_id": 0, "character_id": 1, "name": 1}
+    )
+    if not related:
+        raise HTTPException(status_code=404, detail="Related character not found")
+
+    if character_id == request.related_character_id:
+        raise HTTPException(status_code=400, detail="Cannot create self-relationship")
+
+    rel_type = request.relationship_type if request.relationship_type in RELATIONSHIP_TYPES else "unknown"
+    rel_state = request.relationship_state if request.relationship_state in RELATIONSHIP_STATES else "neutral"
+
+    # Upsert both directions (A->B and B->A)
+    for src, dst in [(character_id, request.related_character_id), (request.related_character_id, character_id)]:
+        await db.character_relationships.update_one(
+            {"character_id": src, "related_character_id": dst},
+            {"$set": {
+                "relationship_id": _uuid(),
+                "character_id": src,
+                "related_character_id": dst,
+                "relationship_type": rel_type,
+                "relationship_state": rel_state,
+                "last_updated_episode_id": None,
+                "updated_at": _now(),
+            }},
+            upsert=True,
+        )
+
+    logger.info(f"Relationship set: {profile['name']} <-> {related['name']}: {rel_type}/{rel_state}")
+    return {
+        "success": True,
+        "character_id": character_id,
+        "related_character_id": request.related_character_id,
+        "relationship_type": rel_type,
+        "relationship_state": rel_state,
+        "character_name": profile["name"],
+        "related_name": related["name"],
+    }
+
+
+@router.get("/{character_id}/relationships")
+async def get_relationships(character_id: str, user: dict = Depends(get_current_user)):
+    """Get relationship graph for a character."""
+    profile = await db.character_profiles.find_one(
+        {"character_id": character_id, "owner_user_id": user["id"]}, {"_id": 0, "character_id": 1}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    rels = await db.character_relationships.find(
+        {"character_id": character_id}, {"_id": 0}
+    ).to_list(50)
+
+    # Enrich with names and portraits
+    for r in rels:
+        related = await db.character_profiles.find_one(
+            {"character_id": r["related_character_id"]},
+            {"_id": 0, "name": 1, "portrait_url": 1, "species_or_type": 1, "role": 1}
+        )
+        if related:
+            r["related_name"] = related["name"]
+            r["related_portrait_url"] = related.get("portrait_url")
+            r["related_species"] = related.get("species_or_type", "")
+            r["related_role"] = related.get("role", "")
+
+    return {"success": True, "character_id": character_id, "relationships": rels, "total": len(rels)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPRINT C.3: EMOTIONAL MEMORY (simple categorical model)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+EMOTIONS = {"happy", "sad", "tense", "scared", "confident", "angry", "neutral", "hopeful", "determined"}
+
+
+@router.get("/{character_id}/emotional-arc")
+async def get_emotional_arc(character_id: str, user: dict = Depends(get_current_user)):
+    """Get emotional arc — simple emotion + intensity per episode."""
+    profile = await db.character_profiles.find_one(
+        {"character_id": character_id, "owner_user_id": user["id"]}, {"_id": 0, "character_id": 1}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    memories = await db.character_memory_logs.find(
+        {"character_id": character_id}, {"_id": 0}
+    ).sort("timestamp", 1).to_list(100)
+
+    # Build simple emotional arc from memory logs
+    arc = []
+    for m in memories:
+        emotion_raw = m.get("emotion_state", "neutral")
+        # Normalize emotion to our simple categorical model
+        emotion = emotion_raw.lower().strip() if emotion_raw else "neutral"
+        if emotion not in EMOTIONS:
+            # Map common variants
+            mapping = {
+                "afraid": "scared", "fearful": "scared", "worried": "tense",
+                "relieved": "happy", "excited": "happy", "joyful": "happy",
+                "anxious": "tense", "nervous": "tense", "frustrated": "angry",
+                "brave": "confident", "courageous": "determined",
+            }
+            emotion = mapping.get(emotion, "neutral")
+
+        # Derive intensity from context (simple heuristic)
+        intensity = 3  # default medium
+        event = m.get("event_summary", "")
+        if any(w in event.lower() for w in ["rescued", "saved", "victory", "defeated"]):
+            intensity = 5
+        elif any(w in event.lower() for w in ["danger", "storm", "attack", "crisis"]):
+            intensity = 4
+        elif any(w in event.lower() for w in ["worried", "uncertain", "confused"]):
+            intensity = 2
+
+        arc.append({
+            "episode_id": m.get("episode_id"),
+            "emotion": emotion,
+            "intensity": intensity,
+            "event_summary": event[:100],
+            "timestamp": m.get("timestamp"),
+        })
+
+    # Derive trend
+    trend = "stable"
+    if len(arc) >= 2:
+        emotions_list = [a["emotion"] for a in arc]
+        positive = {"happy", "confident", "hopeful", "determined"}
+        negative = {"sad", "scared", "angry", "tense"}
+        pos_count = sum(1 for e in emotions_list[-3:] if e in positive)
+        neg_count = sum(1 for e in emotions_list[-3:] if e in negative)
+        if pos_count > neg_count:
+            trend = "improving"
+        elif neg_count > pos_count:
+            trend = "declining"
+
+    return {
+        "success": True,
+        "character_id": character_id,
+        "arc": arc,
+        "total_entries": len(arc),
+        "trend": trend,
+        "current_emotion": arc[-1]["emotion"] if arc else "neutral",
+        "current_intensity": arc[-1]["intensity"] if arc else 3,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPRINT C.4: LIBRARY SEARCH/FILTER (basic)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/search/query")
+async def search_characters(
+    q: str = "",
+    role: str = "",
+    sort_by: str = "updated_at",
+    user: dict = Depends(get_current_user),
+):
+    """Search and filter characters. Basic: name search, role filter, sort."""
+    query = {"owner_user_id": user["id"], "status": {"$in": ["active", "retired"]}}
+
+    if q:
+        query["name"] = {"$regex": q, "$options": "i"}
+    if role:
+        query["role"] = role
+
+    sort_field = "updated_at"
+    if sort_by == "name":
+        sort_field = "name"
+    elif sort_by == "created_at":
+        sort_field = "created_at"
+
+    sort_dir = -1 if sort_field != "name" else 1
+
+    characters = await db.character_profiles.find(query, {"_id": 0}).sort(sort_field, sort_dir).to_list(100)
+
+    # Enrich
+    for c in characters:
+        vb = await db.character_visual_bibles.find_one(
+            {"character_id": c["character_id"]},
+            {"_id": 0, "canonical_description": 1, "style_lock": 1, "version": 1},
+        )
+        c["visual_summary"] = vb.get("canonical_description", "")[:150] if vb else ""
+        c["style_lock"] = vb.get("style_lock", "") if vb else ""
+        c["vb_version"] = vb.get("version", 1) if vb else 0
+        mem_count = await db.character_memory_logs.count_documents({"character_id": c["character_id"]})
+        c["memory_entries"] = mem_count
+
+    return {"success": True, "characters": characters, "total": len(characters), "query": q, "role_filter": role}
