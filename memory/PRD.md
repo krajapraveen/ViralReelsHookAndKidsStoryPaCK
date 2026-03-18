@@ -11,85 +11,108 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
 - **Other**: Redis, Cashfree, SendGrid (BLOCKED), apscheduler, FFmpeg
 
 ## Key Principles
-1. **Truth-Driven Pipelines**: Strict state machine (INIT → GENERATING → VALIDATING → READY/FAILED). Never fake output.
-2. **No Fake UI States**: Frontend never shows placehold.co, empty cards, or "saved" without real asset.
+1. **Truth-Driven Pipelines**: Strict state machine (INIT -> GENERATING -> VALIDATING -> READY/FAILED). Never fake output.
+2. **Character Memory = Structured Persistence**: Not a prompt shortcut. Identity + Visual Bible + Memory Log + Safety Profile + Prompt Package Builder.
 3. **Universal Negative Prompt**: All image generation paths include comprehensive quality/safety negative prompt.
-4. **PLAN → GENERATE Flow**: Story Series Engine enforces strict 2-step flow. Never generate without planning first.
-5. **Atomic Memory Updates**: Story memory updates use retry logic (3 attempts) and safe deduplication.
+4. **PLAN -> GENERATE Flow**: Story Series Engine enforces strict 2-step flow.
+5. **3-Tier Safety**: Keyword screening + similarity flagging + no persistent storage of risky profiles.
 
-## Story Series Engine — Complete Architecture
+## AI Character Memory — Complete Architecture
 
-### Backend: 15 API Endpoints
-| # | Endpoint | Phase | Auth | Description |
-|---|----------|-------|------|-------------|
-| 1 | POST /create | 1 | Yes | Creates series with LLM foundation |
-| 2 | GET /my-series | 1 | Yes | User's active/paused series |
-| 3 | GET /{id} | 1 | Yes | Full details + timeline |
-| 4 | POST /{id}/plan-episode | 1 | Yes | LLM plans next episode |
-| 5 | POST /{id}/generate-episode | 1 | Yes | Generates via pipeline |
-| 6 | POST /{id}/suggestions | 1 | Yes | AI next-episode ideas (enriched) |
-| 7 | POST /{id}/update-memory | 1 | Yes | Atomic memory update |
-| 8 | GET /{id}/episode/{eid}/status | 1 | Yes | Strict validation |
-| 9 | POST /{id}/branch-episode | 2 | Yes | Branch from any episode |
-| 10 | GET /public/{id} | 2 | No | Public series view |
-| 11 | POST /{id}/share | 2 | Yes | Toggle public + share URL |
-| 12 | POST /{id}/enhance-characters | 3 | Yes | Deep backstory/relationships |
-| 13 | POST /{id}/enhance-world | 3 | Yes | Lore/locations/secrets |
-| 14 | GET /{id}/emotional-arc | 3 | Yes | Emotional progression |
-| 15 | POST /{id}/generate-cover | 4 | Yes | Cover image from series data |
+### Backend: 7 API Endpoints + 2 Internal Functions
+| # | Endpoint | Auth | Description |
+|---|----------|------|-------------|
+| 1 | POST /api/characters/create | Yes | Creates character with LLM-generated visual bible |
+| 2 | GET /api/characters/my-characters | Yes | List user's characters |
+| 3 | GET /api/characters/{id} | Yes | Full detail: profile + visual bible + safety + memory |
+| 4 | PATCH /api/characters/{id} | Yes | Update profile fields (re-checks safety) |
+| 5 | GET /api/characters/{id}/memory | Yes | Memory log timeline |
+| 6 | POST /api/characters/{id}/generate-portrait | Yes | Canonical portrait via gpt-image-1 |
+| 7 | POST /api/characters/attach-to-series/{series_id} | Yes | Link character to series |
+| Internal | build_character_prompt_package() | - | Returns 5-block generation contract |
+| Internal | write_character_memory() | - | Writes memory after episode generation |
 
-### Frontend: 4 Pages + Components
-- `/app/story-series` — My Series hub
-- `/app/story-series/create` — Create series form
-- `/app/story-series/:seriesId` — Timeline (4 zones: episodes, actions, suggestions, info + cover)
-- `/series/:seriesId` — Public series page (no auth)
-- `/app/pricing` — 4-tier subscription plans
+### Data Entities (4 Collections)
+- `character_profiles` — name, species, role, age_band, personality, backstory, goals, fears, speech_style, portrait_url, status
+- `character_visual_bibles` — canonical_description, face/hair/body/clothing, color_palette, accessories, style_lock, do_not_change_rules, negative_constraints
+- `character_memory_logs` — per-episode: event_summary, emotion_state, goal_state, relationship_changes, open_loops, resolved_loops
+- `character_safety_profiles` — is_user_uploaded_likeness, consent_status, is_minor_like, disallowed_transformations, copyright_risk_flags
 
-### Data Model
-- `story_series` — Series metadata, public state, cover_asset_url
-- `story_episodes` — Episodes with plan, status, branch info
-- `character_bibles` — Characters with backstory, relationships (enhanced)
-- `world_bibles` — World with lore, locations, secrets (enhanced)
-- `story_memories` — Canon events, open loops, character states, hooks
+### Safety Layer (3-Tier)
+- **Tier 1**: 100+ blocked IP names (Disney, Marvel, DC, Anime, Nintendo, etc.)
+- **Tier 2**: Regex patterns for similarity phrases ("like Batman", "similar to Elsa", "Marvel style hero")
+- **Tier 3**: Celebrity/real-person detection ("looks like [Name]", "resembles [Name]")
+
+### Prompt Package (5-Block Generation Contract)
+```json
+{
+  "identity_block": { "name", "role", "personality", "goals", "fears", "speech_style" },
+  "visual_lock_block": { "canonical_description", "do_not_change_rules", "style_lock" },
+  "memory_block": { "recent_events", "current_emotion", "open_loops", "relationship_changes" },
+  "scene_block": "scene context",
+  "negative_constraints": ["no character redesign", "no copyrighted resemblance", ...]
+}
+```
+
+### Pipeline Integration
+- `plan-episode` loads attached characters and injects prompt packages into LLM context
+- `generate-episode` enriches scene visual_prompts with character visual locks
+- `_update_memory_internal` writes character memory after episode reaches READY
+
+### Frontend (3 Pages + Integration)
+- `/app/characters` — Character Library (grid of cards)
+- `/app/characters/create` — 4-step Creator wizard (Identity -> Personality -> Appearance -> Review)
+- `/app/characters/:id` — Character Detail (portrait, identity, visual bible, safety, memory timeline)
+- SeriesTimeline sidebar — Attached characters zone with chips, Attach button, picker
+- Dashboard "More Tools" — Character Memory card
+
+## Story Series Engine — 15 API Endpoints
+(Unchanged from previous — see full list in previous PRD version)
 
 ## Monetization Engine
 - **4-tier pricing**: Free / Creator ($5.99) / Pro ($11.99) / Elite ($23.99)
-- **Credit top-ups**: 20/$2.49, 50/$4.99, 100/$8.49
-- **Per-tool credit costs**: caption=1, gif=2, photo_to_comic=3, storybook=5, story_video=10
-- **Paywall enforcement**: Backend returns 403 on series/episode limits, frontend shows UpgradeModal
-- **Behavioral compulsion**: ResumeYourStory card with urgency CTAs, SeriesTimeline auto-focus
+- **Paywall enforcement**: 403 on limits, UpgradeModal in frontend
 
 ## Testing History
-- Iteration 311: Story Series Phase 1 — 37/37 backend + all frontend (100%)
-- Iteration 312: Phase 2+3 + CTA A/B + UI — 53/53 backend + all frontend (100%)
-- Iteration 313: Pricing & Compulsion Engine — 45/45 backend + all frontend (100%)
-- Iteration 314: AI Suggestions + Cover Image — 24/25 backend + all frontend (100%)
-- Ken Burns Motion: 6/6 FFmpeg zoompan patterns produce detectable motion (pixel-verified)
+- Iteration 311: Story Series Phase 1 — 37/37 (100%)
+- Iteration 312: Phase 2+3 + CTA A/B + UI — 53/53 (100%)
+- Iteration 313: Pricing & Compulsion Engine — 45/45 (100%)
+- Iteration 314: AI Suggestions + Cover Image — 24/25 (100%)
+- Iteration 315: AI Character Memory — 23/23 backend + 100% frontend (100%)
+- Ken Burns Motion: 6/6 FFmpeg zoompan patterns (pixel-verified)
 
-## Completed Work Summary
-1-50. Core platform + Stability + Growth Engine + Analytics + UAT + Truth-Repair + GIF Download Pack
-51. Story Series Engine Phase 1 (8 APIs, 3 pages) - DONE
-52. Dashboard Resume Your Story → Story Series integration - DONE
-53. CTA Placement A/B Test (4th experiment: top/bottom/floating) - DONE
-54. Story Series Phase 2 (branching, public series, share/growth) - DONE
-55. Story Series Phase 3 (deeper character/world bibles, emotional memory) - DONE
-56. UI Consistency pass (min-heights, aspect ratios, card sizing) - DONE
-57. Behavioral Compulsion Engine (urgency CTAs, auto-focus, action-driven copy) - DONE
-58. Pricing & Monetization Engine (4-tier plans, credits, top-ups, paywalls) - DONE
+## Completed Work
+1-58. (Previous features — core platform, stability, growth, analytics, story series phases 1-3, pricing engine)
 59. Improved AI Suggestions (enriched with chars, world, episodes, memory) - DONE
 60. Series Cover Image Generation (gpt-image-1, R2 upload, sidebar display) - DONE
-61. Ken Burns Motion E2E Verification (6/6 FFmpeg patterns pass, pixel-level confirmed) - DONE
+61. Ken Burns Motion E2E Verification (6/6 FFmpeg patterns) - DONE
+62. AI Character Memory Phase 1 MVP - DONE
+    - character_profiles + character_visual_bibles + character_memory_logs + character_safety_profiles
+    - 3-tier safety layer (100+ blocked IPs, similarity regex, celebrity detection)
+    - LLM-generated visual bibles with canonical descriptions and locked rules
+    - Canonical portrait generation (gpt-image-1)
+    - Prompt package builder (5-block generation contract)
+    - Story Video pipeline integration (plan-episode + generate-episode + memory write)
+    - Character Creator (4-step wizard), Library, Detail pages
+    - Series Timeline character attach UI
 
 ## Remaining Backlog
-### P0
-- [x] End-to-end verify Ken Burns motion in actual generated video — VERIFIED (6/6 patterns pass)
 
-### P1
+### Phase 2 — Character Memory
+- [ ] Voice profile entity + TTS integration
+- [ ] Relationship graph entity + visualization
+- [ ] Continuity validator (post-generation check)
+- [ ] Character Library UI enhancements
+
+### Phase 3 — Character Memory
+- [ ] Editable visual bibles with live preview
+- [ ] Real-person consent workflows
+- [ ] Advanced emotional memory
+- [ ] Cross-tool character persistence (comic, GIF, storybook pipelines)
+
+### Other
 - [ ] Admin Dashboard UI for observability APIs
-
-### P2
 - [ ] Growth loop: series completion rewards
-- [ ] Advanced emotional memory with mood tracking per character
 - [ ] Style preset preview thumbnails for Photo to Comic
 
 ### BLOCKED
