@@ -427,6 +427,7 @@ export default function ComicStorybookBuilder() {
   // Generation state
   const [loading, setLoading] = useState(false);
   const [job, setJob] = useState(null);
+  const [generationStartTime, setGenerationStartTime] = useState(null);
   const pollingRef = useRef(null);
   
   // Modals
@@ -575,6 +576,7 @@ export default function ComicStorybookBuilder() {
     
     setLoading(true);
     setJob(null);
+    setGenerationStartTime(Date.now());
     
     try {
       const res = await api.post('/api/comic-storybook-v2/generate', {
@@ -1183,9 +1185,8 @@ export default function ComicStorybookBuilder() {
                   <WaitingWithGames 
                     progress={job.progress || 0}
                     status={job.progressMessage || (job.status === 'QUEUED' ? 'In queue...' : 'Creating your comic book...')}
-                    estimatedTime="2-5 minutes"
+                    estimatedTime="4-7 minutes"
                     onCancel={() => {
-                      // Could add cancel logic here
                       toast.info('Generation in progress - please wait');
                     }}
                     currentFeature="/app/comic-storybook"
@@ -1193,7 +1194,7 @@ export default function ComicStorybookBuilder() {
                   />
                 ) : (
                   <>
-                    {/* Status Badge */}
+                    {/* Status Badge + Generation Time */}
                     <div className="flex items-center justify-between">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         job.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
@@ -1202,6 +1203,11 @@ export default function ComicStorybookBuilder() {
                       }`}>
                         {job.status}
                       </span>
+                      {job.status === 'COMPLETED' && generationStartTime && (
+                        <span className="text-xs text-slate-400" data-testid="generation-time">
+                          Generated in {Math.floor((Date.now() - generationStartTime) / 60000)}m {Math.floor(((Date.now() - generationStartTime) / 1000) % 60)}s
+                        </span>
+                      )}
                     </div>
                   </>
                 )}

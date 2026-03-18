@@ -24,19 +24,34 @@ export default function PermanentDownload({
     }
     setIsDownloading(true);
     try {
+      // Fetch as blob for cross-origin downloads (R2 presigned URLs)
+      const response = await fetch(downloadUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = downloadUrl;
+      a.href = blobUrl;
       a.download = filename || 'download';
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
       setDownloaded(true);
       toast.success('Download started!');
     } catch {
-      window.open(downloadUrl, '_blank');
-      toast.success('Download started!');
+      // Fallback: open URL directly (still better than blank page)
+      try {
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename || 'download';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setDownloaded(true);
+        toast.success('Download started!');
+      } catch {
+        toast.error('Download failed. Please try again.');
+      }
     } finally {
       setIsDownloading(false);
     }
