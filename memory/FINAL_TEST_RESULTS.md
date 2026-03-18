@@ -464,7 +464,7 @@
 
 ## 🌐 ACCESS INFORMATION
 
-**Website:** https://growth-funnel-stable.preview.emergentagent.com
+**Website:** https://stateful-stories.preview.emergentagent.com
 
 **Admin Credentials:**
 - Email: admin@creatorstudio.ai

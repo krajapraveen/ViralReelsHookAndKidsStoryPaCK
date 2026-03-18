@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://growth-funnel-stable.preview.emergentagent.com
+API URL: https://stateful-stories.preview.emergentagent.com
 ```
 
 ### Results Summary

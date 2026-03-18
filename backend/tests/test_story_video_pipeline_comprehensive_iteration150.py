@@ -10,7 +10,7 @@ Full production verification including:
 - All endpoint authentication checks
 
 Test User: test@visionary-suite.com / Test@2026#
-Preview URL: https://growth-funnel-stable.preview.emergentagent.com
+Preview URL: https://stateful-stories.preview.emergentagent.com
 """
 
 import pytest

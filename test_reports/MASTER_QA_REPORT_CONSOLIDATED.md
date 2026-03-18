@@ -3,7 +3,7 @@
 
 **Date:** February 18, 2026  
 **QA Lead:** E1 (Emergent Agent)  
-**Base URL:** https://growth-funnel-stable.preview.emergentagent.com  
+**Base URL:** https://stateful-stories.preview.emergentagent.com  
 **Forks Consolidated:** Current + Previous 5 Forks
 
 ---

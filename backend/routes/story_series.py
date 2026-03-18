@@ -1,522 +1,673 @@
 """
-Story Series Module - Kids Story Series Mode
-Creates episode series from stories with consistency rules
-Route: /app/story-series
+Story Series Engine — Stateful Narrative System
+================================================
+Turns one-off creations into ongoing story universes with:
+- Structured story memory (canon events, open loops, character states)
+- Character/World bibles for visual + narrative consistency
+- 2-step episode flow: PLAN → GENERATE (never skip planning)
+- Return hooks (suggestions, cliffhangers, branches)
+
+Collections: story_series, story_episodes, character_bibles, world_bibles, story_memories
 """
-from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
-import uuid
-import json
-import sys
+
 import os
+import json
+import uuid
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+logger = logging.getLogger("story_series")
 
-from shared import db, logger, get_current_user, log_exception
-from security import limiter
+router = APIRouter(prefix="/story-series", tags=["Story Series Engine"])
 
-router = APIRouter(prefix="/story-series", tags=["Story Series"])
+UNIVERSAL_NEGATIVE_PROMPT = (
+    "low quality, blurry, pixelated, distorted, deformed, bad anatomy, bad proportions, "
+    "extra limbs, extra fingers, missing fingers, mutated hands, poorly drawn face, "
+    "asymmetrical face, duplicate characters, inconsistent character design, changing face, "
+    "changing hairstyle, changing clothing, inconsistent proportions, inconsistent art style, "
+    "unrealistic features, unnatural pose, stiff pose, lifeless expression, emotionless, "
+    "flat lighting, overexposed, underexposed, noise, grain, artifacts, watermark, text, "
+    "logo, caption, subtitle, cropped, cut off, out of frame, wrong perspective, "
+    "bad composition, cluttered background, photorealistic, horror, scary, violent, gore"
+)
 
-# =============================================================================
-# PRICING CONFIGURATION
-# =============================================================================
-SERIES_PRICING = {
-    "3_EPISODES": 8,
-    "5_EPISODES": 12,
-    "7_EPISODES": 18,
-    "CHARACTER_BIBLE": 5,
-}
+def _now():
+    return datetime.now(timezone.utc).isoformat()
 
-# =============================================================================
-# TEMPLATE-BASED GENERATION (No paid AI)
-# =============================================================================
+def _uuid():
+    return str(uuid.uuid4())
 
-# Episode structure templates
-EPISODE_TEMPLATES = {
-    "Adventure": {
-        "arc_structure": ["Discovery", "Challenge", "Growth", "Triumph", "Reflection"],
-        "hooks": [
-            "But little did {character} know, a bigger adventure awaited...",
-            "As the sun set, {character} noticed something strange...",
-            "The next morning brought an unexpected visitor...",
-            "A mysterious message arrived from far away...",
-            "Something was different about the {location} today..."
-        ],
-        "cliffhangers": [
-            "And just then, {character} heard a sound that changed everything...",
-            "But before they could celebrate, a shadow appeared...",
-            "The {item} began to glow with an unusual light...",
-            "A new friend—or was it a foe?—stepped into view...",
-            "The ground beneath them started to shake..."
-        ]
-    },
-    "Friendship": {
-        "arc_structure": ["Meeting", "Bonding", "Conflict", "Resolution", "Celebration"],
-        "hooks": [
-            "{character} wondered if their new friend felt the same way...",
-            "Tomorrow would bring a chance to prove their friendship...",
-            "But would {character}'s friend understand?",
-            "The test of true friendship was about to begin...",
-            "A special surprise was waiting just around the corner..."
-        ],
-        "cliffhangers": [
-            "And that's when {character} realized they weren't alone...",
-            "A misunderstanding threatened to tear them apart...",
-            "But their friend was nowhere to be found...",
-            "The words hung in the air between them...",
-            "Would their friendship survive this challenge?"
-        ]
-    },
-    "Mystery": {
-        "arc_structure": ["Discovery", "Investigation", "Clue", "Revelation", "Solution"],
-        "hooks": [
-            "The mystery deepened as {character} found another clue...",
-            "Someone knew more than they were telling...",
-            "The answer was closer than {character} thought...",
-            "A hidden message revealed a shocking truth...",
-            "The final piece of the puzzle was almost within reach..."
-        ],
-        "cliffhangers": [
-            "But the biggest mystery was yet to be solved...",
-            "A new clue changed everything they thought they knew...",
-            "Someone had been watching {character} all along...",
-            "The {item} held a secret no one expected...",
-            "And then the lights went out..."
-        ]
-    },
-    "Fantasy": {
-        "arc_structure": ["Portal", "Wonder", "Quest", "Magic", "Return"],
-        "hooks": [
-            "The magical world revealed another wonder...",
-            "{character}'s magical abilities were growing stronger...",
-            "A prophecy spoke of a hero who would save them all...",
-            "The ancient magic stirred once more...",
-            "Beyond the enchanted forest, destiny awaited..."
-        ],
-        "cliffhangers": [
-            "But the magic came with a price...",
-            "A dark force was awakening in the enchanted realm...",
-            "The spell had unexpected consequences...",
-            "{character}'s true power was finally revealed...",
-            "The portal between worlds was closing..."
-        ]
-    },
-    "Comedy": {
-        "arc_structure": ["Setup", "Mishap", "Chaos", "Realization", "Laughter"],
-        "hooks": [
-            "And you won't believe what happened next...",
-            "{character} had one more trick up their sleeve...",
-            "But the funniest part was yet to come...",
-            "Everyone thought the chaos was over. They were wrong...",
-            "A simple plan was about to go wonderfully wrong..."
-        ],
-        "cliffhangers": [
-            "And that's when everything got even sillier...",
-            "The hiccups just wouldn't stop...",
-            "Oh no, not again!",
-            "{character} realized they'd made a tiny mistake...",
-            "Things were about to get delightfully chaotic..."
-        ]
+def _get_llm_key():
+    key = os.getenv("EMERGENT_LLM_KEY")
+    if not key:
+        raise RuntimeError("EMERGENT_LLM_KEY not configured")
+    return key
+
+# ─── PYDANTIC MODELS ─────────────────────────────────────────────────────────
+
+class CreateSeriesRequest(BaseModel):
+    title: str
+    initial_prompt: str
+    genre: str = "adventure"
+    audience: str = "kids_5_8"
+    style: str = "cartoon_2d"
+    tool: str = "story_video"
+
+class PlanEpisodeRequest(BaseModel):
+    direction_type: str = "continue"
+    custom_prompt: Optional[str] = None
+
+class GenerateEpisodeRequest(BaseModel):
+    episode_id: str
+
+# ─── LLM HELPERS ──────────────────────────────────────────────────────────────
+
+async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series") -> dict:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    chat = LlmChat(api_key=_get_llm_key(), session_id=session_id, system_message=system_msg, model="gpt-4o-mini")
+    response = await chat.send_message_async(UserMessage(content=user_msg))
+    text = response.content.strip()
+    if "```json" in text:
+        text = text.split("```json")[1].split("```")[0].strip()
+    elif "```" in text:
+        text = text.split("```")[1].split("```")[0].strip()
+    return json.loads(text)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 1: CREATE SERIES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/create")
+async def create_series(request: CreateSeriesRequest, req=None):
+    from shared import db
+    from routes.auth import get_current_user
+
+    user = await get_current_user(req)
+    user_id = user["id"]
+
+    series_id = _uuid()
+    character_bible_id = _uuid()
+    world_bible_id = _uuid()
+    memory_id = _uuid()
+    episode_id = _uuid()
+
+    system_prompt = """You are a professional story series creator. Given an initial story prompt, generate the foundation for a multi-episode series.
+
+Return ONLY valid JSON with this EXACT structure:
+{
+  "series_description": "2-3 sentence series description",
+  "characters": [
+    {
+      "character_id": "char_1",
+      "name": "string",
+      "role": "protagonist | antagonist | sidekick | mentor",
+      "appearance": "DETAILED physical description: hair color/style, eye color, skin tone, body build, height",
+      "clothing": "EXACT outfit description with colors",
+      "voice_style": "warm | energetic | calm | dramatic",
+      "personality_traits": ["trait1", "trait2"],
+      "goals": "character goal",
+      "fears": "character fear",
+      "consistency_prompt": "A complete visual prompt that locks this character's appearance for AI image generation"
     }
-}
-
-# Scene beat templates
-SCENE_BEAT_TEMPLATES = {
-    "opening": [
-        "{character} wakes up to find {discovery}",
-        "The day begins with {event} in {location}",
-        "A letter arrives with news about {plot_point}",
-        "{character} is preparing for {activity} when {interruption} happens"
+  ],
+  "world": {
+    "world_name": "string",
+    "setting_description": "detailed setting",
+    "visual_style": "color palette and art direction",
+    "time_period": "string",
+    "recurring_locations": ["location1", "location2"],
+    "tone_rules": "overall tone",
+    "continuity_constraints": ["rule1", "rule2"]
+  },
+  "episode_1": {
+    "title": "episode title",
+    "summary": "2-3 line summary",
+    "scenes": [
+      {
+        "scene_number": 1,
+        "scene_title": "string",
+        "description": "what happens",
+        "location": "where",
+        "characters": ["char_name"],
+        "emotion": "happy | fear | tension | wonder | sadness",
+        "visual_prompt": "detailed prompt including full character appearance for consistency",
+        "motion_hint": "camera movement or character action",
+        "duration_seconds": 4
+      }
     ],
-    "rising_action": [
-        "{character} discovers {secret} hidden in {location}",
-        "An obstacle appears: {challenge}",
-        "{character} meets {new_character} who reveals {information}",
-        "The journey to {destination} is harder than expected"
-    ],
-    "climax": [
-        "{character} faces their biggest fear: {fear}",
-        "The moment of truth arrives at {location}",
-        "Everything depends on {character}'s next decision",
-        "{character} must choose between {choice_a} and {choice_b}"
-    ],
-    "falling_action": [
-        "The solution comes from an unexpected source",
-        "{character} realizes the true meaning of {theme}",
-        "Friends come together to help {character}",
-        "The {item} reveals its true purpose"
-    ],
-    "resolution": [
-        "{character} returns home changed by the adventure",
-        "A celebration honors {character}'s bravery",
-        "The lesson learned will never be forgotten",
-        "And so, {location} was peaceful once more"
-    ]
-}
+    "cliffhanger": "what hooks the next episode"
+  }
+}"""
 
-# =============================================================================
-# PYDANTIC MODELS
-# =============================================================================
+    user_prompt = f"""Create a story series foundation:
+Title: {request.title}
+Genre: {request.genre}
+Audience: {request.audience}
+Style: {request.style}
+Initial Story: {request.initial_prompt}
 
-class SeriesRequest(BaseModel):
-    storyId: Optional[str] = None
-    storySummary: Optional[str] = Field(default=None, max_length=1000)
-    characterNames: List[str] = Field(default_factory=list, max_items=5)
-    targetAgeGroup: str = Field(default="4-7")
-    theme: str = Field(default="Adventure")
-    episodeCount: int = Field(default=5, ge=3, le=7)
+Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scene visual_prompt MUST include full character appearance."""
 
+    try:
+        foundation = await _llm_json(system_prompt, user_prompt, f"create_{series_id[:8]}")
+    except Exception as e:
+        logger.error(f"LLM foundation generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate series foundation")
 
-class CharacterBibleRequest(BaseModel):
-    seriesId: str
-    characterNames: List[str]
+    characters = foundation.get("characters", [])
+    world = foundation.get("world", {})
+    ep1 = foundation.get("episode_1", {})
 
-
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
-
-def generate_episode_outline(
-    episode_num: int,
-    total_episodes: int,
-    theme: str,
-    characters: List[str],
-    base_story: dict
-) -> dict:
-    """Generate episode outline using templates (no AI cost)"""
-    import random
-    
-    template = EPISODE_TEMPLATES.get(theme, EPISODE_TEMPLATES["Adventure"])
-    arc_position = min(episode_num - 1, len(template["arc_structure"]) - 1)
-    arc_stage = template["arc_structure"][arc_position]
-    
-    # Generate episode title
-    title_templates = [
-        f"Episode {episode_num}: The {arc_stage} Begins",
-        f"Episode {episode_num}: {characters[0] if characters else 'Hero'}'s {arc_stage}",
-        f"Episode {episode_num}: A {arc_stage} to Remember",
-        f"Episode {episode_num}: The Great {arc_stage}"
-    ]
-    title = random.choice(title_templates)
-    
-    # Generate scene beats
-    main_char = characters[0] if characters else "the hero"
-    location = base_story.get("setting", "the magical land")
-    
-    beat_count = random.randint(5, 8)
-    scene_beats = []
-    
-    beat_types = ["opening", "rising_action", "rising_action", "climax", "falling_action", "resolution"]
-    for i in range(beat_count):
-        beat_type = beat_types[min(i, len(beat_types) - 1)]
-        beat_templates = SCENE_BEAT_TEMPLATES.get(beat_type, SCENE_BEAT_TEMPLATES["rising_action"])
-        beat = random.choice(beat_templates)
-        
-        # Fill in placeholders
-        beat = beat.replace("{character}", main_char)
-        beat = beat.replace("{location}", location)
-        beat = beat.replace("{discovery}", "something unexpected")
-        beat = beat.replace("{event}", "an exciting event")
-        beat = beat.replace("{plot_point}", "the quest")
-        beat = beat.replace("{activity}", "their adventure")
-        beat = beat.replace("{interruption}", "something mysterious")
-        beat = beat.replace("{secret}", "a hidden truth")
-        beat = beat.replace("{new_character}", "a mysterious stranger")
-        beat = beat.replace("{information}", "important news")
-        beat = beat.replace("{destination}", "their goal")
-        beat = beat.replace("{challenge}", "a difficult obstacle")
-        beat = beat.replace("{fear}", "their greatest challenge")
-        beat = beat.replace("{choice_a}", "one path")
-        beat = beat.replace("{choice_b}", "another path")
-        beat = beat.replace("{theme}", theme.lower())
-        beat = beat.replace("{item}", "the magical object")
-        
-        scene_beats.append(beat)
-    
-    # Generate hook and cliffhanger
-    hook = random.choice(template["hooks"]).replace("{character}", main_char).replace("{location}", location).replace("{item}", "artifact")
-    cliffhanger = random.choice(template["cliffhangers"]).replace("{character}", main_char).replace("{item}", "treasure")
-    
-    return {
-        "episodeNumber": episode_num,
-        "title": title,
-        "arcStage": arc_stage,
-        "sceneBeats": scene_beats,
-        "cliffhanger": cliffhanger if episode_num < total_episodes else "And they lived happily ever after!",
-        "nextEpisodeHook": hook if episode_num < total_episodes else None
+    char_bible = {
+        "character_bible_id": character_bible_id,
+        "series_id": series_id,
+        "characters": characters,
+        "created_at": _now(), "updated_at": _now()
     }
 
-
-def generate_character_bible(characters: List[str], theme: str) -> List[dict]:
-    """Generate character traits and catchphrases (template-based)"""
-    import random
-    
-    trait_options = {
-        "positive": ["brave", "kind", "curious", "clever", "loyal", "funny", "creative", "patient"],
-        "quirk": ["always hums when thinking", "collects shiny objects", "talks to animals", 
-                  "loves telling stories", "never gives up", "sees the good in everyone"],
-        "fear": ["the dark", "being alone", "letting friends down", "loud noises", "new places"],
-        "strength": ["problem-solving", "making friends", "staying calm", "cheering others up"]
-    }
-    
-    catchphrase_templates = [
-        "Let's go on an adventure!",
-        "Friends stick together!",
-        "I've got an idea!",
-        "Never give up!",
-        "We can do this together!",
-        "Time for some fun!",
-        "That's what friends are for!",
-        "Believe in yourself!"
-    ]
-    
-    bible = []
-    for char in characters:
-        bible.append({
-            "name": char,
-            "traits": random.sample(trait_options["positive"], 3),
-            "quirk": random.choice(trait_options["quirk"]),
-            "fear": random.choice(trait_options["fear"]),
-            "strength": random.choice(trait_options["strength"]),
-            "catchphrase": random.choice(catchphrase_templates),
-            "role": "Main Character" if bible == [] else "Supporting Character"
-        })
-    
-    return bible
-
-
-async def deduct_credits(user_id: str, amount: int, ref_type: str, ref_id: str) -> bool:
-    """Atomically deduct credits"""
-    user = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user or user.get("credits", 0) < amount:
-        raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {amount}")
-    
-    result = await db.users.update_one(
-        {"id": user_id, "credits": {"$gte": amount}},
-        {"$inc": {"credits": -amount}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=402, detail="Failed to deduct credits")
-    
-    # Log to ledger
-    await db.credit_ledger.insert_one({
-        "id": str(uuid.uuid4()),
-        "userId": user_id,
-        "entryType": "CAPTURE",
-        "amount": amount,
-        "refType": ref_type,
-        "refId": ref_id,
-        "status": "ACTIVE",
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
-    
-    return True
-
-
-# =============================================================================
-# ENDPOINTS
-# =============================================================================
-
-@router.get("/pricing")
-async def get_series_pricing():
-    """Get pricing for story series features"""
-    return {
-        "pricing": SERIES_PRICING,
-        "episodeBundles": [
-            {"episodes": 3, "credits": SERIES_PRICING["3_EPISODES"]},
-            {"episodes": 5, "credits": SERIES_PRICING["5_EPISODES"]},
-            {"episodes": 7, "credits": SERIES_PRICING["7_EPISODES"]}
-        ],
-        "addOns": [
-            {"name": "Character Bible", "credits": SERIES_PRICING["CHARACTER_BIBLE"]}
-        ]
+    world_bible = {
+        "world_bible_id": world_bible_id,
+        "series_id": series_id,
+        "world_name": world.get("world_name", request.title + " World"),
+        "setting_description": world.get("setting_description", ""),
+        "visual_style": world.get("visual_style", request.style),
+        "time_period": world.get("time_period", "fantasy"),
+        "recurring_locations": world.get("recurring_locations", []),
+        "tone_rules": world.get("tone_rules", ""),
+        "continuity_constraints": world.get("continuity_constraints", []),
+        "created_at": _now(), "updated_at": _now()
     }
 
-
-@router.get("/themes")
-async def get_available_themes():
-    """Get available story themes"""
-    return {
-        "themes": list(EPISODE_TEMPLATES.keys()),
-        "descriptions": {
-            "Adventure": "Exciting journeys and discoveries",
-            "Friendship": "Stories about bonds and togetherness",
-            "Mystery": "Puzzles and secrets to uncover",
-            "Fantasy": "Magical worlds and enchantments",
-            "Comedy": "Fun and laughter-filled tales"
+    char_states = {}
+    for i, c in enumerate(characters):
+        char_states[c.get("name", f"char_{i}")] = {
+            "emotion": "neutral", "goal": c.get("goals", ""),
+            "location": "starting point", "status": "active"
         }
+
+    story_memory = {
+        "story_memory_id": memory_id,
+        "series_id": series_id,
+        "canon_events": [],
+        "open_loops": [],
+        "resolved_loops": [],
+        "character_states": char_states,
+        "relationship_graph": [],
+        "world_state": [],
+        "tone": world.get("tone_rules", "adventure"),
+        "forbidden_changes": [f"Do not change {c.get('name','')}'s appearance" for c in characters] + ["Do not change world setting randomly", "Maintain consistent art style"],
+        "episode_summaries": [],
+        "pending_hooks": [ep1.get("cliffhanger", "What happens next?")],
+        "updated_after_episode_id": None,
+        "updated_at": _now()
     }
 
-
-@router.get("/user-stories")
-async def get_user_stories_for_series(user: dict = Depends(get_current_user)):
-    """Get user's stories that can be expanded into series"""
-    user_id = user["id"]
-    
-    stories = await db.generations.find(
-        {"userId": user_id, "type": "story"},
-        {"_id": 0}
-    ).sort("createdAt", -1).limit(20).to_list(20)
-    
-    formatted = []
-    for s in stories:
-        result = s.get("result", {})
-        formatted.append({
-            "id": s.get("id"),
-            "title": result.get("title", "Untitled"),
-            "synopsis": result.get("synopsis", "")[:200],
-            "characters": result.get("characters", []),
-            "theme": result.get("genre", "Adventure"),
-            "createdAt": s.get("createdAt")
-        })
-    
-    return {"stories": formatted}
-
-
-@router.post("/generate")
-@limiter.limit("5/minute")
-async def generate_series(
-    request: Request,
-    data: SeriesRequest,
-    user: dict = Depends(get_current_user)
-):
-    """Generate episode series from story"""
-    user_id = user["id"]
-    
-    # Determine pricing
-    pricing_key = f"{data.episodeCount}_EPISODES"
-    cost = SERIES_PRICING.get(pricing_key, SERIES_PRICING["5_EPISODES"])
-    
-    # Generate series ID
-    series_id = str(uuid.uuid4())
-    
-    # Deduct credits
-    await deduct_credits(user_id, cost, "STORY_SERIES", series_id)
-    
-    # Get base story if storyId provided
-    base_story = {}
-    if data.storyId:
-        story_doc = await db.generations.find_one(
-            {"id": data.storyId, "userId": user_id},
-            {"_id": 0}
-        )
-        if story_doc:
-            base_story = story_doc.get("result", {})
-    
-    # Generate episodes using templates
-    episodes = []
-    for i in range(1, data.episodeCount + 1):
-        episode = generate_episode_outline(
-            episode_num=i,
-            total_episodes=data.episodeCount,
-            theme=data.theme,
-            characters=data.characterNames or base_story.get("characters", ["Hero"]),
-            base_story=base_story
-        )
-        episodes.append(episode)
-    
-    # Store series
-    series_doc = {
-        "id": series_id,
-        "userId": user_id,
-        "baseStoryId": data.storyId,
-        "storySummary": data.storySummary or base_story.get("synopsis", ""),
-        "characterNames": data.characterNames or base_story.get("characters", []),
-        "targetAgeGroup": data.targetAgeGroup,
-        "theme": data.theme,
-        "episodeCount": data.episodeCount,
-        "episodes": episodes,
-        "creditsUsed": cost,
-        "createdAt": datetime.now(timezone.utc).isoformat()
+    episode = {
+        "episode_id": episode_id,
+        "series_id": series_id,
+        "parent_episode_id": None,
+        "branch_type": "mainline",
+        "episode_number": 1,
+        "title": ep1.get("title", f"{request.title} - Episode 1"),
+        "summary": ep1.get("summary", ""),
+        "story_prompt": request.initial_prompt,
+        "episode_goal": "Introduce characters and world",
+        "cliffhanger": ep1.get("cliffhanger", ""),
+        "status": "planned",
+        "plan": {
+            "scene_breakdown": ep1.get("scenes", []),
+            "character_arcs": [],
+            "visual_style_constraints": {"style": request.style, "color_palette": world.get("visual_style", ""), "animation_style": "auto"},
+            "consistency_rules": [f"Character {c.get('name','')}: {c.get('consistency_prompt','')}" for c in characters],
+            "negative_constraints": UNIVERSAL_NEGATIVE_PROMPT.split(", "),
+            "cliffhanger": {"type": "mystery", "description": ep1.get("cliffhanger", "")}
+        },
+        "tool_used": request.tool,
+        "output_type": "video" if request.tool == "story_video" else "comic",
+        "output_asset_url": None,
+        "thumbnail_url": None,
+        "scene_count": len(ep1.get("scenes", [])),
+        "view_count": 0, "remix_count": 0, "share_count": 0,
+        "created_at": _now(), "updated_at": _now()
     }
-    
-    await db.story_series.insert_one(series_doc)
-    
+
+    series = {
+        "series_id": series_id,
+        "user_id": user_id,
+        "title": request.title,
+        "description": foundation.get("series_description", ""),
+        "status": "active",
+        "root_tool": request.tool,
+        "genre": request.genre,
+        "audience_type": request.audience,
+        "style": request.style,
+        "character_bible_id": character_bible_id,
+        "world_bible_id": world_bible_id,
+        "story_memory_id": memory_id,
+        "episode_count": 1,
+        "branch_count": 0,
+        "cover_asset_url": None,
+        "created_at": _now(), "updated_at": _now()
+    }
+
+    await db.story_series.insert_one(series)
+    await db.story_episodes.insert_one(episode)
+    await db.character_bibles.insert_one(char_bible)
+    await db.world_bibles.insert_one(world_bible)
+    await db.story_memories.insert_one(story_memory)
+
     return {
         "success": True,
-        "seriesId": series_id,
-        "episodeCount": data.episodeCount,
-        "creditsUsed": cost,
-        "episodes": episodes,
-        "disclaimer": "Generated content is template-based and should be reviewed before use."
+        "series_id": series_id,
+        "episode_id": episode_id,
+        "title": request.title,
+        "description": foundation.get("series_description", ""),
+        "episode_title": episode["title"],
+        "scene_count": episode["scene_count"],
+        "characters": [{"name": c.get("name"), "role": c.get("role"), "appearance": c.get("appearance", "")} for c in characters],
+        "world": {"name": world.get("world_name", ""), "setting": world.get("setting_description", "")[:200]},
+        "cliffhanger": ep1.get("cliffhanger", ""),
+        "status": "planned"
     }
 
 
-@router.post("/character-bible")
-async def generate_character_bible_endpoint(
-    data: CharacterBibleRequest,
-    user: dict = Depends(get_current_user)
-):
-    """Generate character bible for series"""
-    user_id = user["id"]
-    cost = SERIES_PRICING["CHARACTER_BIBLE"]
-    
-    # Verify series belongs to user
-    series = await db.story_series.find_one(
-        {"id": data.seriesId, "userId": user_id},
-        {"_id": 0}
-    )
-    
-    if not series:
-        raise HTTPException(status_code=404, detail="Series not found")
-    
-    # Deduct credits
-    bible_id = str(uuid.uuid4())
-    await deduct_credits(user_id, cost, "CHARACTER_BIBLE", bible_id)
-    
-    # Generate bible
-    characters = data.characterNames or series.get("characterNames", ["Hero"])
-    theme = series.get("theme", "Adventure")
-    bible = generate_character_bible(characters, theme)
-    
-    # Update series with bible
-    await db.story_series.update_one(
-        {"id": data.seriesId},
-        {"$set": {"characterBible": bible, "bibleGeneratedAt": datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    return {
-        "success": True,
-        "seriesId": data.seriesId,
-        "characterBible": bible,
-        "creditsUsed": cost
-    }
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 2: MY SERIES
+# ═══════════════════════════════════════════════════════════════════════════════
 
+@router.get("/my-series")
+async def get_my_series(req=None):
+    from shared import db
+    from routes.auth import get_current_user
+    user = await get_current_user(req)
 
-@router.get("/series/{series_id}")
-async def get_series(series_id: str, user: dict = Depends(get_current_user)):
-    """Get series details"""
-    series = await db.story_series.find_one(
-        {"id": series_id, "userId": user["id"]},
-        {"_id": 0}
-    )
-    
-    if not series:
-        raise HTTPException(status_code=404, detail="Series not found")
-    
-    return series
-
-
-@router.get("/history")
-async def get_series_history(
-    user: dict = Depends(get_current_user),
-    limit: int = 20,
-    skip: int = 0
-):
-    """Get user's series generation history"""
-    user_id = user["id"]
-    
     series_list = await db.story_series.find(
-        {"userId": user_id},
+        {"user_id": user["id"], "status": {"$in": ["active", "paused"]}},
         {"_id": 0}
-    ).sort("createdAt", -1).skip(skip).limit(limit).to_list(limit)
-    
-    total = await db.story_series.count_documents({"userId": user_id})
-    
+    ).sort("updated_at", -1).to_list(length=50)
+
+    for s in series_list:
+        latest_ep = await db.story_episodes.find_one(
+            {"series_id": s["series_id"]},
+            {"_id": 0, "title": 1, "episode_number": 1, "status": 1, "thumbnail_url": 1, "cliffhanger": 1},
+            sort=[("episode_number", -1)]
+        )
+        s["latest_episode"] = latest_ep
+        memory = await db.story_memories.find_one({"series_id": s["series_id"]}, {"_id": 0, "pending_hooks": 1})
+        s["next_hook"] = (memory.get("pending_hooks") or [None])[0] if memory else None
+
+    return {"success": True, "series": series_list, "total": len(series_list)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 3: GET SERIES (full details + timeline)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/{series_id}")
+async def get_series(series_id: str, req=None):
+    from shared import db
+    from routes.auth import get_current_user
+    user = await get_current_user(req)
+
+    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    episodes = await db.story_episodes.find({"series_id": series_id}, {"_id": 0}).sort("episode_number", 1).to_list(100)
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
+
     return {
-        "series": series_list,
-        "total": total
+        "success": True,
+        "series": series,
+        "episodes": episodes,
+        "character_bible": char_bible,
+        "world_bible": world_bible,
+        "story_memory": memory
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 4: PLAN EPISODE (LLM-powered — the brain)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{series_id}/plan-episode")
+async def plan_episode(series_id: str, request: PlanEpisodeRequest, req=None):
+    from shared import db
+    from routes.auth import get_current_user
+    user = await get_current_user(req)
+
+    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
+    last_ep = await db.story_episodes.find_one({"series_id": series_id}, {"_id": 0}, sort=[("episode_number", -1)])
+    next_num = (last_ep.get("episode_number", 0) if last_ep else 0) + 1
+
+    mem_clean = {k: v for k, v in (memory or {}).items() if k not in ('_id', 'story_memory_id', 'series_id', 'updated_at')}
+    wb_clean = {k: v for k, v in (world_bible or {}).items() if k not in ('_id', 'world_bible_id', 'series_id', 'created_at', 'updated_at')}
+
+    system_prompt = f"""You are a professional story writer and series planner.
+
+### SERIES CONTEXT
+Title: {series.get('title', '')}
+Genre: {series.get('genre', '')}
+Audience: {series.get('audience_type', '')}
+Style: {series.get('style', '')}
+
+### CHARACTER BIBLE
+{json.dumps(char_bible.get('characters', []) if char_bible else [], indent=2)[:3000]}
+
+### WORLD BIBLE
+{json.dumps(wb_clean, indent=2)[:2000]}
+
+### STORY MEMORY
+{json.dumps(mem_clean, indent=2)[:3000]}
+
+### DIRECTION: {request.direction_type}
+{f'Custom: {request.custom_prompt}' if request.custom_prompt else ''}
+
+### INSTRUCTIONS
+1. Maintain strict continuity with previous events.
+2. Do NOT change character appearance or personality.
+3. Use existing unresolved plot points.
+4. Create a strong emotional arc.
+5. Build towards a cliffhanger ending.
+6. Every scene visual_prompt MUST include full character appearance descriptions.
+
+Return ONLY valid JSON:
+{{
+  "episode_title": "string",
+  "summary": "2-3 line summary",
+  "theme": "theme",
+  "tone": "light | dark | suspense | comedy",
+  "character_arcs": [{{"name":"string","start_state":"string","end_state":"string","goal":"string","conflict":"string"}}],
+  "scene_breakdown": [
+    {{
+      "scene_number": 1,
+      "scene_title": "string",
+      "description": "what happens",
+      "location": "string",
+      "characters": ["name"],
+      "emotion": "happy | fear | tension | wonder | sadness",
+      "visual_prompt": "DETAILED prompt with character appearances",
+      "motion_hint": "camera/character movement",
+      "dialogue": "optional",
+      "duration_seconds": 4
+    }}
+  ],
+  "continuity_notes": ["what must be maintained"],
+  "cliffhanger": {{"type":"mystery | danger | emotional","description":"hook"}}
+}}"""
+
+    user_msg = f"Previous episode: {last_ep.get('summary', 'First episode') if last_ep else 'None yet'}\n\nGenerate episode {next_num} plan."
+
+    try:
+        plan = await _llm_json(system_prompt, user_msg, f"plan_{series_id[:8]}_{next_num}")
+    except Exception as e:
+        logger.error(f"Episode planning failed: {e}")
+        raise HTTPException(status_code=500, detail="Episode planning failed")
+
+    episode_id = _uuid()
+    episode = {
+        "episode_id": episode_id,
+        "series_id": series_id,
+        "parent_episode_id": last_ep.get("episode_id") if last_ep else None,
+        "branch_type": "mainline" if request.direction_type in ("continue", "stakes") else request.direction_type,
+        "episode_number": next_num,
+        "title": plan.get("episode_title", f"Episode {next_num}"),
+        "summary": plan.get("summary", ""),
+        "story_prompt": request.custom_prompt or f"Continue: {request.direction_type}",
+        "episode_goal": plan.get("theme", ""),
+        "cliffhanger": plan.get("cliffhanger", {}).get("description", "") if isinstance(plan.get("cliffhanger"), dict) else str(plan.get("cliffhanger", "")),
+        "status": "planned",
+        "plan": plan,
+        "tool_used": series.get("root_tool", "story_video"),
+        "output_type": "video" if series.get("root_tool") == "story_video" else "comic",
+        "output_asset_url": None, "thumbnail_url": None,
+        "scene_count": len(plan.get("scene_breakdown", [])),
+        "view_count": 0, "remix_count": 0, "share_count": 0,
+        "created_at": _now(), "updated_at": _now()
+    }
+
+    await db.story_episodes.insert_one(episode)
+
+    return {"success": True, "episode_id": episode_id, "episode_number": next_num, "plan": plan, "status": "planned"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 5: GENERATE EPISODE (uses plan + existing pipeline)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{series_id}/generate-episode")
+async def generate_episode(series_id: str, request: GenerateEpisodeRequest, req=None):
+    from shared import db
+    from routes.auth import get_current_user
+    user = await get_current_user(req)
+
+    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    episode = await db.story_episodes.find_one({"episode_id": request.episode_id, "series_id": series_id}, {"_id": 0})
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    if episode.get("status") != "planned":
+        raise HTTPException(status_code=400, detail=f"Episode is '{episode.get('status')}', expected 'planned'")
+
+    plan = episode.get("plan", {})
+    scenes = plan.get("scene_breakdown", [])
+    if not scenes:
+        raise HTTPException(status_code=400, detail="No scene breakdown. Plan first.")
+
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    characters = char_bible.get("characters", []) if char_bible else []
+    char_consistency = "\n".join([f"Character {c.get('name','')}: {c.get('consistency_prompt', c.get('appearance',''))}" for c in characters])
+
+    await db.story_episodes.update_one({"episode_id": request.episode_id}, {"$set": {"status": "generating", "updated_at": _now()}})
+
+    # Create pipeline job for the existing Story Video engine
+    job_id = _uuid()
+    pipeline_job = {
+        "job_id": job_id,
+        "user_id": user["id"],
+        "title": episode.get("title", "Series Episode"),
+        "story_text": episode.get("summary", ""),
+        "status": "QUEUED",
+        "style": series.get("style", "cartoon_2d"),
+        "age_group": series.get("audience_type", "kids_5_8"),
+        "language": "english",
+        "voice_preset": "warm_narrator",
+        "animation_style": plan.get("visual_style_constraints", {}).get("animation_style", "auto") if isinstance(plan.get("visual_style_constraints"), dict) else "auto",
+        "estimated_scenes": len(scenes),
+        "series_episode_id": request.episode_id,
+        "series_id": series_id,
+        "pre_planned_scenes": [
+            {
+                "scene_number": s.get("scene_number", i + 1),
+                "title": s.get("scene_title", f"Scene {i+1}"),
+                "visual_prompt": f"{s.get('visual_prompt', s.get('description', ''))}\n\nCharacter Consistency:\n{char_consistency}\n\nAvoid: {UNIVERSAL_NEGATIVE_PROMPT}",
+                "narration": s.get("description", ""),
+                "emotion": s.get("emotion", "neutral"),
+                "motion_hint": s.get("motion_hint", "slow zoom"),
+                "duration": s.get("duration_seconds", 4),
+                "characters": s.get("characters", []),
+                "location": s.get("location", "")
+            }
+            for i, s in enumerate(scenes)
+        ],
+        "created_at": _now(), "updated_at": _now()
+    }
+
+    await db.pipeline_jobs.insert_one(pipeline_job)
+
+    try:
+        from services.pipeline_engine import enqueue_pipeline_job
+        await enqueue_pipeline_job(db, job_id)
+    except Exception as e:
+        logger.warning(f"Enqueue failed, job created: {e}")
+
+    await db.story_episodes.update_one({"episode_id": request.episode_id}, {"$set": {"pipeline_job_id": job_id, "updated_at": _now()}})
+
+    return {"success": True, "episode_id": request.episode_id, "pipeline_job_id": job_id, "status": "generating"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 6: SUGGESTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{series_id}/suggestions")
+async def get_suggestions(series_id: str, req=None):
+    from shared import db
+    from routes.auth import get_current_user
+    user = await get_current_user(req)
+
+    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
+    mem_ctx = json.dumps({k: v for k, v in (memory or {}).items() if k not in ('_id', 'story_memory_id', 'series_id', 'updated_at')}, indent=2)[:3000]
+
+    system_msg = """Generate 4 exciting next episode suggestions. Return ONLY valid JSON:
+{"suggestions":[{"title":"string","description":"1-2 sentences","direction_type":"continue | twist | stakes | custom","excitement_level":"low | medium | high","emoji":"relevant_emoji"}]}"""
+
+    try:
+        result = await _llm_json(system_msg, f"Series: {series.get('title')}\nGenre: {series.get('genre')}\n\nMemory:\n{mem_ctx}", f"suggest_{series_id[:8]}")
+        return {"success": True, "suggestions": result.get("suggestions", [])}
+    except Exception:
+        return {"success": True, "suggestions": [
+            {"title": "Continue the Adventure", "description": "Pick up where we left off", "direction_type": "continue", "excitement_level": "medium", "emoji": "arrow_forward"},
+            {"title": "Plot Twist!", "description": "An unexpected turn", "direction_type": "twist", "excitement_level": "high", "emoji": "cyclone"},
+            {"title": "Raise the Stakes", "description": "Things get intense", "direction_type": "stakes", "excitement_level": "high", "emoji": "fire"},
+            {"title": "New Direction", "description": "Take the story somewhere unexpected", "direction_type": "custom", "excitement_level": "medium", "emoji": "sparkles"},
+        ]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 7: UPDATE MEMORY (after episode completes)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/{series_id}/update-memory")
+async def update_story_memory(series_id: str, episode_id: str = None, req=None):
+    from shared import db
+
+    episode = await db.story_episodes.find_one({"episode_id": episode_id, "series_id": series_id}, {"_id": 0})
+    if not episode:
+        return {"success": False, "error": "Episode not found"}
+
+    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
+    if not memory:
+        return {"success": False, "error": "Memory not found"}
+
+    system_msg = """Extract structured story memory. Maintain previous memory and ADD new facts.
+Return ONLY valid JSON:
+{"canon_events":[],"open_loops":[],"resolved_loops":[],"character_states":{},"world_state":[],"pending_hooks":[]}"""
+
+    ep_text = f"""Episode {episode.get('episode_number')}: {episode.get('title')}
+Summary: {episode.get('summary', '')}
+Cliffhanger: {episode.get('cliffhanger', '')}
+Previous Canon: {json.dumps(memory.get('canon_events', [])[:10])}
+Previous Loops: {json.dumps(memory.get('open_loops', [])[:5])}
+Character States: {json.dumps(memory.get('character_states', {}))}"""
+
+    plan = episode.get("plan", {})
+    if plan.get("scene_breakdown"):
+        ep_text += "\nScenes:\n" + "\n".join([f"S{s.get('scene_number',i+1)}: {s.get('description','')}" for i, s in enumerate(plan["scene_breakdown"])])
+
+    try:
+        extracted = await _llm_json(system_msg, ep_text, f"mem_{series_id[:8]}")
+    except Exception as e:
+        logger.error(f"Memory extraction failed: {e}")
+        return {"success": False, "error": "Memory extraction failed"}
+
+    updated = {
+        "canon_events": list(set(memory.get("canon_events", []) + extracted.get("canon_events", []))),
+        "open_loops": extracted.get("open_loops", memory.get("open_loops", [])),
+        "resolved_loops": list(set(memory.get("resolved_loops", []) + extracted.get("resolved_loops", []))),
+        "character_states": {**memory.get("character_states", {}), **extracted.get("character_states", {})},
+        "world_state": list(set(memory.get("world_state", []) + extracted.get("world_state", []))),
+        "pending_hooks": extracted.get("pending_hooks", []),
+        "episode_summaries": memory.get("episode_summaries", []) + [{"episode_number": episode.get("episode_number"), "summary": episode.get("summary", "")}],
+        "updated_after_episode_id": episode_id,
+        "updated_at": _now()
+    }
+
+    await db.story_memories.update_one({"series_id": series_id}, {"$set": updated})
+    return {"success": True, "memory_updated": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API 8: EPISODE STATUS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/{series_id}/episode/{episode_id}/status")
+async def check_episode_status(series_id: str, episode_id: str, req=None):
+    from shared import db
+    from routes.auth import get_current_user
+    user = await get_current_user(req)
+
+    episode = await db.story_episodes.find_one({"episode_id": episode_id, "series_id": series_id}, {"_id": 0})
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    pj_id = episode.get("pipeline_job_id")
+    pj = None
+    if pj_id:
+        pj = await db.pipeline_jobs.find_one({"job_id": pj_id}, {"_id": 0, "status": 1, "output_url": 1, "thumbnail_url": 1, "scene_images": 1, "progress": 1})
+
+    if pj:
+        new_status = episode.get("status")
+        out_url = pj.get("output_url")
+        thumb = pj.get("thumbnail_url")
+
+        if pj["status"] == "COMPLETED" and out_url:
+            new_status = "ready"
+            if not thumb and pj.get("scene_images"):
+                for sn in sorted(pj["scene_images"].keys()) if isinstance(pj["scene_images"], dict) else []:
+                    urls = pj["scene_images"][sn]
+                    if isinstance(urls, list) and urls:
+                        thumb = urls[0]; break
+                    elif isinstance(urls, str):
+                        thumb = urls; break
+        elif pj["status"] == "COMPLETED" and not out_url:
+            new_status = "partial_ready"
+        elif pj["status"] == "FAILED":
+            new_status = "failed"
+        elif pj["status"] in ("PROCESSING", "QUEUED"):
+            new_status = "generating"
+
+        if new_status != episode.get("status"):
+            upd = {"status": new_status, "updated_at": _now()}
+            if out_url: upd["output_asset_url"] = out_url
+            if thumb: upd["thumbnail_url"] = thumb
+            await db.story_episodes.update_one({"episode_id": episode_id}, {"$set": upd})
+
+            if new_status == "ready":
+                await db.story_series.update_one({"series_id": series_id}, {"$set": {"updated_at": _now()}})
+                try:
+                    await update_story_memory(series_id, episode_id, req)
+                except Exception:
+                    pass
+
+            episode["status"] = new_status
+            episode["output_asset_url"] = out_url
+            episode["thumbnail_url"] = thumb
+
+    return {
+        "success": True,
+        "episode_id": episode_id,
+        "status": episode.get("status"),
+        "pipeline_status": pj.get("status") if pj else None,
+        "output_url": episode.get("output_asset_url"),
+        "thumbnail_url": episode.get("thumbnail_url"),
+        "progress": pj.get("progress") if pj else None
     }
