@@ -7,6 +7,8 @@ Turns one-off creations into ongoing story universes with:
 - 2-step episode flow: PLAN → GENERATE (never skip planning)
 - Return hooks (suggestions, cliffhangers, branches)
 
+Pipeline: PLAN → GENERATE → VALIDATE → SAVE → MEMORY UPDATE
+
 Collections: story_series, story_episodes, character_bibles, world_bibles, story_memories
 """
 
@@ -17,11 +19,17 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, Query
+
+from shared import db, get_current_user
 
 logger = logging.getLogger("story_series")
 
 router = APIRouter(prefix="/story-series", tags=["Story Series Engine"])
+
+# ─── STATE MACHINE ────────────────────────────────────────────────────────────
+# planned → generating → validating → ready / failed
+EPISODE_STATUSES = ["planned", "generating", "validating", "ready", "failed"]
 
 UNIVERSAL_NEGATIVE_PROMPT = (
     "low quality, blurry, pixelated, distorted, deformed, bad anatomy, bad proportions, "
@@ -34,17 +42,21 @@ UNIVERSAL_NEGATIVE_PROMPT = (
     "bad composition, cluttered background, photorealistic, horror, scary, violent, gore"
 )
 
+
 def _now():
     return datetime.now(timezone.utc).isoformat()
 
+
 def _uuid():
     return str(uuid.uuid4())
+
 
 def _get_llm_key():
     key = os.getenv("EMERGENT_LLM_KEY")
     if not key:
         raise RuntimeError("EMERGENT_LLM_KEY not configured")
     return key
+
 
 # ─── PYDANTIC MODELS ─────────────────────────────────────────────────────────
 
@@ -56,20 +68,32 @@ class CreateSeriesRequest(BaseModel):
     style: str = "cartoon_2d"
     tool: str = "story_video"
 
+
 class PlanEpisodeRequest(BaseModel):
     direction_type: str = "continue"
     custom_prompt: Optional[str] = None
 
+
 class GenerateEpisodeRequest(BaseModel):
     episode_id: str
+
+
+class UpdateMemoryRequest(BaseModel):
+    episode_id: str
+
 
 # ─── LLM HELPERS ──────────────────────────────────────────────────────────────
 
 async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series") -> dict:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
-    chat = LlmChat(api_key=_get_llm_key(), session_id=session_id, system_message=system_msg, model="gpt-4o-mini")
-    response = await chat.send_message_async(UserMessage(content=user_msg))
-    text = response.content.strip()
+    chat = LlmChat(
+        api_key=_get_llm_key(),
+        session_id=session_id,
+        system_message=system_msg,
+    )
+    chat.with_model("openai", "gpt-4o-mini")
+    response = await chat.send_message(UserMessage(text=user_msg))
+    text = response.strip()
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
@@ -82,11 +106,7 @@ async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series") 
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/create")
-async def create_series(request: CreateSeriesRequest, req=None):
-    from shared import db
-    from routes.auth import get_current_user
-
-    user = await get_current_user(req)
+async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_current_user)):
     user_id = user["id"]
 
     series_id = _uuid()
@@ -166,7 +186,8 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
         "character_bible_id": character_bible_id,
         "series_id": series_id,
         "characters": characters,
-        "created_at": _now(), "updated_at": _now()
+        "created_at": _now(),
+        "updated_at": _now(),
     }
 
     world_bible = {
@@ -179,14 +200,17 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
         "recurring_locations": world.get("recurring_locations", []),
         "tone_rules": world.get("tone_rules", ""),
         "continuity_constraints": world.get("continuity_constraints", []),
-        "created_at": _now(), "updated_at": _now()
+        "created_at": _now(),
+        "updated_at": _now(),
     }
 
     char_states = {}
     for i, c in enumerate(characters):
         char_states[c.get("name", f"char_{i}")] = {
-            "emotion": "neutral", "goal": c.get("goals", ""),
-            "location": "starting point", "status": "active"
+            "emotion": "neutral",
+            "goal": c.get("goals", ""),
+            "location": "starting point",
+            "status": "active",
         }
 
     story_memory = {
@@ -199,11 +223,13 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
         "relationship_graph": [],
         "world_state": [],
         "tone": world.get("tone_rules", "adventure"),
-        "forbidden_changes": [f"Do not change {c.get('name','')}'s appearance" for c in characters] + ["Do not change world setting randomly", "Maintain consistent art style"],
+        "forbidden_changes": [
+            f"Do not change {c.get('name','')}'s appearance" for c in characters
+        ] + ["Do not change world setting randomly", "Maintain consistent art style"],
         "episode_summaries": [],
         "pending_hooks": [ep1.get("cliffhanger", "What happens next?")],
         "updated_after_episode_id": None,
-        "updated_at": _now()
+        "updated_at": _now(),
     }
 
     episode = {
@@ -221,18 +247,31 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
         "plan": {
             "scene_breakdown": ep1.get("scenes", []),
             "character_arcs": [],
-            "visual_style_constraints": {"style": request.style, "color_palette": world.get("visual_style", ""), "animation_style": "auto"},
-            "consistency_rules": [f"Character {c.get('name','')}: {c.get('consistency_prompt','')}" for c in characters],
+            "visual_style_constraints": {
+                "style": request.style,
+                "color_palette": world.get("visual_style", ""),
+                "animation_style": "auto",
+            },
+            "consistency_rules": [
+                f"Character {c.get('name','')}: {c.get('consistency_prompt','')}"
+                for c in characters
+            ],
             "negative_constraints": UNIVERSAL_NEGATIVE_PROMPT.split(", "),
-            "cliffhanger": {"type": "mystery", "description": ep1.get("cliffhanger", "")}
+            "cliffhanger": {
+                "type": "mystery",
+                "description": ep1.get("cliffhanger", ""),
+            },
         },
         "tool_used": request.tool,
         "output_type": "video" if request.tool == "story_video" else "comic",
         "output_asset_url": None,
         "thumbnail_url": None,
         "scene_count": len(ep1.get("scenes", [])),
-        "view_count": 0, "remix_count": 0, "share_count": 0,
-        "created_at": _now(), "updated_at": _now()
+        "view_count": 0,
+        "remix_count": 0,
+        "share_count": 0,
+        "created_at": _now(),
+        "updated_at": _now(),
     }
 
     series = {
@@ -251,7 +290,8 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
         "episode_count": 1,
         "branch_count": 0,
         "cover_asset_url": None,
-        "created_at": _now(), "updated_at": _now()
+        "created_at": _now(),
+        "updated_at": _now(),
     }
 
     await db.story_series.insert_one(series)
@@ -268,10 +308,16 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
         "description": foundation.get("series_description", ""),
         "episode_title": episode["title"],
         "scene_count": episode["scene_count"],
-        "characters": [{"name": c.get("name"), "role": c.get("role"), "appearance": c.get("appearance", "")} for c in characters],
-        "world": {"name": world.get("world_name", ""), "setting": world.get("setting_description", "")[:200]},
+        "characters": [
+            {"name": c.get("name"), "role": c.get("role"), "appearance": c.get("appearance", "")}
+            for c in characters
+        ],
+        "world": {
+            "name": world.get("world_name", ""),
+            "setting": world.get("setting_description", "")[:200],
+        },
         "cliffhanger": ep1.get("cliffhanger", ""),
-        "status": "planned"
+        "status": "planned",
     }
 
 
@@ -280,24 +326,22 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/my-series")
-async def get_my_series(req=None):
-    from shared import db
-    from routes.auth import get_current_user
-    user = await get_current_user(req)
-
+async def get_my_series(user: dict = Depends(get_current_user)):
     series_list = await db.story_series.find(
         {"user_id": user["id"], "status": {"$in": ["active", "paused"]}},
-        {"_id": 0}
+        {"_id": 0},
     ).sort("updated_at", -1).to_list(length=50)
 
     for s in series_list:
         latest_ep = await db.story_episodes.find_one(
             {"series_id": s["series_id"]},
             {"_id": 0, "title": 1, "episode_number": 1, "status": 1, "thumbnail_url": 1, "cliffhanger": 1},
-            sort=[("episode_number", -1)]
+            sort=[("episode_number", -1)],
         )
         s["latest_episode"] = latest_ep
-        memory = await db.story_memories.find_one({"series_id": s["series_id"]}, {"_id": 0, "pending_hooks": 1})
+        memory = await db.story_memories.find_one(
+            {"series_id": s["series_id"]}, {"_id": 0, "pending_hooks": 1}
+        )
         s["next_hook"] = (memory.get("pending_hooks") or [None])[0] if memory else None
 
     return {"success": True, "series": series_list, "total": len(series_list)}
@@ -308,16 +352,17 @@ async def get_my_series(req=None):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{series_id}")
-async def get_series(series_id: str, req=None):
-    from shared import db
-    from routes.auth import get_current_user
-    user = await get_current_user(req)
-
-    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+async def get_series(series_id: str, user: dict = Depends(get_current_user)):
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
-    episodes = await db.story_episodes.find({"series_id": series_id}, {"_id": 0}).sort("episode_number", 1).to_list(100)
+    episodes = await db.story_episodes.find(
+        {"series_id": series_id}, {"_id": 0}
+    ).sort("episode_number", 1).to_list(100)
+
     char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
     world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
     memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
@@ -328,32 +373,39 @@ async def get_series(series_id: str, req=None):
         "episodes": episodes,
         "character_bible": char_bible,
         "world_bible": world_bible,
-        "story_memory": memory
+        "story_memory": memory,
     }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API 4: PLAN EPISODE (LLM-powered — the brain)
+# Step 1 of: PLAN → GENERATE → VALIDATE → SAVE → MEMORY
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{series_id}/plan-episode")
-async def plan_episode(series_id: str, request: PlanEpisodeRequest, req=None):
-    from shared import db
-    from routes.auth import get_current_user
-    user = await get_current_user(req)
-
-    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+async def plan_episode(series_id: str, request: PlanEpisodeRequest, user: dict = Depends(get_current_user)):
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
     char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
     world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
     memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
-    last_ep = await db.story_episodes.find_one({"series_id": series_id}, {"_id": 0}, sort=[("episode_number", -1)])
+    last_ep = await db.story_episodes.find_one(
+        {"series_id": series_id}, {"_id": 0}, sort=[("episode_number", -1)]
+    )
     next_num = (last_ep.get("episode_number", 0) if last_ep else 0) + 1
 
-    mem_clean = {k: v for k, v in (memory or {}).items() if k not in ('_id', 'story_memory_id', 'series_id', 'updated_at')}
-    wb_clean = {k: v for k, v in (world_bible or {}).items() if k not in ('_id', 'world_bible_id', 'series_id', 'created_at', 'updated_at')}
+    mem_clean = {
+        k: v for k, v in (memory or {}).items()
+        if k not in ("_id", "story_memory_id", "series_id", "updated_at")
+    }
+    wb_clean = {
+        k: v for k, v in (world_bible or {}).items()
+        if k not in ("_id", "world_bible_id", "series_id", "created_at", "updated_at")
+    }
 
     system_prompt = f"""You are a professional story writer and series planner.
 
@@ -408,7 +460,10 @@ Return ONLY valid JSON:
   "cliffhanger": {{"type":"mystery | danger | emotional","description":"hook"}}
 }}"""
 
-    user_msg = f"Previous episode: {last_ep.get('summary', 'First episode') if last_ep else 'None yet'}\n\nGenerate episode {next_num} plan."
+    user_msg = (
+        f"Previous episode: {last_ep.get('summary', 'First episode') if last_ep else 'None yet'}\n\n"
+        f"Generate episode {next_num} plan."
+    )
 
     try:
         plan = await _llm_json(system_prompt, user_msg, f"plan_{series_id[:8]}_{next_num}")
@@ -417,6 +472,11 @@ Return ONLY valid JSON:
         raise HTTPException(status_code=500, detail="Episode planning failed")
 
     episode_id = _uuid()
+    cliffhanger_raw = plan.get("cliffhanger", "")
+    cliffhanger_text = (
+        cliffhanger_raw.get("description", "") if isinstance(cliffhanger_raw, dict) else str(cliffhanger_raw)
+    )
+
     episode = {
         "episode_id": episode_id,
         "series_id": series_id,
@@ -427,219 +487,253 @@ Return ONLY valid JSON:
         "summary": plan.get("summary", ""),
         "story_prompt": request.custom_prompt or f"Continue: {request.direction_type}",
         "episode_goal": plan.get("theme", ""),
-        "cliffhanger": plan.get("cliffhanger", {}).get("description", "") if isinstance(plan.get("cliffhanger"), dict) else str(plan.get("cliffhanger", "")),
+        "cliffhanger": cliffhanger_text,
         "status": "planned",
         "plan": plan,
         "tool_used": series.get("root_tool", "story_video"),
         "output_type": "video" if series.get("root_tool") == "story_video" else "comic",
-        "output_asset_url": None, "thumbnail_url": None,
+        "output_asset_url": None,
+        "thumbnail_url": None,
         "scene_count": len(plan.get("scene_breakdown", [])),
-        "view_count": 0, "remix_count": 0, "share_count": 0,
-        "created_at": _now(), "updated_at": _now()
+        "view_count": 0,
+        "remix_count": 0,
+        "share_count": 0,
+        "created_at": _now(),
+        "updated_at": _now(),
     }
 
     await db.story_episodes.insert_one(episode)
 
-    return {"success": True, "episode_id": episode_id, "episode_number": next_num, "plan": plan, "status": "planned"}
+    # Update series episode count
+    await db.story_series.update_one(
+        {"series_id": series_id},
+        {"$inc": {"episode_count": 1}, "$set": {"updated_at": _now()}},
+    )
+
+    return {
+        "success": True,
+        "episode_id": episode_id,
+        "episode_number": next_num,
+        "plan": plan,
+        "status": "planned",
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API 5: GENERATE EPISODE (uses plan + existing pipeline)
+# Step 2 of: PLAN → GENERATE → VALIDATE → SAVE → MEMORY
+# Reuses existing Story Video / Comic pipelines. Does NOT rebuild them.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{series_id}/generate-episode")
-async def generate_episode(series_id: str, request: GenerateEpisodeRequest, req=None):
-    from shared import db
-    from routes.auth import get_current_user
-    user = await get_current_user(req)
-
-    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+async def generate_episode(series_id: str, request: GenerateEpisodeRequest, user: dict = Depends(get_current_user)):
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
-    episode = await db.story_episodes.find_one({"episode_id": request.episode_id, "series_id": series_id}, {"_id": 0})
+    episode = await db.story_episodes.find_one(
+        {"episode_id": request.episode_id, "series_id": series_id}, {"_id": 0}
+    )
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
-    if episode.get("status") != "planned":
-        raise HTTPException(status_code=400, detail=f"Episode is '{episode.get('status')}', expected 'planned'")
+    if episode.get("status") not in ("planned", "failed"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Episode is '{episode.get('status')}', expected 'planned' or 'failed'.",
+        )
 
     plan = episode.get("plan", {})
     scenes = plan.get("scene_breakdown", [])
     if not scenes:
-        raise HTTPException(status_code=400, detail="No scene breakdown. Plan first.")
+        raise HTTPException(status_code=400, detail="No scene breakdown in plan. Run plan-episode first.")
 
-    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
-    characters = char_bible.get("characters", []) if char_bible else []
-    char_consistency = "\n".join([f"Character {c.get('name','')}: {c.get('consistency_prompt', c.get('appearance',''))}" for c in characters])
+    # Build story text from plan for pipeline consumption
+    story_text = episode.get("summary", "")
+    if not story_text:
+        story_text = " ".join(s.get("description", "") for s in scenes)
 
-    await db.story_episodes.update_one({"episode_id": request.episode_id}, {"$set": {"status": "generating", "updated_at": _now()}})
+    # STATE: planned → generating
+    await db.story_episodes.update_one(
+        {"episode_id": request.episode_id},
+        {"$set": {"status": "generating", "updated_at": _now()}},
+    )
 
-    # Create pipeline job for the existing Story Video engine
-    job_id = _uuid()
-    pipeline_job = {
-        "job_id": job_id,
-        "user_id": user["id"],
-        "title": episode.get("title", "Series Episode"),
-        "story_text": episode.get("summary", ""),
-        "status": "QUEUED",
-        "style": series.get("style", "cartoon_2d"),
-        "age_group": series.get("audience_type", "kids_5_8"),
-        "language": "english",
-        "voice_preset": "warm_narrator",
-        "animation_style": plan.get("visual_style_constraints", {}).get("animation_style", "auto") if isinstance(plan.get("visual_style_constraints"), dict) else "auto",
-        "estimated_scenes": len(scenes),
-        "series_episode_id": request.episode_id,
-        "series_id": series_id,
-        "pre_planned_scenes": [
-            {
-                "scene_number": s.get("scene_number", i + 1),
-                "title": s.get("scene_title", f"Scene {i+1}"),
-                "visual_prompt": f"{s.get('visual_prompt', s.get('description', ''))}\n\nCharacter Consistency:\n{char_consistency}\n\nAvoid: {UNIVERSAL_NEGATIVE_PROMPT}",
-                "narration": s.get("description", ""),
-                "emotion": s.get("emotion", "neutral"),
-                "motion_hint": s.get("motion_hint", "slow zoom"),
-                "duration": s.get("duration_seconds", 4),
-                "characters": s.get("characters", []),
-                "location": s.get("location", "")
-            }
-            for i, s in enumerate(scenes)
-        ],
-        "created_at": _now(), "updated_at": _now()
-    }
-
-    await db.pipeline_jobs.insert_one(pipeline_job)
+    tool = series.get("root_tool", "story_video")
+    user_id = user["id"]
+    user_plan = user.get("plan", "free")
 
     try:
-        from services.pipeline_engine import enqueue_pipeline_job
-        await enqueue_pipeline_job(db, job_id)
+        # Reuse existing pipeline infrastructure for proper credit handling + job structure
+        from services.pipeline_engine import create_pipeline_job
+        from services.pipeline_worker import enqueue_job
+
+        result = await create_pipeline_job(
+            user_id=user_id,
+            title=episode.get("title", "Series Episode"),
+            story_text=story_text,
+            animation_style=series.get("style", "cartoon_2d"),
+            age_group=series.get("audience_type", "kids_5_8"),
+            voice_preset="narrator_warm",
+            user_plan=user_plan,
+        )
+
+        job_id = result["job_id"]
+
+        # Link pipeline job to series episode
+        await db.pipeline_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "series_episode_id": request.episode_id,
+                "series_id": series_id,
+            }},
+        )
+
+        # Store job reference on episode
+        await db.story_episodes.update_one(
+            {"episode_id": request.episode_id},
+            {"$set": {"pipeline_job_id": job_id, "updated_at": _now()}},
+        )
+
+        # Enqueue for processing
+        await enqueue_job(job_id, user_id=user_id, user_plan=user_plan)
+
+        return {
+            "success": True,
+            "episode_id": request.episode_id,
+            "pipeline_job_id": job_id,
+            "credits_charged": result.get("credits_charged", 0),
+            "status": "generating",
+            "tool": tool,
+        }
+
+    except ValueError as e:
+        # Credit check or copyright failure from create_pipeline_job
+        await db.story_episodes.update_one(
+            {"episode_id": request.episode_id},
+            {"$set": {"status": "failed", "updated_at": _now()}},
+        )
+        error_msg = str(e)
+        if "credit" in error_msg.lower():
+            raise HTTPException(status_code=402, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
     except Exception as e:
-        logger.warning(f"Enqueue failed, job created: {e}")
-
-    await db.story_episodes.update_one({"episode_id": request.episode_id}, {"$set": {"pipeline_job_id": job_id, "updated_at": _now()}})
-
-    return {"success": True, "episode_id": request.episode_id, "pipeline_job_id": job_id, "status": "generating"}
+        await db.story_episodes.update_one(
+            {"episode_id": request.episode_id},
+            {"$set": {"status": "failed", "updated_at": _now()}},
+        )
+        logger.error(f"Generate episode failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start generation")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# API 6: SUGGESTIONS
+# API 6: SUGGESTIONS (AI-powered next episode ideas)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{series_id}/suggestions")
-async def get_suggestions(series_id: str, req=None):
-    from shared import db
-    from routes.auth import get_current_user
-    user = await get_current_user(req)
-
-    series = await db.story_series.find_one({"series_id": series_id, "user_id": user["id"]}, {"_id": 0})
+async def get_suggestions(series_id: str, user: dict = Depends(get_current_user)):
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
     memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
-    mem_ctx = json.dumps({k: v for k, v in (memory or {}).items() if k not in ('_id', 'story_memory_id', 'series_id', 'updated_at')}, indent=2)[:3000]
+    mem_ctx = json.dumps(
+        {k: v for k, v in (memory or {}).items() if k not in ("_id", "story_memory_id", "series_id", "updated_at")},
+        indent=2,
+    )[:3000]
 
-    system_msg = """Generate 4 exciting next episode suggestions. Return ONLY valid JSON:
-{"suggestions":[{"title":"string","description":"1-2 sentences","direction_type":"continue | twist | stakes | custom","excitement_level":"low | medium | high","emoji":"relevant_emoji"}]}"""
+    system_msg = (
+        'Generate 4 exciting next episode suggestions. Return ONLY valid JSON:\n'
+        '{"suggestions":[{"title":"string","description":"1-2 sentences",'
+        '"direction_type":"continue | twist | stakes | custom",'
+        '"excitement_level":"low | medium | high","emoji":"relevant_emoji"}]}'
+    )
 
     try:
-        result = await _llm_json(system_msg, f"Series: {series.get('title')}\nGenre: {series.get('genre')}\n\nMemory:\n{mem_ctx}", f"suggest_{series_id[:8]}")
+        result = await _llm_json(
+            system_msg,
+            f"Series: {series.get('title')}\nGenre: {series.get('genre')}\n\nMemory:\n{mem_ctx}",
+            f"suggest_{series_id[:8]}",
+        )
         return {"success": True, "suggestions": result.get("suggestions", [])}
     except Exception:
-        return {"success": True, "suggestions": [
-            {"title": "Continue the Adventure", "description": "Pick up where we left off", "direction_type": "continue", "excitement_level": "medium", "emoji": "arrow_forward"},
-            {"title": "Plot Twist!", "description": "An unexpected turn", "direction_type": "twist", "excitement_level": "high", "emoji": "cyclone"},
-            {"title": "Raise the Stakes", "description": "Things get intense", "direction_type": "stakes", "excitement_level": "high", "emoji": "fire"},
-            {"title": "New Direction", "description": "Take the story somewhere unexpected", "direction_type": "custom", "excitement_level": "medium", "emoji": "sparkles"},
-        ]}
+        return {
+            "success": True,
+            "suggestions": [
+                {"title": "Continue the Adventure", "description": "Pick up where we left off", "direction_type": "continue", "excitement_level": "medium", "emoji": "arrow_forward"},
+                {"title": "Plot Twist!", "description": "An unexpected turn changes everything", "direction_type": "twist", "excitement_level": "high", "emoji": "cyclone"},
+                {"title": "Raise the Stakes", "description": "Things get intense and dangerous", "direction_type": "stakes", "excitement_level": "high", "emoji": "fire"},
+                {"title": "New Direction", "description": "Take the story somewhere unexpected", "direction_type": "custom", "excitement_level": "medium", "emoji": "sparkles"},
+            ],
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# API 7: UPDATE MEMORY (after episode completes)
+# API 7: UPDATE MEMORY (atomic with retry — after episode completes)
+# Final step: PLAN → GENERATE → VALIDATE → SAVE → MEMORY UPDATE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/{series_id}/update-memory")
-async def update_story_memory(series_id: str, episode_id: str = None, req=None):
-    from shared import db
-
-    episode = await db.story_episodes.find_one({"episode_id": episode_id, "series_id": series_id}, {"_id": 0})
+async def update_story_memory(series_id: str, body: UpdateMemoryRequest, user: dict = Depends(get_current_user)):
+    episode = await db.story_episodes.find_one(
+        {"episode_id": body.episode_id, "series_id": series_id}, {"_id": 0}
+    )
     if not episode:
-        return {"success": False, "error": "Episode not found"}
+        raise HTTPException(status_code=404, detail="Episode not found")
 
-    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
-    if not memory:
-        return {"success": False, "error": "Memory not found"}
-
-    system_msg = """Extract structured story memory. Maintain previous memory and ADD new facts.
-Return ONLY valid JSON:
-{"canon_events":[],"open_loops":[],"resolved_loops":[],"character_states":{},"world_state":[],"pending_hooks":[]}"""
-
-    ep_text = f"""Episode {episode.get('episode_number')}: {episode.get('title')}
-Summary: {episode.get('summary', '')}
-Cliffhanger: {episode.get('cliffhanger', '')}
-Previous Canon: {json.dumps(memory.get('canon_events', [])[:10])}
-Previous Loops: {json.dumps(memory.get('open_loops', [])[:5])}
-Character States: {json.dumps(memory.get('character_states', {}))}"""
-
-    plan = episode.get("plan", {})
-    if plan.get("scene_breakdown"):
-        ep_text += "\nScenes:\n" + "\n".join([f"S{s.get('scene_number',i+1)}: {s.get('description','')}" for i, s in enumerate(plan["scene_breakdown"])])
-
-    try:
-        extracted = await _llm_json(system_msg, ep_text, f"mem_{series_id[:8]}")
-    except Exception as e:
-        logger.error(f"Memory extraction failed: {e}")
-        return {"success": False, "error": "Memory extraction failed"}
-
-    updated = {
-        "canon_events": list(set(memory.get("canon_events", []) + extracted.get("canon_events", []))),
-        "open_loops": extracted.get("open_loops", memory.get("open_loops", [])),
-        "resolved_loops": list(set(memory.get("resolved_loops", []) + extracted.get("resolved_loops", []))),
-        "character_states": {**memory.get("character_states", {}), **extracted.get("character_states", {})},
-        "world_state": list(set(memory.get("world_state", []) + extracted.get("world_state", []))),
-        "pending_hooks": extracted.get("pending_hooks", []),
-        "episode_summaries": memory.get("episode_summaries", []) + [{"episode_number": episode.get("episode_number"), "summary": episode.get("summary", "")}],
-        "updated_after_episode_id": episode_id,
-        "updated_at": _now()
-    }
-
-    await db.story_memories.update_one({"series_id": series_id}, {"$set": updated})
+    result = await _update_memory_internal(series_id, body.episode_id)
+    if not result:
+        raise HTTPException(status_code=500, detail="Memory update failed after retries")
     return {"success": True, "memory_updated": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# API 8: EPISODE STATUS
+# API 8: EPISODE STATUS (with strict validation)
+# STATE MACHINE: planned → generating → ready / failed
+# HARD RULE: no READY without real output_url
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{series_id}/episode/{episode_id}/status")
-async def check_episode_status(series_id: str, episode_id: str, req=None):
-    from shared import db
-    from routes.auth import get_current_user
-    user = await get_current_user(req)
-
-    episode = await db.story_episodes.find_one({"episode_id": episode_id, "series_id": series_id}, {"_id": 0})
+async def check_episode_status(series_id: str, episode_id: str, user: dict = Depends(get_current_user)):
+    episode = await db.story_episodes.find_one(
+        {"episode_id": episode_id, "series_id": series_id}, {"_id": 0}
+    )
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
 
     pj_id = episode.get("pipeline_job_id")
     pj = None
     if pj_id:
-        pj = await db.pipeline_jobs.find_one({"job_id": pj_id}, {"_id": 0, "status": 1, "output_url": 1, "thumbnail_url": 1, "scene_images": 1, "progress": 1})
+        pj = await db.pipeline_jobs.find_one(
+            {"job_id": pj_id},
+            {"_id": 0, "status": 1, "output_url": 1, "thumbnail_url": 1, "scene_images": 1, "progress": 1},
+        )
 
     if pj:
         new_status = episode.get("status")
         out_url = pj.get("output_url")
         thumb = pj.get("thumbnail_url")
 
-        if pj["status"] == "COMPLETED" and out_url:
+        # STRICT VALIDATION: no READY without real output
+        if pj["status"] == "COMPLETED" and out_url and out_url.startswith("http"):
             new_status = "ready"
             if not thumb and pj.get("scene_images"):
-                for sn in sorted(pj["scene_images"].keys()) if isinstance(pj["scene_images"], dict) else []:
-                    urls = pj["scene_images"][sn]
-                    if isinstance(urls, list) and urls:
-                        thumb = urls[0]; break
-                    elif isinstance(urls, str):
-                        thumb = urls; break
+                scene_imgs = pj["scene_images"]
+                if isinstance(scene_imgs, dict):
+                    for sn in sorted(scene_imgs.keys()):
+                        urls = scene_imgs[sn]
+                        if isinstance(urls, list) and urls:
+                            thumb = urls[0]
+                            break
+                        elif isinstance(urls, str):
+                            thumb = urls
+                            break
         elif pj["status"] == "COMPLETED" and not out_url:
-            new_status = "partial_ready"
+            # COMPLETED without output = FAILED. No exceptions.
+            new_status = "failed"
         elif pj["status"] == "FAILED":
             new_status = "failed"
         elif pj["status"] in ("PROCESSING", "QUEUED"):
@@ -647,19 +741,25 @@ async def check_episode_status(series_id: str, episode_id: str, req=None):
 
         if new_status != episode.get("status"):
             upd = {"status": new_status, "updated_at": _now()}
-            if out_url: upd["output_asset_url"] = out_url
-            if thumb: upd["thumbnail_url"] = thumb
+            if new_status == "ready" and out_url:
+                upd["output_asset_url"] = out_url
+            if thumb:
+                upd["thumbnail_url"] = thumb
             await db.story_episodes.update_one({"episode_id": episode_id}, {"$set": upd})
 
+            # Auto-update memory + series when episode becomes ready
             if new_status == "ready":
-                await db.story_series.update_one({"series_id": series_id}, {"$set": {"updated_at": _now()}})
+                await db.story_series.update_one(
+                    {"series_id": series_id},
+                    {"$set": {"updated_at": _now()}, "$inc": {"episode_count": 0}},
+                )
                 try:
-                    await update_story_memory(series_id, episode_id, req)
-                except Exception:
-                    pass
+                    await _update_memory_internal(series_id, episode_id)
+                except Exception as e:
+                    logger.warning(f"Auto memory update failed for {episode_id}: {e}")
 
             episode["status"] = new_status
-            episode["output_asset_url"] = out_url
+            episode["output_asset_url"] = out_url if new_status == "ready" else None
             episode["thumbnail_url"] = thumb
 
     return {
@@ -669,5 +769,90 @@ async def check_episode_status(series_id: str, episode_id: str, req=None):
         "pipeline_status": pj.get("status") if pj else None,
         "output_url": episode.get("output_asset_url"),
         "thumbnail_url": episode.get("thumbnail_url"),
-        "progress": pj.get("progress") if pj else None
+        "progress": pj.get("progress") if pj else None,
     }
+
+
+# ─── INTERNAL: Atomic memory update with retry ───────────────────────────────
+
+async def _update_memory_internal(series_id: str, episode_id: str) -> bool:
+    """Internal memory update with 3 retry attempts. Returns True on success."""
+    episode = await db.story_episodes.find_one(
+        {"episode_id": episode_id, "series_id": series_id}, {"_id": 0}
+    )
+    if not episode:
+        return False
+
+    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
+    if not memory:
+        return False
+
+    system_msg = (
+        "Extract structured story memory. Maintain previous memory and ADD new facts.\n"
+        "Return ONLY valid JSON:\n"
+        '{"canon_events":[],"open_loops":[],"resolved_loops":[],'
+        '"character_states":{},"world_state":[],"pending_hooks":[]}'
+    )
+
+    ep_text = (
+        f"Episode {episode.get('episode_number')}: {episode.get('title')}\n"
+        f"Summary: {episode.get('summary', '')}\n"
+        f"Cliffhanger: {episode.get('cliffhanger', '')}\n"
+        f"Previous Canon: {json.dumps(memory.get('canon_events', [])[:10])}\n"
+        f"Previous Loops: {json.dumps(memory.get('open_loops', [])[:5])}\n"
+        f"Character States: {json.dumps(memory.get('character_states', {}))}"
+    )
+
+    plan = episode.get("plan", {})
+    if plan.get("scene_breakdown"):
+        ep_text += "\nScenes:\n" + "\n".join(
+            f"S{s.get('scene_number', i+1)}: {s.get('description', '')}"
+            for i, s in enumerate(plan["scene_breakdown"])
+        )
+
+    for attempt in range(3):
+        try:
+            extracted = await _llm_json(system_msg, ep_text, f"mem_{series_id[:8]}_{attempt}")
+
+            # Deduplicate lists safely (some items may be dicts)
+            def _dedup(lst):
+                seen = set()
+                result = []
+                for item in lst:
+                    key = json.dumps(item, sort_keys=True) if isinstance(item, dict) else str(item)
+                    if key not in seen:
+                        seen.add(key)
+                        result.append(item)
+                return result
+
+            updated = {
+                "canon_events": _dedup(
+                    memory.get("canon_events", []) + extracted.get("canon_events", [])
+                ),
+                "open_loops": extracted.get("open_loops", memory.get("open_loops", [])),
+                "resolved_loops": _dedup(
+                    memory.get("resolved_loops", []) + extracted.get("resolved_loops", [])
+                ),
+                "character_states": {
+                    **memory.get("character_states", {}),
+                    **extracted.get("character_states", {}),
+                },
+                "world_state": _dedup(
+                    memory.get("world_state", []) + extracted.get("world_state", [])
+                ),
+                "pending_hooks": extracted.get("pending_hooks", []),
+                "episode_summaries": memory.get("episode_summaries", []) + [
+                    {"episode_number": episode.get("episode_number"), "summary": episode.get("summary", "")}
+                ],
+                "updated_after_episode_id": episode_id,
+                "updated_at": _now(),
+            }
+
+            await db.story_memories.update_one({"series_id": series_id}, {"$set": updated})
+            logger.info(f"Memory updated for series {series_id} after episode {episode_id} (attempt {attempt+1})")
+            return True
+        except Exception as e:
+            logger.warning(f"Memory update attempt {attempt+1} failed for {series_id}: {e}")
+
+    logger.error(f"Memory update failed after 3 attempts for series {series_id}")
+    return False
