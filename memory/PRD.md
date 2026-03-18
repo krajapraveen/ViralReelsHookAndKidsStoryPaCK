@@ -1,14 +1,19 @@
-# Visionary Suite — PRD
+# Visionary Suite — Product Requirements
 
-## Product Vision
-AI Creative Operating System: **Create -> Share -> Remix -> Loop -> Grow -> Measure -> Optimize**
+## Core Product
+AI Creator Suite for content generation (story videos, comics, GIFs, storybooks).
 
-### Golden Rules
-1. No paid/credit-consuming feature should ever pretend to have output when it does not.
-2. SUCCESS = REAL OUTPUT RENDERED TO USER.
-3. All text must be visually readable on dark backgrounds.
-4. Downloads must download, not open blank tabs.
-5. Copy to clipboard must have fallback for non-HTTPS contexts.
+## Architecture
+- **Frontend**: React + Tailwind + shadcn/ui (port 3000)
+- **Backend**: FastAPI + MongoDB (port 8001)
+- **Storage**: Cloudflare R2
+- **AI**: OpenAI GPT-4o-mini, GPT Image 1, Sora 2, TTS; Gemini; Google Auth
+- **Other**: Redis, Cashfree, SendGrid (BLOCKED), apscheduler
+
+## Key Principles
+1. **Truth-Driven Pipelines**: All content generation follows strict state machine (INIT→GENERATING→VALIDATING→READY/PARTIAL_READY/FAILED). Never fake output.
+2. **No Fake UI States**: Frontend never shows placehold.co, empty cards, or "saved" without real asset.
+3. **Universal Negative Prompt**: All image generation paths include comprehensive quality/safety negative prompt.
 
 ## Production Test History
 - Iteration 303: A/B Testing (26/26 - 100%)
@@ -16,7 +21,8 @@ AI Creative Operating System: **Create -> Share -> Remix -> Loop -> Grow -> Meas
 - Iteration 306: Comic Storybook Preview (100%)
 - Iteration 307: Download Fix + Timer (100%)
 - Iteration 308: Photo to Comic Strip Pipeline (100%)
-- Iteration 309: P0 Bug Fixes — Ken Burns, Form Controls, Resume Panels, More Tools (100%)
+- Iteration 309: Ken Burns, Form Controls, Resume Panels, More Tools (100%)
+- Iteration 310: Truth-vs-Illusion Sprint — Zero placehold.co, data repair, negative prompts (16/16 - 100%)
 
 ## Completed Work
 1-40. Core platform + Stability + Growth Engine + Analytics + UAT
@@ -25,42 +31,37 @@ AI Creative Operating System: **Create -> Share -> Remix -> Loop -> Grow -> Meas
 43. Comic Story Book Builder fixes
 44. Download fix (fetch→blob) + Generation timer
 45. Photo to Comic Strip Pipeline fix
-46. **Text Visibility + Copy Fix** (Feb 2026):
-    - PhotoToComic.js: Continue Story buttons — labels: text-white, descriptions: text-slate-400
-    - StoryVideoPipeline.js: Same Continue Story pattern fixed
-    - StoryVideoStudio.js: Quick Continue + Remix description text fixed
-    - AutomationDashboard.js: text-slate-600 → text-slate-400
-    - Contact.js, CopyrightInfo.js: dark text → visible text
-    - StorySeries.js: opacity-70 → text-slate-400
-    - PhotoToComic.js: Copy fallback (navigator.clipboard + execCommand fallback)
-47. **P0 Critical Fixes** (Mar 2026):
-    - Ken Burns motion system in pipeline_engine.py — 6 motion patterns (zoom_in, pan_right, zoom_out, pan_left, zoom_in_top, pan_up)
-    - Story Video form controls: text-slate-200 + border-slate-600 + ring selection highlight (no longer dim/disabled-looking)
-    - Resume Your Story: truthful fallback states (ImageOff + "Preview unavailable" when no preview_url)
-    - More Tools label: text-white/80 with font-medium (no longer dim/buried)
-    - FFmpeg installed, render quality bumped: 24fps (was 15), CRF 26 (was 28), 2 threads (was 1)
-
-## Active A/B Experiments
-1. cta_copy — "Create This in 1 Click" | "Make Your Own Now" | "Generate This in Seconds"
-2. hook_text — "Made in 30 seconds." | "Created with AI." | "Anyone can make this."
-3. login_timing — Before Generate | After Generate | After Preview
+46. Text Visibility + Copy Fix (Feb 2026)
+47. P0 Critical Fixes (Mar 2026):
+    - Ken Burns motion system (6 patterns: zoom_in, pan_right, zoom_out, pan_left, zoom_in_top, pan_up)
+    - Story Video form controls: text-slate-200 + border-slate-600 + ring selection highlight
+    - Resume Your Story: truthful fallback (ImageOff + "Preview unavailable")
+    - More Tools label: text-white/80 with font-medium
+    - FFmpeg installed, 24fps/CRF26/2 threads
+48. **Truth-vs-Illusion Sprint** (Mar 2026):
+    - ELIMINATED all placehold.co from backend (7 instances in 4 files) and frontend (25+ in StylePreview.jsx)
+    - Data Repair Script: 19 zombie COMPLETED jobs → ORPHANED, 5 fake comic records → FAILED
+    - User-jobs endpoint excludes ORPHANED status
+    - Explore endpoint requires real output_url
+    - Universal Negative Prompt in ALL 5 image generation paths
+    - Story Video PostGen truth: View/Download for real output, failure state for no output, never empty preview
+    - Resume Your Story: backend filters fake URLs before returning
+    - StylePreview.jsx: CSS gradient backgrounds replace placehold.co URLs
 
 ## Remaining Backlog
 ### P0
-- [ ] Remove placehold.co from avatar mode, comix_ai, gif_maker
-- [ ] CTA Placement experiment
-- [ ] Monitor experiment data
 - [ ] End-to-end verify Ken Burns motion in actual generated video (needs credits)
+- [ ] CTA Placement A/B Test (4th experiment)
+- [ ] Monitor experiment data
 
 ### P1
 - [ ] UI Consistency (aspect ratios, card sizing)
-- [ ] Character consistency for comic strip panels
+- [ ] Admin Dashboard UI for observability APIs
 
 ### P2
-- [ ] Style preset real thumbnails
-- [ ] Admin Dashboard
-- [ ] Cashfree USD
+- [ ] Style preset preview thumbnails for Photo to Comic (real AI-generated)
+- [ ] Fine-tune A/B testing experiments based on data
 
-### Blocked
-- R2 CORS — images load without CORS enforcement
-- SendGrid — plan upgrade
+### BLOCKED
+- [ ] R2 bucket CORS policy (requires manual user config)
+- [ ] SendGrid upgrade (requires user plan upgrade)
