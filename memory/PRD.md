@@ -64,6 +64,7 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
 - Iteration 312: Phase 2+3 + CTA A/B + UI — 53/53 backend + all frontend (100%)
 - Iteration 313: Pricing & Compulsion Engine — 45/45 backend + all frontend (100%)
 - Iteration 314: AI Suggestions + Cover Image — 24/25 backend + all frontend (100%)
+- Ken Burns Motion: 6/6 FFmpeg zoompan patterns produce detectable motion (pixel-verified)
 
 ## Completed Work Summary
 1-50. Core platform + Stability + Growth Engine + Analytics + UAT + Truth-Repair + GIF Download Pack
@@ -77,10 +78,11 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
 58. Pricing & Monetization Engine (4-tier plans, credits, top-ups, paywalls) - DONE
 59. Improved AI Suggestions (enriched with chars, world, episodes, memory) - DONE
 60. Series Cover Image Generation (gpt-image-1, R2 upload, sidebar display) - DONE
+61. Ken Burns Motion E2E Verification (6/6 FFmpeg patterns pass, pixel-level confirmed) - DONE
 
 ## Remaining Backlog
 ### P0
-- [ ] End-to-end verify Ken Burns motion in actual generated video (needs credits)
+- [x] End-to-end verify Ken Burns motion in actual generated video — VERIFIED (6/6 patterns pass)
 
 ### P1
 - [ ] Admin Dashboard UI for observability APIs

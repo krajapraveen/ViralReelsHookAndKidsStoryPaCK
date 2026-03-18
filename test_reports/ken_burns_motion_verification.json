@@ -1,0 +1,68 @@
+{
+  "test": "ken_burns_motion_verification",
+  "render_config": {
+    "width": 960,
+    "height": 540,
+    "fps": 24,
+    "duration_sec": 2.0
+  },
+  "patterns_tested": 6,
+  "patterns_passed": 6,
+  "verdict": "PASS",
+  "results": [
+    {
+      "motion": "zoom_in",
+      "status": "PASS",
+      "file_size_bytes": 155578,
+      "frames_extracted": 5,
+      "size_motion_detected": true,
+      "pixel_motion_detected": true,
+      "filter": "zoompan=z='min(1+0.25*on/48,1.25)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=4..."
+    },
+    {
+      "motion": "pan_right",
+      "status": "PASS",
+      "file_size_bytes": 150211,
+      "frames_extracted": 5,
+      "size_motion_detected": true,
+      "pixel_motion_detected": true,
+      "filter": "zoompan=z='1.15':x='(iw*0.15)*on/48':y='ih/2-(ih/zoom/2)':d=48:s=960x540:fps=24..."
+    },
+    {
+      "motion": "zoom_out",
+      "status": "PASS",
+      "file_size_bytes": 147018,
+      "frames_extracted": 5,
+      "size_motion_detected": true,
+      "pixel_motion_detected": true,
+      "filter": "zoompan=z='if(eq(on,1),1.25,max(1.0,zoom-0.25/48))':x='iw/2-(iw/zoom/2)':y='ih/2..."
+    },
+    {
+      "motion": "pan_left",
+      "status": "PASS",
+      "file_size_bytes": 155215,
+      "frames_extracted": 5,
+      "size_motion_detected": true,
+      "pixel_motion_detected": true,
+      "filter": "zoompan=z='1.15':x='(iw*0.15)*(1-on/48)':y='ih/2-(ih/zoom/2)':d=48:s=960x540:fps..."
+    },
+    {
+      "motion": "zoom_in_top",
+      "status": "PASS",
+      "file_size_bytes": 158027,
+      "frames_extracted": 5,
+      "size_motion_detected": true,
+      "pixel_motion_detected": true,
+      "filter": "zoompan=z='min(1+0.25*on/48,1.25)':x='iw*0.6-(iw/zoom/2)':y='ih*0.35-(ih/zoom/2)..."
+    },
+    {
+      "motion": "pan_up",
+      "status": "PASS",
+      "file_size_bytes": 145426,
+      "frames_extracted": 5,
+      "size_motion_detected": true,
+      "pixel_motion_detected": true,
+      "filter": "zoompan=z='1.15':x='iw/2-(iw/zoom/2)':y='(ih*0.15)*(1-on/48)':d=48:s=960x540:fps..."
+    }
+  ]
+}
