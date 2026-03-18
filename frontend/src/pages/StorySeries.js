@@ -324,7 +324,7 @@ export default function StorySeries() {
                         }`}
                       >
                         {num} Episodes
-                        <span className="block text-xs opacity-70">
+                        <span className="block text-xs text-slate-400">
                           {pricing.pricing?.[`${num}_EPISODES`] || 0} credits
                         </span>
                       </button>

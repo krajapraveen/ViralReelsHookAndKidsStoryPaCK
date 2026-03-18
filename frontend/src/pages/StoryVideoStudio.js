@@ -2316,7 +2316,7 @@ export default function StoryVideoStudio() {
                   <Play className="w-5 h-5 shrink-0" />
                   <div>
                     <p className="text-xs font-semibold">Quick Continue</p>
-                    <p className="text-[10px] opacity-70">Same characters & style</p>
+                    <p className="text-[10px] text-slate-400">Same characters & style</p>
                   </div>
                 </button>
                 <button
@@ -2335,7 +2335,7 @@ export default function StoryVideoStudio() {
                   <RefreshCw className="w-5 h-5 shrink-0" />
                   <div>
                     <p className="text-xs font-semibold">Remix</p>
-                    <p className="text-[10px] opacity-70">New story, fresh start</p>
+                    <p className="text-[10px] text-slate-400">New story, fresh start</p>
                   </div>
                 </button>
               </div>

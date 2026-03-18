@@ -191,7 +191,7 @@ export default function CopyrightInfo() {
             {faqs.map((faq, idx) => (
               <div key={idx} className="border-b border-slate-100 pb-4 last:border-0 last:pb-0">
                 <h3 className="font-semibold text-slate-900 mb-2">{faq.q}</h3>
-                <p className="text-slate-600 text-sm">{faq.a}</p>
+                <p className="text-slate-400 text-sm">{faq.a}</p>
               </div>
             ))}
           </div>
@@ -203,7 +203,7 @@ export default function CopyrightInfo() {
             <FileText className="w-5 h-5 text-slate-600" />
             Legal Disclaimer
           </h2>
-          <div className="text-sm text-slate-600 space-y-3">
+          <div className="text-sm text-slate-400 space-y-3">
             <p>
               <strong>No Legal Advice:</strong> This page provides general information about content rights and is not legal advice. For specific legal questions, consult a qualified attorney.
             </p>
@@ -221,7 +221,7 @@ export default function CopyrightInfo() {
 
         {/* Contact */}
         <div className="text-center py-6">
-          <p className="text-slate-600 mb-4">Have questions about content rights?</p>
+          <p className="text-slate-400 mb-4">Have questions about content rights?</p>
           <Link to="/contact">
             <Button className="bg-purple-600 hover:bg-purple-700">
               Contact Support

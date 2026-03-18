@@ -442,7 +442,22 @@ export default function PhotoToComic() {
       try {
         await navigator.clipboard.writeText(shareUrl);
         toast.success('Link copied!');
-      } catch { toast.error('Copy failed'); }
+      } catch {
+        // Fallback for non-HTTPS or permission denied
+        try {
+          const textarea = document.createElement('textarea');
+          textarea.value = shareUrl;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          toast.success('Link copied!');
+        } catch {
+          toast.error('Could not copy — please copy manually: ' + shareUrl);
+        }
+      }
       return;
     }
     const urls = {
@@ -663,10 +678,10 @@ export default function PhotoToComic() {
                         >
                           <d.icon className="w-4 h-4 shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold">{d.label}</p>
-                            <p className="text-[10px] opacity-70">{d.desc}</p>
+                            <p className="text-xs font-semibold text-white">{d.label}</p>
+                            <p className="text-[10px] text-slate-400">{d.desc}</p>
                           </div>
-                          {d.id !== 'custom' && <ChevronRight className="w-3.5 h-3.5 opacity-50" />}
+                          {d.id !== 'custom' && <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
                         </button>
                       ))}
                       <input

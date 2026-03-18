@@ -1127,10 +1127,10 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                   >
                     <d.icon className="w-4 h-4 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold">{d.label}</p>
-                      <p className="text-[10px] opacity-70">{d.desc}</p>
+                      <p className="text-xs font-semibold text-white">{d.label}</p>
+                      <p className="text-[10px] text-slate-400">{d.desc}</p>
                     </div>
-                    {d.id !== 'custom' && <Play className="w-3.5 h-3.5 opacity-50" />}
+                    {d.id !== 'custom' && <Play className="w-3.5 h-3.5 text-slate-400" />}
                   </button>
                 ))}
                 <input

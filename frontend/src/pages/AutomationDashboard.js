@@ -98,7 +98,7 @@ export default function AutomationDashboard() {
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mx-auto mb-4" />
-          <p className="text-slate-600">Loading automation status...</p>
+          <p className="text-slate-400">Loading automation status...</p>
         </div>
       </div>
     );
@@ -189,7 +189,7 @@ export default function AutomationDashboard() {
               <Clock className="w-4 h-4" />
               Last Health Check
             </div>
-            <p className="text-sm font-medium text-slate-700">{formatDate(status?.last_health_check)}</p>
+            <p className="text-sm font-medium text-slate-300">{formatDate(status?.last_health_check)}</p>
           </div>
         </div>
 
@@ -213,7 +213,7 @@ export default function AutomationDashboard() {
                     <XCircle className="w-5 h-5 text-red-500" />
                   )}
                 </div>
-                <div className="text-sm text-slate-600">
+                <div className="text-sm text-slate-400">
                   <div>Status: {service.supervisor_status}</div>
                   <div>HTTP: {service.http_status || 'N/A'}</div>
                 </div>
@@ -294,17 +294,17 @@ export default function AutomationDashboard() {
           <div className="grid md:grid-cols-3 gap-4 text-sm">
             <div className="bg-white rounded-lg p-4">
               <div className="font-medium text-indigo-600">Health Check</div>
-              <div className="text-slate-600">Every 1 minute</div>
+              <div className="text-slate-400">Every 1 minute</div>
               <div className="text-xs text-slate-400 mt-1">Auto-restarts failed services</div>
             </div>
             <div className="bg-white rounded-lg p-4">
               <div className="font-medium text-indigo-600">API Validation</div>
-              <div className="text-slate-600">Every 5 minutes</div>
+              <div className="text-slate-400">Every 5 minutes</div>
               <div className="text-xs text-slate-400 mt-1">Tests all API endpoints</div>
             </div>
             <div className="bg-white rounded-lg p-4">
               <div className="font-medium text-indigo-600">Database Maintenance</div>
-              <div className="text-slate-600">Every 1 hour</div>
+              <div className="text-slate-400">Every 1 hour</div>
               <div className="text-xs text-slate-400 mt-1">Cleanup & optimization</div>
             </div>
           </div>

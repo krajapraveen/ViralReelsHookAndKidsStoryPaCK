@@ -207,16 +207,16 @@ export default function Contact() {
 
             <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
               <h3 className="text-xl font-bold text-slate-900 mb-4">Response Time</h3>
-              <p className="text-slate-600 mb-4">
+              <p className="text-slate-400 mb-4">
                 We typically respond to all inquiries within 24-48 hours during business days.
               </p>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <p className="font-semibold text-slate-700">General Inquiries</p>
+                  <p className="font-semibold text-slate-300">General Inquiries</p>
                   <p className="text-slate-500">24-48 hours</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <p className="font-semibold text-slate-700">Technical Support</p>
+                  <p className="font-semibold text-slate-300">Technical Support</p>
                   <p className="text-slate-500">12-24 hours</p>
                 </div>
               </div>
