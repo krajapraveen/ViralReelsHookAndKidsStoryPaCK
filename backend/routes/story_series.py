@@ -429,6 +429,19 @@ async def plan_episode(series_id: str, request: PlanEpisodeRequest, user: dict =
     )
     next_num = (last_ep.get("episode_number", 0) if last_ep else 0) + 1
 
+    # Load attached persistent character memories
+    attached_chars = series.get("attached_characters", [])
+    char_memory_blocks = ""
+    if attached_chars:
+        from routes.characters import build_character_prompt_package, format_prompt_package_for_llm
+        packages = []
+        for cid in attached_chars[:5]:
+            pkg = await build_character_prompt_package(cid, series_id)
+            if pkg:
+                packages.append(format_prompt_package_for_llm(pkg))
+        if packages:
+            char_memory_blocks = "\n\n---\n\n".join(packages)
+
     mem_clean = {
         k: v for k, v in (memory or {}).items()
         if k not in ("_id", "story_memory_id", "series_id", "updated_at")
@@ -437,6 +450,16 @@ async def plan_episode(series_id: str, request: PlanEpisodeRequest, user: dict =
         k: v for k, v in (world_bible or {}).items()
         if k not in ("_id", "world_bible_id", "series_id", "created_at", "updated_at")
     }
+
+    # Build character section: merge persistent memory with series char bible
+    char_section = json.dumps(char_bible.get('characters', []) if char_bible else [], indent=2)[:3000]
+    if char_memory_blocks:
+        char_section = f"""{char_memory_blocks}
+
+### SERIES CHARACTER BIBLE (supplementary)
+{char_section}"""
+    else:
+        char_section = f"{char_section}"
 
     system_prompt = f"""You are a professional story writer and series planner.
 
@@ -447,7 +470,7 @@ Audience: {series.get('audience_type', '')}
 Style: {series.get('style', '')}
 
 ### CHARACTER BIBLE
-{json.dumps(char_bible.get('characters', []) if char_bible else [], indent=2)[:3000]}
+{char_section}
 
 ### WORLD BIBLE
 {json.dumps(wb_clean, indent=2)[:2000]}
@@ -579,6 +602,28 @@ async def generate_episode(series_id: str, request: GenerateEpisodeRequest, user
     scenes = plan.get("scene_breakdown", [])
     if not scenes:
         raise HTTPException(status_code=400, detail="No scene breakdown in plan. Run plan-episode first.")
+
+    # Inject attached character visual locks into scene prompts
+    attached_chars = series.get("attached_characters", [])
+    char_visual_lock = ""
+    if attached_chars:
+        from routes.characters import build_character_prompt_package, CHARACTER_NEGATIVE_PROMPT
+        for cid in attached_chars[:5]:
+            pkg = await build_character_prompt_package(cid, series_id)
+            if pkg and pkg.get("visual_lock_block"):
+                vl = pkg["visual_lock_block"]
+                char_visual_lock += (
+                    f" {vl.get('canonical_description', '')}. "
+                    f"Rules: {', '.join(vl.get('do_not_change_rules', [])[:4])}. "
+                )
+
+    # Enrich scene visual prompts with character visual locks
+    if char_visual_lock:
+        for scene in scenes:
+            if scene.get("visual_prompt"):
+                scene["visual_prompt"] = f"{scene['visual_prompt']}. CHARACTER LOCK: {char_visual_lock.strip()}"
+        # Update plan with enriched scenes
+        plan["scene_breakdown"] = scenes
 
     # Build story text from plan for pipeline consumption
     story_text = episode.get("summary", "")
@@ -947,6 +992,41 @@ async def _update_memory_internal(series_id: str, episode_id: str) -> bool:
 
             await db.story_memories.update_one({"series_id": series_id}, {"$set": updated})
             logger.info(f"Memory updated for series {series_id} after episode {episode_id} (attempt {attempt+1})")
+
+            # Also write character memory for attached persistent characters
+            try:
+                series_doc = await db.story_series.find_one({"series_id": series_id}, {"_id": 0, "attached_characters": 1})
+                attached = (series_doc or {}).get("attached_characters", [])
+                if attached:
+                    from routes.characters import write_character_memory
+                    for cid in attached:
+                        char_states = extracted.get("character_states", {})
+                        # Find this character's state
+                        profile = await db.character_profiles.find_one({"character_id": cid}, {"_id": 0, "name": 1})
+                        char_name = (profile or {}).get("name", "")
+                        emotion = "neutral"
+                        goal = ""
+                        if char_name and char_name.lower() in {k.lower(): k for k in char_states}:
+                            real_key = {k.lower(): k for k in char_states}.get(char_name.lower(), char_name)
+                            state = char_states.get(real_key, {})
+                            if isinstance(state, dict):
+                                emotion = state.get("emotion", state.get("mood", "neutral"))
+                                goal = state.get("goal", "")
+                            elif isinstance(state, str):
+                                emotion = state
+
+                        await write_character_memory(
+                            character_id=cid,
+                            episode_id=episode_id,
+                            event_summary=episode.get("summary", ""),
+                            emotion_state=str(emotion),
+                            goal_state=str(goal),
+                            open_loops=extracted.get("open_loops", []),
+                            resolved_loops=extracted.get("resolved_loops", []),
+                        )
+            except Exception as cm_err:
+                logger.warning(f"Character memory write failed: {cm_err}")
+
             return True
         except Exception as e:
             logger.warning(f"Memory update attempt {attempt+1} failed for {series_id}: {e}")

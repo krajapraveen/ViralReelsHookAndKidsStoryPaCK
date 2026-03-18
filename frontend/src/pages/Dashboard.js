@@ -10,7 +10,7 @@ import {
   Image as ImageIcon, Users, MessageSquare, Moon, Search, ArrowRight,
   Download, Zap, Send, Flame, Check, Trophy, Lightbulb,
   Activity, Eye, Globe, AlertTriangle, Heart, FileText,
-  Command, Layers, RefreshCcw, Share2, Play
+  Command, Layers, RefreshCcw, Share2, Play, UserCircle
 } from 'lucide-react';
 import CreditStatusBadge from '../components/CreditStatusBadge';
 import NotificationBell from '../components/NotificationBell';
@@ -44,6 +44,7 @@ const INTENT_MAP = [
   { keywords: ['story', 'tale', 'fiction', 'adventure'], route: '/app/stories', label: 'Story Generator', icon: BookOpen },
   { keywords: ['series', 'episodes', 'continue story', 'story series', 'multi episode', 'next part', 'sequel', 'continue my', 'episode 2', 'episode 3', 'make sequel', 'next episode', 'continue', 'part 2', 'keep going'], route: '/app/story-series', label: 'Story Series', icon: BookOpen },
   { keywords: ['idea', 'trending', 'daily'], route: '/app/daily-viral-ideas', label: 'Daily Viral Ideas', icon: TrendingUp },
+  { keywords: ['character', 'character memory', 'persistent character', 'my characters', 'create character'], route: '/app/characters', label: 'Character Memory', icon: UserCircle },
 ];
 
 /* ─── Creation Modes ─── */
@@ -51,6 +52,7 @@ const HERO_TOOL = { name: 'Story Video', desc: 'Turn any idea into a cinematic A
 
 const MORE_TOOLS = [
   { name: 'Story Series', desc: 'Turn one story into many', route: '/app/story-series', icon: BookOpen, accent: 'from-indigo-500 to-violet-600' },
+  { name: 'Character Memory', desc: 'Persistent AI characters', route: '/app/characters', icon: UserCircle, accent: 'from-cyan-500 to-indigo-600' },
   { name: 'Reel Generator', desc: 'Viral hooks & scripts', route: '/app/reels', icon: Video, accent: 'from-pink-500 to-rose-600' },
   { name: 'Photo to Comic', desc: 'Transform any photo', route: '/app/photo-to-comic', icon: ImageIcon, accent: 'from-amber-500 to-orange-600' },
   { name: 'Comic Storybook', desc: 'Multi-page comic', route: '/app/comic-storybook', icon: Library, accent: 'from-emerald-500 to-teal-600' },

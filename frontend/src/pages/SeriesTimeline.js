@@ -7,7 +7,7 @@ import {
   RotateCcw, ChevronDown, Film, Clock, CheckCircle,
   AlertCircle, Users, Globe, BookOpen, Eye, Download,
   GitBranch, Share2, Lock, Unlock, Heart, TrendingUp,
-  ImageIcon
+  ImageIcon, UserCircle, Plus
 } from 'lucide-react';
 import api from '../utils/api';
 import { UpgradeModal } from '../components/UpgradeModal';
@@ -45,6 +45,10 @@ export default function SeriesTimeline() {
   const [sharing, setSharing] = useState(false);
   const [generatingCover, setGeneratingCover] = useState(false);
   const [upgradeModal, setUpgradeModal] = useState({ open: false, reason: '', context: {} });
+  const [attachedChars, setAttachedChars] = useState([]);
+  const [myChars, setMyChars] = useState([]);
+  const [showCharPicker, setShowCharPicker] = useState(false);
+  const [attaching, setAttaching] = useState(false);
 
   const fetchSeries = useCallback(async () => {
     try {
@@ -59,6 +63,16 @@ export default function SeriesTimeline() {
   }, [seriesId, navigate]);
 
   useEffect(() => { fetchSeries(); }, [fetchSeries]);
+
+  // Load attached characters
+  useEffect(() => {
+    if (!data?.series?.attached_characters?.length) { setAttachedChars([]); return; }
+    Promise.all(
+      data.series.attached_characters.map(cid =>
+        api.get(`/api/characters/${cid}`).then(r => r.data.profile).catch(() => null)
+      )
+    ).then(chars => setAttachedChars(chars.filter(Boolean)));
+  }, [data?.series?.attached_characters]);
 
   // Auto-focus: expand + scroll to the focused episode, auto-load suggestions
   useEffect(() => {
@@ -473,6 +487,81 @@ export default function SeriesTimeline() {
                 />
               </div>
             )}
+
+            {/* Attached Characters */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4" data-testid="attached-characters-zone">
+              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <UserCircle className="w-4 h-4 text-cyan-400" />
+                Characters
+                <span className="ml-auto text-xs text-slate-500">{attachedChars.length} attached</span>
+              </h3>
+              {attachedChars.length > 0 && (
+                <div className="space-y-1.5 mb-3">
+                  {attachedChars.map(c => (
+                    <button
+                      key={c.character_id}
+                      onClick={() => navigate(`/app/characters/${c.character_id}`)}
+                      className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-slate-800/40 hover:bg-slate-800 transition-all text-left"
+                      data-testid={`attached-char-${c.character_id}`}
+                    >
+                      {c.portrait_url ? (
+                        <img src={c.portrait_url} alt={c.name} className="w-7 h-7 rounded-md object-cover" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-md bg-cyan-500/15 flex items-center justify-center">
+                          <UserCircle className="w-3.5 h-3.5 text-cyan-400" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium text-white truncate">{c.name}</div>
+                        <div className="text-[10px] text-slate-500">{c.species_or_type} {c.role}</div>
+                      </div>
+                      <Lock className="w-3 h-3 text-amber-500/40 flex-shrink-0" title="Visual locked" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <Button
+                size="sm" variant="outline"
+                className="w-full border-slate-700 text-slate-400 hover:text-white text-xs gap-1.5"
+                onClick={() => {
+                  if (myChars.length === 0) {
+                    api.get('/api/characters/my-characters').then(r => setMyChars(r.data.characters || []));
+                  }
+                  setShowCharPicker(!showCharPicker);
+                }}
+                data-testid="attach-character-btn"
+              >
+                <Plus className="w-3 h-3" /> Attach Character
+              </Button>
+              {showCharPicker && myChars.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                  {myChars.filter(c => !attachedChars.find(a => a.character_id === c.character_id)).map(c => (
+                    <button
+                      key={c.character_id}
+                      disabled={attaching}
+                      onClick={async () => {
+                        setAttaching(true);
+                        try {
+                          await api.post(`/api/characters/attach-to-series/${seriesId}`, { character_id: c.character_id });
+                          toast.success(`${c.name} attached!`);
+                          setShowCharPicker(false);
+                          fetchSeries();
+                        } catch { toast.error('Failed to attach'); }
+                        finally { setAttaching(false); }
+                      }}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg bg-slate-800/30 hover:bg-indigo-500/10 transition-all text-left text-xs"
+                    >
+                      <UserCircle className="w-4 h-4 text-slate-500" />
+                      <span className="text-slate-300">{c.name}</span>
+                      <span className="text-slate-600 ml-auto">{c.species_or_type} {c.role}</span>
+                    </button>
+                  ))}
+                  {myChars.filter(c => !attachedChars.find(a => a.character_id === c.character_id)).length === 0 && (
+                    <p className="text-xs text-slate-500 text-center py-2">All characters already attached</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Action Zone */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid="action-zone">

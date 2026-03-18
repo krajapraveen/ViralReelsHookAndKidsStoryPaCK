@@ -137,6 +137,10 @@ import StoryChainView from './pages/StoryChainView';
 import MyStories from './pages/MyStories';
 // ADMIN GROWTH DASHBOARD
 import GrowthDashboard from './pages/Admin/GrowthDashboard';
+// AI CHARACTER MEMORY
+import CharacterCreator from './pages/CharacterCreator';
+import CharacterLibrary from './pages/CharacterLibrary';
+import CharacterDetail from './pages/CharacterDetail';
 import './App.css';
 
 function App() {
@@ -223,6 +227,10 @@ function App() {
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/story-series/create" element={isAuthenticated ? <CreateSeries /> : <Navigate to="/login" />} />
       <Route path="/app/story-series/:seriesId" element={isAuthenticated ? <SeriesTimeline /> : <Navigate to="/login" />} />
+      {/* AI Character Memory */}
+      <Route path="/app/characters" element={isAuthenticated ? <CharacterLibrary /> : <Navigate to="/login" />} />
+      <Route path="/app/characters/create" element={isAuthenticated ? <CharacterCreator /> : <Navigate to="/login" />} />
+      <Route path="/app/characters/:characterId" element={isAuthenticated ? <CharacterDetail /> : <Navigate to="/login" />} />
       <Route path="/app/pricing" element={isAuthenticated ? <PricingPage /> : <Navigate to="/login" />} />
       <Route path="/app/challenge-generator" element={isAuthenticated ? <ChallengeGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/tone-switcher" element={isAuthenticated ? <ToneSwitcher /> : <Navigate to="/login" />} />

@@ -86,6 +86,7 @@ from routes.realtime_analytics import router as realtime_analytics_router
 from routes.user_analytics import router as user_analytics_router, user_router as user_analytics_user_router
 from routes.sre_monitoring import router as sre_monitoring_router
 from routes.monetization import router as monetization_router
+from routes.characters import router as characters_router
 from routes.share import router as share_router
 from routes.photo_to_comic import router as photo_to_comic_router
 from routes.referral import router as referral_router
@@ -399,6 +400,7 @@ api_router.include_router(recovery_ui_router)
 api_router.include_router(priority_scaling_router)
 api_router.include_router(sre_monitoring_router)
 api_router.include_router(monetization_router)
+api_router.include_router(characters_router)
 api_router.include_router(share_router)
 api_router.include_router(photo_to_comic_router)
 api_router.include_router(referral_router)
