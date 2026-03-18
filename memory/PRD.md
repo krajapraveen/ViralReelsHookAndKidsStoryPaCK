@@ -16,6 +16,7 @@ AI Creative Operating System: **Create -> Share -> Remix -> Loop -> Grow -> Meas
 - Iteration 306: Comic Storybook Preview (100%)
 - Iteration 307: Download Fix + Timer (100%)
 - Iteration 308: Photo to Comic Strip Pipeline (100%)
+- Iteration 309: P0 Bug Fixes — Ken Burns, Form Controls, Resume Panels, More Tools (100%)
 
 ## Completed Work
 1-40. Core platform + Stability + Growth Engine + Analytics + UAT
@@ -32,6 +33,12 @@ AI Creative Operating System: **Create -> Share -> Remix -> Loop -> Grow -> Meas
     - Contact.js, CopyrightInfo.js: dark text → visible text
     - StorySeries.js: opacity-70 → text-slate-400
     - PhotoToComic.js: Copy fallback (navigator.clipboard + execCommand fallback)
+47. **P0 Critical Fixes** (Mar 2026):
+    - Ken Burns motion system in pipeline_engine.py — 6 motion patterns (zoom_in, pan_right, zoom_out, pan_left, zoom_in_top, pan_up)
+    - Story Video form controls: text-slate-200 + border-slate-600 + ring selection highlight (no longer dim/disabled-looking)
+    - Resume Your Story: truthful fallback states (ImageOff + "Preview unavailable" when no preview_url)
+    - More Tools label: text-white/80 with font-medium (no longer dim/buried)
+    - FFmpeg installed, render quality bumped: 24fps (was 15), CRF 26 (was 28), 2 threads (was 1)
 
 ## Active A/B Experiments
 1. cta_copy — "Create This in 1 Click" | "Make Your Own Now" | "Generate This in Seconds"
@@ -43,6 +50,7 @@ AI Creative Operating System: **Create -> Share -> Remix -> Loop -> Grow -> Meas
 - [ ] Remove placehold.co from avatar mode, comix_ai, gif_maker
 - [ ] CTA Placement experiment
 - [ ] Monitor experiment data
+- [ ] End-to-end verify Ken Burns motion in actual generated video (needs credits)
 
 ### P1
 - [ ] UI Consistency (aspect ratios, card sizing)
