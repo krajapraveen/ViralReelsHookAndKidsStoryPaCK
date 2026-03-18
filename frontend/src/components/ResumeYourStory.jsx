@@ -23,31 +23,30 @@ export function ResumeYourStory() {
   if (loading) return null;
   if (!chains.length) return null;
 
-  const primary = chains[0];
-  const rest = chains.slice(1);
+  // SAFETY: Only show chains that have a real preview_url from backend
+  // Backend already filters, but double-check as defense-in-depth
+  const validChains = chains.filter(c => 
+    c.preview_url && 
+    c.preview_url !== '' && 
+    !c.preview_url.includes('placehold.co') &&
+    (c.preview_url.startsWith('http://') || c.preview_url.startsWith('https://'))
+  );
+  
+  if (!validChains.length) return null;
 
-  // Truthful preview: show real thumbnail, generating skeleton, or "unavailable"
+  const primary = validChains[0];
+  const rest = validChains.slice(1);
+
+  // Preview component — only called with valid URLs (backend + frontend both filter)
   const ChainPreview = ({ src, alt, style, className, aspectRatio }) => {
-    if (src && src !== '' && !src.includes('placehold.co')) {
-      return (
-        <SafeImage
-          src={src}
-          alt={alt || 'Story chain preview'}
-          aspectRatio={aspectRatio || '4/3'}
-          titleOverlay={style || 'Comic'}
-          className={className}
-        />
-      );
-    }
-    // No valid preview — show truthful fallback
     return (
-      <div 
-        className={`flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 ${className || ''}`}
-        style={{ aspectRatio: aspectRatio || '4/3' }}
-      >
-        <ImageOff className="w-6 h-6 text-slate-600 mb-1" />
-        <span className="text-[10px] text-slate-500">Preview unavailable</span>
-      </div>
+      <SafeImage
+        src={src}
+        alt={alt || 'Story chain preview'}
+        aspectRatio={aspectRatio || '4/3'}
+        titleOverlay={style || 'Comic'}
+        className={className}
+      />
     );
   };
 

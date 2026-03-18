@@ -1714,6 +1714,11 @@ async def get_active_chains(user: dict = Depends(get_current_user)):
             if candidate and isinstance(candidate, str) and "placehold.co" not in candidate and candidate.startswith(("http://", "https://")):
                 preview = candidate
 
+        # TRUTH GATE: Do NOT return chains without a real, renderable preview.
+        # A chain with no preview is dead content — showing it misleads the user.
+        if not preview:
+            continue
+
         # Get the last completed strip for continue CTA
         last_strip = await db.photo_to_comic_jobs.find_one(
             {"story_chain_id": c["_id"], "userId": user["id"],
