@@ -36,6 +36,7 @@ import ColoringBookWizard from './pages/ColoringBookWizard';
 import StorySeries from './pages/StorySeries';
 import CreateSeries from './pages/CreateSeries';
 import SeriesTimeline from './pages/SeriesTimeline';
+import PublicSeries from './pages/PublicSeries';
 import ChallengeGenerator from './pages/ChallengeGenerator';
 import ToneSwitcher from './pages/ToneSwitcher';
 import UserManual from './pages/UserManual';
@@ -177,6 +178,7 @@ function App() {
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/v/:slug" element={<PublicCreation />} />
         <Route path="/creator/:username" element={<CreatorProfile />} />
+        <Route path="/series/:seriesId" element={<PublicSeries />} />
         
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />

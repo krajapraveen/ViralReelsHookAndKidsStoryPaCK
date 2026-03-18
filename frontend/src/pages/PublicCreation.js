@@ -59,6 +59,7 @@ export default function PublicCreation() {
   // Get A/B variant values with fallbacks
   const ctaText = abVariants?.cta_copy?.variant_data?.cta_text || 'Create This in 1 Click';
   const hookText = abVariants?.hook_text?.variant_data?.hook_text || 'Made in 30 seconds. No skills needed.';
+  const ctaPosition = abVariants?.cta_placement?.variant_data?.cta_position || 'top';
 
   useEffect(() => { fetchCreation(); }, [slug]);
 
@@ -106,6 +107,7 @@ export default function PublicCreation() {
     trackConversion('cta_copy', 'remix_click');
     trackConversion('hook_text', 'remix_click');
     trackConversion('login_timing', 'remix_click');
+    trackConversion('cta_placement', 'remix_click');
 
     const isLoggedIn = !!localStorage.getItem('token');
     const gateTiming = abVariants?.login_timing?.variant_data?.gate_timing || 'after_generate';
@@ -349,7 +351,8 @@ export default function PublicCreation() {
 
             {/* RIGHT: PRIMARY CTA ZONE */}
             <div className="lg:col-span-2 space-y-4" data-testid="cta-zone">
-              {/* PRIMARY CTA — A/B Tested */}
+              {/* PRIMARY CTA — A/B Tested — "top" variant (default) */}
+              {ctaPosition === 'top' && (
               <button
                 onClick={handleRemix}
                 className="w-full group relative overflow-hidden rounded-xl p-5 text-left transition-all hover:scale-[1.01]"
@@ -368,6 +371,7 @@ export default function PublicCreation() {
                 </div>
                 <ArrowRight className="absolute top-5 right-5 w-5 h-5 text-white/30 group-hover:text-white/70 group-hover:translate-x-1 transition-all z-10" />
               </button>
+              )}
 
               {/* SECONDARY CTA — Try This Exact Prompt */}
               {prompt && (
@@ -449,6 +453,28 @@ export default function PublicCreation() {
                   >{p.label}</button>
                 ))}
               </div>
+
+              {/* PRIMARY CTA — A/B "bottom" variant */}
+              {ctaPosition === 'bottom' && (
+              <button
+                onClick={handleRemix}
+                className="w-full group relative overflow-hidden rounded-xl p-5 text-left transition-all hover:scale-[1.01]"
+                data-testid="remix-main-btn"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-purple-700 opacity-90 group-hover:opacity-100 transition-opacity" />
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="w-5 h-5 text-white" />
+                    <span className="text-lg font-bold text-white">{ctaText}</span>
+                  </div>
+                  <p className="text-sm text-white/70 mb-3">Make your own version — different style, story, or voice</p>
+                  <div className="flex items-center gap-2 text-xs text-white/50">
+                    <Zap className="w-3 h-3" /> Auto-prefilled — ready to generate
+                  </div>
+                </div>
+                <ArrowRight className="absolute top-5 right-5 w-5 h-5 text-white/30 group-hover:text-white/70 group-hover:translate-x-1 transition-all z-10" />
+              </button>
+              )}
             </div>
           </div>
         </div>
@@ -477,6 +503,30 @@ export default function PublicCreation() {
             <p className="text-xs text-slate-600 mt-3">Free account. No credit card needed.</p>
           </div>
         </section>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+           FLOATING CTA — A/B "floating" variant
+         ═══════════════════════════════════════════════════════════════ */}
+      {ctaPosition === 'floating' && (
+        <div className="fixed bottom-0 inset-x-0 z-50 bg-[#0a0a0f]/90 backdrop-blur-xl border-t border-indigo-500/20 p-3" data-testid="floating-cta">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <Sparkles className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white truncate">{ctaText}</p>
+                <p className="text-xs text-slate-400 hidden sm:block">Auto-prefilled — ready to generate</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { trackConversion('cta_placement', 'generate_click'); handleRemix(); }}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-sm flex-shrink-0 flex items-center gap-2 transition-all hover:scale-[1.02]"
+              data-testid="floating-remix-btn"
+            >
+              <RefreshCcw className="w-4 h-4" /> Remix Now
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ═══════════════════════════════════════════════════════════════

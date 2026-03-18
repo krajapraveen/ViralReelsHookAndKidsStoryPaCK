@@ -316,14 +316,14 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="more-tools-grid">
               {MORE_TOOLS.map(tool => (
                 <Link key={tool.route + tool.name} to={tool.route}>
-                  <div className="vs-card group cursor-pointer h-full py-3 px-3">
+                  <div className="vs-card group cursor-pointer h-full min-h-[80px] py-3 px-3">
                     <div className="flex items-center gap-2.5 mb-1.5">
                       <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${tool.accent} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform`}>
                         <tool.icon className="w-4 h-4 text-white" />
                       </div>
                       <h3 className="text-sm font-semibold text-white truncate" style={{ fontFamily: 'var(--vs-font-heading)' }}>{tool.name}</h3>
                     </div>
-                    <p className="text-xs text-[var(--vs-text-muted)] pl-[42px]">{tool.desc}</p>
+                    <p className="text-xs text-[var(--vs-text-muted)] pl-[42px] line-clamp-2">{tool.desc}</p>
                   </div>
                 </Link>
               ))}
@@ -361,7 +361,7 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-2" data-testid="recent-generations-list">
                   {recentGenerations.map((gen) => (
-                    <div key={gen.id} className="flex items-center gap-3 p-3 rounded-[var(--vs-card-radius)] bg-[var(--vs-bg-card)]/50 hover:bg-[var(--vs-bg-card)] transition-colors border border-transparent hover:border-[var(--vs-border)]">
+                    <div key={gen.id} className="flex items-center gap-3 p-3 rounded-[var(--vs-card-radius)] bg-[var(--vs-bg-card)]/50 hover:bg-[var(--vs-bg-card)] transition-colors border border-transparent hover:border-[var(--vs-border)] min-h-[56px]">
                       <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0 ${gen.type === 'REEL' ? 'bg-pink-500/10' : 'bg-violet-500/10'}`}>
                         {gen.type === 'REEL' ? <Video className="w-4.5 h-4.5 text-pink-400" /> : <BookOpen className="w-4.5 h-4.5 text-violet-400" />}
                       </div>
@@ -392,18 +392,19 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {trending.map((t) => (
                     <Link key={t.job_id} to={`/app/story-video-studio?remix=${t.job_id}`}>
-                      <div className="vs-card group p-0 overflow-hidden">
+                      <div className="vs-card group p-0 overflow-hidden h-full">
                         <SafeImage
                           src={t.thumbnail_url}
                           alt={t.title}
                           aspectRatio="16/9"
                           titleOverlay={t.title}
                           fallbackType="gradient"
+                          className="rounded-b-none"
                         />
                         <div className="p-3">
                           <h3 className="text-sm font-medium text-white truncate">{t.title}</h3>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-[var(--vs-text-muted)]">{t.animation_style}</span>
+                            <span className="text-xs text-[var(--vs-text-muted)] truncate">{t.animation_style}</span>
                             {t.remix_count > 0 && (
                               <span className="text-xs text-[var(--vs-text-accent)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>{t.remix_count} remixes</span>
                             )}

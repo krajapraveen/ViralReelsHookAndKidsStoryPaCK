@@ -254,6 +254,17 @@ INITIAL_EXPERIMENTS = [
             {"id": "gate_preview", "label": "After Preview", "data": {"gate_timing": "after_preview"}},
         ],
     },
+    {
+        "experiment_id": "cta_placement",
+        "name": "CTA Placement Test",
+        "primary_event": "generate_click",
+        "active": True,
+        "variants": [
+            {"id": "cta_top", "label": "Top of Card", "data": {"cta_position": "top"}},
+            {"id": "cta_bottom", "label": "Bottom of Card", "data": {"cta_position": "bottom"}},
+            {"id": "cta_floating", "label": "Floating Sticky", "data": {"cta_position": "floating"}},
+        ],
+    },
 ]
 
 

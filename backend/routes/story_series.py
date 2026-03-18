@@ -856,3 +856,354 @@ async def _update_memory_internal(series_id: str, episode_id: str) -> bool:
 
     logger.error(f"Memory update failed after 3 attempts for series {series_id}")
     return False
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 2: BRANCHING, PUBLIC SERIES, GROWTH HOOKS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ─── API 9: BRANCH FROM EPISODE ──────────────────────────────────────────────
+
+class BranchEpisodeRequest(BaseModel):
+    parent_episode_id: str
+    direction_type: str = "twist"
+    custom_prompt: Optional[str] = None
+
+
+@router.post("/{series_id}/branch-episode")
+async def branch_episode(series_id: str, request: BranchEpisodeRequest, user: dict = Depends(get_current_user)):
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    parent = await db.story_episodes.find_one(
+        {"episode_id": request.parent_episode_id, "series_id": series_id}, {"_id": 0}
+    )
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent episode not found")
+
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
+
+    # Count existing branches from this parent
+    branch_count = await db.story_episodes.count_documents(
+        {"series_id": series_id, "parent_episode_id": request.parent_episode_id, "branch_type": {"$ne": "mainline"}}
+    )
+
+    mem_clean = {
+        k: v for k, v in (memory or {}).items()
+        if k not in ("_id", "story_memory_id", "series_id", "updated_at")
+    }
+
+    system_prompt = f"""You are a story writer creating an ALTERNATE BRANCH from an existing episode.
+This is NOT a continuation — it's a "what if" from a specific point.
+
+### SERIES: {series.get('title', '')} ({series.get('genre', '')})
+### PARENT EPISODE: {parent.get('title', '')}
+Summary: {parent.get('summary', '')}
+Cliffhanger: {parent.get('cliffhanger', '')}
+
+### CHARACTER BIBLE
+{json.dumps(char_bible.get('characters', []) if char_bible else [], indent=2)[:2000]}
+
+### STORY MEMORY (canon up to branch point)
+{json.dumps(mem_clean, indent=2)[:2000]}
+
+### BRANCH DIRECTION: {request.direction_type}
+{f'Custom: {request.custom_prompt}' if request.custom_prompt else ''}
+
+Create a branching episode that diverges from the parent. Maintain character consistency.
+
+Return ONLY valid JSON:
+{{
+  "episode_title": "string",
+  "summary": "2-3 line summary",
+  "branch_reason": "what diverges from the original path",
+  "scene_breakdown": [
+    {{
+      "scene_number": 1,
+      "scene_title": "string",
+      "description": "what happens",
+      "location": "string",
+      "characters": ["name"],
+      "emotion": "happy | fear | tension | wonder | sadness",
+      "visual_prompt": "DETAILED prompt with character appearances",
+      "motion_hint": "camera/character movement",
+      "duration_seconds": 4
+    }}
+  ],
+  "cliffhanger": {{"type":"mystery | danger | emotional","description":"hook"}}
+}}"""
+
+    try:
+        plan = await _llm_json(system_prompt, f"Create alternate branch #{branch_count + 1}", f"branch_{series_id[:8]}")
+    except Exception as e:
+        logger.error(f"Branch planning failed: {e}")
+        raise HTTPException(status_code=500, detail="Branch planning failed")
+
+    episode_id = _uuid()
+    cliffhanger_raw = plan.get("cliffhanger", "")
+    cliffhanger_text = cliffhanger_raw.get("description", "") if isinstance(cliffhanger_raw, dict) else str(cliffhanger_raw)
+
+    episode = {
+        "episode_id": episode_id,
+        "series_id": series_id,
+        "parent_episode_id": request.parent_episode_id,
+        "branch_type": request.direction_type,
+        "episode_number": parent.get("episode_number", 1),
+        "title": plan.get("episode_title", f"Branch: {request.direction_type}"),
+        "summary": plan.get("summary", ""),
+        "story_prompt": request.custom_prompt or f"Branch: {request.direction_type}",
+        "episode_goal": plan.get("branch_reason", ""),
+        "cliffhanger": cliffhanger_text,
+        "status": "planned",
+        "plan": plan,
+        "tool_used": series.get("root_tool", "story_video"),
+        "output_type": "video" if series.get("root_tool") == "story_video" else "comic",
+        "output_asset_url": None,
+        "thumbnail_url": None,
+        "scene_count": len(plan.get("scene_breakdown", [])),
+        "is_branch": True,
+        "view_count": 0,
+        "remix_count": 0,
+        "share_count": 0,
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+
+    await db.story_episodes.insert_one(episode)
+    await db.story_series.update_one(
+        {"series_id": series_id},
+        {"$inc": {"branch_count": 1, "episode_count": 1}, "$set": {"updated_at": _now()}},
+    )
+
+    return {
+        "success": True,
+        "episode_id": episode_id,
+        "branch_type": request.direction_type,
+        "plan": plan,
+        "status": "planned",
+    }
+
+
+# ─── API 10: PUBLIC SERIES VIEW (no auth) ────────────────────────────────────
+
+@router.get("/public/{series_id}")
+async def get_public_series(series_id: str):
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "is_public": True}, {"_id": 0, "user_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found or not public")
+
+    episodes = await db.story_episodes.find(
+        {"series_id": series_id, "status": "ready"},
+        {"_id": 0, "plan": 0},
+    ).sort("episode_number", 1).to_list(100)
+
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0, "series_id": 0})
+    world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0, "series_id": 0})
+
+    # Track view
+    await db.story_series.update_one({"series_id": series_id}, {"$inc": {"view_count": 1}})
+
+    return {
+        "success": True,
+        "series": series,
+        "episodes": episodes,
+        "character_bible": char_bible,
+        "world_bible": world_bible,
+    }
+
+
+# ─── API 11: TOGGLE PUBLIC / SHARE ───────────────────────────────────────────
+
+class ShareRequest(BaseModel):
+    is_public: bool = True
+
+
+@router.post("/{series_id}/share")
+async def toggle_share(series_id: str, body: ShareRequest, user: dict = Depends(get_current_user)):
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    await db.story_series.update_one(
+        {"series_id": series_id},
+        {"$set": {"is_public": body.is_public, "updated_at": _now()}},
+    )
+
+    share_url = f"/series/{series_id}" if body.is_public else None
+    return {"success": True, "is_public": body.is_public, "share_url": share_url}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 3: DEEPER BIBLES, EMOTIONAL MEMORY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ─── API 12: ENHANCE CHARACTER BIBLE ─────────────────────────────────────────
+
+@router.post("/{series_id}/enhance-characters")
+async def enhance_character_bible(series_id: str, user: dict = Depends(get_current_user)):
+    """Use LLM to deepen character bibles with backstory, relationships, arc tracking."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    memory = await db.story_memories.find_one({"series_id": series_id}, {"_id": 0})
+
+    characters = char_bible.get("characters", []) if char_bible else []
+    if not characters:
+        raise HTTPException(status_code=400, detail="No characters to enhance")
+
+    system_prompt = """Enhance these characters with deeper backstory, relationships, and arc tracking.
+For EACH character, add: backstory, relationships (with other characters), emotional_baseline, growth_arc, signature_phrases.
+
+Return ONLY valid JSON:
+{"characters": [
+  {
+    "name": "existing name",
+    "role": "existing role",
+    "appearance": "existing appearance",
+    "clothing": "existing clothing",
+    "consistency_prompt": "existing prompt",
+    "backstory": "2-3 sentence origin/history",
+    "relationships": [{"with": "other char name", "type": "friend | rival | mentor | family", "dynamic": "description"}],
+    "emotional_baseline": "their default emotional state and how they typically react",
+    "growth_arc": "where this character is heading narratively",
+    "signature_phrases": ["catchphrase or typical way of speaking"],
+    "fears": "deepest fear",
+    "goals": "core motivation"
+  }
+]}"""
+
+    user_msg = (
+        f"Series: {series.get('title')}\n"
+        f"Characters: {json.dumps(characters, indent=2)[:3000]}\n"
+        f"Story so far: {json.dumps(memory.get('canon_events', [])[:10]) if memory else '[]'}"
+    )
+
+    try:
+        enhanced = await _llm_json(system_prompt, user_msg, f"enhance_char_{series_id[:8]}")
+        new_chars = enhanced.get("characters", characters)
+
+        # Merge: keep existing fields, add new ones
+        merged = []
+        for orig in characters:
+            match = next((c for c in new_chars if c.get("name") == orig.get("name")), {})
+            merged.append({**orig, **{k: v for k, v in match.items() if v}})
+
+        await db.character_bibles.update_one(
+            {"series_id": series_id},
+            {"$set": {"characters": merged, "enhanced": True, "updated_at": _now()}},
+        )
+        return {"success": True, "characters": merged}
+    except Exception as e:
+        logger.error(f"Character enhancement failed: {e}")
+        raise HTTPException(status_code=500, detail="Enhancement failed")
+
+
+# ─── API 13: ENHANCE WORLD BIBLE ─────────────────────────────────────────────
+
+@router.post("/{series_id}/enhance-world")
+async def enhance_world_bible(series_id: str, user: dict = Depends(get_current_user)):
+    """Use LLM to deepen world bible with lore, rules, locations."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
+    if not world_bible:
+        raise HTTPException(status_code=400, detail="No world bible found")
+
+    system_prompt = """Enhance this world with deeper lore, rules, and locations.
+
+Return ONLY valid JSON:
+{
+  "world_name": "existing name",
+  "setting_description": "enhanced description",
+  "visual_style": "existing style",
+  "lore": "2-3 paragraph world history and mythology",
+  "rules": ["rule that governs this world"],
+  "locations": [{"name": "string", "description": "string", "significance": "string", "mood": "string"}],
+  "factions": [{"name": "string", "description": "string", "alignment": "string"}],
+  "secrets": ["hidden world detail that can drive future plots"],
+  "atmosphere": "sensory description of the world's feeling"
+}"""
+
+    user_msg = f"World: {json.dumps({k: v for k, v in world_bible.items() if k not in ('_id', 'world_bible_id', 'series_id', 'created_at', 'updated_at')}, indent=2)[:2000]}"
+
+    try:
+        enhanced = await _llm_json(system_prompt, user_msg, f"enhance_world_{series_id[:8]}")
+        update_data = {k: v for k, v in enhanced.items() if v}
+        update_data["enhanced"] = True
+        update_data["updated_at"] = _now()
+
+        await db.world_bibles.update_one({"series_id": series_id}, {"$set": update_data})
+        return {"success": True, "world": {**world_bible, **update_data}}
+    except Exception as e:
+        logger.error(f"World enhancement failed: {e}")
+        raise HTTPException(status_code=500, detail="Enhancement failed")
+
+
+# ─── API 14: EMOTIONAL ARC ───────────────────────────────────────────────────
+
+@router.get("/{series_id}/emotional-arc")
+async def get_emotional_arc(series_id: str, user: dict = Depends(get_current_user)):
+    """Calculate and return the emotional arc across all episodes."""
+    series = await db.story_series.find_one(
+        {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    episodes = await db.story_episodes.find(
+        {"series_id": series_id, "branch_type": "mainline"},
+        {"_id": 0, "episode_number": 1, "title": 1, "summary": 1, "plan": 1, "status": 1},
+    ).sort("episode_number", 1).to_list(100)
+
+    EMOTION_SCORES = {
+        "happy": 0.8, "wonder": 0.7, "hope": 0.6,
+        "neutral": 0.5, "tension": 0.4, "sadness": 0.3,
+        "fear": 0.2, "anger": 0.15, "despair": 0.1,
+    }
+
+    arc = []
+    for ep in episodes:
+        scenes = ep.get("plan", {}).get("scene_breakdown", [])
+        if not scenes:
+            arc.append({
+                "episode": ep.get("episode_number"),
+                "title": ep.get("title", ""),
+                "avg_emotion": 0.5,
+                "dominant_emotion": "neutral",
+                "tension": 0.5,
+            })
+            continue
+
+        emotions = [s.get("emotion", "neutral") for s in scenes]
+        scores = [EMOTION_SCORES.get(e.lower(), 0.5) for e in emotions]
+        dominant = max(set(emotions), key=emotions.count) if emotions else "neutral"
+
+        arc.append({
+            "episode": ep.get("episode_number"),
+            "title": ep.get("title", ""),
+            "avg_emotion": round(sum(scores) / len(scores), 2),
+            "dominant_emotion": dominant,
+            "tension": round(1 - (sum(scores) / len(scores)), 2),
+            "scene_emotions": emotions,
+        })
+
+    return {"success": True, "series_id": series_id, "arc": arc}
