@@ -347,6 +347,7 @@ async def generate_comic(
     story_prompt: Optional[str] = Form(None),
     dialogue: Optional[str] = Form(None),
     include_dialogue: bool = Form(True),
+    character_id: Optional[str] = Form(None),
     user: dict = Depends(get_current_user)
 ):
     """
@@ -488,18 +489,27 @@ async def generate_comic(
     from services.story_chain import ensure_chain_fields
     await ensure_chain_fields(job_id, user["id"], parent_job_id=None, branch_type="original")
 
+    # Load character context if provided
+    char_context = None
+    if character_id:
+        try:
+            from routes.characters import build_character_generation_context
+            char_context = await build_character_generation_context(character_id, tool_type="photo_to_comic")
+        except Exception:
+            pass
+
     # Process in background
     if mode == "avatar":
         background_tasks.add_task(
             process_comic_avatar,
             job_id, photo_content, style, genre, custom_details,
-            user["id"], cost, transparent_bg, multiple_poses, hd_export
+            user["id"], cost, transparent_bg, multiple_poses, hd_export, char_context
         )
     else:
         background_tasks.add_task(
             process_comic_strip,
             job_id, photo_content, style, genre, story_prompt, dialogue,
-            panel_count, include_dialogue, user["id"], cost, hd_export
+            panel_count, include_dialogue, user["id"], cost, hd_export, char_context
         )
     
     return {
@@ -514,7 +524,8 @@ async def generate_comic(
 async def process_comic_avatar(
     job_id: str, photo_content: bytes, style: str, genre: str,
     custom_details: str, user_id: str, cost: int,
-    transparent_bg: bool, multiple_poses: bool, hd_export: bool
+    transparent_bg: bool, multiple_poses: bool, hd_export: bool,
+    char_context: dict = None
 ):
     """Background task to generate comic avatar"""
     try:
@@ -537,7 +548,7 @@ async def process_comic_avatar(
                 full_prompt = f"""Transform this person into a comic character.
 
 {base_prompt}
-
+{f"CHARACTER LOCK: {char_context['visual_injection']}" if char_context else ""}
 IMPORTANT RULES:
 - Create an ORIGINAL character inspired by the person's appearance
 - DO NOT reference any copyrighted characters or celebrities
@@ -545,7 +556,7 @@ IMPORTANT RULES:
 - Style: {SAFE_STYLES[style]['name']}
 {"- Use transparent background" if transparent_bg else ""}
 
-AVOID: {negative_prompt}"""
+AVOID: {char_context['negative_prompt'] if char_context else negative_prompt}"""
                 
                 photo_b64 = base64.b64encode(photo_content).decode('utf-8')
                 
@@ -772,7 +783,8 @@ AVOID: {negative_prompt}"""
 async def process_comic_strip(
     job_id: str, photo_content: bytes, style: str, genre: str,
     story_prompt: str, dialogue: str, panel_count: int,
-    include_dialogue: bool, user_id: str, cost: int, hd_export: bool
+    include_dialogue: bool, user_id: str, cost: int, hd_export: bool,
+    char_context: dict = None
 ):
     """Background task to generate comic strip"""
     try:
@@ -801,7 +813,7 @@ async def process_comic_strip(
 Story idea: {story_prompt}
 Genre: {genre}
 Style: {SAFE_STYLES[style]['name']}
-
+{f"CHARACTER: {char_context['character_name']} - {char_context['visual_injection']}" if char_context else ""}
 IMPORTANT RULES:
 - Create ORIGINAL characters and stories only
 - NO references to copyrighted characters, brands, or celebrities

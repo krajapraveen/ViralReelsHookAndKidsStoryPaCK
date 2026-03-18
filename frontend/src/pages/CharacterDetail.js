@@ -5,8 +5,17 @@ import api from '../utils/api';
 import { Button } from '../components/ui/button';
 import {
   ArrowLeft, Loader2, User, Palette, BookOpen, Shield,
-  ImageIcon, Clock, Target, AlertTriangle
+  ImageIcon, Clock, Target, AlertTriangle, CheckCircle,
+  Volume2, Mic
 } from 'lucide-react';
+
+const VOICE_IDS = [
+  { id: 'alloy', label: 'Alloy' }, { id: 'echo', label: 'Echo' },
+  { id: 'fable', label: 'Fable' }, { id: 'onyx', label: 'Onyx' },
+  { id: 'nova', label: 'Nova' }, { id: 'shimmer', label: 'Shimmer' },
+];
+const TONES = ['warm', 'serious', 'playful', 'mysterious', 'energetic', 'calm'];
+const PACES = ['slow', 'moderate', 'fast'];
 
 export default function CharacterDetail() {
   const { characterId } = useParams();
@@ -14,6 +23,12 @@ export default function CharacterDetail() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generatingPortrait, setGeneratingPortrait] = useState(false);
+  const [voiceProfile, setVoiceProfile] = useState(null);
+  const [voiceForm, setVoiceForm] = useState({ voice_id: 'alloy', tone: 'warm', pace: 'moderate', accent: '', energy_level: 'medium' });
+  const [showVoiceEditor, setShowVoiceEditor] = useState(false);
+  const [savingVoice, setSavingVoice] = useState(false);
+  const [continuityData, setContinuityData] = useState(null);
+  const [validating, setValidating] = useState(false);
 
   const fetchData = () => {
     api.get(`/api/characters/${characterId}`)
@@ -23,6 +38,46 @@ export default function CharacterDetail() {
   };
 
   useEffect(() => { fetchData(); }, [characterId]);
+
+  // Load voice profile and continuity data
+  useEffect(() => {
+    if (!characterId) return;
+    api.get(`/api/characters/${characterId}/voice-profile`)
+      .then(r => {
+        if (r.data.voice_profile) {
+          setVoiceProfile(r.data.voice_profile);
+          setVoiceForm(prev => ({ ...prev, ...r.data.voice_profile }));
+        }
+      }).catch(() => {});
+    api.get(`/api/characters/${characterId}/continuity-history`)
+      .then(r => setContinuityData(r.data))
+      .catch(() => {});
+  }, [characterId]);
+
+  const handleValidateContinuity = async () => {
+    setValidating(true);
+    try {
+      const res = await api.post(`/api/characters/${characterId}/validate-continuity`);
+      if (res.data.success) {
+        toast.success(`Continuity score: ${res.data.continuity_score}/100`);
+        api.get(`/api/characters/${characterId}/continuity-history`).then(r => setContinuityData(r.data)).catch(() => {});
+      }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Validation failed'); }
+    finally { setValidating(false); }
+  };
+
+  const handleSaveVoice = async () => {
+    setSavingVoice(true);
+    try {
+      const res = await api.post(`/api/characters/${characterId}/voice-profile`, voiceForm);
+      if (res.data.success) {
+        setVoiceProfile(res.data.voice_profile);
+        setShowVoiceEditor(false);
+        toast.success('Voice profile saved!');
+      }
+    } catch (err) { toast.error('Failed to save voice profile'); }
+    finally { setSavingVoice(false); }
+  };
 
   const handleGeneratePortrait = async () => {
     setGeneratingPortrait(true);
@@ -159,6 +214,105 @@ export default function CharacterDetail() {
                 </div>
               </div>
             )}
+
+            {/* Voice Profile */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3" data-testid="voice-profile-zone">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5"><Volume2 className="w-3.5 h-3.5" /> Voice Profile</h3>
+                <Button size="sm" variant="ghost" onClick={() => setShowVoiceEditor(!showVoiceEditor)} className="text-xs text-slate-500 h-6 px-2" data-testid="toggle-voice-editor">
+                  {showVoiceEditor ? 'Cancel' : voiceProfile ? 'Edit' : 'Set Up'}
+                </Button>
+              </div>
+              {voiceProfile && !showVoiceEditor && (
+                <div className="text-xs space-y-1 text-slate-400">
+                  <p>Voice: <span className="text-indigo-400">{voiceProfile.voice_id}</span></p>
+                  <p>Tone: {voiceProfile.tone} | Pace: {voiceProfile.pace} | Energy: {voiceProfile.energy_level}</p>
+                  {voiceProfile.accent && <p>Accent: {voiceProfile.accent}</p>}
+                  {voiceProfile.do_not_change_rules?.length > 0 && (
+                    <p className="text-amber-400/70">Rules: {voiceProfile.do_not_change_rules.join(', ')}</p>
+                  )}
+                </div>
+              )}
+              {!voiceProfile && !showVoiceEditor && (
+                <p className="text-xs text-slate-500">No voice profile yet. Set one up for consistent narration.</p>
+              )}
+              {showVoiceEditor && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-slate-500">Voice</label>
+                    <div className="flex flex-wrap gap-1">
+                      {VOICE_IDS.map(v => (
+                        <button key={v.id} onClick={() => setVoiceForm(p => ({...p, voice_id: v.id}))}
+                          className={`px-2 py-0.5 rounded text-[10px] ${voiceForm.voice_id === v.id ? 'bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/30' : 'bg-slate-800 text-slate-400'}`}
+                        >{v.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-500">Tone</label>
+                      <select value={voiceForm.tone} onChange={e => setVoiceForm(p => ({...p, tone: e.target.value}))}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-white outline-none"
+                      >{TONES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500">Pace</label>
+                      <select value={voiceForm.pace} onChange={e => setVoiceForm(p => ({...p, pace: e.target.value}))}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-white outline-none"
+                      >{PACES.map(p => <option key={p} value={p}>{p}</option>)}</select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500">Energy</label>
+                      <select value={voiceForm.energy_level} onChange={e => setVoiceForm(p => ({...p, energy_level: e.target.value}))}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-white outline-none"
+                      >{['low','medium','high'].map(e => <option key={e} value={e}>{e}</option>)}</select>
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={handleSaveVoice} disabled={savingVoice} className="w-full bg-indigo-600 hover:bg-indigo-500 text-xs h-7" data-testid="save-voice-btn">
+                    {savingVoice ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Mic className="w-3 h-3 mr-1" />}
+                    Save Voice Profile
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Continuity Validator */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3" data-testid="continuity-zone">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> Continuity</h3>
+                <Button size="sm" variant="ghost" onClick={handleValidateContinuity} disabled={validating} className="text-xs text-slate-500 h-6 px-2" data-testid="validate-continuity-btn">
+                  {validating ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Validate'}
+                </Button>
+              </div>
+              {continuityData && continuityData.total > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`text-lg font-bold ${continuityData.average_score >= 70 ? 'text-green-400' : continuityData.average_score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {continuityData.average_score}
+                    </div>
+                    <div className="text-xs text-slate-500">avg score across {continuityData.total} checks</div>
+                  </div>
+                  {continuityData.validations?.slice(0, 3).map((v, i) => (
+                    <div key={i} className="bg-slate-800/40 rounded p-2 text-[10px] space-y-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className={`font-medium ${v.continuity_score >= 70 ? 'text-green-400' : v.continuity_score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {v.continuity_score}/100
+                        </span>
+                        <span className="text-slate-600">{v.tool_type} · {new Date(v.validated_at).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-slate-400">{v.summary}</p>
+                      {v.drift_flags?.length > 0 && v.drift_flags.slice(0, 2).map((f, fi) => (
+                        <span key={fi} className={`inline-block mr-1 px-1 py-0.5 rounded ${f.severity === 'high' ? 'bg-red-500/15 text-red-400' : f.severity === 'medium' ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700 text-slate-400'}`}>
+                          {f.type}: {f.detail?.slice(0, 40)}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">No continuity checks yet. Run a validation or generate episodes with this character attached.</p>
+              )}
+            </div>
           </div>
 
           {/* Right: Memory Timeline */}

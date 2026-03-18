@@ -536,6 +536,7 @@ async def generate_gif(
     background: str = Form("transparent"),
     add_text: Optional[str] = Form(None),
     animation_intensity: str = Form("medium"),  # simple, medium, complex
+    character_id: Optional[str] = Form(None),
     user: dict = Depends(get_current_user)
 ):
     """Generate an animated GIF from uploaded photo"""
@@ -600,10 +601,19 @@ async def generate_gif(
     
     await db.gif_jobs.insert_one(job_data)
     
+    # Load character context if provided
+    char_context = None
+    if character_id:
+        try:
+            from routes.characters import build_character_generation_context
+            char_context = await build_character_generation_context(character_id, tool_type="gif_maker")
+        except Exception:
+            pass
+
     # Process in background
     background_tasks.add_task(
         process_gif_generation, 
-        job_id, photo_content, emotion, style, background, add_text, animation_intensity, frame_count, user["id"], cost
+        job_id, photo_content, emotion, style, background, add_text, animation_intensity, frame_count, user["id"], cost, char_context
     )
     
     return {
@@ -627,7 +637,8 @@ async def process_gif_generation(
     animation_intensity: str,
     frame_count: int,
     user_id: str, 
-    cost: int
+    cost: int,
+    char_context: dict = None
 ):
     """Background task to generate animated GIF - OPTIMIZED for speed"""
     try:
@@ -672,8 +683,9 @@ async def process_gif_generation(
                     # Optimized prompt for faster generation
                     prompt = f"""Transform to {style_info['name']} cartoon: {emotion_info['name']} expression.
 Frame {i+1}: {frame_desc}
+{f'CHARACTER LOCK: {char_context["visual_injection"]}' if char_context else ''}
 Kid-friendly, cute style.{f' Text: {add_text}' if add_text else ''}
-Avoid: {GIF_NEGATIVE_PROMPT}"""
+Avoid: {char_context['negative_prompt'] if char_context else GIF_NEGATIVE_PROMPT}"""
                     
                     image_bytes = await generate_image_fast(
                         prompt,

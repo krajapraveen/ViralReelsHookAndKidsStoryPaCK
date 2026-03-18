@@ -312,6 +312,7 @@ async def generate_storybook(
     panels_per_page: str = Form("auto"),  # "auto" or number
     title: str = Form("My Comic Story"),
     author: str = Form(""),
+    character_id: Optional[str] = Form(None),
     user: dict = Depends(get_current_user)
 ):
     """Generate a complete comic story book"""
@@ -387,10 +388,19 @@ async def generate_storybook(
     
     await db.storybook_jobs.insert_one(job_data)
     
+    # Load character context if provided
+    char_context = None
+    if character_id:
+        try:
+            from routes.characters import build_character_generation_context
+            char_context = await build_character_generation_context(character_id, tool_type="comic_storybook")
+        except Exception:
+            pass
+
     # Process in background
     background_tasks.add_task(
         process_storybook_generation,
-        job_id, content, style, page_count, panels, title, author or user.get("name", "Anonymous"), user["id"], cost
+        job_id, content, style, page_count, panels, title, author or user.get("name", "Anonymous"), user["id"], cost, char_context
     )
     
     return {
@@ -412,7 +422,8 @@ async def process_storybook_generation(
     title: str,
     author: str,
     user_id: str,
-    cost: int
+    cost: int,
+    char_context: dict = None
 ):
     """Background task to generate complete story book"""
     try:
@@ -506,9 +517,9 @@ async def process_storybook_generation(
 Story context: {title}
 Scene: {scene.get('description', '')[:500]}
 Style: {style_info['prompt_modifier']}
-
+{f"CHARACTER: {char_context['visual_injection']}" if char_context else ""}
 Make it original, copyright-free, visually engaging, and appropriate for all ages.
-Avoid: {STORYBOOK_NEGATIVE_PROMPT}"""
+Avoid: {char_context['negative_prompt'] if char_context else STORYBOOK_NEGATIVE_PROMPT}"""
                         
                         msg = UserMessage(text=prompt)
                         text_response, images = await chat.send_message_multimodal_response(msg)
