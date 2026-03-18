@@ -620,14 +620,25 @@ export default function ComicStorybookBuilder() {
         const urls = res.data.downloadUrls;
         const url = type === 'pdf' ? urls.pdf : (urls.cover || urls.pdf);
         if (url) {
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `comic_${job.id.slice(0, 8)}.${type === 'pdf' ? 'pdf' : 'png'}`;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          try {
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `comic_${job.id.slice(0, 8)}.${type === 'pdf' ? 'pdf' : 'png'}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+          } catch {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `comic_${job.id.slice(0, 8)}.${type === 'pdf' ? 'pdf' : 'png'}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
         } else {
           toast.error('Download URL not available');
         }
@@ -1263,12 +1274,22 @@ export default function ComicStorybookBuilder() {
                     {/* Cover Image Download */}
                     {job.coverUrl && (
                       <Button
-                        onClick={() => {
-                          const a = document.createElement('a');
-                          a.href = job.coverUrl;
-                          a.download = `cover_${job.id.slice(0, 8)}.png`;
-                          a.target = '_blank';
-                          a.click();
+                        onClick={async () => {
+                          try {
+                            const resp = await fetch(job.coverUrl);
+                            const blob = await resp.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = blobUrl;
+                            a.download = `cover_${job.id.slice(0, 8)}.png`;
+                            a.click();
+                            URL.revokeObjectURL(blobUrl);
+                          } catch {
+                            const a = document.createElement('a');
+                            a.href = job.coverUrl;
+                            a.download = `cover_${job.id.slice(0, 8)}.png`;
+                            a.click();
+                          }
                           toast.success('Cover download started!');
                         }}
                         variant="outline"
