@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Wand2, Loader2, Download, Share2, RefreshCw, Trash2, Sparkles, Image, Heart, Smile, PartyPopper, ThumbsUp, Music, Hand, Lock, Crown } from 'lucide-react';
+import { ArrowLeft, Upload, Wand2, Loader2, Download, Share2, RefreshCw, Trash2, Sparkles, Image, Heart, Smile, PartyPopper, ThumbsUp, Music, Hand, Lock, Crown, PackageOpen } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
@@ -20,6 +20,8 @@ import CreationActionsBar from '../components/CreationActionsBar';
 import NextActionHooks from '../components/NextActionHooks';
 import RemixBanner from '../components/RemixBanner';
 import { useRemixData, mapRemixToFields } from '../hooks/useRemixData';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 export default function GifMaker() {
   const [credits, setCredits] = useState(null);
@@ -390,6 +392,85 @@ export default function GifMaker() {
     }
   };
 
+  // Download All as ZIP pack
+  const [packDownloading, setPackDownloading] = useState(false);
+  
+  const downloadAllAsZip = async () => {
+    if (!currentJob) return;
+    
+    // Collect all downloadable URLs
+    const items = [];
+    const resolveUrl = (url) => {
+      if (!url) return null;
+      return url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
+    };
+    
+    // Main GIF
+    if (currentJob.resultUrl) {
+      items.push({ url: resolveUrl(currentJob.resultUrl), name: `reaction_gif_main.gif` });
+    }
+    
+    // Individual results/frames
+    if (currentJob.results?.length) {
+      currentJob.results.forEach((r, i) => {
+        if (r.url) {
+          const emotion = r.emotion || `frame_${i + 1}`;
+          items.push({ url: resolveUrl(r.url), name: `gif_${emotion}.gif` });
+        }
+      });
+    }
+    
+    if (!items.length) {
+      toast.error('No files to download');
+      return;
+    }
+    
+    setPackDownloading(true);
+    toast.info(`Packing ${items.length} GIFs...`);
+    
+    try {
+      const zip = new JSZip();
+      
+      // Fetch all files in parallel
+      const fetches = items.map(async (item) => {
+        try {
+          const resp = await fetch(item.url);
+          if (!resp.ok) throw new Error(`Failed to fetch ${item.name}`);
+          const blob = await resp.blob();
+          zip.file(item.name, blob);
+        } catch (err) {
+          console.warn(`Skipping ${item.name}: ${err.message}`);
+        }
+      });
+      
+      await Promise.all(fetches);
+      
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `gif_pack_${currentJob.id.slice(0, 8)}.zip`);
+      toast.success(`Downloaded ${items.length} GIFs as ZIP pack!`);
+      analytics.trackDownload('gif_pack', 'gif_maker');
+    } catch (err) {
+      console.error('ZIP download failed:', err);
+      toast.error('Pack download failed. Try downloading individually.');
+    } finally {
+      setPackDownloading(false);
+    }
+  };
+
+  // Download a single frame
+  const downloadSingleFrame = async (url, emotion, index) => {
+    const fullUrl = url?.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
+    try {
+      const resp = await fetch(fullUrl);
+      const blob = await resp.blob();
+      saveAs(blob, `gif_${emotion || 'frame'}_${index + 1}.gif`);
+      toast.success('Downloaded!');
+    } catch (err) {
+      // Fallback: open in new tab
+      window.open(fullUrl, '_blank');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
       {/* Header */}
@@ -701,45 +782,76 @@ export default function GifMaker() {
                   )}
                   
                   {currentJob.results && currentJob.results.length > 0 && (
-                    <div 
-                      className="grid grid-cols-3 gap-4"
-                      onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
-                    >
-                      {currentJob.results.map((result, i) => (
-                        <div key={i} className="rounded-lg overflow-hidden border border-slate-600 bg-slate-700">
-                          <img 
-                            src={result.url?.startsWith('http') ? result.url : `${process.env.REACT_APP_BACKEND_URL}${result.url}`} 
-                            alt={result.emotion} 
-                            className="w-full select-none pointer-events-none"
-                            draggable="false"
-                          />
-                          <div className="p-2 text-center">
-                            <span className="text-xl">{result.emoji}</span>
+                    <div>
+                      <div 
+                        className="grid grid-cols-3 gap-4"
+                        onContextMenu={(e) => { e.preventDefault(); toast.info('Please use Download button to save'); }}
+                      >
+                        {currentJob.results.map((result, i) => (
+                          <div key={i} className="rounded-lg overflow-hidden border border-slate-600 bg-slate-700 group relative">
+                            <img 
+                              src={result.url?.startsWith('http') ? result.url : `${process.env.REACT_APP_BACKEND_URL}${result.url}`} 
+                              alt={result.emotion} 
+                              className="w-full select-none pointer-events-none"
+                              draggable="false"
+                            />
+                            <div className="p-2 text-center">
+                              <span className="text-xl">{result.emoji}</span>
+                            </div>
+                            {/* Per-frame download button */}
+                            <button
+                              onClick={() => downloadSingleFrame(result.url, result.emotion, i)}
+                              className="absolute top-1 right-1 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-pink-600"
+                              title={`Download ${result.emotion || 'frame'}`}
+                              data-testid={`download-frame-${i}`}
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
                   
                   {currentJob.status === 'COMPLETED' && (currentJob.resultUrl || currentJob.results) && (
-                    <div className="flex gap-2">
-                      <Button 
-                        className="flex-1 bg-pink-600 hover:bg-pink-700 text-white"
-                        onClick={() => handleDownload(currentJob.id)}
-                      >
-                        <Download className="w-4 h-4 mr-2" /> 
-                        <span className="text-white">Download ({currentJob.downloaded ? 'Free' : `${pricing.download} credits`})</span>
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/api/gif-maker/share/${currentJob.id}`);
-                          toast.success('Share link copied!');
-                        }}
-                      >
-                        <Share2 className="w-4 h-4 mr-2" /> <span className="text-white">Share</span>
-                      </Button>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Button 
+                          className="flex-1 bg-pink-600 hover:bg-pink-700 text-white"
+                          onClick={() => handleDownload(currentJob.id)}
+                          data-testid="download-gif-btn"
+                        >
+                          <Download className="w-4 h-4 mr-2" /> 
+                          <span className="text-white">Download ({currentJob.downloaded ? 'Free' : `${pricing.download} credits`})</span>
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="flex-1"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/api/gif-maker/share/${currentJob.id}`);
+                            toast.success('Share link copied!');
+                          }}
+                          data-testid="share-gif-btn"
+                        >
+                          <Share2 className="w-4 h-4 mr-2" /> <span className="text-white">Share</span>
+                        </Button>
+                      </div>
+                      
+                      {/* Download All as ZIP Pack */}
+                      {(currentJob.results?.length > 0 || currentJob.resultUrl) && (
+                        <Button 
+                          className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+                          onClick={downloadAllAsZip}
+                          disabled={packDownloading}
+                          data-testid="download-all-pack-btn"
+                        >
+                          {packDownloading ? (
+                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> <span className="text-white">Packing GIFs...</span></>
+                          ) : (
+                            <><PackageOpen className="w-4 h-4 mr-2" /> <span className="text-white">Download All as Pack (ZIP)</span></>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   )}
 

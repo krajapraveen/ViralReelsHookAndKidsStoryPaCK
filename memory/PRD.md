@@ -51,6 +51,11 @@ AI Creator Suite for content generation (story videos, comics, GIFs, storybooks)
     - Frontend defense: ResumeYourStory only renders chains with valid https:// preview_url
     - "Preview unavailable" fallback REMOVED entirely — if no valid data, section hides completely
     - RESULT: Zero dead content shown, zero "Preview unavailable" cards
+50. **GIF Maker Download All as Pack** (Mar 2026):
+    - Added "Download All as Pack (ZIP)" button to both GIF Maker pages (GifMaker.js + PhotoReactionGIF.js)
+    - Uses JSZip + file-saver to create client-side ZIP of all GIF frames
+    - Individual download buttons on each frame (hover overlay with Download icon)
+    - Works for pack results, single results with multiple outputs, and main GIF
 
 ## Remaining Backlog
 ### P0

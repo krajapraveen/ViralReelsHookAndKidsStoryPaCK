@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, ArrowRight, Upload, Wand2, Camera, Loader2, Download, 
   Check, AlertTriangle, Shield, Sparkles, Crown, Image, Play,
-  Smile, Heart, Star, Zap, Eye, PartyPopper, Hand, Flame
+  Smile, Heart, Star, Zap, Eye, PartyPopper, Hand, Flame, PackageOpen
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -16,6 +16,8 @@ import ShareCreation from '../components/ShareCreation';
 import WaitingWithGames from '../components/WaitingWithGames';
 import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import { useNotifications } from '../contexts/NotificationContext';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 // ============================================
 // COPYRIGHT BLOCKED KEYWORDS
@@ -390,6 +392,82 @@ export default function PhotoReactionGIF() {
       case 3: return selectedStyle !== null;
       case 4: return true;
       default: return false;
+    }
+  };
+
+  // ============================================
+  // DOWNLOAD ALL AS ZIP PACK
+  // ============================================
+  const [packDownloading, setPackDownloading] = useState(false);
+
+  const downloadAllAsZip = async () => {
+    if (!job) return;
+    
+    const items = [];
+    const resolveUrl = (url) => {
+      if (!url) return null;
+      return url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
+    };
+    
+    // Main GIF
+    if (job.resultUrl) {
+      items.push({ url: resolveUrl(job.resultUrl), name: 'reaction_gif_main.gif' });
+    }
+    
+    // Individual pack results
+    if (job.results?.length) {
+      job.results.forEach((r, i) => {
+        if (r.url) {
+          const label = r.emotion || r.reaction || `frame_${i + 1}`;
+          items.push({ url: resolveUrl(r.url), name: `gif_${label}_${i + 1}.gif` });
+        }
+      });
+    }
+    
+    if (!items.length) {
+      toast.error('No files to download');
+      return;
+    }
+    
+    setPackDownloading(true);
+    toast.info(`Packing ${items.length} GIFs...`);
+    
+    try {
+      const zip = new JSZip();
+      
+      const fetches = items.map(async (item) => {
+        try {
+          const resp = await fetch(item.url);
+          if (!resp.ok) throw new Error(`Failed: ${item.name}`);
+          const blob = await resp.blob();
+          zip.file(item.name, blob);
+        } catch (err) {
+          console.warn(`Skipping ${item.name}: ${err.message}`);
+        }
+      });
+      
+      await Promise.all(fetches);
+      
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `gif_pack_${job.id?.slice(0, 8) || 'download'}.zip`);
+      toast.success(`Downloaded ${items.length} GIFs as ZIP!`);
+    } catch (err) {
+      console.error('ZIP failed:', err);
+      toast.error('Pack download failed');
+    } finally {
+      setPackDownloading(false);
+    }
+  };
+
+  const downloadSingleFrame = async (url, label, index) => {
+    const fullUrl = url?.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
+    try {
+      const resp = await fetch(fullUrl);
+      const blob = await resp.blob();
+      saveAs(blob, `gif_${label || 'frame'}_${index + 1}.gif`);
+      toast.success('Downloaded!');
+    } catch {
+      window.open(fullUrl, '_blank');
     }
   };
 
@@ -819,21 +897,61 @@ export default function PhotoReactionGIF() {
                         previewUrl={job.resultUrl}
                       />
                     </div>
+                    
+                    {/* Download All Pack button for single result with multiple outputs */}
+                    {(job.results?.length > 0) && (
+                      <Button 
+                        className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+                        onClick={downloadAllAsZip}
+                        disabled={packDownloading}
+                        data-testid="download-all-pack-btn-single"
+                      >
+                        {packDownloading ? (
+                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Packing...</>
+                        ) : (
+                          <><PackageOpen className="w-4 h-4 mr-2" /> Download All as Pack (ZIP)</>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 )}
                 
                 {/* Pack Results */}
                 {job.status === 'COMPLETED' && job.results && job.results.length > 1 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {job.results.map((result, i) => (
-                      <div key={i} className="rounded-lg overflow-hidden border border-slate-600">
-                        <img 
-                          src={result.url.startsWith('http') ? result.url : `${process.env.REACT_APP_BACKEND_URL}${result.url}`}
-                          alt={`Reaction ${i + 1}`}
-                          className="w-full"
-                        />
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {job.results.map((result, i) => (
+                        <div key={i} className="rounded-lg overflow-hidden border border-slate-600 relative group">
+                          <img 
+                            src={result.url.startsWith('http') ? result.url : `${process.env.REACT_APP_BACKEND_URL}${result.url}`}
+                            alt={`Reaction ${i + 1}`}
+                            className="w-full"
+                          />
+                          <button
+                            onClick={() => downloadSingleFrame(result.url, result.emotion || result.reaction, i)}
+                            className="absolute top-1 right-1 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-pink-600"
+                            title="Download this GIF"
+                            data-testid={`download-frame-${i}`}
+                          >
+                            <Download className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Download All as ZIP Pack */}
+                    <Button 
+                      className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+                      onClick={downloadAllAsZip}
+                      disabled={packDownloading}
+                      data-testid="download-all-pack-btn"
+                    >
+                      {packDownloading ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Packing GIFs...</>
+                      ) : (
+                        <><PackageOpen className="w-4 h-4 mr-2" /> Download All as Pack (ZIP)</>
+                      )}
+                    </Button>
                   </div>
                 )}
               </div>
