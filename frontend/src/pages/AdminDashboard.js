@@ -1,432 +1,495 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
-import { 
-  Sparkles, Users, CreditCard, FileText, ArrowLeft, 
-  Eye, Star, RefreshCw, Activity, DollarSign, LogOut, Coins, Shield, BarChart3,
-  AlertTriangle, Trophy, ClipboardList, Database, Radio, HeartPulse, ShieldAlert
+import {
+  Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw, ArrowLeft,
+  LogOut, AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
+  Film, ChevronRight, ChevronDown, Clock, Server, Database, BarChart3,
+  CheckCircle, XCircle, MinusCircle, Radio
 } from 'lucide-react';
 
-// Import tab components
-import StatCard from '../components/admin/StatCard';
-import OverviewTab from '../components/admin/OverviewTab';
-import VisitorsTab from '../components/admin/VisitorsTab';
-import FeaturesTab from '../components/admin/FeaturesTab';
-import PaymentsTab from '../components/admin/PaymentsTab';
-import SatisfactionTab from '../components/admin/SatisfactionTab';
-import FeatureRequestsTab from '../components/admin/FeatureRequestsTab';
-import UserFeedbackTab from '../components/admin/UserFeedbackTab';
-import TrendingTopicsTab from '../components/admin/TrendingTopicsTab';
-import PaymentMonitoringTab from '../components/admin/PaymentMonitoringTab';
-import ExceptionMonitoringTab from '../components/admin/ExceptionMonitoringTab';
-import UserAnalyticsTab from '../components/admin/UserAnalyticsTab';
-import GrowthFunnelTab from '../components/admin/GrowthFunnelTab';
-import PerformanceMonitorTab from '../components/admin/PerformanceMonitorTab';
-import HelpGuide from '../components/HelpGuide';
+// ─── Widget State System ─────────────────────────────────────────────────────
+// Every widget has: LOADING | READY | EMPTY | ERROR | STALE
+const STALE_MS = { summary: 30000, funnel: 30000, reliability: 15000, revenue: 60000, series: 30000 };
 
-// Default fallback data structure for graceful degradation
-const defaultAnalytics = {
-  overview: { totalUsers: 0, newUsers: 0, activeSessions: 0, totalGenerations: 0, totalRevenue: 0, periodRevenue: 0 },
-  visitors: { uniqueVisitors: 0, totalPageViews: 0 },
-  featureUsage: [],
-  payments: { totalAmount: 0, successfulPayments: 0 },
-  satisfaction: { satisfactionPercentage: 0, averageRating: 0 },
-  generations: { successRate: 100 },
-  recentActivity: []
-};
-
-export default function AdminDashboard() {
-  // Individual state for each data source for better resilience
-  const [analytics, setAnalytics] = useState(defaultAnalytics);
-  const [featureRequests, setFeatureRequests] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [dateRange, setDateRange] = useState(30);
-  const [apiErrors, setApiErrors] = useState({ analytics: null, features: null });
-  const navigate = useNavigate();
-
-  const fetchAnalytics = useCallback(async () => {
-    setLoading(true);
-    const errors = { analytics: null, features: null };
-    
-    // Fetch analytics data with individual error handling
-    try {
-      const analyticsRes = await api.get(`/api/admin/analytics/dashboard?days=${dateRange}`);
-      if (analyticsRes.data.success && analyticsRes.data.data) {
-        setAnalytics(prev => ({ ...defaultAnalytics, ...analyticsRes.data.data }));
-      } else {
-        errors.analytics = 'Invalid response format';
-        console.warn('Analytics API returned invalid format');
-      }
-    } catch (error) {
-      const status = error.response?.status;
-      if (status === 403) {
-        toast.error('Admin access required');
-        navigate('/app');
-        return;
-      } else if (status === 401) {
-        // Let axios interceptor handle auth redirect
-        return;
-      }
-      errors.analytics = error.message || 'Failed to load analytics';
-      console.error('Analytics API error:', status, error.message);
-      // Keep existing data or use defaults - don't clear
-    }
-
-    // Fetch feature requests data independently
-    // Note: This is an optional feature - 404 means it's not deployed, don't show error
-    try {
-      const featuresRes = await api.get('/api/feature-requests/analytics');
-      if (featuresRes.data.success) {
-        setFeatureRequests(featuresRes.data.data);
-      }
-      // Silent fail for invalid format - not critical
-    } catch (error) {
-      const status = error.response?.status;
-      // Only log 404s silently - feature not available in this deployment
-      if (status !== 404) {
-        errors.features = error.message || 'Failed to load feature requests';
-        console.error('Feature requests API error:', error.message);
-      }
-      // Keep existing feature requests data
-    }
-
-    setApiErrors(errors);
-    setLoading(false);
-  }, [dateRange, navigate]);
-
-  useEffect(() => {
-    fetchAnalytics();
-  }, [fetchAnalytics]);
-
-  const updateFeatureStatus = async (featureId, status, adminResponse) => {
-    try {
-      await api.put(`/api/feature-requests/${featureId}/status`, { status, adminResponse });
-      toast.success('Status updated');
-      fetchAnalytics();
-    } catch (error) {
-      toast.error('Failed to update status');
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
-
-  if (loading) {
+function WidgetState({ state, lastUpdated, children }) {
+  if (state === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
-          <p className="text-slate-400">Loading analytics...</p>
-        </div>
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-5 h-5 text-slate-500 animate-spin" />
       </div>
     );
   }
+  if (state === 'error') {
+    return (
+      <div className="flex items-center justify-center py-8 gap-2">
+        <AlertTriangle className="w-4 h-4 text-red-400" />
+        <span className="text-sm text-red-400">Failed to load data</span>
+      </div>
+    );
+  }
+  return (
+    <div className="relative">
+      {children}
+      {lastUpdated && (
+        <div className="absolute top-2 right-2 text-[9px] text-slate-600">
+          {Math.round((Date.now() - new Date(lastUpdated).getTime()) / 1000)}s ago
+        </div>
+      )}
+    </div>
+  );
+}
 
-  // Extract data with fallbacks to prevent undefined errors
-  const { 
-    overview = defaultAnalytics.overview, 
-    visitors = defaultAnalytics.visitors, 
-    featureUsage = defaultAnalytics.featureUsage, 
-    payments = defaultAnalytics.payments, 
-    satisfaction = defaultAnalytics.satisfaction, 
-    generations = defaultAnalytics.generations, 
-    recentActivity = defaultAnalytics.recentActivity 
-  } = analytics;
-
-  // Helper to format values with error state
-  const formatValue = (value, hasError, prefix = '', suffix = '') => {
-    if (hasError && (value === 0 || value === undefined || value === null)) {
-      return 'N/A';
-    }
-    return `${prefix}${value ?? 0}${suffix}`;
+function MetricCard({ icon: Icon, label, value, sub, color = 'slate', state = 'ready', testId }) {
+  const colors = {
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    cyan: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    red: 'bg-red-500/10 text-red-400 border-red-500/20',
+    slate: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
   };
+  const c = colors[color] || colors.slate;
 
-  const hasAnalyticsError = apiErrors.analytics !== null;
+  const displayValue = state === 'loading' ? '...' : (value === null || value === undefined) ? 'No data' : value;
+  const isNoData = displayValue === 'No data';
 
-  const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'visitors', label: 'Visitors' },
-    { id: 'features', label: 'Features' },
-    { id: 'payments', label: 'Payments' },
-    { id: 'payment-monitoring', label: 'Payment Monitor' },
-    { id: 'exceptions', label: 'Exceptions' },
-    { id: 'satisfaction', label: 'Satisfaction' },
-    { id: 'user-analytics', label: 'User Analytics' },
-    { id: 'feature-requests', label: 'Feature Requests' },
-    { id: 'feedback', label: 'User Feedback' },
-    { id: 'trending', label: 'Trending Topics' },
-    { id: 'growth-funnel', label: 'Growth Funnel' },
-    { id: 'performance', label: 'Performance' },
+  return (
+    <div className={`rounded-xl border p-4 ${c}`} data-testid={testId}>
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className="w-4 h-4" />
+        <span className="text-[11px] font-medium uppercase tracking-wider opacity-80">{label}</span>
+      </div>
+      <p className={`text-2xl font-bold ${isNoData ? 'text-slate-600 text-base' : 'text-white'}`}>{displayValue}</p>
+      {sub && <p className="text-[11px] mt-1 opacity-70">{sub}</p>}
+    </div>
+  );
+}
+
+function HealthBadge({ status }) {
+  const config = {
+    healthy: { icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    degraded: { icon: MinusCircle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    critical: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10' },
+  };
+  const c = config[status] || config.healthy;
+  const Icon = c.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${c.color} ${c.bg}`}>
+      <Icon className="w-3 h-3" /> {status}
+    </span>
+  );
+}
+
+function FunnelBar({ label, value, rate, maxValue }) {
+  const width = maxValue ? Math.max((value / maxValue) * 100, 2) : 0;
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-slate-400 w-32 text-right flex-shrink-0">{label}</span>
+      <div className="flex-1 h-5 bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full transition-all" style={{ width: `${width}%` }} />
+      </div>
+      <span className="text-xs text-white font-mono w-16 text-right">{value ?? 0}</span>
+      {rate !== null && rate !== undefined && (
+        <span className="text-[10px] text-slate-500 w-12 text-right">{rate}%</span>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const [section, setSection] = useState('executive');
+  const [days, setDays] = useState(30);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const intervalRef = useRef(null);
+
+  // Data stores with states
+  const [summary, setSummary] = useState({ data: null, state: 'loading', ts: null });
+  const [funnel, setFunnel] = useState({ data: null, state: 'loading', ts: null });
+  const [reliability, setReliability] = useState({ data: null, state: 'loading', ts: null });
+  const [revenue, setRevenue] = useState({ data: null, state: 'loading', ts: null });
+  const [series, setSeries] = useState({ data: null, state: 'loading', ts: null });
+
+  const fetchSection = useCallback(async (name, setter, url) => {
+    try {
+      const res = await api.get(url);
+      if (res.data.success) {
+        setter({ data: res.data, state: 'ready', ts: new Date().toISOString() });
+      } else {
+        setter(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
+      }
+    } catch (err) {
+      if (err.response?.status === 403) {
+        toast.error('Admin access required');
+        navigate('/app');
+        return;
+      }
+      setter(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
+    }
+  }, [navigate]);
+
+  const fetchAll = useCallback(() => {
+    fetchSection('summary', setSummary, `/api/admin/metrics/summary?days=${days}`);
+    fetchSection('funnel', setFunnel, `/api/admin/metrics/funnel?days=${days}`);
+    fetchSection('reliability', setReliability, '/api/admin/metrics/reliability');
+    fetchSection('revenue', setRevenue, `/api/admin/metrics/revenue?days=${days}`);
+    fetchSection('series', setSeries, '/api/admin/metrics/series');
+  }, [days, fetchSection]);
+
+  // Initial load
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Auto-refresh polling
+  useEffect(() => {
+    if (autoRefresh) {
+      intervalRef.current = setInterval(() => {
+        fetchAll();
+      }, 15000); // 15s
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [autoRefresh, fetchAll]);
+
+  const s = summary.data;
+  const f = funnel.data;
+  const r = reliability.data;
+  const rev = revenue.data;
+  const ser = series.data;
+
+  const sections = [
+    { id: 'executive', label: 'Executive', icon: BarChart3 },
+    { id: 'funnel', label: 'Growth Funnel', icon: TrendingUp },
+    { id: 'reliability', label: 'Reliability', icon: Server },
+    { id: 'series', label: 'Story Intelligence', icon: BookOpen },
+    { id: 'revenue', label: 'Revenue', icon: DollarSign },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white" data-testid="admin-dashboard">
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="bg-slate-900/80 border-b border-slate-800 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/app">
-              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Dashboard
-              </Button>
+              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-purple-500" />
-              <span className="text-xl font-bold">Admin Analytics</span>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-sm font-bold text-white">Admin Control Center</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-            <Link to="/app/admin/users">
-              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="user-management-btn">
-                <Users className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">User Management</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/login-activity">
-              <Button variant="outline" size="sm" className="border-blue-500/50 text-blue-300 hover:bg-blue-500/20">
-                <Users className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Login Activity</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/realtime-analytics">
-              <Button variant="outline" size="sm" className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20" data-testid="realtime-analytics-btn">
-                <Activity className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Live Analytics</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/monitoring">
-              <Button variant="outline" size="sm" className="border-green-500/50 text-green-300 hover:bg-green-500/20">
-                <Activity className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Monitoring</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/self-healing">
-              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="self-healing-btn">
-                <Shield className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Self-Healing</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/user-analytics">
-              <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-300 hover:bg-amber-500/20" data-testid="user-analytics-btn">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Ratings</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/bio-templates">
-              <Button variant="outline" size="sm" className="border-pink-500/50 text-pink-300 hover:bg-pink-500/20" data-testid="bio-templates-btn">
-                <FileText className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Bio Templates</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/template-analytics">
-              <Button variant="outline" size="sm" className="border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/20" data-testid="template-analytics-btn">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Template BI</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/leaderboard">
-              <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-300 hover:bg-amber-500/20" data-testid="leaderboard-btn">
-                <Trophy className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Leaderboard</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/audit-logs">
-              <Button variant="outline" size="sm" className="border-red-500/50 text-red-300 hover:bg-red-500/20" data-testid="audit-logs-btn">
-                <ClipboardList className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Audit Logs</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/environment-monitor">
-              <Button variant="outline" size="sm" className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20" data-testid="env-monitor-btn">
-                <Database className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">DB Monitor</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/user-activity">
-              <Button variant="outline" size="sm" className="border-green-500/50 text-green-300 hover:bg-green-500/20 animate-pulse" data-testid="user-activity-btn">
-                <Radio className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Live Activity</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/system-health">
-              <Button variant="outline" size="sm" className="border-red-500/50 text-red-300 hover:bg-red-500/20" data-testid="system-health-btn">
-                <HeartPulse className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">System Health</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/anti-abuse">
-              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="anti-abuse-btn">
-                <ShieldAlert className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Anti-Abuse</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/revenue">
-              <Button variant="outline" size="sm" className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/20" data-testid="revenue-analytics-btn">
-                <DollarSign className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Revenue</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/monitoring">
-              <Button variant="outline" size="sm" className="border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/20" data-testid="monitoring-btn">
-                <Activity className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Monitor</span>
-              </Button>
-            </Link>
-            <Link to="/app/admin/ttfd-analytics">
-              <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20" data-testid="ttfd-analytics-btn">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">TTFD</span>
-              </Button>
-            </Link>
-            <select 
-              value={dateRange}
-              onChange={(e) => setDateRange(Number(e.target.value))}
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm hidden sm:block"
+          <div className="flex items-center gap-3">
+            {/* Live indicator */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <Radio className={`w-3 h-3 ${autoRefresh ? 'text-emerald-400 animate-pulse' : 'text-slate-600'}`} />
+              <button
+                onClick={() => setAutoRefresh(!autoRefresh)}
+                className={`${autoRefresh ? 'text-emerald-400' : 'text-slate-500'} hover:text-white`}
+                data-testid="toggle-auto-refresh"
+              >
+                {autoRefresh ? 'Live' : 'Paused'}
+              </button>
+            </div>
+            <select
+              value={days}
+              onChange={e => setDays(Number(e.target.value))}
+              className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+              data-testid="date-range-select"
             >
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-              <option value={365}>Last year</option>
+              <option value={7}>7 days</option>
+              <option value={30}>30 days</option>
+              <option value={90}>90 days</option>
             </select>
-            <Button onClick={fetchAnalytics} variant="outline" size="sm" className="border-slate-600">
-              <RefreshCw className="w-4 h-4" />
+            <Button onClick={fetchAll} variant="ghost" size="sm" className="text-slate-400 hover:text-white" data-testid="refresh-btn">
+              <RefreshCw className="w-3.5 h-3.5" />
             </Button>
-            <Button onClick={handleLogout} variant="ghost" size="sm" className="text-slate-300 hover:text-white" data-testid="admin-logout-btn">
-              <LogOut className="w-4 h-4" />
+            <Button onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} variant="ghost" size="sm" className="text-slate-400 hover:text-white" data-testid="admin-logout-btn">
+              <LogOut className="w-3.5 h-3.5" />
             </Button>
           </div>
+        </div>
+
+        {/* Navigation Links */}
+        <div className="max-w-7xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto">
+          {[
+            ['/app/admin/users', Users, 'Users'],
+            ['/app/admin/login-activity', Eye, 'Logins'],
+            ['/app/admin/monitoring', Activity, 'Monitor'],
+            ['/app/admin/audit-logs', FileText, 'Audit'],
+            ['/app/admin/system-health', Heart, 'Health'],
+            ['/app/admin/anti-abuse', Shield, 'Safety'],
+          ].map(([href, Icon, label]) => (
+            <Link key={href} to={href}>
+              <Button variant="ghost" size="sm" className="text-slate-500 hover:text-white text-[11px] gap-1 h-7 px-2">
+                <Icon className="w-3 h-3" /> {label}
+              </Button>
+            </Link>
+          ))}
         </div>
       </header>
 
-      {/* Error Banner - Show when some data failed to load */}
-      {(apiErrors.analytics || apiErrors.features) && (
-        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-3">
-          <div className="max-w-7xl mx-auto flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-amber-300 text-sm">
-                Some dashboard data couldn't be loaded.
-                {apiErrors.analytics && <span className="text-amber-400/80"> Analytics: {apiErrors.analytics}.</span>}
-                {apiErrors.features && <span className="text-amber-400/80"> Feature Requests: {apiErrors.features}.</span>}
-              </p>
-            </div>
-            <Button 
-              onClick={fetchAnalytics} 
-              variant="outline" 
-              size="sm" 
-              className="border-amber-500/50 text-amber-300 hover:bg-amber-500/20"
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Section Tabs */}
+        <div className="flex gap-1 mb-6 bg-slate-900/60 rounded-xl p-1 border border-slate-800">
+          {sections.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setSection(id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                section === id
+                  ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+              data-testid={`section-${id}`}
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Retry
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Overview Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
-          <StatCard 
-            icon={<Users className="w-5 h-5" />}
-            label="Total Users"
-            value={formatValue(overview?.totalUsers, hasAnalyticsError)}
-            subValue={hasAnalyticsError ? 'Data unavailable' : `+${overview?.newUsers || 0} new`}
-            color="blue"
-            hasError={hasAnalyticsError}
-          />
-          <StatCard 
-            icon={<Eye className="w-5 h-5" />}
-            label="Visitors"
-            value={formatValue(visitors?.uniqueVisitors, hasAnalyticsError)}
-            subValue={hasAnalyticsError ? 'Data unavailable' : `${visitors?.totalPageViews || 0} page views`}
-            color="green"
-            hasError={hasAnalyticsError}
-          />
-          <StatCard 
-            icon={<Activity className="w-5 h-5" />}
-            label="Active Sessions"
-            value={formatValue(overview?.activeSessions, hasAnalyticsError)}
-            color="purple"
-            hasError={hasAnalyticsError}
-          />
-          <StatCard 
-            icon={<FileText className="w-5 h-5" />}
-            label="Generations"
-            value={formatValue(overview?.totalGenerations, hasAnalyticsError)}
-            subValue={hasAnalyticsError ? 'Data unavailable' : `${generations?.successRate || 100}% success`}
-            color="indigo"
-            hasError={hasAnalyticsError}
-          />
-          <StatCard 
-            icon={<DollarSign className="w-5 h-5" />}
-            label="Total Revenue"
-            value={hasAnalyticsError ? 'N/A' : `₹${overview?.totalRevenue || 0}`}
-            subValue={hasAnalyticsError ? 'Data unavailable' : `₹${overview?.periodRevenue || 0} this period`}
-            color="emerald"
-            hasError={hasAnalyticsError}
-          />
-          <StatCard 
-            icon={<Star className="w-5 h-5" />}
-            label="Satisfaction"
-            value={hasAnalyticsError ? 'N/A' : `${satisfaction?.satisfactionPercentage || 0}%`}
-            subValue={hasAnalyticsError ? 'Data unavailable' : `${satisfaction?.averageRating || 0}/5 rating`}
-            color="yellow"
-            hasError={hasAnalyticsError}
-          />
+              <Icon className="w-3.5 h-3.5" /> {label}
+            </button>
+          ))}
         </div>
 
-        {/* Tabs */}
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-          <div className="border-b border-slate-700 flex overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-4 font-medium whitespace-nowrap transition-colors ${
-                  activeTab === tab.id 
-                    ? 'border-b-2 border-purple-500 text-purple-400 bg-slate-700/50' 
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* ═══ EXECUTIVE SNAPSHOT ═══ */}
+        {section === 'executive' && (
+          <WidgetState state={summary.state} lastUpdated={summary.ts}>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="executive-metrics">
+                <MetricCard icon={Users} label="Total Users" value={s?.total_users} sub={`+${s?.new_users_today ?? 0} today`} color="blue" state={summary.state} testId="metric-total-users" />
+                <MetricCard icon={Activity} label="Active (24h)" value={s?.active_users_24h} sub={`${s?.active_sessions ?? 0} sessions`} color="purple" state={summary.state} testId="metric-active-users" />
+                <MetricCard icon={FileText} label="Generations" value={s?.total_generations} sub={s?.success_rate != null ? `${s.success_rate}% success` : 'No jobs yet'} color="indigo" state={summary.state} testId="metric-generations" />
+                <MetricCard icon={DollarSign} label="Revenue" value={s?.total_revenue != null ? `₹${s.total_revenue}` : null} sub={s?.revenue_today != null ? `₹${s.revenue_today} today` : null} color="emerald" state={summary.state} testId="metric-revenue" />
+                <MetricCard icon={Star} label="Avg Rating" value={s?.avg_rating != null ? `${s.avg_rating}/5` : null} sub={s?.rating_count ? `${s.rating_count} ratings` : 'No ratings yet'} color="amber" state={summary.state} testId="metric-rating" />
+                <MetricCard icon={Shield} label="Health" value={r?.overall_health?.toUpperCase()} color={r?.overall_health === 'healthy' ? 'green' : r?.overall_health === 'degraded' ? 'amber' : 'red'} state={reliability.state} testId="metric-health" />
+              </div>
 
-          <div className="p-6">
-            {activeTab === 'overview' && (
-              <OverviewTab 
-                visitors={visitors} 
-                generations={generations}
-                recentActivity={recentActivity}
-              />
-            )}
-            {activeTab === 'visitors' && <VisitorsTab visitors={visitors} />}
-            {activeTab === 'features' && <FeaturesTab featureUsage={featureUsage} />}
-            {activeTab === 'payments' && <PaymentsTab payments={payments} />}
-            {activeTab === 'payment-monitoring' && <PaymentMonitoringTab />}
-            {activeTab === 'exceptions' && <ExceptionMonitoringTab />}
-            {activeTab === 'satisfaction' && <SatisfactionTab satisfaction={satisfaction} />}
-            {activeTab === 'user-analytics' && <UserAnalyticsTab dateRange={dateRange} />}
-            {activeTab === 'feature-requests' && (
-              <FeatureRequestsTab data={featureRequests} onUpdateStatus={updateFeatureStatus} />
-            )}
-            {activeTab === 'feedback' && <UserFeedbackTab />}
-            {activeTab === 'trending' && <TrendingTopicsTab />}
-            {activeTab === 'growth-funnel' && <GrowthFunnelTab dateRange={dateRange} />}
-            {activeTab === 'performance' && <PerformanceMonitorTab />}
-          </div>
-        </div>
+              {/* Quick Reliability */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Queue Depth</p>
+                  <p className="text-lg font-bold text-white">{r?.queue_depth ?? 'N/A'}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Stuck Jobs</p>
+                  <p className={`text-lg font-bold ${r?.stuck_jobs > 0 ? 'text-red-400' : 'text-white'}`}>{r?.stuck_jobs ?? 'N/A'}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Avg Render</p>
+                  <p className="text-lg font-bold text-white">{r?.avg_render_seconds != null ? `${r.avg_render_seconds}s` : 'No data'}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Max Render</p>
+                  <p className="text-lg font-bold text-white">{r?.max_render_seconds != null ? `${r.max_render_seconds}s` : 'No data'}</p>
+                </div>
+              </div>
+
+              {/* Quick Series Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Active Series</p>
+                  <p className="text-lg font-bold text-white">{ser?.active_series ?? 'N/A'}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Total Episodes</p>
+                  <p className="text-lg font-bold text-white">{ser?.total_episodes ?? 'N/A'}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Characters</p>
+                  <p className="text-lg font-bold text-white">{ser?.total_characters ?? 'N/A'}</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Continuation Rate</p>
+                  <p className="text-lg font-bold text-white">{ser?.continuation_rate != null ? `${ser.continuation_rate}%` : 'No data'}</p>
+                </div>
+              </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ GROWTH FUNNEL ═══ */}
+        {section === 'funnel' && (
+          <WidgetState state={funnel.state} lastUpdated={funnel.ts}>
+            <div className="space-y-6">
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6" data-testid="funnel-visualization">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" /> Conversion Funnel
+                </h3>
+                {f && (f.page_views > 0 || f.generate_clicks > 0 || f.creation_completed > 0) ? (
+                  <div className="space-y-3">
+                    <FunnelBar label="Page Views" value={f.page_views} rate={null} maxValue={Math.max(f.page_views, 1)} />
+                    <FunnelBar label="Remix Clicks" value={f.remix_clicks} rate={f.remix_rate} maxValue={Math.max(f.page_views, 1)} />
+                    <FunnelBar label="Tool Opens" value={f.tool_opens_prefilled} rate={f.tool_open_rate} maxValue={Math.max(f.page_views, 1)} />
+                    <FunnelBar label="Generate Clicks" value={f.generate_clicks} rate={f.generate_rate} maxValue={Math.max(f.page_views, 1)} />
+                    <FunnelBar label="Signups" value={f.signup_completed} rate={f.signup_rate} maxValue={Math.max(f.page_views, 1)} />
+                    <FunnelBar label="Completed" value={f.creation_completed} rate={f.completion_rate} maxValue={Math.max(f.page_views, 1)} />
+                    <FunnelBar label="Shares" value={f.share_clicks} rate={f.share_rate} maxValue={Math.max(f.page_views, 1)} />
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-slate-500">No funnel data available yet</p>
+                    <p className="text-xs text-slate-600 mt-1">Growth events will appear as users interact with public pages and creation tools</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Viral metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MetricCard icon={Zap} label="Viral K" value={f?.viral_coefficient_k} sub="K > 1 = viral" color="cyan" testId="metric-viral-k" />
+                <MetricCard icon={Users} label="Unique Creators" value={f?.unique_creators} color="blue" testId="metric-unique-creators" />
+                <MetricCard icon={TrendingUp} label="Avg Shares/Creator" value={f?.avg_shares_per_creator} color="purple" testId="metric-avg-shares" />
+                <MetricCard icon={Activity} label="Share Rate" value={f?.share_rate != null ? `${f.share_rate}%` : null} color="emerald" testId="metric-share-rate" />
+              </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ RELIABILITY ═══ */}
+        {section === 'reliability' && (
+          <WidgetState state={reliability.state} lastUpdated={reliability.ts}>
+            <div className="space-y-6">
+              {/* Health Status */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6" data-testid="health-panel">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-emerald-400" /> System Health
+                </h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <HealthBadge status={r?.overall_health || 'unknown'} />
+                  <span className="text-xs text-slate-500">Overall system status</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {r?.health_checks && Object.entries(r.health_checks).map(([key, status]) => (
+                    <div key={key} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2">
+                      <span className="text-xs text-slate-400 capitalize">{key.replace('_', ' ')}</span>
+                      <HealthBadge status={status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Queue & Jobs */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MetricCard icon={Database} label="Queue Depth" value={r?.queue_depth} color={r?.queue_depth > 50 ? 'red' : 'blue'} testId="metric-queue" />
+                <MetricCard icon={Activity} label="Active Jobs" value={r?.active_jobs} color="purple" testId="metric-active-jobs" />
+                <MetricCard icon={AlertTriangle} label="Stuck Jobs" value={r?.stuck_jobs} color={r?.stuck_jobs > 0 ? 'red' : 'green'} testId="metric-stuck-jobs" />
+                <MetricCard icon={Clock} label="Avg Render" value={r?.avg_render_seconds != null ? `${r.avg_render_seconds}s` : null} color="cyan" testId="metric-avg-render" />
+              </div>
+
+              {/* Tool render stats */}
+              {r?.tool_render_stats && Object.keys(r.tool_render_stats).length > 0 && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                  <h3 className="text-sm font-semibold text-white mb-3">Render Time by Tool</h3>
+                  <div className="space-y-2">
+                    {Object.entries(r.tool_render_stats).map(([tool, stats]) => (
+                      <div key={tool} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2">
+                        <span className="text-xs text-white capitalize">{tool.replace('_', ' ')}</span>
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-slate-400">Avg: <span className="text-white">{stats.avg_seconds}s</span></span>
+                          <span className="text-slate-400">Max: <span className="text-white">{stats.max_seconds}s</span></span>
+                          <span className="text-slate-400">Jobs: <span className="text-white">{stats.count}</span></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(!r?.tool_render_stats || Object.keys(r.tool_render_stats).length === 0) && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 text-center">
+                  <p className="text-sm text-slate-500">No render data available in last 24h</p>
+                  <p className="text-xs text-slate-600 mt-1">Tool-specific render times will appear when jobs complete</p>
+                </div>
+              )}
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ STORY & CHARACTER INTELLIGENCE ═══ */}
+        {section === 'series' && (
+          <WidgetState state={series.state} lastUpdated={series.ts}>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="series-metrics">
+                <MetricCard icon={Film} label="Active Series" value={ser?.active_series} sub={`${ser?.total_series ?? 0} total`} color="indigo" testId="metric-active-series" />
+                <MetricCard icon={BookOpen} label="Total Episodes" value={ser?.total_episodes} sub={ser?.avg_episodes_per_series != null ? `${ser.avg_episodes_per_series} avg/series` : null} color="cyan" testId="metric-episodes" />
+                <MetricCard icon={TrendingUp} label="Continuation" value={ser?.continuation_rate != null ? `${ser.continuation_rate}%` : null} sub="Series with 2+ episodes" color="emerald" testId="metric-continuation" />
+                <MetricCard icon={Users} label="Characters" value={ser?.total_characters} sub={`${ser?.auto_extracted_characters ?? 0} auto-extracted`} color="purple" testId="metric-characters" />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Character Reuse Rate</p>
+                  <p className="text-lg font-bold text-white">{ser?.character_reuse_rate != null ? `${ser.character_reuse_rate}%` : 'No data'}</p>
+                  <p className="text-[10px] text-slate-600">{ser?.reused_characters ?? 0} characters reused</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Continuity Pass Rate</p>
+                  <p className="text-lg font-bold text-white">{ser?.continuity_pass_rate != null ? `${ser.continuity_pass_rate}%` : 'No data'}</p>
+                  <p className="text-[10px] text-slate-600">Visual/narrative consistency</p>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                  <p className="text-[10px] text-slate-500 mb-1">Rewards Claimed</p>
+                  <p className="text-lg font-bold text-white">{ser?.rewards_claimed ?? 0}</p>
+                  <p className="text-[10px] text-slate-600">Milestone completions</p>
+                </div>
+              </div>
+
+              {/* Most reused character */}
+              {ser?.most_reused_character && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                    <Star className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Most Reused Character</p>
+                    <p className="text-sm font-semibold text-white">{ser.most_reused_character.name}</p>
+                    <p className="text-[10px] text-slate-500">{ser.most_reused_character.usage} episode appearances</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ REVENUE ═══ */}
+        {section === 'revenue' && (
+          <WidgetState state={revenue.state} lastUpdated={revenue.ts}>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="revenue-metrics">
+                <MetricCard icon={DollarSign} label="Total Revenue" value={rev?.total_revenue != null ? `₹${rev.total_revenue}` : null} sub={`${rev?.total_transactions ?? 0} transactions`} color="emerald" testId="metric-total-revenue" />
+                <MetricCard icon={DollarSign} label="Revenue Today" value={rev?.revenue_today != null ? `₹${rev.revenue_today}` : null} color="green" testId="metric-rev-today" />
+                <MetricCard icon={Users} label="Paying Users" value={rev?.paying_users} sub={rev?.conversion_rate != null ? `${rev.conversion_rate}% conversion` : null} color="blue" testId="metric-paying-users" />
+                <MetricCard icon={Star} label="ARPU" value={rev?.arpu != null ? `₹${rev.arpu}` : null} sub={`${rev?.active_subscriptions ?? 0} active subs`} color="amber" testId="metric-arpu" />
+              </div>
+
+              {/* Recent transactions */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-sm font-semibold text-white mb-3">Recent Transactions</h3>
+                {rev?.recent_transactions?.length > 0 ? (
+                  <div className="space-y-2">
+                    {rev.recent_transactions.map((txn, i) => (
+                      <div key={i} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-3 h-3 text-emerald-400" />
+                          <span className="text-xs text-white">₹{txn.amount}</span>
+                          <span className="text-[10px] text-slate-500">{txn.payment_type || 'payment'}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-600">{new Date(txn.created_at).toLocaleDateString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 text-center py-4">No transactions in this period</p>
+                )}
+              </div>
+            </div>
+          </WidgetState>
+        )}
       </div>
-      
-      {/* Help Guide */}
-      <HelpGuide pageId="admin" />
     </div>
   );
 }

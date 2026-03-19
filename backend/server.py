@@ -155,6 +155,7 @@ from routes.recovery_ui import router as recovery_ui_router
 from routes.priority_scaling import router as priority_scaling_router
 from routes.admin_system_routes import router as admin_system_router
 from routes.admin_worker_routes import router as admin_worker_router
+from routes.admin_metrics import router as admin_metrics_router
 from routes.download_expiry_routes import router as download_expiry_router
 from routes.notification_routes import router as notification_router
 from services.self_healing_middleware import SelfHealingMiddleware
@@ -443,6 +444,7 @@ api_router.include_router(template_leaderboard_router)
 api_router.include_router(template_versioning_router)
 api_router.include_router(admin_system_router)
 api_router.include_router(admin_worker_router)
+api_router.include_router(admin_metrics_router)
 api_router.include_router(download_expiry_router)
 api_router.include_router(notification_router)
 api_router.include_router(user_profile_router)
