@@ -20,7 +20,7 @@ const TOUR_STEPS = [
   {
     id: 'credits',
     title: 'Your Credits',
-    content: 'This shows your available credits. New users get 100 free credits to start! Different features cost different amounts of credits.',
+    content: 'This shows your available credits. New users get 50 free credits to start! Different features cost different amounts of credits.',
     target: '[data-tour="credits-display"]',
     page: '/app',
     position: 'bottom'

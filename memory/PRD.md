@@ -17,57 +17,63 @@ AI Creator Suite ("Visionary Suite") — a comprehensive platform for AI-powered
 - Pricing system with Cashfree payments
 - AI Character Memory system
 
-### Phase 2: Growth Engine (Complete — Mar 2026)
-- Auto-character extraction from stories
-- Basic sharing loop + series completion rewards
+### Phase 2: Growth Engine (Complete)
+- Auto-character extraction, sharing loop, rewards
 - Growth event tracking (7 core events)
-- Truth-based Admin Dashboard (5 sections)
+- Truth-based Admin Dashboard
 
 ### Phase 3: Compulsion Engine (Complete — Mar 19, 2026)
-- **Shared Page Redesign**: PublicCharacterPage & PublicCreation with character-driven hooks, dual CTAs, cliffhanger teasers, no login wall
-- **1-Click Continue Flow**: StoryVideoStudio open to unauthenticated users. Auth check at "Generate" step only. remix_data pre-fills studio
-- **Open-Loop Story Endings**: Backend prompts enforce cliffhanger/open-loop endings
+- Shared Page Redesign with character-driven hooks, momentum CTAs
+- 1-Click Continue Flow (no login wall before generate)
+- Open-Loop Story Endings (backend enforcement)
 
 ### Phase 4: Monetization Discipline (Complete — Mar 19, 2026)
-- **Cashfree Production Verified**: Production mode, webhook sig verification, idempotency, replay protection
-- **Credit Enforcement**: All tools require auth + credit deduction before generation. Refund on failure
-- **Credit Reset Executed**: 29 normal users reset to 50 credits. Admin/test/uat/dev excluded. Audit logged
-- **Credit Banner**: show_credit_banner flag, auto-toast on login, auto-dismiss endpoint
-- **Admin Dashboard — Revenue/Credits/Conversion**: 3 new sections with real Cashfree data
+- Cashfree Production Verified
+- Credit Enforcement on all generation tools
+- Admin Dashboard — Revenue/Credits/Conversion sections
 
 ### Phase 5: Enhanced Social Proof (Complete — Mar 19, 2026)
-- **Momentum-Based Social Proof**: Not vanity metrics. Real data:
-  - Total continuations, total stories per character, last continuation timestamp
-  - Continuations in last 1h/24h for freshness
-  - "Last continued X minutes ago" — urgency signal
-  - "Story is still evolving" (green) vs "Be the first to continue today" (amber) — time-based decay
-- **Character Power Score**: "Used in X stories, Y continuations, Z tools"
-- **CTAs Updated**: "Create your own" → "Continue where others left off" (with social count)
-- **Trending Badge**: Real thresholds only (continuations_1h >= 2 OR continuations_24h >= 5 + views >= 20). No fake trending
-- **Time-Based Decay**: If no activity in 24h → "Be the first to continue today"
+- Momentum-based messaging (not vanity metrics)
+- Character Power Score
+- CTAs: "Continue where others left off"
+- Trending badge (real thresholds only)
+- Time-based decay
+
+### Phase 6: Credit Consistency Fix (Complete — Mar 19, 2026)
+**Root cause found and eliminated:**
+- `server.py` had auto-top-up code that reset ALL users to 100 credits on EVERY server restart — REMOVED
+- Multiple frontend pages showed "100 free credits" text — ALL fixed to 50
+- `monetization.py` free tier showed 10 credits — fixed to 50
+- Signup flow (email + Google OAuth) set 0 credits — fixed to 50
+- AdminUsersManagement defaults were 100 — fixed to 50
+- `server_modular.py` and `server_monolith_backup.py` had 100 credit grants — fixed
+
+**What was done:**
+1. Removed `server.py` auto-top-up that overrode every credit reset on restart
+2. Fixed ALL UI text references (Landing, Pricing, Signup, TermsOfService, Reviews, DemoReelGenerator, HelpGuide, AppTour, AdminUsersManagement)
+3. Fixed backend config (monetization.py free tier: 10→50)
+4. Fixed signup flows (email + Google OAuth: 0→50 credits)
+5. Re-executed credit reset: 27 normal users at exactly 50 credits
+6. Verified: 0 normal users with >50 credits
+7. Verified: No auto-grant on server restart
+8. Added demo@ to exclusion list in credit reset
+
+**Single Source of Truth:**
+- Credits come ONLY from: (a) signup bonus (50), (b) Cashfree payment, (c) admin credit reset
+- No frontend defaults, no cached placeholders, no hardcoded values
+- New user default = 50 credits (signup flow)
+
+## Key Credentials
+- Test User: test@visionary-suite.com / Test@2026# (excluded from reset, has 999K credits)
+- Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
 ## Prioritized Backlog
-
 ### P1 (Next)
 - A/B test hook text variations on public pages
 - Character-driven auto-share prompts after creation
-- "Story is alive" messaging variations
 
 ### P2
 - Remix Variants on share pages
 - WebSocket live updates for Admin funnel
 - Style preset preview thumbnails
 - General UI polish
-
-## Key Credentials
-- Test User: test@visionary-suite.com / Test@2026#
-- Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-
-## Critical Technical Notes
-- Cashfree is PRODUCTION mode (hardcoded, never sandbox)
-- Credits deducted BEFORE generation, refunded on failure
-- Story prompts enforce open-loop/cliffhanger endings
-- StoryVideoStudio is open-access (auth at generate step only)
-- 401 interceptor whitelists: /app/story-video-studio, /v/, /character/
-- Social proof uses real momentum data only — no fake trending, no vanity counters
-- is_alive returns proper boolean (fixed by testing agent)

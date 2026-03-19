@@ -109,7 +109,7 @@ export default function DemoReelGenerator({ isOpen, onClose }) {
             </div>
             <h3 className="text-2xl font-bold text-white mb-3">Demo Already Used</h3>
             <p className="text-slate-400 mb-8 max-w-md mx-auto">
-              You've already used your free demo. Sign up now to generate unlimited reel scripts and get 10 free credits!
+              You've already used your free demo. Sign up now to generate unlimited reel scripts and get 50 free credits!
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/signup">

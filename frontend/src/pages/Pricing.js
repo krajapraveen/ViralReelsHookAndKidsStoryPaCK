@@ -85,7 +85,7 @@ export default function Pricing() {
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Choose Your Plan</h1>
           <p className="text-lg text-slate-300 max-w-2xl mx-auto">
-            Start with 10 free credits. Subscribe for monthly credits or top up as you go.
+            Start with 50 free credits. Subscribe for monthly credits or top up as you go.
           </p>
         </div>
 
@@ -93,7 +93,7 @@ export default function Pricing() {
         <div className="mb-16">
           <div className="max-w-md mx-auto bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8 text-center">
             <h3 className="text-xl font-bold text-white mb-2">Free Tier</h3>
-            <div className="text-5xl font-black text-white mb-1">10</div>
+            <div className="text-5xl font-black text-white mb-1">50</div>
             <p className="text-slate-400 mb-6">free credits on signup</p>
             <ul className="space-y-2 mb-6 text-left max-w-xs mx-auto">
               <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> 1 Story Video</li>

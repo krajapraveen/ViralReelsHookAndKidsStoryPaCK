@@ -407,7 +407,7 @@ export default function Landing() {
             Start Creating AI Videos Today
           </h2>
           <p className="text-lg text-[var(--vs-text-secondary)] mb-8" style={{ fontFamily: 'var(--vs-font-body)' }}>
-            100 free credits for new creators. No credit card required.
+            50 free credits for new creators. No credit card required.
           </p>
           <Link to="/signup">
             <button className="vs-btn-primary rounded-full px-12 h-14 text-lg font-semibold hover:shadow-[0_0_40px_-8px_rgba(124,58,237,0.5)] transition-all hover:scale-[1.02]" data-testid="final-cta-btn">

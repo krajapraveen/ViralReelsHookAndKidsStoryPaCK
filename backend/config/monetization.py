@@ -15,7 +15,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Free",
         "tier": "FREE",
         "duration_days": 0,
-        "credits": 10,
+        "credits": 50,
         "price_inr": 0,
         "price_usd": 0,
         "monthly_credits": 0,

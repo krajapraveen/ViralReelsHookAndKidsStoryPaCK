@@ -5086,7 +5086,7 @@ async def startup():
         # Update demo user credits to 100
         await db.users.update_one(
             {"email": "demo@example.com"},
-            {"$set": {"credits": 100, "plan": "free"}}
+            {"$set": {"credits": 50, "plan": "free"}}
         )
     
     # Start background cleanup task for expired downloads

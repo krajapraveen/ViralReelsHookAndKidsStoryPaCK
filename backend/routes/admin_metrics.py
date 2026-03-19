@@ -610,12 +610,12 @@ class CreditResetRequest(_BaseModel):
 async def reset_credits(request: CreditResetRequest, admin: dict = Depends(get_admin_user)):
     """Reset credits to N for all normal users. Excludes admin/test/uat/dev roles."""
 
-    excluded_roles = ["admin", "test", "uat", "dev", "ADMIN", "TEST", "UAT", "DEV", "Admin", "Test"]
+    excluded_roles = ["admin", "test", "uat", "dev", "demo", "ADMIN", "TEST", "UAT", "DEV", "DEMO", "Admin", "Test", "Demo"]
 
-    # Build filter: exclude admin/test/uat/dev (case-insensitive)
+    # Build filter: exclude admin/test/uat/dev/demo (case-insensitive)
     filter_query = {
         "role": {"$nin": excluded_roles},
-        "email": {"$not": {"$regex": "^(admin@|test@|uat@|dev@)", "$options": "i"}}
+        "email": {"$not": {"$regex": "^(admin@|test@|uat@|dev@|demo@)", "$options": "i"}}
     }
 
     # Count affected users

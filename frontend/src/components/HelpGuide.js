@@ -72,7 +72,7 @@ const HELP_CONTENT = {
       'Manage your account in Profile'
     ],
     tips: [
-      'New users get 100 free credits on signup',
+      'New users get 50 free credits on signup',
       'Use the quick action buttons for faster access',
       'Enable notifications for generation updates'
     ]

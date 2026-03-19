@@ -910,17 +910,8 @@ async def startup():
     except Exception as e:
         logger.warning(f"Gallery seed warning: {e}")
     
-    # Give 100 free credits to all existing users who have less than 100 credits
-    # This is a one-time bonus for production go-live
-    result = await db.users.update_many(
-        {
-            "email": {"$nin": ["admin@creatorstudio.ai", "demo@example.com"]},
-            "credits": {"$lt": 100}
-        },
-        {"$set": {"credits": 100}}
-    )
-    if result.modified_count > 0:
-        logger.info(f"Granted 100 credits to {result.modified_count} existing users")
+    # REMOVED: Auto credit top-up to 100 was here. Policy is 50 credits for new users.
+    # Credits are managed via admin credit-reset endpoint and Cashfree payments only.
     
     # Start background cleanup task
     asyncio.create_task(cleanup_expired_downloads())

@@ -28,20 +28,20 @@ export default function AdminUsersManagement() {
   const [manualVerifying, setManualVerifying] = useState(false);
   
   // Reset credits form
-  const [resetData, setResetData] = useState({ credits: 100, reason: '' });
+  const [resetData, setResetData] = useState({ credits: 50, reason: '' });
   
   // Reset verification form
   const [verificationResetReason, setVerificationResetReason] = useState('Admin reset for re-verification');
   
   // Manual verify form
-  const [manualVerifyData, setManualVerifyData] = useState({ credits: 100, reason: 'Admin manual verification' });
+  const [manualVerifyData, setManualVerifyData] = useState({ credits: 50, reason: 'Admin manual verification' });
   
   // Create user form
   const [createData, setCreateData] = useState({
     name: '',
     email: '',
     password: '',
-    credits: 100,
+    credits: 50,
     role: 'user'
   });
 
@@ -89,7 +89,7 @@ export default function AdminUsersManagement() {
       toast.success(`Credits reset to ${resetData.credits} for ${selectedUser.email}`);
       setShowResetModal(false);
       setSelectedUser(null);
-      setResetData({ credits: 100, reason: '' });
+      setResetData({ credits: 50, reason: '' });
       fetchUsers(pagination.page);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to reset credits');
@@ -111,7 +111,7 @@ export default function AdminUsersManagement() {
       const response = await api.post('/api/admin/users/create', createData);
       toast.success(`User ${createData.email} created with ${createData.credits} credits`);
       setShowCreateModal(false);
-      setCreateData({ name: '', email: '', password: '', credits: 100, role: 'user' });
+      setCreateData({ name: '', email: '', password: '', credits: 50, role: 'user' });
       fetchUsers(1);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
@@ -179,7 +179,7 @@ export default function AdminUsersManagement() {
       toast.success(response.data.message || `${selectedUser.email} has been manually verified!`);
       setShowManualVerifyModal(false);
       setSelectedUser(null);
-      setManualVerifyData({ credits: 100, reason: 'Admin manual verification' });
+      setManualVerifyData({ credits: 50, reason: 'Admin manual verification' });
       fetchUsers(pagination.page);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to manually verify user');
@@ -395,7 +395,7 @@ export default function AdminUsersManagement() {
                               size="sm"
                               onClick={() => {
                                 setSelectedUser(user);
-                                setManualVerifyData({ credits: 100, reason: 'Admin manual verification' });
+                                setManualVerifyData({ credits: 50, reason: 'Admin manual verification' });
                                 setShowManualVerifyModal(true);
                               }}
                               className="border-green-500/50 text-green-400 hover:bg-green-500/20 text-xs"
@@ -497,9 +497,9 @@ export default function AdminUsersManagement() {
                   max="999999999"
                 />
                 <div className="flex gap-2 mt-2">
-                  <Button size="sm" variant="outline" onClick={() => setResetData({ ...resetData, credits: 100 })} className="text-xs">100</Button>
-                  <Button size="sm" variant="outline" onClick={() => setResetData({ ...resetData, credits: 1000 })} className="text-xs">1K</Button>
-                  <Button size="sm" variant="outline" onClick={() => setResetData({ ...resetData, credits: 10000 })} className="text-xs">10K</Button>
+                  <Button size="sm" variant="outline" onClick={() => setResetData({ ...resetData, credits: 50 })} className="text-xs">50</Button>
+                  <Button size="sm" variant="outline" onClick={() => setResetData({ ...resetData, credits: 500 })} className="text-xs">1K</Button>
+                  <Button size="sm" variant="outline" onClick={() => setResetData({ ...resetData, credits: 5000 })} className="text-xs">10K</Button>
                   <Button size="sm" variant="outline" onClick={() => setResetData({ ...resetData, credits: 999999999 })} className="text-xs text-green-400">Unlimited</Button>
                 </div>
               </div>
@@ -772,7 +772,7 @@ export default function AdminUsersManagement() {
                   onClick={() => {
                     setShowManualVerifyModal(false);
                     setSelectedUser(null);
-                    setManualVerifyData({ credits: 100, reason: 'Admin manual verification' });
+                    setManualVerifyData({ credits: 50, reason: 'Admin manual verification' });
                   }}
                 >
                   Cancel
