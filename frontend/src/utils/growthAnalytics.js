@@ -1,11 +1,21 @@
 /**
  * Growth Analytics — Client-side event tracking
- * Tracks funnel: page_view → remix_click → tool_open_prefilled → generate_click → signup → creation_completed
+ * Strict event contract with attribution lineage.
+ * 
+ * 6 core events:
+ * 1. page_view (public pages)
+ * 2. remix_click (CTA on public pages)
+ * 3. tool_open_prefilled (tool opened with remix data)
+ * 4. generate_click (user clicks generate)
+ * 5. signup_completed (user finishes signup)
+ * 6. creation_completed (generation finishes successfully)
+ * 7. share_click (user shares content)
  */
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-// Persistent session ID (survives page refreshes within a session)
+// ─── Session Management ──────────────────────────────────────────────────────
+
 function getSessionId() {
   let sid = sessionStorage.getItem('growth_session_id');
   if (!sid) {
@@ -15,7 +25,58 @@ function getSessionId() {
   return sid;
 }
 
-// Queue for batching events (sends every 5s or on 10 events)
+function getAnonymousId() {
+  let aid = localStorage.getItem('growth_anonymous_id');
+  if (!aid) {
+    aid = `anon_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem('growth_anonymous_id', aid);
+  }
+  return aid;
+}
+
+function getUserId() {
+  return localStorage.getItem('user_id') || null;
+}
+
+// ─── Origin Tracking ─────────────────────────────────────────────────────────
+// Persists across page navigations within the session
+
+function setOrigin(origin, data = {}) {
+  sessionStorage.setItem('growth_origin', JSON.stringify({
+    origin,
+    origin_slug: data.slug || null,
+    origin_character_id: data.character_id || null,
+    origin_series_id: data.series_id || null,
+  }));
+}
+
+function getOrigin() {
+  try {
+    return JSON.parse(sessionStorage.getItem('growth_origin') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+// ─── Idempotency ─────────────────────────────────────────────────────────────
+
+const recentEvents = new Set();
+
+function makeIdempotencyKey(event, extra = '') {
+  // Debounce: same event + same extra within 2 seconds = duplicate
+  const key = `${event}_${extra}_${Math.floor(Date.now() / 2000)}`;
+  if (recentEvents.has(key)) return null; // duplicate
+  recentEvents.add(key);
+  // Clean up old keys
+  if (recentEvents.size > 100) {
+    const arr = Array.from(recentEvents);
+    arr.slice(0, 50).forEach(k => recentEvents.delete(k));
+  }
+  return key;
+}
+
+// ─── Event Queue with Batching ───────────────────────────────────────────────
+
 let eventQueue = [];
 let flushTimer = null;
 
@@ -31,8 +92,8 @@ async function flushEvents() {
       body: JSON.stringify({ events: batch }),
     });
   } catch {
-    // Silent fail — analytics should never break UX
-    eventQueue.push(...batch); // Re-queue on failure
+    // Re-queue on failure (silent — never break UX)
+    eventQueue.push(...batch);
   }
 }
 
@@ -44,31 +105,41 @@ function scheduleFlush() {
   }, 5000);
 }
 
-// Flush on page unload
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => flushEvents());
 }
 
-/**
- * Track a growth event
- * @param {string} event - Event name
- * @param {object} data - Additional data (source_slug, tool, meta)
- */
-export function trackGrowthEvent(event, data = {}) {
-  const sessionId = getSessionId();
-  const userId = localStorage.getItem('user_id') || null;
+// ─── Core Track Function ─────────────────────────────────────────────────────
+
+function trackGrowthEvent(event, data = {}) {
+  const idempotencyKey = makeIdempotencyKey(event, data.source_page || data.tool_type || '');
+  if (!idempotencyKey) return; // deduplicated
+
+  const origin = getOrigin();
 
   eventQueue.push({
     event,
-    session_id: sessionId,
+    session_id: getSessionId(),
+    user_id: getUserId(),
+    anonymous_id: getAnonymousId(),
+    source_page: data.source_page || window.location.pathname,
     source_slug: data.source_slug || null,
-    tool: data.tool || null,
-    user_id: userId,
+    tool_type: data.tool_type || null,
+    creation_type: data.creation_type || null,
+    series_id: data.series_id || null,
+    character_id: data.character_id || null,
+    origin: data.origin || origin.origin || 'direct',
+    origin_slug: data.origin_slug || origin.origin_slug || null,
+    origin_character_id: data.origin_character_id || origin.origin_character_id || null,
+    origin_series_id: data.origin_series_id || origin.origin_series_id || null,
+    referrer_slug: data.referrer_slug || null,
+    ab_variant: null,
+    idempotency_key: idempotencyKey,
     meta: data.meta || null,
   });
 
-  // Flush immediately for critical events, batch for others
-  if (['signup_completed', 'creation_completed'].includes(event)) {
+  // Critical events flush immediately
+  if (['signup_completed', 'creation_completed', 'share_click'].includes(event)) {
     flushEvents();
   } else if (eventQueue.length >= 10) {
     flushEvents();
@@ -77,36 +148,59 @@ export function trackGrowthEvent(event, data = {}) {
   }
 }
 
-// ─── Convenience functions for each funnel stage ─────────────────────────────
+// ─── 6 Core Event Functions ──────────────────────────────────────────────────
 
-export function trackPageView(slug) {
-  trackGrowthEvent('page_view', { source_slug: slug });
+/** 1. Public page view (explore, character page, series page) */
+export function trackPageView(data = {}) {
+  trackGrowthEvent('page_view', data);
 }
 
-export function trackRemixClick(slug, tool) {
-  trackGrowthEvent('remix_click', { source_slug: slug, tool });
+/** 2. Remix/CTA click on public pages */
+export function trackRemixClick(data = {}) {
+  trackGrowthEvent('remix_click', data);
 }
 
-export function trackToolOpenPrefilled(tool, sourceSlug) {
-  trackGrowthEvent('tool_open_prefilled', { tool, source_slug: sourceSlug });
+/** 3. Tool opened with prefilled remix data */
+export function trackToolOpenPrefilled(data = {}) {
+  trackGrowthEvent('tool_open_prefilled', data);
 }
 
-export function trackGenerateClick(tool) {
-  trackGrowthEvent('generate_click', { tool });
+/** 4. User clicks Generate button */
+export function trackGenerateClick(data = {}) {
+  trackGrowthEvent('generate_click', data);
 }
 
-export function trackSignupTriggered() {
-  trackGrowthEvent('signup_triggered');
+/** 5. User completes signup */
+export function trackSignupCompleted(data = {}) {
+  trackGrowthEvent('signup_completed', data);
 }
 
-export function trackSignupCompleted() {
-  trackGrowthEvent('signup_completed');
+/** 6. Generation completes successfully */
+export function trackCreationCompleted(data = {}) {
+  trackGrowthEvent('creation_completed', data);
 }
 
-export function trackCreationCompleted(tool) {
-  trackGrowthEvent('creation_completed', { tool });
+/** 7. Share click (optional) */
+export function trackShareClick(data = {}) {
+  trackGrowthEvent('share_click', data);
 }
 
-export function trackShareClick(slug, platform) {
-  trackGrowthEvent('share_click', { source_slug: slug, meta: { platform } });
+// ─── Session Linkage ─────────────────────────────────────────────────────────
+
+/** Call after login/signup to link anonymous session events to the user */
+export async function linkSessionToUser(userId) {
+  const sessionId = getSessionId();
+  try {
+    await fetch(`${API}/api/growth/link-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, user_id: userId }),
+    });
+  } catch {
+    // Silent fail
+  }
 }
+
+// ─── Origin Helpers ──────────────────────────────────────────────────────────
+
+export { setOrigin, getOrigin, getSessionId, getAnonymousId };

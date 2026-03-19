@@ -6,6 +6,7 @@ import {
   Film, ChevronRight, ArrowLeft, Shield, Zap
 } from 'lucide-react';
 import api from '../utils/api';
+import { trackPageView, trackRemixClick, setOrigin } from '../utils/growthAnalytics';
 
 const TRAIT_ICONS = {
   brave: Zap,
@@ -26,8 +27,19 @@ export default function PublicCharacterPage() {
     const fetchCharacter = async () => {
       try {
         const res = await api.get(`/api/public/character/${characterId}`);
-        if (res.data.success) setData(res.data);
-        else setError('Character not found');
+        if (res.data.success) {
+          setData(res.data);
+          // Track page view with attribution
+          trackPageView({
+            source_page: `/character/${characterId}`,
+            character_id: characterId,
+            origin: 'public_character_page',
+            origin_character_id: characterId,
+            meta: { character_name: res.data.character?.name },
+          });
+          // Set origin for downstream attribution
+          setOrigin('public_character_page', { character_id: characterId });
+        } else setError('Character not found');
       } catch {
         setError('Character not found');
       } finally {
@@ -39,6 +51,15 @@ export default function PublicCharacterPage() {
 
   const handleCreateStory = () => {
     if (!data?.remix_data) return;
+    // Track remix click
+    trackRemixClick({
+      source_page: `/character/${characterId}`,
+      character_id: characterId,
+      tool_type: 'story_video',
+      origin: 'public_character_page',
+      origin_character_id: characterId,
+      meta: { character_name: data.character?.name },
+    });
     // Store remix_data in localStorage for StoryVideoStudio to pick up
     localStorage.setItem('remix_data', JSON.stringify(data.remix_data));
     navigate('/app/story-video-studio', { state: data.remix_data });

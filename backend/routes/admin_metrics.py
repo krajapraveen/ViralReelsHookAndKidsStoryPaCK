@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from datetime import datetime, timezone, timedelta
 import logging
 
-from shared import db, logger, get_admin_user
+from shared import db, get_admin_user
 
 logger = logging.getLogger("creatorstudio.admin_metrics")
 router = APIRouter(prefix="/admin/metrics", tags=["Admin Metrics"])
@@ -145,7 +145,7 @@ async def get_growth_funnel(days: int = Query(7, ge=1, le=90), admin: dict = Dep
     match = {"timestamp": {"$gte": cutoff.isoformat()}}
 
     async def count_events(event_name):
-        return await db.growth_events.count_documents({**match, "event_name": event_name})
+        return await db.growth_events.count_documents({**match, "event": event_name})
 
     page_views = await count_events("page_view")
     remix_clicks = await count_events("remix_click")
@@ -167,7 +167,7 @@ async def get_growth_funnel(days: int = Query(7, ge=1, le=90), admin: dict = Dep
     unique_creators = 0
     try:
         cr_pipeline = [
-            {"$match": {**match, "event_name": "share_click"}},
+            {"$match": {**match, "event": "share_click"}},
             {"$group": {"_id": "$user_id"}},
             {"$count": "total"}
         ]

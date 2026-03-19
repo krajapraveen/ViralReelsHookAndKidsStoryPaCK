@@ -9,6 +9,7 @@ import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import analytics from '../utils/analytics';
+import { trackToolOpenPrefilled, trackGenerateClick, trackCreationCompleted } from '../utils/growthAnalytics';
 import useWebSocketProgress from '../hooks/useWebSocketProgress';
 import { RealTimeProgressPanel } from '../components/RealTimeProgressPanel';
 import WaitingExperience from '../components/WaitingExperience';
@@ -234,6 +235,15 @@ export default function StoryVideoStudio() {
     if (remixData?.remixFrom) {
       setRemixSource(remixData.remixFrom);
       toast.info(`Remixing from "${remixData.remixFrom.title || 'previous creation'}"`, { duration: 3000 });
+      // Track tool_open_prefilled — user came from a share/remix CTA
+      trackToolOpenPrefilled({
+        tool_type: 'story_video',
+        source_page: '/app/story-video-studio',
+        character_id: remixData.remixFrom?.character_id || null,
+        origin: remixData.remixFrom?.type === 'character_share' ? 'public_character_page' : 'share_page',
+        origin_character_id: remixData.remixFrom?.character_id || null,
+        meta: { remix_title: remixData.remixFrom?.title },
+      });
     }
   }, []);
   
@@ -660,6 +670,14 @@ export default function StoryVideoStudio() {
   const generateImages = async () => {
     if (!project?.project_id) return;
     
+    // Track generate click
+    trackGenerateClick({
+      tool_type: 'story_video',
+      source_page: '/app/story-video-studio',
+      creation_type: 'story_video',
+      meta: { project_id: project.project_id, has_remix: !!remixSource },
+    });
+
     setLoading(true);
     setShowWaitingExperience(true);
     setGenerationStage('image_generation');
@@ -877,6 +895,13 @@ export default function StoryVideoStudio() {
               final_video_url: outputUrl 
             }));
             toast.success('Video rendered successfully!');
+            // Track creation completed
+            trackCreationCompleted({
+              tool_type: 'story_video',
+              creation_type: 'story_video',
+              source_page: '/app/story-video-studio',
+              meta: { project_id: project?.project_id, has_remix: !!remixSource },
+            });
             setLoading(false);
             setShowWaitingExperience(false);
             setStep(8);

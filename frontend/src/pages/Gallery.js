@@ -9,6 +9,7 @@ import {
 import axios from 'axios';
 import { toast } from 'sonner';
 import { SafeImage } from '../components/SafeImage';
+import { trackPageView } from '../utils/growthAnalytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -35,7 +36,7 @@ export default function Gallery() {
     setLoading(false);
   }, [activeCategory, sortBy]);
 
-  useEffect(() => { fetchVideos(); }, [fetchVideos]);
+  useEffect(() => { fetchVideos(); trackPageView({ source_page: '/explore', origin: 'direct' }); }, [fetchVideos]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/pipeline/gallery/categories`)

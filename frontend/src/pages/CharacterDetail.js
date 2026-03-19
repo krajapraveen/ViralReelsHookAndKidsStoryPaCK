@@ -8,6 +8,7 @@ import {
   ImageIcon, Clock, Target, AlertTriangle, CheckCircle,
   Volume2, Mic, Edit3, Save, Users, Heart, TrendingUp, Share2, Copy
 } from 'lucide-react';
+import { trackShareClick } from '../utils/growthAnalytics';
 
 const VOICE_IDS = [
   { id: 'alloy', label: 'Alloy' }, { id: 'echo', label: 'Echo' },
@@ -160,6 +161,7 @@ export default function CharacterDetail() {
             onClick={() => {
               const shareUrl = `${window.location.origin}/character/${characterId}`;
               navigator.clipboard.writeText(shareUrl).then(() => toast.success('Share link copied!'));
+              trackShareClick({ source_page: `/app/characters/${characterId}`, character_id: characterId, origin: 'character_detail' });
             }}
             className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 gap-1.5 text-xs"
             data-testid="share-character-btn"

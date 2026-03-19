@@ -18,11 +18,23 @@ router = APIRouter(prefix="/growth", tags=["growth-analytics"])
 # ─── EVENT MODEL ─────────────────────────────────────────────────────────────
 
 class GrowthEvent(BaseModel):
-    event: str  # page_view, remix_click, tool_open_prefilled, generate_click, signup_triggered, signup_completed, creation_completed
+    event: str
     session_id: str
-    source_slug: Optional[str] = None
-    tool: Optional[str] = None
     user_id: Optional[str] = None
+    anonymous_id: Optional[str] = None
+    source_page: Optional[str] = None
+    source_slug: Optional[str] = None
+    tool_type: Optional[str] = None
+    creation_type: Optional[str] = None
+    series_id: Optional[str] = None
+    character_id: Optional[str] = None
+    origin: Optional[str] = None  # direct | share_page | public_character_page | series_page
+    origin_slug: Optional[str] = None
+    origin_character_id: Optional[str] = None
+    origin_series_id: Optional[str] = None
+    referrer_slug: Optional[str] = None
+    ab_variant: Optional[str] = None
+    idempotency_key: Optional[str] = None
     meta: Optional[dict] = None
 
 VALID_EVENTS = {
@@ -35,17 +47,37 @@ VALID_EVENTS = {
 
 @router.post("/event")
 async def track_event(data: GrowthEvent, request: Request):
-    """Track a single growth funnel event."""
+    """Track a single growth funnel event with deduplication."""
     if data.event not in VALID_EVENTS:
         raise HTTPException(status_code=400, detail=f"Invalid event: {data.event}")
+
+    # Deduplication: if idempotency_key provided, skip if already tracked
+    if data.idempotency_key:
+        exists = await db.growth_events.find_one(
+            {"idempotency_key": data.idempotency_key}, {"_id": 1}
+        )
+        if exists:
+            return {"success": True, "event_id": None, "deduplicated": True}
 
     doc = {
         "id": str(uuid.uuid4()),
         "event": data.event,
         "session_id": data.session_id,
-        "source_slug": data.source_slug,
-        "tool": data.tool,
         "user_id": data.user_id,
+        "anonymous_id": data.anonymous_id,
+        "source_page": data.source_page,
+        "source_slug": data.source_slug,
+        "tool_type": data.tool_type,
+        "creation_type": data.creation_type,
+        "series_id": data.series_id,
+        "character_id": data.character_id,
+        "origin": data.origin,
+        "origin_slug": data.origin_slug,
+        "origin_character_id": data.origin_character_id,
+        "origin_series_id": data.origin_series_id,
+        "referrer_slug": data.referrer_slug,
+        "ab_variant": data.ab_variant,
+        "idempotency_key": data.idempotency_key,
         "meta": data.meta or {},
         "ip": request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown"),
         "user_agent": request.headers.get("user-agent", ""),
@@ -62,25 +94,64 @@ class BatchEvents(BaseModel):
 
 @router.post("/events/batch")
 async def track_batch(data: BatchEvents, request: Request):
-    """Track multiple events at once."""
+    """Track multiple events at once with deduplication."""
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
     docs = []
-    for e in data.events[:50]:  # Max 50 per batch
+    for e in data.events[:50]:
         if e.event not in VALID_EVENTS:
             continue
+        # Skip duplicates
+        if e.idempotency_key:
+            exists = await db.growth_events.find_one(
+                {"idempotency_key": e.idempotency_key}, {"_id": 1}
+            )
+            if exists:
+                continue
         docs.append({
             "id": str(uuid.uuid4()),
             "event": e.event,
             "session_id": e.session_id,
-            "source_slug": e.source_slug,
-            "tool": e.tool,
             "user_id": e.user_id,
+            "anonymous_id": e.anonymous_id,
+            "source_page": e.source_page,
+            "source_slug": e.source_slug,
+            "tool_type": e.tool_type,
+            "creation_type": e.creation_type,
+            "series_id": e.series_id,
+            "character_id": e.character_id,
+            "origin": e.origin,
+            "origin_slug": e.origin_slug,
+            "origin_character_id": e.origin_character_id,
+            "origin_series_id": e.origin_series_id,
+            "referrer_slug": e.referrer_slug,
+            "ab_variant": e.ab_variant,
+            "idempotency_key": e.idempotency_key,
             "meta": e.meta or {},
-            "ip": request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown"),
+            "ip": ip,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
     if docs:
         await db.growth_events.insert_many(docs)
     return {"success": True, "tracked": len(docs)}
+
+
+# ─── ANONYMOUS → USER LINKAGE ────────────────────────────────────────────────
+
+class LinkSessionRequest(BaseModel):
+    session_id: str
+    user_id: str
+
+
+@router.post("/link-session")
+async def link_anonymous_session(data: LinkSessionRequest):
+    """Link anonymous session events to a user account after signup/login.
+    Preserves attribution lineage across the anonymous → authenticated boundary."""
+    result = await db.growth_events.update_many(
+        {"session_id": data.session_id, "user_id": None},
+        {"$set": {"user_id": data.user_id, "linked_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    logger.info(f"Linked {result.modified_count} events from session {data.session_id} to user {data.user_id}")
+    return {"success": True, "linked_events": result.modified_count}
 
 
 # ─── FUNNEL METRICS ──────────────────────────────────────────────────────────

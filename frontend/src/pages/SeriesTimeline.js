@@ -12,6 +12,7 @@ import {
 import api from '../utils/api';
 import { UpgradeModal } from '../components/UpgradeModal';
 import { RewardModal, MilestoneProgress } from '../components/SeriesRewards';
+import { trackShareClick } from '../utils/growthAnalytics';
 
 const STATUS_CONFIG = {
   planned: { color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20', label: 'Planned', icon: Clock },
@@ -633,6 +634,7 @@ export default function SeriesTimeline() {
                           e.stopPropagation();
                           const url = `${window.location.origin}/character/${c.character_id}`;
                           navigator.clipboard.writeText(url).then(() => toast.success(`Share link for ${c.name} copied!`));
+                          trackShareClick({ source_page: `/app/story-series/${seriesId}`, character_id: c.character_id, series_id: seriesId, origin: 'series_timeline' });
                         }}
                         className="text-slate-600 hover:text-cyan-400 transition-colors flex-shrink-0"
                         title="Copy share link"

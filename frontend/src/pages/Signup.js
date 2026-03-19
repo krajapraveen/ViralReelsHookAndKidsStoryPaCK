@@ -9,7 +9,7 @@ import api from '../utils/api';
 import { collectFingerprint } from '../utils/fingerprint';
 import analytics from '../utils/analytics';
 import { useRecaptcha } from '../hooks/useRecaptcha';
-import { trackSignupCompleted } from '../utils/growthAnalytics';
+import { trackSignupCompleted, linkSessionToUser } from '../utils/growthAnalytics';
 import { trackConversion } from '../lib/abTesting';
 
 export default function Signup({ setAuth }) {
@@ -219,7 +219,11 @@ export default function Signup({ setAuth }) {
       
       // Track funnel step - Signup complete
       analytics.trackFunnelStep('signup_complete', { method: 'email' });
-      trackSignupCompleted();
+      const userId = response.data.user?.id;
+      localStorage.setItem('user_id', userId || '');
+      trackSignupCompleted({ source_page: '/signup', meta: { method: 'email' } });
+      // Link anonymous session events to this new user
+      if (userId) linkSessionToUser(userId);
 
       // Track A/B experiment conversions
       trackConversion('cta_copy', 'signup_completed');
