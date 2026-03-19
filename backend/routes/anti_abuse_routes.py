@@ -199,30 +199,12 @@ async def get_delayed_credits_status(user: dict = Depends(get_current_user)):
 
 @router.post("/delayed-credits/claim")
 async def claim_delayed_credits(user: dict = Depends(get_current_user)):
-    """
-    Claim any available delayed credits
-    """
-    anti_abuse = get_anti_abuse_service(db)
-    
-    # Process delayed credits
-    credits_released = await anti_abuse.process_delayed_credits(user["id"])
-    
-    if credits_released > 0:
-        # Add credits to user
-        from shared import add_credits
-        new_balance = await add_credits(
-            user_id=user["id"],
-            amount=credits_released,
-            description=f"Delayed signup bonus credits released",
-            tx_type="BONUS"
-        )
-        
-        return {
-            "success": True,
-            "credits_released": credits_released,
-            "new_balance": new_balance,
-            "message": f"Congratulations! {credits_released} bonus credits have been added to your account!"
-        }
+    """Delayed credits are disabled — all 50 credits given at signup."""
+    return {
+        "success": True,
+        "credits_released": 0,
+        "message": "All credits are granted at signup. No delayed releases."
+    }
     
     # Get status for more info
     status = await anti_abuse.get_delayed_credits_status(user["id"])

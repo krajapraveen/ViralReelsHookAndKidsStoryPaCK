@@ -86,7 +86,7 @@ async def send_verification_email_for_reset(email: str, token: str, name: str):
                 <div style="background: #1e293b; padding: 30px; border-radius: 12px;">
                     <h2 style="color: #f1f5f9; margin-top: 0;">Hi {name}!</h2>
                     <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
-                        Your account requires email verification to unlock your <strong style="color: #fbbf24;">20 free credits</strong>.
+                        Your account requires email verification to unlock your <strong style="color: #fbbf24;">50 free credits</strong>.
                     </p>
                     <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
                         Please click the button below to verify your email address and start creating amazing content!
@@ -97,7 +97,7 @@ async def send_verification_email_for_reset(email: str, token: str, name: str):
                         </a>
                     </div>
                     <p style="color: #64748b; font-size: 14px;">
-                        This link will expire in 24 hours. After verification, you'll receive 20 credits immediately and 80 more over the next 7 days!
+                        This link will expire in 24 hours. After verification, your 50 free credits will be available immediately!
                     </p>
                 </div>
                 <p style="color: #475569; font-size: 12px; text-align: center; margin-top: 30px;">

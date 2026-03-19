@@ -855,8 +855,8 @@ async def verify_email(data: VerifyEmailRequest):
         if user.get("emailVerified"):
             return {"success": True, "message": "Email already verified", "alreadyVerified": True}
         
-        # Get pending credits to release
-        pending_credits = user.get("pending_credits", 20)
+        # Get pending credits to release (policy: 0 pending, all credits at signup)
+        pending_credits = user.get("pending_credits", 0)
         current_credits = user.get("credits", 0)
         new_credits = current_credits + pending_credits
         
