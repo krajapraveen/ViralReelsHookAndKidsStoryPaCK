@@ -3,7 +3,7 @@
 
 **Test Date:** February 27, 2026  
 **Tested By:** Automated Security Test Suite  
-**Environment:** https://viral-loop-2.preview.emergentagent.com
+**Environment:** https://k-factor-boost.preview.emergentagent.com
 
 ---
 

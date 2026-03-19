@@ -25,7 +25,7 @@ import time
 # Use REACT_APP_BACKEND_URL from environment
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://viral-loop-2.preview.emergentagent.com"
+    BASE_URL = "https://k-factor-boost.preview.emergentagent.com"
 
 TEST_EMAIL = "test@visionary-suite.com"
 TEST_PASSWORD = "Test@2026#"

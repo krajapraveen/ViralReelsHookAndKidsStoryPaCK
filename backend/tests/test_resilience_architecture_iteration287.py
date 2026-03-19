@@ -16,7 +16,7 @@ import os
 import hashlib
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://viral-loop-2.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://k-factor-boost.preview.emergentagent.com').rstrip('/')
 
 # Test credentials from review request
 TEST_USER_EMAIL = "test@visionary-suite.com"

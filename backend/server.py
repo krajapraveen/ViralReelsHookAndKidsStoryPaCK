@@ -316,7 +316,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://viral-loop-2.preview.emergentagent.com",
+    "https://k-factor-boost.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]

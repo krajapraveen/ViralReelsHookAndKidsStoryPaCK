@@ -113,7 +113,7 @@
 Users: 200 concurrent
 Duration: 30 seconds
 Max Connections: 100
-API URL: https://viral-loop-2.preview.emergentagent.com
+API URL: https://k-factor-boost.preview.emergentagent.com
 ```
 
 ### Results Summary

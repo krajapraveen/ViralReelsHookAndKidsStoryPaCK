@@ -2,7 +2,7 @@
 
 **Date:** March 8, 2026  
 **Tester:** E1 Agent (UAT + QA + Performance + Load Testing)  
-**Environment:** Preview (https://viral-loop-2.preview.emergentagent.com)
+**Environment:** Preview (https://k-factor-boost.preview.emergentagent.com)
 
 ---
 

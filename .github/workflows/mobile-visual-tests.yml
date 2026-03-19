@@ -52,7 +52,7 @@ jobs:
         run: |
           npx playwright test --project=mobile-deep
         env:
-          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://viral-loop-2.preview.emergentagent.com' }}
+          BASE_URL: ${{ secrets.PREVIEW_URL || 'https://k-factor-boost.preview.emergentagent.com' }}
           VIEWPORT: ${{ matrix.viewport }}
 
       - name: 📸 Upload Screenshots

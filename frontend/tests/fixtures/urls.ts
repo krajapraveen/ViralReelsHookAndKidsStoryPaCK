@@ -1,4 +1,4 @@
-export const BASE = process.env.BASE_URL ?? "https://viral-loop-2.preview.emergentagent.com";
+export const BASE = process.env.BASE_URL ?? "https://k-factor-boost.preview.emergentagent.com";
 
 export const URLS = {
   // Public pages
