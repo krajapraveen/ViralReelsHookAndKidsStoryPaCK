@@ -182,7 +182,9 @@ Audience: {request.audience}
 Style: {request.style}
 Initial Story: {request.initial_prompt}
 
-Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scene visual_prompt MUST include full character appearance."""
+Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scene visual_prompt MUST include full character appearance.
+
+CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unresolved mystery, an unexpected arrival, a shocking reveal, or a character in danger. Do NOT resolve the story neatly. The viewer must feel compelled to see the next episode."""
 
     try:
         foundation = await _llm_json(system_prompt, user_prompt, f"create_{series_id[:8]}")
@@ -792,6 +794,7 @@ Style: {series.get('style', '')}
 4. Create a strong emotional arc.
 5. Build towards a cliffhanger ending.
 6. Every scene visual_prompt MUST include full character appearance descriptions.
+7. CRITICAL — OPEN-LOOP ENDING: The FINAL scene MUST end with an unresolved, high-stakes moment — a reveal, a betrayal, a question unanswered, or a character in immediate danger. Do NOT wrap up the story neatly. Leave the audience with a burning need to know what happens next. The cliffhanger must be specific and emotionally compelling, not generic.
 
 Return ONLY valid JSON:
 {{

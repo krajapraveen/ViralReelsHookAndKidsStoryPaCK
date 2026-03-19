@@ -294,6 +294,7 @@ Rules:
 5. Make voice notes age-appropriate
 6. Keep dialogue natural for the target age group
 7. ALWAYS include character appearance details in visual_prompt
+8. CRITICAL — OPEN-LOOP ENDING: The LAST scene MUST end with a dramatic cliffhanger, unanswered question, or unresolved tension. Examples: a mysterious figure appears, a secret is about to be revealed, a character faces an impossible choice. The narration for the final scene should end mid-action or with a provocative question like "But what they didn't know was..." or "And then, from the shadows..." — this makes the viewer desperate to see what happens next.
 
 Respond with ONLY the JSON, no other text."""
 

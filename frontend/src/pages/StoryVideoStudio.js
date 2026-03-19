@@ -524,6 +524,22 @@ export default function StoryVideoStudio() {
       return;
     }
     
+    // Auth gate: require login before generation (not before browsing)
+    const token = localStorage.getItem('token');
+    if (!token) {
+      // Save current state so user returns here after signup
+      localStorage.setItem('remix_return_url', '/app/story-video-studio');
+      localStorage.setItem('remix_data', JSON.stringify({
+        prompt: storyText,
+        timestamp: Date.now(),
+        source_tool: 'story-video-studio',
+        remixFrom: remixSource || null,
+      }));
+      toast.info('Sign up free to generate — your story is saved!');
+      navigate('/signup');
+      return;
+    }
+    
     setComponentError(null);
     setLoading(true);
     setGenerationStage('scene_generation');

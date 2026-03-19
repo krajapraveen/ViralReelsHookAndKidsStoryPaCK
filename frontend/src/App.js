@@ -216,8 +216,8 @@ function App() {
       <Route path="/app/twinfinder" element={isAuthenticated ? <TwinFinder /> : <Navigate to="/login" />} />
       {/* Coloring Book Wizard - Complete 5-Step Rebuild */}
       <Route path="/app/coloring-book" element={isAuthenticated ? <ColoringBookWizard /> : <Navigate to="/login" />} />
-      {/* Story → Video Studio — Using new durable pipeline */}
-      <Route path="/app/story-video-studio" element={isAuthenticated ? <ErrorBoundary><StoryVideoPipeline /></ErrorBoundary> : <Navigate to="/login" />} />
+      {/* Story → Video Studio — Open for remix (auth checked at generate) */}
+      <Route path="/app/story-video-studio" element={<ErrorBoundary><StoryVideoPipeline /></ErrorBoundary>} />
       {/* Story Preview (public for sharing, shows fallback assets) */}
       <Route path="/app/story-preview/:jobId" element={<StoryPreview />} />
       {/* Story Video Analytics Dashboard */}
