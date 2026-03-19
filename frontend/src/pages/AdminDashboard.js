@@ -102,6 +102,59 @@ function FunnelBar({ label, value, rate, maxValue }) {
   );
 }
 
+// Credit Reset Widget
+function CreditResetWidget() {
+  const [resetCredits, setResetCredits] = useState(50);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState(null);
+
+  const handleDryRun = async () => {
+    try {
+      const res = await api.post('/api/admin/metrics/credit-reset', { credits: resetCredits, dry_run: true });
+      if (res.data.success) setDryRunResult(res.data);
+    } catch { toast.error('Dry run failed'); }
+  };
+
+  const handleReset = async () => {
+    if (!dryRunResult) { toast.error('Run dry run first'); return; }
+    if (!window.confirm(`Reset ${dryRunResult.affected_users} users to ${resetCredits} credits? This cannot be undone.`)) return;
+    setResetLoading(true);
+    try {
+      const res = await api.post('/api/admin/metrics/credit-reset', { credits: resetCredits, dry_run: false });
+      if (res.data.success) {
+        toast.success(`Reset ${res.data.affected_users} users to ${resetCredits} credits`);
+        setDryRunResult(null);
+      }
+    } catch { toast.error('Credit reset failed'); }
+    setResetLoading(false);
+  };
+
+  return (
+    <div className="bg-slate-900/60 border border-amber-800/30 rounded-xl p-6" data-testid="credit-reset-widget">
+      <h3 className="text-sm font-semibold text-amber-400 mb-3 flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4" /> Credit Reset (Admin Action)
+      </h3>
+      <p className="text-xs text-slate-400 mb-4">Reset all normal users to a set number of credits. Excludes admin/test/uat/dev roles.</p>
+      <div className="flex items-center gap-3 mb-3">
+        <input type="number" value={resetCredits} onChange={(e) => setResetCredits(Number(e.target.value))}
+          className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm text-white" min={0} max={1000} data-testid="credit-reset-input" />
+        <span className="text-xs text-slate-500">credits per user</span>
+        <Button size="sm" variant="outline" onClick={handleDryRun} className="text-xs" data-testid="credit-reset-dry-run">Dry Run</Button>
+        {dryRunResult && (
+          <Button size="sm" onClick={handleReset} disabled={resetLoading}
+            className="text-xs bg-amber-600 hover:bg-amber-500 text-white" data-testid="credit-reset-execute">
+            {resetLoading ? 'Resetting...' : `Reset ${dryRunResult.affected_users} users`}
+          </Button>
+        )}
+      </div>
+      {dryRunResult && (
+        <p className="text-xs text-amber-400/70">Dry run: {dryRunResult.affected_users} users will be set to {dryRunResult.new_credits} credits</p>
+      )}
+    </div>
+  );
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -119,6 +172,8 @@ export default function AdminDashboard() {
   const [reliability, setReliability] = useState({ data: null, state: 'loading', ts: null });
   const [revenue, setRevenue] = useState({ data: null, state: 'loading', ts: null });
   const [series, setSeries] = useState({ data: null, state: 'loading', ts: null });
+  const [credits, setCredits] = useState({ data: null, state: 'loading', ts: null });
+  const [conversion, setConversion] = useState({ data: null, state: 'loading', ts: null });
 
   const fetchSection = useCallback(async (name, setter, url) => {
     try {
@@ -144,6 +199,8 @@ export default function AdminDashboard() {
     fetchSection('reliability', setReliability, '/api/admin/metrics/reliability');
     fetchSection('revenue', setRevenue, `/api/admin/metrics/revenue?days=${days}`);
     fetchSection('series', setSeries, '/api/admin/metrics/series');
+    fetchSection('credits', setCredits, '/api/admin/metrics/credits');
+    fetchSection('conversion', setConversion, '/api/admin/metrics/conversion');
   }, [days, fetchSection]);
 
   // Initial load
@@ -164,6 +221,8 @@ export default function AdminDashboard() {
   const r = reliability.data;
   const rev = revenue.data;
   const ser = series.data;
+  const cred = credits.data;
+  const conv = conversion.data;
 
   const sections = [
     { id: 'executive', label: 'Executive', icon: BarChart3 },
@@ -171,6 +230,8 @@ export default function AdminDashboard() {
     { id: 'reliability', label: 'Reliability', icon: Server },
     { id: 'series', label: 'Story Intelligence', icon: BookOpen },
     { id: 'revenue', label: 'Revenue', icon: DollarSign },
+    { id: 'credits', label: 'Credits', icon: Zap },
+    { id: 'conversion', label: 'Conversion', icon: TrendingUp },
   ];
 
   return (
@@ -460,31 +521,95 @@ export default function AdminDashboard() {
           <WidgetState state={revenue.state} lastUpdated={revenue.ts}>
             <div className="space-y-6">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="revenue-metrics">
-                <MetricCard icon={DollarSign} label="Total Revenue" value={rev?.total_revenue != null ? `₹${rev.total_revenue}` : null} sub={`${rev?.total_transactions ?? 0} transactions`} color="emerald" testId="metric-total-revenue" />
-                <MetricCard icon={DollarSign} label="Revenue Today" value={rev?.revenue_today != null ? `₹${rev.revenue_today}` : null} color="green" testId="metric-rev-today" />
-                <MetricCard icon={Users} label="Paying Users" value={rev?.paying_users} sub={rev?.conversion_rate != null ? `${rev.conversion_rate}% conversion` : null} color="blue" testId="metric-paying-users" />
-                <MetricCard icon={Star} label="ARPU" value={rev?.arpu != null ? `₹${rev.arpu}` : null} sub={`${rev?.active_subscriptions ?? 0} active subs`} color="amber" testId="metric-arpu" />
+                <MetricCard icon={DollarSign} label="Total Revenue (INR)" value={rev?.total_revenue_inr != null ? `₹${rev.total_revenue_inr.toLocaleString()}` : null} sub={rev?.total_revenue_usd ? `$${rev.total_revenue_usd} USD` : null} color="emerald" testId="metric-total-revenue" />
+                <MetricCard icon={DollarSign} label="Revenue Today" value={rev?.revenue_today_inr != null ? `₹${rev.revenue_today_inr.toLocaleString()}` : null} sub={`${rev?.today_payments ?? 0} payments today`} color="green" testId="metric-rev-today" />
+                <MetricCard icon={CheckCircle} label="Successful" value={rev?.successful_payments} sub={`${rev?.payment_success_rate ?? 0}% success rate`} color="blue" testId="metric-success-payments" />
+                <MetricCard icon={XCircle} label="Failed" value={rev?.failed_payments} sub={`${rev?.pending_payments ?? 0} pending`} color="red" testId="metric-failed-payments" />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <MetricCard icon={Users} label="Paying Users" value={rev?.paying_users} sub={`${rev?.conversion_rate ?? 0}% of ${rev?.total_users ?? 0}`} color="violet" testId="metric-paying-users" />
+                <MetricCard icon={Star} label="ARPU" value={rev?.arpu != null ? `₹${rev.arpu}` : 'N/A'} color="amber" testId="metric-arpu" />
+                <MetricCard icon={Zap} label="Credits Sold" value={rev?.total_credits_sold?.toLocaleString()} color="cyan" testId="metric-credits-sold" />
               </div>
 
-              {/* Recent transactions */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
-                <h3 className="text-sm font-semibold text-white mb-3">Recent Transactions</h3>
-                {rev?.recent_transactions?.length > 0 ? (
+              {/* Recent Cashfree Payments */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6" data-testid="recent-payments">
+                <h3 className="text-sm font-semibold text-white mb-3">Recent Payments (Cashfree)</h3>
+                {rev?.recent_payments?.length > 0 ? (
                   <div className="space-y-2">
-                    {rev.recent_transactions.map((txn, i) => (
+                    {rev.recent_payments.map((txn, i) => (
                       <div key={i} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           <DollarSign className="w-3 h-3 text-emerald-400" />
-                          <span className="text-xs text-white">₹{txn.amount}</span>
-                          <span className="text-[10px] text-slate-500">{txn.payment_type || 'payment'}</span>
+                          <span className="text-xs text-white font-mono">
+                            {txn.currency === 'USD' ? '$' : '₹'}{txn.amount}
+                          </span>
+                          <span className="text-[10px] text-violet-400 bg-violet-400/10 px-2 py-0.5 rounded">
+                            +{txn.credits} credits
+                          </span>
+                          <span className="text-[10px] text-slate-500">{txn.productId}</span>
                         </div>
-                        <span className="text-[10px] text-slate-600">{new Date(txn.created_at).toLocaleDateString()}</span>
+                        <span className="text-[10px] text-slate-600">{txn.paidAt ? new Date(txn.paidAt).toLocaleDateString() : ''}</span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500 text-center py-4">No transactions in this period</p>
+                  <p className="text-sm text-slate-500 text-center py-4">No Cashfree payments recorded</p>
                 )}
+              </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ Credits Section ═══ */}
+        {section === 'credits' && (
+          <WidgetState state={credits.state} lastUpdated={credits.ts}>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="credit-metrics">
+                <MetricCard icon={Zap} label="Credits Issued" value={cred?.total_credits_issued?.toLocaleString()} color="violet" testId="metric-credits-issued" />
+                <MetricCard icon={Activity} label="Credits Consumed" value={cred?.total_credits_consumed?.toLocaleString()} color="rose" testId="metric-credits-consumed" />
+                <MetricCard icon={Database} label="Current Balance" value={cred?.total_current_balance?.toLocaleString()} sub={`across ${cred?.total_users ?? 0} users`} color="cyan" testId="metric-credits-balance" />
+                <MetricCard icon={Users} label="Avg per User" value={cred?.avg_credits_per_user} color="amber" testId="metric-credits-avg" />
+              </div>
+
+              {/* Top Users by Usage */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6" data-testid="top-users-usage">
+                <h3 className="text-sm font-semibold text-white mb-3">Top Users by Credit Usage</h3>
+                {cred?.top_users_by_usage?.length > 0 ? (
+                  <div className="space-y-2">
+                    {cred.top_users_by_usage.map((u, i) => (
+                      <div key={i} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] font-mono text-slate-600 w-5">{i + 1}.</span>
+                          <div>
+                            <span className="text-xs text-white">{u.name || u.email}</span>
+                            <span className="text-[10px] text-slate-500 ml-2">{u.credits} credits left</span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-mono text-rose-400">-{u.total_spent} spent</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 text-center py-4">No credit usage data</p>
+                )}
+              </div>
+
+              {/* Credit Reset */}
+              <CreditResetWidget />
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ Conversion Section ═══ */}
+        {section === 'conversion' && (
+          <WidgetState state={conversion.state} lastUpdated={conversion.ts}>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="conversion-metrics">
+                <MetricCard icon={TrendingUp} label="Free → Paid" value={conv?.free_to_paid_rate != null ? `${conv.free_to_paid_rate}%` : null} sub={`${conv?.paying_users ?? 0} of ${conv?.total_users ?? 0}`} color="emerald" testId="metric-free-to-paid" />
+                <MetricCard icon={DollarSign} label="Top-up Rate" value={conv?.topup_purchase_rate != null ? `${conv.topup_purchase_rate}%` : null} color="blue" testId="metric-topup-rate" />
+                <MetricCard icon={Star} label="Subscription Rate" value={conv?.subscription_rate != null ? `${conv.subscription_rate}%` : null} color="violet" testId="metric-sub-rate" />
+                <MetricCard icon={Heart} label="Repeat Buyers" value={conv?.repeat_buyers} color="rose" testId="metric-repeat-buyers" />
               </div>
             </div>
           </WidgetState>

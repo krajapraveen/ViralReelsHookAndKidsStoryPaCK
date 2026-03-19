@@ -301,67 +301,71 @@ async def get_reliability_metrics(admin: dict = Depends(get_admin_user)):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# REVENUE
+# REVENUE — Cashfree truth (single source of truth)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/revenue")
 async def get_revenue_metrics(days: int = Query(30, ge=1, le=365), admin: dict = Depends(get_admin_user)):
-    """Revenue: total, today, MRR, ARPU, conversion, transactions."""
-    cutoff = _ago(days=days)
+    """Revenue: total from Cashfree, successful/failed payments, today's revenue."""
     today_start = _today_start()
 
-    # Total revenue (period)
-    rev_pipeline = [
-        {"$match": {"status": "paid", "created_at": {"$gte": cutoff.isoformat()}}},
-        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}}
-    ]
-    rev = await db.payments.aggregate(rev_pipeline).to_list(1)
-    total_revenue = rev[0]["total"] if rev else 0
-    total_transactions = rev[0]["count"] if rev else 0
+    # Successful payments (PAID orders from Cashfree)
+    paid_orders = await db.orders.find(
+        {"status": "PAID", "gateway": "cashfree"},
+        {"_id": 0, "amount": 1, "currency": 1, "credits": 1, "paidAt": 1, "productId": 1, "userId": 1}
+    ).to_list(10000)
 
-    # Revenue today
-    today_pipeline = [
-        {"$match": {"status": "paid", "created_at": {"$gte": today_start.isoformat()}}},
-        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-    ]
-    today_rev = await db.payments.aggregate(today_pipeline).to_list(1)
-    revenue_today = today_rev[0]["total"] if today_rev else 0
+    total_revenue_inr = sum(o.get("amount", 0) for o in paid_orders if o.get("currency") == "INR")
+    total_revenue_usd = sum(o.get("amount", 0) for o in paid_orders if o.get("currency") == "USD")
+    total_credits_sold = sum(o.get("credits", 0) for o in paid_orders)
+    successful_payments = len(paid_orders)
+
+    # Today's revenue
+    today_orders = [o for o in paid_orders if o.get("paidAt", "") >= today_start.isoformat()]
+    revenue_today_inr = sum(o.get("amount", 0) for o in today_orders if o.get("currency") == "INR")
+
+    # Failed payments
+    failed_payments = await db.orders.count_documents({"status": "FAILED", "gateway": "cashfree"})
+
+    # Pending payments
+    pending_payments = await db.orders.count_documents({"status": {"$in": ["ACTIVE", "PROCESSING"]}, "gateway": "cashfree"})
+
+    # Payment success rate
+    total_attempts = successful_payments + failed_payments
+    success_rate = _safe_rate(successful_payments, total_attempts)
 
     # Paying users
-    paying_pipeline = [
-        {"$match": {"status": "paid"}},
-        {"$group": {"_id": "$user_id"}},
-        {"$count": "total"}
-    ]
-    paying_result = await db.payments.aggregate(paying_pipeline).to_list(1)
-    paying_users = paying_result[0]["total"] if paying_result else 0
+    paying_user_ids = set(o.get("userId") for o in paid_orders if o.get("userId"))
+    paying_users = len(paying_user_ids)
 
     total_users = await db.users.count_documents({"role": {"$ne": "deleted"}})
-    arpu = round(total_revenue / paying_users, 2) if paying_users else None
+    arpu = round(total_revenue_inr / paying_users, 2) if paying_users else None
     conversion_rate = _safe_rate(paying_users, total_users)
 
-    # Active subscriptions
-    active_subs = await db.subscriptions.count_documents({"status": "active"})
-
-    # Recent transactions (last 10)
-    recent_txns = await db.payments.find(
-        {"status": "paid"},
-        {"_id": 0, "payment_id": 1, "amount": 1, "user_id": 1, "created_at": 1, "payment_type": 1}
-    ).sort("created_at", -1).to_list(10)
+    # Recent payments (last 10)
+    recent = await db.orders.find(
+        {"gateway": "cashfree", "status": "PAID"},
+        {"_id": 0, "order_id": 1, "amount": 1, "currency": 1, "credits": 1, "productId": 1, "paidAt": 1}
+    ).sort("paidAt", -1).limit(10).to_list(10)
 
     return {
         "success": True,
         "period_days": days,
         "timestamp": _now().isoformat(),
-        "total_revenue": total_revenue,
-        "revenue_today": revenue_today,
-        "total_transactions": total_transactions,
+        "total_revenue_inr": total_revenue_inr,
+        "total_revenue_usd": total_revenue_usd,
+        "total_credits_sold": total_credits_sold,
+        "successful_payments": successful_payments,
+        "failed_payments": failed_payments,
+        "pending_payments": pending_payments,
+        "payment_success_rate": success_rate,
+        "revenue_today_inr": revenue_today_inr,
+        "today_payments": len(today_orders),
         "paying_users": paying_users,
         "total_users": total_users,
         "arpu": arpu,
         "conversion_rate": conversion_rate,
-        "active_subscriptions": active_subs,
-        "recent_transactions": recent_txns,
+        "recent_payments": recent,
     }
 
 
@@ -473,4 +477,190 @@ async def get_safety_metrics(admin: dict = Depends(get_admin_user)):
         "safety_flag_rate": safety_flag_rate,
         "consent_required_characters": consent_characters,
         "ip_risk_rejections": ip_rejections,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CREDIT METRICS — Usage truth
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/credits")
+async def get_credit_metrics(admin: dict = Depends(get_admin_user)):
+    """Credits: issued, consumed, avg per user, top users."""
+
+    # All users' credit data
+    users_pipeline = [
+        {"$match": {"role": {"$ne": "deleted"}}},
+        {"$group": {
+            "_id": None,
+            "total_current_credits": {"$sum": {"$ifNull": ["$credits", 0]}},
+            "user_count": {"$sum": 1},
+        }}
+    ]
+    agg = await db.users.aggregate(users_pipeline).to_list(1)
+    stats = agg[0] if agg else {"total_current_credits": 0, "user_count": 0}
+
+    # Credits consumed (from credit_transactions — negative amounts)
+    consumed_pipeline = [
+        {"$unwind": "$credit_transactions"},
+        {"$match": {"credit_transactions.amount": {"$lt": 0}}},
+        {"$group": {"_id": None, "total_consumed": {"$sum": {"$abs": "$credit_transactions.amount"}}}}
+    ]
+    consumed_agg = await db.users.aggregate(consumed_pipeline).to_list(1)
+    total_consumed = consumed_agg[0]["total_consumed"] if consumed_agg else 0
+
+    # Credits issued (from credit_transactions — positive amounts)
+    issued_pipeline = [
+        {"$unwind": "$credit_transactions"},
+        {"$match": {"credit_transactions.amount": {"$gt": 0}}},
+        {"$group": {"_id": None, "total_issued": {"$sum": "$credit_transactions.amount"}}}
+    ]
+    issued_agg = await db.users.aggregate(issued_pipeline).to_list(1)
+    total_issued = issued_agg[0]["total_issued"] if issued_agg else 0
+
+    avg_credits = round(stats["total_current_credits"] / max(stats["user_count"], 1), 1)
+
+    # Top users by usage (most credits consumed)
+    top_users_pipeline = [
+        {"$match": {"role": {"$ne": "deleted"}, "credit_transactions": {"$exists": True}}},
+        {"$project": {
+            "_id": 0, "id": 1, "email": 1, "name": 1, "credits": 1,
+            "total_spent": {
+                "$reduce": {
+                    "input": {"$filter": {"input": {"$ifNull": ["$credit_transactions", []]}, "cond": {"$lt": ["$$this.amount", 0]}}},
+                    "initialValue": 0,
+                    "in": {"$add": ["$$value", {"$abs": "$$this.amount"}]}
+                }
+            }
+        }},
+        {"$sort": {"total_spent": -1}},
+        {"$limit": 10}
+    ]
+    top_users = await db.users.aggregate(top_users_pipeline).to_list(10)
+
+    return {
+        "success": True,
+        "timestamp": _now().isoformat(),
+        "total_credits_issued": total_issued,
+        "total_credits_consumed": total_consumed,
+        "total_current_balance": stats["total_current_credits"],
+        "avg_credits_per_user": avg_credits,
+        "total_users": stats["user_count"],
+        "top_users_by_usage": top_users,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONVERSION METRICS — Free → Paid
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/conversion")
+async def get_conversion_metrics(admin: dict = Depends(get_admin_user)):
+    """Conversion: free→paid rate, top-up purchase rate."""
+
+    total_users = await db.users.count_documents({"role": {"$ne": "deleted"}})
+
+    # Users who made at least 1 payment
+    paying_users = await db.orders.distinct("userId", {"status": "PAID", "gateway": "cashfree"})
+    paying_count = len(paying_users)
+
+    free_to_paid_rate = _safe_rate(paying_count, total_users)
+
+    # Top-up purchase rate (users who bought top-ups)
+    topup_users = await db.orders.distinct("userId", {"status": "PAID", "gateway": "cashfree", "productId": {"$regex": "^topup_"}})
+    topup_rate = _safe_rate(len(topup_users), total_users)
+
+    # Subscription purchase rate
+    sub_users = await db.orders.distinct("userId", {"status": "PAID", "gateway": "cashfree", "productId": {"$regex": "_monthly$"}})
+    sub_rate = _safe_rate(len(sub_users), total_users)
+
+    # Repeat purchasers
+    repeat_pipeline = [
+        {"$match": {"status": "PAID", "gateway": "cashfree"}},
+        {"$group": {"_id": "$userId", "count": {"$sum": 1}}},
+        {"$match": {"count": {"$gt": 1}}},
+        {"$count": "repeat_buyers"}
+    ]
+    repeat_agg = await db.orders.aggregate(repeat_pipeline).to_list(1)
+    repeat_buyers = repeat_agg[0]["repeat_buyers"] if repeat_agg else 0
+
+    return {
+        "success": True,
+        "timestamp": _now().isoformat(),
+        "total_users": total_users,
+        "paying_users": paying_count,
+        "free_to_paid_rate": free_to_paid_rate,
+        "topup_purchase_rate": topup_rate,
+        "subscription_rate": sub_rate,
+        "repeat_buyers": repeat_buyers,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CREDIT RESET — Admin action
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel as _BaseModel
+
+class CreditResetRequest(_BaseModel):
+    credits: int = 50
+    dry_run: bool = False
+
+@router.post("/credit-reset")
+async def reset_credits(request: CreditResetRequest, admin: dict = Depends(get_admin_user)):
+    """Reset credits to N for all normal users. Excludes admin/test/uat/dev roles."""
+
+    excluded_roles = ["admin", "test", "uat", "dev", "ADMIN", "TEST", "UAT", "DEV", "Admin", "Test"]
+
+    # Build filter: exclude admin/test/uat/dev (case-insensitive)
+    filter_query = {
+        "role": {"$nin": excluded_roles},
+        "email": {"$not": {"$regex": "^(admin@|test@|uat@|dev@)", "$options": "i"}}
+    }
+
+    # Count affected users
+    affected_count = await db.users.count_documents(filter_query)
+
+    if request.dry_run:
+        return {
+            "success": True,
+            "dry_run": True,
+            "affected_users": affected_count,
+            "new_credits": request.credits,
+        }
+
+    # Execute reset
+    result = await db.users.update_many(
+        filter_query,
+        {
+            "$set": {"credits": request.credits, "show_credit_banner": True},
+            "$push": {
+                "credit_transactions": {
+                    "amount": request.credits,
+                    "description": f"Credit reset to {request.credits} by admin",
+                    "timestamp": _now(),
+                    "type": "ADMIN_RESET"
+                }
+            }
+        }
+    )
+
+    # Audit log
+    await db.audit_logs.insert_one({
+        "action": "credit_reset",
+        "admin_id": admin.get("id"),
+        "admin_email": admin.get("email"),
+        "affected_users": result.modified_count,
+        "new_credits": request.credits,
+        "excluded_roles": excluded_roles,
+        "timestamp": _now().isoformat(),
+    })
+
+    logger.info(f"Credit reset executed: {result.modified_count} users reset to {request.credits} credits by {admin.get('email')}")
+
+    return {
+        "success": True,
+        "affected_users": result.modified_count,
+        "new_credits": request.credits,
+        "message": f"Reset {result.modified_count} users to {request.credits} credits. Excluded: admin/test/uat/dev."
     }

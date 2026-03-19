@@ -11,7 +11,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from dotenv import load_dotenv
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/story-video-studio", tags=["Story Video Studio"])
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared import db
+from shared import db, get_current_user
 
 # =============================================================================
 # COPYRIGHT PROTECTION - Blocked Terms
@@ -347,13 +347,11 @@ async def get_pricing():
 @router.post("/projects/create")
 async def create_project(
     story_input: StoryInput,
-    user_id: str = None
+    user: dict = Depends(get_current_user)
 ):
     """Create a new story project (Phase 1 - no credits required yet)"""
     
-    # For now, use a test user if not authenticated
-    if not user_id:
-        user_id = "test_user"
+    user_id = user["id"]
     
     # Check for copyright violations
     violation = check_copyright_violation(story_input.story_text)
@@ -410,20 +408,19 @@ async def create_project(
 @router.post("/projects/{project_id}/generate-scenes")
 async def generate_scenes(
     project_id: str,
-    user_id: str = None
+    user: dict = Depends(get_current_user)
 ):
     """Generate scenes from story (Phase 1 - costs 5 credits)"""
     
-    if not user_id:
-        user_id = "test_user"
+    user_id = user["id"]
     
     # Get project
     project = await db.story_projects.find_one({"project_id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Check and deduct credits (skip for testing)
-    # await check_and_deduct_credits(db, user_id, CREDIT_COSTS["scene_generation"], f"Scene generation for project {project_id}")
+    # Credit enforcement — block if insufficient
+    await check_and_deduct_credits(db, user_id, CREDIT_COSTS["scene_generation"], f"Scene generation for project {project_id}")
     
     # Get style
     style = next((s for s in VIDEO_STYLES if s.id == project["style_id"]), VIDEO_STYLES[0])

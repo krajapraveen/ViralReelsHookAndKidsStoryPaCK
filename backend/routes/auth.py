@@ -741,9 +741,16 @@ async def get_me(user: dict = Depends(get_current_user)):
         "tourCompleted": user.get("tourCompleted", False),
         "emailVerified": email_verified,
         "credits_locked": credits_locked,
-        "pending_credits": pending_credits
+        "pending_credits": pending_credits,
+        "show_credit_banner": user.get("show_credit_banner", False)
     }
 
+
+@router.post("/dismiss-credit-banner")
+async def dismiss_credit_banner(user: dict = Depends(get_current_user)):
+    """Dismiss the credit reset welcome banner"""
+    await db.users.update_one({"id": user["id"]}, {"$set": {"show_credit_banner": False}})
+    return {"success": True}
 
 @router.put("/profile")
 async def update_profile(data: ProfileUpdate, user: dict = Depends(get_current_user)):

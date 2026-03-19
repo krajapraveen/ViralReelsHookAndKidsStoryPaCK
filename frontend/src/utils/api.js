@@ -57,9 +57,15 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Don't redirect for open-access pages (growth funnel)
+      const path = window.location.pathname;
+      const openAccessPaths = ['/app/story-video-studio', '/app/story-preview', '/v/', '/character/'];
+      const isOpenAccess = openAccessPaths.some(p => path.startsWith(p));
+      if (!isOpenAccess) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

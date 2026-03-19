@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
+import { toast } from 'sonner';
 
 const CreditContext = createContext(null);
 
@@ -28,6 +29,25 @@ export function CreditProvider({ children }) {
     } finally {
       setCreditsLoaded(true);
     }
+  }, []);
+
+  // Check for credit reset banner
+  useEffect(() => {
+    const checkCreditBanner = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const res = await api.get('/api/auth/me');
+        if (res.data?.show_credit_banner) {
+          toast.success(
+            `You've received ${res.data.credits || 50} free credits to explore Visionary Suite. Use them to create your first story, comic, or video!`,
+            { duration: 8000 }
+          );
+          api.post('/api/auth/dismiss-credit-banner').catch(() => {});
+        }
+      } catch { /* ignore */ }
+    };
+    checkCreditBanner();
   }, []);
 
   useEffect(() => {

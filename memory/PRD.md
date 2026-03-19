@@ -1,71 +1,69 @@
 # Visionary Suite — PRD
 
-## Product Vision
-AI-powered creator suite with Growth Engine, AI Character Memory, and truth-based Admin Control Center.
+## Original Problem Statement
+AI Creator Suite ("Visionary Suite") — a comprehensive platform for AI-powered content creation including story videos, comics, GIFs, thumbnails, and more. The platform has pivoted through multiple phases: pricing engine → AI Character Memory → Growth Engine → Monetization Discipline.
 
-## Growth Event Tracking (P1 — IMPLEMENTED)
+## Core Architecture
+- **Frontend**: React + Shadcn/UI + Tailwind CSS
+- **Backend**: FastAPI + MongoDB + Redis
+- **Integrations**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini, Google Auth (Emergent-managed), Cloudflare R2 (Object Storage), Cashfree (Payments)
+- **Analytics**: Growth event tracking spine → Admin dashboard
 
-### Core Events (7)
-1. `page_view` — Public pages (Gallery, Character, Creation)
-2. `remix_click` — CTA clicks on public/share pages
-3. `tool_open_prefilled` — Tool opened with remix data
-4. `generate_click` — User clicks Generate button
-5. `signup_completed` — User finishes signup
-6. `creation_completed` — Generation finishes successfully
-7. `share_click` — User shares content
+## What's Been Implemented
 
-### Event Schema (Strict Contract)
-- event, session_id, user_id (nullable), anonymous_id
-- source_page, source_slug, tool_type, creation_type
-- series_id, character_id
-- origin (direct|share_page|public_character_page|series_page)
-- origin_slug, origin_character_id, origin_series_id
-- referrer_slug, ab_variant (nullable), idempotency_key, meta
+### Phase 1: Core Platform (Complete)
+- Full AI creator suite (story video, comic, GIF, thumbnail, etc.)
+- User auth (JWT + Google OAuth)
+- Pricing system with Cashfree payments
+- AI Character Memory system
 
-### Features
-- Client-side batching (5s flush, immediate for critical events)
-- Idempotency-based deduplication (2s debounce window)
-- Anonymous→user session linkage on signup/login via POST /api/growth/link-session
-- Admin funnel endpoint returns real conversion data
+### Phase 2: Growth Engine (Complete — Mar 2026)
+- Auto-character extraction from stories
+- Basic sharing loop
+- Series completion rewards
+- Growth event tracking (7 core events)
+- Truth-based Admin Dashboard (5 sections)
 
-### Instrumented Pages
-- PublicCharacterPage: page_view + remix_click + setOrigin
-- PublicCreation: page_view + remix_click + share_click
-- StoryVideoStudio: tool_open_prefilled + generate_click + creation_completed
-- Signup: signup_completed + linkSessionToUser
-- Login: linkSessionToUser
-- CharacterDetail: share_click
-- SeriesTimeline: share_click
-- Gallery: page_view
+### Phase 3: Compulsion Engine (Complete — Mar 19, 2026)
+- **Shared Page Redesign**: PublicCharacterPage & PublicCreation redesigned with:
+  - Character-driven hero with social proof
+  - Dual CTAs: "Continue This Story" + "Create Your Own Version"
+  - Cliffhanger teasers to create curiosity
+  - No login wall on public pages
+- **1-Click Continue Flow**: StoryVideoStudio route opened to unauthenticated users. Auth check happens ONLY at "Generate" step (not page load). remix_data pipeline pre-fills the studio.
+- **Open-Loop Story Endings**: Backend prompts (story_video_studio.py + story_series.py) modified to enforce cliffhanger/open-loop endings on every story.
+- **401 Interceptor Fix**: api.js updated to whitelist open-access paths from redirect.
 
-## Admin Control Center (Truth-Based)
-### Sections: Executive, Growth Funnel, Reliability, Story Intelligence, Revenue
-### Architecture: REST snapshot + 15s polling auto-refresh
-### Endpoints: /api/admin/metrics/* (summary, funnel, reliability, revenue, series, safety)
+### Phase 4: Monetization Discipline (Complete — Mar 19, 2026)
+- **Cashfree Production Verification**: Confirmed production mode, webhook signature verification, idempotency, replay protection.
+- **Credit Enforcement**: story_video_studio.py now requires auth + deducts credits before generation. All generation tools enforce credits.
+- **Credit Reset**: Admin endpoint `/api/admin/metrics/credit-reset` — 29 normal users reset to 50 credits. Admin/test/uat/dev excluded. Audit logged.
+- **Credit Banner**: `show_credit_banner` flag on user model. Auto-shown via CreditContext toast, auto-dismissed via `/api/auth/dismiss-credit-banner`.
+- **Admin Dashboard — Revenue**: Real Cashfree data (total_revenue_inr, successful/failed payments, ARPU, recent payments).
+- **Admin Dashboard — Credits**: Credits issued/consumed, avg per user, top users by usage, Credit Reset widget.
+- **Admin Dashboard — Conversion**: Free→paid rate, top-up rate, subscription rate, repeat buyers.
 
-## Growth Engine (P0 — Complete)
-1. Auto-Character Extraction (confidence scoring, deduplication, user confirmation)
-2. Character-Based Sharing Loop (public pages, no login wall, remix_data integration)
-3. Series Completion Rewards (milestones at 3/5/10)
+## Prioritized Backlog
 
-## In-Product Guidance (Complete)
-- 5-step Quick Start Guide, inline tips, empty state guidance, copyright disclaimers
+### P1 (Next)
+- A/B test hook text variations on public pages
+- Character-driven auto-share prompts after creation
+- Enhance social proof counters (real-time usage tracking)
 
-## Core Features
-- Story Video Studio, Comic Storybook, Photo to Comic, GIF Maker
-- Story Series Engine, AI Character Memory System (3 sprints)
-- Pricing & Monetization (4-tier), Public explore/gallery
+### P2
+- Remix Variants on share pages
+- WebSocket live updates for Admin funnel
+- Style preset preview thumbnails
+- General UI polish
+- Fix minor lint errors in comic_storybook.py and gif_maker.py
 
-## Tech Stack
-- Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react
-- Backend: FastAPI, Python, MongoDB
-- Integrations: OpenAI, Gemini, Google Auth, Cloudflare R2, Redis, ffmpeg
+## Key Credentials
+- Test User: test@visionary-suite.com / Test@2026#
+- Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
-## Auth
-- Test: test@visionary-suite.com / Test@2026#
-- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-
-## Backlog
-- (P1) WebSocket live push for admin dashboard (upgrade from polling)
-- (P2) Style preset preview thumbnails
-- (P2) Full background uniformity cleanup
+## Critical Technical Notes
+- Cashfree is PRODUCTION mode (hardcoded, never sandbox)
+- Credits are deducted BEFORE generation, refunded on failure
+- Story generation prompts enforce open-loop/cliffhanger endings
+- StoryVideoStudio is open-access (auth at generate step only)
+- 401 interceptor whitelists: /app/story-video-studio, /app/story-preview, /v/, /character/
