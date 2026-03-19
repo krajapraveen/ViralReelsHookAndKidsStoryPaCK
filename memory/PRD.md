@@ -1,72 +1,49 @@
 # Visionary Suite — PRD
 
 ## Product Vision
-AI-powered creator suite that turns ideas into cinematic videos, comics, GIFs, and more. The platform features a comprehensive AI Character Memory system and a Growth Engine designed for viral user acquisition and retention.
+AI-powered creator suite that turns ideas into cinematic videos, comics, GIFs, and more. Features AI Character Memory, Growth Engine for viral acquisition/retention, and a truth-based Admin Control Center.
 
 ## Core Features (Implemented)
-- Story Video Studio (create, edit, remix)
-- Comic Storybook Builder
-- Photo to Comic
-- GIF Maker
-- Story Series Engine (stateful narratives)
-- AI Character Memory System (3 sprints complete)
+- Story Video Studio, Comic Storybook, Photo to Comic, GIF Maker
+- Story Series Engine (stateful multi-episode narratives)
+- AI Character Memory System (3 sprints: MVP, Cross-Tool, Visual Bibles)
 - Pricing & Monetization (4-tier system)
 - Public explore/gallery/sharing pages
-- Admin dashboards (analytics, security, health)
+- Growth Engine (Auto-Extraction, Character Sharing, Series Rewards)
 
-## Growth Engine (P0 — IMPLEMENTED)
+## Admin Control Center (IMPLEMENTED — Truth-Based)
 
-### 1. Auto-Character Extraction
-- On series creation, AI scores characters from Episode 1 with confidence threshold >= 0.7
-- Role scoring (main=0.4, supporting=0.25, background=0.05) + scene presence + detail richness
-- Deduplication by name similarity, max 3 characters
-- User confirmation UI before locking characters to series
-- Endpoints: GET/POST extracted-characters, POST confirm-characters, POST dismiss-extraction
+### Architecture
+- Backend: 6 real-time metrics endpoints at `/api/admin/metrics/*`
+- Frontend: 5-section tabbed dashboard with auto-refresh (15s polling)
+- Widget states: LOADING | READY | EMPTY | ERROR | STALE
+- No hardcoded values — every metric from real DB collections
 
-### 2. Character-Based Sharing Loop (Viral Engine)
-- Public character pages at /character/:characterId — NO login wall
-- Displays character profile, visual bible, personality, goals/fears
-- Social proof: episode count, story moments, series title, creator name
-- Primary CTA: "Create Your Own Story With [Character]"
-- Integrates with remix_data pipeline -> prefilled StoryVideoStudio
-- Share button on CharacterDetail and SeriesTimeline
+### Sections
+1. **Executive Snapshot**: Total Users, Active Users (24h), Active Sessions, Generations, Revenue, Avg Rating, System Health, Queue Depth, Stuck Jobs, Avg/Max Render, Active Series, Episodes, Characters, Continuation Rate
+2. **Growth Funnel**: Page Views → Remix Clicks → Tool Opens → Generate Clicks → Signups → Completions → Shares. Viral K coefficient, Avg Shares/Creator
+3. **Reliability**: System Health (Database, Queue, Stuck Jobs), Queue Depth, Active Jobs, Stuck Jobs, Avg/Max Render Time per Tool
+4. **Story Intelligence**: Active Series, Total Episodes, Avg Episodes/Series, Continuation Rate, Total Characters, Auto-Extracted, Character Reuse Rate, Continuity Pass Rate, Most Reused Character, Rewards Claimed
+5. **Revenue**: Total Revenue, Revenue Today, Transactions, Paying Users, ARPU, Conversion Rate, Active Subscriptions, Recent Transactions
 
-### 3. Series Completion Rewards (Retention Engine)
-- Milestones at 3, 5, 10 episodes
-- 3 episodes: "Story Taking Shape" — unlock Alternate Ending
-- 5 episodes: "Story Complete" — unlock Season 2, Villain Origin Story
-- 10 episodes: "Epic Saga" — unlock Alternate Universe, Character Spinoff, 50 bonus credits
-- RewardModal with emotional message + functional rewards
-- MilestoneProgress widget in SeriesTimeline sidebar
-- Completion -> new creation loop (Season 2, Spinoff, etc.)
+### Backend Endpoints
+- `GET /api/admin/metrics/summary` — Executive snapshot
+- `GET /api/admin/metrics/funnel` — Growth funnel
+- `GET /api/admin/metrics/reliability` — Queue, workers, health
+- `GET /api/admin/metrics/revenue` — Payments, ARPU, subscriptions
+- `GET /api/admin/metrics/series` — Story/character intelligence
+- `GET /api/admin/metrics/safety` — Moderation, abuse metrics
 
-## UI Polish & In-Product Guidance (IMPLEMENTED)
+## Growth Engine (P0 — Complete)
+1. Auto-Character Extraction (confidence scoring, deduplication, user confirmation)
+2. Character-Based Sharing Loop (public pages, no login wall, remix_data integration)
+3. Series Completion Rewards (milestones at 3/5/10, emotional + functional rewards)
 
-### Background Consistency
-- Fixed visually broken pages: AutomationDashboard (white cards -> dark), Gallery (custom hex -> standard), AdminDashboard (lighter bg -> gradient), MyDownloads (CSS vars -> standard), PublicCreation (custom hex -> standard)
-- Standard: bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950
-
-### In-Product Guidance (replaces static manual)
-- 5-step Quick Start Guide overlay for new users (Create, Series, Characters, Share, Rewards)
-- Re-accessible from Dashboard sidebar "Quick Start Guide" button
-- Inline tips on empty prompts: StoryVideoStudio, CreateSeries, CharacterCreator
-- Improved empty states: StorySeries ("Your Story Universe Awaits"), CharacterLibrary ("Build Your Character Cast")
-
-### Legal Safeguards
-- Copyright disclaimers on all creation tools (StoryVideoStudio, CreateSeries, CharacterCreator, GifMaker)
-- Real-person consent warnings on character creation
-- PhotoToComic already had copyright notice
-
-## AI Character Memory System (Complete)
-### Sprint A (MVP): Core entities, APIs, integration into Story Video pipeline
-### Sprint B: Continuity Validator, Cross-Tool Persistence, Voice Profiles
-### Sprint C: Editable Visual Bibles (versioning), Relationship Graph, Emotional Memory
-
-## Key DB Collections
-- story_series, story_episodes, character_bibles, world_bibles, story_memories
-- character_profiles, character_visual_bibles, character_visual_bible_history
-- character_voice_profiles, character_memory_logs, character_safety_profiles
-- character_relationships, series_rewards
+## In-Product Guidance (Complete)
+- 5-step Quick Start Guide overlay for new users
+- Inline tips on empty prompts (StoryVideoStudio, CreateSeries, CharacterCreator)
+- Improved empty states (StorySeries, CharacterLibrary)
+- Copyright/consent disclaimers on creation tools
 
 ## Tech Stack
 - Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react
@@ -76,11 +53,12 @@ AI-powered creator suite that turns ideas into cinematic videos, comics, GIFs, a
 - Other: Redis, apscheduler, ffmpeg, JSZip
 
 ## Authentication
-- JWT-based custom auth + Emergent-managed Google Auth
+- JWT + Google Auth (Emergent-managed)
 - Test: test@visionary-suite.com / Test@2026#
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
 ## Backlog
-- (P1) Admin Observability Dashboard UI
+- (P1) WebSocket live updates for admin dashboard (currently polling)
+- (P1) Growth event tracking integration (emit events on user actions)
 - (P2) Style preset preview thumbnails for Photo to Comic
-- (P2) Full background uniformity cleanup (remaining pages)
+- (P2) Full background uniformity cleanup for remaining pages
