@@ -1,64 +1,71 @@
 # Visionary Suite — PRD
 
 ## Product Vision
-AI-powered creator suite that turns ideas into cinematic videos, comics, GIFs, and more. Features AI Character Memory, Growth Engine for viral acquisition/retention, and a truth-based Admin Control Center.
+AI-powered creator suite with Growth Engine, AI Character Memory, and truth-based Admin Control Center.
 
-## Core Features (Implemented)
-- Story Video Studio, Comic Storybook, Photo to Comic, GIF Maker
-- Story Series Engine (stateful multi-episode narratives)
-- AI Character Memory System (3 sprints: MVP, Cross-Tool, Visual Bibles)
-- Pricing & Monetization (4-tier system)
-- Public explore/gallery/sharing pages
-- Growth Engine (Auto-Extraction, Character Sharing, Series Rewards)
+## Growth Event Tracking (P1 — IMPLEMENTED)
 
-## Admin Control Center (IMPLEMENTED — Truth-Based)
+### Core Events (7)
+1. `page_view` — Public pages (Gallery, Character, Creation)
+2. `remix_click` — CTA clicks on public/share pages
+3. `tool_open_prefilled` — Tool opened with remix data
+4. `generate_click` — User clicks Generate button
+5. `signup_completed` — User finishes signup
+6. `creation_completed` — Generation finishes successfully
+7. `share_click` — User shares content
 
-### Architecture
-- Backend: 6 real-time metrics endpoints at `/api/admin/metrics/*`
-- Frontend: 5-section tabbed dashboard with auto-refresh (15s polling)
-- Widget states: LOADING | READY | EMPTY | ERROR | STALE
-- No hardcoded values — every metric from real DB collections
+### Event Schema (Strict Contract)
+- event, session_id, user_id (nullable), anonymous_id
+- source_page, source_slug, tool_type, creation_type
+- series_id, character_id
+- origin (direct|share_page|public_character_page|series_page)
+- origin_slug, origin_character_id, origin_series_id
+- referrer_slug, ab_variant (nullable), idempotency_key, meta
 
-### Sections
-1. **Executive Snapshot**: Total Users, Active Users (24h), Active Sessions, Generations, Revenue, Avg Rating, System Health, Queue Depth, Stuck Jobs, Avg/Max Render, Active Series, Episodes, Characters, Continuation Rate
-2. **Growth Funnel**: Page Views → Remix Clicks → Tool Opens → Generate Clicks → Signups → Completions → Shares. Viral K coefficient, Avg Shares/Creator
-3. **Reliability**: System Health (Database, Queue, Stuck Jobs), Queue Depth, Active Jobs, Stuck Jobs, Avg/Max Render Time per Tool
-4. **Story Intelligence**: Active Series, Total Episodes, Avg Episodes/Series, Continuation Rate, Total Characters, Auto-Extracted, Character Reuse Rate, Continuity Pass Rate, Most Reused Character, Rewards Claimed
-5. **Revenue**: Total Revenue, Revenue Today, Transactions, Paying Users, ARPU, Conversion Rate, Active Subscriptions, Recent Transactions
+### Features
+- Client-side batching (5s flush, immediate for critical events)
+- Idempotency-based deduplication (2s debounce window)
+- Anonymous→user session linkage on signup/login via POST /api/growth/link-session
+- Admin funnel endpoint returns real conversion data
 
-### Backend Endpoints
-- `GET /api/admin/metrics/summary` — Executive snapshot
-- `GET /api/admin/metrics/funnel` — Growth funnel
-- `GET /api/admin/metrics/reliability` — Queue, workers, health
-- `GET /api/admin/metrics/revenue` — Payments, ARPU, subscriptions
-- `GET /api/admin/metrics/series` — Story/character intelligence
-- `GET /api/admin/metrics/safety` — Moderation, abuse metrics
+### Instrumented Pages
+- PublicCharacterPage: page_view + remix_click + setOrigin
+- PublicCreation: page_view + remix_click + share_click
+- StoryVideoStudio: tool_open_prefilled + generate_click + creation_completed
+- Signup: signup_completed + linkSessionToUser
+- Login: linkSessionToUser
+- CharacterDetail: share_click
+- SeriesTimeline: share_click
+- Gallery: page_view
+
+## Admin Control Center (Truth-Based)
+### Sections: Executive, Growth Funnel, Reliability, Story Intelligence, Revenue
+### Architecture: REST snapshot + 15s polling auto-refresh
+### Endpoints: /api/admin/metrics/* (summary, funnel, reliability, revenue, series, safety)
 
 ## Growth Engine (P0 — Complete)
 1. Auto-Character Extraction (confidence scoring, deduplication, user confirmation)
 2. Character-Based Sharing Loop (public pages, no login wall, remix_data integration)
-3. Series Completion Rewards (milestones at 3/5/10, emotional + functional rewards)
+3. Series Completion Rewards (milestones at 3/5/10)
 
 ## In-Product Guidance (Complete)
-- 5-step Quick Start Guide overlay for new users
-- Inline tips on empty prompts (StoryVideoStudio, CreateSeries, CharacterCreator)
-- Improved empty states (StorySeries, CharacterLibrary)
-- Copyright/consent disclaimers on creation tools
+- 5-step Quick Start Guide, inline tips, empty state guidance, copyright disclaimers
+
+## Core Features
+- Story Video Studio, Comic Storybook, Photo to Comic, GIF Maker
+- Story Series Engine, AI Character Memory System (3 sprints)
+- Pricing & Monetization (4-tier), Public explore/gallery
 
 ## Tech Stack
 - Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react
-- Backend: FastAPI, Python
-- Database: MongoDB
-- Integrations: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini, Google Auth, Cloudflare R2
-- Other: Redis, apscheduler, ffmpeg, JSZip
+- Backend: FastAPI, Python, MongoDB
+- Integrations: OpenAI, Gemini, Google Auth, Cloudflare R2, Redis, ffmpeg
 
-## Authentication
-- JWT + Google Auth (Emergent-managed)
+## Auth
 - Test: test@visionary-suite.com / Test@2026#
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
 ## Backlog
-- (P1) WebSocket live updates for admin dashboard (currently polling)
-- (P1) Growth event tracking integration (emit events on user actions)
-- (P2) Style preset preview thumbnails for Photo to Comic
-- (P2) Full background uniformity cleanup for remaining pages
+- (P1) WebSocket live push for admin dashboard (upgrade from polling)
+- (P2) Style preset preview thumbnails
+- (P2) Full background uniformity cleanup
