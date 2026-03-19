@@ -170,6 +170,29 @@ export default function PublicCreation() {
   const lastScene = creation.scenes?.[creation.scenes.length - 1];
   const cliffhangerText = lastScene?.narration || prompt;
 
+  // Momentum helpers
+  const timeAgo = (isoStr) => {
+    if (!isoStr) return null;
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+
+  const lastContTime = timeAgo(creation.last_continuation_at);
+  const isDormant = !creation.is_alive && creation.remix_count > 0;
+  const momentumMsg = creation.is_alive
+    ? (creation.continuations_1h > 0
+        ? `${creation.continuations_1h} people continued in the last hour`
+        : `${creation.continuations_24h} new episodes today — story is still evolving`)
+    : (creation.remix_count > 0
+        ? 'Be the first to continue this story today'
+        : 'Be the first to continue this story');
+
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="public-creation-page">
       <Helmet>
@@ -238,11 +261,20 @@ export default function PublicCreation() {
         <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.04] to-transparent pointer-events-none" />
 
         <div className="max-w-5xl mx-auto px-4 pt-8 pb-6">
-          {/* Title + Social Proof */}
+          {/* Title + Social Proof + Momentum */}
           <div className="text-center mb-6">
+            {/* Trending badge — only if REAL */}
+            {creation.is_trending && (
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full mb-3 uppercase tracking-wider" data-testid="trending-badge">
+                <Zap className="w-3 h-3" /> Trending now
+              </span>
+            )}
+
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-3" data-testid="creation-title">
               {creation.title}
             </h1>
+
+            {/* Core stats row */}
             <div className="flex items-center justify-center gap-4 text-sm" data-testid="social-proof">
               <span className="flex items-center gap-1.5 text-slate-400">
                 <Eye className="w-3.5 h-3.5 text-blue-400" />
@@ -252,7 +284,21 @@ export default function PublicCreation() {
                 <RefreshCcw className="w-3.5 h-3.5 text-rose-400" />
                 <strong className="text-white font-mono text-xs">{(creation.remix_count || 0).toLocaleString()}</strong> continuations
               </span>
+              {lastContTime && (
+                <span className="flex items-center gap-1.5 text-slate-400">
+                  <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-xs">Last continued <strong className="text-emerald-300">{lastContTime}</strong></span>
+                </span>
+              )}
             </div>
+
+            {/* Momentum message */}
+            <p className="text-xs mt-2 text-slate-500" data-testid="momentum-msg">
+              {creation.is_alive
+                ? <span className="text-emerald-400/80">{momentumMsg}</span>
+                : <span className="text-amber-400/60">{momentumMsg}</span>
+              }
+            </p>
           </div>
 
           <div className="grid lg:grid-cols-5 gap-6">
@@ -315,19 +361,21 @@ export default function PublicCreation() {
                 <ArrowRight className="absolute top-5 right-5 w-5 h-5 text-white/30 group-hover:text-white/70 group-hover:translate-x-1 transition-all z-10" />
               </button>
 
-              {/* ═══ SECONDARY CTA: Create your own version ═══ */}
+              {/* ═══ SECONDARY CTA: Continue where others left off ═══ */}
               <button
-                onClick={handleCreateOwn}
+                onClick={handleContinue}
                 className="w-full group rounded-2xl border border-white/[0.08] hover:border-violet-500/20 bg-white/[0.02] hover:bg-white/[0.04] p-4 text-left transition-all"
-                data-testid="create-own-btn"
+                data-testid="continue-others-btn"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-violet-400" />
+                    <RefreshCcw className="w-4 h-4 text-violet-400" />
                   </div>
                   <div className="flex-1">
-                    <span className="text-sm font-semibold text-white block">Create Your Own Version</span>
-                    <span className="text-xs text-slate-500">Different story, same style — no skills needed</span>
+                    <span className="text-sm font-semibold text-white block">Continue where others left off</span>
+                    <span className="text-xs text-slate-500">
+                      {creation.remix_count > 0 ? `${creation.remix_count} people already continued` : 'Be the first to add your chapter'}
+                    </span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-violet-400 transition-colors" />
                 </div>

@@ -66,9 +66,8 @@ async def get_platform_stats():
 async def get_public_creation(slug: str):
     """
     Get a public creation page by slug or job_id.
-    Increments view count. No auth required.
+    Increments view count. Returns momentum-based social proof.
     """
-    # Try to find by slug first, then by job_id
     job = await db.pipeline_jobs.find_one(
         {"$or": [{"slug": slug}, {"job_id": slug}]},
         {"_id": 0}
@@ -105,10 +104,39 @@ async def get_public_creation(slug: str):
         }
         scenes.append(scene_data)
 
+    # ── Momentum-based social proof ──────────────────────────────────
+    now = datetime.now(timezone.utc)
+    one_hour_ago = (now - timedelta(hours=1)).isoformat()
+    one_day_ago = (now - timedelta(hours=24)).isoformat()
+    job_id = job["job_id"]
+
+    # Find all continuations (remixes) of this creation
+    continuations = await db.pipeline_jobs.find(
+        {"remix_parent_id": job_id},
+        {"_id": 0, "created_at": 1}
+    ).sort("created_at", -1).to_list(100)
+
+    total_continuations = len(continuations)
+    last_continuation_at = continuations[0].get("created_at") if continuations else None
+
+    continuations_1h = sum(1 for c in continuations if c.get("created_at", "") >= one_hour_ago)
+    continuations_24h = sum(1 for c in continuations if c.get("created_at", "") >= one_day_ago)
+
+    # Also count remix_count from DB (broader — includes click-tracked remixes)
+    db_remix_count = job.get("remix_count", 0)
+    effective_continuations = max(total_continuations, db_remix_count)
+
+    # Trending: real threshold — recent activity matters
+    views_value = job.get("views", 0)
+    is_trending = (continuations_1h >= 2) or (continuations_24h >= 5 and views_value >= 20)
+
+    # Time-based decay: if no activity in 24h, mark as dormant
+    is_alive = bool(continuations_24h > 0 or (last_continuation_at and last_continuation_at >= one_day_ago))
+
     return {
         "success": True,
         "creation": {
-            "job_id": job["job_id"],
+            "job_id": job_id,
             "slug": job.get("slug", slug),
             "title": job.get("title", "Untitled"),
             "status": job.get("status"),
@@ -118,8 +146,8 @@ async def get_public_creation(slug: str):
             "tool_type": job.get("tool_type", "story-video-studio"),
             "scenes": scenes,
             "thumbnail_url": thumbnail,
-            "views": job.get("views", 0) + 1,
-            "remix_count": job.get("remix_count", 0),
+            "views": views_value + 1,
+            "remix_count": effective_continuations,
             "created_at": job.get("created_at"),
             "creator": {
                 "name": creator.get("name", "Anonymous") if creator else "Anonymous",
@@ -128,6 +156,12 @@ async def get_public_creation(slug: str):
             "prompt": job.get("story_text", ""),
             "category": job.get("category", ""),
             "tags": job.get("tags", []),
+            # Momentum signals
+            "last_continuation_at": last_continuation_at,
+            "continuations_1h": continuations_1h,
+            "continuations_24h": continuations_24h,
+            "is_trending": is_trending,
+            "is_alive": is_alive,
         }
     }
 
@@ -804,6 +838,56 @@ async def get_public_character(character_id: str):
     # Total usage across all tools
     total_usage = await db.character_memory_logs.count_documents({"character_id": character_id})
 
+    # ── Character Power Score: real momentum data ────────────────────
+    now = datetime.now(timezone.utc)
+    one_day_ago = (now - timedelta(hours=24)).isoformat()
+
+    # Total stories featuring this character (across all tools)
+    total_stories = await db.pipeline_jobs.count_documents({
+        "$or": [
+            {"story_text": {"$regex": profile.get("name", "NOMATCH"), "$options": "i"}},
+            {"characters": character_id},
+            {"extracted_characters": {"$elemMatch": {"character_id": character_id}}},
+        ]
+    })
+
+    # Total continuations / remixes of stories with this character
+    total_continuations = await db.pipeline_jobs.count_documents({
+        "remix_parent_id": {"$exists": True, "$ne": None},
+        "$or": [
+            {"story_text": {"$regex": profile.get("name", "NOMATCH"), "$options": "i"}},
+            {"characters": character_id},
+        ]
+    })
+
+    # Last continuation timestamp
+    last_cont = await db.pipeline_jobs.find_one(
+        {
+            "remix_parent_id": {"$exists": True, "$ne": None},
+            "$or": [
+                {"story_text": {"$regex": profile.get("name", "NOMATCH"), "$options": "i"}},
+                {"characters": character_id},
+            ]
+        },
+        {"_id": 0, "created_at": 1},
+        sort=[("created_at", -1)]
+    )
+    last_continuation_at = last_cont.get("created_at") if last_cont else None
+
+    # Tools this character appears in
+    tools_pipeline = [
+        {"$match": {"$or": [
+            {"story_text": {"$regex": profile.get("name", "NOMATCH"), "$options": "i"}},
+            {"characters": character_id},
+        ]}},
+        {"$group": {"_id": "$tool_type"}},
+    ]
+    tool_types = await db.pipeline_jobs.aggregate(tools_pipeline).to_list(10)
+    tools_used = [t["_id"] for t in tool_types if t.get("_id")]
+
+    # Is alive: activity in last 24h
+    is_alive = bool(last_continuation_at and last_continuation_at >= one_day_ago)
+
     # Creator info (public name only)
     creator_name = None
     if profile.get("owner_user_id"):
@@ -864,6 +948,11 @@ async def get_public_character(character_id: str):
         "social_proof": {
             "episode_count": episode_count,
             "total_usage": total_usage,
+            "total_stories": total_stories,
+            "total_continuations": total_continuations,
+            "last_continuation_at": last_continuation_at,
+            "tools_used": tools_used,
+            "is_alive": is_alive,
             "series_title": series_title,
             "creator_name": creator_name,
         },

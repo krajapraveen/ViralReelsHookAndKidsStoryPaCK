@@ -83,7 +83,24 @@ export default function PublicCharacterPage() {
   const { character, visual_bible, social_proof, sample_scenes, relationships } = data;
   const personality = character.personality_summary || '';
   const traits = personality.split(',').map(t => t.trim()).filter(Boolean).slice(0, 5);
-  const hasStories = social_proof.episode_count > 0 || social_proof.total_usage > 0;
+  const hasActivity = social_proof.total_stories > 0 || social_proof.episode_count > 0 || social_proof.total_usage > 0;
+
+  // Momentum helpers
+  const timeAgo = (isoStr) => {
+    if (!isoStr) return null;
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+  const lastContTime = timeAgo(social_proof.last_continuation_at);
+  const storiesCount = social_proof.total_stories || social_proof.episode_count || 0;
+  const contCount = social_proof.total_continuations || 0;
+  const toolsCount = social_proof.tools_used?.length || 0;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="public-character-page">
@@ -120,30 +137,51 @@ export default function PublicCharacterPage() {
             {visual_bible?.canonical_description || personality || `A mysterious ${character.role || 'character'} with untold stories...`}
           </p>
 
-          {/* Social Proof — LOUD */}
-          {hasStories && (
-            <div className="flex items-center justify-center gap-5 mb-8" data-testid="social-proof">
-              {social_proof.episode_count > 0 && (
-                <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 py-2">
-                  <Film className="w-4 h-4 text-violet-400" />
-                  <span className="text-sm text-white font-bold">{social_proof.episode_count}</span>
-                  <span className="text-xs text-slate-400">stories</span>
-                </div>
-              )}
-              {social_proof.total_usage > 0 && (
-                <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 py-2">
-                  <Eye className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm text-white font-bold">{social_proof.total_usage}</span>
-                  <span className="text-xs text-slate-400">moments</span>
-                </div>
-              )}
+          {/* ═══ CHARACTER POWER SCORE ═══ */}
+          {hasActivity && (
+            <div className="mb-8" data-testid="character-power-score">
+              <div className="flex items-center justify-center gap-4 flex-wrap">
+                {storiesCount > 0 && (
+                  <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 py-2">
+                    <Film className="w-4 h-4 text-violet-400" />
+                    <span className="text-sm text-white font-bold">{storiesCount}</span>
+                    <span className="text-xs text-slate-400">{storiesCount === 1 ? 'story' : 'stories'}</span>
+                  </div>
+                )}
+                {contCount > 0 && (
+                  <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 py-2">
+                    <RefreshCcw className="w-4 h-4 text-rose-400" />
+                    <span className="text-sm text-white font-bold">{contCount}</span>
+                    <span className="text-xs text-slate-400">continuations</span>
+                  </div>
+                )}
+                {toolsCount > 1 && (
+                  <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 py-2">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                    <span className="text-sm text-white font-bold">{toolsCount}</span>
+                    <span className="text-xs text-slate-400">tools</span>
+                  </div>
+                )}
+              </div>
+              {/* Momentum line */}
+              <p className="text-[11px] mt-3 text-center" data-testid="momentum-line">
+                {social_proof.is_alive ? (
+                  <span className="text-emerald-400/80">
+                    {lastContTime ? `Last continued ${lastContTime}` : 'Story is still evolving'}
+                  </span>
+                ) : contCount > 0 ? (
+                  <span className="text-amber-400/60">Be the first to continue this story today</span>
+                ) : (
+                  <span className="text-slate-500">Be the first to write {character.name}'s next chapter</span>
+                )}
+              </p>
             </div>
           )}
           {social_proof.series_title && (
             <p className="text-[11px] text-slate-500 -mt-4 mb-6">from the series "{social_proof.series_title}"</p>
           )}
 
-          {/* ═══ DUAL CTA — THE HOOK ═══ */}
+          {/* ═══ CTAs — THE HOOK ═══ */}
           <div className="space-y-3 max-w-sm mx-auto">
             {/* PRIMARY: Continue the story */}
             <button
@@ -158,25 +196,29 @@ export default function PublicCharacterPage() {
                 </div>
                 <div className="flex-1">
                   <span className="text-base font-bold text-white block">Continue {character.name}'s Story</span>
-                  <span className="text-xs text-white/60">Pick up where it left off — 1 click</span>
+                  <span className="text-xs text-white/60">
+                    {contCount > 0 ? `${contCount} people already continued` : 'Pick up where it left off — 1 click'}
+                  </span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-white/80 group-hover:translate-x-1 transition-all" />
               </div>
             </button>
 
-            {/* SECONDARY: Create your own version */}
+            {/* SECONDARY: Continue where others left off */}
             <button
-              onClick={() => trackAndNavigate('create_own')}
+              onClick={() => trackAndNavigate('continue_others')}
               className="w-full group rounded-2xl border border-white/10 hover:border-violet-500/30 bg-white/[0.02] hover:bg-white/[0.04] p-4 text-left transition-all"
-              data-testid="create-own-cta"
+              data-testid="continue-others-cta"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="w-5 h-5 text-violet-400" />
+                  <RefreshCcw className="w-5 h-5 text-violet-400" />
                 </div>
                 <div className="flex-1">
-                  <span className="text-sm font-semibold text-white block">Create Your Own Version</span>
-                  <span className="text-xs text-slate-500">New story, same character — no signup needed</span>
+                  <span className="text-sm font-semibold text-white block">Continue where others left off</span>
+                  <span className="text-xs text-slate-500">
+                    {contCount > 0 ? `Join ${contCount} people shaping this story` : 'Add your chapter — no signup needed'}
+                  </span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-violet-400 transition-colors" />
               </div>
@@ -312,11 +354,13 @@ export default function PublicCharacterPage() {
             className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-xl transition-all hover:scale-[1.02]"
             data-testid="bottom-cta"
           >
-            <Sparkles className="w-4 h-4" />
-            Start Your Story With {character.name}
+            <Play className="w-4 h-4" />
+            Continue {character.name}'s Story
           </button>
           <p className="text-[10px] text-slate-600">
-            1 click. No signup. Your version in 30 seconds.
+            {social_proof.is_alive
+              ? `Story is still evolving — ${lastContTime ? `last continued ${lastContTime}` : 'join now'}`
+              : '1 click. No signup. Your chapter in 30 seconds.'}
           </p>
         </div>
       </div>
