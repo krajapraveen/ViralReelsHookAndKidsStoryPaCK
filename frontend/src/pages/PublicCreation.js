@@ -170,6 +170,12 @@ export default function PublicCreation() {
   const lastScene = creation.scenes?.[creation.scenes.length - 1];
   const cliffhangerText = lastScene?.narration || prompt;
 
+  // ─── A/B VARIANT DATA ─────────────────────────────────────────────
+  const hookVariant = abVariants?.hook_text?.variant_data || {};
+  const ctaVariant = abVariants?.cta_copy?.variant_data || {};
+  const hookText = hookVariant.hook_text || 'This was created with AI in seconds — continue the story!';
+  const ctaText = ctaVariant.cta_text || 'Continue This Story';
+
   // Momentum helpers
   const timeAgo = (isoStr) => {
     if (!isoStr) return null;
@@ -341,7 +347,7 @@ export default function PublicCreation() {
             {/* RIGHT: CTA ZONE */}
             <div className="lg:col-span-2 space-y-4" data-testid="cta-zone">
 
-              {/* ═══ PRIMARY CTA: Continue the story ═══ */}
+              {/* ═══ PRIMARY CTA: Continue the story (A/B tested) ═══ */}
               <button
                 onClick={handleContinue}
                 className="w-full group relative overflow-hidden rounded-2xl p-5 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
@@ -351,9 +357,9 @@ export default function PublicCreation() {
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-2">
                     <Play className="w-5 h-5 text-white" />
-                    <span className="text-lg font-bold text-white">Continue This Story</span>
+                    <span className="text-lg font-bold text-white">{ctaText}</span>
                   </div>
-                  <p className="text-sm text-white/70 mb-3">See what happens next — prompt auto-filled, ready in 1 click</p>
+                  <p className="text-sm text-white/70 mb-3">{hookText}</p>
                   <div className="flex items-center gap-2 text-xs text-white/50">
                     <Zap className="w-3 h-3" /> No signup needed to start
                   </div>
@@ -449,6 +455,53 @@ export default function PublicCreation() {
                     data-testid={`share-${p.id}-btn`}
                   >{p.label}</button>
                 ))}
+              </div>
+
+              {/* ═══ REMIX VARIANTS — Try in different formats ═══ */}
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4" data-testid="remix-variants">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">Remix as...</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { key: 'comic-storybook', label: 'Comic Book', icon: BookOpen, color: 'text-amber-400 bg-amber-500/10 border-amber-500/15' },
+                    { key: 'gif-maker', label: 'GIF', icon: Film, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/15' },
+                    { key: 'reels', label: 'Reel Script', icon: Play, color: 'text-rose-400 bg-rose-500/10 border-rose-500/15' },
+                    { key: 'bedtime-story-builder', label: 'Bedtime Story', icon: BookOpen, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/15' },
+                  ].filter(r => r.key !== (creation.tool_type || 'story-video-studio')).map(remix => {
+                    const RemixIcon = remix.icon;
+                    return (
+                      <button
+                        key={remix.key}
+                        onClick={() => {
+                          const remixPrompt = creation.story_text || creation.prompt || '';
+                          localStorage.setItem('remix_data', JSON.stringify({
+                            prompt: remixPrompt,
+                            timestamp: Date.now(),
+                            source_tool: 'remix-variant',
+                            remixFrom: {
+                              tool: remix.key,
+                              prompt: remixPrompt,
+                              settings: { animation_style: creation.animation_style },
+                              title: creation.title,
+                              parentId: creation.job_id,
+                            },
+                          }));
+                          trackRemixClick({ source_page: `/v/${slug}`, source_slug: slug, tool_type: remix.key, origin: 'remix_variant', origin_slug: slug });
+                          trackConversion('cta_copy', 'remix_click');
+                          axios.post(`${API}/api/public/creation/${slug}/remix`).catch(() => {});
+                          navigate(TOOL_ROUTES[remix.key]?.path || '/app/story-video-studio');
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-medium transition-all hover:scale-[1.02] ${remix.color}`}
+                        data-testid={`remix-${remix.key}`}
+                      >
+                        <RemixIcon className="w-3.5 h-3.5" />
+                        {remix.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

@@ -2,7 +2,7 @@
 
 ## 📚 Complete Guide for All Users
 
-**Platform URL:** https://k-factor-boost.preview.emergentagent.com
+**Platform URL:** https://trust-engine-5.preview.emergentagent.com
 
 ---
 

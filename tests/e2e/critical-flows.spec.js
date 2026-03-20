@@ -12,7 +12,7 @@
  */
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://k-factor-boost.preview.emergentagent.com';
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com';
 
 const TEST_USERS = {
   demo: {

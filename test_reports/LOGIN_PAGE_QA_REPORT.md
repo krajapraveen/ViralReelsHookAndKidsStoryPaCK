@@ -2,7 +2,7 @@
 
 **Date:** February 21, 2026  
 **Auditor:** Senior QA Lead + Frontend Engineer  
-**Target URL:** https://k-factor-boost.preview.emergentagent.com/login  
+**Target URL:** https://trust-engine-5.preview.emergentagent.com/login  
 **Production URL:** https://visionary-suite.com/login  
 
 ---

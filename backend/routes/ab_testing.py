@@ -215,7 +215,7 @@ async def ab_results(experiment_id: Optional[str] = Query(None)):
             "min_sessions_per_variant": 200,
         })
 
-    return {"experiments": results}
+    return {"success": True, "experiments": results}
 
 
 # ─── SEED EXPERIMENTS ────────────────────────────────────────────────────────

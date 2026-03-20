@@ -17,7 +17,7 @@ export default defineConfig({
   ],
   
   use: {
-    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://k-factor-boost.preview.emergentagent.com',
+    baseURL: process.env.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

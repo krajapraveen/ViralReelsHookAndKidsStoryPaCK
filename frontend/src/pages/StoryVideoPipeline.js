@@ -20,6 +20,7 @@ import ProgressiveGeneration from '../components/ProgressiveGeneration';
 import { useJobWebSocket } from '../hooks/useJobWebSocket';
 import ContextualUpgrade from '../components/ContextualUpgrade';
 import RemixBanner from '../components/RemixBanner';
+import SharePromptModal from '../components/SharePromptModal';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STAGE_ORDER = ['scenes', 'images', 'voices'];
@@ -711,19 +712,39 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
             </div>
           </div>
 
-          {/* Animation Style */}
+          {/* Animation Style with Preview Thumbnails */}
           <div>
             <label className="text-sm font-medium text-slate-200 mb-2 block">Animation Style</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" data-testid="style-grid">
-              {styles.map(s => (
-                <button key={s.id} onClick={() => setAnimStyle(s.id)}
-                  className={`p-3 rounded-[var(--vs-card-radius)] border text-left transition-all ${animStyle === s.id
-                    ? 'border-[var(--vs-primary-from)] bg-[var(--vs-cta)]/15 text-white ring-1 ring-[var(--vs-primary-from)]/50'
-                    : 'border-slate-600 bg-slate-800/60 text-slate-200 hover:border-slate-400 hover:bg-slate-700/50 cursor-pointer'}`}
-                  data-testid={`style-${s.id}`}>
-                  <span className="text-sm font-medium">{s.name}</span>
-                </button>
-              ))}
+              {styles.map(s => {
+                const previewGradients = {
+                  cartoon_2d: 'from-yellow-400 to-orange-500',
+                  anime_style: 'from-indigo-500 to-violet-400',
+                  '3d_pixar': 'from-sky-400 to-cyan-500',
+                  watercolor: 'from-rose-300 to-pink-400',
+                  comic_book: 'from-red-500 to-orange-400',
+                  claymation: 'from-amber-500 to-yellow-400',
+                  pixel_art: 'from-green-400 to-emerald-500',
+                  oil_painting: 'from-amber-600 to-rose-500',
+                  sketch: 'from-slate-400 to-slate-600',
+                  neon: 'from-cyan-400 to-purple-500',
+                };
+                const grad = previewGradients[s.id] || 'from-slate-500 to-slate-700';
+                return (
+                  <button key={s.id} onClick={() => setAnimStyle(s.id)}
+                    className={`rounded-[var(--vs-card-radius)] border text-left transition-all overflow-hidden ${animStyle === s.id
+                      ? 'border-[var(--vs-primary-from)] ring-2 ring-[var(--vs-primary-from)]/50'
+                      : 'border-slate-600 hover:border-slate-400 cursor-pointer'}`}
+                    data-testid={`style-${s.id}`}>
+                    <div className={`h-16 bg-gradient-to-br ${grad} flex items-center justify-center`}>
+                      <span className="text-white/80 text-xs font-bold drop-shadow">{s.name}</span>
+                    </div>
+                    <div className={`px-3 py-2 ${animStyle === s.id ? 'bg-[var(--vs-cta)]/15' : 'bg-slate-800/60'}`}>
+                      <span className="text-xs font-medium text-white">{s.name}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -829,6 +850,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   const [downloading, setDownloading] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [customDirection, setCustomDirection] = useState('');
+  const [showSharePrompt, setShowSharePrompt] = useState(false);
   const navigate = useNavigate();
   const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
   const displayTitle = jobTitle || job?.title || 'Your Video';
@@ -914,8 +936,35 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
 
   const isActionable = uiState === 'READY' || uiState === 'PARTIAL_READY';
 
+  // Auto-show share prompt when video is ready (once per job)
+  React.useEffect(() => {
+    if (uiState === 'READY' && shareReady && !showSharePrompt) {
+      const prompted = sessionStorage.getItem(`share_prompted_${jobId}`);
+      if (!prompted) {
+        const timer = setTimeout(() => {
+          setShowSharePrompt(true);
+          sessionStorage.setItem(`share_prompted_${jobId}`, '1');
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [uiState, shareReady, jobId, showSharePrompt]);
+
+  // Extract character name from job data
+  const characterName = job?.characters?.[0]?.name || job?.character_name || '';
+
   return (
     <div className="space-y-6 vs-fade-up-1" data-testid="postgen-phase">
+      {/* Auto-share prompt modal */}
+      {showSharePrompt && (
+        <SharePromptModal
+          jobId={jobId}
+          title={displayTitle}
+          characterName={characterName}
+          slug={job?.slug || jobId}
+          onClose={() => setShowSharePrompt(false)}
+        />
+      )}
       {/* Status Badge — single truth from uiState */}
       <div className={`rounded-xl border p-5 ${statusCfg.bg}`} data-testid="status-badge">
         <div className="flex items-center gap-3">

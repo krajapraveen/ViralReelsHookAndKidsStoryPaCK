@@ -156,6 +156,7 @@ from routes.priority_scaling import router as priority_scaling_router
 from routes.admin_system_routes import router as admin_system_router
 from routes.admin_worker_routes import router as admin_worker_router
 from routes.admin_metrics import router as admin_metrics_router
+from routes.admin_websocket import router as admin_ws_router
 from routes.download_expiry_routes import router as download_expiry_router
 from routes.notification_routes import router as notification_router
 from services.self_healing_middleware import SelfHealingMiddleware
@@ -316,7 +317,7 @@ CRITICAL_ORIGINS = [
     "https://www.visionary-suite.com",
     "https://auth.emergentagent.com",
     "https://studio-deploy-2.emergent.host",
-    "https://k-factor-boost.preview.emergentagent.com",
+    "https://trust-engine-5.preview.emergentagent.com",
     "http://localhost:3000",
     "http://localhost:8001"
 ]
@@ -575,10 +576,14 @@ app.include_router(api_router)
 # WebSocket endpoint - mount both with and without /api prefix for compatibility
 app.include_router(websocket_progress_router)
 
+# Admin WebSocket for live dashboard
+app.include_router(admin_ws_router)
+
 # Also mount WebSocket under /api for frontend compatibility
 from fastapi import APIRouter
 ws_api_router = APIRouter(prefix="/api")
 ws_api_router.include_router(websocket_progress_router)
+ws_api_router.include_router(admin_ws_router)
 app.include_router(ws_api_router)
 
 # ==================== STATIC FILE SERVING ====================

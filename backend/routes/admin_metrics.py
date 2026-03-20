@@ -672,3 +672,101 @@ async def reset_credits(request: CreditResetRequest, admin: dict = Depends(get_a
         "new_credits": request.credits,
         "message": f"Reset {result.modified_count} users to {request.credits} credits. Excluded: admin/test/uat/dev."
     }
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STORY CHAIN LEADERBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/leaderboard")
+async def get_leaderboard(admin: dict = Depends(get_admin_user)):
+    """Story chain leaderboard: top continued stories and top continuers."""
+
+    # Top continued stories (by remix_count)
+    top_stories_pipeline = [
+        {"$match": {"status": "COMPLETED", "remix_count": {"$gt": 0}}},
+        {"$sort": {"remix_count": -1}},
+        {"$limit": 10},
+        {"$project": {
+            "_id": 0,
+            "job_id": 1,
+            "title": 1,
+            "user_id": 1,
+            "continuations": {"$ifNull": ["$remix_count", 0]},
+            "views": {"$ifNull": ["$views", 0]},
+            "created_at": 1,
+        }}
+    ]
+    top_stories_raw = await db.pipeline_jobs.aggregate(top_stories_pipeline).to_list(10)
+
+    # Enrich with creator names
+    top_stories = []
+    for story in top_stories_raw:
+        creator_name = "Anonymous"
+        if story.get("user_id"):
+            user = await db.users.find_one({"id": story["user_id"]}, {"_id": 0, "name": 1})
+            if user:
+                creator_name = user.get("name", "Anonymous")
+        top_stories.append({
+            "job_id": story.get("job_id"),
+            "title": story.get("title", "Untitled"),
+            "creator_name": creator_name,
+            "continuations": story.get("continuations", 0),
+            "views": story.get("views", 0),
+        })
+
+    # Top continuers (users who made the most remixes)
+    top_continuers_pipeline = [
+        {"$match": {"remix_parent_id": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": "$user_id", "continuation_count": {"$sum": 1}}},
+        {"$sort": {"continuation_count": -1}},
+        {"$limit": 10},
+    ]
+    top_continuers_raw = await db.pipeline_jobs.aggregate(top_continuers_pipeline).to_list(10)
+
+    top_continuers = []
+    for entry in top_continuers_raw:
+        uid = entry.get("_id")
+        name = "Anonymous"
+        if uid:
+            user = await db.users.find_one({"id": uid}, {"_id": 0, "name": 1})
+            if user:
+                name = user.get("name", "Anonymous")
+        top_continuers.append({
+            "user_id": uid,
+            "name": name,
+            "continuation_count": entry.get("continuation_count", 0),
+        })
+
+    # Overall stats
+    total_continuations = await db.pipeline_jobs.count_documents({"remix_parent_id": {"$exists": True, "$ne": None}})
+
+    unique_continuers_pipeline = [
+        {"$match": {"remix_parent_id": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "total"},
+    ]
+    uc_result = await db.pipeline_jobs.aggregate(unique_continuers_pipeline).to_list(1)
+    unique_continuers = uc_result[0]["total"] if uc_result else 0
+
+    stories_with_cont = await db.pipeline_jobs.count_documents({"remix_count": {"$gt": 0}})
+
+    # Avg chain length
+    avg_chain_pipeline = [
+        {"$match": {"remix_count": {"$gt": 0}}},
+        {"$group": {"_id": None, "avg": {"$avg": "$remix_count"}}},
+    ]
+    avg_result = await db.pipeline_jobs.aggregate(avg_chain_pipeline).to_list(1)
+    avg_chain_length = round(avg_result[0]["avg"], 1) if avg_result else None
+
+    return {
+        "success": True,
+        "timestamp": _now().isoformat(),
+        "top_stories": top_stories,
+        "top_continuers": top_continuers,
+        "total_continuations": total_continuations,
+        "unique_continuers": unique_continuers,
+        "stories_with_continuations": stories_with_cont,
+        "avg_chain_length": avg_chain_length,
+    }

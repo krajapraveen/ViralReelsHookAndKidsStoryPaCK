@@ -7,7 +7,7 @@
  */
 
 // Configuration
-const BACKEND_URL = 'https://k-factor-boost.preview.emergentagent.com';
+const BACKEND_URL = 'https://trust-engine-5.preview.emergentagent.com';
 
 export default {
   async fetch(request, env, ctx) {

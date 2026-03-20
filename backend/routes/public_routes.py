@@ -691,7 +691,6 @@ async def get_growth_metrics():
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday_start = today_start - timedelta(days=1)
     week_ago = today_start - timedelta(days=7)
-    month_ago = today_start - timedelta(days=30)
 
     # 1. Daily Creations
     today_creations = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start}, "status": "COMPLETED"})

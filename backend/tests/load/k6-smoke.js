@@ -9,7 +9,7 @@ const loginSuccess = new Counter("login_success");
 const loginFailure = new Counter("login_failure");
 
 // Configuration
-const BASE = __ENV.BASE_URL || "https://k-factor-boost.preview.emergentagent.com";
+const BASE = __ENV.BASE_URL || "https://trust-engine-5.preview.emergentagent.com";
 
 export const options = {
   scenarios: {

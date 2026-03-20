@@ -5,7 +5,7 @@ import { test, expect, Page } from '@playwright/test';
  * Tests interactive elements, forms, tabs, modals on mobile
  */
 
-const BASE_URL = 'https://k-factor-boost.preview.emergentagent.com';
+const BASE_URL = 'https://trust-engine-5.preview.emergentagent.com';
 
 const DEMO_USER = {
   email: 'demo@example.com',

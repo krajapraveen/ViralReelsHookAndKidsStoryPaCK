@@ -174,6 +174,8 @@ export default function AdminDashboard() {
   const [series, setSeries] = useState({ data: null, state: 'loading', ts: null });
   const [credits, setCredits] = useState({ data: null, state: 'loading', ts: null });
   const [conversion, setConversion] = useState({ data: null, state: 'loading', ts: null });
+  const [abResults, setAbResults] = useState({ data: null, state: 'loading', ts: null });
+  const [leaderboard, setLeaderboard] = useState({ data: null, state: 'loading', ts: null });
 
   const fetchSection = useCallback(async (name, setter, url) => {
     try {
@@ -201,7 +203,34 @@ export default function AdminDashboard() {
     fetchSection('series', setSeries, '/api/admin/metrics/series');
     fetchSection('credits', setCredits, '/api/admin/metrics/credits');
     fetchSection('conversion', setConversion, '/api/admin/metrics/conversion');
+    fetchSection('ab', setAbResults, '/api/ab/results');
+    fetchSection('leaderboard', setLeaderboard, '/api/admin/metrics/leaderboard');
   }, [days, fetchSection]);
+
+  // WebSocket for live updates
+  const wsRef = useRef(null);
+  const [wsLive, setWsLive] = useState(false);
+  const [liveSnapshot, setLiveSnapshot] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/ws/admin/live?token=${token}`;
+    try {
+      const ws = new WebSocket(wsUrl);
+      ws.onopen = () => setWsLive(true);
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'live_snapshot') setLiveSnapshot(data);
+        } catch {}
+      };
+      ws.onclose = () => setWsLive(false);
+      ws.onerror = () => setWsLive(false);
+      wsRef.current = ws;
+    } catch {}
+    return () => { if (wsRef.current) wsRef.current.close(); };
+  }, []);
 
   // Initial load
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -223,10 +252,14 @@ export default function AdminDashboard() {
   const ser = series.data;
   const cred = credits.data;
   const conv = conversion.data;
+  const ab = abResults.data;
+  const lb = leaderboard.data;
 
   const sections = [
     { id: 'executive', label: 'Executive', icon: BarChart3 },
     { id: 'funnel', label: 'Growth Funnel', icon: TrendingUp },
+    { id: 'ab_testing', label: 'A/B Tests', icon: Zap },
+    { id: 'leaderboard', label: 'Leaderboard', icon: Star },
     { id: 'reliability', label: 'Reliability', icon: Server },
     { id: 'series', label: 'Story Intelligence', icon: BookOpen },
     { id: 'revenue', label: 'Revenue', icon: DollarSign },
@@ -251,13 +284,13 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             {/* Live indicator */}
             <div className="flex items-center gap-1.5 text-xs">
-              <Radio className={`w-3 h-3 ${autoRefresh ? 'text-emerald-400 animate-pulse' : 'text-slate-600'}`} />
+              <Radio className={`w-3 h-3 ${wsLive ? 'text-emerald-400 animate-pulse' : autoRefresh ? 'text-cyan-400 animate-pulse' : 'text-slate-600'}`} />
               <button
                 onClick={() => setAutoRefresh(!autoRefresh)}
-                className={`${autoRefresh ? 'text-emerald-400' : 'text-slate-500'} hover:text-white`}
+                className={`${wsLive ? 'text-emerald-400' : autoRefresh ? 'text-cyan-400' : 'text-slate-500'} hover:text-white`}
                 data-testid="toggle-auto-refresh"
               >
-                {autoRefresh ? 'Live' : 'Paused'}
+                {wsLive ? 'WS Live' : autoRefresh ? 'Polling' : 'Paused'}
               </button>
             </div>
             <select
@@ -334,19 +367,21 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
                   <p className="text-[10px] text-slate-500 mb-1">Queue Depth</p>
-                  <p className="text-lg font-bold text-white">{r?.queue_depth ?? 'N/A'}</p>
+                  <p className="text-lg font-bold text-white">{liveSnapshot?.queue_depth ?? r?.queue_depth ?? 'N/A'}</p>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
                   <p className="text-[10px] text-slate-500 mb-1">Stuck Jobs</p>
                   <p className={`text-lg font-bold ${r?.stuck_jobs > 0 ? 'text-red-400' : 'text-white'}`}>{r?.stuck_jobs ?? 'N/A'}</p>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                  <p className="text-[10px] text-slate-500 mb-1">Avg Render</p>
-                  <p className="text-lg font-bold text-white">{r?.avg_render_seconds != null ? `${r.avg_render_seconds}s` : 'No data'}</p>
+                  <p className="text-[10px] text-slate-500 mb-1">Active Sessions</p>
+                  <p className="text-lg font-bold text-white">{liveSnapshot?.active_sessions ?? s?.active_sessions ?? 'N/A'}</p>
+                  {wsLive && <p className="text-[9px] text-emerald-400 mt-0.5">Real-time via WS</p>}
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                  <p className="text-[10px] text-slate-500 mb-1">Max Render</p>
-                  <p className="text-lg font-bold text-white">{r?.max_render_seconds != null ? `${r.max_render_seconds}s` : 'No data'}</p>
+                  <p className="text-[10px] text-slate-500 mb-1">Completions (1h)</p>
+                  <p className="text-lg font-bold text-white">{liveSnapshot?.recent_completions_1h ?? 'N/A'}</p>
+                  {wsLive && <p className="text-[9px] text-emerald-400 mt-0.5">Real-time via WS</p>}
                 </div>
               </div>
 
@@ -610,6 +645,139 @@ export default function AdminDashboard() {
                 <MetricCard icon={DollarSign} label="Top-up Rate" value={conv?.topup_purchase_rate != null ? `${conv.topup_purchase_rate}%` : null} color="blue" testId="metric-topup-rate" />
                 <MetricCard icon={Star} label="Subscription Rate" value={conv?.subscription_rate != null ? `${conv.subscription_rate}%` : null} color="violet" testId="metric-sub-rate" />
                 <MetricCard icon={Heart} label="Repeat Buyers" value={conv?.repeat_buyers} color="rose" testId="metric-repeat-buyers" />
+              </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ A/B TEST RESULTS ═══ */}
+        {section === 'ab_testing' && (
+          <WidgetState state={abResults.state} lastUpdated={abResults.ts}>
+            <div className="space-y-6" data-testid="ab-testing-section">
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-cyan-400" /> Active A/B Experiments
+                </h3>
+                {ab?.experiments?.length > 0 ? (
+                  <div className="space-y-6">
+                    {ab.experiments.map(exp => (
+                      <div key={exp.experiment_id} className="bg-slate-800/50 rounded-xl p-4 space-y-3" data-testid={`ab-exp-${exp.experiment_id}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-medium text-white">{exp.name}</h4>
+                            <p className="text-[10px] text-slate-500">Primary event: {exp.primary_event} | Min 200 sessions/variant</p>
+                          </div>
+                          {exp.tentative_winner && (
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                              Winner: {exp.tentative_winner}
+                            </span>
+                          )}
+                          {!exp.tentative_winner && (
+                            <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                              Collecting data...
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          {exp.variants.map(v => {
+                            const maxSessions = Math.max(...exp.variants.map(x => x.sessions), 1);
+                            const barWidth = Math.max((v.sessions / maxSessions) * 100, 2);
+                            const isWinner = exp.tentative_winner === v.variant_id;
+                            return (
+                              <div key={v.variant_id} className={`rounded-lg p-2.5 ${isWinner ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-slate-700/30'}`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-xs text-white font-medium">{v.label}</span>
+                                  <div className="flex items-center gap-3 text-[10px]">
+                                    <span className="text-slate-400">{v.sessions} sessions</span>
+                                    <span className={`font-bold ${isWinner ? 'text-emerald-400' : 'text-white'}`}>{v.primary_conv_rate}%</span>
+                                  </div>
+                                </div>
+                                <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${isWinner ? 'bg-emerald-500' : 'bg-cyan-500/60'}`}
+                                    style={{ width: `${barWidth}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-slate-500">No A/B experiments active</p>
+                    <p className="text-xs text-slate-600 mt-1">Experiments will appear once seeded and traffic flows through public pages</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ STORY CHAIN LEADERBOARD ═══ */}
+        {section === 'leaderboard' && (
+          <WidgetState state={leaderboard.state} lastUpdated={leaderboard.ts}>
+            <div className="space-y-6" data-testid="leaderboard-section">
+              {/* Top Continued Stories */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <Film className="w-4 h-4 text-amber-400" /> Most Continued Stories
+                </h3>
+                {lb?.top_stories?.length > 0 ? (
+                  <div className="space-y-2">
+                    {lb.top_stories.map((story, i) => (
+                      <div key={story.job_id || i} className="flex items-center gap-3 bg-slate-800/50 rounded-lg px-3 py-2.5" data-testid={`leaderboard-story-${i}`}>
+                        <span className={`text-sm font-black w-6 text-center ${i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-orange-400' : 'text-slate-500'}`}>
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white font-medium truncate">{story.title || 'Untitled'}</p>
+                          <p className="text-[10px] text-slate-500">{story.creator_name || 'Anonymous'}</p>
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px]">
+                          <span className="text-slate-400"><strong className="text-white">{story.continuations}</strong> continuations</span>
+                          <span className="text-slate-400"><strong className="text-white">{story.views}</strong> views</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 text-center py-4">No stories with continuations yet</p>
+                )}
+              </div>
+
+              {/* Top Continuers (Users) */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-violet-400" /> Top Continuers
+                </h3>
+                {lb?.top_continuers?.length > 0 ? (
+                  <div className="space-y-2">
+                    {lb.top_continuers.map((user, i) => (
+                      <div key={user.user_id || i} className="flex items-center gap-3 bg-slate-800/50 rounded-lg px-3 py-2.5" data-testid={`leaderboard-user-${i}`}>
+                        <span className={`text-sm font-black w-6 text-center ${i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-orange-400' : 'text-slate-500'}`}>
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white font-medium">{user.name || 'Anonymous'}</p>
+                        </div>
+                        <span className="text-xs font-bold text-violet-400">{user.continuation_count} remixes</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 text-center py-4">No continuation data yet</p>
+                )}
+              </div>
+
+              {/* Overall Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MetricCard icon={Activity} label="Total Continuations" value={lb?.total_continuations} color="cyan" testId="metric-total-cont" />
+                <MetricCard icon={Users} label="Unique Continuers" value={lb?.unique_continuers} color="violet" testId="metric-unique-cont" />
+                <MetricCard icon={Film} label="Stories Continued" value={lb?.stories_with_continuations} color="amber" testId="metric-stories-cont" />
+                <MetricCard icon={TrendingUp} label="Avg Chain Length" value={lb?.avg_chain_length} color="emerald" testId="metric-avg-chain" />
               </div>
             </div>
           </WidgetState>

@@ -83,7 +83,7 @@
     "root_cause": "Global 401 interceptor in api.js (lines 59-62) unconditionally redirects to /login on ANY 401 response. StoryVideoPipeline.js makes several API calls on mount (loadUserJobs, checkUpsell, checkRateLimit, api.get('/api/pipeline/options')) which return 401 for unauthenticated users, triggering the redirect.",
     "reproduction_steps": [
       "1. Open browser in incognito/clear localStorage",
-      "2. Navigate to https://k-factor-boost.preview.emergentagent.com/app/story-video-studio",
+      "2. Navigate to https://trust-engine-5.preview.emergentagent.com/app/story-video-studio",
       "3. Observe redirect to /login within 1-2 seconds",
       "OR",
       "1. Go to /explore, click any creation card",

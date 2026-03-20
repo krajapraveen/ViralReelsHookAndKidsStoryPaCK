@@ -4,7 +4,7 @@
  */
 import { test as base, expect } from '@playwright/test';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://k-factor-boost.preview.emergentagent.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com';
 
 // Test credentials
 const TEST_USERS = {

@@ -9,7 +9,7 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://k-factor-boost.preview.emergentagent.com"
+    BASE_URL = "https://trust-engine-5.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@visionary-suite.com"

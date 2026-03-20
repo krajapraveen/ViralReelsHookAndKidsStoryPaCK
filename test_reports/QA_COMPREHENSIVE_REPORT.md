@@ -1,7 +1,7 @@
 # CreatorStudio AI - Comprehensive QA Report
 **Date:** February 18, 2026  
 **QA Engineer:** E1 (Emergent Agent)  
-**Base URL:** https://k-factor-boost.preview.emergentagent.com
+**Base URL:** https://trust-engine-5.preview.emergentagent.com
 
 ---
 
