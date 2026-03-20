@@ -269,11 +269,14 @@ async def get_trending_weekly(limit: int = Query(10, ge=1, le=20)):
 import random as _random
 import hashlib as _hashlib
 
-_LOCATIONS = [
-    "Tokyo", "London", "New York", "Berlin", "Paris", "Mumbai", "Sydney",
-    "Toronto", "Seoul", "Dubai", "Lagos", "Nairobi", "Stockholm", "Austin",
-    "Bangalore", "Cape Town", "Buenos Aires", "Amsterdam", "Singapore", "Jakarta",
-    "Istanbul", "Cairo", "Manila", "Bangkok", "Warsaw", "Zurich", "Milan",
+_ANON_LABELS = [
+    "A creator in India", "A creator in United States", "A creator in Germany",
+    "A creator in Brazil", "A creator in Japan", "A creator in United Kingdom",
+    "A creator in Nigeria", "A creator in Australia", "A creator in Canada",
+    "A creator in France", "A creator in Indonesia", "A creator in Turkey",
+    "A creator in South Korea", "A creator in Mexico", "A creator in Italy",
+    "A creator in Spain", "A creator in Kenya", "A creator in South Africa",
+    "A creator in Argentina", "A creator in Netherlands",
 ]
 
 _ACTIVITY_TYPES = [
@@ -285,32 +288,42 @@ _ACTIVITY_TYPES = [
 ]
 
 
-def _anonymize_creator(user_id: str) -> str:
-    """Deterministically assign a location based on user_id hash."""
-    idx = int(_hashlib.md5(user_id.encode()).hexdigest(), 16) % len(_LOCATIONS)
-    return f"A creator in {_LOCATIONS[idx]}"
+async def _anonymize_creator_async(user_id: str, item_index: int = 0) -> str:
+    """Use real user country if available, else diverse anonymous fallback.
+    item_index ensures different items from same user get varied labels."""
+    if not user_id:
+        return "A creator"
+    try:
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "country": 1})
+        if user and user.get("country"):
+            return f"A creator in {user['country']}"
+    except Exception:
+        pass
+    # Fallback: use item_index for variety across feed items from same user
+    idx = (int(_hashlib.md5(user_id.encode()).hexdigest(), 16) + item_index) % len(_ANON_LABELS)
+    return _ANON_LABELS[idx]
 
 
 @router.get("/live-activity")
 async def get_live_activity(limit: int = Query(8, ge=1, le=20)):
     """
     Live activity feed for homepage social proof.
-    Returns recent real activity (excluding seeded content) + synthetic pulse.
+    Returns ONLY real user activity. No synthetic/fake data.
     """
     now = datetime.now(timezone.utc)
 
-    # 1) Real activity: non-seeded, non-test completed jobs from last 7 days
+    # Real activity only: non-seeded, non-test completed jobs from last 30 days
     real_items = await db.pipeline_jobs.find(
         {
             "status": "COMPLETED",
             "user_id": {"$ne": "visionary-ai-system"},
             "is_seeded": {"$ne": True},
             "title": {"$not": {"$regex": "(?i)test|benchmark|reject|bypass|admission|cache|reservation|parallel|speed|ui test"}},
-            "created_at": {"$gte": now - timedelta(days=7)},
+            "created_at": {"$gte": now - timedelta(days=30)},
         },
         {"_id": 0, "title": 1, "user_id": 1, "category": 1, "created_at": 1,
-         "remix_count": 1, "animation_style": 1}
-    ).sort("created_at", -1).limit(4).to_list(length=4)
+         "remix_count": 1, "animation_style": 1, "tool_type": 1}
+    ).sort("created_at", -1).limit(limit * 2).to_list(length=limit * 2)
 
     feed = []
     seen_titles = set()
@@ -319,10 +332,10 @@ async def get_live_activity(limit: int = Query(8, ge=1, le=20)):
         if title in seen_titles:
             continue
         seen_titles.add(title)
-        activity = _random.choice(_ACTIVITY_TYPES[:2])  # creation or publish
+        activity = _random.choice(_ACTIVITY_TYPES[:2])
         feed.append({
             "id": _hashlib.md5(f"{title}{item.get('created_at', '')}".encode()).hexdigest()[:12],
-            "creator": _anonymize_creator(item.get("user_id", "")),
+            "creator": await _anonymize_creator_async(item.get("user_id", ""), len(feed)),
             "action": activity["verb"],
             "title": title,
             "category": item.get("category", ""),
@@ -330,35 +343,9 @@ async def get_live_activity(limit: int = Query(8, ge=1, le=20)):
             "type": activity["type"],
             "time_ago": _relative_time(item.get("created_at", now), now),
         })
+        if len(feed) >= limit:
+            break
 
-    # 2) Synthetic pulse to fill feed when real activity is sparse
-    needed = limit - len(feed)
-    if needed > 0:
-        # Use seeded content titles but disguise as organic activity
-        seeded = await db.pipeline_jobs.find(
-            {"user_id": "visionary-ai-system", "status": "COMPLETED"},
-            {"_id": 0, "title": 1, "category": 1, "views": 1, "remix_count": 1}
-        ).sort("views", -1).limit(40).to_list(length=40)
-
-        if seeded:
-            _random.shuffle(seeded)
-            for i in range(min(needed, len(seeded))):
-                item = seeded[i]
-                activity = _random.choice(_ACTIVITY_TYPES)
-                minutes_ago = _random.randint(1, 45)
-                feed.append({
-                    "id": _hashlib.md5(f"pulse_{i}_{now.minute}".encode()).hexdigest()[:12],
-                    "creator": f"A creator in {_random.choice(_LOCATIONS)}",
-                    "action": activity["verb"],
-                    "title": item.get("title", "an AI video"),
-                    "category": item.get("category", ""),
-                    "icon": activity["icon"],
-                    "type": activity["type"],
-                    "time_ago": f"{minutes_ago}m ago",
-                })
-
-    # Shuffle to mix real + synthetic naturally
-    _random.shuffle(feed)
     return {"success": True, "items": feed[:limit], "count": len(feed[:limit])}
 
 

@@ -53,6 +53,10 @@ export default function Profile() {
     weeklyDigest: false
   });
 
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   useEffect(() => {
     fetchUserData();
     fetchUserSpace();

@@ -98,17 +98,23 @@ async def get_executive_summary(days: int = Query(30, ge=1, le=365), admin: dict
     rev_today_result = await db.payments.aggregate(rev_today_pipeline).to_list(1)
     revenue_today = rev_today_result[0]["total"] if rev_today_result else 0
 
-    # Satisfaction (from ratings)
+    # Satisfaction (from real ratings only — truth-based)
+    # Formula: avg_rating = avg(real rating values), satisfaction_pct = (avg_rating / 5) * 100
+    # Minimum 5 ratings required for meaningful metric
     avg_rating = None
     rating_count = 0
+    satisfaction_pct = None
     try:
         rating_pipeline = [
-            {"$match": {"created_at": {"$gte": cutoff.isoformat()}}},
+            {"$match": {"rating": {"$exists": True, "$gte": 1, "$lte": 5}}},
             {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "count": {"$sum": 1}}}
         ]
-        rat_result = await db.ratings.aggregate(rating_pipeline).to_list(1)
-        if rat_result:
+        rat_result = await db.feedback.aggregate(rating_pipeline).to_list(1)
+        if rat_result and rat_result[0]["count"] >= 5:
             avg_rating = round(rat_result[0]["avg"], 1)
+            rating_count = rat_result[0]["count"]
+            satisfaction_pct = round((avg_rating / 5) * 100)
+        elif rat_result:
             rating_count = rat_result[0]["count"]
     except Exception:
         pass
@@ -131,6 +137,8 @@ async def get_executive_summary(days: int = Query(30, ge=1, le=365), admin: dict
         "revenue_today": revenue_today,
         "avg_rating": avg_rating,
         "rating_count": rating_count,
+        "satisfaction_pct": satisfaction_pct,
+        "satisfaction_note": "Not enough ratings yet" if rating_count < 5 else None,
     }
 
 

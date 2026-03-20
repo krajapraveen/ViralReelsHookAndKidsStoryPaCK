@@ -326,7 +326,7 @@ export default function AdminDashboard() {
                 <MetricCard icon={Activity} label="Active (24h)" value={s?.active_users_24h} sub={`${s?.active_sessions ?? 0} sessions`} color="purple" state={summary.state} testId="metric-active-users" />
                 <MetricCard icon={FileText} label="Generations" value={s?.total_generations} sub={s?.success_rate != null ? `${s.success_rate}% success` : 'No jobs yet'} color="indigo" state={summary.state} testId="metric-generations" />
                 <MetricCard icon={DollarSign} label="Revenue" value={s?.total_revenue != null ? `₹${s.total_revenue}` : null} sub={s?.revenue_today != null ? `₹${s.revenue_today} today` : null} color="emerald" state={summary.state} testId="metric-revenue" />
-                <MetricCard icon={Star} label="Avg Rating" value={s?.avg_rating != null ? `${s.avg_rating}/5` : null} sub={s?.rating_count ? `${s.rating_count} ratings` : 'No ratings yet'} color="amber" state={summary.state} testId="metric-rating" />
+                <MetricCard icon={Star} label="Satisfaction" value={s?.satisfaction_pct != null ? `${s.satisfaction_pct}%` : null} sub={s?.satisfaction_note || (s?.rating_count ? `${s.avg_rating}/5 from ${s.rating_count} ratings` : 'Not enough ratings yet')} color="amber" state={summary.state} testId="metric-rating" />
                 <MetricCard icon={Shield} label="Health" value={r?.overall_health?.toUpperCase()} color={r?.overall_health === 'healthy' ? 'green' : r?.overall_health === 'degraded' ? 'amber' : 'red'} state={reliability.state} testId="metric-health" />
               </div>
 
