@@ -1011,10 +1011,11 @@ async def startup():
         await asyncio.sleep(120)  # Let server stabilize
         while True:
             try:
-                from routes.retention_routes import run_nudge_check
+                from routes.retention_routes import run_nudge_check, run_email_nudges
                 count = await run_nudge_check()
-                if count:
-                    logger.info(f"Nudge check sent {count} notifications")
+                email_count = await run_email_nudges()
+                if count or email_count:
+                    logger.info(f"Nudge check: {count} in-app, {email_count} email")
             except Exception as e:
                 logger.warning(f"Nudge check error: {e}")
             await asyncio.sleep(3600)  # Run every hour

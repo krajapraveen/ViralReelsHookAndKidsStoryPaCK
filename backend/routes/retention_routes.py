@@ -333,6 +333,102 @@ async def run_nudge_check():
     return nudge_count
 
 
+async def run_email_nudges():
+    """Generate email nudge content for users with inactive stories.
+    Formats emails with character name + cliffhanger + deep link.
+    NOTE: Requires email service integration (SendGrid/Resend) to actually send.
+    Currently logs prepared emails for when service is connected."""
+    six_hours_ago = (_now() - timedelta(hours=6)).isoformat()
+    twenty_four_hours_ago = (_now() - timedelta(hours=24)).isoformat()
+
+    recent_jobs = await db.pipeline_jobs.find(
+        {
+            "status": "COMPLETED",
+            "completed_at": {"$gte": twenty_four_hours_ago, "$lte": six_hours_ago},
+            "thumbnail_url": {"$exists": True, "$nin": [None, ""]},
+        },
+        {"_id": 0, "user_id": 1, "job_id": 1, "title": 1, "slug": 1, "story_text": 1, "extracted_characters": 1}
+    ).sort("completed_at", -1).to_list(100)
+
+    user_jobs = {}
+    for job in recent_jobs:
+        uid = job.get("user_id")
+        if uid and uid not in user_jobs:
+            user_jobs[uid] = job
+
+    emails_queued = 0
+    for user_id, job in user_jobs.items():
+        # Check if already sent email nudge in last 24 hours
+        existing = await db.email_nudges.find_one({
+            "user_id": user_id,
+            "created_at": {"$gte": twenty_four_hours_ago},
+        }, {"_id": 1})
+        if existing:
+            continue
+
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "name": 1})
+        if not user or not user.get("email"):
+            continue
+
+        chars = job.get("extracted_characters", [])
+        char_name = chars[0].get("name") if chars else None
+        story_text = job.get("story_text", "")
+        cliffhanger = "What happens next will shock you"
+        if story_text:
+            sentences = [s.strip() for s in story_text.replace("...", ".").split(".") if s.strip()]
+            if sentences:
+                cliffhanger = sentences[-1]
+
+        slug = job.get("slug")
+        link = f"/v/{slug}" if slug else f"/app/story-video-studio?job={job['job_id']}"
+
+        subject = f"{char_name}'s story isn't finished..." if char_name else f'"{job.get("title", "Your story")}" isn\'t finished...'
+        body_text = f'"{cliffhanger}"\n\nContinue now: {link}'
+
+        # Store email nudge record
+        await db.email_nudges.insert_one({
+            "user_id": user_id,
+            "email": user["email"],
+            "subject": subject,
+            "body": body_text,
+            "cliffhanger": cliffhanger,
+            "character_name": char_name,
+            "link": link,
+            "job_id": job["job_id"],
+            "sent": False,
+            "created_at": _now().isoformat(),
+        })
+        emails_queued += 1
+
+        # TODO: When email service is integrated, send here:
+        # await send_email(to=user["email"], subject=subject, body=body_text)
+
+    if emails_queued > 0:
+        logger.info(f"[EMAIL NUDGE] Queued {emails_queued} email nudges (pending email service integration)")
+
+    return emails_queued
+
+
+@router.get("/admin/email-nudges")
+async def get_email_nudge_queue(admin: dict = Depends(get_admin_user)):
+    """Admin view of pending email nudges."""
+    pending = await db.email_nudges.find(
+        {"sent": False},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(20).to_list(20)
+
+    total_pending = await db.email_nudges.count_documents({"sent": False})
+    total_sent = await db.email_nudges.count_documents({"sent": True})
+
+    return {
+        "success": True,
+        "pending_count": total_pending,
+        "sent_count": total_sent,
+        "recent_pending": pending,
+        "note": "Email sending requires service integration (SendGrid/Resend). Nudges are queued and ready.",
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONTENT SEEDING — Admin tool to batch-generate showcase content
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -348,16 +444,21 @@ async def seed_content(req: SeedRequest, admin: dict = Depends(get_admin_user)):
     import uuid
 
     themes = req.themes or [
-        "A brave fox explorer discovers a hidden underwater kingdom",
-        "A young witch learns the forbidden spells from a talking book",
-        "A robot child searches for its creator across a neon wasteland",
-        "Twin siblings discover a portal behind their school library",
-        "A dragon chef opens a restaurant in a medieval city",
-        "An astronaut finds a garden growing on the dark side of the moon",
-        "A street musician discovers their songs can control weather",
-        "A detective cat investigates disappearances in a toy city",
-        "A lighthouse keeper befriends the last mermaid",
-        "A kid finds a treasure map in their grandmother's attic",
+        # Emotional hooks
+        "A mother receives a letter from her child 30 years in the future, and the last line makes her cry",
+        "An old man sits on a park bench every day waiting for someone who never comes, until today",
+        # Mystery / suspense
+        "She opened the door to her childhood home, but everything inside belonged to someone else",
+        "The detective finds a photo of a crime scene — taken three days before the crime happened",
+        # Kids / family
+        "A brave little fox named Finn discovers a magical door under a waterfall that leads to a sky kingdom",
+        "A dragon who is afraid of fire tries to hide it from the other dragons at school",
+        # Viral hooks
+        "A street musician plays one note that makes everyone in the city stop walking — then they all start crying",
+        "She found her own diary in a thrift shop, but the handwriting wasn't hers",
+        # Fantasy
+        "A lighthouse keeper discovers the light attracts not ships, but creatures from another dimension",
+        "Twin sisters discover they share the same dream every night — until one sister disappears from it",
     ]
 
     jobs_created = []

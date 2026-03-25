@@ -39,8 +39,21 @@ export function StreakDisplay({ variant = 'dashboard' }) {
     );
   }
 
-  // Dashboard variant
+  // Dashboard variant — emotional messaging
   const progress = next_milestone ? Math.min((current_streak / next_milestone) * 100, 100) : 100;
+
+  const getEmotionalMessage = () => {
+    if (current_streak === 0) return 'Create a story today to start your streak';
+    if (current_streak === 1) return 'Great start! Come back tomorrow to build momentum';
+    if (current_streak < 3) return "Don't break it — your story streak is growing";
+    if (current_streak < 7) return "You're on fire! Keep the momentum going";
+    return "Legendary streak! You're a storytelling machine";
+  };
+
+  const getStreakLabel = () => {
+    if (current_streak === 0) return 'Start a Story Streak';
+    return `${current_streak}-Day Story Streak`;
+  };
 
   return (
     <div className="vs-card p-4" data-testid="streak-display">
@@ -49,10 +62,10 @@ export function StreakDisplay({ variant = 'dashboard' }) {
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
             current_streak > 0 ? 'bg-amber-500/10' : 'bg-slate-800'
           }`}>
-            <Flame className={`w-5 h-5 ${current_streak > 0 ? 'text-amber-400' : 'text-slate-600'}`} />
+            <Flame className={`w-5 h-5 ${current_streak > 0 ? 'text-amber-400 animate-pulse' : 'text-slate-600'}`} />
           </div>
           <div>
-            <p className="text-xs text-slate-500">Daily Streak</p>
+            <p className={`text-xs font-bold ${current_streak > 0 ? 'text-amber-400' : 'text-slate-500'}`}>{getStreakLabel()}</p>
             <p className="text-lg font-black text-white leading-tight">{current_streak} day{current_streak !== 1 ? 's' : ''}</p>
           </div>
         </div>
@@ -65,6 +78,9 @@ export function StreakDisplay({ variant = 'dashboard' }) {
           </div>
         )}
       </div>
+
+      {/* Emotional message */}
+      <p className="text-xs text-slate-400 mb-3 italic" data-testid="streak-message">{getEmotionalMessage()}</p>
 
       {/* Next milestone progress */}
       {next_milestone && (
@@ -83,7 +99,7 @@ export function StreakDisplay({ variant = 'dashboard' }) {
           </div>
           <p className="text-[10px] text-slate-600 mt-1">
             {current_streak < next_milestone
-              ? `${next_milestone - current_streak} more day${next_milestone - current_streak > 1 ? 's' : ''} to go`
+              ? `Continue today to keep your streak alive — ${next_milestone - current_streak} more day${next_milestone - current_streak > 1 ? 's' : ''} to go`
               : 'Milestone reached!'}
           </p>
         </div>

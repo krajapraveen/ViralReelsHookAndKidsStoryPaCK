@@ -921,6 +921,39 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     }
   }, [uiState]);
 
+  // Reward celebration: check for streak/episode rewards when video completes
+  useEffect(() => {
+    if (uiState === 'READY') {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      (async () => {
+        try {
+          const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/retention/streak`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const d = await res.json();
+          if (d.success && d.current_streak > 0) {
+            // Check if a milestone was just claimed (streak matches a milestone)
+            const milestones = { 3: 10, 7: 25 };
+            for (const [day, credits] of Object.entries(milestones)) {
+              if (d.current_streak === parseInt(day) && d.milestones_claimed?.includes(parseInt(day))) {
+                toast.success(
+                  <div className="text-center">
+                    <p className="font-black text-base">Day {day} Streak!</p>
+                    <p className="text-xs opacity-80 mt-0.5">+{credits} credits earned</p>
+                    <p className="text-[10px] opacity-60 mt-1">Keep creating to unlock more rewards</p>
+                  </div>,
+                  { duration: 5000, icon: '🎉' }
+                );
+                break;
+              }
+            }
+          }
+        } catch {}
+      })();
+    }
+  }, [uiState]);
+
   // Status badge configuration — driven by uiState only
   const STATUS_CONFIG = {
     VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Validating Assets', subtitle: 'Checking preview and download availability...' },
@@ -1237,23 +1270,33 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           {/* ═══ AUTO-NEXT TRIGGER — Session Chaining ═══ */}
           {showAutoNext && (
             <div className="relative overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-600/[0.08] to-rose-600/[0.08] p-5" style={{ animation: 'slideIn 0.4s ease-out' }} data-testid="auto-next-trigger">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
-                  <Play className="w-6 h-6 text-violet-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-white mb-0.5">What happens next?</p>
-                  <p className="text-xs text-slate-400">The story doesn't end here — continue now or share to unlock the next chapter</p>
-                </div>
+              <div className="text-center mb-4">
+                <p className="text-xs text-amber-400 font-bold uppercase tracking-wider mb-1">That was just the beginning...</p>
+                <h3 className="text-lg font-black text-white">What happens next?</h3>
+              </div>
+              <div className="flex gap-3">
                 <button
                   onClick={() => handleContinue(CONTINUE_DIRECTIONS[0])}
-                  className="h-10 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center gap-2 hover:opacity-90 flex-shrink-0 shadow-lg shadow-violet-500/20"
+                  className="flex-1 h-12 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-violet-500/20"
+                  style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
                   data-testid="auto-next-continue-btn"
                 >
-                  <Play className="w-4 h-4" /> Continue <ArrowRight className="w-3.5 h-3.5" />
+                  <Play className="w-5 h-5" /> Continue Next Episode <ArrowRight className="w-4 h-4" />
                 </button>
+                {shareReady && (
+                  <button
+                    onClick={() => handleShare('copy')}
+                    className="h-12 px-5 rounded-xl border border-white/[0.1] bg-white/[0.03] text-sm text-slate-300 font-semibold flex items-center gap-2 hover:text-white hover:border-white/20 transition-all"
+                    data-testid="auto-next-share-btn"
+                  >
+                    <Share2 className="w-4 h-4" /> Share
+                  </button>
+                )}
               </div>
-              <style>{`@keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+              <style>{`
+                @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                @keyframes cta-glow { 0%, 100% { box-shadow: 0 0 30px -8px rgba(139,92,246,0.4); } 50% { box-shadow: 0 0 50px -5px rgba(139,92,246,0.6); } }
+              `}</style>
             </div>
           )}
 
