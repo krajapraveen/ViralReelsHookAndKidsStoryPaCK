@@ -12,7 +12,7 @@ import {
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
   Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye, Package,
   Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert,
-  Shield, Check, X, Zap
+  Shield, Check, X, Zap, ChevronDown, ArrowRight
 } from 'lucide-react';
 import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
@@ -201,7 +201,7 @@ function StoryVideoPipelineInner() {
           if (rd.prompt) setStoryText(rd.prompt);
           if (rd.remixFrom) {
             setRemixData(rd.remixFrom);
-            if (rd.remixFrom.title) setTitle(`From: ${rd.remixFrom.title}`);
+            if (rd.remixFrom.title) setTitle(rd.remixFrom.title.startsWith('From:') ? rd.remixFrom.title : `From: ${rd.remixFrom.title}`);
             if (rd.remixFrom.settings?.animation_style || rd.remixFrom.settings?.style) setAnimStyle(rd.remixFrom.settings.animation_style || rd.remixFrom.settings.style);
             if (rd.remixFrom.settings?.age_group || rd.remixFrom.settings?.ageGroup) setAgeGroup(rd.remixFrom.settings.age_group || rd.remixFrom.settings.ageGroup);
             if (rd.remixFrom.settings?.voice_preset) setVoicePreset(rd.remixFrom.settings.voice_preset);
@@ -1225,29 +1225,170 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       {/* ── ENGAGEMENT LOOP ACTIONS (only when generation succeeded) ────── */}
       {isActionable && (
         <>
-          {/* ── Continue Story — Rich Directions ────────────────────── */}
-          <div className="bg-slate-900/80 border border-indigo-500/20 rounded-xl p-5 space-y-4" data-testid="continue-story-section">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-indigo-400" />
-                Continue Your Story
-              </h3>
-              <span className="text-[10px] text-indigo-400/70 bg-indigo-500/10 px-2 py-0.5 rounded-full">Creates next episode</span>
+          {/* ═══ CLIFFHANGER HOOK ═══ */}
+          {(storyText || job?.story_text) && (
+            <div className="bg-gradient-to-r from-amber-500/[0.06] to-rose-500/[0.06] border border-amber-500/20 rounded-2xl p-5" data-testid="cliffhanger-hook">
+              <div className="flex items-center gap-2 mb-2">
+                <BookOpen className="w-4 h-4 text-amber-400" />
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">The story so far...</span>
+              </div>
+              <p className="text-sm text-slate-300 italic leading-relaxed mb-1">
+                "{(() => {
+                  const txt = storyText || job?.story_text || '';
+                  const last200 = txt.slice(-200);
+                  return last200.length < txt.length ? '...' + last200 : last200;
+                })()}"
+              </p>
+              <p className="text-xs text-amber-400/80 font-semibold mt-2">But something unexpected happens next...</p>
             </div>
+          )}
 
-            {!showDirections ? (
-              <>
-                <p className="text-sm text-slate-400">Turn this into a series — choose a direction for the next episode.</p>
-                <Button
-                  onClick={() => setShowDirections(true)}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700"
-                  data-testid="choose-direction-btn"
+          {/* ═══ PRIMARY: Continue Story (BIGGEST BUTTON, FIRST POSITION) ═══ */}
+          <button
+            onClick={() => handleContinue(CONTINUE_DIRECTIONS[0])}
+            className="w-full group relative overflow-hidden rounded-2xl p-6 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+            data-testid="primary-continue-btn"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 to-rose-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                <Play className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1">
+                <span className="text-xl font-black text-white block mb-1">Continue Story</span>
+                <span className="text-sm text-white/70">Pick up right where it left off — higher stakes await</span>
+              </div>
+              <ArrowRight className="w-6 h-6 text-white/40 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            </div>
+          </button>
+
+          {/* ═══ SECONDARY: Add Twist / Make Funny / Next Episode ═══ */}
+          <div className="grid grid-cols-3 gap-3" data-testid="secondary-actions">
+            <button
+              onClick={() => handleContinue(CONTINUE_DIRECTIONS[1])}
+              className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] transition-all text-center group"
+              data-testid="add-twist-btn"
+            >
+              <Sparkles className="w-5 h-5 text-amber-400 mx-auto mb-2" />
+              <span className="text-sm font-bold text-white block">Add Twist</span>
+              <span className="text-[10px] text-slate-500">Unexpected reveal</span>
+            </button>
+            <button
+              onClick={() => {
+                const baseStory = storyText || job?.story_text || '';
+                const funnyPrompt = `[Funny Version of "${displayTitle}"]\n\nOriginal story:\n${baseStory.slice(0, 500)}...\n\nDirection: Convert this into a hilariously funny version while keeping core events. Add comedic timing, funny dialogue, and absurd situations.`;
+                localStorage.setItem('remix_video', JSON.stringify({
+                  parent_video_id: jobId || job?.job_id,
+                  title: `Funny: ${displayTitle}`,
+                  story_text: funnyPrompt,
+                  animation_style: currentStyle,
+                  age_group: job?.age_group,
+                  voice_preset: job?.voice_preset,
+                }));
+                navigate('/app/story-video-studio?remix=funny');
+                toast.success('Creating funny version!');
+              }}
+              className="p-4 rounded-xl border border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08] transition-all text-center group"
+              data-testid="make-funny-btn"
+            >
+              <AlertCircle className="w-5 h-5 text-pink-400 mx-auto mb-2" />
+              <span className="text-sm font-bold text-white block">Make Funny</span>
+              <span className="text-[10px] text-slate-500">Comedy version</span>
+            </button>
+            <button
+              onClick={() => handleContinue(CONTINUE_DIRECTIONS[3])}
+              className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/[0.04] hover:bg-purple-500/[0.08] transition-all text-center group"
+              data-testid="next-episode-btn"
+            >
+              <Film className="w-5 h-5 text-purple-400 mx-auto mb-2" />
+              <span className="text-sm font-bold text-white block">Next Episode</span>
+              <span className="text-[10px] text-slate-500">New adventure</span>
+            </button>
+          </div>
+
+          {/* ═══ VIRAL LOOP: Share to unlock + reward ═══ */}
+          <div className="bg-slate-900/80 border border-emerald-500/20 rounded-xl p-5" data-testid="viral-loop-share">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-emerald-400" />
+                Share & Earn Credits
+              </h3>
+              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">+5 credits per share</span>
+            </div>
+            <p className="text-xs text-slate-400 mb-3">Share your story — get +5 credits. If someone continues it, you get +10 more!</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { platform: 'whatsapp', label: 'WhatsApp', color: 'bg-emerald-600 hover:bg-emerald-500' },
+                { platform: 'twitter', label: 'X / Twitter', color: 'bg-slate-700 hover:bg-slate-600' },
+                { platform: 'copy', label: 'Copy Link', color: 'bg-slate-800 hover:bg-slate-700' },
+              ].map(s => (
+                <button
+                  key={s.platform}
+                  onClick={async () => {
+                    if (s.platform === 'copy') {
+                      handleCopyLink();
+                    } else {
+                      handleShare(s.platform);
+                    }
+                    // Claim share reward
+                    try {
+                      const token = localStorage.getItem('token');
+                      if (token) {
+                        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/growth/share-reward`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ job_id: jobId || job?.job_id, platform: s.platform }),
+                        });
+                        const data = await res.json();
+                        if (data.rewarded) toast.success('+5 credits earned for sharing!');
+                      }
+                    } catch {}
+                  }}
+                  disabled={!shareReady && !downloadReady}
+                  className={`py-2.5 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-40 ${s.color}`}
+                  data-testid={`share-reward-${s.platform}`}
                 >
-                  <Play className="w-4 h-4 mr-2" /> Choose Direction
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ TERTIARY: Download + More Options ═══ */}
+          <div className="flex gap-2">
+            <Button
+              onClick={handleDownload}
+              disabled={!downloadReady || downloading}
+              variant="outline"
+              className="flex-1 border-slate-700 text-slate-300 hover:text-white disabled:opacity-40"
+              data-testid="download-btn"
+            >
+              {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              Download
+            </Button>
+            {storyPackUrl && downloadReady && (
+              <a href={storyPackUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
+                <Button variant="outline" className="w-full border-slate-700 text-slate-300 hover:text-white">
+                  <Package className="w-4 h-4 mr-2" /> Story Pack
                 </Button>
-              </>
-            ) : (
-              <div className="space-y-2" data-testid="continue-directions">
+              </a>
+            )}
+          </div>
+
+          {/* ── Advanced Continue Directions ──────────────────────── */}
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4" data-testid="advanced-continue-section">
+            <button
+              onClick={() => setShowDirections(!showDirections)}
+              className="w-full flex items-center justify-between text-sm text-slate-400 hover:text-white transition-colors"
+              data-testid="toggle-advanced-btn"
+            >
+              <span className="flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5" /> More continuation options
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showDirections ? 'rotate-180' : ''}`} />
+            </button>
+            {showDirections && (
+              <div className="mt-3 space-y-2" data-testid="continue-directions">
                 {CONTINUE_DIRECTIONS.map(d => (
                   <button
                     key={d.id}
@@ -1279,24 +1420,16 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   data-testid="custom-direction-input"
                 />
-                <button
-                  onClick={() => setShowDirections(false)}
-                  className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  Cancel
-                </button>
               </div>
             )}
           </div>
 
           {/* ── Remix — Visual Style Swatches ──────────────────────── */}
-          <div className="bg-slate-900/80 border border-pink-500/15 rounded-xl p-5 space-y-4" data-testid="remix-section">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-pink-400" />
-              <h3 className="text-base font-semibold text-white">Remix with Different Style</h3>
-            </div>
-            <p className="text-sm text-slate-400">Same story, completely different look. Quick re-create.</p>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2" data-testid="remix-style-grid">
+          <div className="bg-slate-900/50 border border-pink-500/10 rounded-xl p-4 space-y-3" data-testid="remix-section">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 text-pink-400" /> Remix with Different Style
+            </h3>
+            <div className="grid grid-cols-5 gap-2" data-testid="remix-style-grid">
               {ANIM_STYLES.filter(s => s.id !== currentStyle).map(s => (
                 <button
                   key={s.id}
@@ -1322,19 +1455,10 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             remixSourceTitle={displayTitle}
           />
 
-          {/* ── Story Chain Link ──────────────────────────────────── */}
-          {(jobId || job?.job_id) && (
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/app/story-chain/${jobId || job?.job_id}`)}
-              className="w-full border-slate-700 text-slate-300 hover:text-white hover:border-purple-500/40"
-              data-testid="view-story-chain-btn"
-            >
-              <Link2 className="w-4 h-4 mr-2 text-purple-400" /> View Story Chain
-            </Button>
-          )}
-
-          <ContextualUpgrade trigger="after_generation" sourcePage="story_video_studio" />
+          {/* New Video */}
+          <Button onClick={onNew} variant="ghost" className="w-full text-slate-500 hover:text-white" data-testid="new-video-btn">
+            <Sparkles className="w-4 h-4 mr-2" /> Create Entirely New Story
+          </Button>
         </>
       )}
     </div>

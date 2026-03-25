@@ -40,7 +40,8 @@ class GrowthEvent(BaseModel):
 VALID_EVENTS = {
     "page_view", "remix_click", "tool_open_prefilled",
     "generate_click", "signup_triggered", "signup_completed",
-    "creation_completed", "share_click",
+    "creation_completed", "share_click", "continue_click",
+    "add_twist_click", "make_funny_click", "next_episode_click",
 }
 
 # ─── TRACK EVENT ─────────────────────────────────────────────────────────────
@@ -317,3 +318,70 @@ async def get_daily_trends(days: int = Query(7, ge=1, le=30)):
         trends[date][event] = doc["count"]
 
     return {"period_days": days, "daily": trends}
+
+
+# ─── SHARE REWARDS ───────────────────────────────────────────────────────────
+
+from shared import get_current_user, add_credits
+
+class ShareRewardRequest(BaseModel):
+    job_id: str
+    platform: str
+
+@router.post("/share-reward")
+async def claim_share_reward(data: ShareRewardRequest, user: dict = Depends(get_current_user)):
+    """Award +5 credits for sharing a creation (once per job per user)."""
+    user_id = user["id"]
+    reward_key = f"share_reward:{user_id}:{data.job_id}"
+
+    existing = await db.share_rewards.find_one({"reward_key": reward_key}, {"_id": 1})
+    if existing:
+        return {"success": True, "rewarded": False, "message": "Already claimed for this creation"}
+
+    await db.share_rewards.insert_one({
+        "reward_key": reward_key,
+        "user_id": user_id,
+        "job_id": data.job_id,
+        "platform": data.platform,
+        "credits_awarded": 5,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    await add_credits(user_id, 5, "Share reward — shared creation on " + data.platform)
+
+    return {"success": True, "rewarded": True, "credits_awarded": 5, "message": "+5 credits for sharing!"}
+
+
+@router.post("/continuation-reward")
+async def continuation_reward(data: dict):
+    """Award +10 credits to original creator when someone continues their story from a shared link."""
+    parent_job_id = data.get("parent_job_id")
+    continuer_session = data.get("session_id", "")
+    if not parent_job_id:
+        return {"success": False}
+
+    parent_job = await db.pipeline_jobs.find_one(
+        {"job_id": parent_job_id}, {"_id": 0, "user_id": 1}
+    )
+    if not parent_job or not parent_job.get("user_id"):
+        return {"success": False, "message": "Parent job not found"}
+
+    creator_id = parent_job["user_id"]
+    reward_key = f"cont_reward:{creator_id}:{parent_job_id}:{continuer_session}"
+
+    existing = await db.share_rewards.find_one({"reward_key": reward_key}, {"_id": 1})
+    if existing:
+        return {"success": True, "rewarded": False, "message": "Already rewarded"}
+
+    await db.share_rewards.insert_one({
+        "reward_key": reward_key,
+        "user_id": creator_id,
+        "source_job_id": parent_job_id,
+        "continuer_session": continuer_session,
+        "credits_awarded": 10,
+        "type": "continuation_reward",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    await add_credits(creator_id, 10, "Continuation reward — someone continued your story")
+
+    return {"success": True, "rewarded": True, "credits_awarded": 10}
+

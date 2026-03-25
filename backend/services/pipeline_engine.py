@@ -514,6 +514,14 @@ CRITICAL RULES FOR MOTION & CINEMATIC QUALITY:
 4. Include LIGHTING (warm sunset glow, dramatic side-lighting, soft morning light).
 5. Describe scene TRANSITIONS (zooming in on, pulling back to reveal, panning across).
 
+CRITICAL RULE FOR OPEN-LOOP ENDINGS:
+The FINAL scene MUST end with an unresolved conflict, curiosity gap, or cliffhanger. The story must feel INCOMPLETE — like there's more to discover. End with tension, a mystery, a surprise, or a question that demands a sequel.
+Examples of great last-scene narrations:
+- "But as the door closed behind her... something moved in the shadows."
+- "And that's when the letter arrived — from someone who was supposed to be dead."
+- "He thought it was over. He was wrong."
+NEVER end with a happy resolution or "and they lived happily ever after". Always leave the audience wanting more.
+
 Return ONLY a JSON array. Each scene object:
 {{"scene_number":N,"title":"...","narration_text":"...","visual_prompt":"...","characters":"..."}}
 
