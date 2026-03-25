@@ -1,13 +1,13 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Rebuild Visionary Suite into an **addictive story-driven viral platform** with compulsion loops: enter → engage → return → share → grow.
+Rebuild Visionary Suite into an **addictive story-driven viral platform** with compulsion loops: enter → engage → return → share → grow. Achieve K-factor > 0.5 through referral tracking, share incentivization, and session chaining.
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn UI
 - **Backend**: FastAPI + MongoDB + Redis
 - **AI**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini (Emergent LLM Key)
-- **Payments**: Cashfree | **Auth**: JWT + Google Auth | **Storage**: Cloudflare R2 | **Email**: Resend (pending key)
+- **Payments**: Cashfree | **Auth**: JWT + Google Auth | **Storage**: Cloudflare R2 | **Email**: Resend (ACTIVE)
 
 ## Implemented Phases
 
@@ -23,29 +23,45 @@ Nudge system (hourly, 6h inactivity), return banner + forced decision modal (3s)
 ### Phase 5: K-Factor Engine
 Share page rebuilt as conversion machine, WhatsApp/X/IG/Copy share UX, upgraded rewards (+5/+15/+25), K-factor tracking API
 
-### Phase 5.5: Attribution + Distribution (LATEST)
-- **Referral Tracking**: Share page stores `referral_source` in localStorage → Signup/Google Auth attributes referral → +25 credits to referrer
-- **Email Service**: Resend integration with HTML template (character name, cliffhanger, Continue Now CTA). Ready to send — needs RESEND_API_KEY
-- **Direct Entry Flow**: Share → Continue → Studio with prefilled prompt, no detours
-- **Guard Rails**: Self-referral prevention, duplicate prevention, 24-hour attribution window
+### Phase 5.5: Attribution + Distribution
+- Referral Tracking: Share page stores referral_source in localStorage → Signup/Google Auth attributes referral → +25 credits to referrer
+- Email Service: Resend integration with HTML template (character name, cliffhanger, Continue Now CTA)
+- Direct Entry Flow: Share → Continue → Studio with prefilled prompt, no detours
+- Guard Rails: Self-referral prevention, duplicate prevention, 24-hour attribution window
+
+### Phase 6: Compete + Social Proof + K-Factor Dashboard (LATEST — 2026-03-25)
+- **Email Nudges ACTIVATED**: Resend API key injected, test endpoint verified, scheduler active
+- **Compete Mechanics**: GET /api/compete/trending — Top Story Today, Most Continued Story, Fastest Growing Character, Rising Stories (all truth-based)
+- **Animated Social Proof**: Real-time viewer counts with pulse animation on Dashboard and PublicCreation pages
+- **Force Share Gate**: After video generation, users see Share OR Continue modal to maximize K-factor
+- **K-Factor Admin Dashboard**: New tab showing viral coefficient, funnel (Share→Click→Signup), top performing content, email nudge status
+- **Live Viewers API**: GET /api/compete/live-viewers — real session-based counts, no synthetic data
 
 ## Self-Hosted Stack
 Architecture spec at `/app/memory/SELF_HOSTED_STACK.md`
 
 ## Prioritized Backlog
 
-### P0 (Activate)
-- Add RESEND_API_KEY to backend/.env to activate email nudges
-
 ### P1 (Growth Optimization)
-- Compete mechanic (Top Story Today, Most Continued, Fastest Growing Character)
-- Animated social proof counters ("X people viewing now")
-- K-factor dashboard for admin
-- A/B test hook text variations
+- A/B test hook text variations on public pages
+- Character-driven auto-share prompts after creation
 
 ### P2 (Platform)
+- Remix Variants on share pages
 - Admin dashboard WebSocket upgrade
 - Story Chain leaderboard gamification
+- UI polish and style preset thumbnails
 
 ### P3 (Scale)
-- Mobile app wrapper, collaborative stories, multi-language
+- Mobile app wrapper
+- Collaborative stories
+- Multi-language support
+
+## Key Files
+- `/app/backend/routes/compete_routes.py` — Trending + Live Viewers endpoints
+- `/app/backend/routes/retention_routes.py` — Email nudges + test endpoint
+- `/app/backend/services/email_service.py` — Resend integration
+- `/app/frontend/src/components/TrendingCompete.js` — Compete UI
+- `/app/frontend/src/components/AnimatedSocialProof.js` — Animated viewer counts
+- `/app/frontend/src/components/ForceShareGate.js` — Forced share modal
+- `/app/frontend/src/pages/AdminDashboard.js` — K-Factor section
