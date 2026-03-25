@@ -239,13 +239,13 @@ async def get_rankings():
 async def get_series_episodes(series_id: str):
     """Public: Get series info + episodes with lock status."""
     series = await db.story_series.find_one(
-        {"series_id": series_id}, {"_id": 0}
+        {"$or": [{"series_id": series_id}, {"id": series_id}]}, {"_id": 0}
     )
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
     episodes = await db.story_episodes.find(
-        {"series_id": series_id},
+        {"$or": [{"series_id": series_id}, {"series_id": series.get("id", series_id)}]},
         {"_id": 0, "episode_id": 1, "episode_number": 1, "title": 1,
          "cliffhanger_text": 1, "status": 1, "job_id": 1, "thumbnail_url": 1,
          "narration_preview": 1, "created_at": 1}

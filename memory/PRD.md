@@ -1,7 +1,7 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build a "Growth Engine" for an AI Creator Suite. Users are not entering, not engaging, and not returning. This is a product experience + growth loop failure, not a feature problem. The platform must be rebuilt as an **addictive story-driven platform**, not a tools dashboard.
+Rebuild Visionary Suite from an AI tools dashboard into an **addictive story-driven platform** with a Content Flywheel Engine. Users must enter, engage, and return organically through story continuation loops, character following, and episode progression.
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn UI
@@ -9,90 +9,84 @@ Build a "Growth Engine" for an AI Creator Suite. Users are not entering, not eng
 - **AI Services**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini (via Emergent LLM Key)
 - **Payments**: Cashfree
 - **Auth**: JWT + Emergent-managed Google Auth
-- **Storage**: Cloudflare R2 (Object Storage)
+- **Storage**: Cloudflare R2
 
 ## What's Been Implemented
 
-### Phase 1-4: Core Platform + Growth + Monetization + Trust
+### Phase 1-4: Core Platform + Growth + Monetization + Trust (Pre-transformation)
 - Multi-tool creator suite, authentication, gallery, character system
-- Compulsion-driven growth loop with 1-click continue flow
-- Cashfree payments, credit system (50 credits for new users)
+- Compulsion-driven growth loop, 1-click continue, A/B testing
+- Cashfree payments, credit system (50 credits), credit transaction ledger
 - Truth-based admin dashboard, authentic live feed
 
-### Phase 5: Growth Engine Enhancements (March 20, 2026)
-- A/B Test Hook Text Variations, Auto-Share Prompts, Remix Variants
-- Admin WebSocket Live Updates, Style Preset Thumbnails
-- Story Chain Leaderboard, A/B Test Results Dashboard
+### Phase 5: Growth Engine Enhancements (March 20)
+- A/B testing wired to public pages, Auto-Share Prompts, Remix Variants
+- Admin WebSocket, Style Preset Thumbnails, Story Chain Leaderboard
 
-### Phase 6: P0 PRODUCT TRANSFORMATION — Phase 1 (March 25, 2026)
-- **Homepage Rebuild**: Story-driven hero, "Continue a Story" + "Create Your Version" big CTAs, trending showcase, clickable story hooks, how-it-works, live feed
-- **Zero-Friction Entry**: Studio accessible without login, login only at Generate
-- **Continue Story Flow E2E**: Homepage → Continue → Studio with prefilled prompt
-- **Credit Gate**: Shows Required/You Have/Shortfall with Buy Credits CTA
-- **Gallery Transformation**: Continue This Story primary, Add Twist/Make Funny secondary
-- **Style Preset Thumbnails**: Gradient preview cards
+### Phase 6: P0 TRANSFORMATION — Phase 1: Homepage + Zero Friction (March 25)
+- Story-driven hero ("Stories that come alive with AI"), big CTAs
+- Trending showcase with real story cards + Continue Story buttons
+- Clickable story hooks, 3-step how-it-works, live feed
+- Zero-friction entry (no login wall before Studio)
+- Credit gate with Required/You Have/Shortfall display
+- Gallery: Continue This Story primary + Add Twist/Make Funny secondary
 
-### Phase 7: P0 PRODUCT TRANSFORMATION — Phase 2: VIRAL GROWTH ENGINE (March 25, 2026) ← CURRENT
+### Phase 7: P0 TRANSFORMATION — Phase 2: Viral Growth Engine (March 25)
+- **Results page → WATCH → CONTINUE → LOOP → SHARE**: Cliffhanger hook, Continue Story primary, Add Twist/Make Funny/Next Episode secondary, Share & Earn Credits (+5), Download tertiary
+- **Public share page → Conversion page**: Character intro, story hook, cliffhanger above fold, all 4 CTAs, social proof
+- **Open-loop endings enforced** in pipeline_engine.py
+- **Prefilled prompt engine**: Continue/Twist/Funny/Episode templates
+- **Share rewards**: +5 credits/share, +10 credits when someone continues your story
+- **Full funnel tracking**: continue_click, add_twist_click, make_funny_click, next_episode_click
 
-**Results Page (PostGenPhase) Transformation — WATCH → CONTINUE → LOOP → SHARE:**
-- Cliffhanger hook above actions: "WHERE THE STORY LEFT OFF..." + "But something unexpected happens next..."
-- PRIMARY action: "Continue Story" (biggest button, first position) — prefills Studio with continuation context + higher stakes direction
-- SECONDARY actions: "Add Twist" (unexpected reveal), "Make Funny" (comedy override), "Next Episode" (Episode 2 context)
-- "Share & Earn Credits" section: +5 credits per share (WhatsApp, X/Twitter, Copy Link)
-- Download button demoted to TERTIARY
-- Advanced continuation options with custom direction input
-- Remix with Different Style grid
+### Phase 8: P0 TRANSFORMATION — Phase 3: Content Flywheel Engine (March 25) ← CURRENT
 
-**Public Share Page (/v/{slug}) — Full Conversion Page:**
-- Character intro (if available): "Meet [Name]"
-- Story title + views + continuations social proof
-- Scene viewer with thumbnail navigation
-- Cliffhanger hook: "WHERE THE STORY LEFT OFF..." + "But something unexpected happens next..."
-- PRIMARY CTA: "Continue This Story" — no login needed
-- SECONDARY CTAs: "Add Twist" / "Make Funny" / "Next Episode"
-- "Create Your Version" CTA
-- Momentum section: "X people continued this story" + style/scenes/date/creator
-- Share buttons (X, WA, In, Link)
-- Remix variants (Comic Book, GIF, Reel, Bedtime)
+**Character Universe (Character as Product):**
+- Character page rebuilt: avatar, name, role, full description, personality traits
+- **Follow Character** button with toggle (follow/unfollow)
+- Stats: X stories, Y followers, Z continuations
+- **Continue Character's Story** (PRIMARY CTA) with character-aware prefill
+- Add Twist / Make Funny / Next Episode (SECONDARY CTAs)
+- "Create your own story with [Name]" (Remix Character)
+- **Character Feed**: Latest stories featuring the character
+- Zero-friction access (no login wall)
 
-**Prefilled Prompt Engine:**
-- Continue: Original story + "Continue with higher stakes and tension"
-- Twist: "Introduce an unexpected betrayal, reveal, or surprise"
-- Funny: "Convert into hilariously funny version with comedic timing"
-- Next Episode: "Create Episode 2 continuing from the ending"
-- All prefills include title, story context, and direction instruction
+**Story Series Netflix Timeline:**
+- Episode timeline with visual nodes: completed (green), current (violet, pulsing), locked (gray)
+- Lock system: complete previous episode to unlock next
+- Cliffhanger previews on completed episodes
+- "Continue Now" badge on current episode
+- "Create Episode N" CTA for next episode
+- Auto-prefilled prompts from series context
 
-**Open-Loop Endings Enforcement:**
-- Added CRITICAL RULE FOR OPEN-LOOP ENDINGS to pipeline_engine.py story planning prompt
-- Every story must end with unresolved conflict, curiosity gap, or cliffhanger
-- Example endings provided: "But as the door closed... something moved in the shadows"
-- NEVER end with happy resolution or "happily ever after"
+**Notifications System:**
+- Bell icon with unread count badge
+- Notification dropdown: continuation rewards, share rewards, follow updates, trending
+- Mark all as read
+- Auto-refresh every 30 seconds
+- Notifications created when someone continues your story (+10 credits)
 
-**Share Rewards System:**
-- POST /api/growth/share-reward: +5 credits per share (once per job per user)
-- POST /api/growth/continuation-reward: +10 credits to original creator when someone continues their story
-- Deduplication prevents double rewards
-
-**Funnel Tracking:**
-- New events: continue_click, add_twist_click, make_funny_click, next_episode_click
-- Full funnel: page_view → continue_click → generate_click → signup → completion → share_click
-- Viral coefficient (K) calculation at /api/growth/viral-coefficient
+**Rankings System:**
+- GET /api/universe/rankings — public
+- Top Stories (by views, 10 items)
+- Top Characters (by story count + followers, scored)
+- Top Creators (by total views + stories)
 
 ## Prioritized Backlog
 
-### P1 (High Priority — Phase 3)
-- "Build Your Character Universe" feature visibility
-- Story Series Netflix-like episode timeline UI
-- "Meet [Character Name]" pages with "Used in X stories"
+### P1 (High Priority — Phase 4)
+- Streak system + episode milestones + engagement rewards
+- "Continue your story" reminder/push notifications
+- Content seeding API for batch showcase generation
+- Social distribution hooks on every creation
 
-### P2 (Medium Priority — Phase 4)
-- Streak system + episode milestones + credit rewards for engagement
-- "Continue your story" reminder/push system
-- Content seeding API for batch generation of showcase content
-- Social distribution hooks ("Continue this story → visionary-suite.com")
+### P2 (Medium Priority)
+- Advanced A/B testing with auto-winner selection
+- Enhanced analytics for share-to-conversion funnel
+- Character portrait generation
+- Multi-language support
 
 ### P3 (Lower Priority)
-- General UI polish across all tools
-- Multi-language support
 - Mobile app wrapper
 - Collaborative story creation
+- Advanced character relationship graph
