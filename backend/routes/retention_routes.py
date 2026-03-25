@@ -335,9 +335,9 @@ async def run_nudge_check():
 
 async def run_email_nudges():
     """Generate email nudge content for users with inactive stories.
-    Formats emails with character name + cliffhanger + deep link.
-    NOTE: Requires email service integration (SendGrid/Resend) to actually send.
-    Currently logs prepared emails for when service is connected."""
+    Sends emails via Resend if API key is configured, otherwise queues them."""
+    from services.email_service import is_email_enabled, send_nudge_email
+
     six_hours_ago = (_now() - timedelta(hours=6)).isoformat()
     twenty_four_hours_ago = (_now() - timedelta(hours=24)).isoformat()
 
@@ -357,8 +357,8 @@ async def run_email_nudges():
             user_jobs[uid] = job
 
     emails_queued = 0
+    emails_sent = 0
     for user_id, job in user_jobs.items():
-        # Check if already sent email nudge in last 24 hours
         existing = await db.email_nudges.find_one({
             "user_id": user_id,
             "created_at": {"$gte": twenty_four_hours_ago},
@@ -381,37 +381,47 @@ async def run_email_nudges():
 
         slug = job.get("slug")
         link = f"/v/{slug}" if slug else f"/app/story-video-studio?job={job['job_id']}"
-
         subject = f"{char_name}'s story isn't finished..." if char_name else f'"{job.get("title", "Your story")}" isn\'t finished...'
-        body_text = f'"{cliffhanger}"\n\nContinue now: {link}'
 
-        # Store email nudge record
+        # Try to send email if service is configured
+        sent = False
+        if is_email_enabled():
+            sent = await send_nudge_email(
+                to_email=user["email"],
+                subject=subject,
+                character_name=char_name,
+                cliffhanger=cliffhanger,
+                link=link,
+            )
+            if sent:
+                emails_sent += 1
+
+        # Always store record
         await db.email_nudges.insert_one({
             "user_id": user_id,
             "email": user["email"],
             "subject": subject,
-            "body": body_text,
+            "body": f'"{cliffhanger}"\n\nContinue now: {link}',
             "cliffhanger": cliffhanger,
             "character_name": char_name,
             "link": link,
             "job_id": job["job_id"],
-            "sent": False,
+            "sent": sent,
             "created_at": _now().isoformat(),
         })
         emails_queued += 1
 
-        # TODO: When email service is integrated, send here:
-        # await send_email(to=user["email"], subject=subject, body=body_text)
-
     if emails_queued > 0:
-        logger.info(f"[EMAIL NUDGE] Queued {emails_queued} email nudges (pending email service integration)")
+        logger.info(f"[EMAIL NUDGE] Queued {emails_queued}, sent {emails_sent}")
 
     return emails_queued
 
 
 @router.get("/admin/email-nudges")
 async def get_email_nudge_queue(admin: dict = Depends(get_admin_user)):
-    """Admin view of pending email nudges."""
+    """Admin view of email nudge status."""
+    from services.email_service import is_email_enabled
+
     pending = await db.email_nudges.find(
         {"sent": False},
         {"_id": 0}
@@ -422,10 +432,10 @@ async def get_email_nudge_queue(admin: dict = Depends(get_admin_user)):
 
     return {
         "success": True,
+        "email_service_active": is_email_enabled(),
         "pending_count": total_pending,
         "sent_count": total_sent,
         "recent_pending": pending,
-        "note": "Email sending requires service integration (SendGrid/Resend). Nudges are queued and ready.",
     }
 
 

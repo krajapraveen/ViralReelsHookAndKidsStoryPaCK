@@ -229,6 +229,24 @@ export default function Signup({ setAuth }) {
       trackConversion('cta_copy', 'signup_completed');
       trackConversion('hook_text', 'signup_completed');
       trackConversion('login_timing', 'signup_completed');
+
+      // ═══ REFERRAL ATTRIBUTION: Award +25 credits to referrer ═══
+      try {
+        const refRaw = localStorage.getItem('referral_source');
+        if (refRaw && userId) {
+          const refData = JSON.parse(refRaw);
+          // Only attribute if referral was captured in the last 24 hours
+          if (refData.job_id && Date.now() - refData.timestamp < 86400000) {
+            await api.post('/api/growth/signup-referral-reward', {
+              referrer_job_id: refData.job_id,
+              new_user_id: userId,
+            });
+            localStorage.removeItem('referral_source');
+          }
+        }
+      } catch (refErr) {
+        console.warn('Referral attribution failed:', refErr);
+      }
       
       // Show appropriate message based on credit system
       const delayedInfo = response.data.delayed_credits_info;

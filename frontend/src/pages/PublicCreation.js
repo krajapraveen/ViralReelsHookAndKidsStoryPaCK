@@ -59,6 +59,18 @@ export default function PublicCreation() {
       const r = await axios.get(`${API}/api/public/creation/${slug}`);
       setCreation(r.data.creation);
       trackPageView({ source_page: `/v/${slug}`, source_slug: slug, origin: 'share_page', origin_slug: slug });
+
+      // ═══ REFERRAL TRACKING: Capture attribution for signup reward ═══
+      const jobId = r.data.creation?.job_id;
+      if (jobId) {
+        localStorage.setItem('referral_source', JSON.stringify({
+          job_id: jobId,
+          slug: slug,
+          character_name: r.data.creation?.characters?.[0]?.name || r.data.creation?.character_name || null,
+          timestamp: Date.now(),
+        }));
+      }
+
       try {
         const session = sessionStorage.getItem('growth_session_id') || '';
         const parentId = r.data.creation?.remix_parent_id || r.data.creation?.job_id;

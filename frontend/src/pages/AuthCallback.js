@@ -57,6 +57,23 @@ export default function AuthCallback({ setAuth }) {
         }
         
         toast.success(`Welcome, ${user.name}!`);
+
+        // ═══ REFERRAL ATTRIBUTION: Award +25 credits to referrer on Google signup ═══
+        try {
+          const refRaw = localStorage.getItem('referral_source');
+          if (refRaw && user?.id) {
+            const refData = JSON.parse(refRaw);
+            if (refData.job_id && Date.now() - refData.timestamp < 86400000) {
+              await api.post('/api/growth/signup-referral-reward', {
+                referrer_job_id: refData.job_id,
+                new_user_id: user.id,
+              });
+              localStorage.removeItem('referral_source');
+            }
+          }
+        } catch (refErr) {
+          console.warn('Referral attribution failed:', refErr);
+        }
         
         // Check for remix return URL (from public page conversion)
         const returnUrl = localStorage.getItem('remix_return_url');
