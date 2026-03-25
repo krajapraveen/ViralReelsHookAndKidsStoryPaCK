@@ -383,5 +383,18 @@ async def continuation_reward(data: dict):
     })
     await add_credits(creator_id, 10, "Continuation reward — someone continued your story")
 
+    # Notify the original creator
+    try:
+        from routes.universe_routes import create_notification
+        await create_notification(
+            user_id=creator_id,
+            ntype="continuation",
+            title="Someone continued your story!",
+            body="Your creation got a new continuation. +10 credits earned!",
+            link=f"/v/{parent_job_id}",
+        )
+    except Exception:
+        pass
+
     return {"success": True, "rewarded": True, "credits_awarded": 10}
 

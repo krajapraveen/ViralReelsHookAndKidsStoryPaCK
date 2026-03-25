@@ -1,888 +1,210 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button } from '../components/ui/button';
-import { toast } from 'sonner';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Loader2, Play, Sparkles, Flame, Zap,
-  RotateCcw, ChevronDown, Film, Clock, CheckCircle,
-  AlertCircle, Users, Globe, BookOpen, Eye, Download,
-  GitBranch, Share2, Lock, Unlock, Heart, TrendingUp,
-  ImageIcon, UserCircle, Plus
+  Play, Lock, Check, ArrowRight, Film, BookOpen,
+  ChevronRight, Loader2, Command, Sparkles, Zap
 } from 'lucide-react';
+import { toast } from 'sonner';
 import api from '../utils/api';
-import { UpgradeModal } from '../components/UpgradeModal';
-import { RewardModal, MilestoneProgress } from '../components/SeriesRewards';
-import { trackShareClick } from '../utils/growthAnalytics';
 
-const STATUS_CONFIG = {
-  planned: { color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20', label: 'Planned', icon: Clock },
-  generating: { color: 'text-amber-400 bg-amber-500/10 border-amber-500/20', label: 'Generating', icon: Loader2 },
-  ready: { color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', label: 'Ready', icon: CheckCircle },
-  failed: { color: 'text-red-400 bg-red-500/10 border-red-500/20', label: 'Failed', icon: AlertCircle },
-};
-
-const DIRECTION_ACTIONS = [
-  { type: 'continue', label: 'Continue', icon: Play, desc: 'Pick up where we left off' },
-  { type: 'twist', label: 'Plot Twist', icon: RotateCcw, desc: 'An unexpected turn' },
-  { type: 'stakes', label: 'Raise Stakes', icon: Flame, desc: 'Make it more intense' },
-];
+const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function SeriesTimeline() {
   const { seriesId } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const focusEpId = searchParams.get('focus');
-  const focusRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [suggestions, setSuggestions] = useState([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [planning, setPlanning] = useState(false);
-  const [branching, setBranching] = useState(false);
-  const [generating, setGenerating] = useState(null);
-  const [polling, setPolling] = useState(null);
-  const [expandedEp, setExpandedEp] = useState(null);
-  const [emotionalArc, setEmotionalArc] = useState([]);
-  const [enhancing, setEnhancing] = useState(null);
-  const [sharing, setSharing] = useState(false);
-  const [generatingCover, setGeneratingCover] = useState(false);
-  const [upgradeModal, setUpgradeModal] = useState({ open: false, reason: '', context: {} });
-  const [attachedChars, setAttachedChars] = useState([]);
-  const [myChars, setMyChars] = useState([]);
-  const [showCharPicker, setShowCharPicker] = useState(false);
-  const [attaching, setAttaching] = useState(false);
-  const [confirmingExtraction, setConfirmingExtraction] = useState(false);
-  const [rewardsData, setRewardsData] = useState(null);
-  const [activeReward, setActiveReward] = useState(null);
-  const [claimingReward, setClaimingReward] = useState(false);
+  const [error, setError] = useState(null);
 
-  const fetchSeries = useCallback(async () => {
+  useEffect(() => {
+    if (seriesId) fetchSeries();
+  }, [seriesId]);
+
+  const fetchSeries = async () => {
     try {
-      const res = await api.get(`/api/story-series/${seriesId}`);
-      setData(res.data);
+      const res = await api.get(`/api/universe/series/${seriesId}/episodes`);
+      if (res.data.success) setData(res.data);
+      else setError('Series not found');
     } catch {
-      toast.error('Failed to load series');
-      navigate('/app/story-series');
+      setError('Series not found');
     } finally {
       setLoading(false);
     }
-  }, [seriesId, navigate]);
+  };
 
-  useEffect(() => { fetchSeries(); }, [fetchSeries]);
+  const handleContinueEpisode = async () => {
+    try {
+      const res = await api.post(`/api/universe/series/${seriesId}/continue`);
+      if (res.data.success) {
+        localStorage.setItem('remix_data', JSON.stringify({
+          prompt: res.data.prompt,
+          timestamp: Date.now(),
+          source_tool: 'series-continue',
+          remixFrom: {
+            tool: 'story-video-studio',
+            prompt: res.data.prompt,
+            title: `Episode ${res.data.next_episode_number}: ${res.data.series_title}`,
+            settings: {},
+            parentId: null,
+          },
+        }));
+        navigate('/app/story-video-studio');
+        toast.success(`Creating Episode ${res.data.next_episode_number}!`);
+      }
+    } catch {
+      toast.error('Failed to load episode context');
+    }
+  };
 
-  // Load attached characters
-  useEffect(() => {
-    if (!data?.series?.attached_characters?.length) { setAttachedChars([]); return; }
-    Promise.all(
-      data.series.attached_characters.map(cid =>
-        api.get(`/api/characters/${cid}`).then(r => r.data.profile).catch(() => null)
-      )
-    ).then(chars => setAttachedChars(chars.filter(Boolean)));
-  }, [data?.series?.attached_characters]);
-
-  // Auto-focus: expand + scroll to the focused episode, auto-load suggestions
-  useEffect(() => {
-    if (!data?.episodes || !focusEpId) return;
-    setExpandedEp(focusEpId);
-    setTimeout(() => {
-      if (focusRef.current) focusRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 300);
-    // Auto-load suggestions when arriving from "Continue" CTA
-    if (suggestions.length === 0) fetchSuggestions();
-  }, [data?.episodes, focusEpId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Poll generating episodes
-  useEffect(() => {
-    if (!data?.episodes) return;
-    const genEps = data.episodes.filter(e => e.status === 'generating');
-    if (genEps.length === 0) {
-      if (polling) { clearInterval(polling); setPolling(null); }
+  const watchEpisode = (ep) => {
+    if (ep.locked) {
+      toast.error('Complete the previous episode to unlock this one!');
       return;
     }
-    if (polling) return;
-    const id = setInterval(async () => {
-      for (const ep of genEps) {
-        try {
-          const res = await api.get(`/api/story-series/${seriesId}/episode/${ep.episode_id}/status`);
-          if (res.data.status !== 'generating') {
-            fetchSeries();
-            clearInterval(id);
-            setPolling(null);
-            if (res.data.status === 'ready') toast.success('Episode ready!');
-            if (res.data.status === 'failed') toast.error('Episode generation failed');
-            break;
-          }
-        } catch {}
-      }
-    }, 5000);
-    setPolling(id);
-    return () => clearInterval(id);
-  }, [data?.episodes, seriesId, polling, fetchSeries]);
-
-  // Fetch rewards data
-  useEffect(() => {
-    if (!seriesId) return;
-    api.get(`/api/story-series/${seriesId}/rewards`).then(res => {
-      setRewardsData(res.data);
-      // Auto-show first pending reward
-      if (res.data.pending_rewards?.length > 0) {
-        setActiveReward(res.data.pending_rewards[0]);
-      }
-    }).catch(() => {});
-  }, [seriesId, data?.episodes?.length]);
-
-  const handleClaimReward = async (milestone) => {
-    setClaimingReward(true);
-    try {
-      const res = await api.post(`/api/story-series/${seriesId}/claim-reward?milestone=${milestone}`);
-      if (res.data.success) {
-        toast.success(`${res.data.title} claimed!`);
-        setActiveReward(null);
-        // Refresh rewards
-        const rewardsRes = await api.get(`/api/story-series/${seriesId}/rewards`);
-        setRewardsData(rewardsRes.data);
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to claim reward');
-    } finally {
-      setClaimingReward(false);
+    if (ep.slug) {
+      navigate(`/v/${ep.slug}`);
+    } else if (ep.job_id) {
+      navigate(`/app/story-video-studio?job=${ep.job_id}`);
     }
-  };
-
-  const fetchSuggestions = async () => {
-    setLoadingSuggestions(true);
-    try {
-      const res = await api.post(`/api/story-series/${seriesId}/suggestions`);
-      setSuggestions(res.data.suggestions || []);
-    } catch { toast.error('Failed to get suggestions'); }
-    finally { setLoadingSuggestions(false); }
-  };
-
-  const fetchEmotionalArc = async () => {
-    try {
-      const res = await api.get(`/api/story-series/${seriesId}/emotional-arc`);
-      setEmotionalArc(res.data.arc || []);
-    } catch {}
-  };
-
-  const handlePlanEpisode = async (directionType, customPrompt) => {
-    setPlanning(true);
-    try {
-      const res = await api.post(`/api/story-series/${seriesId}/plan-episode`, {
-        direction_type: directionType,
-        custom_prompt: customPrompt || null,
-      });
-      if (res.data.success) {
-        toast.success(`Episode ${res.data.episode_number} planned!`);
-        await fetchSeries();
-      }
-    } catch (err) {
-      const status = err.response?.status;
-      const detail = err.response?.data?.detail || 'Planning failed';
-      if (status === 403) {
-        setUpgradeModal({ open: true, reason: 'episode_limit', context: { message: detail, limit: episodes.length } });
-      } else {
-        toast.error(detail);
-      }
-    } finally {
-      setPlanning(false);
-    }
-  };
-
-  const handleBranch = async (parentEpisodeId) => {
-    setBranching(true);
-    try {
-      const res = await api.post(`/api/story-series/${seriesId}/branch-episode`, {
-        parent_episode_id: parentEpisodeId,
-        direction_type: 'twist',
-      });
-      if (res.data.success) {
-        toast.success('Branch created!');
-        await fetchSeries();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Branching failed');
-    } finally {
-      setBranching(false);
-    }
-  };
-
-  const handleGenerate = async (episodeId) => {
-    setGenerating(episodeId);
-    try {
-      const res = await api.post(`/api/story-series/${seriesId}/generate-episode`, { episode_id: episodeId });
-      if (res.data.success) {
-        toast.success('Generation started!');
-        await fetchSeries();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Generation failed');
-    } finally {
-      setGenerating(null);
-    }
-  };
-
-  const handleShare = async () => {
-    setSharing(true);
-    try {
-      const res = await api.post(`/api/story-series/${seriesId}/share`, { is_public: true });
-      if (res.data.success) {
-        const url = `${window.location.origin}${res.data.share_url}`;
-        await navigator.clipboard.writeText(url);
-        toast.success('Share link copied!');
-        await fetchSeries();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Share failed');
-    } finally {
-      setSharing(false);
-    }
-  };
-
-  const handleEnhance = async (type) => {
-    setEnhancing(type);
-    try {
-      const endpoint = type === 'characters' ? 'enhance-characters' : 'enhance-world';
-      await api.post(`/api/story-series/${seriesId}/${endpoint}`);
-      toast.success(`${type === 'characters' ? 'Characters' : 'World'} enhanced!`);
-      await fetchSeries();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Enhancement failed');
-    } finally {
-      setEnhancing(null);
-    }
-  };
-
-  const handleGenerateCover = async () => {
-    setGeneratingCover(true);
-    try {
-      const res = await api.post(`/api/story-series/${seriesId}/generate-cover`);
-      if (res.data.success) {
-        toast.success('Cover image generated!');
-        await fetchSeries();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Cover generation failed');
-    } finally {
-      setGeneratingCover(false);
-    }
-  };
-
-  const handleConfirmExtraction = async () => {
-    if (!data?.series?.extracted_characters?.length) return;
-    setConfirmingExtraction(true);
-    try {
-      const chars = data.series.extracted_characters.map(c => ({ ...c, confirmed: true }));
-      const res = await api.post(`/api/story-series/${seriesId}/confirm-characters`, { characters: chars });
-      if (res.data.success) {
-        toast.success(`${res.data.created} character${res.data.created !== 1 ? 's' : ''} locked!`);
-        await fetchSeries();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Confirmation failed');
-    } finally {
-      setConfirmingExtraction(false);
-    }
-  };
-
-  const handleDismissExtraction = async () => {
-    try {
-      await api.post(`/api/story-series/${seriesId}/dismiss-extraction`);
-      await fetchSeries();
-    } catch { /* non-critical */ }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
       </div>
     );
   }
 
-  if (!data?.series) {
+  if (error || !data) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-        Series not found. <Link to="/app/story-series" className="text-indigo-400 ml-2 underline">Go back</Link>
+      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
+        <p className="text-slate-400">{error || 'Series not found'}</p>
+        <Link to="/app/story-series"><button className="px-5 py-2 bg-violet-600 text-white rounded-lg text-sm">Back to Series</button></Link>
       </div>
     );
   }
 
-  const { series, episodes = [], character_bible, world_bible, story_memory } = data;
-  const mainEps = episodes.filter(e => e.branch_type === 'mainline' || !e.is_branch);
-  const branches = episodes.filter(e => e.is_branch);
-  const readyEps = episodes.filter(e => e.status === 'ready').length;
-  const totalEps = episodes.length;
-  const hasGenerating = episodes.some(e => e.status === 'generating');
-  const isPublic = series.is_public;
+  const { series, episodes, next_episode_number } = data;
 
   return (
-    <div className="min-h-screen bg-slate-950" data-testid="series-timeline-page">
-      <header className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/app/story-series" className="text-slate-400 hover:text-white transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-              <div>
-                <h1 className="text-lg font-bold text-white" data-testid="series-title">{series.title}</h1>
-                <p className="text-xs text-slate-500">{series.genre} &middot; {series.audience_type} &middot; {series.style}</p>
-              </div>
+    <div className="min-h-screen bg-[#0a0a0f]" data-testid="series-timeline">
+      {/* HEADER */}
+      <header className="sticky top-0 z-40 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="max-w-4xl mx-auto px-4 h-13 flex items-center justify-between py-3">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-500 to-rose-500 flex items-center justify-center">
+              <Command className="w-3 h-3 text-white" />
             </div>
-            <div className="flex items-center gap-3">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleGenerateCover}
-                disabled={generatingCover}
-                className="border-slate-700 text-slate-400 hover:text-white gap-1.5 text-xs"
-                data-testid="generate-cover-btn"
-              >
-                {generatingCover ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImageIcon className="w-3 h-3" />}
-                {generatingCover ? 'Generating...' : series.cover_asset_url ? 'Regenerate Cover' : 'Generate Cover'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleShare}
-                disabled={sharing}
-                className="border-slate-700 text-slate-400 hover:text-white gap-1.5 text-xs"
-                data-testid="share-series-btn"
-              >
-                {isPublic ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                {sharing ? 'Sharing...' : isPublic ? 'Shared' : 'Share'}
-              </Button>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Film className="w-3.5 h-3.5" />
-                <span data-testid="episode-progress">{readyEps}/{totalEps} episodes</span>
-              </div>
-            </div>
-          </div>
+          </Link>
+          <button onClick={handleContinueEpisode} className="px-4 py-1.5 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-500 rounded-lg flex items-center gap-1.5" data-testid="header-continue-btn">
+            <Play className="w-3 h-3" /> Continue Episode {next_episode_number}
+          </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-5 gap-6">
-          {/* Left: Timeline (3 cols) */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Progress */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4" data-testid="progress-zone">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-400">Series Progress</span>
-                <span className="text-xs text-slate-500">{readyEps} of {totalEps} ready</span>
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                  style={{ width: totalEps > 0 ? `${(readyEps / totalEps) * 100}%` : '0%' }}
-                />
-              </div>
-              {branches.length > 0 && (
-                <p className="text-[11px] text-slate-600 mt-2 flex items-center gap-1">
-                  <GitBranch className="w-3 h-3" /> {branches.length} branch{branches.length !== 1 ? 'es' : ''}
-                </p>
-              )}
-            </div>
+      {/* SERIES HERO */}
+      <section className="relative py-10 px-4">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[300px] bg-violet-600/[0.06] rounded-full blur-[150px] pointer-events-none" />
+        <div className="relative max-w-4xl mx-auto">
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen className="w-4 h-4 text-violet-400" />
+            <span className="text-[10px] font-bold text-violet-400 uppercase tracking-[0.2em]">Story Series</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black text-white mb-3" data-testid="series-title">{series.title}</h1>
+          {series.description && <p className="text-sm text-slate-400 max-w-2xl leading-relaxed mb-4">{series.description}</p>}
+          <div className="flex items-center gap-4 text-xs text-slate-500">
+            <span className="flex items-center gap-1"><Film className="w-3 h-3 text-violet-400" /> {series.total_episodes} episodes</span>
+            {series.genre && <span>{series.genre}</span>}
+          </div>
+        </div>
+      </section>
 
-            {/* Extraction Confirmation Banner */}
-            {series.extraction_status === 'pending_confirmation' && series.extracted_characters?.length > 0 && (
-              <div className="bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 border border-cyan-500/30 rounded-xl p-4" data-testid="extraction-banner">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Users className="w-4 h-4 text-cyan-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-white mb-1">Characters Detected</h3>
-                    <div className="space-y-1.5 mb-3">
-                      {series.extracted_characters.map((c, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
-                          <CheckCircle className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-                          <span className="text-white font-medium">{c.name}</span>
-                          <span className="text-slate-500">({c.role_importance || c.role})</span>
-                          <span className="text-slate-600 ml-auto">{Math.round(c.confidence * 100)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleConfirmExtraction}
-                        disabled={confirmingExtraction}
-                        className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs gap-1.5"
-                        data-testid="confirm-extraction-btn"
-                      >
-                        {confirmingExtraction ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                        Lock All
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={handleDismissExtraction}
-                        className="text-slate-400 hover:text-white text-xs"
-                        data-testid="dismiss-extraction-btn"
-                      >
-                        Dismiss
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+      {/* ═══ EPISODE TIMELINE ═══ */}
+      <section className="pb-16 px-4" data-testid="episode-timeline">
+        <div className="max-w-4xl mx-auto">
+          <div className="relative">
+            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-violet-500/40 via-slate-700 to-slate-800" />
 
-            {/* Milestone Progress & Rewards */}
-            {rewardsData && (
-              <MilestoneProgress
-                rewards={rewardsData}
-                onViewReward={(reward) => setActiveReward(reward)}
-              />
-            )}
-
-            {/* Emotional Arc (Phase 3) */}
-            {emotionalArc.length > 1 && (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4" data-testid="emotional-arc">
-                <h3 className="text-xs font-medium text-slate-400 mb-3 flex items-center gap-1.5">
-                  <Heart className="w-3 h-3 text-rose-400" /> Emotional Arc
-                </h3>
-                <div className="flex items-end gap-1 h-12">
-                  {emotionalArc.map((a, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`Ep ${a.episode}: ${a.dominant_emotion}`}>
-                      <div
-                        className="w-full rounded-sm transition-all"
-                        style={{
-                          height: `${Math.max(a.tension * 100, 10)}%`,
-                          backgroundColor: a.tension > 0.6 ? '#f87171' : a.tension > 0.4 ? '#fbbf24' : '#34d399',
-                          minHeight: '4px',
-                        }}
-                      />
-                      <span className="text-[9px] text-slate-600">{a.episode}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-[9px] text-slate-600">calm</span>
-                  <span className="text-[9px] text-slate-600">tense</span>
-                </div>
-              </div>
-            )}
-
-            {/* Episode Timeline */}
-            <div className="space-y-3" data-testid="episode-timeline">
-              {episodes.map((ep) => {
-                const cfg = STATUS_CONFIG[ep.status] || STATUS_CONFIG.planned;
-                const StatusIcon = cfg.icon;
-                const isExpanded = expandedEp === ep.episode_id;
+            <div className="space-y-4">
+              {episodes.map((ep, idx) => {
+                const isCompleted = ep.is_completed;
+                const isCurrent = ep.is_current;
+                const isLocked = ep.locked;
 
                 return (
-                  <div
-                    key={ep.episode_id}
-                    ref={ep.episode_id === focusEpId ? focusRef : null}
-                    className={`bg-slate-900/60 border rounded-xl overflow-hidden transition-all ${
-                      isExpanded ? 'border-indigo-500/40' : 'border-slate-800'
-                    } ${ep.is_branch ? 'ml-6 border-l-2 border-l-amber-500/30' : ''} ${
-                      ep.episode_id === focusEpId ? 'ring-1 ring-indigo-500/50' : ''
-                    }`}
-                    data-testid={`episode-card-${ep.episode_id}`}
-                  >
-                    <button
-                      onClick={() => setExpandedEp(isExpanded ? null : ep.episode_id)}
-                      className="w-full text-left p-4 flex items-center gap-4"
-                    >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 border ${cfg.color}`}>
-                        {ep.is_branch ? <GitBranch className="w-4 h-4" /> : ep.episode_number}
+                  <div key={ep.episode_id || idx} className={`relative flex gap-5 ${isLocked ? 'opacity-50' : ''}`} data-testid={`episode-${idx}`}>
+                    <div className="flex-shrink-0 w-12 flex flex-col items-center">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center z-10 transition-all ${
+                        isCompleted ? 'bg-emerald-500/20 border-2 border-emerald-500/50' :
+                        isCurrent ? 'bg-violet-500/20 border-2 border-violet-500/50 ring-2 ring-violet-500/20 animate-pulse' :
+                        'bg-slate-800 border-2 border-slate-700'
+                      }`}>
+                        {isCompleted ? <Check className="w-5 h-5 text-emerald-400" /> :
+                         isCurrent ? <Play className="w-5 h-5 text-violet-400" /> :
+                         isLocked ? <Lock className="w-5 h-5 text-slate-500" /> :
+                         <span className="text-sm font-bold text-slate-500">{ep.episode_number}</span>}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="text-sm font-semibold text-white truncate">{ep.title}</h3>
-                          <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
-                            <StatusIcon className={`w-3 h-3 ${ep.status === 'generating' ? 'animate-spin' : ''}`} />
-                            {cfg.label}
-                          </span>
-                          {ep.is_branch && (
-                            <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded-full">branch</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 truncate">{ep.summary}</p>
-                      </div>
-                      {ep.thumbnail_url && (
-                        <img src={ep.thumbnail_url} alt="" className="w-16 h-10 rounded object-cover flex-shrink-0" style={{ aspectRatio: '16/10' }} />
-                      )}
-                      <ChevronDown className={`w-4 h-4 text-slate-600 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                    </button>
+                    </div>
 
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t border-slate-800/50 pt-3 space-y-3">
-                        {ep.summary && <p className="text-sm text-slate-400">{ep.summary}</p>}
-                        {ep.cliffhanger && <p className="text-xs text-amber-400/80 italic">Cliffhanger: "{ep.cliffhanger}"</p>}
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <span>{ep.scene_count || 0} scenes</span>
-                          <span>&middot;</span>
-                          <span>{ep.branch_type}</span>
+                    <div className={`flex-1 rounded-2xl border p-5 transition-all ${
+                      isCurrent ? 'bg-violet-500/[0.04] border-violet-500/20 hover:border-violet-500/40' :
+                      isCompleted ? 'bg-white/[0.02] border-white/[0.06] hover:border-emerald-500/20' :
+                      'bg-white/[0.01] border-white/[0.04]'
+                    } ${!isLocked ? 'cursor-pointer' : ''}`} onClick={() => !isLocked && watchEpisode(ep)}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                              isCompleted ? 'text-emerald-400' : isCurrent ? 'text-violet-400' : 'text-slate-600'
+                            }`}>Episode {ep.episode_number}</span>
+                            {isCurrent && <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> Continue Now</span>}
+                            {isLocked && <span className="text-[10px] text-slate-600 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> Locked</span>}
+                          </div>
+                          <h3 className="text-base font-bold text-white mb-1">{ep.title || `Episode ${ep.episode_number}`}</h3>
+                          {ep.cliffhanger_text && !isLocked && (
+                            <p className="text-xs text-slate-400 italic leading-relaxed mb-2">"{ep.cliffhanger_text.slice(0, 150)}{ep.cliffhanger_text.length > 150 ? '...' : ''}"</p>
+                          )}
+                          {isLocked && <p className="text-xs text-slate-600 italic">Complete Episode {ep.episode_number - 1} to unlock...</p>}
                         </div>
-
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          {ep.status === 'planned' && (
-                            <Button
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); handleGenerate(ep.episode_id); }}
-                              disabled={generating === ep.episode_id || hasGenerating}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
-                              data-testid={`generate-ep-${ep.episode_id}`}
-                            >
-                              {generating === ep.episode_id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Zap className="w-3 h-3 mr-1" />}
-                              Generate
-                            </Button>
-                          )}
-                          {ep.status === 'ready' && ep.output_asset_url && (
-                            <>
-                              <a href={ep.output_asset_url} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md"
-                                data-testid={`view-ep-${ep.episode_id}`}
-                              >
-                                <Eye className="w-3 h-3" /> View
-                              </a>
-                              <a href={ep.output_asset_url} download
-                                className="inline-flex items-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-md"
-                                data-testid={`download-ep-${ep.episode_id}`}
-                              >
-                                <Download className="w-3 h-3" /> Download
-                              </a>
-                            </>
-                          )}
-                          {ep.status === 'failed' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => { e.stopPropagation(); handleGenerate(ep.episode_id); }}
-                              className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs"
-                              data-testid={`retry-ep-${ep.episode_id}`}
-                            >
-                              <RotateCcw className="w-3 h-3 mr-1" /> Retry
-                            </Button>
-                          )}
-                          {ep.status === 'generating' && (
-                            <span className="flex items-center gap-2 text-xs text-amber-400">
-                              <Loader2 className="w-3 h-3 animate-spin" /> Generating...
-                            </span>
-                          )}
-                          {/* Branch button for ready/planned mainline episodes */}
-                          {!ep.is_branch && ep.status !== 'generating' && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => { e.stopPropagation(); handleBranch(ep.episode_id); }}
-                              disabled={branching}
-                              className="text-amber-400 hover:bg-amber-500/10 text-xs"
-                              data-testid={`branch-ep-${ep.episode_id}`}
-                            >
-                              {branching ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <GitBranch className="w-3 h-3 mr-1" />}
-                              Branch
-                            </Button>
-                          )}
-                        </div>
+                        {!isLocked && (
+                          <div className="flex-shrink-0">
+                            {isCurrent ? (
+                              <button onClick={(e) => { e.stopPropagation(); handleContinueEpisode(); }} className="h-9 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90" data-testid={`continue-ep-${idx}`}>
+                                <Play className="w-3 h-3" /> Continue <ArrowRight className="w-3 h-3" />
+                              </button>
+                            ) : isCompleted ? (
+                              <button className="h-9 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-slate-400 flex items-center gap-1.5 hover:text-white transition-colors" data-testid={`watch-ep-${idx}`}>
+                                <Play className="w-3 h-3" /> Watch
+                              </button>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
-            </div>
-          </div>
 
-          {/* Right Sidebar (2 cols) */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Cover Image */}
-            {series.cover_asset_url && (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden" data-testid="cover-image-zone">
-                <img
-                  src={series.cover_asset_url}
-                  alt={`${series.title} cover`}
-                  className="w-full aspect-[2/3] object-cover"
-                />
-              </div>
-            )}
-
-            {/* Attached Characters */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4" data-testid="attached-characters-zone">
-              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <UserCircle className="w-4 h-4 text-cyan-400" />
-                Characters
-                <span className="ml-auto text-xs text-slate-500">{attachedChars.length} attached</span>
-              </h3>
-              {attachedChars.length > 0 && (
-                <div className="space-y-1.5 mb-3">
-                  {attachedChars.map(c => (
-                    <button
-                      key={c.character_id}
-                      onClick={() => navigate(`/app/characters/${c.character_id}`)}
-                      className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-slate-800/40 hover:bg-slate-800 transition-all text-left"
-                      data-testid={`attached-char-${c.character_id}`}
-                    >
-                      {c.portrait_url ? (
-                        <img src={c.portrait_url} alt={c.name} className="w-7 h-7 rounded-md object-cover" />
-                      ) : (
-                        <div className="w-7 h-7 rounded-md bg-cyan-500/15 flex items-center justify-center">
-                          <UserCircle className="w-3.5 h-3.5 text-cyan-400" />
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-medium text-white truncate">{c.name}</div>
-                        <div className="text-[10px] text-slate-500">{c.species_or_type} {c.role}</div>
-                      </div>
-                      <Lock className="w-3 h-3 text-amber-500/40 flex-shrink-0" title="Visual locked" />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const url = `${window.location.origin}/character/${c.character_id}`;
-                          navigator.clipboard.writeText(url).then(() => toast.success(`Share link for ${c.name} copied!`));
-                          trackShareClick({ source_page: `/app/story-series/${seriesId}`, character_id: c.character_id, series_id: seriesId, origin: 'series_timeline' });
-                        }}
-                        className="text-slate-600 hover:text-cyan-400 transition-colors flex-shrink-0"
-                        title="Copy share link"
-                        data-testid={`share-char-${c.character_id}`}
-                      >
-                        <Share2 className="w-3 h-3" />
-                      </button>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <Button
-                size="sm" variant="outline"
-                className="w-full border-slate-700 text-slate-400 hover:text-white text-xs gap-1.5"
-                onClick={() => {
-                  if (myChars.length === 0) {
-                    api.get('/api/characters/my-characters').then(r => setMyChars(r.data.characters || []));
-                  }
-                  setShowCharPicker(!showCharPicker);
-                }}
-                data-testid="attach-character-btn"
-              >
-                <Plus className="w-3 h-3" /> Attach Character
-              </Button>
-              {showCharPicker && myChars.length > 0 && (
-                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
-                  {myChars.filter(c => !attachedChars.find(a => a.character_id === c.character_id)).map(c => (
-                    <button
-                      key={c.character_id}
-                      disabled={attaching}
-                      onClick={async () => {
-                        setAttaching(true);
-                        try {
-                          await api.post(`/api/characters/attach-to-series/${seriesId}`, { character_id: c.character_id });
-                          toast.success(`${c.name} attached!`);
-                          setShowCharPicker(false);
-                          fetchSeries();
-                        } catch { toast.error('Failed to attach'); }
-                        finally { setAttaching(false); }
-                      }}
-                      className="w-full flex items-center gap-2 p-2 rounded-lg bg-slate-800/30 hover:bg-indigo-500/10 transition-all text-left text-xs"
-                    >
-                      <UserCircle className="w-4 h-4 text-slate-500" />
-                      <span className="text-slate-300">{c.name}</span>
-                      <span className="text-slate-600 ml-auto">{c.species_or_type} {c.role}</span>
-                    </button>
-                  ))}
-                  {myChars.filter(c => !attachedChars.find(a => a.character_id === c.character_id)).length === 0 && (
-                    <p className="text-xs text-slate-500 text-center py-2">All characters already attached</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Action Zone */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid="action-zone">
-              <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                <Flame className="w-4 h-4 text-amber-400" />
-                What happens next?
-              </h3>
-              <div className="space-y-2">
-                {DIRECTION_ACTIONS.map(action => {
-                  const Icon = action.icon;
-                  return (
-                    <button
-                      key={action.type}
-                      onClick={() => handlePlanEpisode(action.type)}
-                      disabled={planning || hasGenerating}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-indigo-500/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                      data-testid={`action-${action.type}`}
-                    >
-                      <Icon className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium text-white block">{action.label}</span>
-                        <span className="text-xs text-slate-500">{action.desc}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {planning && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-indigo-400">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Planning next episode...
-                </div>
-              )}
-            </div>
-
-            {/* AI Suggestions */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid="suggestions-zone">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  AI Suggestions
-                </h3>
-                <Button size="sm" variant="ghost" onClick={fetchSuggestions} disabled={loadingSuggestions}
-                  className="text-xs text-slate-400 hover:text-white h-7" data-testid="refresh-suggestions-btn">
-                  {loadingSuggestions ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Refresh'}
-                </Button>
-              </div>
-              {suggestions.length > 0 ? (
-                <div className="space-y-2">
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handlePlanEpisode(s.direction_type, s.description)}
-                      disabled={planning}
-                      className="w-full text-left p-3 rounded-lg bg-slate-800/30 hover:bg-slate-800/60 border border-slate-700/30 hover:border-indigo-500/20 transition-all disabled:opacity-50"
-                      data-testid={`suggestion-${i}`}
-                    >
-                      <span className="text-sm text-white font-medium block">{s.title}</span>
-                      <span className="text-xs text-slate-500">{s.description}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-xs text-slate-500 mb-2">Click Refresh to get AI story ideas</p>
-                  <p className="text-[10px] text-slate-600">AI suggests what happens next based on your story memory</p>
-                </div>
-              )}
-            </div>
-
-            {/* Characters (Phase 3: deeper) */}
-            {character_bible?.characters?.length > 0 && (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid="characters-zone">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
-                    <Users className="w-3 h-3" /> Characters
-                  </h4>
-                  {!character_bible.enhanced && (
-                    <Button size="sm" variant="ghost" onClick={() => handleEnhance('characters')} disabled={enhancing === 'characters'}
-                      className="text-[10px] text-indigo-400 hover:text-white h-6 px-2" data-testid="enhance-characters-btn">
-                      {enhancing === 'characters' ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Sparkles className="w-3 h-3 mr-0.5" /> Deepen</>}
-                    </Button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  {character_bible.characters.slice(0, 5).map((c, i) => (
-                    <div key={i} className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] text-indigo-400 font-bold flex-shrink-0">
-                          {(c.name || '?')[0]}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-xs text-white font-medium">{c.name}</span>
-                          <span className="text-[10px] text-slate-500 ml-1.5">{c.role}</span>
-                        </div>
-                      </div>
-                      {c.backstory && (
-                        <p className="text-[11px] text-slate-500 pl-9 line-clamp-2">{c.backstory}</p>
-                      )}
-                      {c.relationships?.length > 0 && (
-                        <div className="pl-9 flex flex-wrap gap-1">
-                          {c.relationships.slice(0, 2).map((r, ri) => (
-                            <span key={ri} className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">
-                              {r.type}: {r.with}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* World (Phase 3: deeper) */}
-            {world_bible?.world_name && (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid="world-zone">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
-                    <Globe className="w-3 h-3" /> World
-                  </h4>
-                  {!world_bible.enhanced && (
-                    <Button size="sm" variant="ghost" onClick={() => handleEnhance('world')} disabled={enhancing === 'world'}
-                      className="text-[10px] text-indigo-400 hover:text-white h-6 px-2" data-testid="enhance-world-btn">
-                      {enhancing === 'world' ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Sparkles className="w-3 h-3 mr-0.5" /> Deepen</>}
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-slate-300 mb-1">{world_bible.world_name}</p>
-                {world_bible.setting_description && (
-                  <p className="text-[11px] text-slate-500 line-clamp-3 mb-2">{world_bible.setting_description}</p>
-                )}
-                {world_bible.lore && (
-                  <p className="text-[11px] text-slate-500 line-clamp-2 mb-2 italic">{world_bible.lore}</p>
-                )}
-                {world_bible.locations?.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {world_bible.locations.slice(0, 4).map((loc, i) => (
-                      <span key={i} className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">
-                        {typeof loc === 'string' ? loc : loc.name}
-                      </span>
-                    ))}
+              {/* Next Episode CTA */}
+              <div className="relative flex gap-5">
+                <div className="flex-shrink-0 w-12 flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-rose-500/20 border-2 border-dashed border-violet-500/30 flex items-center justify-center z-10">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
                   </div>
-                )}
-                {world_bible.secrets?.length > 0 && (
-                  <p className="text-[10px] text-amber-400/60 italic">Secrets: {world_bible.secrets.length} hidden</p>
-                )}
-              </div>
-            )}
-
-            {/* Story Hooks */}
-            {story_memory?.pending_hooks?.length > 0 && (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid="hooks-zone">
-                <h4 className="text-xs font-medium text-slate-400 mb-2 flex items-center gap-1.5">
-                  <BookOpen className="w-3 h-3" /> Story Hooks
-                </h4>
-                <div className="space-y-1">
-                  {story_memory.pending_hooks.slice(0, 3).map((h, i) => (
-                    <p key={i} className="text-xs text-amber-400/70 italic">"{h}"</p>
-                  ))}
+                </div>
+                <div className="flex-1 rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.02] p-5" data-testid="next-episode-cta">
+                  <h3 className="text-sm font-bold text-white mb-1">Episode {next_episode_number}</h3>
+                  <p className="text-xs text-slate-500 mb-3">The story continues... What happens next is up to you.</p>
+                  <button onClick={handleContinueEpisode} className="h-10 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center gap-2 hover:opacity-90" data-testid="create-next-episode">
+                    <Play className="w-4 h-4" /> Create Episode {next_episode_number}
+                  </button>
                 </div>
               </div>
-            )}
-
-            {/* Emotional Arc Toggle */}
-            {emotionalArc.length === 0 && episodes.length > 1 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={fetchEmotionalArc}
-                className="w-full border-slate-700 text-slate-400 hover:text-white text-xs gap-1.5"
-                data-testid="load-emotional-arc-btn"
-              >
-                <TrendingUp className="w-3 h-3" /> Load Emotional Arc
-              </Button>
-            )}
+            </div>
           </div>
         </div>
-      </main>
-
-      <UpgradeModal
-        open={upgradeModal.open}
-        onClose={() => setUpgradeModal({ open: false, reason: '', context: {} })}
-        reason={upgradeModal.reason}
-        context={upgradeModal.context}
-      />
-
-      {activeReward && (
-        <RewardModal
-          reward={activeReward}
-          seriesId={seriesId}
-          onClaim={handleClaimReward}
-          onDismiss={() => setActiveReward(null)}
-          claiming={claimingReward}
-        />
-      )}
+      </section>
     </div>
   );
 }

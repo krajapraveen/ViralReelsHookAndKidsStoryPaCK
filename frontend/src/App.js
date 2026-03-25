@@ -228,7 +228,7 @@ function App() {
       {/* New Standalone Apps */}
       <Route path="/app/story-series" element={isAuthenticated ? <StorySeries /> : <Navigate to="/login" />} />
       <Route path="/app/story-series/create" element={isAuthenticated ? <CreateSeries /> : <Navigate to="/login" />} />
-      <Route path="/app/story-series/:seriesId" element={isAuthenticated ? <SeriesTimeline /> : <Navigate to="/login" />} />
+      <Route path="/app/story-series/:seriesId" element={<SeriesTimeline />} />
       {/* AI Character Memory */}
       <Route path="/app/characters" element={isAuthenticated ? <CharacterLibrary /> : <Navigate to="/login" />} />
       <Route path="/app/characters/create" element={isAuthenticated ? <CharacterCreator /> : <Navigate to="/login" />} />

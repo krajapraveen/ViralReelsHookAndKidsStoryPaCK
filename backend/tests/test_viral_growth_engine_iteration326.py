@@ -1,18 +1,10 @@
 """
-Phase 2 Viral Growth Engine Tests - Iteration 326
-Tests: WATCH → CONTINUE → LOOP → SHARE flow
-- Share rewards (+5 credits)
-- Continuation rewards (+10 credits)
-- Growth analytics event tracking
-- Public share page conversion CTAs
-- Open-loop ending enforcement in pipeline
+Phase 3 Testing: Content Flywheel Engine - Character Universe, Series Timeline, Rankings, Notifications
+Tests for /api/universe/ routes: Follow, Feed, Rankings, Notifications, Series episodes/continue
 """
-
 import pytest
 import requests
 import os
-import json
-from datetime import datetime
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
@@ -22,85 +14,80 @@ ADMIN_PASSWORD = "Cr3@t0rStud!o#2026"
 TEST_EMAIL = "test@visionary-suite.com"
 TEST_PASSWORD = "Test@2026#"
 
-# Known working slug
-KNOWN_SLUG = "dragon-guardians-of-the-crystal-valley-fe12f875"
+# Known character ID (Finn)
+KNOWN_CHARACTER_ID = "d8cf0208-ff0c-4c21-8725-ffa6326d8da9"
 
 
-class TestGrowthAnalyticsEvents:
-    """Test growth analytics event tracking for viral loop"""
+class TestUniverseRankings:
+    """Rankings API - Public endpoint, no auth required"""
     
-    def test_track_continue_click_event(self):
-        """Test tracking continue_click event"""
-        response = requests.post(f"{BASE_URL}/api/growth/event", json={
-            "event": "continue_click",
-            "session_id": "test_session_326",
-            "source_slug": KNOWN_SLUG,
-            "origin": "share_page",
-            "meta": {"type": "continue"}
-        })
+    def test_rankings_endpoint_returns_200(self):
+        """GET /api/universe/rankings should return 200"""
+        response = requests.get(f"{BASE_URL}/api/universe/rankings")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+    def test_rankings_returns_expected_structure(self):
+        """Rankings should return top_stories, top_characters, top_creators"""
+        response = requests.get(f"{BASE_URL}/api/universe/rankings")
         assert response.status_code == 200
         data = response.json()
-        assert data.get("success") == True
-        print(f"continue_click event tracked: {data}")
-    
-    def test_track_add_twist_click_event(self):
-        """Test tracking add_twist_click event"""
-        response = requests.post(f"{BASE_URL}/api/growth/event", json={
-            "event": "add_twist_click",
-            "session_id": "test_session_326",
-            "source_slug": KNOWN_SLUG,
-            "origin": "share_page",
-            "meta": {"type": "twist"}
-        })
-        assert response.status_code == 200
+        
+        assert data.get("success") == True, "Expected success=True"
+        assert "top_stories" in data, "Missing top_stories in response"
+        assert "top_characters" in data, "Missing top_characters in response"
+        assert "top_creators" in data, "Missing top_creators in response"
+        
+        # Validate top_stories is a list
+        assert isinstance(data["top_stories"], list), "top_stories should be a list"
+        
+        # Validate top_characters is a list
+        assert isinstance(data["top_characters"], list), "top_characters should be a list"
+        
+        # Validate top_creators is a list
+        assert isinstance(data["top_creators"], list), "top_creators should be a list"
+        
+    def test_rankings_top_stories_structure(self):
+        """Top stories should have expected fields"""
+        response = requests.get(f"{BASE_URL}/api/universe/rankings")
         data = response.json()
-        assert data.get("success") == True
-        print(f"add_twist_click event tracked: {data}")
-    
-    def test_track_make_funny_click_event(self):
-        """Test tracking make_funny_click event"""
-        response = requests.post(f"{BASE_URL}/api/growth/event", json={
-            "event": "make_funny_click",
-            "session_id": "test_session_326",
-            "source_slug": KNOWN_SLUG,
-            "origin": "share_page",
-            "meta": {"type": "funny"}
-        })
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("success") == True
-        print(f"make_funny_click event tracked: {data}")
-    
-    def test_track_next_episode_click_event(self):
-        """Test tracking next_episode_click event"""
-        response = requests.post(f"{BASE_URL}/api/growth/event", json={
-            "event": "next_episode_click",
-            "session_id": "test_session_326",
-            "source_slug": KNOWN_SLUG,
-            "origin": "share_page",
-            "meta": {"type": "episode"}
-        })
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("success") == True
-        print(f"next_episode_click event tracked: {data}")
-    
-    def test_invalid_event_rejected(self):
-        """Test that invalid events are rejected"""
-        response = requests.post(f"{BASE_URL}/api/growth/event", json={
-            "event": "invalid_event_type",
-            "session_id": "test_session_326"
-        })
-        assert response.status_code == 400
-        print("Invalid event correctly rejected")
+        
+        if len(data.get("top_stories", [])) > 0:
+            story = data["top_stories"][0]
+            # Check expected fields
+            assert "job_id" in story or "title" in story, "Story should have job_id or title"
 
 
-class TestShareRewards:
-    """Test share rewards endpoint (+5 credits per share)"""
+class TestCharacterStories:
+    """Character Stories Feed - Public endpoint"""
+    
+    def test_character_stories_endpoint(self):
+        """GET /api/universe/character/{id}/stories should return stories"""
+        response = requests.get(f"{BASE_URL}/api/universe/character/{KNOWN_CHARACTER_ID}/stories")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+    def test_character_stories_returns_expected_structure(self):
+        """Character stories should return stories list and follower_count"""
+        response = requests.get(f"{BASE_URL}/api/universe/character/{KNOWN_CHARACTER_ID}/stories")
+        data = response.json()
+        
+        assert data.get("success") == True, "Expected success=True"
+        assert "stories" in data, "Missing stories in response"
+        assert "follower_count" in data, "Missing follower_count in response"
+        assert isinstance(data["stories"], list), "stories should be a list"
+        assert isinstance(data["follower_count"], int), "follower_count should be an integer"
+        
+    def test_character_stories_invalid_id_returns_404(self):
+        """Invalid character ID should return 404"""
+        response = requests.get(f"{BASE_URL}/api/universe/character/invalid-character-id-12345/stories")
+        assert response.status_code == 404, f"Expected 404 for invalid character, got {response.status_code}"
+
+
+class TestFollowCharacter:
+    """Follow Character - Requires authentication"""
     
     @pytest.fixture
     def auth_token(self):
-        """Get authentication token for test user"""
+        """Get authentication token"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
             "email": TEST_EMAIL,
             "password": TEST_PASSWORD
@@ -108,196 +95,181 @@ class TestShareRewards:
         if response.status_code == 200:
             return response.json().get("token")
         pytest.skip("Authentication failed - skipping authenticated tests")
-    
-    def test_share_reward_requires_auth(self):
-        """Test that share reward endpoint requires authentication"""
-        response = requests.post(f"{BASE_URL}/api/growth/share-reward", json={
-            "job_id": "test_job_id",
-            "platform": "whatsapp"
+        
+    def test_follow_requires_auth(self):
+        """POST /api/universe/follow should require authentication"""
+        response = requests.post(f"{BASE_URL}/api/universe/follow", json={
+            "character_id": KNOWN_CHARACTER_ID
         })
         # Should return 401 or 403 without auth
-        assert response.status_code in [401, 403, 422]
-        print(f"Share reward correctly requires auth: {response.status_code}")
-    
-    def test_share_reward_with_auth(self, auth_token):
-        """Test share reward with valid authentication"""
+        assert response.status_code in [401, 403, 422], f"Expected auth error, got {response.status_code}"
+        
+    def test_follow_toggle_with_auth(self, auth_token):
+        """Follow toggle should work with authentication"""
         headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.post(f"{BASE_URL}/api/growth/share-reward", 
-            json={
-                "job_id": f"test_job_{datetime.now().timestamp()}",
-                "platform": "whatsapp"
-            },
+        
+        # First call - toggle follow
+        response = requests.post(
+            f"{BASE_URL}/api/universe/follow",
+            json={"character_id": KNOWN_CHARACTER_ID},
             headers=headers
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
         data = response.json()
         assert data.get("success") == True
-        # First share should be rewarded
-        if data.get("rewarded"):
-            assert data.get("credits_awarded") == 5
-            print(f"Share reward granted: +5 credits")
-        else:
-            print(f"Share reward already claimed: {data.get('message')}")
-    
-    def test_share_reward_deduplication(self, auth_token):
-        """Test that share reward is only given once per job"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        job_id = f"dedup_test_job_{datetime.now().timestamp()}"
+        assert "following" in data, "Response should include following state"
+        first_state = data["following"]
         
-        # First share
-        response1 = requests.post(f"{BASE_URL}/api/growth/share-reward", 
-            json={"job_id": job_id, "platform": "twitter"},
-            headers=headers
-        )
-        assert response1.status_code == 200
-        
-        # Second share of same job
-        response2 = requests.post(f"{BASE_URL}/api/growth/share-reward", 
-            json={"job_id": job_id, "platform": "whatsapp"},
+        # Second call - should toggle to opposite state
+        response2 = requests.post(
+            f"{BASE_URL}/api/universe/follow",
+            json={"character_id": KNOWN_CHARACTER_ID},
             headers=headers
         )
         assert response2.status_code == 200
         data2 = response2.json()
-        # Should not be rewarded again
-        assert data2.get("rewarded") == False
-        print("Share reward deduplication working correctly")
-
-
-class TestContinuationRewards:
-    """Test continuation rewards endpoint (+10 credits to original creator)"""
-    
-    def test_continuation_reward_endpoint_exists(self):
-        """Test that continuation reward endpoint exists"""
-        response = requests.post(f"{BASE_URL}/api/growth/continuation-reward", json={
-            "parent_job_id": "nonexistent_job",
-            "session_id": "test_session"
-        })
-        # Should return 200 even if job not found (graceful handling)
-        assert response.status_code == 200
-        data = response.json()
-        # Should indicate job not found
-        assert data.get("success") == False or data.get("rewarded") == False
-        print(f"Continuation reward endpoint working: {data}")
-
-
-class TestPublicCreationPage:
-    """Test public share page as conversion page"""
-    
-    def test_public_creation_endpoint(self):
-        """Test public creation endpoint returns creation data"""
-        response = requests.get(f"{BASE_URL}/api/public/creation/{KNOWN_SLUG}")
-        assert response.status_code == 200
-        data = response.json()
-        assert "creation" in data
-        creation = data["creation"]
-        print(f"Public creation loaded: {creation.get('title', 'Unknown')}")
+        assert data2["following"] != first_state, "Follow should toggle state"
         
-        # Verify required fields for conversion page
-        assert "title" in creation
-        assert "views" in creation or creation.get("views") is not None
-        print(f"Views: {creation.get('views', 0)}, Remix count: {creation.get('remix_count', 0)}")
-    
-    def test_public_creation_remix_increment(self):
-        """Test that remix endpoint increments count"""
-        response = requests.post(f"{BASE_URL}/api/public/creation/{KNOWN_SLUG}/remix")
-        # Should succeed or return 200
-        assert response.status_code in [200, 201]
-        print("Remix increment endpoint working")
-    
-    def test_public_creation_not_found(self):
-        """Test 404 for non-existent creation"""
-        response = requests.get(f"{BASE_URL}/api/public/creation/nonexistent-slug-12345")
-        assert response.status_code == 404
-        print("Non-existent creation correctly returns 404")
-
-
-class TestGrowthMetrics:
-    """Test growth metrics and funnel data endpoints"""
-    
-    def test_growth_metrics_endpoint(self):
-        """Test growth metrics endpoint"""
-        response = requests.get(f"{BASE_URL}/api/growth/metrics?days=7")
-        assert response.status_code == 200
-        data = response.json()
-        assert "raw_counts" in data
-        assert "conversion_rates" in data
-        print(f"Growth metrics: {data.get('raw_counts', {})}")
-    
-    def test_viral_coefficient_endpoint(self):
-        """Test viral coefficient calculation endpoint"""
-        response = requests.get(f"{BASE_URL}/api/growth/viral-coefficient?days=7")
-        assert response.status_code == 200
-        data = response.json()
-        assert "viral_coefficient_K" in data
-        assert "interpretation" in data
-        print(f"Viral coefficient K: {data.get('viral_coefficient_K')}, Interpretation: {data.get('interpretation')}")
-    
-    def test_funnel_data_endpoint(self):
-        """Test funnel visualization data endpoint"""
-        response = requests.get(f"{BASE_URL}/api/growth/funnel?days=7")
-        assert response.status_code == 200
-        data = response.json()
-        assert "funnel" in data
-        print(f"Funnel stages: {len(data.get('funnel', []))}")
-
-
-class TestPipelineOpenLoopEndings:
-    """Test that pipeline enforces open-loop endings"""
-    
-    def test_pipeline_options_endpoint(self):
-        """Test pipeline options endpoint returns style/voice/age options"""
-        response = requests.get(f"{BASE_URL}/api/pipeline/options")
-        assert response.status_code == 200
-        data = response.json()
-        assert "animation_styles" in data
-        assert "voice_presets" in data
-        assert "age_groups" in data
-        print(f"Pipeline options: {len(data.get('animation_styles', []))} styles, {len(data.get('voice_presets', []))} voices")
-
-
-class TestZeroFrictionAccess:
-    """Test that public pages and studio are accessible without login"""
-    
-    def test_public_page_no_auth_required(self):
-        """Test public share page accessible without auth"""
-        response = requests.get(f"{BASE_URL}/api/public/creation/{KNOWN_SLUG}")
-        assert response.status_code == 200
-        print("Public page accessible without auth")
-    
-    def test_pipeline_options_no_auth_required(self):
-        """Test pipeline options accessible without auth"""
-        response = requests.get(f"{BASE_URL}/api/pipeline/options")
-        assert response.status_code == 200
-        print("Pipeline options accessible without auth")
-    
-    def test_growth_event_no_auth_required(self):
-        """Test growth event tracking works without auth"""
-        response = requests.post(f"{BASE_URL}/api/growth/event", json={
-            "event": "page_view",
-            "session_id": "anonymous_session_326",
-            "source_page": "/v/test-slug"
-        })
-        assert response.status_code == 200
-        print("Growth event tracking works without auth")
-
-
-class TestGalleryEndpoint:
-    """Test gallery endpoint for Continue Story CTAs"""
-    
-    def test_gallery_returns_creations(self):
-        """Test gallery endpoint returns creations with thumbnails"""
-        response = requests.get(f"{BASE_URL}/api/pipeline/gallery?limit=10")
-        assert response.status_code == 200
-        data = response.json()
-        assert "videos" in data or "items" in data or "creations" in data
-        items = data.get("videos") or data.get("items") or data.get("creations") or []
-        print(f"Gallery returned {len(items)} items")
+    def test_check_following_state(self, auth_token):
+        """GET /api/universe/following/{character_id} should return following state"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
         
-        # Check that items have required fields for Continue Story
-        if items:
-            item = items[0]
-            assert "title" in item or "job_id" in item
-            print(f"First item: {item.get('title', item.get('job_id', 'Unknown'))}")
+        response = requests.get(
+            f"{BASE_URL}/api/universe/following/{KNOWN_CHARACTER_ID}",
+            headers=headers
+        )
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        data = response.json()
+        assert "following" in data, "Response should include following boolean"
+        assert isinstance(data["following"], bool), "following should be a boolean"
+
+
+class TestNotifications:
+    """Notifications API - Requires authentication"""
+    
+    @pytest.fixture
+    def auth_token(self):
+        """Get authentication token"""
+        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+            "email": TEST_EMAIL,
+            "password": TEST_PASSWORD
+        })
+        if response.status_code == 200:
+            return response.json().get("token")
+        pytest.skip("Authentication failed - skipping authenticated tests")
+        
+    def test_notifications_requires_auth(self):
+        """GET /api/universe/notifications should require authentication"""
+        response = requests.get(f"{BASE_URL}/api/universe/notifications")
+        assert response.status_code in [401, 403, 422], f"Expected auth error, got {response.status_code}"
+        
+    def test_get_notifications_with_auth(self, auth_token):
+        """Get notifications should return notifications list and unread_count"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        
+        response = requests.get(
+            f"{BASE_URL}/api/universe/notifications",
+            headers=headers
+        )
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        data = response.json()
+        
+        assert data.get("success") == True
+        assert "notifications" in data, "Missing notifications in response"
+        assert "unread_count" in data, "Missing unread_count in response"
+        assert isinstance(data["notifications"], list), "notifications should be a list"
+        assert isinstance(data["unread_count"], int), "unread_count should be an integer"
+        
+    def test_mark_notifications_read(self, auth_token):
+        """POST /api/universe/notifications/read should mark all as read"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        
+        response = requests.post(
+            f"{BASE_URL}/api/universe/notifications/read",
+            headers=headers
+        )
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        data = response.json()
+        assert data.get("success") == True
+
+
+class TestSeriesEpisodes:
+    """Series Episodes API - Public endpoint"""
+    
+    def test_series_episodes_invalid_id_returns_404(self):
+        """Invalid series ID should return 404"""
+        response = requests.get(f"{BASE_URL}/api/universe/series/invalid-series-id-12345/episodes")
+        assert response.status_code == 404, f"Expected 404 for invalid series, got {response.status_code}"
+        
+    def test_series_continue_invalid_id_returns_404(self):
+        """Invalid series ID for continue should return 404"""
+        response = requests.post(f"{BASE_URL}/api/universe/series/invalid-series-id-12345/continue")
+        assert response.status_code == 404, f"Expected 404 for invalid series, got {response.status_code}"
+
+
+class TestPublicCharacterPage:
+    """Public Character Page API - No auth required"""
+    
+    def test_public_character_endpoint(self):
+        """GET /api/public/character/{id} should return character data"""
+        response = requests.get(f"{BASE_URL}/api/public/character/{KNOWN_CHARACTER_ID}")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+    def test_public_character_returns_expected_structure(self):
+        """Public character should return character, visual_bible, social_proof, etc."""
+        response = requests.get(f"{BASE_URL}/api/public/character/{KNOWN_CHARACTER_ID}")
+        data = response.json()
+        
+        assert data.get("success") == True, "Expected success=True"
+        assert "character" in data, "Missing character in response"
+        
+        character = data["character"]
+        assert "name" in character, "Character should have name"
+        
+    def test_public_character_invalid_id_returns_error(self):
+        """Invalid character ID should return error"""
+        response = requests.get(f"{BASE_URL}/api/public/character/invalid-character-id-12345")
+        # Should return 404 or success=False
+        if response.status_code == 200:
+            data = response.json()
+            assert data.get("success") == False or "error" in data
+        else:
+            assert response.status_code == 404
+
+
+class TestMyFollows:
+    """My Follows API - Requires authentication"""
+    
+    @pytest.fixture
+    def auth_token(self):
+        """Get authentication token"""
+        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+            "email": TEST_EMAIL,
+            "password": TEST_PASSWORD
+        })
+        if response.status_code == 200:
+            return response.json().get("token")
+        pytest.skip("Authentication failed - skipping authenticated tests")
+        
+    def test_my_follows_requires_auth(self):
+        """GET /api/universe/my-follows should require authentication"""
+        response = requests.get(f"{BASE_URL}/api/universe/my-follows")
+        assert response.status_code in [401, 403, 422], f"Expected auth error, got {response.status_code}"
+        
+    def test_my_follows_with_auth(self, auth_token):
+        """Get my follows should return list of followed characters"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        
+        response = requests.get(
+            f"{BASE_URL}/api/universe/my-follows",
+            headers=headers
+        )
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        data = response.json()
+        
+        assert data.get("success") == True
+        assert "characters" in data, "Missing characters in response"
+        assert isinstance(data["characters"], list), "characters should be a list"
 
 
 if __name__ == "__main__":
