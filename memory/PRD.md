@@ -1,72 +1,65 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Rebuild Visionary Suite from an AI tools dashboard into an **addictive story-driven platform** with a Content Flywheel Engine. Multi-phase transformation to establish compulsion-driven loops that make users enter, engage, and return.
+Rebuild Visionary Suite from an AI tools dashboard into an **addictive story-driven viral platform**. Multi-phase transformation for compulsion-driven loops: enter → engage → return → share → grow.
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn UI
 - **Backend**: FastAPI + MongoDB + Redis
-- **AI Services**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini (via Emergent LLM Key)
-- **Payments**: Cashfree
-- **Auth**: JWT + Emergent-managed Google Auth
-- **Storage**: Cloudflare R2
+- **AI**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini (Emergent LLM Key)
+- **Payments**: Cashfree | **Auth**: JWT + Google Auth | **Storage**: Cloudflare R2
 
-## What's Been Implemented
+## Implemented Phases
 
 ### Phase 1: Homepage + Zero Friction
-- Story-driven hero, zero-friction entry, credit gating, gallery with Continue primary CTA
+Story-driven hero, zero-friction entry, credit gating
 
 ### Phase 2: Viral Growth Engine
-- Results page WATCH→CONTINUE→LOOP→SHARE, public share conversion funnel, open-loop endings, prefilled prompts, share rewards
+Results page WATCH→CONTINUE→LOOP→SHARE, open-loop endings, prefilled prompts
 
-### Phase 3: Content Flywheel Engine
-- Character Universe (Follow/Remix), Story Series Netflix Timeline, Notifications, Rankings
+### Phase 3: Content Flywheel
+Character Universe (Follow/Remix), Story Series Timeline, Notifications, Rankings
 
-### Phase 3 UX Audit: Action-First Redesign
-- Character Page: above-fold CTA, hook quote, social proof, stripped passive info
-- Series Timeline: progress bar, cliffhanger preview, urgency CTAs, episode status nodes
-- Follow System: wired to notifications, creator alerts
+### Phase 3 + 3.5: UX Audit + Behavioral Momentum
+Action-first CTA placement, entry story auto-selection, delayed urgency triggers, auto-scroll, follow feed, auto-next popup, CTA glow animations
 
-### Phase 3.5: Behavioral Momentum
-- Entry story auto-selection, delayed urgency triggers, per-episode hooks, auto-scroll to current episode
-- Dashboard Follow Feed, auto-next trigger popup (8s), CTA glow animations
+### Phase 4 + 4.5: Retention Engine + Behavioral Tightening
+- Nudge system (hourly, 6h inactivity, character name + cliffhanger + deep link)
+- Return banner + forced decision modal (3 sec delay, Continue Now / Later)
+- Content seeding API (hook-based themes: emotional, mystery, kids, viral)
+- Streak system (Day 3: +10, Day 7: +25 credits, emotional messaging)
+- Episode milestones (every 5 episodes = +5 credits)
+- Reward celebration toasts
+- Email nudges (queued, pending email service)
 
-### Phase 4: Retention Engine
-- **Nudge System**: Hourly scheduler, 6h inactivity trigger, character name + cliffhanger + deep link notifications
-- **Return Experience**: Above-fold "Continue your story" banner on Dashboard with deep link
-- **Content Seeding API**: Admin batch-queue showcase stories
-- **Streak System**: Day 3 = +10, Day 7 = +25 credits. Pipeline-integrated auto-recording
-- **Episode Milestones**: Every 5 episodes = +5 credits
-
-### Phase 4.5: Behavioral Tightening (Latest)
-- **Forced Decision Modal**: 3-sec delay popup "Your story is waiting" with Continue Now / Later (sessionStorage de-dupe)
-- **Post-Gen Loop Trigger**: "That was just the beginning..." + Continue Next Episode + Share buttons
-- **Reward Celebration**: Toast with streak/episode milestone info when video completes
-- **Emotional Streak Messaging**: Context-aware messages ("Don't break it", "You're on fire", "Continue today")
-- **Hook-Based Content Seeding**: Emotional, mystery, kids, viral themes with hooks + cliffhangers
-- **Email Nudges**: Queued with character name + cliffhanger + deep link (pending email service integration)
+### Phase 5: K-Factor Engine (Viral Scaling) ← LATEST
+- **Share page rebuilt** as conversion machine: social proof banner ("X people continued"), mid-page "This story has no ending" hook, urgency badge, cliffhanger text
+- **Share UX**: WhatsApp, X, Instagram, Copy Link — 4 buttons
+- **Upgraded rewards**: +5 share, +15 friend continues, +25 friend signs up
+- **Signup referral reward**: POST /api/growth/signup-referral-reward
+- **K-factor metrics**: GET /api/growth/k-factor (user + platform 7-day metrics)
+- **Remix variants**: Comic Book, GIF, Reel, Bedtime on share page
+- **PostGenPhase**: Upgraded share section with all reward tiers
 
 ## Self-Hosted Stack
-Full architecture spec at `/app/memory/SELF_HOSTED_STACK.md`:
-- Qwen2.5-14B (planning), Wan2.1-T2V-14B (video), Kokoro-82M (TTS), FFmpeg (assembly)
-- GPU recs: L40S/L4 for generation, CPU for app
+Architecture spec at `/app/memory/SELF_HOSTED_STACK.md`
 
 ## Prioritized Backlog
 
-### P0 (Email Integration)
-- Connect SendGrid/Resend to activate queued email nudges
+### P0 (Immediate)
+- Connect email service (SendGrid/Resend) to activate queued nudges
+- Referral tracking in signup flow (detect shared link → attribute signup)
 
-### P1 (Growth Optimization)
-- A/B test hook text variations on public pages
+### P1 (Growth)
+- A/B test hook text variations on share pages
 - Social distribution hooks on every creation
-- Funnel analytics deep dive (K-factor, share rate, continuation_rate)
-- K-factor optimization (viral scaling phase)
+- Compete mechanic (Top Story Today, Most Continued, Fastest Growing)
+- Funnel analytics deep dive (share_click_rate, share_to_continue, K-factor dashboard)
 
-### P2 (Platform Enhancement)
-- Remix Variants on share pages
+### P2 (Platform)
 - Admin dashboard WebSocket upgrade
 - Style preset thumbnails
-- Story Chain leaderboard
+- Story Chain leaderboard gamification
 
 ### P3 (Scale)
 - Mobile app wrapper
