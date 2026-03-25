@@ -957,11 +957,14 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     }
   }, [uiState]);
 
+  // Detect if Ken Burns fallback was used (quick render mode)
+  const usedQuickRender = job?.used_ken_burns_fallback || job?.fallback_clips_count > 0;
+
   // Status badge configuration — driven by uiState only
   const STATUS_CONFIG = {
     VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Validating Assets', subtitle: 'Checking preview and download availability...' },
-    READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <CheckCircle className="w-5 h-5 text-emerald-400" />, title: 'Video Ready', subtitle: 'Preview and download verified' },
-    PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Video Saved', subtitle: downloadReady ? 'Download available — preview may be limited' : 'Processing assets...' },
+    READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <CheckCircle className="w-5 h-5 text-emerald-400" />, title: usedQuickRender ? 'Video Ready (Quick Render)' : 'Video Ready', subtitle: usedQuickRender ? 'Quick render mode used — full animation may vary' : 'Preview and download verified' },
+    PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: usedQuickRender ? <Zap className="w-5 h-5 text-amber-400" /> : <Shield className="w-5 h-5 text-amber-400" />, title: usedQuickRender ? 'Video Saved (Quick Render)' : 'Video Saved', subtitle: usedQuickRender ? 'Quick render mode used — full animation may vary' : (downloadReady ? 'Download available — preview may be limited' : 'Processing assets...') },
     FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <AlertCircle className="w-5 h-5 text-red-400" />, title: 'Generation Issue', subtitle: failReason || 'Something went wrong' },
   };
   const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
@@ -1080,6 +1083,19 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           </div>
         </div>
       </div>
+
+      {/* Quick Render Mode Banner — shown when Ken Burns fallback was used */}
+      {usedQuickRender && isActionable && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-3 flex items-center gap-3" data-testid="quick-render-banner">
+          <Zap className="w-5 h-5 text-amber-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-200">Quick render mode used — full animation may vary</p>
+            <p className="text-xs text-amber-400/60 mt-0.5">
+              {job?.sora_clips_count || 0} AI-animated scene{(job?.sora_clips_count || 0) !== 1 ? 's' : ''}, {job?.fallback_clips_count || 0} quick-rendered scene{(job?.fallback_clips_count || 0) !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-5 gap-6">
         {/* LEFT: Preview Area */}

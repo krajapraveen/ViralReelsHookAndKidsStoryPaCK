@@ -1,0 +1,94 @@
+{
+  "summary": "E2E Validation of Story Video Pipeline Complete. All 10 test cases passed. Backend: 11/11 pytest tests passed (100%). Frontend: All UI flows verified via Playwright. The full behavioral loop (Generate → Watch → Continue → Share) works correctly with zero dead ends, zero blank screens, zero crashes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_story_video_e2e_iteration335.py",
+    "/app/test_reports/pytest/pytest_story_video_e2e_iteration335.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "StoryVideoPipeline.js correctly implements UI state machine with IDLE, PROCESSING, VALIDATING, READY, PARTIAL_READY, FAILED states",
+    "Quick Render banner logic at line 961: usedQuickRender = job?.used_ken_burns_fallback || job?.fallback_clips_count > 0",
+    "Quick Render banner only appears when isActionable (READY or PARTIAL_READY) AND usedQuickRender is true",
+    "Story Engine API correctly returns used_ken_burns_fallback, sora_clips_count, fallback_clips_count fields",
+    "Pipeline jobs (pipeline_engine) don't have Ken Burns fallback fields - Quick Render banner correctly NOT shown",
+    "Share API creates and retrieves share links correctly with 30-day expiration",
+    "Video file serving works correctly - 3.8MB video downloads successfully"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_story_video_e2e_iteration335.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 pytest tests passed)",
+    "frontend": "100% (All 10 test cases passed via Playwright)"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "None - used existing Story Engine job 99f9cd11-a1d8-4909-9ed7-04a0320a2820",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "E2E validation complete for Story Video Pipeline. Key findings: (1) Normal Flow works - /app/story-video-studio loads input phase, sidebar shows recent videos, clicking video shows result page with status badge, title, download button, Continue Story button. (2) Video Playback works - Download button visible and clickable, video file serves correctly (3.8MB). (3) Continue Story works - button visible, clicking triggers continuation flow with pre-filled story text. (4) Share Flow works - Copy Link, Twitter, WhatsApp share buttons all visible and functional. (5) PARTIAL_READY state handled correctly - shows 'Video Saved' status with 'Preview unavailable' info. (6) Quick Render banner logic verified - banner only appears when job.used_ken_burns_fallback=true OR job.fallback_clips_count>0. Regular pipeline videos don't show the banner. (7) Story Engine API returns correct Ken Burns fallback fields: state=READY, used_ken_burns_fallback=true, sora_clips_count=1, fallback_clips_count=3. (8) Video file serving works at /api/generated/se_99f9cd11_stitched.mp4. (9) Share API creates and retrieves share links. (10) Credit check API returns cost breakdown.",
+  "features_verified": {
+    "Test_1_Normal_Flow": {
+      "status": "PASS",
+      "details": "Input phase visible, sidebar shows recent videos, clicking video shows result page with status badge, title, download button, Continue Story button"
+    },
+    "Test_2_Video_Playback": {
+      "status": "PASS",
+      "details": "Download button visible and enabled, video file serves correctly (3.8MB MP4)"
+    },
+    "Test_3_Continue_Story": {
+      "status": "PASS",
+      "details": "Continue Story button visible, clicking triggers continuation flow with pre-filled story text"
+    },
+    "Test_4_Share_Flow": {
+      "status": "PASS",
+      "details": "Copy Link, Twitter, WhatsApp share buttons all visible and functional"
+    },
+    "Test_5_PARTIAL_READY_State": {
+      "status": "PASS",
+      "details": "Shows 'Video Saved' status with 'Preview unavailable — Video saved — download available, preview limited' info"
+    },
+    "Test_6_Quick_Render_Banner": {
+      "status": "PASS",
+      "details": "Banner NOT visible for regular pipeline videos (expected). Banner logic: usedQuickRender = job?.used_ken_burns_fallback || job?.fallback_clips_count > 0"
+    },
+    "Test_7_Story_Engine_Status_API": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/99f9cd11-a1d8-4909-9ed7-04a0320a2820 returns state=READY, used_ken_burns_fallback=true, sora_clips_count=1, fallback_clips_count=3"
+    },
+    "Test_8_Video_File_Serving": {
+      "status": "PASS",
+      "details": "GET /api/generated/se_99f9cd11_stitched.mp4 returns 200 with video/mp4 content type, 3.8MB file"
+    },
+    "Test_9_Share_API": {
+      "status": "PASS",
+      "details": "POST /api/share/create creates share link, GET /api/share/{share_id} returns share data"
+    },
+    "Test_10_Credit_Check_API": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/credit-check returns sufficient=true, required=21, breakdown with stage costs"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "note": "All APIs are real. Story Engine uses real Emergent LLM key for planning stages. GPU workers (Sora 2, Kokoro TTS) are connected for video generation."
+  },
+  "quick_render_banner_logic": {
+    "condition": "usedQuickRender && isActionable",
+    "usedQuickRender_formula": "job?.used_ken_burns_fallback || job?.fallback_clips_count > 0",
+    "isActionable_formula": "uiState === 'READY' || uiState === 'PARTIAL_READY'",
+    "banner_location": "StoryVideoPipeline.js line 1088-1098",
+    "test_result": "Banner correctly NOT shown for pipeline_engine videos (no Ken Burns fallback). Banner WOULD show for story_engine videos with used_ken_burns_fallback=true."
+  }
+}

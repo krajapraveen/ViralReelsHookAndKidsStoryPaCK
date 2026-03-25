@@ -436,9 +436,18 @@ async def _stage_scene_clips(job: dict) -> Dict:
             clip_urls.append(None)
             clip_local_paths.append(None)
 
+    # Track whether Ken Burns fallback was used
+    used_fallback = fallback_count > 0
+
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
-        {"$set": {"scene_clip_urls": clip_urls, "scene_clip_local_paths": clip_local_paths}},
+        {"$set": {
+            "scene_clip_urls": clip_urls,
+            "scene_clip_local_paths": clip_local_paths,
+            "used_ken_burns_fallback": used_fallback,
+            "sora_clips_count": sora_count,
+            "fallback_clips_count": fallback_count,
+        }},
     )
 
     generated = sum(1 for u in clip_urls if u)
@@ -463,12 +472,14 @@ async def _stage_audio(job: dict) -> Dict:
         job_id=job["job_id"],
     )
 
+    tts_failed = result.get("status") == "failed"
     await db.story_engine_jobs.update_one(
         {"job_id": job["job_id"]},
         {"$set": {
             "narration_url": result.get("url"),
             "narration_local_path": result.get("local_path"),
             "narration_segments": result.get("segments", []),
+            "tts_failed": tts_failed,
         }},
     )
 
@@ -665,4 +676,7 @@ async def get_job_status(job_id: str) -> Optional[Dict]:
         "credits_refunded": job.get("credits_refunded", 0),
         "created_at": job.get("created_at"),
         "completed_at": job.get("completed_at"),
+        "used_ken_burns_fallback": job.get("used_ken_burns_fallback", False),
+        "sora_clips_count": job.get("sora_clips_count", 0),
+        "fallback_clips_count": job.get("fallback_clips_count", 0),
     }
