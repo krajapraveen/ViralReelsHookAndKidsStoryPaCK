@@ -439,6 +439,30 @@ async def get_email_nudge_queue(admin: dict = Depends(get_admin_user)):
     }
 
 
+class TestEmailRequest(BaseModel):
+    to: str
+    character: str = "Finn"
+    hook: str = "But something followed him..."
+
+@router.post("/test-email")
+async def test_email(data: TestEmailRequest, admin: dict = Depends(get_admin_user)):
+    """Admin-only: Send a test nudge email to verify Resend is working."""
+    from services.email_service import is_email_enabled, send_nudge_email
+
+    if not is_email_enabled():
+        return {"success": False, "message": "RESEND_API_KEY not configured in .env"}
+
+    sent = await send_nudge_email(
+        to_email=data.to,
+        subject=f"{data.character}'s story isn't finished...",
+        character_name=data.character,
+        cliffhanger=data.hook,
+        link="/app/story-video-studio",
+    )
+    return {"success": sent, "message": "Email sent" if sent else "Email send failed — check logs"}
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONTENT SEEDING — Admin tool to batch-generate showcase content
 # ═══════════════════════════════════════════════════════════════════════════════

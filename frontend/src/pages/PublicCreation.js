@@ -9,6 +9,7 @@ import {
 import axios from 'axios';
 import { toast } from 'sonner';
 import { SafeImage } from '../components/SafeImage';
+import { AnimatedViewerCount } from '../components/AnimatedSocialProof';
 import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growthAnalytics';
 import { getAssignments, trackConversion } from '../lib/abTesting';
 
@@ -271,6 +272,7 @@ export default function PublicCreation() {
               <TrendingUp className="w-3 h-3" /> Trending now
             </span>
           )}
+          <AnimatedViewerCount />
         </div>
       </section>
 

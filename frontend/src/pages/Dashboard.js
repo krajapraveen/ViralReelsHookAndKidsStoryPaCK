@@ -24,6 +24,8 @@ import { ActiveChainsChip } from '../components/ActiveChainsChip';
 import { ReturnBanner } from '../components/ReturnBanner';
 import { StreakDisplay } from '../components/StreakDisplay';
 import QuickStartGuide from '../components/QuickStartGuide';
+import { TrendingCompete } from '../components/TrendingCompete';
+import { AnimatedViewerCount } from '../components/AnimatedSocialProof';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -320,6 +322,7 @@ export default function Dashboard() {
             <p className="text-[var(--vs-text-muted)] text-sm" style={{ fontFamily: 'var(--vs-font-body)' }}>
               Type a prompt or pick a creation mode below
             </p>
+            <AnimatedViewerCount className="justify-center mt-2" />
           </div>
 
           {/* ─── HERO PROMPT BOX ─── */}
@@ -384,6 +387,9 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* ═══════ TRENDING NOW — Compete Mechanics ═══════ */}
+        <TrendingCompete />
 
         {/* ═══════ RESUME YOUR STORY ═══════ */}
         <ResumeYourStory />

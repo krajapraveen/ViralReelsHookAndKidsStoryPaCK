@@ -155,6 +155,51 @@ function CreditResetWidget() {
 }
 
 
+// Email Nudge Status Widget
+function EmailNudgeStatus() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/api/retention/admin/email-nudges');
+        if (res.data.success) setData(res.data);
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return null;
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6" data-testid="email-nudge-status">
+      <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+        <Activity className="w-4 h-4 text-emerald-400" /> Email Nudge System
+      </h3>
+      <div className="flex items-center gap-3 mb-4">
+        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+          data?.email_service_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${data?.email_service_active ? 'bg-emerald-400' : 'bg-red-400'}`} />
+          {data?.email_service_active ? 'Resend Active' : 'Resend Inactive'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-slate-800/50 rounded-lg p-3">
+          <p className="text-[10px] text-slate-500 mb-1">Emails Sent</p>
+          <p className="text-lg font-bold text-emerald-400">{data?.sent_count ?? 0}</p>
+        </div>
+        <div className="bg-slate-800/50 rounded-lg p-3">
+          <p className="text-[10px] text-slate-500 mb-1">Pending</p>
+          <p className="text-lg font-bold text-amber-400">{data?.pending_count ?? 0}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -176,6 +221,7 @@ export default function AdminDashboard() {
   const [conversion, setConversion] = useState({ data: null, state: 'loading', ts: null });
   const [abResults, setAbResults] = useState({ data: null, state: 'loading', ts: null });
   const [leaderboard, setLeaderboard] = useState({ data: null, state: 'loading', ts: null });
+  const [kFactor, setKFactor] = useState({ data: null, state: 'loading', ts: null });
 
   const fetchSection = useCallback(async (name, setter, url) => {
     try {
@@ -205,6 +251,19 @@ export default function AdminDashboard() {
     fetchSection('conversion', setConversion, '/api/admin/metrics/conversion');
     fetchSection('ab', setAbResults, '/api/ab/results');
     fetchSection('leaderboard', setLeaderboard, '/api/admin/metrics/leaderboard');
+    // K-factor endpoint doesn't return {success: true}, handle separately
+    (async () => {
+      try {
+        const res = await api.get('/api/growth/viral-coefficient?days=' + days);
+        if (res.data?.viral_coefficient_K !== undefined) {
+          setKFactor({ data: res.data, state: 'ready', ts: new Date().toISOString() });
+        } else {
+          setKFactor(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
+        }
+      } catch {
+        setKFactor(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
+      }
+    })();
   }, [days, fetchSection]);
 
   // WebSocket for live updates
@@ -254,9 +313,11 @@ export default function AdminDashboard() {
   const conv = conversion.data;
   const ab = abResults.data;
   const lb = leaderboard.data;
+  const kf = kFactor.data;
 
   const sections = [
     { id: 'executive', label: 'Executive', icon: BarChart3 },
+    { id: 'kfactor', label: 'K-Factor', icon: Activity },
     { id: 'funnel', label: 'Growth Funnel', icon: TrendingUp },
     { id: 'ab_testing', label: 'A/B Tests', icon: Zap },
     { id: 'leaderboard', label: 'Leaderboard', icon: Star },
@@ -404,6 +465,86 @@ export default function AdminDashboard() {
                   <p className="text-lg font-bold text-white">{ser?.continuation_rate != null ? `${ser.continuation_rate}%` : 'No data'}</p>
                 </div>
               </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ K-FACTOR VIRAL DASHBOARD ═══ */}
+        {section === 'kfactor' && (
+          <WidgetState state={kFactor.state} lastUpdated={kFactor.ts}>
+            <div className="space-y-6" data-testid="kfactor-section">
+              {/* K-Factor Hero */}
+              <div className="bg-gradient-to-r from-cyan-500/[0.06] to-indigo-500/[0.06] border border-cyan-500/20 rounded-xl p-6 text-center" data-testid="kfactor-hero">
+                <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider mb-1">Viral Coefficient</p>
+                <p className="text-5xl font-black text-white mb-1">
+                  {kf?.viral_coefficient_K != null ? kf.viral_coefficient_K.toFixed(4) : 'N/A'}
+                </p>
+                <p className={`text-sm font-semibold ${
+                  kf?.viral_coefficient_K > 1 ? 'text-emerald-400' :
+                  kf?.viral_coefficient_K > 0.5 ? 'text-cyan-400' :
+                  kf?.viral_coefficient_K > 0 ? 'text-amber-400' : 'text-slate-500'
+                }`}>
+                  {kf?.interpretation || 'No data'}
+                </p>
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <div className="w-48 h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        kf?.viral_coefficient_K > 0.5 ? 'bg-emerald-500' : kf?.viral_coefficient_K > 0 ? 'bg-amber-500' : 'bg-slate-700'
+                      }`}
+                      style={{ width: `${Math.min((kf?.viral_coefficient_K || 0) / 1 * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500">Target: 0.5</span>
+                </div>
+              </div>
+
+              {/* Funnel: Share → Click → Signup → Continue */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" /> Viral Funnel ({days}d)
+                </h3>
+                <div className="space-y-3">
+                  <FunnelBar label="Total Shares" value={kf?.components?.total_shares} rate={null} maxValue={Math.max(kf?.components?.total_shares || 1, 1)} />
+                  <FunnelBar label="Page Views" value={kf?.components?.page_views} rate={null} maxValue={Math.max(kf?.components?.total_shares || 1, 1)} />
+                  <FunnelBar label="Signups from Shares" value={kf?.components?.signups_from_shares} rate={kf?.components?.conversion_rate_per_share} maxValue={Math.max(kf?.components?.total_shares || 1, 1)} />
+                </div>
+              </div>
+
+              {/* Component Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MetricCard icon={Users} label="Unique Sharers" value={kf?.components?.unique_sharers} color="cyan" testId="kf-unique-sharers" />
+                <MetricCard icon={Activity} label="Total Shares" value={kf?.components?.total_shares} color="blue" testId="kf-total-shares" />
+                <MetricCard icon={TrendingUp} label="Avg Shares/User" value={kf?.components?.avg_shares_per_user} color="purple" testId="kf-avg-shares" />
+                <MetricCard icon={Zap} label="Conv Rate" value={kf?.components?.conversion_rate_per_share != null ? `${kf.components.conversion_rate_per_share}%` : 'N/A'} color="emerald" testId="kf-conv-rate" />
+              </div>
+
+              {/* Top Performing Slugs */}
+              {kf?.top_performing_slugs?.length > 0 && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Star className="w-4 h-4 text-amber-400" /> Top Performing Content
+                  </h3>
+                  <div className="space-y-2">
+                    {kf.top_performing_slugs.map((slug, i) => (
+                      <div key={slug.slug} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <span className={`text-sm font-black w-5 text-center ${i === 0 ? 'text-amber-400' : 'text-slate-500'}`}>{i + 1}</span>
+                          <span className="text-xs text-white font-mono truncate max-w-[200px]">{slug.slug}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-[10px]">
+                          <span className="text-slate-400"><strong className="text-white">{slug.views}</strong> views</span>
+                          <span className="text-slate-400"><strong className="text-white">{slug.remix_clicks}</strong> remixes</span>
+                          <span className={`font-bold ${slug.remix_rate > 10 ? 'text-emerald-400' : 'text-amber-400'}`}>{slug.remix_rate}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Email Nudge Status */}
+              <EmailNudgeStatus />
             </div>
           </WidgetState>
         )}

@@ -576,6 +576,9 @@ api_router.include_router(alerts_router)
 from routes.growth_analytics import router as growth_router
 api_router.include_router(growth_router)
 
+from routes.compete_routes import router as compete_router
+api_router.include_router(compete_router)
+
 
 
 # Include API router in app

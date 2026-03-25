@@ -21,6 +21,8 @@ import { useJobWebSocket } from '../hooks/useJobWebSocket';
 import ContextualUpgrade from '../components/ContextualUpgrade';
 import RemixBanner from '../components/RemixBanner';
 import SharePromptModal from '../components/SharePromptModal';
+import { ForceShareGate } from '../components/ForceShareGate';
+import { LiveViewerBadge } from '../components/AnimatedSocialProof';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STAGE_ORDER = ['scenes', 'images', 'voices'];
@@ -906,6 +908,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   const [showDirections, setShowDirections] = useState(false);
   const [customDirection, setCustomDirection] = useState('');
   const [showSharePrompt, setShowSharePrompt] = useState(false);
+  const [showForceShare, setShowForceShare] = useState(false);
   const [showAutoNext, setShowAutoNext] = useState(false);
   const navigate = useNavigate();
   const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
@@ -1033,33 +1036,38 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
 
   const isActionable = uiState === 'READY' || uiState === 'PARTIAL_READY';
 
-  // Auto-show share prompt when video is ready (once per job)
+  // Auto-show FORCE SHARE GATE when video is ready (once per job)
   React.useEffect(() => {
-    if (uiState === 'READY' && shareReady && !showSharePrompt) {
-      const prompted = sessionStorage.getItem(`share_prompted_${jobId}`);
+    if (uiState === 'READY' && !showForceShare) {
+      const prompted = sessionStorage.getItem(`force_share_${jobId}`);
       if (!prompted) {
         const timer = setTimeout(() => {
-          setShowSharePrompt(true);
-          sessionStorage.setItem(`share_prompted_${jobId}`, '1');
-        }, 1500);
+          setShowForceShare(true);
+          sessionStorage.setItem(`force_share_${jobId}`, '1');
+        }, 2000);
         return () => clearTimeout(timer);
       }
     }
-  }, [uiState, shareReady, jobId, showSharePrompt]);
+  }, [uiState, jobId, showForceShare]);
 
   // Extract character name from job data
   const characterName = job?.characters?.[0]?.name || job?.character_name || '';
 
   return (
     <div className="space-y-6 vs-fade-up-1" data-testid="postgen-phase">
-      {/* Auto-share prompt modal */}
-      {showSharePrompt && (
-        <SharePromptModal
+      {/* Force Share Gate modal */}
+      {showForceShare && (
+        <ForceShareGate
           jobId={jobId}
           title={displayTitle}
-          characterName={characterName}
           slug={job?.slug || jobId}
-          onClose={() => setShowSharePrompt(false)}
+          shareUrl={shareUrl}
+          downloadUrl={downloadUrl}
+          onContinue={() => {
+            setShowForceShare(false);
+            handleContinue(CONTINUE_DIRECTIONS[0]);
+          }}
+          onDismiss={() => setShowForceShare(false)}
         />
       )}
       {/* Status Badge — single truth from uiState */}
