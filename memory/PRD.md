@@ -24,61 +24,55 @@ Rebuild Visionary Suite from an AI tools dashboard into an **addictive story-dri
 - Admin WebSocket, Style Preset Thumbnails, Story Chain Leaderboard
 
 ### Phase 6: P0 TRANSFORMATION — Phase 1: Homepage + Zero Friction (March 25)
-- Story-driven hero ("Stories that come alive with AI"), big CTAs
-- Trending showcase with real story cards + Continue Story buttons
-- Clickable story hooks, 3-step how-it-works, live feed
+- Story-driven hero, big CTAs, trending showcase
 - Zero-friction entry (no login wall before Studio)
 - Credit gate with Required/You Have/Shortfall display
 - Gallery: Continue This Story primary + Add Twist/Make Funny secondary
 
 ### Phase 7: P0 TRANSFORMATION — Phase 2: Viral Growth Engine (March 25)
-- **Results page → WATCH → CONTINUE → LOOP → SHARE**: Cliffhanger hook, Continue Story primary, Add Twist/Make Funny/Next Episode secondary, Share & Earn Credits (+5), Download tertiary
-- **Public share page → Conversion page**: Character intro, story hook, cliffhanger above fold, all 4 CTAs, social proof
-- **Open-loop endings enforced** in pipeline_engine.py
-- **Prefilled prompt engine**: Continue/Twist/Funny/Episode templates
-- **Share rewards**: +5 credits/share, +10 credits when someone continues your story
-- **Full funnel tracking**: continue_click, add_twist_click, make_funny_click, next_episode_click
+- Results page WATCH -> CONTINUE -> LOOP -> SHARE
+- Public share page conversion funnel
+- Open-loop endings enforced in pipeline_engine.py
+- Prefilled prompt engine, share rewards, full funnel tracking
 
-### Phase 8: P0 TRANSFORMATION — Phase 3: Content Flywheel Engine (March 25) ← CURRENT
+### Phase 8: P0 TRANSFORMATION — Phase 3: Content Flywheel Engine (March 25)
+- Character Universe with Follow/Remix, character feed, rankings
+- Story Series Netflix Timeline with episode locks
+- Notification system with 30s auto-refresh
 
-**Character Universe (Character as Product):**
-- Character page rebuilt: avatar, name, role, full description, personality traits
-- **Follow Character** button with toggle (follow/unfollow)
-- Stats: X stories, Y followers, Z continuations
-- **Continue Character's Story** (PRIMARY CTA) with character-aware prefill
-- Add Twist / Make Funny / Next Episode (SECONDARY CTAs)
-- "Create your own story with [Name]" (Remix Character)
-- **Character Feed**: Latest stories featuring the character
-- Zero-friction access (no login wall)
+### Phase 9: BRUTAL UX AUDIT — Action-First Redesign (March 25)
+**Character Page Overhaul:**
+- Action-first above-the-fold: avatar, name, hook quote, social proof counter, BIG "Continue Story" CTA
+- Removed passive info sections (bio, relationships, sample scenes)
+- Action row: Add Twist / Make Funny / Next Episode / Follow (with "Get notified" subtext)
+- "Create your own version of [Name]" secondary CTA
+- Stories grid with "Continue This Story" on every card
+- Bottom CTA with urgency text
 
-**Story Series Netflix Timeline:**
-- Episode timeline with visual nodes: completed (green), current (violet, pulsing), locked (gray)
-- Lock system: complete previous episode to unlock next
-- Cliffhanger previews on completed episodes
-- "Continue Now" badge on current episode
-- "Create Episode N" CTA for next episode
-- Auto-prefilled prompts from series context
+**Series Timeline Overhaul:**
+- Progress bar showing completed/total episodes
+- Cliffhanger preview section with urgency styling
+- BIG "Continue Episode X" button in hero section
+- Episode nodes: completed (green check), current (flame + CONTINUE NOW badge, glow), locked (lock icon)
+- Visual emphasis on current episode (shadow, ring, glow)
 
-**Notifications System:**
-- Bell icon with unread count badge
-- Notification dropdown: continuation rewards, share rewards, follow updates, trending
-- Mark all as read
-- Auto-refresh every 30 seconds
-- Notifications created when someone continues your story (+10 credits)
-
-**Rankings System:**
-- GET /api/universe/rankings — public
-- Top Stories (by views, 10 items)
-- Top Characters (by story count + followers, scored)
-- Top Creators (by total views + stories)
+**Follow System Wired to Notifications:**
+- Follow creates notification for character creator ("X followed your character")
+- Story completion notifies all character followers ("Character has a new story")
+- NotificationBell shows "Continue story" action link on follow-type notifications
+- "Why follow?" messaging via "Get notified" subtext
 
 ## Prioritized Backlog
 
-### P1 (High Priority — Phase 4)
-- Streak system + episode milestones + engagement rewards
-- "Continue your story" reminder/push notifications
+### P0 (Critical — Phase 4: Addiction Mechanics)
+- Streak system (consecutive days of engagement)
+- Milestone rewards (credits at streak milestones)
+- "Continue your story" reminder notifications
 - Content seeding API for batch showcase generation
+
+### P1 (High Priority)
 - Social distribution hooks on every creation
+- Funnel tracking analytics deep dive (K-factor, share rate)
 
 ### P2 (Medium Priority)
 - Advanced A/B testing with auto-winner selection
