@@ -122,6 +122,11 @@ class HookRatingRequest(BaseModel):
     would_share: bool = False
     notes: Optional[str] = None
 
+class ScoreStoryRequest(BaseModel):
+    story_text: str
+    title: str = ""
+    skip_gpt: bool = False
+
 
 def _admin_required(user: dict = Depends(get_current_user)):
     if user.get("role", "").upper() != "ADMIN":
@@ -276,6 +281,81 @@ def _quality_score(story: dict) -> dict:
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════
 
+@router.post("/score-hook")
+async def score_hook_endpoint(req: ScoreStoryRequest, admin: dict = Depends(_admin_required)):
+    """Score a story hook using the Hybrid Scoring Engine. Admin only."""
+    from services.hook_scoring_engine import score_story
+    result = await score_story(req.story_text, req.title, skip_gpt=req.skip_gpt)
+    return {"success": True, **result}
+
+
+@router.post("/score-existing/{story_id}")
+async def score_existing_story(story_id: str, admin: dict = Depends(_admin_required)):
+    """Score an existing seed story and update its record. Admin only."""
+    story = await db.seed_stories.find_one({"story_id": story_id}, {"_id": 0})
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    from services.hook_scoring_engine import score_story
+    result = await score_story(story.get("story_text", ""), story.get("title", ""))
+
+    await db.seed_stories.update_one(
+        {"story_id": story_id},
+        {"$set": {
+            "hook_score": result,
+            "hook_final_score": result["final_score"],
+            "hook_tag": result["final_tag"],
+            "hook_ready_for_video": result["ready_for_video"],
+        }},
+    )
+
+    return {"success": True, "story_id": story_id, **result}
+
+
+@router.post("/score-all")
+async def score_all_stories(admin: dict = Depends(_admin_required)):
+    """Score all unscored seed stories using the Hybrid Engine. Admin only."""
+    from services.hook_scoring_engine import score_story
+
+    stories = await db.seed_stories.find(
+        {"hook_final_score": {"$exists": False}},
+        {"_id": 0, "story_id": 1, "story_text": 1, "title": 1},
+    ).to_list(length=200)
+
+    scored = 0
+    results = {"HIGH": 0, "MEDIUM": 0, "LOW": 0, "rejected": 0}
+
+    for story in stories:
+        result = await score_story(
+            story.get("story_text", ""),
+            story.get("title", ""),
+            skip_gpt=False,
+        )
+
+        await db.seed_stories.update_one(
+            {"story_id": story["story_id"]},
+            {"$set": {
+                "hook_score": result,
+                "hook_final_score": result["final_score"],
+                "hook_tag": result["final_tag"],
+                "hook_ready_for_video": result["ready_for_video"],
+            }},
+        )
+
+        tag = result["final_tag"]
+        results[tag] = results.get(tag, 0) + 1
+        if result["auto_reject"]:
+            results["rejected"] += 1
+        scored += 1
+
+    return {
+        "success": True,
+        "total_scored": scored,
+        "breakdown": results,
+        "ready_for_video": results.get("HIGH", 0),
+    }
+
+
 @router.post("/generate")
 async def generate_batch(req: GenerateBatchRequest, admin: dict = Depends(_admin_required)):
     """Generate a batch of high-quality stories using AI. Admin only."""
@@ -308,6 +388,10 @@ async def generate_batch(req: GenerateBatchRequest, admin: dict = Depends(_admin
                 logger.info(f"[CONTENT_ENGINE] Rejected low-quality story: score={quality['score']}")
                 continue
 
+            # Run through hybrid hook scoring (rule-based only at generation time — fast + free)
+            from services.hook_scoring_engine import rule_based_score
+            hook_result = rule_based_score(story.get("story", ""), story.get("title", ""))
+
             story_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc).isoformat()
 
@@ -322,6 +406,11 @@ async def generate_batch(req: GenerateBatchRequest, admin: dict = Depends(_admin
                 "animation_style": style,
                 "quality_score": quality["score"],
                 "quality_tags": quality["tags"],
+                "hook_final_score": hook_result["score"],
+                "hook_tag": hook_result["tag"],
+                "hook_ready_for_video": hook_result["passes_rule_filter"],
+                "hook_breakdown": hook_result["breakdown"],
+                "hook_rejection_reasons": hook_result["rejection_reasons"],
                 "social_scripts": None,
                 "is_featured": False,
                 "is_published": False,
@@ -640,6 +729,11 @@ async def generate_controlled_batch(req: ControlledBatchRequest, admin: dict = D
 
         for story in raw_stories[:count]:
             quality = _quality_score(story)
+
+            # Run hybrid hook scoring (rule-based at generation, GPT later)
+            from services.hook_scoring_engine import rule_based_score
+            hook_result = rule_based_score(story.get("story", ""), story.get("title", ""))
+
             story_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc).isoformat()
 
@@ -654,6 +748,11 @@ async def generate_controlled_batch(req: ControlledBatchRequest, admin: dict = D
                 "animation_style": style,
                 "quality_score": quality["score"],
                 "quality_tags": quality["tags"],
+                "hook_final_score": hook_result["score"],
+                "hook_tag": hook_result["tag"],
+                "hook_ready_for_video": hook_result["passes_rule_filter"],
+                "hook_breakdown": hook_result["breakdown"],
+                "hook_rejection_reasons": hook_result["rejection_reasons"],
                 "social_scripts": None,
                 "is_featured": False,
                 "is_published": False,

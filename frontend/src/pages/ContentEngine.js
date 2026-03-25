@@ -135,6 +135,22 @@ export default function ContentEngine() {
     setPublishing(false);
   };
 
+  const [scoring, setScoring] = useState(false);
+  const handleScoreAll = async () => {
+    setScoring(true);
+    try {
+      const res = await api().post(`${API}/api/content-engine/score-all`);
+      if (res.data.success) {
+        toast.success(`Scored ${res.data.total_scored} stories: ${res.data.breakdown?.HIGH || 0} HIGH, ${res.data.breakdown?.MEDIUM || 0} MED, ${res.data.breakdown?.LOW || 0} LOW`);
+        fetchStories();
+        fetchBatchMetrics();
+      }
+    } catch (e) {
+      toast.error('Scoring failed — check LLM budget for GPT stage');
+    }
+    setScoring(false);
+  };
+
   const handleControlledBatch = async (dist) => {
     setControlledGenerating(true);
     try {
@@ -240,6 +256,14 @@ export default function ContentEngine() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleScoreAll}
+              disabled={scoring}
+              className="h-8 px-4 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+              data-testid="score-all-btn"
+            >
+              <TrendingUp className="w-3.5 h-3.5" /> {scoring ? 'Scoring...' : 'Score All Hooks'}
+            </button>
             <button
               onClick={handlePublishAll}
               disabled={publishing}
@@ -485,14 +509,32 @@ function StoryCard({ story, selected, onToggleSelect, onPublish, onPublishSE, on
         <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{story.story_text}</p>
       </div>
 
-      {/* Tags */}
-      <div className="flex flex-wrap gap-1 mb-3">
+      {/* Hook Score + Tags */}
+      <div className="flex flex-wrap items-center gap-1 mb-3">
+        {story.hook_final_score != null && (
+          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+            story.hook_tag === 'HIGH' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
+            story.hook_tag === 'MEDIUM' ? 'bg-blue-500/15 text-blue-400 border-blue-500/30' :
+            'bg-red-500/15 text-red-400 border-red-500/30'
+          }`} data-testid="hook-score-badge">
+            HOOK {story.hook_final_score}
+          </span>
+        )}
+        {story.hook_ready_for_video && (
+          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+            VIDEO READY
+          </span>
+        )}
         {(story.quality_tags || []).map(tag => (
           <span key={tag} className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${TAG_COLORS[tag] || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
             {tag.replace('_', ' ')}
           </span>
         ))}
-        <span className="text-[9px] text-slate-600 ml-1">Score: {story.quality_score}</span>
+        {story.hook_rejection_reasons?.length > 0 && (
+          <span className="text-[9px] text-red-400/60 ml-1" title={story.hook_rejection_reasons.join(', ')}>
+            {story.hook_rejection_reasons[0]}
+          </span>
+        )}
       </div>
 
       {/* Status + Actions */}

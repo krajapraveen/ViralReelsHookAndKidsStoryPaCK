@@ -1,0 +1,96 @@
+{
+  "summary": "Hook Scoring Engine Testing Complete. Backend: 12/12 pytest tests passed (100%). Frontend: All UI elements verified via Playwright. The Hybrid Hook Scoring Engine correctly implements Stage 1 (rule-based scoring) with detailed breakdown. Stage 2 (GPT scoring) is skipped due to LLM budget depletion.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_hook_scoring_engine_iteration337.py",
+    "/app/test_reports/pytest/pytest_hook_scoring_iteration337.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Hook Scoring Engine correctly implements two-stage scoring: Stage 1 (rule-based, always works) and Stage 2 (GPT, skipped due to budget)",
+    "Rule-based scoring evaluates: length (0-15), first_line_hook (0-25), tension (0-20), cliffhanger (0-25), emotional_power (0-10), generic_penalty (-15), title_quality (0-5)",
+    "Score thresholds: >= 70 = HIGH, 40-69 = MEDIUM, < 40 = LOW",
+    "Auto-reject triggers: (hook_score < 5 AND cliff_score < 5) OR word_count < 15",
+    "ready_for_video = final_score >= 70 AND NOT auto_reject",
+    "Frontend correctly displays hook score badges with color coding: amber (HIGH), blue (MEDIUM), red (LOW)",
+    "Score All Hooks button triggers bulk scoring of unscored stories",
+    "VIDEO READY badge only appears for stories with hook_ready_for_video=true (score >= 70)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_hook_scoring_engine_iteration337.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 pytest tests passed)",
+    "frontend": "100% (All UI elements verified)"
+  },
+  "test_credentials": {
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "None - used existing data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Hook Scoring Engine testing complete. Key findings: (1) Backend APIs all working - score-hook returns detailed breakdown with rule_score, rule_tag, rule_breakdown, final_score, final_tag, ready_for_video, auto_reject, rejection_reasons, word_count, scoring_stages. (2) Strong hook story ('The Last Door') scored 70+ (HIGH), weak story ('A Nice Day') scored 0 (LOW) with generic penalty, medium story scored 40-69 (MEDIUM). (3) Rule engine correctly detects generic phrases ('once upon a time', 'happily ever after') and applies -15 penalty. (4) Rule engine rewards cliffhangers (stories ending with '...' or '—' get higher cliffhanger score). (5) Frontend shows hook score badges with color coding: amber=HIGH, blue=MEDIUM, red=LOW. (6) Score All Hooks button visible and functional. (7) VIDEO READY badge only appears for stories with score >= 70 (none currently). (8) GPT scoring (Stage 2) is skipped due to LLM budget depletion - use skip_gpt=true parameter.",
+  "features_verified": {
+    "Backend_Test_1_Score_Hook_Strong": {
+      "status": "PASS",
+      "details": "POST /api/content-engine/score-hook with strong hook returns HIGH tag, score >= 70, ready_for_video=true"
+    },
+    "Backend_Test_2_Score_Hook_Weak": {
+      "status": "PASS",
+      "details": "POST /api/content-engine/score-hook with weak story returns LOW tag, score < 40, generic_penalty applied"
+    },
+    "Backend_Test_3_Score_Hook_Medium": {
+      "status": "PASS",
+      "details": "POST /api/content-engine/score-hook with decent story returns MEDIUM tag, score 40-69"
+    },
+    "Backend_Test_4_Score_All": {
+      "status": "PASS",
+      "details": "POST /api/content-engine/score-all scores all unscored stories, returns breakdown (HIGH/MEDIUM/LOW counts)"
+    },
+    "Backend_Test_5_Score_Existing": {
+      "status": "PASS",
+      "details": "POST /api/content-engine/score-existing/{story_id} scores and updates story record"
+    },
+    "Backend_Test_6_Generic_Phrases": {
+      "status": "PASS",
+      "details": "Rule engine detects 'once upon a time', 'happily ever after' and applies negative generic_penalty"
+    },
+    "Backend_Test_7_Cliffhanger_Reward": {
+      "status": "PASS",
+      "details": "Stories ending with '...' or '—' get higher cliffhanger score (>= 10)"
+    },
+    "Frontend_Test_1_Hook_Scores": {
+      "status": "PASS",
+      "details": "Story cards show HOOK {score} badge with color coding: amber (HIGH), blue (MEDIUM), red (LOW)"
+    },
+    "Frontend_Test_2_Score_All_Button": {
+      "status": "PASS",
+      "details": "Score All Hooks button visible in header, clickable, shows toast notification on completion"
+    },
+    "Frontend_Test_3_VIDEO_READY_Badge": {
+      "status": "PASS",
+      "details": "VIDEO READY badge logic verified - only appears for stories with hook_ready_for_video=true (score >= 70). Currently 0 badges shown because all stories score < 70"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "note": "All APIs are real. GPT scoring (Stage 2) is skipped due to LLM budget depletion - use skip_gpt=true parameter. Rule-based scoring (Stage 1) works without any API calls."
+  },
+  "hook_scoring_breakdown": {
+    "length": "0-15 points (ideal: 50-200 words)",
+    "first_line_hook": "0-25 points (questions, curiosity triggers, tension words)",
+    "tension": "0-20 points (tension/conflict words count)",
+    "cliffhanger": "0-25 points (cliffhanger signals, ellipsis/dash endings)",
+    "emotional_power": "0-10 points (emotional power words)",
+    "generic_penalty": "-15 points max (generic phrases like 'once upon a time')",
+    "title_quality": "0-5 points (title length and tension words)"
+  }
+}
