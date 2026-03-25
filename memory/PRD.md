@@ -1,59 +1,118 @@
-# Visionary Suite - Product Requirements Document
+# Visionary Suite — Growth Engine PRD
 
 ## Original Problem Statement
-Rebuild Visionary Suite into an addictive story-driven viral platform. Build a private Story-to-Video pipeline producing REAL moving videos with character continuity, strict credit gating, and truth-based states.
+Build a viral, addictive story-driven platform ("Growth Engine") with:
+- Real Story-to-Video generation pipeline (Sora 2, GPT Image 1, OpenAI TTS)
+- K-factor optimization, forced share gates, email nudges
+- Content Seeding Engine for hooks and cliffhangers
+- Graceful degradation when API budget is exceeded
 
-## Architecture
-- **Frontend**: React + Tailwind CSS + Shadcn UI
-- **Backend**: FastAPI + MongoDB + Redis
-- **AI (Live)**: GPT-4o-mini (planning), GPT Image 1 (keyframes), Sora 2 (scene clips), OpenAI TTS (narration) — all via Emergent LLM Key
-- **AI (Future)**: Qwen2.5-14B, Wan2.1-T2V/I2V-14B, Kokoro-82M (self-hosted cost optimization)
-- **Payments**: Cashfree | **Auth**: JWT + Google Auth | **Storage**: Cloudflare R2 | **Email**: Resend
+## User Personas
+- **Admin/Creator**: Manages content, monitors growth metrics, rates video quality
+- **End User**: Creates stories, watches videos, continues/shares with friends
 
-## Implemented & LIVE
+## Core Architecture
+```
+/app/
+├── backend/
+│   ├── routes/
+│   │   ├── content_engine.py     # Content generation, controlled batch, video rating, metrics
+│   │   ├── story_engine_routes.py # Real video generation endpoints
+│   │   ├── pipeline_routes.py     # Legacy pipeline (images+voices)
+│   │   ├── share.py               # Share creation and retrieval
+│   │   ├── admin_metrics.py       # Truth-based admin dashboard
+│   │   ├── auth.py                # Auth with standardized 50 credits
+│   │   ├── public_routes.py       # Social proof, live activity feed
+│   ├── services/
+│   │   ├── story_engine/          # Real Sora 2 video pipeline
+│   │   │   ├── pipeline.py        # Orchestrator with Ken Burns fallback
+│   │   │   ├── state_machine.py   # Job state management
+│   │   │   ├── continuity.py      # Asset validation
+│   │   │   └── adapters/          # Sora 2, GPT Image 1, TTS, FFmpeg
+│   │   ├── pipeline_engine.py     # Legacy pipeline
+│   │   ├── email_service.py       # Resend email nudges
+└── frontend/
+    └── src/
+        ├── pages/
+        │   ├── StoryVideoPipeline.js  # Main video generation UI
+        │   ├── ContentEngine.js       # Admin content generation + rating
+        │   ├── AdminDashboard.js      # Truth-based admin metrics
+```
 
-### Phase 1-5.5: Complete Growth Loop (DONE)
-Zero-friction entry, compulsion loops, retention engine, K-factor engine, attribution, email nudges
+## Key Technical Concepts
+- **Graceful Degradation**: When Sora 2 fails (budget), pipeline falls back to Ken Burns (FFmpeg zoom-pan on keyframes), marking job PARTIAL_READY
+- **Quick Render Mode**: User-facing message when fallback is used
+- **Controlled Batch**: Exact category distribution (4 emotional, 3 mystery, 2 kids, 1 viral) for quality validation
+- **Hook Quality Rating**: Admin rates videos HIGH/MEDIUM/LOW with continuation + share signals
+- **Micro Metrics**: Tracks continuation_rate, share_rate per video and per rating level
 
-### Phase 6: Compete + Social Proof (DONE)
-Trending mechanics, animated viewer counts, force share gate, K-factor admin dashboard
+## What's Been Implemented
+### Phase 1-7: Core Platform (Previous Forks)
+- Full auth, credit system (50 credits standard), Cashfree payments
+- Story series, character creation, GIF maker
+- Admin dashboard with truth-based metrics
+- Resend email nudges, compete mechanics, K-Factor dashboard
 
-### Phase 7: Content Seeding Engine (DONE)
-AI story hook generation, quality filtering, social media scripts, admin panel
+### Phase 8: Story Engine — Real Video Output
+- Real Sora 2 video generation pipeline
+- GPT Image 1 keyframe generation
+- OpenAI TTS narration
+- Ken Burns fallback (FFmpeg) when budget exceeded
+- FFmpeg assembly (stitch clips + audio + preview + thumbnail)
 
-### Phase 8: Private Story Engine — REAL VIDEO OUTPUT (2026-03-25 — LATEST)
-**Pipeline produces REAL moving videos using Emergent services:**
+### Phase 9: Content Validation Infrastructure (Current Session)
+- **P0 E2E Validation**: All 10 test cases passed (Generate → Watch → Continue → Share → Ken Burns fallback)
+- **FFmpeg installed** — was missing, breaking all video assembly
+- **Quick Render Mode banner** — Shows only when Ken Burns fallback was actually used
+- **Fallback metadata** — Backend tracks used_ken_burns_fallback, sora_clips_count, fallback_clips_count
+- **Controlled Batch Generation** — POST /api/content-engine/generate-controlled with exact category distribution
+- **Story Engine Publishing** — POST /api/content-engine/publish-to-story-engine/{story_id}
+- **Hook Quality Rating** — POST /api/content-engine/rate-video (HIGH/MEDIUM/LOW)
+- **Micro Metrics Dashboard** — GET /api/content-engine/batch-metrics
 
-- **Planning** (GPT-4o-mini): Structured episode plans, character continuity, scene motion plans — WORKING
-- **Keyframes** (GPT Image 1): Real 1536x1024 images per scene — WORKING (4/4 generated, ~2MB each)
-- **Scene Clips** (Sora 2): Real 1280x720 moving MP4 clips — WORKING (1 clip generated, 3.8MB, ~60s per clip)
-- **Narration** (OpenAI TTS): Real MP3 audio — WORKING (confirmed on job #2)
-- **FFmpeg Assembly**: Stitch clips + mix audio + preview + thumbnail — READY (code complete, triggers when clips available)
-- **Credit Gating**: 21 credits/job, atomic deduction, auto-refund on failure — WORKING
-- **Safety**: Copyright/celebrity blocking, rate limits, abuse detection — WORKING
-- **Continuity Validation**: Asset checks, drift detection — WORKING
+## Key DB Schema
+- `users`: Profile, role, credits (50 standard)
+- `pipeline_jobs`: Legacy video generation jobs
+- `story_engine_jobs`: Real Sora 2 video jobs with Ken Burns fallback tracking
+- `seed_stories`: Content engine generated stories with quality scores
+- `video_ratings`: Hook quality ratings per job
+- `credit_transactions`: Credit ledger
 
-**Budget hit**: The Emergent Universal Key ran out of balance during batch generation. The pipeline itself is fully functional.
+## 3rd Party Integrations
+- OpenAI GPT-4o-mini (Planning/Content Engine) — Emergent LLM Key
+- OpenAI GPT Image 1 (Keyframes) — Emergent LLM Key
+- Sora 2 (Video Clips) — Emergent LLM Key
+- OpenAI TTS (Narration) — Emergent LLM Key
+- Resend (Email Nudges) — User API Key
+- Cashfree (Payments) — User API Key
+- Cloudflare R2 (Object Storage)
 
-## API Endpoints
-- `POST /api/story-engine/create` — Create job + run full pipeline
-- `GET /api/story-engine/status/{job_id}` — Poll progress
-- `GET /api/story-engine/credit-check` — Pre-flight cost check
-- `GET /api/story-engine/my-jobs` — User's jobs
-- `GET /api/story-engine/chain/{chain_id}` — Story chain
-- `GET /api/story-engine/admin/pipeline-health` — GPU/service status
-- `POST /api/content-engine/generate` — Batch story generation
+## Credentials
+- Test User: test@visionary-suite.com / Test@2026#
+- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
-## P0 Actions
-1. **Add balance to Emergent Universal Key** (Profile → Universal Key → Add Balance)
-2. Generate 50-100 real videos via Content Engine auto-publish
-3. Validate full user loop: generate → watch → continue → share
+## Current Blocker
+**Emergent LLM key budget depleted** ($202.62/$202.44). User needs to add balance at Profile → Universal Key → Add Balance before generating new content.
 
-## Key Files
-- `/app/backend/services/story_engine/` — Full engine
-- `/app/backend/services/story_engine/adapters/video_gen.py` — GPT Image 1 + Sora 2
-- `/app/backend/services/story_engine/adapters/tts.py` — OpenAI TTS
-- `/app/backend/services/story_engine/adapters/ffmpeg_assembly.py` — FFmpeg
-- `/app/backend/services/story_engine/pipeline.py` — 11-step orchestrator
-- `/app/backend/routes/story_engine_routes.py` — API endpoints
-- `/app/memory/SELF_HOSTED_STACK.md` — Future GPU deployment spec
+## Prioritized Backlog
+### P0 — Ready to Execute (After Budget Top-Up)
+- Generate 10 controlled videos (4 emotional, 3 mystery, 2 kids, 1 viral)
+- Rate each video's hook quality
+- Identify top 3 hooks
+- Validate continuation + share behavior
+
+### P1 — Scale What Works
+- Generate 30-50 videos from validated hooks
+- Run social media ads with top hooks
+- A/B test hook text variations on public pages
+
+### P2 — Platform Optimization
+- Migrate to self-hosted GPU stack (Wan2.1, Kokoro) — spec in SELF_HOSTED_STACK.md
+- Upgrade admin dashboard to WebSockets
+- Implement "Remix Variants" on share pages
+- Story Chain leaderboard
+
+### P3 — Future
+- Mobile App Wrapper
+- Collaborative story creation
+- Scale to 100+ videos
