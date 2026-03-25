@@ -21,6 +21,8 @@ import { LoginInterstitial } from '../components/LoginInterstitial';
 import { SafeImage } from '../components/SafeImage';
 import { ActionBanner } from '../components/ActionBanner';
 import { ActiveChainsChip } from '../components/ActiveChainsChip';
+import { ReturnBanner } from '../components/ReturnBanner';
+import { StreakDisplay } from '../components/StreakDisplay';
 import QuickStartGuide from '../components/QuickStartGuide';
 import axios from 'axios';
 
@@ -305,6 +307,9 @@ export default function Dashboard() {
         <DelayedCreditsBanner onCreditsAdded={(b) => setCredits(b)} />
         <ActionBanner />
 
+        {/* ═══════ RETURN BANNER — Above the fold, first thing user sees ═══════ */}
+        <ReturnBanner />
+
         {/* ═══════ AI COMMAND CENTER ═══════ */}
         <div className="vs-fade-up-1 mb-10">
           {/* Welcome */}
@@ -580,27 +585,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Streak */}
-            <div className="vs-panel p-5" data-testid="streak-panel">
-              <div className="flex items-center gap-2 mb-3">
-                <Flame className="w-4 h-4 text-orange-400" />
-                <span className="text-xs font-semibold text-[var(--vs-text-muted)] uppercase tracking-wider" style={{ fontFamily: 'var(--vs-font-heading)' }}>
-                  {streakDays > 0 ? `${streakDays} Day Streak` : 'Start a Streak'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 mb-2">
-                {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-                  <div key={day} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
-                    day <= streakDays
-                      ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
-                      : 'bg-[var(--vs-bg-card)] text-[var(--vs-text-muted)] border border-[var(--vs-border)]'
-                  }`} style={{ fontFamily: 'var(--vs-font-mono)' }}>
-                    {day <= streakDays ? <Check className="w-3 h-3" /> : day}
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-[var(--vs-text-muted)]">{streakDays > 0 ? 'Keep creating daily!' : 'Create something to begin'}</p>
-            </div>
+            {/* Streak — Real streak from retention system */}
+            <StreakDisplay />
 
             {/* Daily Challenge */}
             {engagement?.challenge && (

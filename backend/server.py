@@ -177,6 +177,9 @@ from services.environment_monitor_scheduler import start_env_scheduler, stop_env
 # Re-engagement Metrics
 from routes.metrics_routes import router as metrics_router
 
+# Retention Engine (Phase 4)
+from routes.retention_routes import router as retention_router
+
 # WebSocket Real-Time Progress
 from routes.websocket_progress import router as websocket_progress_router
 
@@ -556,6 +559,9 @@ from routes.public_routes import router as public_router
 api_router.include_router(public_router)
 
 api_router.include_router(metrics_router)
+
+# Retention Engine (Phase 4)
+api_router.include_router(retention_router)
 
 # Self-defending infrastructure
 from routes.deep_health import router as deep_health_router
@@ -999,6 +1005,20 @@ async def startup():
                 logger.warning(f"Daily aggregation error: {e}")
             await asyncio.sleep(3600)  # Run every hour
     asyncio.create_task(_daily_aggregation_loop())
+
+    # Start nudge scheduler (runs every hour, sends "continue your story" notifications)
+    async def _nudge_loop():
+        await asyncio.sleep(120)  # Let server stabilize
+        while True:
+            try:
+                from routes.retention_routes import run_nudge_check
+                count = await run_nudge_check()
+                if count:
+                    logger.info(f"Nudge check sent {count} notifications")
+            except Exception as e:
+                logger.warning(f"Nudge check error: {e}")
+            await asyncio.sleep(3600)  # Run every hour
+    asyncio.create_task(_nudge_loop())
     
     # Start auto-scaling engine
     try:

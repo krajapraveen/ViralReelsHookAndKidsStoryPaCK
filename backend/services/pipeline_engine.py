@@ -1764,6 +1764,21 @@ async def execute_pipeline(job_id: str):
     except Exception as nf_err:
         logger.warning(f"[PIPE {job_id[:8]}] Follower notify failed: {nf_err}")
 
+    # Record daily activity for streak system
+    try:
+        from routes.retention_routes import record_daily_activity, check_episode_milestone
+        streak_result = await record_daily_activity(job.get("user_id", ""))
+        if streak_result.get("milestone_reached"):
+            ms = streak_result["milestone_reached"]
+            logger.info(f"[PIPE {job_id[:8]}] Streak milestone: Day {ms['day']} → +{ms['credits']} credits")
+        # Check episode milestones if part of a series
+        if job.get("series_id"):
+            ep_result = await check_episode_milestone(job.get("user_id", ""), job["series_id"])
+            if ep_result.get("rewarded"):
+                logger.info(f"[PIPE {job_id[:8]}] Episode milestone: {ep_result['episodes']} eps → +{ep_result['credits']} credits")
+    except Exception as streak_err:
+        logger.warning(f"[PIPE {job_id[:8]}] Streak/milestone check failed: {streak_err}")
+
     # Clean up local temp files now that assets are in R2
     try:
         for sn, img in job.get("scene_images", {}).items():

@@ -8,6 +8,7 @@ import { Progress } from '../components/ui/progress';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
+import { StreakDisplay } from '../components/StreakDisplay';
 import { 
   Sparkles, ArrowLeft, User, Mail, Shield, Bell, 
   CreditCard, Clock, Save, Trash2, Download, Image, Video, Mic,
@@ -339,6 +340,9 @@ export default function Profile() {
                 </div>
               </div>
             </div>
+
+            {/* Streak Display */}
+            <StreakDisplay />
 
             {/* Refresh Button */}
             <div className="flex justify-end">
