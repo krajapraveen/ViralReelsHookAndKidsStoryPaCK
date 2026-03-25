@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, X, Film, RefreshCcw, Zap, Star } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, X, Film, RefreshCcw, Zap, Star, Play, ArrowRight } from 'lucide-react';
 import api from '../utils/api';
 
 const ICON_MAP = {
@@ -10,6 +11,7 @@ const ICON_MAP = {
 };
 
 export default function NotificationBell() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -47,6 +49,13 @@ export default function NotificationBell() {
     } catch {}
   };
 
+  const handleClick = (n) => {
+    if (n.link) {
+      setOpen(false);
+      navigate(n.link);
+    }
+  };
+
   const timeAgo = (iso) => {
     if (!iso) return '';
     const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -65,7 +74,7 @@ export default function NotificationBell() {
       >
         <Bell className="w-5 h-5" />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[18px] h-[18px] px-1" data-testid="notification-badge">
+          <span className="absolute -top-0.5 -right-0.5 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[18px] h-[18px] px-1 animate-pulse" data-testid="notification-badge">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -81,17 +90,18 @@ export default function NotificationBell() {
             {notifications.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <Bell className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-                <p className="text-xs text-slate-600">No notifications yet</p>
-                <p className="text-[10px] text-slate-700 mt-1">Follow characters and share stories to get updates</p>
+                <p className="text-xs text-slate-500 font-medium">No notifications yet</p>
+                <p className="text-[10px] text-slate-600 mt-1">Follow characters to get notified when new stories drop</p>
               </div>
             ) : (
               notifications.map((n, i) => {
                 const NIcon = ICON_MAP[n.type] || Bell;
+                const hasLink = !!n.link;
                 return (
                   <div
                     key={i}
-                    className={`px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer ${!n.read ? 'bg-violet-500/[0.03]' : ''}`}
-                    onClick={() => n.link && (window.location.href = n.link)}
+                    className={`px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors ${hasLink ? 'cursor-pointer' : ''} ${!n.read ? 'bg-violet-500/[0.04]' : ''}`}
+                    onClick={() => handleClick(n)}
                     data-testid={`notification-${i}`}
                   >
                     <div className="flex gap-3">
@@ -101,6 +111,12 @@ export default function NotificationBell() {
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs font-medium leading-relaxed ${!n.read ? 'text-white' : 'text-slate-400'}`}>{n.title}</p>
                         {n.body && <p className="text-[10px] text-slate-500 mt-0.5">{n.body}</p>}
+                        {/* Action-driven: show continue link for follow-type notifications */}
+                        {hasLink && n.type === 'follow' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-violet-400 font-semibold mt-1">
+                            <Play className="w-2.5 h-2.5" /> Continue story <ArrowRight className="w-2.5 h-2.5" />
+                          </span>
+                        )}
                       </div>
                       <span className="text-[10px] text-slate-600 flex-shrink-0">{timeAgo(n.created_at)}</span>
                     </div>

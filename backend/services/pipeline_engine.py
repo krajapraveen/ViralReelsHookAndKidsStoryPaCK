@@ -373,6 +373,59 @@ async def create_pipeline_job(
     }
 
 
+# ─── FOLLOWER NOTIFICATIONS ──────────────────────────────────────────────────
+
+async def _notify_character_followers(job: dict):
+    """Notify followers when a new story featuring their followed character completes."""
+    job_id = job.get("job_id", "")
+    user_id = job.get("user_id", "")
+    title = job.get("title", "Untitled Story")
+    slug = job.get("slug", "")
+
+    # Gather character IDs from this job
+    char_ids = set()
+    for ch in job.get("extracted_characters", []):
+        cid = ch.get("character_id")
+        if cid:
+            char_ids.add(cid)
+    for cid in job.get("characters", []):
+        if cid:
+            char_ids.add(cid)
+
+    if not char_ids:
+        return
+
+    for character_id in char_ids:
+        # Get character name
+        profile = await db.character_profiles.find_one(
+            {"character_id": character_id, "status": "active"},
+            {"_id": 0, "name": 1}
+        )
+        char_name = profile.get("name", "A character") if profile else "A character"
+
+        # Find all followers of this character (exclude the creator)
+        followers = await db.character_follows.find(
+            {"character_id": character_id, "user_id": {"$ne": user_id}},
+            {"_id": 0, "user_id": 1}
+        ).to_list(500)
+
+        link = f"/v/{slug}" if slug else f"/app/story-video-studio?job={job_id}"
+
+        for f in followers:
+            await db.notifications.insert_one({
+                "user_id": f["user_id"],
+                "type": "follow",
+                "title": f"{char_name} has a new story",
+                "body": f'"{title}" — Continue the adventure',
+                "link": link,
+                "meta": {"character_id": character_id, "job_id": job_id},
+                "read": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+    logger.info(f"[PIPE {job_id[:8]}] Notified followers for {len(char_ids)} characters")
+
+
 # ─── SCENE CACHE ─────────────────────────────────────────────────────────────
 
 import hashlib
@@ -1704,6 +1757,12 @@ async def execute_pipeline(job_id: str):
             )
         except Exception as notif_err:
             logger.warning(f"[PIPE {job_id[:8]}] Notify-when-ready failed: {notif_err}")
+
+    # Notify followers of characters in this story
+    try:
+        await _notify_character_followers(job)
+    except Exception as nf_err:
+        logger.warning(f"[PIPE {job_id[:8]}] Follower notify failed: {nf_err}")
 
     # Clean up local temp files now that assets are in R2
     try:

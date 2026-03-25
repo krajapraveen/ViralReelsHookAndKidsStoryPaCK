@@ -39,6 +39,27 @@ async def follow_character(data: FollowRequest, user: dict = Depends(get_current
         "character_id": data.character_id,
         "followed_at": _now().isoformat(),
     })
+
+    # Notify character creator that someone followed their character
+    try:
+        profile = await db.character_profiles.find_one(
+            {"character_id": data.character_id, "status": "active"},
+            {"_id": 0, "name": 1, "user_id": 1}
+        )
+        if profile and profile.get("user_id") and profile["user_id"] != user_id:
+            follower = await db.users.find_one({"id": user_id}, {"_id": 0, "name": 1})
+            follower_name = follower.get("name", "Someone") if follower else "Someone"
+            await create_notification(
+                user_id=profile["user_id"],
+                ntype="follow",
+                title=f"{follower_name} followed {profile.get('name', 'your character')}",
+                body="Your character is gaining fans!",
+                link=f"/character/{data.character_id}",
+                meta={"character_id": data.character_id}
+            )
+    except Exception:
+        pass
+
     return {"success": True, "following": True, "message": "Following!"}
 
 
