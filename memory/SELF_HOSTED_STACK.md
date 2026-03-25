@@ -1,154 +1,158 @@
-# Self-Hosted Story-to-Video Architecture Specification
-# Visionary Suite — Private Generation Stack
+# Visionary Suite — Self-Hosted Story-to-Video Stack
 
-## Overview
-This document specifies the exact self-hosted model stack, GPU infrastructure, and pipeline flow
-for replacing external API dependencies with a fully private Story-to-Video generation system.
+## Architecture Overview
 
-## 1. GPU Infrastructure
+### GPU Infrastructure (Recommended)
 
-### Recommended Starting Configuration
-| Component | Hardware | Purpose | Est. Cost/hr |
-|-----------|----------|---------|-------------|
-| App Node | CPU-only | API, auth, credits, payments, queue | ~$0.05 |
-| GPU Worker (Primary) | 1× L40S or L4 | Video/image generation, keyframes | $0.50-1.19 |
-| GPU Worker (Overflow) | 1× RTX 4090 (optional) | Light inference, overflow | $0.34 |
+| Tier | Role | GPU | Cost Est. |
+|------|------|-----|-----------|
+| **CPU Node** | API, Auth, Credits, Payments, Queue | None | ~$50/mo |
+| **Tier A: Light** | Planning fallback, reference jobs | 1x L4 | ~$0.40/hr |
+| **Tier B: Heavy** | Video gen, keyframes, upscaling | 1x L40S | ~$1.00/hr |
 
-### Scale-Ready Configuration
-- 2× L40S generation workers
-- 1× L4 auxiliary worker
-- CPU app node
-- Redis queue + autoscaling workers
+**Start with**: 1 GPU worker (L40S or RTX 4090) + 1 CPU app node.
+**Scale to**: 2x L40S + 1x L4 + CPU node + Redis queue + autoscaling.
 
-## 2. Model Stack (Apache 2.0 Licensed — Commercially Safe)
+---
 
-### A. Planning LLM
-- **Model**: Qwen2.5-14B-Instruct (or Qwen2.5-1.5B for lighter tasks)
-- **License**: Apache 2.0
-- **Use for**: Episode planning, scene breakdown, continuity extraction, cliffhanger generation, character extraction
+## Model Stack (Apache-2.0 Safe)
 
-### B. Video Generation
-- **Text-to-Video**: Wan2.1-T2V-14B (Apache 2.0)
-- **Image-to-Video**: Wan2.1-I2V-14B-480P (Apache 2.0)
-- **Unified path**: Wan2.1-VACE-14B (optional, Apache 2.0)
+| Function | Model | License | Notes |
+|----------|-------|---------|-------|
+| **Planning LLM** | Qwen2.5-14B-Instruct | Apache 2.0 | Episode planning, scene breakdown, continuity |
+| **Text-to-Video** | Wan2.1-T2V-14B | Apache 2.0 | Moving scene clips from text prompts |
+| **Image-to-Video** | Wan2.1-I2V-14B-480P | Apache 2.0 | Scene clips from keyframes |
+| **Unified Path** | Wan2.1-VACE-14B | Apache 2.0 | Optional unified image/video |
+| **TTS** | Kokoro-82M | Apache 2.0 | Narration audio |
+| **Assembly** | FFmpeg | LGPL | Stitch, mix, subtitle, preview, thumbnail |
 
-### C. Alternative Video (requires license review)
-- HunyuanVideo / HunyuanVideo-1.5 / HunyuanVideo-I2V
-- License: Tencent Model License/AUP (not Apache)
-- Use only if Tencent license is reviewed and accepted
+---
 
-### D. TTS / Narration
-- **Model**: Kokoro-82M (Apache 2.0)
-- **Avoid**: XTTS-v2 as primary (Coqui Public Model License, not Apache)
-
-## 3. Pipeline Flow (Exact Order)
+## Pipeline Architecture (11 Steps)
 
 ```
-1. Credit check (frontend + backend atomic)
-2. Create job record
-3. Plan episode with Qwen (scene breakdown, character continuity)
-4. Build character continuity package
-5. Generate scene motion plan
-6. Generate keyframes (image generation)
-7. Generate moving clips per scene (Wan2.1 T2V or I2V)
-8. Generate narration with Kokoro
-9. FFmpeg assembly (stitch, transitions, audio mix, subtitles, preview, thumbnail)
-10. Validate outputs (video_url, thumbnail_url must exist)
-11. Mark READY only if all assets are valid
+1. CREDIT CHECK → atomic deduction, refund on failure
+2. CREATE JOB → story_engine_jobs collection
+3. PLANNING → Qwen generates structured episode_plan JSON
+4. CHARACTER CONTEXT → character continuity package locked
+5. SCENE MOTION PLAN → per-scene motion/camera/transition plans
+6. KEYFRAMES → Wan2.1 generates still keyframes per scene
+7. SCENE CLIPS → Wan2.1 generates MOVING clips (T2V or I2V)
+8. AUDIO → Kokoro generates narration
+9. ASSEMBLY → FFmpeg stitches clips + audio + subtitles
+10. VALIDATION → check all assets, continuity, style drift
+11. MARK READY → READY / PARTIAL_READY / FAILED (truth-based)
 ```
 
-## 4. FFmpeg Commands
+**Critical rule**: FFmpeg is assembly ONLY. Moving clips come from Wan2.1.
 
-### A. Stitch clips
+---
+
+## State Machine
+
+```
+INIT → PLANNING → BUILDING_CHARACTER_CONTEXT → PLANNING_SCENE_MOTION
+→ GENERATING_KEYFRAMES → GENERATING_SCENE_CLIPS → GENERATING_AUDIO
+→ ASSEMBLING_VIDEO → VALIDATING → READY | PARTIAL_READY | FAILED
+```
+
+No fake completion states. `PARTIAL_READY` = some scenes missing.
+
+---
+
+## Schemas
+
+### Episode Plan (Mandatory Structure)
+- title, summary, emotional_arc
+- scene_breakdown[] (location, time, characters, action, dialogue, emotional_beat, visual_style)
+- character_arcs[] (name, role, emotional_journey, appearance, voice_tone)
+- cliffhanger (always unresolved)
+- visual_style_constraints, negative_constraints
+
+### Scene Motion Plan (Per-Scene)
+- action, emotion, camera_motion, transition_type
+- motion_intensity (subtle/moderate/dynamic/intense)
+- clip_duration_seconds, movement_notes
+- keyframe_prompt, video_prompt
+
+### Character Continuity Package
+- characters[] (name, gender, age, build, hair, eyes, skin, clothing, features, reference_prompt)
+- style_lock, color_palette, environment_consistency
+
+---
+
+## API Endpoints
+
+### User Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/story-engine/credit-check` | Pre-flight credit check |
+| POST | `/api/story-engine/create` | Create job + run pipeline |
+| GET | `/api/story-engine/status/{job_id}` | Poll job status |
+| GET | `/api/story-engine/my-jobs` | List user's jobs |
+| GET | `/api/story-engine/chain/{chain_id}` | Get story chain episodes |
+
+### Admin Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/story-engine/admin/jobs` | List all jobs with filters |
+| GET | `/api/story-engine/admin/job/{job_id}` | Full job details |
+| POST | `/api/story-engine/admin/retry/{job_id}` | Retry failed job |
+| GET | `/api/story-engine/admin/pipeline-health` | Pipeline health + GPU status |
+
+---
+
+## Credit System
+
+- **Default cost**: 21 credits per Story-to-Video job
+- **Breakdown**: Planning (1) + Character (1) + Motion (1) + Keyframes (5) + Clips (10) + Audio (2) + Assembly (1)
+- **Pre-flight check**: `/credit-check` endpoint before showing generation form
+- **Atomic deduction**: MongoDB `update_one` with `credits >= required` guard
+- **Auto-refund**: On pipeline failure, credits refunded + logged in credit_transactions
+
+---
+
+## Safety & Anti-Abuse
+
+- **Copyright blocking**: Disney, Marvel, DC, anime characters blocked at input
+- **Celebrity blocking**: Real person names blocked
+- **Brand blocking**: Trademarked brands blocked
+- **Rate limits**: 2 concurrent jobs, 10/hour, 50/day per user
+- **Abuse detection**: Rapid-fire submission flagging, high failure rate alerts
+- **Universal negative prompt**: Applied to ALL visual generation (non-removable)
+
+---
+
+## Deployment Checklist
+
+When connecting GPU workers, set these env vars:
+```
+WAN_T2V_ENDPOINT=http://gpu-worker:8080/t2v
+WAN_I2V_ENDPOINT=http://gpu-worker:8080/i2v
+KEYFRAME_GEN_ENDPOINT=http://gpu-worker:8080/keyframe
+KOKORO_TTS_ENDPOINT=http://tts-worker:8080/synthesize
+```
+
+---
+
+## FFmpeg Commands Reference
+
+### Stitch clips with crossfades
 ```bash
-ffmpeg -f concat -safe 0 -i inputs.txt -c:v libx264 -pix_fmt yuv420p -preset medium -crf 20 stitched.mp4
-```
-
-### B. Crossfades
-```bash
-ffmpeg \
-  -i scene_01.mp4 -i scene_02.mp4 -i scene_03.mp4 \
-  -filter_complex "\
-  [0:v][1:v]xfade=transition=fade:duration=0.5:offset=4.5[v01]; \
-  [v01][2:v]xfade=transition=fade:duration=0.5:offset=9.0[v]" \
+ffmpeg -i scene_01.mp4 -i scene_02.mp4 -i scene_03.mp4 \
+  -filter_complex "[0:v][1:v]xfade=transition=fade:duration=0.5:offset=4.5[v01];[v01][2:v]xfade=transition=fade:duration=0.5:offset=9.0[v]" \
   -map "[v]" -c:v libx264 -pix_fmt yuv420p -crf 20 crossfaded.mp4
 ```
 
-### C. Add narration + background music
+### Mix narration + music
 ```bash
 ffmpeg -i crossfaded.mp4 -i narration.wav -i music.wav \
-  -filter_complex "\
-  [1:a]volume=1.2[narr]; \
-  [2:a]volume=0.18[music]; \
-  [narr][music]amix=inputs=2:duration=first:dropout_transition=2[a]" \
-  -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k final_with_audio.mp4
+  -filter_complex "[1:a]volume=1.2[narr];[2:a]volume=0.18[music];[narr][music]amix=inputs=2:duration=first:dropout_transition=2[a]" \
+  -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k final.mp4
 ```
 
-### D. Burn subtitles
+### Generate preview + thumbnail
 ```bash
-ffmpeg -i final_with_audio.mp4 -vf "subtitles=subs.srt" -c:v libx264 -crf 20 -c:a copy subtitled.mp4
+ffmpeg -i final.mp4 -t 8 -c:v libx264 -crf 24 preview.mp4
+ffmpeg -i final.mp4 -ss 2 -vframes 1 -q:v 2 thumbnail.jpg
 ```
-
-### E. Preview + Thumbnail
-```bash
-# Preview (8 second clip)
-ffmpeg -i final_with_audio.mp4 -t 8 -c:v libx264 -pix_fmt yuv420p -crf 24 preview.mp4
-
-# Thumbnail
-ffmpeg -i final_with_audio.mp4 -ss 00:00:02 -vframes 1 -q:v 2 thumbnail.jpg
-```
-
-### F. Fallback: Animate still keyframes (Ken Burns)
-```bash
-ffmpeg -loop 1 -i keyframe.jpg \
-  -vf "zoompan=z='min(zoom+0.0015,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=125:s=1280x720,framerate=25" \
-  -t 5 -c:v libx264 -pix_fmt yuv420p fallback_scene.mp4
-```
-
-## 5. Credit Gating (Already Implemented)
-
-### Frontend Flow
-```
-User clicks Story-to-Video →
-  fetch credits →
-  if insufficient: show paywall (required / current / shortfall / Buy CTA) →
-  if sufficient: proceed to generation
-```
-
-### Backend Enforcement
-```python
-if user.credits < required_credits:
-    return 402 business error
-
-# Atomic deduction
-BEGIN
-  check current credits
-  if enough: deduct credits + create job
-  else: fail
-COMMIT
-
-# On failure: automatic refund with source = "story_video_failure_refund"
-```
-
-## 6. Universal Negative Prompt
-Must be injected into ALL image/keyframe/video generation calls:
-```
-No watermarks, no text overlays, no logos, no copyrighted characters,
-no celebrity likenesses, no real-person faces, no NSFW content,
-no violence, no gore, no weapons, no drugs, no political content
-```
-
-## 7. Content Safety Rules
-Even with open models:
-- Block copyrighted character cloning
-- Block celebrity likeness persistence
-- Block real-person likeness without consent
-- Model license ≠ output safety
-
-## 8. Implementation Priority
-1. Set up GPU worker with Wan2.1-T2V-14B
-2. Integrate Qwen2.5-14B for planning (replace external LLM calls)
-3. Add Kokoro-82M for TTS (replace external TTS)
-4. Wire FFmpeg assembly pipeline
-5. Add Wan2.1-I2V-14B for image-to-video
-6. Scale with Redis queue + autoscaling workers
