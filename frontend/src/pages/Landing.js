@@ -1,471 +1,421 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Sparkles, Clapperboard, ArrowRight, Menu, X, Film, Check, Play,
-  RefreshCcw, Share2, Users, Eye, Send, Command, Wand2, Image, Mic,
-  ChevronRight, Globe, Zap
+  Play, ArrowRight, Menu, X, Eye, RefreshCcw, Zap, Command,
+  ChevronRight, Sparkles, Film, BookOpen, Users
 } from 'lucide-react';
 import axios from 'axios';
 import { SafeImage } from '../components/SafeImage';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+// ─── STORY HOOK TEMPLATES (rotate for variety) ──────────────────────────────
+const STORY_HOOKS = [
+  { prompt: 'A fox who saved the forest… but something followed him home', category: 'Adventure' },
+  { prompt: 'She opened the old music box — and heard her grandmother\'s voice', category: 'Emotional' },
+  { prompt: 'The robot woke up. It wasn\'t supposed to have feelings.', category: 'Sci-Fi' },
+  { prompt: 'He found a door in the garden wall that wasn\'t there yesterday', category: 'Mystery' },
+  { prompt: 'The last dragon in the kingdom trusted the wrong knight', category: 'Fantasy' },
+  { prompt: 'Two best friends made a promise under the stars. Only one kept it.', category: 'Drama' },
+];
+
 export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState(null);
-  const [trending, setTrending] = useState([]);
+  const [showcase, setShowcase] = useState([]);
   const [liveFeed, setLiveFeed] = useState([]);
-  const [promptText, setPromptText] = useState('');
   const navigate = useNavigate();
+  const showcaseRef = useRef(null);
 
   useEffect(() => {
-    // Fetch real platform stats
     axios.get(`${API}/api/public/stats`).then(r => setStats(r.data)).catch(() => {});
-    // Fetch algorithmic trending (weighted by views + remixes + recency)
-    axios.get(`${API}/api/public/trending-weekly?limit=10`).then(r => setTrending(r.data.items || [])).catch(() => {});
-    // Fetch initial live feed
-    axios.get(`${API}/api/public/live-activity?limit=8`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
+    axios.get(`${API}/api/public/trending-weekly?limit=12`).then(r => setShowcase(r.data.items || [])).catch(() => {});
+    axios.get(`${API}/api/public/live-activity?limit=6`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
   }, []);
 
-  // Auto-refresh live feed every 7 seconds
+  // Auto-refresh live feed
   useEffect(() => {
-    const interval = setInterval(() => {
-      axios.get(`${API}/api/public/live-activity?limit=8`)
-        .then(r => setLiveFeed(r.data.items || []))
-        .catch(() => {});
-    }, 7000);
-    return () => clearInterval(interval);
+    const iv = setInterval(() => {
+      axios.get(`${API}/api/public/live-activity?limit=6`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
+    }, 8000);
+    return () => clearInterval(iv);
   }, []);
 
-  const handlePromptSubmit = () => {
-    if (!promptText.trim()) return;
-    navigate('/signup', { state: { prompt: promptText } });
+  const continueStory = (item) => {
+    const data = {
+      prompt: item.story_text || item.title || '',
+      timestamp: Date.now(),
+      source_tool: 'landing-continue',
+      remixFrom: {
+        tool: 'story-video-studio',
+        prompt: item.story_text || item.title,
+        title: item.title,
+        settings: { animation_style: item.animation_style },
+        parentId: item.job_id,
+      },
+    };
+    localStorage.setItem('remix_data', JSON.stringify(data));
+    navigate('/app/story-video-studio');
   };
 
-  const tryExample = (text) => {
-    setPromptText(text);
+  const startFromHook = (hook) => {
+    localStorage.setItem('onboarding_prompt', hook.prompt);
+    navigate('/app/story-video-studio?prompt=' + encodeURIComponent(hook.prompt));
+  };
+
+  const goCreateFresh = () => {
+    navigate('/app/story-video-studio');
   };
 
   return (
-    <div className="vs-page overflow-x-hidden">
+    <div className="vs-page overflow-x-hidden" data-testid="landing-page">
       <style>{`
-        .grid-bg { background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 80px 80px; }
-        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .fade-up { animation: fadeUp 0.6s ease-out both; }
+        .fade-up-2 { animation: fadeUp 0.6s ease-out 0.15s both; }
+        .fade-up-3 { animation: fadeUp 0.6s ease-out 0.3s both; }
+        .fade-up-4 { animation: fadeUp 0.6s ease-out 0.45s both; }
+        .showcase-scroll { scroll-behavior: smooth; scrollbar-width: none; }
+        .showcase-scroll::-webkit-scrollbar { display: none; }
+        .story-card:hover .story-overlay { opacity: 1; }
+        .story-card:hover .story-thumb { transform: scale(1.05); }
+        .pulse-glow { box-shadow: 0 0 0 0 rgba(139,92,246,0.4); animation: pulseGlow 2s infinite; }
+        @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.4); } 50% { box-shadow: 0 0 0 12px rgba(139,92,246,0); } }
       `}</style>
 
       {/* ═══════ NAVBAR ═══════ */}
-      <nav className="fixed top-0 left-0 right-0 z-50 vs-glass border-b border-[var(--vs-border-subtle)]" data-testid="landing-nav">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg vs-gradient-bg flex items-center justify-center">
-              <Command className="w-4 h-4 text-white" />
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#07070f]/80 backdrop-blur-xl border-b border-white/[0.04]" data-testid="landing-nav">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-rose-500 flex items-center justify-center">
+              <Command className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-lg font-bold tracking-tight text-white" style={{ fontFamily: 'var(--vs-font-heading)' }}>Visionary Suite</span>
+            <span className="text-base font-bold tracking-tight text-white">Visionary Suite</span>
           </Link>
-          <div className="hidden md:flex items-center gap-6">
-            <Link to="/explore" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>Explore</Link>
-            <a href="#how-it-works" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>How It Works</a>
-            <Link to="/pricing" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>Pricing</Link>
-            <Link to="/gallery" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" style={{ fontFamily: 'var(--vs-font-body)' }}>Gallery</Link>
-            <Link to="/login" className="text-sm font-medium text-[var(--vs-text-muted)] hover:text-white transition-colors" data-testid="nav-login-link" style={{ fontFamily: 'var(--vs-font-body)' }}>Login</Link>
-            <Link to="/signup">
-              <button className="vs-btn-primary h-9 px-5 text-sm rounded-lg" data-testid="nav-signup-btn">Start Creating</button>
-            </Link>
+          <div className="hidden md:flex items-center gap-5">
+            <Link to="/explore" className="text-sm text-slate-400 hover:text-white transition-colors">Explore</Link>
+            <Link to="/gallery" className="text-sm text-slate-400 hover:text-white transition-colors">Gallery</Link>
+            <Link to="/pricing" className="text-sm text-slate-400 hover:text-white transition-colors">Pricing</Link>
+            <Link to="/login" className="text-sm text-slate-400 hover:text-white transition-colors" data-testid="nav-login-link">Login</Link>
+            <button onClick={goCreateFresh} className="h-8 px-4 text-sm font-semibold rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white hover:opacity-90 transition-opacity" data-testid="nav-create-btn">
+              Start Creating
+            </button>
           </div>
           <button className="md:hidden text-white p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} data-testid="mobile-menu-btn">
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-[var(--vs-border-subtle)] bg-[var(--vs-bg-base)]/95 backdrop-blur-2xl px-4 py-4 space-y-3">
-            <Link to="/explore" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Explore</Link>
-            <Link to="/pricing" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
-            <Link to="/gallery" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Gallery</Link>
-            <Link to="/login" className="block text-[var(--vs-text-secondary)] hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Login</Link>
-            <Link to="/signup" className="block" onClick={() => setMobileMenuOpen(false)}>
-              <button className="vs-btn-primary w-full h-10 text-sm">Start Creating</button>
-            </Link>
+          <div className="md:hidden border-t border-white/[0.04] bg-[#07070f]/95 backdrop-blur-2xl px-4 py-4 space-y-3">
+            <Link to="/explore" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Explore</Link>
+            <Link to="/gallery" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Gallery</Link>
+            <Link to="/pricing" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
+            <Link to="/login" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Login</Link>
+            <button onClick={() => { setMobileMenuOpen(false); goCreateFresh(); }} className="w-full h-10 text-sm font-semibold rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white">Start Creating</button>
           </div>
         )}
       </nav>
 
-      {/* ═══════ 1. HERO — AI COMMAND CENTER ═══════ */}
-      <section className="relative pt-32 pb-12 md:pt-44 md:pb-20 px-4">
-        <div className="absolute inset-0 grid-bg pointer-events-none" />
-        <div className="absolute top-16 left-1/3 w-[500px] h-[500px] bg-[var(--vs-primary-from)]/[0.06] rounded-full blur-[150px] pointer-events-none" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-amber-500/[0.04] rounded-full blur-[120px] pointer-events-none" />
+      {/* ═══════ 1. HERO — STORY-DRIVEN ═══════ */}
+      <section className="relative pt-24 pb-8 md:pt-32 md:pb-12 px-4" data-testid="hero-section">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-20 left-1/4 w-[600px] h-[600px] bg-violet-600/[0.06] rounded-full blur-[180px]" />
+          <div className="absolute bottom-0 right-1/3 w-[400px] h-[400px] bg-rose-500/[0.04] rounded-full blur-[120px]" />
+        </div>
 
         <div className="relative max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-[-0.04em] leading-[0.95] mb-5 vs-fade-up-1" data-testid="hero-heading" style={{ fontFamily: 'var(--vs-font-heading)' }}>
-            <span className="text-white">Create Viral AI Videos</span><br />
-            <span className="vs-gradient-text">in Minutes</span>
-          </h1>
-
-          <p className="text-lg md:text-xl text-[var(--vs-text-secondary)] max-w-2xl mx-auto leading-relaxed mb-10 vs-fade-up-2" style={{ fontFamily: 'var(--vs-font-body)' }}>
-            Turn stories, photos, or ideas into cinematic videos using AI.
-          </p>
-
-          {/* ─── HERO PROMPT BOX ─── */}
-          <div className="max-w-[800px] mx-auto vs-fade-up-2" data-testid="hero-prompt-box">
-            <div className="relative flex items-center">
-              <Sparkles className="absolute left-5 w-5 h-5 text-[var(--vs-primary-from)] z-10" />
-              <input
-                type="text"
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handlePromptSubmit()}
-                placeholder="What do you want to create today?"
-                className="vs-input h-[70px] pl-14 pr-[140px] text-base"
-                style={{ borderRadius: '14px', fontFamily: 'var(--vs-font-body)' }}
-                data-testid="hero-prompt-input"
-              />
-              <button
-                onClick={handlePromptSubmit}
-                className="vs-btn-primary absolute right-3 h-[46px] px-6 rounded-[10px] text-base font-semibold"
-                data-testid="hero-create-btn"
-              >
-                <Send className="w-4 h-4 mr-1.5" />
-                Create
-              </button>
-            </div>
-
-            {/* Suggestion prompts */}
-            <div className="flex flex-wrap justify-center gap-2 mt-5">
-              {[
-                'Create a luxury car reel with narration',
-                'Kids bedtime story video',
-                'Dragon fantasy animation',
-                'Luxury lifestyle reel',
-              ].map((text) => (
-                <button
-                  key={text}
-                  onClick={() => tryExample(text)}
-                  className="vs-chip text-xs"
-                  data-testid={`hero-chip-${text.slice(0, 10).replace(/\s/g, '-').toLowerCase()}`}
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-medium mb-6 fade-up" data-testid="hero-badge">
+            <Sparkles className="w-3 h-3" /> Create your own animated story in 30 seconds
           </div>
 
-          <div className="flex items-center justify-center gap-6 md:gap-8 text-sm text-[var(--vs-text-muted)] font-medium mt-8 vs-fade-up-3" style={{ fontFamily: 'var(--vs-font-body)' }}>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[var(--vs-success)]" /> Free to start</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[var(--vs-success)]" /> No credit card</span>
-            <span className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[var(--vs-success)]" /> Videos in minutes</span>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-[-0.04em] leading-[0.92] mb-5 fade-up" data-testid="hero-heading">
+            <span className="text-white">Stories that come</span><br />
+            <span className="bg-gradient-to-r from-violet-400 via-rose-400 to-amber-400 bg-clip-text text-transparent">alive with AI</span>
+          </h1>
+
+          <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-8 fade-up-2" data-testid="hero-subtitle">
+            Continue viral stories. Bring characters to life. Create animated videos in seconds — no skills needed.
+          </p>
+
+          {/* ─── TWO BIG CTAs ─── */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8 fade-up-3" data-testid="hero-ctas">
+            <button
+              onClick={() => showcaseRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="group h-14 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2 pulse-glow"
+              data-testid="hero-continue-btn"
+            >
+              <Play className="w-5 h-5" /> Continue a Story
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+            <button
+              onClick={goCreateFresh}
+              className="h-14 px-8 rounded-xl border border-white/10 bg-white/[0.03] text-white font-bold text-base hover:bg-white/[0.06] transition-all flex items-center gap-2"
+              data-testid="hero-create-btn"
+            >
+              <Sparkles className="w-5 h-5 text-violet-400" /> Create Your Version
+            </button>
+          </div>
+
+          <div className="flex items-center justify-center gap-6 text-sm text-slate-500 fade-up-4">
+            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-emerald-500" /> No login required</span>
+            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-emerald-500" /> Free to start</span>
+            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-emerald-500" /> Ready in 30s</span>
           </div>
         </div>
       </section>
 
-      {/* ═══════ 2. SOCIAL PROOF (Real Data) ═══════ */}
+      {/* ═══════ 2. SHOWCASE — REAL STORIES (autoplay-ready) ═══════ */}
+      <section ref={showcaseRef} className="py-12 px-4" data-testid="showcase-section">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-emerald-400">Trending Now</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Stories you can continue</h2>
+            </div>
+            <Link to="/explore" className="hidden sm:flex items-center gap-1 text-sm text-violet-400 hover:text-violet-300 font-medium transition-colors">
+              See all <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          {showcase.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3" data-testid="showcase-grid">
+              {showcase.slice(0, 10).map((item, idx) => (
+                <div key={item.job_id || idx} className="story-card group relative rounded-2xl overflow-hidden border border-white/[0.06] bg-white/[0.02] cursor-pointer transition-all hover:border-violet-500/30" data-testid={`showcase-card-${idx}`}>
+                  <div className="relative aspect-[3/4] overflow-hidden bg-slate-900">
+                    <div className="story-thumb transition-transform duration-500">
+                      <SafeImage src={item.thumbnail_url} alt={item.title} aspectRatio="3/4" titleOverlay={item.title} fallbackType="gradient" className="w-full h-full object-cover" />
+                    </div>
+                    {/* Dark gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                    {/* Hover overlay */}
+                    <div className="story-overlay absolute inset-0 bg-violet-900/30 backdrop-blur-[2px] opacity-0 transition-opacity duration-300 flex items-center justify-center">
+                      <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                        <Play className="w-7 h-7 text-white ml-1" />
+                      </div>
+                    </div>
+                    {/* Rank badge */}
+                    {idx < 3 && (
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-black bg-black/60 backdrop-blur-sm text-amber-400 border border-amber-500/20">
+                        #{idx + 1}
+                      </div>
+                    )}
+                    {/* Views badge */}
+                    {(item.views > 0) && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-[10px] text-white/70">
+                        <Eye className="w-2.5 h-2.5" /> {item.views}
+                      </div>
+                    )}
+                    {/* Bottom content */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <h3 className="text-sm font-bold text-white leading-tight mb-1 line-clamp-2">{item.title || 'Untitled Story'}</h3>
+                      <p className="text-[10px] text-white/50 mb-2.5 line-clamp-1">{item.animation_style?.replace(/_/g, ' ')}</p>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); continueStory(item); }}
+                        className="w-full h-8 rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+                        data-testid={`continue-story-${idx}`}
+                      >
+                        <Play className="w-3 h-3" /> Continue Story
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Skeleton loading */
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="rounded-2xl overflow-hidden border border-white/[0.04] bg-white/[0.01]">
+                  <div className="aspect-[3/4] bg-slate-800/50 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="text-center mt-6 sm:hidden">
+            <Link to="/explore">
+              <button className="h-10 px-6 text-sm font-medium rounded-lg border border-white/10 text-white hover:bg-white/[0.04] transition-colors">See all stories <ArrowRight className="w-3.5 h-3.5 inline ml-1" /></button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════ 3. STORY HOOKS — CLICK-TO-CREATE ═══════ */}
+      <section className="py-12 px-4 border-t border-white/[0.04]" data-testid="hooks-section">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">Pick a story. Make it yours.</h2>
+            <p className="text-sm text-slate-400">Click any hook below — it opens the studio prefilled and ready to go.</p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="hooks-grid">
+            {STORY_HOOKS.map((hook, i) => (
+              <button
+                key={i}
+                onClick={() => startFromHook(hook)}
+                className="group text-left p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-violet-500/30 hover:bg-violet-500/[0.04] transition-all"
+                data-testid={`hook-card-${i}`}
+              >
+                <span className="text-[10px] font-bold tracking-wider uppercase text-violet-400/60 mb-2 block">{hook.category}</span>
+                <p className="text-sm font-medium text-white leading-relaxed group-hover:text-violet-200 transition-colors">"{hook.prompt}"</p>
+                <div className="flex items-center gap-1.5 mt-3 text-[10px] text-slate-500 group-hover:text-violet-400 transition-colors">
+                  <Sparkles className="w-3 h-3" /> Click to create this story
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════ 4. SOCIAL PROOF (Real) ═══════ */}
       {stats && (
-        <section className="border-y border-[var(--vs-border-subtle)] py-10 px-4" data-testid="social-proof">
+        <section className="border-y border-white/[0.04] py-10 px-4" data-testid="social-proof">
           <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { value: stats.videos_created || 0, label: 'AI Videos Created', suffix: '+' },
+              { value: stats.videos_created || 0, label: 'Stories Created', suffix: '+' },
               { value: stats.creators || 0, label: 'Creators', suffix: '' },
-              { value: stats.ai_scenes || 0, label: 'AI Scenes Generated', suffix: '+' },
+              { value: stats.ai_scenes || 0, label: 'Scenes Generated', suffix: '+' },
               { value: stats.total_creations || 0, label: 'Total Creations', suffix: '+' },
             ].filter(s => s.value > 0).map((stat) => (
               <div key={stat.label}>
-                <div className="text-3xl md:text-4xl font-black text-white" style={{ fontFamily: 'var(--vs-font-mono)' }}>
+                <div className="text-3xl md:text-4xl font-black text-white tabular-nums">
                   {stat.value.toLocaleString()}{stat.suffix}
                 </div>
-                <div className="text-sm text-[var(--vs-text-muted)] mt-1.5" style={{ fontFamily: 'var(--vs-font-body)' }}>{stat.label}</div>
+                <div className="text-sm text-slate-500 mt-1">{stat.label}</div>
               </div>
             ))}
           </div>
         </section>
       )}
 
-      {/* ═══════ 3. THREE PILLARS — Create / Remix / Publish ═══════ */}
-      <section className="py-20 px-4" data-testid="three-pillars">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="vs-h1 mb-3" style={{ fontFamily: 'var(--vs-font-heading)' }}>One Platform. Three Powers.</h2>
-            <p className="text-[var(--vs-text-secondary)] text-lg" style={{ fontFamily: 'var(--vs-font-body)' }}>Everything you need to create, remix, and publish viral AI content.</p>
+      {/* ═══════ 5. HOW IT WORKS — 3 STEPS ═══════ */}
+      <section className="py-16 px-4" data-testid="how-it-works">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">Story to video in 3 clicks</h2>
+            <p className="text-sm text-slate-400">No prompting skills. No editing. No login to start.</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-4">
             {[
-              {
-                icon: Sparkles, title: 'Create',
-                desc: 'Generate cinematic AI videos from any prompt. Stories, reels, comics — type an idea and watch AI bring it to life.',
-                accent: 'from-violet-500 to-indigo-600',
-                cta: 'Start Creating', link: '/signup'
-              },
-              {
-                icon: RefreshCcw, title: 'Remix',
-                desc: 'Take any creation and make it yours. Change the style, voice, or story — one click to create your own version.',
-                accent: 'from-pink-500 to-rose-600',
-                cta: 'Explore Remixes', link: '/explore?tab=most_remixed'
-              },
-              {
-                icon: Share2, title: 'Publish',
-                desc: 'Share your creations everywhere. Every video gets a public page with views, remixes, and social sharing built in.',
-                accent: 'from-emerald-500 to-teal-600',
-                cta: 'See Gallery', link: '/explore'
-              },
-            ].map(pillar => (
-              <div key={pillar.title} className="vs-card group text-center py-10 px-6 hover:border-[var(--vs-border-glow)]" data-testid={`pillar-${pillar.title.toLowerCase()}`}>
-                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${pillar.accent} flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform`}>
-                  <pillar.icon className="w-7 h-7 text-white" />
+              { step: '1', title: 'Pick or type a story', desc: 'Choose from trending stories or write your own hook. One sentence is enough.', icon: BookOpen, color: 'from-violet-500 to-indigo-500' },
+              { step: '2', title: 'AI brings it alive', desc: 'Scenes, illustrations, voiceover, and music — generated in under a minute.', icon: Film, color: 'from-rose-500 to-pink-500' },
+              { step: '3', title: 'Continue or share', desc: 'Add episodes, remix, or share — others can continue your story.', icon: Users, color: 'from-amber-500 to-orange-500' },
+            ].map((item) => (
+              <div key={item.step} className="relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 text-center" data-testid={`step-${item.step}`}>
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center mx-auto mb-4`}>
+                  <item.icon className="w-6 h-6 text-white" />
                 </div>
-                <h3 className="vs-h2 mb-3" style={{ fontFamily: 'var(--vs-font-heading)' }}>{pillar.title}</h3>
-                <p className="text-[var(--vs-text-secondary)] text-sm leading-relaxed mb-5" style={{ fontFamily: 'var(--vs-font-body)' }}>{pillar.desc}</p>
-                <Link to={pillar.link}>
-                  <button className="vs-btn-secondary h-9 px-5 text-xs">{pillar.cta} <ArrowRight className="w-3.5 h-3.5" /></button>
-                </Link>
+                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-rose-500 flex items-center justify-center text-[10px] font-bold text-white">{item.step}</div>
+                <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ═══════ 4. HOW IT WORKS ═══════ */}
-      <section id="how-it-works" className="py-20 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="how-it-works">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="vs-h1 mb-3" style={{ fontFamily: 'var(--vs-font-heading)' }}>How Visionary Suite Works</h2>
-            <p className="text-[var(--vs-text-secondary)] text-lg" style={{ fontFamily: 'var(--vs-font-body)' }}>From idea to video in four simple steps.</p>
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-4">
-            {[
-              { step: '1', icon: Send, title: 'Write a Prompt', desc: 'Type your story, idea, or script. Any genre, any style.' },
-              { step: '2', icon: Wand2, title: 'AI Generates Scenes', desc: 'AI splits your story into cinematic scenes with illustrations.' },
-              { step: '3', icon: Mic, title: 'Voice & Music', desc: 'Natural voiceover and music are added automatically.' },
-              { step: '4', icon: Film, title: 'Export & Share', desc: 'Download your video or share it with one click.' },
-            ].map((item, i) => (
-              <div key={item.step} className="vs-card text-center py-8 px-4 relative" data-testid={`step-${item.step}`}>
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full vs-gradient-bg flex items-center justify-center text-xs font-bold text-white" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-                  {item.step}
-                </div>
-                <item.icon className="w-8 h-8 text-[var(--vs-text-accent)] mx-auto mb-4 mt-2" />
-                <h3 className="text-base font-semibold text-white mb-2" style={{ fontFamily: 'var(--vs-font-heading)' }}>{item.title}</h3>
-                <p className="text-sm text-[var(--vs-text-muted)] leading-relaxed" style={{ fontFamily: 'var(--vs-font-body)' }}>{item.desc}</p>
+      {/* ═══════ 6. LIVE FEED ═══════ */}
+      {liveFeed.length > 0 && (
+        <section className="py-12 px-4 border-t border-white/[0.04]" data-testid="live-feed-section">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="relative">
+                <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                <div className="w-2 h-2 rounded-full bg-emerald-400 absolute inset-0 animate-ping" />
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════ 5. TRENDING CREATIONS ═══════ */}
-      {trending.length > 0 && (
-        <section className="py-20 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="trending-section">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-end justify-between mb-8">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs font-semibold tracking-widest uppercase text-emerald-400" style={{ fontFamily: 'var(--vs-font-mono)' }}>Trending This Week</span>
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-white" style={{ fontFamily: 'var(--vs-font-heading)' }}>What the Community Loves</h2>
-                <p className="text-sm text-[var(--vs-text-secondary)] mt-1">Ranked by views, remixes, and freshness</p>
-              </div>
-              <Link to="/explore?tab=trending">
-                <button className="vs-btn-secondary px-5 h-9 text-sm hidden sm:flex" data-testid="see-all-trending">
-                  See All <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                </button>
-              </Link>
+              <span className="text-sm font-semibold text-white">Happening now</span>
             </div>
-
-            {/* Horizontal scroll carousel */}
-            <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide" style={{ scrollbarWidth: 'none' }} data-testid="trending-carousel">
-              {trending.map((item, idx) => (
-                <Link key={item.job_id} to={`/v/${item.slug || item.job_id}`} className="flex-shrink-0 snap-start" style={{ width: 'min(280px, 75vw)' }}>
-                  <div className="vs-card group p-0 overflow-hidden cursor-pointer h-full" data-testid={`trending-card-${item.job_id}`}>
-                    <div className="relative w-full aspect-video bg-[var(--vs-bg-elevated)] overflow-hidden">
-                      <SafeImage src={item.thumbnail_url} alt={item.title} aspectRatio="16/9" titleOverlay={item.title} fallbackType="gradient" className="group-hover:scale-105 transition-transform duration-300" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
-                      </div>
-                      {idx < 3 && (
-                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-md">
-                          <span className="text-xs font-bold text-emerald-400" style={{ fontFamily: 'var(--vs-font-mono)' }}>#{idx + 1}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <h3 className="text-sm font-medium text-white truncate group-hover:text-[var(--vs-text-accent)] transition-colors">{item.title}</h3>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <span className="flex items-center gap-1 text-xs text-[var(--vs-text-muted)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-                          <Eye className="w-3 h-3" /> {item.views || 0}
-                        </span>
-                        {item.remix_count > 0 && (
-                          <span className="flex items-center gap-1 text-xs text-[var(--vs-text-accent)]" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-                            <RefreshCcw className="w-3 h-3" /> {item.remix_count}
-                          </span>
-                        )}
-                        {item.category && (
-                          <span className="text-xs text-[var(--vs-text-muted)] ml-auto truncate">{item.category}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
+            <div className="space-y-0 divide-y divide-white/[0.04]">
+              {liveFeed.map((item, idx) => (
+                <div key={item.id || idx} className="flex items-center gap-3 py-2.5 text-sm">
+                  <span className="text-white font-medium">{item.creator}</span>
+                  <span className="text-slate-500">{item.action}</span>
+                  <span className="text-violet-400 font-medium truncate">"{item.title}"</span>
+                  <span className="text-xs text-slate-600 ml-auto flex-shrink-0 tabular-nums">{item.time_ago}</span>
+                </div>
               ))}
             </div>
-
-            <div className="text-center mt-6 sm:hidden">
-              <Link to="/explore?tab=trending">
-                <button className="vs-btn-secondary px-8 h-10 text-sm" data-testid="explore-more-mobile">
-                  See All Trending <ArrowRight className="w-4 h-4 ml-1" />
-                </button>
-              </Link>
-            </div>
           </div>
         </section>
       )}
-
-      {/* ═══════ 6. LIVE CREATIONS FEED ═══════ */}
-      {liveFeed.length > 0 && (
-        <section className="py-16 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="live-feed-section">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="relative">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 absolute inset-0 animate-ping" />
-              </div>
-              <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--vs-font-heading)' }}>Live on the Platform</h2>
-              <span className="text-xs text-[var(--vs-text-muted)] ml-auto" style={{ fontFamily: 'var(--vs-font-mono)' }}>Updates every few seconds</span>
-            </div>
-
-            <div className="space-y-0 divide-y divide-[var(--vs-border-subtle)]/40">
-              {liveFeed.map((item, idx) => {
-                const iconMap = {
-                  'sparkles': <Sparkles className="w-3.5 h-3.5" />,
-                  'film': <Film className="w-3.5 h-3.5" />,
-                  'refresh-ccw': <RefreshCcw className="w-3.5 h-3.5" />,
-                  'wand': <Wand2 className="w-3.5 h-3.5" />,
-                  'share': <Share2 className="w-3.5 h-3.5" />,
-                };
-                const colorMap = {
-                  'creation': 'text-purple-400',
-                  'remix': 'text-amber-400',
-                  'publish': 'text-emerald-400',
-                };
-                return (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 py-3 px-2 rounded-lg transition-colors hover:bg-white/[0.02]"
-                    style={{ animation: `fadeSlideIn 0.4s ease-out ${idx * 0.06}s both` }}
-                    data-testid={`live-feed-item-${idx}`}
-                  >
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      item.type === 'remix' ? 'bg-amber-500/15' : item.type === 'publish' ? 'bg-emerald-500/15' : 'bg-purple-500/15'
-                    }`}>
-                      <span className={colorMap[item.type] || 'text-purple-400'}>
-                        {iconMap[item.icon] || <Zap className="w-3.5 h-3.5" />}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[var(--vs-text-secondary)] truncate">
-                        <span className="text-white font-medium">{item.creator}</span>
-                        {' '}{item.action}{' '}
-                        <span className="text-[var(--vs-text-accent)] font-medium">"{item.title}"</span>
-                      </p>
-                    </div>
-                    <span className="text-xs text-[var(--vs-text-muted)] flex-shrink-0 tabular-nums" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-                      {item.time_ago}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ═══════ 7. REMIX CULTURE ═══════ */}
-      <section className="py-20 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="remix-section">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="vs-card bg-gradient-to-br from-[var(--vs-primary-from)]/10 via-transparent to-[var(--vs-secondary-to)]/10 border-[var(--vs-border-glow)] py-16 px-8">
-            <RefreshCcw className="w-12 h-12 text-[var(--vs-text-accent)] mx-auto mb-6" />
-            <h2 className="vs-h1 mb-4" style={{ fontFamily: 'var(--vs-font-heading)' }}>Take Any Creation.<br />Make It Yours.</h2>
-            <p className="text-[var(--vs-text-secondary)] text-lg max-w-xl mx-auto mb-8" style={{ fontFamily: 'var(--vs-font-body)' }}>
-              See something you love? Hit Remix. Change the story, switch the style, add your voice — and create your own version in seconds.
-            </p>
-            <div className="flex items-center justify-center gap-4">
-              <Link to="/explore?tab=most_remixed">
-                <button className="vs-btn-primary h-12 px-8 text-base font-semibold rounded-xl" data-testid="remix-explore-btn">
-                  <RefreshCcw className="w-4 h-4 mr-2" /> Explore Remixes
-                </button>
-              </Link>
-              <Link to="/signup">
-                <button className="vs-btn-secondary h-12 px-8 text-base rounded-xl">Create Your Own</button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ═══════ 7. FINAL CTA ═══════ */}
-      <section className="py-24 px-4 border-t border-[var(--vs-border-subtle)]" data-testid="final-cta">
+      <section className="py-20 px-4 border-t border-white/[0.04]" data-testid="final-cta">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tight" style={{ fontFamily: 'var(--vs-font-heading)' }}>
-            Start Creating AI Videos Today
+          <h2 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tight">
+            Your story is waiting
           </h2>
-          <p className="text-lg text-[var(--vs-text-secondary)] mb-8" style={{ fontFamily: 'var(--vs-font-body)' }}>
-            50 free credits for new creators. No credit card required.
+          <p className="text-lg text-slate-400 mb-8">
+            50 free credits. No login to start. Create your first video in 30 seconds.
           </p>
-          <Link to="/signup">
-            <button className="vs-btn-primary rounded-full px-12 h-14 text-lg font-semibold hover:shadow-[0_0_40px_-8px_rgba(124,58,237,0.5)] transition-all hover:scale-[1.02]" data-testid="final-cta-btn">
-              Start Creating <ArrowRight className="w-5 h-5 ml-2" />
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={goCreateFresh}
+              className="h-14 px-10 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-lg hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2"
+              data-testid="final-cta-create"
+            >
+              <Sparkles className="w-5 h-5" /> Create Your Story <ArrowRight className="w-5 h-5" />
             </button>
-          </Link>
+            <Link to="/explore">
+              <button className="h-14 px-10 rounded-xl border border-white/10 text-white font-medium text-lg hover:bg-white/[0.04] transition-colors" data-testid="final-cta-explore">
+                Explore Stories
+              </button>
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* ═══════ FOOTER ═══════ */}
-      <footer className="border-t border-[var(--vs-border-subtle)] py-12 px-4" data-testid="landing-footer">
+      <footer className="border-t border-white/[0.04] py-10 px-4" data-testid="landing-footer">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             <div>
-              <h4 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: 'var(--vs-font-heading)' }}>Product</h4>
+              <h4 className="text-sm font-semibold text-white mb-3">Create</h4>
               <div className="space-y-2">
-                <Link to="/app/story-video-studio" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Create Video</Link>
-                <Link to="/explore" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Explore</Link>
-                <Link to="/gallery" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Gallery</Link>
-                <Link to="/pricing" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Pricing</Link>
+                <Link to="/app/story-video-studio" className="block text-sm text-slate-500 hover:text-white transition-colors">Story Video</Link>
+                <Link to="/app/reels" className="block text-sm text-slate-500 hover:text-white transition-colors">Reel Generator</Link>
+                <Link to="/app/comic-storybook" className="block text-sm text-slate-500 hover:text-white transition-colors">Comic Storybook</Link>
+                <Link to="/app/bedtime-story-builder" className="block text-sm text-slate-500 hover:text-white transition-colors">Bedtime Stories</Link>
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: 'var(--vs-font-heading)' }}>Create</h4>
+              <h4 className="text-sm font-semibold text-white mb-3">Discover</h4>
               <div className="space-y-2">
-                <Link to="/app/story-video-studio" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Story Video</Link>
-                <Link to="/app/reels" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Reel Generator</Link>
-                <Link to="/app/photo-to-comic" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Photo to Comic</Link>
-                <Link to="/app/comic-storybook" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Comic Storybook</Link>
+                <Link to="/explore" className="block text-sm text-slate-500 hover:text-white transition-colors">Explore</Link>
+                <Link to="/gallery" className="block text-sm text-slate-500 hover:text-white transition-colors">Gallery</Link>
+                <Link to="/explore?tab=most_remixed" className="block text-sm text-slate-500 hover:text-white transition-colors">Most Remixed</Link>
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: 'var(--vs-font-heading)' }}>Company</h4>
+              <h4 className="text-sm font-semibold text-white mb-3">Company</h4>
               <div className="space-y-2">
-                <Link to="/blog" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Blog</Link>
-                <Link to="/contact" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Contact</Link>
-                <Link to="/reviews" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Reviews</Link>
+                <Link to="/pricing" className="block text-sm text-slate-500 hover:text-white transition-colors">Pricing</Link>
+                <Link to="/blog" className="block text-sm text-slate-500 hover:text-white transition-colors">Blog</Link>
+                <Link to="/contact" className="block text-sm text-slate-500 hover:text-white transition-colors">Contact</Link>
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: 'var(--vs-font-heading)' }}>Legal</h4>
+              <h4 className="text-sm font-semibold text-white mb-3">Legal</h4>
               <div className="space-y-2">
-                <Link to="/privacy" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Privacy Policy</Link>
-                <Link to="/terms" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Terms of Service</Link>
-                <Link to="/cookies" className="block text-sm text-[var(--vs-text-muted)] hover:text-white transition-colors">Cookie Policy</Link>
+                <Link to="/privacy" className="block text-sm text-slate-500 hover:text-white transition-colors">Privacy Policy</Link>
+                <Link to="/terms" className="block text-sm text-slate-500 hover:text-white transition-colors">Terms of Service</Link>
+                <Link to="/cookies" className="block text-sm text-slate-500 hover:text-white transition-colors">Cookie Policy</Link>
               </div>
             </div>
           </div>
-          <div className="border-t border-[var(--vs-border-subtle)] pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="border-t border-white/[0.04] pt-6 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md vs-gradient-bg flex items-center justify-center">
-                <Command className="w-3 h-3 text-white" />
+              <div className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-rose-500 flex items-center justify-center">
+                <Command className="w-2.5 h-2.5 text-white" />
               </div>
-              <span className="text-sm font-semibold text-[var(--vs-text-muted)]" style={{ fontFamily: 'var(--vs-font-heading)' }}>Visionary Suite</span>
+              <span className="text-sm font-semibold text-slate-500">Visionary Suite</span>
             </div>
-            <p className="text-xs text-[var(--vs-text-muted)]" style={{ fontFamily: 'var(--vs-font-body)' }}>
-              Made for AI creators worldwide
-            </p>
+            <p className="text-xs text-slate-600">Stories that come alive with AI</p>
           </div>
         </div>
       </footer>

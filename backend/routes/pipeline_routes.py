@@ -143,16 +143,11 @@ def _make_presigned_url(stored_url: str) -> str:
 
 @router.get("/gallery")
 async def public_gallery(category: str = None, sort: str = "newest", featured: bool = False):
-    """Public endpoint: return completed creations with any renderable media for the gallery."""
-    # Broad filter: COMPLETED items with ANY renderable media
+    """Public endpoint: return completed creations with real thumbnails for the gallery."""
+    # STRICT filter: only show items with REAL thumbnails (no empty states)
     query = {
         "status": "COMPLETED",
-        "$or": [
-            {"output_url": {"$exists": True, "$nin": [None, ""]}},
-            {"thumbnail_url": {"$exists": True, "$nin": [None, ""]}},
-            {"scene_images": {"$exists": True, "$ne": {}}},
-            {"is_showcase": True},
-        ]
+        "thumbnail_url": {"$exists": True, "$nin": [None, ""]},
     }
     if category and category != "all":
         query["animation_style"] = category
@@ -167,8 +162,8 @@ async def public_gallery(category: str = None, sort: str = "newest", featured: b
     jobs = await db.pipeline_jobs.find(
         query,
         {"title": 1, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "timing": 1,
-         "completed_at": 1, "job_id": 1, "story_text": 1, "remix_count": 1,
-         "age_group": 1, "voice_preset": 1, "is_showcase": 1, "scene_images": 1, "_id": 0}
+         "completed_at": 1, "job_id": 1, "story_text": 1, "remix_count": 1, "slug": 1,
+         "age_group": 1, "voice_preset": 1, "is_showcase": 1, "scene_images": 1, "views": 1, "_id": 0}
     ).sort(sort_field, sort_dir).to_list(length=48)
 
     for job in jobs:
@@ -228,12 +223,7 @@ async def gallery_leaderboard():
 async def gallery_categories():
     """Public endpoint: return available categories with counts."""
     pipe = [
-        {"$match": {"status": "COMPLETED", "$or": [
-            {"output_url": {"$exists": True, "$nin": [None, ""]}},
-            {"thumbnail_url": {"$exists": True, "$nin": [None, ""]}},
-            {"scene_images": {"$exists": True, "$ne": {}}},
-            {"is_showcase": True},
-        ]}},
+        {"$match": {"status": "COMPLETED", "thumbnail_url": {"$exists": True, "$nin": [None, ""]}}},
         {"$group": {"_id": "$animation_style", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]

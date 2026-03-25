@@ -253,61 +253,68 @@ export default function Gallery() {
         ) : videos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="video-grid">
             {videos.map((video, i) => (
-              <div key={video.job_id || i} className="group rounded-2xl overflow-hidden border border-white/[0.05] bg-white/[0.015] hover:border-white/[0.12] transition-all" data-testid={`gallery-card-${i}`}>
-                <div className="aspect-video bg-black relative">
+              <div key={video.job_id || i} className="group rounded-2xl overflow-hidden border border-white/[0.05] bg-white/[0.015] hover:border-violet-500/20 transition-all" data-testid={`gallery-card-${i}`}>
+                <div className="aspect-video bg-black relative cursor-pointer" onClick={() => handlePreview(video)}>
                   {video.thumbnail_url ? (
-                    <img
-                      src={video.thumbnail_url}
-                      alt={video.title}
-                      className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => handlePreview(video)}
-                      loading="lazy"
-                    />
+                    <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover" loading="lazy" />
                   ) : (
-                    <video
-                      src={video.output_url}
-                      className="w-full h-full object-cover"
-                      preload="metadata"
-                      muted
-                    />
+                    <div className="w-full h-full bg-gradient-to-br from-violet-900/40 to-slate-900 flex items-center justify-center">
+                      <Film className="w-10 h-10 text-slate-600" />
+                    </div>
                   )}
                   {video.remix_count > 0 && (
                     <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-pink-300 px-2 py-1 rounded-full text-[11px] font-semibold">
-                      <RefreshCcw className="w-3 h-3" /> {video.remix_count} remixes
+                      <RefreshCcw className="w-3 h-3" /> {video.remix_count}
                     </div>
                   )}
-                  {/* Hover overlay */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                    <button
-                      onClick={() => handlePreview(video)}
-                      className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                      data-testid={`preview-btn-${i}`}
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleRemix(video)}
-                      className="p-2.5 rounded-full bg-pink-500/20 hover:bg-pink-500/40 text-pink-200 transition-colors"
-                      data-testid={`remix-btn-${i}`}
-                    >
-                      <RefreshCcw className="w-5 h-5" />
-                    </button>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                      <Play className="w-6 h-6 text-white ml-0.5" />
+                    </div>
                   </div>
                 </div>
                 <div className="p-4">
-                  <h3 className="font-medium text-white truncate">{video.title || 'AI Story Video'}</h3>
-                  <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1"><Film className="w-3 h-3" /> {video.animation_style || 'cartoon_2d'}</span>
-                    {video.timing?.total_ms && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {Math.round(video.timing.total_ms / 1000)}s</span>}
+                  <h3 className="font-medium text-white truncate mb-1">{video.title || 'AI Story'}</h3>
+                  {video.story_text && (
+                    <p className="text-xs text-slate-400 line-clamp-2 mb-3 leading-relaxed">"{video.story_text.slice(0, 100)}..."</p>
+                  )}
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500 mb-3">
+                    <span>{video.animation_style?.replace(/_/g, ' ') || 'cartoon 2d'}</span>
+                    {video.timing?.total_ms && <span>{Math.round(video.timing.total_ms / 1000)}s</span>}
                   </div>
+                  {/* PRIMARY: Continue Story */}
                   <button
                     onClick={() => handleRemix(video)}
-                    className="mt-3 w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-pink-500/[0.06] border border-pink-500/15 text-pink-300 text-sm font-medium hover:bg-pink-500/[0.12] hover:border-pink-500/30 transition-all"
-                    data-testid={`remix-card-btn-${i}`}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold hover:opacity-90 transition-all"
+                    data-testid={`continue-story-btn-${i}`}
                   >
-                    <RefreshCcw className="w-3.5 h-3.5" />
-                    Remix This Video
+                    <Play className="w-3.5 h-3.5" /> Continue This Story
                   </button>
+                  {/* SECONDARY: Add Twist / Funny Version */}
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        const hook = `${video.story_text || video.title}... but with a surprising twist!`;
+                        localStorage.setItem('onboarding_prompt', hook);
+                        navigate('/app/story-video-studio?prompt=' + encodeURIComponent(hook));
+                      }}
+                      className="flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all"
+                      data-testid={`add-twist-${i}`}
+                    >
+                      <Sparkles className="w-3 h-3" /> Add Twist
+                    </button>
+                    <button
+                      onClick={() => {
+                        const hook = `${video.story_text || video.title}... but make it hilariously funny!`;
+                        localStorage.setItem('onboarding_prompt', hook);
+                        navigate('/app/story-video-studio?prompt=' + encodeURIComponent(hook));
+                      }}
+                      className="flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all"
+                      data-testid={`make-funny-${i}`}
+                    >
+                      <Star className="w-3 h-3" /> Make Funny
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -320,21 +327,16 @@ export default function Gallery() {
         )}
 
         {/* Contextual Upgrade CTA */}
-        <div className="mt-12 rounded-2xl border border-indigo-500/15 bg-gradient-to-r from-indigo-500/[0.04] to-purple-500/[0.04] p-8 text-center" data-testid="gallery-upgrade-cta">
+        <div className="mt-12 rounded-2xl border border-violet-500/15 bg-gradient-to-r from-violet-500/[0.04] to-rose-500/[0.04] p-8 text-center" data-testid="gallery-upgrade-cta">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <Sparkles className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-base font-bold text-white">Create videos like these</h3>
+            <Play className="w-5 h-5 text-violet-400" />
+            <h3 className="text-base font-bold text-white">Continue any story above — or create your own</h3>
           </div>
-          <p className="text-sm text-slate-400 max-w-md mx-auto mb-5">Generate AI story videos, comics, GIFs, reels and more. Remix any creation to make it uniquely yours.</p>
+          <p className="text-sm text-slate-400 max-w-md mx-auto mb-5">Pick a story you love, click Continue, and make it yours. No signup needed to start.</p>
           <div className="flex items-center justify-center gap-3">
-            <Link to="/signup">
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-6 py-2.5 text-sm font-semibold" data-testid="gallery-bottom-cta">
-                Start Creating <ArrowRight className="w-4 h-4 ml-1.5" />
-              </Button>
-            </Link>
-            <Link to="/pricing">
-              <Button variant="outline" className="rounded-full px-6 py-2.5 text-sm font-semibold border-white/10 text-slate-300 hover:bg-white/5" data-testid="gallery-pricing-cta">
-                <Crown className="w-3.5 h-3.5 mr-1.5" /> View Plans
+            <Link to="/app/story-video-studio">
+              <Button className="bg-gradient-to-r from-violet-600 to-rose-600 hover:opacity-90 text-white rounded-full px-6 py-2.5 text-sm font-semibold" data-testid="gallery-bottom-cta">
+                Create Your Version <ArrowRight className="w-4 h-4 ml-1.5" />
               </Button>
             </Link>
           </div>
