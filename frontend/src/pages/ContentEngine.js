@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Flame, Sparkles, Play, Trash2, Star, Tag,
   Copy, Filter, RefreshCcw, Send, ChevronDown, Check, X,
-  Zap, Eye, BookOpen, TrendingUp, Instagram, Share2
+  Zap, Eye, BookOpen, TrendingUp, Instagram, Share2, Film
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -52,6 +52,11 @@ export default function ContentEngine() {
   // Social scripts modal
   const [socialModal, setSocialModal] = useState(null);
 
+  // Controlled batch
+  const [showControlledModal, setShowControlledModal] = useState(false);
+  const [controlledGenerating, setControlledGenerating] = useState(false);
+  const [batchMetrics, setBatchMetrics] = useState(null);
+
   // Selected stories
   const [selected, setSelected] = useState(new Set());
 
@@ -75,6 +80,15 @@ export default function ContentEngine() {
   }, [filterCat, filterStatus, filterTag]);
 
   useEffect(() => { fetchStories(); }, [fetchStories]);
+
+  const fetchBatchMetrics = useCallback(async () => {
+    try {
+      const res = await api().get(`${API}/api/content-engine/batch-metrics`);
+      if (res.data.success) setBatchMetrics(res.data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchBatchMetrics(); }, [fetchBatchMetrics]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -119,6 +133,50 @@ export default function ContentEngine() {
       toast.error('Batch publish failed');
     }
     setPublishing(false);
+  };
+
+  const handleControlledBatch = async (dist) => {
+    setControlledGenerating(true);
+    try {
+      const res = await api().post(`${API}/api/content-engine/generate-controlled`, dist);
+      if (res.data.success) {
+        const msg = `Generated ${res.data.generated} stories, published ${res.data.published} to ${dist.use_story_engine ? 'Story Engine' : 'Pipeline'}`;
+        toast.success(msg);
+        setShowControlledModal(false);
+        fetchStories();
+        fetchBatchMetrics();
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Controlled batch failed');
+    }
+    setControlledGenerating(false);
+  };
+
+  const handlePublishToStoryEngine = async (storyId) => {
+    try {
+      const res = await api().post(`${API}/api/content-engine/publish-to-story-engine/${storyId}`);
+      if (res.data.success) {
+        toast.success(`Queued for real video generation (Job: ${res.data.job_id.slice(0, 8)})`);
+        fetchStories();
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Story Engine publish failed — check LLM budget');
+    }
+  };
+
+  const handleRateVideo = async (jobId, rating, wouldContinue, wouldShare) => {
+    try {
+      await api().post(`${API}/api/content-engine/rate-video`, {
+        job_id: jobId,
+        hook_rating: rating,
+        would_continue: wouldContinue,
+        would_share: wouldShare,
+      });
+      toast.success(`Rated as ${rating}`);
+      fetchBatchMetrics();
+    } catch (e) {
+      toast.error('Rating failed');
+    }
   };
 
   const handleFeature = async (storyIds, featured) => {
@@ -191,6 +249,13 @@ export default function ContentEngine() {
               <Send className="w-3.5 h-3.5" /> {publishing ? 'Publishing...' : 'Publish All Drafts'}
             </button>
             <button
+              onClick={() => setShowControlledModal(true)}
+              className="h-8 px-4 rounded-lg bg-gradient-to-r from-amber-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+              data-testid="controlled-batch-btn"
+            >
+              <Flame className="w-3.5 h-3.5" /> Controlled Batch (10)
+            </button>
+            <button
               onClick={() => setShowGenModal(true)}
               className="h-8 px-4 rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
               data-testid="generate-btn"
@@ -209,6 +274,32 @@ export default function ContentEngine() {
             <StatCard label="Drafts" value={stats.draft} icon={Sparkles} color="amber" />
             <StatCard label="Published" value={stats.published} icon={Send} color="emerald" />
             <StatCard label="Featured" value={stats.featured} icon={Star} color="rose" />
+          </div>
+        )}
+
+        {/* Batch Metrics — Hook Quality Tracking */}
+        {batchMetrics && batchMetrics.total_rated > 0 && (
+          <div className="mb-6 bg-slate-900/60 border border-slate-800/60 rounded-xl p-5" data-testid="batch-metrics">
+            <h2 className="text-sm font-black text-white mb-3 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-amber-400" /> Micro Metrics ({batchMetrics.total_rated} rated)
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg p-3">
+                <p className="text-[10px] text-emerald-400 font-bold uppercase">Continuation Rate</p>
+                <p className="text-xl font-black text-white">{batchMetrics.metrics.continuation_rate}%</p>
+              </div>
+              <div className="bg-violet-500/[0.06] border border-violet-500/20 rounded-lg p-3">
+                <p className="text-[10px] text-violet-400 font-bold uppercase">Share Rate</p>
+                <p className="text-xl font-black text-white">{batchMetrics.metrics.share_rate}%</p>
+              </div>
+              {Object.entries(batchMetrics.by_rating || {}).map(([level, data]) => (
+                <div key={level} className={`${level === 'HIGH' ? 'bg-amber-500/[0.06] border-amber-500/20' : level === 'MEDIUM' ? 'bg-blue-500/[0.06] border-blue-500/20' : 'bg-red-500/[0.06] border-red-500/20'} border rounded-lg p-3`}>
+                  <p className={`text-[10px] font-bold ${level === 'HIGH' ? 'text-amber-400' : level === 'MEDIUM' ? 'text-blue-400' : 'text-red-400'}`}>{level} HOOK</p>
+                  <p className="text-xl font-black text-white">{data.count}</p>
+                  <p className="text-[9px] text-slate-500">Continue: {data.continuation_rate}% | Share: {data.share_rate}%</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -294,11 +385,13 @@ export default function ContentEngine() {
                 selected={selected.has(story.story_id)}
                 onToggleSelect={() => toggleSelect(story.story_id)}
                 onPublish={() => handlePublish(story.story_id)}
+                onPublishSE={() => handlePublishToStoryEngine(story.story_id)}
                 onFeature={() => handleFeature([story.story_id], !story.is_featured)}
                 onTag={(tag) => handleTag(story.story_id, tag)}
                 onDelete={() => handleDelete(story.story_id)}
                 onSocialScripts={() => handleSocialScripts(story.story_id)}
                 onCopy={() => copyText(story.story_text)}
+                onRate={(rating, cont, share) => handleRateVideo(story.story_engine_job_id || story.pipeline_job_id, rating, cont, share)}
               />
             ))}
           </div>
@@ -317,6 +410,15 @@ export default function ContentEngine() {
           generating={generating}
           onGenerate={handleGenerate}
           onClose={() => setShowGenModal(false)}
+        />
+      )}
+
+      {/* Controlled Batch Modal */}
+      {showControlledModal && (
+        <ControlledBatchModal
+          generating={controlledGenerating}
+          onGenerate={handleControlledBatch}
+          onClose={() => setShowControlledModal(false)}
         />
       )}
 
@@ -346,9 +448,11 @@ function StatCard({ label, value, icon: Icon, color }) {
   );
 }
 
-function StoryCard({ story, selected, onToggleSelect, onPublish, onFeature, onTag, onDelete, onSocialScripts, onCopy }) {
+function StoryCard({ story, selected, onToggleSelect, onPublish, onPublishSE, onFeature, onTag, onDelete, onSocialScripts, onCopy, onRate }) {
   const [showTags, setShowTags] = useState(false);
+  const [showRating, setShowRating] = useState(false);
   const catColor = CATEGORIES.find(c => c.id === story.category)?.color || 'slate';
+  const isPublished = story.status === 'published' || story.status === 'published_se';
 
   return (
     <div
@@ -394,11 +498,11 @@ function StoryCard({ story, selected, onToggleSelect, onPublish, onFeature, onTa
       {/* Status + Actions */}
       <div className="flex items-center justify-between">
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-          story.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' :
+          story.status === 'published' || story.status === 'published_se' ? 'bg-emerald-500/15 text-emerald-400' :
           story.status === 'rejected' ? 'bg-red-500/15 text-red-400' :
           'bg-amber-500/15 text-amber-400'
         }`}>
-          {story.status}
+          {story.status === 'published_se' ? 'SE Published' : story.status}
         </span>
         <div className="flex items-center gap-1">
           <button onClick={onSocialScripts} className="p-1.5 rounded-lg hover:bg-slate-800 transition-colors" title="Social Scripts">
@@ -425,9 +529,37 @@ function StoryCard({ story, selected, onToggleSelect, onPublish, onFeature, onTa
             )}
           </div>
           {story.status === 'draft' && (
-            <button onClick={onPublish} className="p-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors" title="Publish">
-              <Send className="w-3.5 h-3.5 text-slate-500 hover:text-emerald-400" />
-            </button>
+            <>
+              <button onClick={onPublish} className="p-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors" title="Publish to Pipeline">
+                <Send className="w-3.5 h-3.5 text-slate-500 hover:text-emerald-400" />
+              </button>
+              <button onClick={onPublishSE} className="p-1.5 rounded-lg hover:bg-amber-500/10 transition-colors" title="Publish to Story Engine (Sora 2)">
+                <Film className="w-3.5 h-3.5 text-slate-500 hover:text-amber-400" />
+              </button>
+            </>
+          )}
+          {/* Rate hook quality if published */}
+          {isPublished && (
+            <div className="relative">
+              <button onClick={() => setShowRating(!showRating)} className="p-1.5 rounded-lg hover:bg-amber-500/10 transition-colors" title="Rate Hook Quality">
+                <Flame className="w-3.5 h-3.5 text-slate-500 hover:text-amber-400" />
+              </button>
+              {showRating && (
+                <div className="absolute right-0 bottom-8 bg-slate-900 border border-slate-700 rounded-lg p-2 shadow-xl z-10 min-w-[180px]">
+                  <p className="text-[9px] text-slate-500 font-bold mb-1.5">RATE HOOK QUALITY</p>
+                  {[
+                    { level: 'HIGH', color: 'amber', label: 'HIGH — Addictive' },
+                    { level: 'MEDIUM', color: 'blue', label: 'MEDIUM — Decent' },
+                    { level: 'LOW', color: 'red', label: 'LOW — Weak' },
+                  ].map(r => (
+                    <button key={r.level} onClick={() => { onRate(r.level, r.level === 'HIGH', r.level !== 'LOW'); setShowRating(false); }} className={`w-full text-left text-[10px] px-2 py-1.5 rounded hover:bg-${r.color}-500/10 text-slate-300 flex items-center gap-2`}>
+                      <span className={`w-2 h-2 rounded-full bg-${r.color}-400`} />
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors" title="Delete">
             <Trash2 className="w-3.5 h-3.5 text-slate-500 hover:text-red-400" />
@@ -519,6 +651,76 @@ function GenerateModal({ count, setCount, categories, setCategories, autoPublish
                 <><RefreshCcw className="w-4 h-4 animate-spin" /> Generating...</>
               ) : (
                 <><Sparkles className="w-4 h-4" /> Generate {count} Stories</>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ControlledBatchModal({ generating, onGenerate, onClose }) {
+  const [emotional, setEmotional] = useState(4);
+  const [mystery, setMystery] = useState(3);
+  const [kids, setKids] = useState(2);
+  const [viral, setViral] = useState(1);
+  const [useStoryEngine, setUseStoryEngine] = useState(true);
+  const total = emotional + mystery + kids + viral;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" data-testid="controlled-batch-modal">
+      <div className="w-full max-w-md mx-4 bg-[#0c0c14] border border-amber-500/30 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="h-1 bg-gradient-to-r from-amber-500 via-rose-500 to-violet-500" />
+        <div className="p-6">
+          <h2 className="text-lg font-black text-white mb-1 flex items-center gap-2">
+            <Flame className="w-5 h-5 text-amber-400" /> Controlled Batch ({total} videos)
+          </h2>
+          <p className="text-xs text-slate-500 mb-5">Exact category distribution — test hook quality before scaling</p>
+
+          <div className="space-y-3 mb-5">
+            {[
+              { label: 'Emotional', color: 'rose', value: emotional, set: setEmotional },
+              { label: 'Mystery', color: 'indigo', value: mystery, set: setMystery },
+              { label: 'Kids', color: 'emerald', value: kids, set: setKids },
+              { label: 'Viral', color: 'amber', value: viral, set: setViral },
+            ].map(item => (
+              <div key={item.label} className="flex items-center justify-between">
+                <span className={`text-xs font-bold text-${item.color}-400`}>{item.label}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => item.set(Math.max(0, item.value - 1))} className="w-7 h-7 rounded-lg bg-slate-800 text-white text-sm font-bold hover:bg-slate-700">-</button>
+                  <span className="text-sm font-bold text-white w-6 text-center">{item.value}</span>
+                  <button onClick={() => item.set(Math.min(20, item.value + 1))} className="w-7 h-7 rounded-lg bg-slate-800 text-white text-sm font-bold hover:bg-slate-700">+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <label className="flex items-center gap-2 mb-6 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useStoryEngine}
+              onChange={(e) => setUseStoryEngine(e.target.checked)}
+              className="w-4 h-4 rounded bg-slate-800 border-slate-600 accent-amber-500"
+              data-testid="controlled-use-se"
+            />
+            <span className="text-xs text-slate-300">Use Story Engine (real Sora 2 video)</span>
+          </label>
+
+          <div className="flex gap-2">
+            <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-400 text-sm font-bold hover:bg-slate-700 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={() => onGenerate({ emotional, mystery, kids, viral, use_story_engine: useStoryEngine })}
+              disabled={generating || total === 0}
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-opacity"
+              data-testid="controlled-confirm-btn"
+            >
+              {generating ? (
+                <><RefreshCcw className="w-4 h-4 animate-spin" /> Generating...</>
+              ) : (
+                <><Flame className="w-4 h-4" /> Generate {total} Videos</>
               )}
             </button>
           </div>

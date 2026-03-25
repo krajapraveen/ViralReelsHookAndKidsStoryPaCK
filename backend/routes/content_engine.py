@@ -99,6 +99,14 @@ class GenerateBatchRequest(BaseModel):
     categories: Optional[List[str]] = None  # None = all categories
     auto_publish: bool = False
 
+class ControlledBatchRequest(BaseModel):
+    """Controlled batch: exact distribution across categories."""
+    emotional: int = Field(4, ge=0, le=20)
+    mystery: int = Field(3, ge=0, le=20)
+    kids: int = Field(2, ge=0, le=20)
+    viral: int = Field(1, ge=0, le=20)
+    use_story_engine: bool = True  # Use real Sora 2 pipeline vs old pipeline
+
 class FeatureRequest(BaseModel):
     story_ids: List[str]
     featured: bool = True
@@ -106,6 +114,13 @@ class FeatureRequest(BaseModel):
 class QualityTagRequest(BaseModel):
     story_id: str
     tag: str  # HIGH_VIRAL, EMOTIONAL_HOOK, FAST_CONVERSION, WEAK
+
+class HookRatingRequest(BaseModel):
+    job_id: str
+    hook_rating: str  # HIGH, MEDIUM, LOW
+    would_continue: bool = False
+    would_share: bool = False
+    notes: Optional[str] = None
 
 
 def _admin_required(user: dict = Depends(get_current_user)):
@@ -533,3 +548,276 @@ async def _publish_to_pipeline(story: dict, admin_user_id: str) -> Optional[str]
     except Exception as e:
         logger.error(f"[CONTENT_ENGINE] Publish failed: {e}")
         return None
+
+
+async def _publish_to_story_engine(story: dict, admin_user_id: str) -> Optional[str]:
+    """Queue a seed story into the story_engine_jobs for REAL Sora 2 video generation."""
+    from services.story_engine.pipeline import create_job
+
+    try:
+        # Map animation style to story engine style_id
+        style_map = {
+            "cartoon_2d": "cartoon_2d",
+            "anime": "anime",
+            "watercolor": "watercolor",
+            "realistic": "realistic",
+            "noir": "realistic",
+        }
+        style_id = style_map.get(story.get("animation_style", "cartoon_2d"), "cartoon_2d")
+
+        result = await create_job(
+            user_id=admin_user_id,
+            story_text=story.get("story_text", ""),
+            title=story.get("title", "Untitled Hook"),
+            style_id=style_id,
+            language="en",
+        )
+
+        if result.get("success"):
+            job_id = result["job_id"]
+            # Mark seed story with story engine job
+            await db.seed_stories.update_one(
+                {"story_id": story["story_id"]},
+                {"$set": {
+                    "status": "published_se",
+                    "is_published": True,
+                    "story_engine_job_id": job_id,
+                }},
+            )
+            # Tag the story engine job as seed content
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {
+                    "is_seed_content": True,
+                    "seed_story_id": story.get("story_id"),
+                    "category": story.get("category"),
+                    "quality_tags": story.get("quality_tags", []),
+                }},
+            )
+            logger.info(f"[CONTENT_ENGINE] Published to Story Engine: {story['story_id'][:8]} → SE job {job_id[:8]}")
+            return job_id
+        else:
+            logger.error(f"[CONTENT_ENGINE] Story Engine create_job failed: {result.get('error')}")
+            return None
+    except Exception as e:
+        logger.error(f"[CONTENT_ENGINE] Story Engine publish failed: {e}")
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONTROLLED BATCH GENERATION
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/generate-controlled")
+async def generate_controlled_batch(req: ControlledBatchRequest, admin: dict = Depends(_admin_required)):
+    """Generate a controlled batch with exact category distribution. Admin only."""
+    distribution = {
+        "emotional": req.emotional,
+        "mystery": req.mystery,
+        "kids": req.kids,
+        "viral": req.viral,
+    }
+    total = sum(distribution.values())
+    if total == 0:
+        raise HTTPException(status_code=400, detail="At least 1 video required")
+
+    all_stories = []
+    results = {"generated": 0, "published": 0, "failed_publish": 0, "by_category": {}}
+
+    for cat_key, count in distribution.items():
+        if count <= 0:
+            continue
+        cat = CATEGORIES.get(cat_key)
+        if not cat:
+            continue
+
+        import random
+        theme = random.choice(cat["themes"])
+        style = random.choice(cat.get("styles", ANIMATION_STYLES))
+
+        raw_stories = await _generate_stories_ai(cat_key, theme, count)
+        cat_results = {"generated": 0, "published": 0, "stories": []}
+
+        for story in raw_stories[:count]:
+            quality = _quality_score(story)
+            story_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc).isoformat()
+
+            doc = {
+                "story_id": story_id,
+                "title": story.get("title", "Untitled Hook"),
+                "story_text": story.get("story", ""),
+                "hook_line": story.get("hook_line", ""),
+                "category": cat_key,
+                "category_label": cat["label"],
+                "theme": theme,
+                "animation_style": style,
+                "quality_score": quality["score"],
+                "quality_tags": quality["tags"],
+                "social_scripts": None,
+                "is_featured": False,
+                "is_published": False,
+                "status": "draft",
+                "batch_type": "controlled",
+                "created_by": admin["id"],
+                "created_at": now,
+                "pipeline_job_id": None,
+                "story_engine_job_id": None,
+            }
+
+            await db.seed_stories.insert_one({k: v for k, v in doc.items() if k != "_id"})
+            all_stories.append(doc)
+            cat_results["generated"] += 1
+            results["generated"] += 1
+
+            # Auto-publish to story engine
+            if req.use_story_engine:
+                job_id = await _publish_to_story_engine(doc, admin["id"])
+            else:
+                job_id = await _publish_to_pipeline(doc, admin["id"])
+
+            if job_id:
+                cat_results["published"] += 1
+                results["published"] += 1
+                cat_results["stories"].append({"story_id": story_id, "title": doc["title"], "job_id": job_id})
+            else:
+                results["failed_publish"] += 1
+
+        results["by_category"][cat_key] = cat_results
+
+    return {
+        "success": True,
+        "total_requested": total,
+        **results,
+    }
+
+
+@router.post("/publish-to-story-engine/{story_id}")
+async def publish_to_story_engine(story_id: str, admin: dict = Depends(_admin_required)):
+    """Publish a single story to the Story Engine (real Sora 2 pipeline). Admin only."""
+    story = await db.seed_stories.find_one({"story_id": story_id}, {"_id": 0})
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    job_id = await _publish_to_story_engine(story, admin["id"])
+    if not job_id:
+        raise HTTPException(status_code=500, detail="Failed to publish to Story Engine — check LLM key budget")
+
+    return {"success": True, "job_id": job_id, "message": "Story queued for real Sora 2 video generation"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# HOOK QUALITY RATING & MICRO METRICS
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/rate-video")
+async def rate_video(req: HookRatingRequest, admin: dict = Depends(_admin_required)):
+    """Rate a generated video's hook quality. Admin only."""
+    valid_ratings = ["HIGH", "MEDIUM", "LOW"]
+    if req.hook_rating not in valid_ratings:
+        raise HTTPException(status_code=400, detail=f"Invalid rating. Use: {valid_ratings}")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    rating_doc = {
+        "job_id": req.job_id,
+        "hook_rating": req.hook_rating,
+        "would_continue": req.would_continue,
+        "would_share": req.would_share,
+        "notes": req.notes,
+        "rated_by": admin["id"],
+        "rated_at": now,
+    }
+
+    # Upsert: one rating per job
+    await db.video_ratings.update_one(
+        {"job_id": req.job_id},
+        {"$set": rating_doc},
+        upsert=True,
+    )
+
+    # Also update the job document for easy querying
+    for coll_name in ["story_engine_jobs", "pipeline_jobs"]:
+        coll = db[coll_name]
+        result = await coll.update_one(
+            {"job_id": req.job_id},
+            {"$set": {
+                "hook_rating": req.hook_rating,
+                "would_continue": req.would_continue,
+                "would_share": req.would_share,
+            }},
+        )
+        if result.modified_count > 0:
+            break
+
+    return {"success": True, "message": f"Rated {req.job_id[:8]} as {req.hook_rating}"}
+
+
+@router.get("/batch-metrics")
+async def get_batch_metrics(admin: dict = Depends(_admin_required)):
+    """Get micro metrics for all rated/generated videos. Admin only."""
+    # Get all ratings
+    ratings = await db.video_ratings.find({}, {"_id": 0}).to_list(length=500)
+
+    total = len(ratings)
+    if total == 0:
+        return {
+            "success": True,
+            "total_rated": 0,
+            "metrics": {"continuation_rate": 0, "share_rate": 0},
+            "by_rating": {},
+            "ratings": [],
+        }
+
+    would_continue = sum(1 for r in ratings if r.get("would_continue"))
+    would_share = sum(1 for r in ratings if r.get("would_share"))
+
+    by_rating = {}
+    for level in ["HIGH", "MEDIUM", "LOW"]:
+        subset = [r for r in ratings if r.get("hook_rating") == level]
+        by_rating[level] = {
+            "count": len(subset),
+            "continuation_rate": round(sum(1 for r in subset if r.get("would_continue")) / max(len(subset), 1) * 100, 1),
+            "share_rate": round(sum(1 for r in subset if r.get("would_share")) / max(len(subset), 1) * 100, 1),
+        }
+
+    # Get seed stories grouped by category
+    by_category = {}
+    se_jobs = await db.story_engine_jobs.find(
+        {"is_seed_content": True},
+        {"_id": 0, "job_id": 1, "title": 1, "state": 1, "category": 1, "hook_rating": 1, "output_url": 1, "thumbnail_url": 1, "used_ken_burns_fallback": 1}
+    ).to_list(length=100)
+
+    for job in se_jobs:
+        cat = job.get("category", "uncategorized")
+        if cat not in by_category:
+            by_category[cat] = {"total": 0, "ready": 0, "partial": 0, "failed": 0, "jobs": []}
+        by_category[cat]["total"] += 1
+        state = job.get("state", "")
+        if state == "READY":
+            by_category[cat]["ready"] += 1
+        elif state == "PARTIAL_READY":
+            by_category[cat]["partial"] += 1
+        elif state == "FAILED":
+            by_category[cat]["failed"] += 1
+        by_category[cat]["jobs"].append({
+            "job_id": job["job_id"],
+            "title": job.get("title"),
+            "state": job.get("state"),
+            "hook_rating": job.get("hook_rating"),
+            "output_url": job.get("output_url"),
+            "thumbnail_url": job.get("thumbnail_url"),
+            "fallback": job.get("used_ken_burns_fallback", False),
+        })
+
+    return {
+        "success": True,
+        "total_rated": total,
+        "metrics": {
+            "continuation_rate": round(would_continue / total * 100, 1),
+            "share_rate": round(would_share / total * 100, 1),
+        },
+        "by_rating": by_rating,
+        "by_category": by_category,
+        "ratings": ratings,
+    }
