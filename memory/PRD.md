@@ -70,6 +70,13 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 - **Hook Quality Rating** — POST /api/content-engine/rate-video (HIGH/MEDIUM/LOW)
 - **Micro Metrics Dashboard** — GET /api/content-engine/batch-metrics
 
+### Phase 10: Hybrid Hook Scoring Engine (Current Session)
+- **Rule-Based Filter (Stage 1)** — Free, instant scoring on 7 dimensions: length, first-line hook, tension, cliffhanger, emotional power, generic penalty, title quality
+- **GPT Scoring (Stage 2)** — Only for stories scoring >= 40 in rules, evaluates curiosity, emotion, viral potential, continuation probability
+- **Final Decision (Stage 3)** — Combined score: 40% rules + 60% GPT. Only score >= 70 goes to video generation
+- **Admin UI** — Hook score badges (amber=HIGH, blue=MEDIUM, red=LOW), VIDEO READY badges, Score All button, rejection reasons
+- **Auto-Reject** — Stories with no hook AND no cliffhanger, or too short, are immediately rejected
+
 ## Key DB Schema
 - `users`: Profile, role, credits (50 standard)
 - `pipeline_jobs`: Legacy video generation jobs
@@ -96,15 +103,17 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 
 ## Prioritized Backlog
 ### P0 — Ready to Execute (After Budget Top-Up)
-- Generate 10 controlled videos (4 emotional, 3 mystery, 2 kids, 1 viral)
-- Rate each video's hook quality
-- Identify top 3 hooks
+- Add $30-50 balance to Emergent LLM key
+- Generate 10 controlled videos through scoring pipeline: Generate stories → Rule filter → GPT score top 30% → Only HIGH hooks get Sora 2 video
+- Rate each video's hook quality (HIGH/MEDIUM/LOW)
+- Identify top 3 hooks that feel addictive
 - Validate continuation + share behavior
 
 ### P1 — Scale What Works
-- Generate 30-50 videos from validated hooks
-- Run social media ads with top hooks
+- Generate 30-50 videos from validated HIGH hooks only
+- Run social media ads with top 3 hooks
 - A/B test hook text variations on public pages
+- Auto-improve weak hooks (rewrite LOW → MEDIUM → HIGH)
 
 ### P2 — Platform Optimization
 - Migrate to self-hosted GPU stack (Wan2.1, Kokoro) — spec in SELF_HOSTED_STACK.md
