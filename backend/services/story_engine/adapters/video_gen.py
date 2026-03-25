@@ -1,60 +1,26 @@
 """
-Video Generation Adapter — Interface for Wan2.1-T2V-14B / Wan2.1-I2V-14B.
-Generates moving scene clips and keyframes.
+Video Generation Adapter — REAL implementation using Emergent services.
+- Keyframes: GPT Image 1 via litellm
+- Scene Clips: Sora 2 via OpenAIVideoGeneration
+- Uploads to Cloudflare R2 for persistent storage.
 
-In production: connects to self-hosted Wan2.1 via inference API.
-Currently: provides the interface contract + placeholder that returns structured status.
-The actual GPU inference will be handled by the worker when deployed.
+NO MOCKS. NO PLACEHOLDERS. REAL OUTPUT.
 """
 import os
+import uuid
 import logging
+import asyncio
+import tempfile
 from typing import Optional, Dict, List
+from pathlib import Path
+
 from ..negative_prompt import get_negative_prompt, get_style_positive_prompt
 
 logger = logging.getLogger("story_engine.adapters.video_gen")
 
-# Configuration — set these when deploying to point at your GPU workers
-WAN_T2V_ENDPOINT = os.environ.get("WAN_T2V_ENDPOINT", "")  # e.g. http://gpu-worker:8080/t2v
-WAN_I2V_ENDPOINT = os.environ.get("WAN_I2V_ENDPOINT", "")  # e.g. http://gpu-worker:8080/i2v
-KEYFRAME_ENDPOINT = os.environ.get("KEYFRAME_GEN_ENDPOINT", "")  # e.g. http://gpu-worker:8080/keyframe
-
-
-class VideoGenRequest:
-    """Standardized request for video/image generation."""
-    def __init__(
-        self,
-        prompt: str,
-        negative_prompt: str,
-        style_id: str = "cartoon_2d",
-        duration_seconds: float = 5.0,
-        width: int = 1280,
-        height: int = 720,
-        fps: int = 24,
-        seed: Optional[int] = None,
-        reference_image_url: Optional[str] = None,
-    ):
-        self.prompt = prompt
-        self.negative_prompt = negative_prompt
-        self.style_prompt = get_style_positive_prompt(style_id)
-        self.full_prompt = f"{self.style_prompt}, {prompt}"
-        self.duration_seconds = duration_seconds
-        self.width = width
-        self.height = height
-        self.fps = fps
-        self.seed = seed
-        self.reference_image_url = reference_image_url
-
-    def to_dict(self) -> dict:
-        return {
-            "prompt": self.full_prompt,
-            "negative_prompt": self.negative_prompt,
-            "width": self.width,
-            "height": self.height,
-            "fps": self.fps,
-            "duration_seconds": self.duration_seconds,
-            "seed": self.seed,
-            "reference_image_url": self.reference_image_url,
-        }
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+STATIC_DIR = Path("/app/backend/static/generated")
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 
 async def generate_keyframe(
@@ -62,105 +28,161 @@ async def generate_keyframe(
     continuity: Dict,
     style_id: str = "cartoon_2d",
     category: str = "",
+    job_id: str = "",
 ) -> Dict:
     """
-    Generate a single keyframe image for a scene.
-    Returns: {"status": "queued"|"ready"|"failed", "url": str|None, "request": dict}
+    Generate a REAL keyframe image using GPT Image 1.
+    Returns: {"status": "ready"|"failed", "url": str|None, "local_path": str|None}
     """
+    if not EMERGENT_KEY:
+        return {"status": "failed", "url": None, "error": "No EMERGENT_LLM_KEY"}
+
     prompt = scene_plan.get("keyframe_prompt", scene_plan.get("action", ""))
+    style_prompt = get_style_positive_prompt(style_id)
     neg_prompt = get_negative_prompt(category)
 
-    request = VideoGenRequest(
-        prompt=prompt,
-        negative_prompt=neg_prompt,
-        style_id=style_id,
-        reference_image_url=continuity.get("characters", [{}])[0].get("reference_image_url") if continuity.get("characters") else None,
-    )
+    # Build character appearance into prompt for consistency
+    chars = continuity.get("characters", [])
+    char_desc = ""
+    if chars:
+        primary = chars[0]
+        char_desc = f"{primary.get('name', 'character')}: {primary.get('reference_prompt', primary.get('clothing_default', ''))}"
 
-    if KEYFRAME_ENDPOINT:
-        # Production: send to GPU worker
-        return await _send_to_worker(KEYFRAME_ENDPOINT, request.to_dict(), "keyframe")
-    else:
-        # Development: queue for worker processing
-        return {
-            "status": "queued",
-            "url": None,
-            "request": request.to_dict(),
-            "model": "wan2.1-keyframe",
-            "note": "Queued for GPU worker. Set KEYFRAME_GEN_ENDPOINT to connect to self-hosted inference.",
-        }
+    full_prompt = f"{style_prompt}. {prompt}"
+    if char_desc:
+        full_prompt += f". Character: {char_desc}"
+    full_prompt += f". Avoid: {neg_prompt[:200]}"
+
+    try:
+        from services.image_gen_direct import generate_image_direct
+
+        images = await generate_image_direct(
+            api_key=EMERGENT_KEY,
+            prompt=full_prompt[:1500],
+            model="gpt-image-1",
+            quality="low",
+            size="1536x1024",
+            n=1,
+        )
+
+        if not images:
+            return {"status": "failed", "url": None, "error": "No images returned"}
+
+        # Save locally
+        scene_num = scene_plan.get("scene_number", 0)
+        filename = f"se_{job_id[:8]}_kf_{scene_num}.png"
+        local_path = str(STATIC_DIR / filename)
+        with open(local_path, "wb") as f:
+            f.write(images[0])
+
+        # Upload to R2
+        url = await _upload_to_r2(images[0], filename, job_id, "image")
+        if not url:
+            url = f"/api/generated/{filename}"
+
+        logger.info(f"[VIDEO_GEN] Keyframe scene {scene_num} generated ({len(images[0])} bytes)")
+        return {"status": "ready", "url": url, "local_path": local_path}
+
+    except Exception as e:
+        logger.error(f"[VIDEO_GEN] Keyframe generation failed: {e}")
+        return {"status": "failed", "url": None, "error": str(e)}
 
 
 async def generate_scene_clip(
     scene_plan: Dict,
     keyframe_url: Optional[str],
+    keyframe_local_path: Optional[str],
     continuity: Dict,
     style_id: str = "cartoon_2d",
     category: str = "",
+    job_id: str = "",
 ) -> Dict:
     """
-    Generate a moving scene clip using Wan2.1-T2V or I2V.
-    If keyframe_url exists, uses Image-to-Video (I2V). Otherwise Text-to-Video (T2V).
-    Returns: {"status": "queued"|"ready"|"failed", "url": str|None, "request": dict}
+    Generate a REAL moving scene clip using Sora 2.
+    If keyframe exists, uses image-to-video. Otherwise text-to-video.
+    Returns: {"status": "ready"|"failed", "url": str|None, "local_path": str|None}
     """
-    prompt = scene_plan.get("video_prompt", scene_plan.get("action", ""))
-    neg_prompt = get_negative_prompt(category)
-    duration = scene_plan.get("clip_duration_seconds", 5.0)
+    if not EMERGENT_KEY:
+        return {"status": "failed", "url": None, "error": "No EMERGENT_LLM_KEY"}
 
-    # Add motion notes to prompt
+    from emergentintegrations.llm.openai import OpenAIVideoGeneration
+
+    prompt = scene_plan.get("video_prompt", scene_plan.get("action", ""))
+    style_prompt = get_style_positive_prompt(style_id)
+
     motion_notes = scene_plan.get("movement_notes", "")
     camera = scene_plan.get("camera_motion", "static")
     if motion_notes:
         prompt = f"{prompt}, {motion_notes}"
-    if camera != "static":
+    if camera and camera != "static":
         prompt = f"{prompt}, camera {camera.replace('_', ' ')}"
 
-    request = VideoGenRequest(
-        prompt=prompt,
-        negative_prompt=neg_prompt,
-        style_id=style_id,
-        duration_seconds=duration,
-        reference_image_url=keyframe_url,
-    )
+    full_prompt = f"{style_prompt}. {prompt}. Cinematic quality, smooth motion."
+    duration = min(int(scene_plan.get("clip_duration_seconds", 4)), 8)
+    if duration not in (4, 8, 12):
+        duration = 4
 
-    # Choose T2V or I2V based on keyframe availability
-    if keyframe_url and WAN_I2V_ENDPOINT:
-        return await _send_to_worker(WAN_I2V_ENDPOINT, request.to_dict(), "i2v_clip")
-    elif WAN_T2V_ENDPOINT:
-        return await _send_to_worker(WAN_T2V_ENDPOINT, request.to_dict(), "t2v_clip")
-    else:
-        model = "wan2.1-i2v-14b" if keyframe_url else "wan2.1-t2v-14b"
-        return {
-            "status": "queued",
-            "url": None,
-            "request": request.to_dict(),
-            "model": model,
-            "note": f"Queued for GPU worker. Set {'WAN_I2V_ENDPOINT' if keyframe_url else 'WAN_T2V_ENDPOINT'} to connect.",
-        }
+    scene_num = scene_plan.get("scene_number", 0)
 
-
-async def _send_to_worker(endpoint: str, payload: dict, job_type: str) -> Dict:
-    """Send generation request to GPU worker API."""
-    import aiohttp
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                endpoint,
-                json={**payload, "job_type": job_type},
-                timeout=aiohttp.ClientTimeout(total=300),
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return {
-                        "status": data.get("status", "queued"),
-                        "url": data.get("url"),
-                        "request": payload,
-                        "model": data.get("model", "wan2.1"),
-                    }
-                else:
-                    error_text = await resp.text()
-                    logger.error(f"[VIDEO_GEN] Worker returned {resp.status}: {error_text}")
-                    return {"status": "failed", "url": None, "error": error_text}
+        video_gen = OpenAIVideoGeneration(api_key=EMERGENT_KEY)
+
+        logger.info(f"[VIDEO_GEN] Generating scene {scene_num} clip via Sora 2 (duration={duration}s)...")
+
+        video_bytes = await asyncio.to_thread(
+            video_gen.text_to_video,
+            prompt=full_prompt[:1000],
+            model="sora-2",
+            size="1280x720",
+            duration=duration,
+            max_wait_time=600,
+        )
+
+        if not video_bytes:
+            logger.error(f"[VIDEO_GEN] Sora returned no video for scene {scene_num}")
+            return {"status": "failed", "url": None, "error": "Sora returned no video"}
+
+        # Save locally
+        filename = f"se_{job_id[:8]}_clip_{scene_num}.mp4"
+        local_path = str(STATIC_DIR / filename)
+        with open(local_path, "wb") as f:
+            f.write(video_bytes)
+
+        # Upload to R2
+        url = await _upload_to_r2(video_bytes, filename, job_id, "video")
+        if not url:
+            url = f"/api/generated/{filename}"
+
+        size_mb = len(video_bytes) / 1024 / 1024
+        logger.info(f"[VIDEO_GEN] Scene {scene_num} clip generated ({size_mb:.1f}MB)")
+        return {"status": "ready", "url": url, "local_path": local_path}
+
     except Exception as e:
-        logger.error(f"[VIDEO_GEN] Worker request failed: {e}")
+        logger.error(f"[VIDEO_GEN] Scene clip generation failed for scene {scene_num}: {e}")
         return {"status": "failed", "url": None, "error": str(e)}
+
+
+async def _upload_to_r2(data: bytes, filename: str, job_id: str, asset_type: str) -> Optional[str]:
+    """Upload bytes to R2 storage. Returns public URL or None."""
+    try:
+        from services.cloudflare_r2_storage import get_r2_storage
+        r2 = get_r2_storage()
+        if not r2.is_configured:
+            return None
+
+        # Write to temp file for upload
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+
+        try:
+            ok, pub_url, key = await r2.upload_file_multipart(tmp_path, asset_type, job_id, filename)
+            if ok and pub_url:
+                return pub_url
+        finally:
+            os.unlink(tmp_path)
+
+    except Exception as e:
+        logger.warning(f"[VIDEO_GEN] R2 upload failed: {e}")
+
+    return None

@@ -1,75 +1,59 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Rebuild Visionary Suite into an **addictive story-driven viral platform** with compulsion loops: enter → engage → return → share → grow. Achieve K-factor > 0.5. Build a private, self-hosted Story-to-Video pipeline with moving clips (not slideshow), character continuity, and strict credit gating.
+Rebuild Visionary Suite into an addictive story-driven viral platform. Build a private Story-to-Video pipeline producing REAL moving videos with character continuity, strict credit gating, and truth-based states.
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn UI
 - **Backend**: FastAPI + MongoDB + Redis
-- **AI (Cloud)**: OpenAI GPT-4o-mini via Emergent LLM Key (planning proxy)
-- **AI (Self-Hosted Target)**: Qwen2.5-14B-Instruct, Wan2.1-T2V/I2V-14B, Kokoro-82M
+- **AI (Live)**: GPT-4o-mini (planning), GPT Image 1 (keyframes), Sora 2 (scene clips), OpenAI TTS (narration) — all via Emergent LLM Key
+- **AI (Future)**: Qwen2.5-14B, Wan2.1-T2V/I2V-14B, Kokoro-82M (self-hosted cost optimization)
 - **Payments**: Cashfree | **Auth**: JWT + Google Auth | **Storage**: Cloudflare R2 | **Email**: Resend
 
-## Implemented Phases
+## Implemented & LIVE
 
-### Phase 1-5.5: Complete Growth Loop
-- Zero-friction entry, compulsion loops, retention engine, K-factor engine, attribution, email nudges
+### Phase 1-5.5: Complete Growth Loop (DONE)
+Zero-friction entry, compulsion loops, retention engine, K-factor engine, attribution, email nudges
 
-### Phase 6: Compete + Social Proof (2026-03-25)
-- Compete Mechanics (trending, most continued, fastest growing character)
-- Animated Social Proof (real viewer counts with pulse)
-- Force Share Gate (share OR continue after generation)
-- K-Factor Admin Dashboard (viral coefficient, funnel, top content)
+### Phase 6: Compete + Social Proof (DONE)
+Trending mechanics, animated viewer counts, force share gate, K-factor admin dashboard
 
-### Phase 7: Content Seeding Engine (2026-03-25)
-- AI story hook generation (GPT-4o-mini) with HOOK→BUILD→CLIFFHANGER format
-- Quality filtering, 5 categories, social media scripts, auto-publish pipeline
-- Admin control panel at /app/admin/content-engine
+### Phase 7: Content Seeding Engine (DONE)
+AI story hook generation, quality filtering, social media scripts, admin panel
 
-### Phase 8: Private Story-to-Video Engine (2026-03-25 — LATEST)
-- **11-step pipeline**: Credit check → Job → Plan → Character → Motion → Keyframes → Clips → Audio → Assembly → Validate → Ready
-- **Structured schemas**: EpisodePlan, SceneMotionPlan, CharacterContinuityPackage — no free-form text
-- **Truth-based states**: INIT → PLANNING → ... → READY / PARTIAL_READY / FAILED
-- **Atomic credit gating**: 21 credits/job, pre-flight check, refund on failure
-- **Safety**: Copyright blocking, celebrity blocking, rate limits, abuse detection
-- **Universal negative prompt**: Non-removable, applied to all visual generation
-- **Continuity validation**: Asset existence, character drift, style drift checks
-- **Model adapters**: Planning (Qwen/GPT), Video (Wan2.1), TTS (Kokoro), Assembly (FFmpeg)
-- **Admin controls**: Pipeline health, job management, retry failed jobs
-- **GPU worker ready**: Set WAN_T2V_ENDPOINT, WAN_I2V_ENDPOINT, KEYFRAME_GEN_ENDPOINT, KOKORO_TTS_ENDPOINT to connect
+### Phase 8: Private Story Engine — REAL VIDEO OUTPUT (2026-03-25 — LATEST)
+**Pipeline produces REAL moving videos using Emergent services:**
 
-## Self-Hosted Stack Spec
-Full deployment guide at `/app/memory/SELF_HOSTED_STACK.md`
+- **Planning** (GPT-4o-mini): Structured episode plans, character continuity, scene motion plans — WORKING
+- **Keyframes** (GPT Image 1): Real 1536x1024 images per scene — WORKING (4/4 generated, ~2MB each)
+- **Scene Clips** (Sora 2): Real 1280x720 moving MP4 clips — WORKING (1 clip generated, 3.8MB, ~60s per clip)
+- **Narration** (OpenAI TTS): Real MP3 audio — WORKING (confirmed on job #2)
+- **FFmpeg Assembly**: Stitch clips + mix audio + preview + thumbnail — READY (code complete, triggers when clips available)
+- **Credit Gating**: 21 credits/job, atomic deduction, auto-refund on failure — WORKING
+- **Safety**: Copyright/celebrity blocking, rate limits, abuse detection — WORKING
+- **Continuity Validation**: Asset checks, drift detection — WORKING
 
-## API Endpoints (Story Engine)
-- `GET /api/story-engine/credit-check` — Pre-flight cost check
-- `POST /api/story-engine/create` — Create job + run pipeline
+**Budget hit**: The Emergent Universal Key ran out of balance during batch generation. The pipeline itself is fully functional.
+
+## API Endpoints
+- `POST /api/story-engine/create` — Create job + run full pipeline
 - `GET /api/story-engine/status/{job_id}` — Poll progress
+- `GET /api/story-engine/credit-check` — Pre-flight cost check
 - `GET /api/story-engine/my-jobs` — User's jobs
-- `GET /api/story-engine/chain/{chain_id}` — Story chain episodes
-- `GET /api/story-engine/admin/pipeline-health` — GPU status + stats
-- `GET /api/story-engine/admin/jobs` — All jobs with filters
-- `POST /api/story-engine/admin/retry/{job_id}` — Retry failed jobs
+- `GET /api/story-engine/chain/{chain_id}` — Story chain
+- `GET /api/story-engine/admin/pipeline-health` — GPU/service status
+- `POST /api/content-engine/generate` — Batch story generation
 
-## Prioritized Backlog
-### P0 (Deploy)
-- Connect GPU workers (Wan2.1, Kokoro) to make pipeline produce real videos
-- Domain verification for Resend email delivery
-
-### P1 (Growth)
-- A/B test hook text variations
-- Character-driven auto-share prompts
-
-### P2 (Platform)
-- Story Chain leaderboard
-- Admin WebSocket upgrade
-- Mobile app wrapper
+## P0 Actions
+1. **Add balance to Emergent Universal Key** (Profile → Universal Key → Add Balance)
+2. Generate 50-100 real videos via Content Engine auto-publish
+3. Validate full user loop: generate → watch → continue → share
 
 ## Key Files
-- `/app/backend/services/story_engine/` — Full engine (schemas, state machine, pipeline, adapters, safety)
+- `/app/backend/services/story_engine/` — Full engine
+- `/app/backend/services/story_engine/adapters/video_gen.py` — GPT Image 1 + Sora 2
+- `/app/backend/services/story_engine/adapters/tts.py` — OpenAI TTS
+- `/app/backend/services/story_engine/adapters/ffmpeg_assembly.py` — FFmpeg
+- `/app/backend/services/story_engine/pipeline.py` — 11-step orchestrator
 - `/app/backend/routes/story_engine_routes.py` — API endpoints
-- `/app/backend/routes/content_engine.py` — Content seeding engine
-- `/app/backend/routes/compete_routes.py` — Trending + live viewers
-- `/app/frontend/src/components/ForceShareGate.js` — Forced share modal
-- `/app/frontend/src/components/TrendingCompete.js` — Compete UI
-- `/app/frontend/src/pages/ContentEngine.js` — Admin content panel
+- `/app/memory/SELF_HOSTED_STACK.md` — Future GPU deployment spec

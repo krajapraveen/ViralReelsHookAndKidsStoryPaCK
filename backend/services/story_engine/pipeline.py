@@ -8,11 +8,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared import db
-
 from .schemas import JobState, PipelineJob, StageResult
 from .state_machine import transition_job, get_progress, get_label
 from .cost_guard import pre_flight_check, check_stage_budget, estimate_cost
@@ -21,6 +16,11 @@ from .safety import check_content_safety, check_rate_limits, detect_abuse
 from .negative_prompt import get_negative_prompt
 
 from .adapters import planning_llm, video_gen, tts, ffmpeg_assembly
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from shared import db
 
 logger = logging.getLogger("story_engine.pipeline")
 
@@ -358,23 +358,27 @@ async def _stage_scene_motion(job: dict) -> Dict:
 
 
 async def _stage_keyframes(job: dict) -> Dict:
-    """Generate keyframes for all scenes."""
+    """Generate REAL keyframes using GPT Image 1."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     plans = job.get("scene_motion_plans", [])
     continuity = job.get("character_continuity", {})
+    job_id = job["job_id"]
 
     keyframe_urls = []
+    keyframe_local_paths = []
     for plan in plans:
         result = await video_gen.generate_keyframe(
             scene_plan=plan,
             continuity=continuity,
             style_id=job.get("style_id", "cartoon_2d"),
+            job_id=job_id,
         )
         keyframe_urls.append(result.get("url"))
+        keyframe_local_paths.append(result.get("local_path"))
 
     await db.story_engine_jobs.update_one(
-        {"job_id": job["job_id"]},
-        {"$set": {"keyframe_urls": keyframe_urls}},
+        {"job_id": job_id},
+        {"$set": {"keyframe_urls": keyframe_urls, "keyframe_local_paths": keyframe_local_paths}},
     )
 
     generated = sum(1 for u in keyframe_urls if u)
@@ -382,26 +386,33 @@ async def _stage_keyframes(job: dict) -> Dict:
 
 
 async def _stage_scene_clips(job: dict) -> Dict:
-    """Generate moving scene clips."""
+    """Generate REAL moving scene clips using Sora 2."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     plans = job.get("scene_motion_plans", [])
     keyframes = job.get("keyframe_urls", [])
+    keyframe_paths = job.get("keyframe_local_paths", [])
     continuity = job.get("character_continuity", {})
+    job_id = job["job_id"]
 
     clip_urls = []
+    clip_local_paths = []
     for i, plan in enumerate(plans):
         kf_url = keyframes[i] if i < len(keyframes) else None
+        kf_path = keyframe_paths[i] if i < len(keyframe_paths) else None
         result = await video_gen.generate_scene_clip(
             scene_plan=plan,
             keyframe_url=kf_url,
+            keyframe_local_path=kf_path,
             continuity=continuity,
             style_id=job.get("style_id", "cartoon_2d"),
+            job_id=job_id,
         )
         clip_urls.append(result.get("url"))
+        clip_local_paths.append(result.get("local_path"))
 
     await db.story_engine_jobs.update_one(
-        {"job_id": job["job_id"]},
-        {"$set": {"scene_clip_urls": clip_urls}},
+        {"job_id": job_id},
+        {"$set": {"scene_clip_urls": clip_urls, "scene_clip_local_paths": clip_local_paths}},
     )
 
     generated = sum(1 for u in clip_urls if u)
@@ -409,51 +420,112 @@ async def _stage_scene_clips(job: dict) -> Dict:
 
 
 async def _stage_audio(job: dict) -> Dict:
-    """Generate narration audio."""
+    """Generate REAL narration audio using OpenAI TTS."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
 
     result = await tts.generate_narration(
         episode_plan=job.get("episode_plan", {}),
         scene_motion_plans=job.get("scene_motion_plans", []),
+        job_id=job["job_id"],
     )
 
     await db.story_engine_jobs.update_one(
         {"job_id": job["job_id"]},
-        {"$set": {"narration_url": result.get("url"), "narration_segments": result.get("segments", [])}},
+        {"$set": {
+            "narration_url": result.get("url"),
+            "narration_local_path": result.get("local_path"),
+            "narration_segments": result.get("segments", []),
+        }},
     )
 
     return {"status": "success" if result.get("status") != "failed" else "failed", "output": result}
 
 
 async def _stage_assembly(job: dict) -> Dict:
-    """FFmpeg assembly — stitch clips, mix audio, generate preview/thumbnail."""
+    """FFmpeg assembly — stitch REAL clips, mix REAL audio, generate preview/thumbnail."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
-    clips = [u for u in job.get("scene_clip_urls", []) if u]
+    job_id = job["job_id"]
+    clip_paths = [p for p in job.get("scene_clip_local_paths", []) if p and os.path.exists(p)]
+    narration_path = job.get("narration_local_path")
 
-    if not clips:
-        # No GPU-generated clips available yet — record assembly plan
-        plans = job.get("scene_motion_plans", [])
-        transitions = [p.get("transition_type", "crossfade") for p in plans[1:]] if plans else []
-        assembly_plan = ffmpeg_assembly.build_assembly_plan(
-            scene_clips=[f"scene_{i+1}.mp4" for i in range(len(plans))],
-            narration_path=job.get("narration_url"),
-            transitions=transitions,
-        )
-        await db.story_engine_jobs.update_one(
-            {"job_id": job["job_id"]},
-            {"$set": {"assembly_plan": assembly_plan}},
-        )
-        return {
-            "status": "success",
-            "output": {
-                "note": "Assembly plan created. Clips will be stitched when GPU workers produce scene clips.",
-                "assembly_plan": assembly_plan,
-            },
-        }
+    if not clip_paths:
+        return {"status": "success", "output": {"note": "No local clips available for assembly yet"}}
 
-    # Real clips available — assemble
-    # (In production, clips are local files downloaded from R2/S3)
-    return {"status": "success", "output": {"note": "Assembly ready for execution when clips are local files"}}
+    import hashlib
+    from pathlib import Path
+    output_dir = Path("/app/backend/static/generated")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: Stitch clips
+    stitched_path = str(output_dir / f"se_{job_id[:8]}_stitched.mp4")
+    plans = job.get("scene_motion_plans", [])
+    transitions = [p.get("transition_type", "crossfade") for p in plans[1:]] if plans else []
+
+    stitch_ok = await ffmpeg_assembly.stitch_clips(clip_paths, stitched_path, transitions=transitions)
+    if not stitch_ok:
+        return {"status": "failed", "error": "FFmpeg stitch failed"}
+
+    # Step 2: Mix audio
+    final_path = stitched_path
+    if narration_path and os.path.exists(narration_path):
+        mixed_path = str(output_dir / f"se_{job_id[:8]}_final.mp4")
+        mix_ok = await ffmpeg_assembly.mix_audio(stitched_path, narration_path, None, mixed_path)
+        if mix_ok:
+            final_path = mixed_path
+
+    # Step 3: Generate preview
+    preview_path = str(output_dir / f"se_{job_id[:8]}_preview.mp4")
+    await ffmpeg_assembly.generate_preview(final_path, preview_path)
+
+    # Step 4: Generate thumbnail
+    thumb_path = str(output_dir / f"se_{job_id[:8]}_thumb.jpg")
+    await ffmpeg_assembly.generate_thumbnail(final_path, thumb_path)
+
+    # Upload all to R2
+    from services.story_engine.adapters.video_gen import _upload_to_r2
+
+    output_url = None
+    preview_url = None
+    thumbnail_url = None
+
+    if os.path.exists(final_path):
+        with open(final_path, "rb") as f:
+            output_url = await _upload_to_r2(f.read(), f"se_{job_id[:8]}_final.mp4", job_id, "video")
+        if not output_url:
+            output_url = f"/api/generated/se_{job_id[:8]}_final.mp4"
+
+    if os.path.exists(preview_path):
+        with open(preview_path, "rb") as f:
+            preview_url = await _upload_to_r2(f.read(), f"se_{job_id[:8]}_preview.mp4", job_id, "video")
+        if not preview_url:
+            preview_url = f"/api/generated/se_{job_id[:8]}_preview.mp4"
+
+    if os.path.exists(thumb_path):
+        with open(thumb_path, "rb") as f:
+            thumbnail_url = await _upload_to_r2(f.read(), f"se_{job_id[:8]}_thumb.jpg", job_id, "image")
+        if not thumbnail_url:
+            thumbnail_url = f"/api/generated/se_{job_id[:8]}_thumb.jpg"
+
+    # Update job with real URLs
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {
+            "output_url": output_url,
+            "preview_url": preview_url,
+            "thumbnail_url": thumbnail_url,
+        }},
+    )
+
+    return {
+        "status": "success",
+        "output": {
+            "output_url": output_url,
+            "preview_url": preview_url,
+            "thumbnail_url": thumbnail_url,
+            "clips_stitched": len(clip_paths),
+            "has_narration": bool(narration_path),
+        },
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
