@@ -1388,13 +1388,17 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                 <Share2 className="w-4 h-4 text-emerald-400" />
                 Share & Earn Credits
               </h3>
-              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">+5 credits per share</span>
             </div>
-            <p className="text-xs text-slate-400 mb-3">Share your story — get +5 credits. If someone continues it, you get +10 more!</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex gap-2 mb-3 flex-wrap">
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">+5 share</span>
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">+15 friend continues</span>
+              <span className="text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full">+25 friend signs up</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
               {[
                 { platform: 'whatsapp', label: 'WhatsApp', color: 'bg-emerald-600 hover:bg-emerald-500' },
-                { platform: 'twitter', label: 'X / Twitter', color: 'bg-slate-700 hover:bg-slate-600' },
+                { platform: 'twitter', label: 'X', color: 'bg-slate-700 hover:bg-slate-600' },
+                { platform: 'instagram', label: 'IG', color: 'bg-pink-600 hover:bg-pink-500' },
                 { platform: 'copy', label: 'Copy Link', color: 'bg-slate-800 hover:bg-slate-700' },
               ].map(s => (
                 <button

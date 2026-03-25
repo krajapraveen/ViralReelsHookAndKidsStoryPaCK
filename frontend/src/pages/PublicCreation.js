@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import {
   Film, Eye, RefreshCcw, Share2, Play, ArrowRight, Command,
   User, Copy, Check, Zap, Sparkles, ChevronRight, BookOpen,
-  Clock, AlertCircle
+  Clock, AlertCircle, Flame, TrendingUp, Users
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -35,13 +35,19 @@ export default function PublicCreation() {
   const [error, setError] = useState(null);
   const [activeScene, setActiveScene] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [showShareMenu, setShowShareMenu] = useState(false);
   const [abVariants, setAbVariants] = useState({});
+  const [showUrgency, setShowUrgency] = useState(false);
 
   useEffect(() => {
     fetchCreation();
     loadAbVariants();
   }, [slug]);
+
+  // Delayed urgency trigger
+  useEffect(() => {
+    const timer = setTimeout(() => setShowUrgency(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const loadAbVariants = async () => {
     const assignments = await getAssignments();
@@ -53,7 +59,6 @@ export default function PublicCreation() {
       const r = await axios.get(`${API}/api/public/creation/${slug}`);
       setCreation(r.data.creation);
       trackPageView({ source_page: `/v/${slug}`, source_slug: slug, origin: 'share_page', origin_slug: slug });
-      // Trigger continuation reward for original creator
       try {
         const session = sessionStorage.getItem('growth_session_id') || '';
         const parentId = r.data.creation?.remix_parent_id || r.data.creation?.job_id;
@@ -70,7 +75,6 @@ export default function PublicCreation() {
     setLoading(false);
   };
 
-  // ─── CONTINUE STORY ──────────────────────────────────────────────
   const handleContinue = (type = 'continue') => {
     if (!creation) return;
     const tool = getToolRoute(creation);
@@ -109,7 +113,6 @@ export default function PublicCreation() {
       },
     }));
 
-    // Track the event
     const eventName = type === 'twist' ? 'add_twist_click' : type === 'funny' ? 'make_funny_click' : type === 'episode' ? 'next_episode_click' : 'continue_click';
     trackRemixClick({ source_page: `/v/${slug}`, source_slug: slug, tool_type: creation.tool_type || 'story_video', origin: 'share_page' });
     trackConversion('cta_copy', 'remix_click');
@@ -129,13 +132,11 @@ export default function PublicCreation() {
     navigate(tool.path);
   };
 
-  // ─── CREATE YOUR OWN ──────────────────────────────────────────────
   const handleCreateOwn = () => {
     if (!creation) return;
     navigate(getToolRoute(creation).path);
   };
 
-  // ─── SHARE ──────────────────────────────────────────────────────
   const pageUrl = `${window.location.origin}/v/${slug}`;
   const shareUrl = `${API}/api/public/s/${slug}`;
   const ogTitle = creation ? `${creation.title} — Made with AI` : 'AI Creation';
@@ -152,7 +153,7 @@ export default function PublicCreation() {
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
       whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${shareUrl}`)}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
+      instagram: `https://www.instagram.com/`,
     };
     if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400');
   };
@@ -160,7 +161,7 @@ export default function PublicCreation() {
   const copyLink = async () => {
     await navigator.clipboard.writeText(pageUrl);
     setCopied(true);
-    toast.success('Link copied!');
+    toast.success('Link copied — share it anywhere!');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -175,7 +176,6 @@ export default function PublicCreation() {
     return `${Math.floor(hrs / 24)}d ago`;
   };
 
-  // ─── LOADING / ERROR ──────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -204,9 +204,7 @@ export default function PublicCreation() {
   const cliffhangerText = lastScene?.narration || creation.story_text || creation.prompt || '';
   const characterName = creation.characters?.[0]?.name || creation.character_name || null;
   const lastContTime = timeAgo(creation.last_continuation_at);
-  const momentumMsg = creation.remix_count > 0
-    ? `${creation.remix_count} people continued this story`
-    : 'Be the first to continue this story';
+  const contCount = creation.remix_count || 0;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="public-creation-page">
@@ -227,7 +225,7 @@ export default function PublicCreation() {
         <meta name="twitter:image" content={ogImage} />
       </Helmet>
 
-      {/* ═══ STICKY HEADER ═══ */}
+      {/* ═══ STICKY HEADER with Continue + Share equally weighted ═══ */}
       <header className="sticky top-0 z-40 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-5xl mx-auto px-4 h-13 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 py-3">
@@ -237,40 +235,36 @@ export default function PublicCreation() {
             <span className="text-xs font-semibold text-white hidden sm:inline">Visionary Suite</span>
           </Link>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowShareMenu(!showShareMenu)} className="px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-white/[0.08] rounded-lg flex items-center gap-1.5" data-testid="share-btn">
-              <Share2 className="w-3 h-3" /> Share
+            <button onClick={copyLink} className="px-3 py-1.5 text-xs font-semibold text-emerald-400 border border-emerald-500/30 bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] rounded-lg flex items-center gap-1.5" data-testid="header-share-btn">
+              {copied ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />} {copied ? 'Copied!' : 'Share'}
             </button>
-            <button onClick={() => handleContinue('continue')} className="px-4 py-1.5 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-500 rounded-lg flex items-center gap-1.5" data-testid="header-continue-btn">
+            <button onClick={() => handleContinue('continue')} className="px-4 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-violet-600 to-rose-600 hover:opacity-90 rounded-lg flex items-center gap-1.5" data-testid="header-continue-btn">
               <Play className="w-3 h-3" /> Continue Story
             </button>
           </div>
         </div>
-        {showShareMenu && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setShowShareMenu(false)} />
-            <div className="absolute right-4 top-14 w-44 bg-slate-900 border border-white/10 rounded-xl p-1.5 shadow-2xl z-50" data-testid="share-menu">
-              {['Twitter', 'WhatsApp', 'LinkedIn'].map(p => (
-                <button key={p} onClick={() => { shareTo(p.toLowerCase()); setShowShareMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/[0.06] rounded-lg"
-                  data-testid={`share-${p.toLowerCase()}`}
-                >{p}</button>
-              ))}
-              <div className="border-t border-white/[0.06] my-1" />
-              <button onClick={() => { copyLink(); setShowShareMenu(false); }} className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/[0.06] rounded-lg flex items-center gap-2">
-                {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Copied!' : 'Copy Link'}
-              </button>
-            </div>
-          </>
-        )}
       </header>
 
-      {/* ═══ ABOVE THE FOLD: Character Intro + Story Hook + Cliffhanger ═══ */}
-      <section className="relative" data-testid="hero-section">
-        <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.04] to-transparent pointer-events-none" />
+      {/* ═══ ABOVE THE FOLD: Social Proof Banner ═══ */}
+      <section className="bg-gradient-to-r from-violet-600/[0.04] to-rose-600/[0.04] border-b border-white/[0.04]" data-testid="social-proof-banner">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-center gap-4 flex-wrap">
+          {contCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-sm font-bold text-amber-400">
+              <Flame className="w-4 h-4" /> {contCount} people continued this story
+            </span>
+          )}
+          <span className="text-sm text-slate-300">Be the next to decide what happens</span>
+          {showUrgency && (
+            <span className="inline-flex items-center gap-1 text-xs text-rose-400 font-semibold animate-pulse" data-testid="urgency-badge">
+              <TrendingUp className="w-3 h-3" /> Trending now
+            </span>
+          )}
+        </div>
+      </section>
 
-        <div className="max-w-5xl mx-auto px-4 pt-8 pb-4">
-          {/* CHARACTER INTRO (if available) */}
+      <section className="relative" data-testid="hero-section">
+        <div className="max-w-5xl mx-auto px-4 pt-6 pb-4">
+          {/* CHARACTER INTRO */}
           {characterName && (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 mb-4" data-testid="character-intro">
               <User className="w-3 h-3 text-violet-400" />
@@ -281,7 +275,6 @@ export default function PublicCreation() {
             </div>
           )}
 
-          {/* STORY TITLE */}
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-3" data-testid="creation-title">
             {creation.title}
           </h1>
@@ -294,7 +287,7 @@ export default function PublicCreation() {
             </span>
             <span className="flex items-center gap-1.5 text-slate-400">
               <RefreshCcw className="w-3.5 h-3.5 text-rose-400" />
-              <strong className="text-white text-xs">{(creation.remix_count || 0).toLocaleString()}</strong> continuations
+              <strong className="text-white text-xs">{contCount.toLocaleString()}</strong> continuations
             </span>
             {lastContTime && (
               <span className="flex items-center gap-1.5 text-slate-400">
@@ -307,7 +300,6 @@ export default function PublicCreation() {
           <div className="grid lg:grid-cols-5 gap-6">
             {/* LEFT: Scene Viewer + Story */}
             <div className="lg:col-span-3">
-              {/* Video/Image viewer */}
               <div className="rounded-2xl overflow-hidden border border-white/[0.06]" data-testid="scene-viewer">
                 <div className="relative w-full aspect-video bg-[#0d0d15]">
                   {currentScene?.image_url ? (
@@ -334,7 +326,7 @@ export default function PublicCreation() {
                 )}
               </div>
 
-              {/* STORY HOOK / CLIFFHANGER (above CTA zone) */}
+              {/* CLIFFHANGER HOOK */}
               {cliffhangerText && (
                 <div className="mt-4 bg-gradient-to-r from-amber-500/[0.06] to-rose-500/[0.06] border border-amber-500/15 rounded-2xl p-5" data-testid="story-hook">
                   <div className="flex items-center gap-2 mb-2">
@@ -348,7 +340,20 @@ export default function PublicCreation() {
                 </div>
               )}
 
-              {/* Narration for current scene */}
+              {/* MID-PAGE HOOK — "This story has no ending" */}
+              <div className="mt-4 text-center py-6 border border-white/[0.06] rounded-2xl bg-white/[0.01]" data-testid="no-ending-hook">
+                <p className="text-lg font-black text-white mb-1">This story has no ending...</p>
+                <p className="text-sm text-slate-400 mb-4">You decide what happens next</p>
+                <button
+                  onClick={() => handleContinue('continue')}
+                  className="inline-flex items-center gap-2 h-11 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 shadow-lg shadow-violet-500/20"
+                  style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
+                  data-testid="midpage-continue-btn"
+                >
+                  <Play className="w-4 h-4" /> Continue It Yourself <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
               {currentScene?.narration && (
                 <div className="mt-3 bg-white/[0.02] border border-white/[0.04] rounded-xl p-4">
                   <p className="text-sm text-slate-300 italic leading-relaxed">"{currentScene.narration}"</p>
@@ -363,6 +368,7 @@ export default function PublicCreation() {
               <button
                 onClick={() => handleContinue('continue')}
                 className="w-full group relative overflow-hidden rounded-2xl p-5 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+                style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
                 data-testid="continue-story-btn"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-violet-600 to-rose-600 opacity-90 group-hover:opacity-100 transition-opacity" />
@@ -379,40 +385,45 @@ export default function PublicCreation() {
                 <ArrowRight className="absolute top-5 right-5 w-5 h-5 text-white/30 group-hover:text-white/70 group-hover:translate-x-1 transition-all z-10" />
               </button>
 
+              {/* ═══ SHARE — Equally prominent ═══ */}
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4" data-testid="share-earn-section">
+                <div className="flex items-center gap-2 mb-2">
+                  <Share2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-bold text-white">Share & Earn Credits</span>
+                </div>
+                <div className="flex gap-2 mb-3">
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">+5 share</span>
+                  <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">+15 friend continues</span>
+                  <span className="text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full">+25 friend signs up</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2" data-testid="share-buttons">
+                  <button onClick={() => shareTo('whatsapp')} className="py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg flex items-center justify-center gap-1" data-testid="share-whatsapp-btn">WA</button>
+                  <button onClick={() => shareTo('twitter')} className="py-2.5 text-xs font-bold text-white bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center" data-testid="share-twitter-btn">X</button>
+                  <button onClick={() => shareTo('instagram')} className="py-2.5 text-xs font-bold text-white bg-pink-600 hover:bg-pink-500 rounded-lg flex items-center justify-center" data-testid="share-instagram-btn">IG</button>
+                  <button onClick={copyLink} className="py-2.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-lg flex items-center justify-center gap-1" data-testid="share-copy-btn">
+                    {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />} {copied ? 'Done' : 'Link'}
+                  </button>
+                </div>
+              </div>
+
               {/* ═══ SECONDARY: Add Twist / Make Funny / Next Episode ═══ */}
               <div className="grid grid-cols-3 gap-2" data-testid="secondary-ctas">
-                <button
-                  onClick={() => handleContinue('twist')}
-                  className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] transition-all text-center"
-                  data-testid="add-twist-btn"
-                >
+                <button onClick={() => handleContinue('twist')} className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] transition-all text-center" data-testid="add-twist-btn">
                   <Sparkles className="w-4 h-4 text-amber-400 mx-auto mb-1" />
                   <span className="text-xs font-bold text-white block">Add Twist</span>
                 </button>
-                <button
-                  onClick={() => handleContinue('funny')}
-                  className="p-3 rounded-xl border border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08] transition-all text-center"
-                  data-testid="make-funny-btn"
-                >
+                <button onClick={() => handleContinue('funny')} className="p-3 rounded-xl border border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08] transition-all text-center" data-testid="make-funny-btn">
                   <AlertCircle className="w-4 h-4 text-pink-400 mx-auto mb-1" />
                   <span className="text-xs font-bold text-white block">Make Funny</span>
                 </button>
-                <button
-                  onClick={() => handleContinue('episode')}
-                  className="p-3 rounded-xl border border-purple-500/20 bg-purple-500/[0.04] hover:bg-purple-500/[0.08] transition-all text-center"
-                  data-testid="next-episode-btn"
-                >
+                <button onClick={() => handleContinue('episode')} className="p-3 rounded-xl border border-purple-500/20 bg-purple-500/[0.04] hover:bg-purple-500/[0.08] transition-all text-center" data-testid="next-episode-btn">
                   <Film className="w-4 h-4 text-purple-400 mx-auto mb-1" />
                   <span className="text-xs font-bold text-white block">Next Episode</span>
                 </button>
               </div>
 
               {/* ═══ CREATE YOUR OWN ═══ */}
-              <button
-                onClick={handleCreateOwn}
-                className="w-full group rounded-2xl border border-white/[0.08] hover:border-violet-500/20 bg-white/[0.02] hover:bg-white/[0.04] p-4 text-left transition-all"
-                data-testid="create-own-btn"
-              >
+              <button onClick={handleCreateOwn} className="w-full group rounded-2xl border border-white/[0.08] hover:border-violet-500/20 bg-white/[0.02] hover:bg-white/[0.04] p-4 text-left transition-all" data-testid="create-own-btn">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
                     <Sparkles className="w-4 h-4 text-violet-400" />
@@ -427,7 +438,9 @@ export default function PublicCreation() {
 
               {/* ═══ SOCIAL PROOF MOMENTUM ═══ */}
               <div className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-4" data-testid="momentum-section">
-                <p className="text-xs text-slate-500 mb-2">{momentumMsg}</p>
+                <p className="text-xs text-slate-400 mb-2 font-semibold">
+                  {contCount > 0 ? `${contCount} people already continued this — join them` : 'Be the first to continue this story'}
+                </p>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   {creation.animation_style && (
                     <div><span className="text-slate-500">Style</span> <span className="text-slate-300 ml-1">{creation.animation_style.replace(/_/g, ' ')}</span></div>
@@ -438,21 +451,6 @@ export default function PublicCreation() {
                   )}
                   <div><span className="text-slate-500">Creator</span> <span className="text-slate-300 ml-1">{creation.creator?.name || 'Anonymous'}</span></div>
                 </div>
-              </div>
-
-              {/* Share Buttons */}
-              <div className="grid grid-cols-4 gap-2" data-testid="share-buttons">
-                {[
-                  { id: 'twitter', label: 'X' },
-                  { id: 'whatsapp', label: 'WA' },
-                  { id: 'linkedin', label: 'In' },
-                  { id: 'copy', label: copied ? 'Done' : 'Link' },
-                ].map(p => (
-                  <button key={p.id} onClick={() => p.id === 'copy' ? copyLink() : shareTo(p.id)}
-                    className="py-2 text-[10px] font-medium text-slate-400 hover:text-white bg-white/[0.02] hover:bg-white/[0.04] rounded-lg border border-white/[0.04] transition-colors"
-                    data-testid={`share-${p.id}-btn`}
-                  >{p.label}</button>
-                ))}
               </div>
 
               {/* Remix as different format */}
@@ -508,6 +506,13 @@ export default function PublicCreation() {
           </Link>
         </div>
       </footer>
+
+      <style>{`
+        @keyframes cta-glow {
+          0%, 100% { box-shadow: 0 0 30px -8px rgba(139,92,246,0.4); }
+          50% { box-shadow: 0 0 50px -5px rgba(139,92,246,0.6); }
+        }
+      `}</style>
     </div>
   );
 }

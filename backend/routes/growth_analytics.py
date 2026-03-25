@@ -353,7 +353,7 @@ async def claim_share_reward(data: ShareRewardRequest, user: dict = Depends(get_
 
 @router.post("/continuation-reward")
 async def continuation_reward(data: dict):
-    """Award +10 credits to original creator when someone continues their story from a shared link."""
+    """Award +15 credits to original creator when someone continues their story from a shared link."""
     parent_job_id = data.get("parent_job_id")
     continuer_session = data.get("session_id", "")
     if not parent_job_id:
@@ -377,11 +377,23 @@ async def continuation_reward(data: dict):
         "user_id": creator_id,
         "source_job_id": parent_job_id,
         "continuer_session": continuer_session,
-        "credits_awarded": 10,
+        "credits_awarded": 15,
         "type": "continuation_reward",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
-    await add_credits(creator_id, 10, "Continuation reward — someone continued your story")
+    await add_credits(creator_id, 15, "Continuation reward — someone continued your story (+15)")
+
+    # Track K-factor event
+    try:
+        await db.growth_events.insert_one({
+            "event": "share_to_continue",
+            "source_job_id": parent_job_id,
+            "creator_id": creator_id,
+            "session_id": continuer_session,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
 
     # Notify the original creator
     try:
@@ -390,11 +402,129 @@ async def continuation_reward(data: dict):
             user_id=creator_id,
             ntype="continuation",
             title="Someone continued your story!",
-            body="Your creation got a new continuation. +10 credits earned!",
+            body="Your creation got a new continuation. +15 credits earned!",
             link=f"/v/{parent_job_id}",
         )
     except Exception:
         pass
 
-    return {"success": True, "rewarded": True, "credits_awarded": 10}
+    return {"success": True, "rewarded": True, "credits_awarded": 15}
 
+
+
+# ─── SIGNUP REFERRAL REWARD ───────────────────────────────────────────────────
+
+@router.post("/signup-referral-reward")
+async def signup_referral_reward(data: dict):
+    """Award +25 credits when a shared link leads to a new signup.
+    Called during signup flow if referral source is detected."""
+    referrer_job_id = data.get("referrer_job_id")
+    new_user_id = data.get("new_user_id")
+    if not referrer_job_id or not new_user_id:
+        return {"success": False}
+
+    parent_job = await db.pipeline_jobs.find_one(
+        {"job_id": referrer_job_id}, {"_id": 0, "user_id": 1}
+    )
+    if not parent_job or not parent_job.get("user_id"):
+        return {"success": False}
+
+    referrer_id = parent_job["user_id"]
+    if referrer_id == new_user_id:
+        return {"success": False, "message": "Self-referral"}
+
+    reward_key = f"signup_ref:{referrer_id}:{new_user_id}"
+    existing = await db.share_rewards.find_one({"reward_key": reward_key}, {"_id": 1})
+    if existing:
+        return {"success": True, "rewarded": False, "message": "Already rewarded"}
+
+    await db.share_rewards.insert_one({
+        "reward_key": reward_key,
+        "user_id": referrer_id,
+        "new_user_id": new_user_id,
+        "source_job_id": referrer_job_id,
+        "credits_awarded": 25,
+        "type": "signup_referral",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    await add_credits(referrer_id, 25, "Referral reward — friend signed up from your shared story (+25)")
+
+    # Track K-factor event
+    try:
+        await db.growth_events.insert_one({
+            "event": "share_to_signup",
+            "referrer_id": referrer_id,
+            "new_user_id": new_user_id,
+            "source_job_id": referrer_job_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    try:
+        from routes.universe_routes import create_notification
+        await create_notification(
+            user_id=referrer_id,
+            ntype="referral",
+            title="A friend signed up from your story!",
+            body="+25 credits earned. Your story is spreading!",
+            link="/app/dashboard",
+        )
+    except Exception:
+        pass
+
+    return {"success": True, "rewarded": True, "credits_awarded": 25}
+
+
+# ─── K-FACTOR METRICS ────────────────────────────────────────────────────────
+
+@router.get("/k-factor")
+async def get_k_factor(user: dict = Depends(get_current_user)):
+    """Get K-factor metrics for the current user and platform-wide."""
+    user_id = user["id"]
+    now = datetime.now(timezone.utc)
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    # User metrics
+    user_shares = await db.share_rewards.count_documents({
+        "user_id": user_id, "type": {"$in": ["share_reward", None]},
+    })
+    user_continuations = await db.share_rewards.count_documents({
+        "user_id": user_id, "type": "continuation_reward",
+    })
+    user_signups = await db.share_rewards.count_documents({
+        "user_id": user_id, "type": "signup_referral",
+    })
+
+    # Platform-wide (last 7 days)
+    total_shares_7d = await db.growth_events.count_documents({
+        "event": "share_click", "timestamp": {"$gte": seven_days_ago},
+    })
+    total_cont_7d = await db.growth_events.count_documents({
+        "event": "share_to_continue", "timestamp": {"$gte": seven_days_ago},
+    })
+    total_signups_7d = await db.growth_events.count_documents({
+        "event": "share_to_signup", "timestamp": {"$gte": seven_days_ago},
+    })
+
+    # K-factor = (shares per user) * (conversion rate)
+    share_to_continue_rate = (total_cont_7d / max(total_shares_7d, 1))
+    share_to_signup_rate = (total_signups_7d / max(total_shares_7d, 1))
+
+    return {
+        "success": True,
+        "user": {
+            "total_shares": user_shares,
+            "total_continuations_earned": user_continuations,
+            "total_referral_signups": user_signups,
+            "credits_from_virality": (user_shares * 5) + (user_continuations * 15) + (user_signups * 25),
+        },
+        "platform_7d": {
+            "total_shares": total_shares_7d,
+            "share_to_continue": total_cont_7d,
+            "share_to_signup": total_signups_7d,
+            "share_to_continue_rate": round(share_to_continue_rate, 4),
+            "share_to_signup_rate": round(share_to_signup_rate, 4),
+            "estimated_k_factor": round(share_to_continue_rate + share_to_signup_rate, 4),
+        },
+    }
