@@ -579,6 +579,9 @@ api_router.include_router(growth_router)
 from routes.compete_routes import router as compete_router
 api_router.include_router(compete_router)
 
+from routes.content_engine import router as content_engine_router
+api_router.include_router(content_engine_router)
+
 
 
 # Include API router in app

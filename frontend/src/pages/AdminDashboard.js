@@ -7,7 +7,7 @@ import {
   Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw, ArrowLeft,
   LogOut, AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
   Film, ChevronRight, ChevronDown, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio
+  CheckCircle, XCircle, MinusCircle, Radio, Sparkles
 } from 'lucide-react';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
@@ -382,6 +382,7 @@ export default function AdminDashboard() {
             ['/app/admin/audit-logs', FileText, 'Audit'],
             ['/app/admin/system-health', Heart, 'Health'],
             ['/app/admin/anti-abuse', Shield, 'Safety'],
+            ['/app/admin/content-engine', Sparkles, 'Content Engine'],
           ].map(([href, Icon, label]) => (
             <Link key={href} to={href}>
               <Button variant="ghost" size="sm" className="text-slate-500 hover:text-white text-[11px] gap-1 h-7 px-2">

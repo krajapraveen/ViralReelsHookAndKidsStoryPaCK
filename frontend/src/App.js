@@ -137,6 +137,7 @@ import StoryChainView from './pages/StoryChainView';
 import MyStories from './pages/MyStories';
 // ADMIN GROWTH DASHBOARD
 import GrowthDashboard from './pages/Admin/GrowthDashboard';
+import ContentEngine from './pages/ContentEngine';
 // AI CHARACTER MEMORY
 import CharacterCreator from './pages/CharacterCreator';
 import CharacterLibrary from './pages/CharacterLibrary';
@@ -317,6 +318,7 @@ function App() {
       <Route path="/app/admin/ga4-tester" element={isAuthenticated ? <GA4EventTester /> : <Navigate to="/login" />} />
       {/* GROWTH DASHBOARD */}
       <Route path="/app/admin/growth" element={isAuthenticated ? <GrowthDashboard /> : <Navigate to="/login" />} />
+      <Route path="/app/admin/content-engine" element={isAuthenticated ? <ContentEngine /> : <Navigate to="/login" />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/cookie-policy" element={<CookiePolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
