@@ -386,7 +386,7 @@ async def _stage_keyframes(job: dict) -> Dict:
 
 
 async def _stage_scene_clips(job: dict) -> Dict:
-    """Generate REAL moving scene clips using Sora 2."""
+    """Generate REAL moving scene clips using Sora 2. Falls back to Ken Burns on keyframes if Sora fails."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     plans = job.get("scene_motion_plans", [])
     keyframes = job.get("keyframe_urls", [])
@@ -396,9 +396,14 @@ async def _stage_scene_clips(job: dict) -> Dict:
 
     clip_urls = []
     clip_local_paths = []
+    sora_count = 0
+    fallback_count = 0
+
     for i, plan in enumerate(plans):
         kf_url = keyframes[i] if i < len(keyframes) else None
         kf_path = keyframe_paths[i] if i < len(keyframe_paths) else None
+
+        # Try Sora 2 first
         result = await video_gen.generate_scene_clip(
             scene_plan=plan,
             keyframe_url=kf_url,
@@ -407,8 +412,29 @@ async def _stage_scene_clips(job: dict) -> Dict:
             style_id=job.get("style_id", "cartoon_2d"),
             job_id=job_id,
         )
-        clip_urls.append(result.get("url"))
-        clip_local_paths.append(result.get("local_path"))
+
+        if result.get("status") == "ready" and result.get("local_path"):
+            clip_urls.append(result.get("url"))
+            clip_local_paths.append(result.get("local_path"))
+            sora_count += 1
+        elif kf_path and os.path.exists(kf_path):
+            # Graceful degradation: Ken Burns fallback on keyframe
+            logger.warning(f"[PIPELINE] Sora failed for scene {i+1}, falling back to Ken Burns on keyframe")
+            scene_num = plan.get("scene_number", i + 1)
+            duration = plan.get("clip_duration_seconds", 5.0)
+            fallback_path = str(Path("/app/backend/static/generated") / f"se_{job_id[:8]}_fallback_{scene_num}.mp4")
+            ok = await ffmpeg_assembly.create_ken_burns_fallback(kf_path, fallback_path, duration)
+            if ok and os.path.exists(fallback_path):
+                fallback_url = f"/api/generated/se_{job_id[:8]}_fallback_{scene_num}.mp4"
+                clip_urls.append(fallback_url)
+                clip_local_paths.append(fallback_path)
+                fallback_count += 1
+            else:
+                clip_urls.append(None)
+                clip_local_paths.append(None)
+        else:
+            clip_urls.append(None)
+            clip_local_paths.append(None)
 
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
@@ -416,11 +442,19 @@ async def _stage_scene_clips(job: dict) -> Dict:
     )
 
     generated = sum(1 for u in clip_urls if u)
-    return {"status": "success", "output": {"clips_generated": generated, "total": len(plans)}}
+    return {
+        "status": "success",
+        "output": {
+            "clips_generated": generated,
+            "sora_clips": sora_count,
+            "fallback_clips": fallback_count,
+            "total": len(plans),
+        },
+    }
 
 
 async def _stage_audio(job: dict) -> Dict:
-    """Generate REAL narration audio using OpenAI TTS."""
+    """Generate REAL narration audio. Gracefully degrades if TTS fails."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
 
     result = await tts.generate_narration(
@@ -438,7 +472,12 @@ async def _stage_audio(job: dict) -> Dict:
         }},
     )
 
-    return {"status": "success" if result.get("status") != "failed" else "failed", "output": result}
+    # Audio failure is non-fatal — video can still be assembled without narration
+    if result.get("status") == "failed":
+        logger.warning(f"[PIPELINE] TTS failed for job {job['job_id'][:8]}, proceeding without narration")
+        return {"status": "success", "output": {"note": "TTS failed, proceeding without narration", "error": result.get("error")}}
+
+    return {"status": "success", "output": result}
 
 
 async def _stage_assembly(job: dict) -> Dict:
