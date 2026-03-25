@@ -906,11 +906,20 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   const [showDirections, setShowDirections] = useState(false);
   const [customDirection, setCustomDirection] = useState('');
   const [showSharePrompt, setShowSharePrompt] = useState(false);
+  const [showAutoNext, setShowAutoNext] = useState(false);
   const navigate = useNavigate();
   const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
   const displayTitle = jobTitle || job?.title || 'Your Video';
   const timing = job?.timing || {};
   const currentStyle = animStyle || job?.animation_style || 'cartoon_2d';
+
+  // Session chaining: auto-next trigger after 8 seconds when video is ready
+  useEffect(() => {
+    if (uiState === 'READY') {
+      const timer = setTimeout(() => setShowAutoNext(true), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [uiState]);
 
   // Status badge configuration — driven by uiState only
   const STATUS_CONFIG = {
@@ -1225,6 +1234,29 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       {/* ── ENGAGEMENT LOOP ACTIONS (only when generation succeeded) ────── */}
       {isActionable && (
         <>
+          {/* ═══ AUTO-NEXT TRIGGER — Session Chaining ═══ */}
+          {showAutoNext && (
+            <div className="relative overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-600/[0.08] to-rose-600/[0.08] p-5" style={{ animation: 'slideIn 0.4s ease-out' }} data-testid="auto-next-trigger">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                  <Play className="w-6 h-6 text-violet-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white mb-0.5">What happens next?</p>
+                  <p className="text-xs text-slate-400">The story doesn't end here — continue now or share to unlock the next chapter</p>
+                </div>
+                <button
+                  onClick={() => handleContinue(CONTINUE_DIRECTIONS[0])}
+                  className="h-10 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center gap-2 hover:opacity-90 flex-shrink-0 shadow-lg shadow-violet-500/20"
+                  data-testid="auto-next-continue-btn"
+                >
+                  <Play className="w-4 h-4" /> Continue <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <style>{`@keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+            </div>
+          )}
+
           {/* ═══ CLIFFHANGER HOOK ═══ */}
           {(storyText || job?.story_text) && (
             <div className="bg-gradient-to-r from-amber-500/[0.06] to-rose-500/[0.06] border border-amber-500/20 rounded-2xl p-5" data-testid="cliffhanger-hook">

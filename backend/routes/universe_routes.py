@@ -97,6 +97,62 @@ async def get_my_follows(user: dict = Depends(get_current_user)):
     return {"success": True, "characters": characters}
 
 
+@router.get("/follow-feed")
+async def get_follow_feed(user: dict = Depends(get_current_user), limit: int = 10):
+    """Get latest stories from characters the user follows."""
+    follows = await db.character_follows.find(
+        {"user_id": user["id"]}, {"_id": 0, "character_id": 1}
+    ).to_list(50)
+
+    if not follows:
+        return {"success": True, "stories": [], "has_follows": False}
+
+    char_ids = [f["character_id"] for f in follows]
+
+    # Get character names for filtering
+    profiles = await db.character_profiles.find(
+        {"character_id": {"$in": char_ids}, "status": "active"},
+        {"_id": 0, "character_id": 1, "name": 1}
+    ).to_list(50)
+    char_map = {p["character_id"]: p["name"] for p in profiles}
+
+    # Build query: stories matching any followed character
+    or_clauses = []
+    for cid, name in char_map.items():
+        or_clauses.append({"characters": cid})
+        or_clauses.append({"extracted_characters": {"$elemMatch": {"character_id": cid}}})
+        if name:
+            or_clauses.append({"story_text": {"$regex": name, "$options": "i"}})
+
+    if not or_clauses:
+        return {"success": True, "stories": [], "has_follows": True}
+
+    stories = await db.pipeline_jobs.find(
+        {
+            "status": "COMPLETED",
+            "thumbnail_url": {"$exists": True, "$nin": [None, ""]},
+            "$or": or_clauses,
+        },
+        {
+            "_id": 0, "job_id": 1, "title": 1, "thumbnail_url": 1,
+            "animation_style": 1, "views": 1, "slug": 1, "story_text": 1,
+            "completed_at": 1,
+        }
+    ).sort("completed_at", -1).limit(limit).to_list(limit)
+
+    # Attach character info
+    for s in stories:
+        for cid, name in char_map.items():
+            story_text = s.get("story_text", "")
+            if name and name.lower() in story_text.lower():
+                s["character_name"] = name
+                s["character_id"] = cid
+                break
+        s.pop("story_text", None)
+
+    return {"success": True, "stories": stories, "has_follows": True}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CHARACTER FEED — Latest stories featuring a character
 # ═══════════════════════════════════════════════════════════════════════════════

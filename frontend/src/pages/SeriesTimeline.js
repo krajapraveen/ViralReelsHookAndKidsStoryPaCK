@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Play, Lock, Check, ArrowRight, Film, BookOpen,
@@ -13,10 +13,27 @@ export default function SeriesTimeline() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [showUrgency, setShowUrgency] = useState(false);
+  const currentRef = useRef(null);
 
   useEffect(() => {
     if (seriesId) fetchSeries();
   }, [seriesId]);
+
+  // Auto-scroll to current episode after data loads
+  useEffect(() => {
+    if (data && currentRef.current) {
+      setTimeout(() => {
+        currentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 400);
+    }
+  }, [data]);
+
+  // Delayed urgency trigger
+  useEffect(() => {
+    const timer = setTimeout(() => setShowUrgency(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchSeries = async () => {
     try {
@@ -88,10 +105,8 @@ export default function SeriesTimeline() {
   const totalCount = episodes.length;
   const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  // Find the current episode for the cliffhanger
-  const currentEpisode = episodes.find(ep => ep.is_current);
   const lastCompletedEpisode = [...episodes].reverse().find(ep => ep.is_completed);
-  const cliffhangerText = lastCompletedEpisode?.cliffhanger_text || currentEpisode?.cliffhanger_text || '';
+  const cliffhangerText = lastCompletedEpisode?.cliffhanger_text || '';
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="series-timeline">
@@ -109,7 +124,7 @@ export default function SeriesTimeline() {
         </div>
       </header>
 
-      {/* SERIES HERO — Action first */}
+      {/* SERIES HERO */}
       <section className="relative py-8 px-4">
         <div className="absolute top-0 left-1/4 w-[500px] h-[300px] bg-violet-600/[0.06] rounded-full blur-[150px] pointer-events-none" />
         <div className="relative max-w-4xl mx-auto text-center">
@@ -120,7 +135,7 @@ export default function SeriesTimeline() {
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3" data-testid="series-title">{series.title}</h1>
           {series.description && <p className="text-sm text-slate-400 max-w-2xl mx-auto leading-relaxed mb-4">{series.description}</p>}
 
-          {/* Cliffhanger Preview — urgency */}
+          {/* Cliffhanger Preview */}
           {cliffhangerText && (
             <div className="max-w-lg mx-auto mb-5 px-5 py-3 rounded-xl bg-amber-500/[0.06] border border-amber-500/20" data-testid="cliffhanger-preview">
               <p className="text-sm text-amber-200 italic leading-relaxed">
@@ -147,12 +162,20 @@ export default function SeriesTimeline() {
           <button
             onClick={handleContinueEpisode}
             className="group inline-flex items-center gap-3 h-13 px-8 rounded-2xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base shadow-[0_0_50px_-10px_rgba(139,92,246,0.5)] hover:shadow-[0_0_70px_-10px_rgba(139,92,246,0.7)] hover:scale-[1.03] active:scale-[0.98] transition-all"
+            style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
             data-testid="big-continue-btn"
           >
             <Flame className="w-5 h-5" />
             Continue Episode {next_episode_number}
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
+
+          {/* Delayed urgency */}
+          {showUrgency && (
+            <p className="text-xs text-amber-400/80 font-medium mt-3 animate-fade-in" data-testid="urgency-text">
+              Continue before story momentum drops
+            </p>
+          )}
         </div>
       </section>
 
@@ -160,7 +183,6 @@ export default function SeriesTimeline() {
       <section className="pb-16 px-4" data-testid="episode-timeline">
         <div className="max-w-4xl mx-auto">
           <div className="relative">
-            {/* Timeline line */}
             <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-500/40 via-violet-500/30 to-slate-800" />
 
             <div className="space-y-3">
@@ -170,7 +192,12 @@ export default function SeriesTimeline() {
                 const isLocked = ep.locked;
 
                 return (
-                  <div key={ep.episode_id || idx} className={`relative flex gap-4 ${isLocked ? 'opacity-40' : ''}`} data-testid={`episode-${idx}`}>
+                  <div
+                    key={ep.episode_id || idx}
+                    ref={isCurrent ? currentRef : null}
+                    className={`relative flex gap-4 ${isLocked ? 'opacity-40' : ''}`}
+                    data-testid={`episode-${idx}`}
+                  >
                     {/* Node */}
                     <div className="flex-shrink-0 w-12 flex flex-col items-center">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center z-10 transition-all ${
@@ -208,13 +235,16 @@ export default function SeriesTimeline() {
                             {isLocked && <span className="text-[10px] text-slate-600 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> Locked</span>}
                           </div>
                           <h3 className="text-base font-bold text-white mb-1">{ep.title || `Episode ${ep.episode_number}`}</h3>
-                          {/* Cliffhanger text on completed episodes */}
-                          {ep.cliffhanger_text && isCompleted && (
-                            <p className="text-xs text-slate-400 italic leading-relaxed">"...{ep.cliffhanger_text.slice(0, 120)}"</p>
+
+                          {/* Hook text / cliffhanger on EVERY non-locked episode */}
+                          {ep.cliffhanger_text && !isLocked && (
+                            <p className="text-xs text-slate-400 italic leading-relaxed">
+                              "{ep.cliffhanger_text.slice(0, 150)}{ep.cliffhanger_text.length > 150 ? '...' : ''}"
+                            </p>
                           )}
                           {isLocked && <p className="text-xs text-slate-600 italic">Complete Episode {ep.episode_number - 1} to unlock</p>}
                         </div>
-                        {/* Action button */}
+
                         {!isLocked && (
                           <div className="flex-shrink-0">
                             {isCurrent ? (
@@ -253,6 +283,21 @@ export default function SeriesTimeline() {
           </div>
         </div>
       </section>
+
+      {/* Animations */}
+      <style>{`
+        @keyframes cta-glow {
+          0%, 100% { box-shadow: 0 0 50px -10px rgba(139,92,246,0.5); }
+          50% { box-shadow: 0 0 70px -5px rgba(139,92,246,0.7); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

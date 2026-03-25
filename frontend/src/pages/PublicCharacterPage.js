@@ -22,6 +22,7 @@ export default function PublicCharacterPage() {
   const [stories, setStories] = useState([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [showUrgency, setShowUrgency] = useState(false);
 
   useEffect(() => {
     if (characterId) {
@@ -30,6 +31,12 @@ export default function PublicCharacterPage() {
       checkFollowing();
     }
   }, [characterId]);
+
+  // Delayed urgency trigger — 5 seconds after page load
+  useEffect(() => {
+    const timer = setTimeout(() => setShowUrgency(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchCharacter = async () => {
     try {
@@ -74,7 +81,19 @@ export default function PublicCharacterPage() {
       const res = await api.post('/api/universe/follow', { character_id: characterId });
       setFollowing(res.data.following);
       setFollowerCount(prev => res.data.following ? prev + 1 : Math.max(0, prev - 1));
-      toast.success(res.data.following ? `Following ${data?.character?.name}! You'll get notified of new stories.` : 'Unfollowed');
+      if (res.data.following && entryStory) {
+        toast.success(
+          <div>
+            <p className="font-bold">Following {data?.character?.name}!</p>
+            <p className="text-xs mt-0.5 opacity-80">New story ready — continue now</p>
+          </div>,
+          { duration: 5000 }
+        );
+      } else if (res.data.following) {
+        toast.success(`Following ${data?.character?.name}! You'll get notified of new episodes.`);
+      } else {
+        toast.success('Unfollowed');
+      }
     } catch {
       toast.error('Log in to follow characters');
     } finally {
@@ -170,9 +189,14 @@ export default function PublicCharacterPage() {
     || character.personality_summary?.split('.')[0]
     || `A mysterious ${character.role || 'character'} with untold stories`;
 
+  // Auto-select entry story: latest or most-viewed
+  const entryStory = stories.length > 0
+    ? [...stories].sort((a, b) => (b.views || 0) - (a.views || 0))[0]
+    : null;
+
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="public-character-page">
-      {/* HEADER — minimal, CTA-focused */}
+      {/* HEADER */}
       <header className="sticky top-0 z-40 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-5xl mx-auto px-4 h-13 flex items-center justify-between py-3">
           <Link to="/" className="flex items-center gap-2">
@@ -197,7 +221,7 @@ export default function PublicCharacterPage() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-violet-600/[0.08] rounded-full blur-[180px] pointer-events-none" />
 
         <div className="relative max-w-3xl mx-auto px-4 pt-10 pb-6 text-center">
-          {/* Avatar — compact */}
+          {/* Avatar */}
           <div className="relative w-20 h-20 mx-auto mb-4">
             <div className="absolute inset-0 rounded-full bg-violet-500/20 animate-ping" style={{ animationDuration: '3s' }} />
             <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-violet-500/30 to-rose-500/30 border-2 border-violet-400/40 flex items-center justify-center overflow-hidden shadow-2xl shadow-violet-500/20">
@@ -214,15 +238,15 @@ export default function PublicCharacterPage() {
             {character.name}
           </h1>
 
-          {/* Hook Quote — THE COMPULSION TEXT */}
-          <p className="text-lg sm:text-xl text-slate-300 italic leading-relaxed max-w-xl mx-auto mb-5" data-testid="hook-quote">
+          {/* Hook Quote */}
+          <p className="text-lg sm:text-xl text-slate-300 italic leading-relaxed max-w-xl mx-auto mb-4" data-testid="hook-quote">
             "{hookQuote}..."
           </p>
 
-          {/* Social Proof — immediate trust */}
-          <div className="flex items-center justify-center gap-4 mb-6" data-testid="social-proof-bar">
+          {/* Social Proof with counting animation */}
+          <div className="flex items-center justify-center gap-4 mb-4" data-testid="social-proof-bar">
             {contCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-full animate-pulse" style={{ animationDuration: '2s' }}>
                 <Flame className="w-4 h-4" /> {contCount} people continued this
               </span>
             )}
@@ -238,16 +262,46 @@ export default function PublicCharacterPage() {
             )}
           </div>
 
-          {/* PRIMARY CTA — BIG, IMPOSSIBLE TO MISS */}
+          {/* ENTRY STORY — "Start with this story" guidance */}
+          {entryStory && (
+            <div
+              className="max-w-md mx-auto mb-5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] cursor-pointer hover:border-violet-500/30 transition-all group"
+              onClick={() => continueStory(entryStory)}
+              data-testid="entry-story"
+            >
+              <div className="flex items-center gap-3">
+                {entryStory.thumbnail_url && (
+                  <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                    <SafeImage src={entryStory.thumbnail_url} alt={entryStory.title} className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-[10px] font-bold text-violet-400 uppercase tracking-wider mb-0.5">Start with this story</p>
+                  <p className="text-sm text-white font-semibold truncate">{entryStory.title || 'Latest Story'}</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-violet-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+              </div>
+            </div>
+          )}
+
+          {/* PRIMARY CTA — BIG, GLOWING, PULSING */}
           <button
-            onClick={() => handleContinue('continue')}
-            className="group relative inline-flex items-center gap-3 h-14 px-10 rounded-2xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-lg shadow-[0_0_60px_-10px_rgba(139,92,246,0.5)] hover:shadow-[0_0_80px_-10px_rgba(139,92,246,0.7)] hover:scale-[1.03] active:scale-[0.98] transition-all mx-auto mb-4"
+            onClick={() => entryStory ? continueStory(entryStory) : handleContinue('continue')}
+            className="group relative inline-flex items-center gap-3 h-14 px-10 rounded-2xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-lg shadow-[0_0_60px_-10px_rgba(139,92,246,0.5)] hover:shadow-[0_0_80px_-10px_rgba(139,92,246,0.7)] hover:scale-[1.03] active:scale-[0.98] transition-all mx-auto mb-3"
+            style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
             data-testid="continue-story-cta"
           >
             <Play className="w-6 h-6" />
             Continue {character.name}'s Story
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
+
+          {/* Delayed urgency trigger */}
+          {showUrgency && contCount > 0 && (
+            <p className="text-xs text-amber-400/80 font-medium mb-3 animate-fade-in" data-testid="urgency-trigger">
+              Continue before others do — {contCount} already have
+            </p>
+          )}
 
           {/* SECONDARY CTA */}
           <button
@@ -280,7 +334,6 @@ export default function PublicCharacterPage() {
               <span className="text-xs font-bold text-white block">Next Episode</span>
               <span className="text-[10px] text-slate-500">Higher stakes</span>
             </button>
-            {/* Follow CTA with reason */}
             <button
               onClick={handleFollow}
               disabled={followLoading}
@@ -295,13 +348,13 @@ export default function PublicCharacterPage() {
                 <Bell className={`w-5 h-5 mx-auto mb-1 ${following ? 'text-violet-400' : 'text-cyan-400'}`} />
               )}
               <span className="text-xs font-bold text-white block">{following ? 'Following' : 'Follow'}</span>
-              <span className="text-[10px] text-slate-500">{following ? 'Get new episodes' : 'Get notified'}</span>
+              <span className="text-[10px] text-slate-500">{following ? 'Getting new episodes' : 'Get new episodes instantly'}</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* ═══ CHARACTER FEED — Stories with Continue as primary action ═══ */}
+      {/* ═══ CHARACTER FEED ═══ */}
       {stories.length > 0 && (
         <section className="py-8 px-4 border-t border-white/[0.04]" data-testid="character-feed">
           <div className="max-w-5xl mx-auto">
@@ -310,11 +363,8 @@ export default function PublicCharacterPage() {
                 <Flame className="w-5 h-5 text-amber-400" />
                 {character.name}'s Latest Stories
               </h2>
-              {stories.length > 4 && (
-                <span className="text-xs text-slate-500">{stories.length} total</span>
-              )}
+              {stories.length > 4 && <span className="text-xs text-slate-500">{stories.length} total</span>}
             </div>
-
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="stories-grid">
               {stories.map((story, idx) => (
                 <div key={story.job_id || idx} className="group rounded-2xl overflow-hidden border border-white/[0.06] bg-white/[0.02] hover:border-violet-500/30 transition-all cursor-pointer" data-testid={`story-card-${idx}`}>
@@ -344,7 +394,6 @@ export default function PublicCharacterPage() {
         </section>
       )}
 
-      {/* Empty state — still action-driven */}
       {stories.length === 0 && (
         <section className="py-12 px-4 border-t border-white/[0.04]">
           <div className="max-w-xl mx-auto text-center">
@@ -356,7 +405,7 @@ export default function PublicCharacterPage() {
         </section>
       )}
 
-      {/* ═══ BOTTOM CTA — Last chance ═══ */}
+      {/* ═══ BOTTOM CTA ═══ */}
       <section className="py-12 px-4 border-t border-white/[0.04]" data-testid="bottom-cta">
         <div className="max-w-xl mx-auto text-center">
           <p className="text-sm text-amber-400 font-semibold mb-2 flex items-center justify-center gap-1.5">
@@ -366,7 +415,7 @@ export default function PublicCharacterPage() {
           <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">{character.name}'s story isn't over</h2>
           <p className="text-sm text-slate-400 mb-6">You decide what happens next. No account required to start.</p>
           <button
-            onClick={() => handleContinue('continue')}
+            onClick={() => entryStory ? continueStory(entryStory) : handleContinue('continue')}
             className="h-13 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_50px_-8px_rgba(139,92,246,0.6)] transition-all hover:scale-[1.02] inline-flex items-center gap-2"
             data-testid="bottom-continue-btn"
           >
@@ -374,6 +423,21 @@ export default function PublicCharacterPage() {
           </button>
         </div>
       </section>
+
+      {/* CTA Glow Animation */}
+      <style>{`
+        @keyframes cta-glow {
+          0%, 100% { box-shadow: 0 0 60px -10px rgba(139,92,246,0.5); }
+          50% { box-shadow: 0 0 80px -5px rgba(139,92,246,0.7); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

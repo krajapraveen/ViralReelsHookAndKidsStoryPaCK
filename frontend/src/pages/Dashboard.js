@@ -71,6 +71,88 @@ const SUGGESTION_CHIPS = [
   { text: 'Turn photo into comic', icon: ImageIcon },
 ];
 
+function FollowFeed() {
+  const [stories, setStories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [hasFollows, setHasFollows] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { setLoading(false); return; }
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/api/universe/follow-feed`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.data.success) {
+          setStories(res.data.stories || []);
+          setHasFollows(res.data.has_follows);
+        }
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading || !hasFollows || stories.length === 0) return null;
+
+  const continueStory = (story) => {
+    localStorage.setItem('remix_data', JSON.stringify({
+      prompt: story.title || '',
+      timestamp: Date.now(),
+      source_tool: 'follow-feed',
+      remixFrom: {
+        tool: 'story-video-studio',
+        prompt: story.title,
+        title: story.title,
+        settings: { animation_style: story.animation_style },
+        parentId: story.job_id,
+      },
+    }));
+    navigate('/app/story-video-studio');
+  };
+
+  return (
+    <div className="vs-fade-up-1 mb-6" data-testid="follow-feed-section">
+      <div className="flex items-center gap-2 mb-4">
+        <Flame className="w-5 h-5 text-amber-400" />
+        <h2 className="vs-h3">From Characters You Follow</h2>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {stories.slice(0, 4).map((story) => (
+          <div key={story.job_id} className="vs-card group p-0 overflow-hidden cursor-pointer" onClick={() => continueStory(story)}>
+            <div className="relative">
+              <SafeImage
+                src={story.thumbnail_url}
+                alt={story.title}
+                aspectRatio="16/9"
+                titleOverlay={story.title}
+                fallbackType="gradient"
+                className="rounded-b-none"
+              />
+              {story.character_name && (
+                <span className="absolute top-2 left-2 text-[10px] font-bold bg-violet-600/80 backdrop-blur-sm text-white px-2 py-0.5 rounded-full">
+                  {story.character_name}
+                </span>
+              )}
+            </div>
+            <div className="p-3">
+              <h3 className="text-sm font-medium text-white truncate mb-2">{story.title}</h3>
+              <button
+                onClick={(e) => { e.stopPropagation(); continueStory(story); }}
+                className="w-full h-7 rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white text-[11px] font-bold flex items-center justify-center gap-1 hover:opacity-90 transition-opacity"
+                data-testid={`follow-feed-continue-${story.job_id}`}
+              >
+                <Play className="w-3 h-3" /> Continue Story
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [credits, setCredits] = useState(null);
   const [user, setUser] = useState(null);
@@ -300,6 +382,9 @@ export default function Dashboard() {
 
         {/* ═══════ RESUME YOUR STORY ═══════ */}
         <ResumeYourStory />
+
+        {/* ═══════ FOLLOW FEED — Stories from characters you follow ═══════ */}
+        <FollowFeed />
 
         {/* ═══════ HERO CREATION ═══════ */}
         <div className="vs-fade-up-2 vs-section" data-testid="creation-modes-section">
