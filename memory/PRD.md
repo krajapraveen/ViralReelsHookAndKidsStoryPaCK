@@ -29,13 +29,22 @@ Share page rebuilt as conversion machine, WhatsApp/X/IG/Copy share UX, upgraded 
 - Direct Entry Flow: Share → Continue → Studio with prefilled prompt, no detours
 - Guard Rails: Self-referral prevention, duplicate prevention, 24-hour attribution window
 
-### Phase 6: Compete + Social Proof + K-Factor Dashboard (LATEST — 2026-03-25)
-- **Email Nudges ACTIVATED**: Resend API key injected, test endpoint verified, scheduler active
-- **Compete Mechanics**: GET /api/compete/trending — Top Story Today, Most Continued Story, Fastest Growing Character, Rising Stories (all truth-based)
-- **Animated Social Proof**: Real-time viewer counts with pulse animation on Dashboard and PublicCreation pages
-- **Force Share Gate**: After video generation, users see Share OR Continue modal to maximize K-factor
-- **K-Factor Admin Dashboard**: New tab showing viral coefficient, funnel (Share→Click→Signup), top performing content, email nudge status
-- **Live Viewers API**: GET /api/compete/live-viewers — real session-based counts, no synthetic data
+### Phase 6: Compete + Social Proof + K-Factor Dashboard (2026-03-25)
+- Email Nudges ACTIVATED: Resend API key injected, test endpoint verified, scheduler active
+- Compete Mechanics: GET /api/compete/trending — Top Story Today, Most Continued Story, Fastest Growing Character, Rising Stories (all truth-based)
+- Animated Social Proof: Real-time viewer counts with pulse animation on Dashboard and PublicCreation pages
+- Force Share Gate: After video generation, users see Share OR Continue modal to maximize K-factor
+- K-Factor Admin Dashboard: New tab showing viral coefficient, funnel, top performing content, email nudge status
+- Live Viewers API: GET /api/compete/live-viewers — real session-based counts, no synthetic data
+
+### Phase 7: Content Seeding Engine (2026-03-25 — LATEST)
+- AI-powered story hook generation using GPT-4o-mini with strict HOOK → BUILD → CLIFFHANGER format
+- Quality filtering: Heuristic scoring (hooks, cliffhangers, word count), auto-reject below threshold
+- 5 categories: Emotional, Mystery, Kids, Horror, Viral — each with themed prompts and style pairing
+- Social media script generation: Reel scripts, Instagram/TikTok captions, hashtags for every story
+- Auto-publish pipeline: Drafts → publish to pipeline_jobs for video generation
+- Admin Control Panel: Generate batch (10/25/50), filter by category/status/tag, feature, tag quality, delete weak content, copy scripts
+- Admin-accessible at /app/admin/content-engine
 
 ## Self-Hosted Stack
 Architecture spec at `/app/memory/SELF_HOSTED_STACK.md`
@@ -58,10 +67,12 @@ Architecture spec at `/app/memory/SELF_HOSTED_STACK.md`
 - Multi-language support
 
 ## Key Files
+- `/app/backend/routes/content_engine.py` — Content Engine backend (AI generation, quality filter, publish)
+- `/app/frontend/src/pages/ContentEngine.js` — Admin control panel
 - `/app/backend/routes/compete_routes.py` — Trending + Live Viewers endpoints
 - `/app/backend/routes/retention_routes.py` — Email nudges + test endpoint
 - `/app/backend/services/email_service.py` — Resend integration
 - `/app/frontend/src/components/TrendingCompete.js` — Compete UI
 - `/app/frontend/src/components/AnimatedSocialProof.js` — Animated viewer counts
 - `/app/frontend/src/components/ForceShareGate.js` — Forced share modal
-- `/app/frontend/src/pages/AdminDashboard.js` — K-Factor section
+- `/app/frontend/src/pages/AdminDashboard.js` — K-Factor section + Content Engine nav link
