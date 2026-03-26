@@ -36,18 +36,10 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
     └── src/
         ├── pages/
         │   ├── Dashboard.js           # Story-first feed with rotating hero, hype UI, scroll trap
-        │   ├── StoryVideoPipeline.js  # Main video generation UI
+        │   ├── StoryVideoPipeline.js  # Main video generation UI with zero-friction entry + login gate
         │   ├── ContentEngine.js       # Admin content generation + rating
         │   ├── AdminDashboard.js      # Truth-based admin metrics
 ```
-
-## Key Technical Concepts
-- **Graceful Degradation**: When Sora 2 fails (budget), pipeline falls back to Ken Burns (FFmpeg zoom-pan on keyframes), marking job PARTIAL_READY
-- **Quick Render Mode**: User-facing message when fallback is used
-- **Controlled Batch**: Exact category distribution (4 emotional, 3 mystery, 2 kids, 1 viral)
-- **Hook Quality Rating**: Admin rates videos HIGH/MEDIUM/LOW with continuation + share signals
-- **Hybrid Hook Scoring**: Rule-based filter + GPT evaluation. Only score >= 70 goes to video gen
-- **Truth-Based Hype**: Never show zero metrics. Reframe with positive, honest text
 
 ## What's Been Implemented
 
@@ -70,20 +62,29 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 
 ### Phase 10: Hybrid Hook Scoring Engine
 - Rule-Based Filter (Stage 1) + GPT Scoring (Stage 2) + Final Decision (Stage 3)
-- Admin UI with score badges, Score All button, rejection reasons
 
 ### Phase 11: Dashboard Transformation — Story-First Experience
 - Hero Section, Universal Prompt Bar, Live Social Proof, Trending Stories Grid
-- Character Universe, Engagement Cards, Tools Demoted
 
-### Phase 12: P0.5 "Make It Look Alive" (Current Session — 2026-03-26)
-- **Rotating Hero Carousel**: Cycles through 5 stories every 6 seconds, smooth fade, pause on hover, progress dots
-- **Truth-Based Hype Stats**: "59 stories created" | "Fresh stories waiting" | "Be the first to continue" — never shows zeros
-- **Story Card Social Proof**: Dynamic badges — "Just dropped" (emerald, 0 conts), "Early story" (violet, 1-9), "Trending" (amber, 10+)
-- **First Mover Advantage**: "Be first to continue" green CTA for 0-continuation stories
-- **Hover Motion Previews**: Zoom (scale 1.1) + brightness increase on story card hover
-- **Scroll Trap**: Dynamic story-specific hooks between trending and characters ("The next chapter is waiting...")
-- **Shimmer CTA Animations**: Pulsing glow on all primary action buttons
+### Phase 12: P0.5 "Make It Look Alive" (2026-03-26)
+- Rotating Hero Carousel (6s cycle, pause on hover, progress dots)
+- Truth-Based Hype Stats (never shows zeros)
+- Story Card Social Proof (Just dropped / Early story / Trending)
+- First Mover Advantage ("Be first to continue")
+- Hover Motion Previews (zoom + brightness)
+- Scroll Trap (dynamic story-specific hooks)
+- Shimmer CTA Animations
+
+### Phase 13: P1 Zero-Friction Entry (2026-03-26)
+- Studio accessible WITHOUT login at /app/story-video-studio
+- Unauthenticated users can fill title, story text, animation style, age group, voice
+- Login gate triggers ONLY on "Generate Video" click
+- Gentle login prompt: "Log in to generate your story" with "50 free credits on signup"
+- ALL form state saved to localStorage before login redirect
+- State fully restored after login (title, text, style, age, voice, remix data)
+- Dashboard "Continue Story" buttons save remix_data to localStorage for seamless handoff
+- Shared link flow: PublicCreation → saves remix_data → studio (no login wall)
+- Welcome overlay appears after state restoration confirming work is preserved
 
 ## Key DB Schema
 - `users`: Profile, role, credits (50 standard)
@@ -92,13 +93,9 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 - `seed_stories`: Content engine generated stories with quality scores
 - `video_ratings`: Hook quality ratings per job
 - `credit_transactions`: Credit ledger
-- `character_profiles`, `story_characters`: Character data for dashboard feed
 
 ## 3rd Party Integrations
-- OpenAI GPT-4o-mini (Planning/Content Engine) — Emergent LLM Key
-- OpenAI GPT Image 1 (Keyframes) — Emergent LLM Key
-- Sora 2 (Video Clips) — Emergent LLM Key
-- OpenAI TTS (Narration) — Emergent LLM Key
+- OpenAI GPT-4o-mini, GPT Image 1, Sora 2, TTS — Emergent LLM Key
 - Resend (Email Nudges) — User API Key
 - Cashfree (Payments) — User API Key
 - Cloudflare R2 (Object Storage)
@@ -108,26 +105,25 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
 ## Current Blocker
-**Emergent LLM key budget depleted**. User needs to add balance at Profile > Universal Key > Add Balance before generating new content.
+Emergent LLM key budget depleted. User needs to add balance at Profile > Universal Key > Add Balance.
 
 ## Prioritized Backlog
 
-### P0 — Ready to Execute (After Budget Top-Up)
+### P0 (After Budget Top-Up)
 - Generate 10 controlled videos through scoring pipeline
-- Rate each video's hook quality → Pick top 3
+- Rate each video's hook quality
 
-### P1 — Continue Story Everywhere + Share Rewards
-- Zero-Friction Entry: Remove login wall for first "Continue Story" experience
-- Share rewards: +5 credits per share, +10 if someone continues
-- Streak rewards: +5 credits for daily creation streak
+### P1
+- Share Rewards: +5 credits per share, +10 if someone continues
+- Click Psychology optimization on story cards
 
-### P2 — Gallery/Explore + Share Page Rebuild
-- Gallery/Explore page with 50-100 real outputs, categorized
-- Rebuild /share/:id pages as conversion pages with hook text + Continue Story CTA
+### P2
+- Gallery/Explore page with categorized outputs
+- Rebuild /share/:id pages as conversion pages
+- Auto-improve weak hooks via GPT rewriting
 - A/B test hook text variations on public pages
 
-### P3 — Scale & Optimize
-- Auto-improve weak hooks (rewrite LOW → HIGH)
-- Migrate to self-hosted GPU stack (Wan2.1, Kokoro)
+### P3
+- Self-hosted GPU migration (Wan2.1, Kokoro)
 - Mobile App Wrapper
 - Collaborative story creation
