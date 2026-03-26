@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
+import { getVariant, trackConversion } from '../lib/abTesting';
 import {
   Play, ChevronRight, Sparkles, Zap, Users,
   BookOpen, ArrowRight, Film, Star, Clock, Eye,
@@ -63,6 +64,7 @@ export default function Dashboard() {
   const [promptText, setPromptText] = useState('');
   const [showMoreTools, setShowMoreTools] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hookVariant, setHookVariant] = useState(null);
 
   const fetchFeed = useCallback(async () => {
     try {
@@ -84,6 +86,16 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => { fetchFeed(); fetchResume(); }, [fetchFeed, fetchResume]);
+
+  // Fetch A/B hook variant for story cards
+  useEffect(() => {
+    (async () => {
+      try {
+        const v = await getVariant('story_hook');
+        if (v?.variant_data) setHookVariant(v);
+      } catch {}
+    })();
+  }, []);
 
   const handlePrompt = () => {
     if (!promptText.trim()) return;
@@ -162,7 +174,7 @@ export default function Dashboard() {
 
         {resumeStory && <ResumeStoryBanner story={resumeStory} navigate={navigate} />}
 
-        <TrendingStories stories={trending} navigate={navigate} />
+        <TrendingStories stories={trending} navigate={navigate} hookVariant={hookVariant} />
 
         <ScrollTrap />
 
@@ -373,7 +385,7 @@ function ResumeStoryBanner({ story, navigate }) {
 /* ═══════════════════════════════════════════════════════════
    TRENDING STORIES + STORY CARD
    ═══════════════════════════════════════════════════════════ */
-function TrendingStories({ stories, navigate }) {
+function TrendingStories({ stories, navigate, hookVariant }) {
   if (!stories.length) return null;
   return (
     <section data-testid="trending-stories">
@@ -387,28 +399,31 @@ function TrendingStories({ stories, navigate }) {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {stories.slice(0, 8).map((story, idx) => (
-          <StoryCard key={story.job_id} story={story} navigate={navigate} index={idx} />
+          <StoryCard key={story.job_id} story={story} navigate={navigate} index={idx} hookVariant={hookVariant} />
         ))}
       </div>
     </section>
   );
 }
 
-function StoryCard({ story, navigate, index = 0 }) {
+function StoryCard({ story, navigate, index = 0, hookVariant }) {
   const [hovered, setHovered] = useState(false);
   const proof = getProofLabel(story.remix_count || 0);
   const ProofIcon = proof.Icon;
   const isActive = (story.remix_count || 0) > 0;
 
   const hook = formatHook(story.hook_text || story.title);
-  const ctaText = CTA_VARIANTS[index % CTA_VARIANTS.length];
+  const hv = hookVariant?.variant_data || {};
+  const ctaText = hv.cta_text || CTA_VARIANTS[index % CTA_VARIANTS.length];
   const urgencyPool = isActive ? URGENCY_ACTIVE : URGENCY_FIRST;
-  const urgency = urgencyPool[index % urgencyPool.length];
+  const urgency = hv.urgency || urgencyPool[index % urgencyPool.length];
 
   const handleClick = () => {
     axios.post(`${API}/api/engagement/card-click`, {
       story_id: story.job_id, cta_variant: ctaText, source: 'dashboard'
     }).catch(() => {});
+    trackConversion('story_hook', 'click');
+    trackConversion('story_hook', 'continue_click');
     localStorage.setItem('remix_data', JSON.stringify({
       prompt: story.hook_text || story.title || '',
       timestamp: Date.now(), source_tool: 'dashboard-continue',

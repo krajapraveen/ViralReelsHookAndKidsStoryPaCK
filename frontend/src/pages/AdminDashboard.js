@@ -7,7 +7,7 @@ import {
   Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw, ArrowLeft,
   LogOut, AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
   Film, ChevronRight, ChevronDown, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio, Sparkles, Gift
+  CheckCircle, XCircle, MinusCircle, Radio, Sparkles, Gift, Target, Share2
 } from 'lucide-react';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
@@ -223,6 +223,7 @@ export default function AdminDashboard() {
   const [leaderboard, setLeaderboard] = useState({ data: null, state: 'loading', ts: null });
   const [kFactor, setKFactor] = useState({ data: null, state: 'loading', ts: null });
   const [shareRewards, setShareRewards] = useState({ data: null, state: 'loading', ts: null });
+  const [hookAnalytics, setHookAnalytics] = useState({ data: null, state: 'loading', ts: null });
 
   const fetchSection = useCallback(async (name, setter, url) => {
     try {
@@ -274,6 +275,8 @@ export default function AdminDashboard() {
         setShareRewards(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
       }
     })();
+    // Hook A/B analytics
+    fetchSection('hookAnalytics', setHookAnalytics, '/api/ab/hook-analytics');
   }, [days, fetchSection]);
 
   // WebSocket for live updates
@@ -324,11 +327,13 @@ export default function AdminDashboard() {
   const ab = abResults.data;
   const lb = leaderboard.data;
   const kf = kFactor.data;
+  const ha = hookAnalytics.data;
 
   const sections = [
     { id: 'executive', label: 'Executive', icon: BarChart3 },
     { id: 'kfactor', label: 'K-Factor', icon: Activity },
     { id: 'funnel', label: 'Growth Funnel', icon: TrendingUp },
+    { id: 'hook_ab', label: 'Hook A/B', icon: Target },
     { id: 'ab_testing', label: 'A/B Tests', icon: Zap },
     { id: 'leaderboard', label: 'Leaderboard', icon: Star },
     { id: 'reliability', label: 'Reliability', icon: Server },
@@ -828,6 +833,152 @@ export default function AdminDashboard() {
                 <MetricCard icon={DollarSign} label="Top-up Rate" value={conv?.topup_purchase_rate != null ? `${conv.topup_purchase_rate}%` : null} color="blue" testId="metric-topup-rate" />
                 <MetricCard icon={Star} label="Subscription Rate" value={conv?.subscription_rate != null ? `${conv.subscription_rate}%` : null} color="violet" testId="metric-sub-rate" />
                 <MetricCard icon={Heart} label="Repeat Buyers" value={conv?.repeat_buyers} color="rose" testId="metric-repeat-buyers" />
+              </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ HOOK A/B TESTING ═══ */}
+        {section === 'hook_ab' && (
+          <WidgetState state={hookAnalytics.state} lastUpdated={hookAnalytics.ts}>
+            <div className="space-y-6" data-testid="hook-ab-section">
+              {/* Header */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Target className="w-4 h-4 text-amber-400" /> Story Hook A/B Test
+                  </h3>
+                  {ha?.top_performer ? (
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                      Leader: {ha.variants?.find(v => v.variant_id === ha.top_performer)?.label || ha.top_performer}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                      Collecting data...
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mb-4">
+                  Testing 4 hook styles on public share pages and dashboard trending cards.
+                  Min {ha?.min_sample_size || 50} impressions per variant for reliable rates.
+                </p>
+
+                {ha?.variants?.length > 0 ? (
+                  <div className="space-y-3">
+                    {ha.variants.map((v) => {
+                      const isTop = ha.top_performer === v.variant_id;
+                      const isBottom = ha.bottom_performer === v.variant_id;
+                      const styleColors = {
+                        mystery: 'border-amber-500/30 bg-amber-500/5',
+                        emotional: 'border-rose-500/30 bg-rose-500/5',
+                        shock: 'border-red-500/30 bg-red-500/5',
+                        curiosity: 'border-cyan-500/30 bg-cyan-500/5',
+                      };
+                      const borderClass = isTop
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : isBottom
+                          ? 'border-red-500/20 bg-red-500/5'
+                          : styleColors[v.style] || 'bg-slate-800/50';
+
+                      return (
+                        <div key={v.variant_id} className={`rounded-xl p-4 border ${borderClass}`} data-testid={`hook-variant-${v.variant_id}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-white">{v.label}</span>
+                              <span className="text-[10px] text-slate-500 capitalize">({v.style})</span>
+                              {isTop && <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">BEST</span>}
+                              {isBottom && <span className="text-[9px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">WORST</span>}
+                            </div>
+                            {v.data_warning && (
+                              <span className="text-[9px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <AlertTriangle className="w-2.5 h-2.5" /> {v.data_warning}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Metrics grid */}
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                            <div className="text-center p-2 bg-slate-900/50 rounded-lg">
+                              <p className="text-lg font-black text-white">{v.impressions}</p>
+                              <p className="text-[9px] text-slate-500">Impressions</p>
+                            </div>
+                            <div className="text-center p-2 bg-slate-900/50 rounded-lg">
+                              <p className="text-lg font-black text-white">{v.clicks}</p>
+                              <p className="text-[9px] text-slate-500">Clicks</p>
+                            </div>
+                            <div className="text-center p-2 bg-slate-900/50 rounded-lg">
+                              <p className={`text-lg font-black ${v.sufficient_data ? (v.ctr > 5 ? 'text-emerald-400' : 'text-white') : 'text-slate-500'}`}>{v.ctr}%</p>
+                              <p className="text-[9px] text-slate-500">CTR</p>
+                            </div>
+                            <div className="text-center p-2 bg-slate-900/50 rounded-lg">
+                              <p className="text-lg font-black text-white">{v.continues}</p>
+                              <p className="text-[9px] text-slate-500">Continues</p>
+                            </div>
+                            <div className="text-center p-2 bg-slate-900/50 rounded-lg">
+                              <p className={`text-lg font-black ${v.sufficient_data ? (v.continue_rate > 3 ? 'text-emerald-400' : 'text-white') : 'text-slate-500'}`}>{v.continue_rate}%</p>
+                              <p className="text-[9px] text-slate-500">Continue %</p>
+                            </div>
+                            <div className="text-center p-2 bg-slate-900/50 rounded-lg">
+                              <p className={`text-lg font-black ${v.sufficient_data ? (v.share_rate > 2 ? 'text-emerald-400' : 'text-white') : 'text-slate-500'}`}>{v.share_rate}%</p>
+                              <p className="text-[9px] text-slate-500">Share %</p>
+                            </div>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="mt-2">
+                            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${isTop ? 'bg-emerald-500' : isBottom ? 'bg-red-500/60' : 'bg-cyan-500/60'}`}
+                                style={{ width: `${Math.min((v.impressions / (ha.min_sample_size || 50)) * 100, 100)}%` }}
+                              />
+                            </div>
+                            <p className="text-[9px] text-slate-600 mt-0.5">
+                              {v.sufficient_data ? 'Sufficient data' : `${v.impressions}/${ha.min_sample_size || 50} impressions`}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-slate-500">No hook experiment data yet</p>
+                    <p className="text-xs text-slate-600 mt-1">Data will appear once traffic flows through public share pages and dashboard</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MetricCard
+                  icon={Eye}
+                  label="Total Impressions"
+                  value={ha?.variants?.reduce((s, v) => s + v.impressions, 0) || 0}
+                  color="blue"
+                  testId="metric-hook-impressions"
+                />
+                <MetricCard
+                  icon={Target}
+                  label="Best CTR"
+                  value={ha?.variants?.length > 0 ? `${Math.max(...ha.variants.map(v => v.ctr))}%` : '\u2014'}
+                  sub={ha?.top_performer ? ha.variants.find(v => v.variant_id === ha.top_performer)?.label : 'TBD'}
+                  color="green"
+                  testId="metric-hook-best-ctr"
+                />
+                <MetricCard
+                  icon={TrendingUp}
+                  label="Best Continue %"
+                  value={ha?.variants?.length > 0 ? `${Math.max(...ha.variants.map(v => v.continue_rate))}%` : '\u2014'}
+                  color="purple"
+                  testId="metric-hook-best-continue"
+                />
+                <MetricCard
+                  icon={Eye}
+                  label="Best Share %"
+                  value={ha?.variants?.length > 0 ? `${Math.max(...ha.variants.map(v => v.share_rate))}%` : '\u2014'}
+                  color="indigo"
+                  testId="metric-hook-best-share"
+                />
               </div>
             </div>
           </WidgetState>

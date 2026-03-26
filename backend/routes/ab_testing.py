@@ -26,7 +26,7 @@ class ConvertRequest(BaseModel):
     experiment_id: str
     event: str  # remix_click, generate_click, signup_completed
 
-VALID_CONVERSION_EVENTS = {"remix_click", "generate_click", "signup_completed", "share_click"}
+VALID_CONVERSION_EVENTS = {"remix_click", "generate_click", "signup_completed", "share_click", "impression", "continue_click", "click"}
 
 # ─── DETERMINISTIC ASSIGNMENT ────────────────────────────────────────────────
 
@@ -265,6 +265,62 @@ INITIAL_EXPERIMENTS = [
             {"id": "cta_floating", "label": "Floating Sticky", "data": {"cta_position": "floating"}},
         ],
     },
+    {
+        "experiment_id": "story_hook",
+        "name": "Story Hook Style",
+        "primary_event": "continue_click",
+        "active": True,
+        "variants": [
+            {
+                "id": "hook_mystery",
+                "label": "Mystery",
+                "data": {
+                    "style": "mystery",
+                    "section_label": "The Cliffhanger",
+                    "hook_suffix": "Something is hiding just beyond what you can see\u2026",
+                    "cta_text": "Uncover What\u2019s Hidden",
+                    "urgency": "This mystery won\u2019t solve itself",
+                    "accent": "amber",
+                },
+            },
+            {
+                "id": "hook_emotional",
+                "label": "Emotional",
+                "data": {
+                    "style": "emotional",
+                    "section_label": "Where the heart breaks\u2026",
+                    "hook_suffix": "Some stories need someone brave enough to finish them\u2026",
+                    "cta_text": "Feel What Happens Next",
+                    "urgency": "This story needs you",
+                    "accent": "rose",
+                },
+            },
+            {
+                "id": "hook_shock",
+                "label": "Shock",
+                "data": {
+                    "style": "shock",
+                    "section_label": "Plot Twist Incoming",
+                    "hook_suffix": "Everything changes after this moment\u2026",
+                    "cta_text": "You Won\u2019t Believe What Happens",
+                    "urgency": "No one saw this coming",
+                    "accent": "red",
+                },
+            },
+            {
+                "id": "hook_curiosity",
+                "label": "Curiosity",
+                "data": {
+                    "style": "curiosity",
+                    "section_label": "Wait\u2026 there\u2019s more",
+                    "hook_suffix": "Only one way to find out\u2026",
+                    "cta_text": "What Happens Next?",
+                    "urgency": "The next part changes everything",
+                    "accent": "cyan",
+                },
+            },
+        ],
+    },
 ]
 
 
@@ -278,3 +334,73 @@ async def seed_experiments():
             await db.ab_experiments.insert_one(exp)
             seeded.append(exp["experiment_id"])
     return {"seeded": seeded, "total_experiments": len(INITIAL_EXPERIMENTS)}
+
+
+# ─── HOOK ANALYTICS (Admin) ──────────────────────────────────────────────────
+
+HOOK_EVENTS = ["impression", "click", "continue_click", "share_click"]
+MIN_SAMPLE = 50  # Minimum impressions before showing rates
+
+
+@router.get("/hook-analytics")
+async def hook_analytics():
+    """
+    Detailed analytics for the story_hook experiment.
+    Returns per-variant: impressions, clicks, CTR, continues, continue rate,
+    shares, share rate, and a confidence warning when sample is too small.
+    """
+    exp = await db.ab_experiments.find_one(
+        {"experiment_id": "story_hook", "active": True}, {"_id": 0}
+    )
+    if not exp:
+        return {"success": True, "experiment": None, "message": "story_hook experiment not found or inactive"}
+
+    variants_data = []
+    for variant in exp["variants"]:
+        vid = variant["id"]
+
+        # Count assignments (impressions proxy) and each event type
+        sessions = await db.ab_assignments.count_documents(
+            {"experiment_id": "story_hook", "variant_id": vid}
+        )
+        counts = {}
+        for evt in HOOK_EVENTS:
+            counts[evt] = await db.ab_conversions.count_documents(
+                {"experiment_id": "story_hook", "variant_id": vid, "event": evt}
+            )
+
+        impressions = counts.get("impression", 0)
+        clicks = counts.get("click", 0)
+        continues = counts.get("continue_click", 0)
+        shares = counts.get("share_click", 0)
+
+        sufficient = impressions >= MIN_SAMPLE
+
+        variants_data.append({
+            "variant_id": vid,
+            "label": variant.get("label", vid),
+            "style": variant.get("data", {}).get("style", ""),
+            "sessions": sessions,
+            "impressions": impressions,
+            "clicks": clicks,
+            "ctr": round(clicks / impressions * 100, 2) if impressions > 0 else 0,
+            "continues": continues,
+            "continue_rate": round(continues / impressions * 100, 2) if impressions > 0 else 0,
+            "shares": shares,
+            "share_rate": round(shares / impressions * 100, 2) if impressions > 0 else 0,
+            "sufficient_data": sufficient,
+            "data_warning": None if sufficient else f"Need {MIN_SAMPLE - impressions} more impressions for reliable rates",
+        })
+
+    # Rank by continue_rate (primary metric) when data is sufficient
+    ranked = sorted(variants_data, key=lambda v: v["continue_rate"] if v["sufficient_data"] else -1, reverse=True)
+
+    return {
+        "success": True,
+        "experiment_id": "story_hook",
+        "name": exp.get("name", "Story Hook Style"),
+        "min_sample_size": MIN_SAMPLE,
+        "variants": ranked,
+        "top_performer": ranked[0]["variant_id"] if ranked and ranked[0]["sufficient_data"] else None,
+        "bottom_performer": ranked[-1]["variant_id"] if ranked and ranked[-1]["sufficient_data"] else None,
+    }

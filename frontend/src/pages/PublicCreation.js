@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { SafeImage } from '../components/SafeImage';
 import { AnimatedViewerCount } from '../components/AnimatedSocialProof';
 import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growthAnalytics';
-import { getAssignments, trackConversion } from '../lib/abTesting';
+import { getVariant, trackConversion } from '../lib/abTesting';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -43,10 +43,26 @@ export default function PublicCreation() {
   const [isMuted, setIsMuted] = useState(true);
   const [videoEnded, setVideoEnded] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
+  const [hookVariant, setHookVariant] = useState(null);
 
   useEffect(() => {
     fetchCreation();
   }, [slug]);
+
+  // Fetch A/B hook variant and track impression
+  useEffect(() => {
+    if (!creation) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const v = await getVariant('story_hook');
+        if (!cancelled && v?.variant_data) setHookVariant(v);
+      } catch {}
+      // Track impression regardless
+      trackConversion('story_hook', 'impression');
+    })();
+    return () => { cancelled = true; };
+  }, [creation]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowUrgency(true), 4000);
@@ -137,6 +153,7 @@ export default function PublicCreation() {
 
     trackRemixClick({ source_page: `/v/${slug}`, source_slug: slug, tool_type: creation.tool_type || 'story_video', origin: 'share_page' });
     trackConversion('cta_copy', 'remix_click');
+    trackConversion('story_hook', 'continue_click');
     axios.post(`${API}/api/public/creation/${slug}/remix`).catch(() => {});
     try {
       fetch(`${API}/api/growth/event`, {
@@ -162,6 +179,7 @@ export default function PublicCreation() {
       ? `"${creation.title}" — created with AI in seconds! What happens next?`
       : 'This was created with AI in seconds! Continue the story:';
     trackShareClick({ source_page: `/v/${slug}`, source_slug: slug, origin: 'share_page', meta: { platform } });
+    trackConversion('story_hook', 'share_click');
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
       whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${shareUrl}`)}`,
@@ -219,6 +237,20 @@ export default function PublicCreation() {
   const primaryChar = creation.characters?.[0];
   const lastContTime = timeAgo(creation.last_continuation_at);
   const contCount = creation.remix_count || 0;
+
+  // A/B Hook variant data
+  const hv = hookVariant?.variant_data || {};
+  const hookLabel = hv.section_label || (creation.cliffhanger ? 'The Cliffhanger' : 'Where the story left off...');
+  const hookSuffix = hv.hook_suffix || 'But something unexpected happens next...';
+  const hookCta = hv.cta_text || 'Continue This Story';
+  const hookAccent = hv.accent || 'amber';
+  const accentMap = {
+    amber: { bg: 'from-amber-500/[0.06] to-rose-500/[0.06]', border: 'border-amber-500/15', icon: 'text-amber-400', text: 'text-amber-400/80', label: 'text-amber-400' },
+    rose: { bg: 'from-rose-500/[0.06] to-pink-500/[0.06]', border: 'border-rose-500/15', icon: 'text-rose-400', text: 'text-rose-400/80', label: 'text-rose-400' },
+    red: { bg: 'from-red-500/[0.06] to-orange-500/[0.06]', border: 'border-red-500/15', icon: 'text-red-400', text: 'text-red-400/80', label: 'text-red-400' },
+    cyan: { bg: 'from-cyan-500/[0.06] to-blue-500/[0.06]', border: 'border-cyan-500/15', icon: 'text-cyan-400', text: 'text-cyan-400/80', label: 'text-cyan-400' },
+  };
+  const ac = accentMap[hookAccent] || accentMap.amber;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="public-creation-page">
@@ -413,19 +445,19 @@ export default function PublicCreation() {
                 )}
               </div>
 
-              {/* ═══ CLIFFHANGER HOOK ═══ */}
+              {/* ═══ CLIFFHANGER HOOK (A/B Tested) ═══ */}
               {cliffhangerText && (
-                <div className="mt-4 bg-gradient-to-r from-amber-500/[0.06] to-rose-500/[0.06] border border-amber-500/15 rounded-2xl p-5" data-testid="story-hook">
+                <div className={`mt-4 bg-gradient-to-r ${ac.bg} border ${ac.border} rounded-2xl p-5`} data-testid="story-hook" data-hook-variant={hookVariant?.variant_id || 'default'}>
                   <div className="flex items-center gap-2 mb-2">
-                    <BookOpen className="w-4 h-4 text-amber-400" />
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                      {creation.cliffhanger ? 'The Cliffhanger' : 'Where the story left off...'}
+                    <BookOpen className={`w-4 h-4 ${ac.icon}`} />
+                    <span className={`text-[10px] font-bold ${ac.label} uppercase tracking-wider`}>
+                      {hookLabel}
                     </span>
                   </div>
                   <p className="text-sm text-slate-300 italic leading-relaxed">
                     "{cliffhangerText.length > 300 ? '...' + cliffhangerText.slice(-300) : cliffhangerText}"
                   </p>
-                  <p className="text-xs text-amber-400/80 font-semibold mt-3">But something unexpected happens next...</p>
+                  <p className={`text-xs ${ac.text} font-semibold mt-3`}>{hookSuffix}</p>
                 </div>
               )}
 
@@ -464,7 +496,7 @@ export default function PublicCreation() {
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-2">
                     <Play className="w-5 h-5 text-white" />
-                    <span className="text-lg font-bold text-white">Continue This Story</span>
+                    <span className="text-lg font-bold text-white">{hookCta}</span>
                   </div>
                   <p className="text-sm text-white/70 mb-2">See what happens next — your prompt is ready</p>
                   <div className="flex items-center gap-2 text-xs text-white/50">
