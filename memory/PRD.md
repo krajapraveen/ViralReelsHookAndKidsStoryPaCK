@@ -22,18 +22,20 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 │   │   ├── share.py               # Share creation and retrieval
 │   │   ├── admin_metrics.py       # Truth-based admin dashboard
 │   │   ├── auth.py                # Auth with standardized 50 credits
-│   │   ├── public_routes.py       # Social proof, live activity feed
+│   │   ├── engagement.py          # Feeds for dashboard (trending, hero, story-feed)
 │   ├── services/
 │   │   ├── story_engine/          # Real Sora 2 video pipeline
 │   │   │   ├── pipeline.py        # Orchestrator with Ken Burns fallback
 │   │   │   ├── state_machine.py   # Job state management
 │   │   │   ├── continuity.py      # Asset validation
 │   │   │   └── adapters/          # Sora 2, GPT Image 1, TTS, FFmpeg
+│   │   ├── hook_scoring_engine.py # Hybrid Rule + GPT hook evaluator
 │   │   ├── pipeline_engine.py     # Legacy pipeline
 │   │   ├── email_service.py       # Resend email nudges
 └── frontend/
     └── src/
         ├── pages/
+        │   ├── Dashboard.js           # Story-first feed with rotating hero, hype UI, scroll trap
         │   ├── StoryVideoPipeline.js  # Main video generation UI
         │   ├── ContentEngine.js       # Admin content generation + rating
         │   ├── AdminDashboard.js      # Truth-based admin metrics
@@ -42,11 +44,13 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 ## Key Technical Concepts
 - **Graceful Degradation**: When Sora 2 fails (budget), pipeline falls back to Ken Burns (FFmpeg zoom-pan on keyframes), marking job PARTIAL_READY
 - **Quick Render Mode**: User-facing message when fallback is used
-- **Controlled Batch**: Exact category distribution (4 emotional, 3 mystery, 2 kids, 1 viral) for quality validation
+- **Controlled Batch**: Exact category distribution (4 emotional, 3 mystery, 2 kids, 1 viral)
 - **Hook Quality Rating**: Admin rates videos HIGH/MEDIUM/LOW with continuation + share signals
-- **Micro Metrics**: Tracks continuation_rate, share_rate per video and per rating level
+- **Hybrid Hook Scoring**: Rule-based filter + GPT evaluation. Only score >= 70 goes to video gen
+- **Truth-Based Hype**: Never show zero metrics. Reframe with positive, honest text
 
 ## What's Been Implemented
+
 ### Phase 1-7: Core Platform (Previous Forks)
 - Full auth, credit system (50 credits standard), Cashfree payments
 - Story series, character creation, GIF maker
@@ -55,37 +59,31 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 
 ### Phase 8: Story Engine — Real Video Output
 - Real Sora 2 video generation pipeline
-- GPT Image 1 keyframe generation
-- OpenAI TTS narration
+- GPT Image 1 keyframe generation, OpenAI TTS narration
 - Ken Burns fallback (FFmpeg) when budget exceeded
 - FFmpeg assembly (stitch clips + audio + preview + thumbnail)
 
-### Phase 9: Content Validation Infrastructure (Current Session)
-- **P0 E2E Validation**: All 10 test cases passed (Generate → Watch → Continue → Share → Ken Burns fallback)
-- **FFmpeg installed** — was missing, breaking all video assembly
-- **Quick Render Mode banner** — Shows only when Ken Burns fallback was actually used
-- **Fallback metadata** — Backend tracks used_ken_burns_fallback, sora_clips_count, fallback_clips_count
-- **Controlled Batch Generation** — POST /api/content-engine/generate-controlled with exact category distribution
-- **Story Engine Publishing** — POST /api/content-engine/publish-to-story-engine/{story_id}
-- **Hook Quality Rating** — POST /api/content-engine/rate-video (HIGH/MEDIUM/LOW)
-- **Micro Metrics Dashboard** — GET /api/content-engine/batch-metrics
+### Phase 9: Content Validation Infrastructure
+- E2E Validation of Pipeline (all test cases passed)
+- FFmpeg installed, Quick Render Mode banner, Fallback metadata
+- Controlled Batch Generation, Story Engine Publishing, Hook Quality Rating, Micro Metrics
 
-### Phase 10: Hybrid Hook Scoring Engine (Current Session)
-- **Rule-Based Filter (Stage 1)** — Free, instant scoring on 7 dimensions: length, first-line hook, tension, cliffhanger, emotional power, generic penalty, title quality
-- **GPT Scoring (Stage 2)** — Only for stories scoring >= 40 in rules, evaluates curiosity, emotion, viral potential, continuation probability
-- **Final Decision (Stage 3)** — Combined score: 40% rules + 60% GPT. Only score >= 70 goes to video generation
-- **Admin UI** — Hook score badges (amber=HIGH, blue=MEDIUM, red=LOW), VIDEO READY badges, Score All button, rejection reasons
-- **Auto-Reject** — Stories with no hook AND no cliffhanger, or too short, are immediately rejected
+### Phase 10: Hybrid Hook Scoring Engine
+- Rule-Based Filter (Stage 1) + GPT Scoring (Stage 2) + Final Decision (Stage 3)
+- Admin UI with score badges, Score All button, rejection reasons
 
-### Phase 11: Dashboard Transformation — Story-First Experience (Current Session)
-- **Hero Section** — Dynamic featured story with hook text, autoplay video preview, "Continue This Story" + "Create Your Version" CTAs
-- **Universal Prompt Bar** — "Type anything..." with suggestion chips, auto-routes to Story Video
-- **Live Social Proof** — Real-time counter: "59 stories created | 0 today | 0 continuations"
-- **Trending Stories Grid** — 8 story cards with real R2 thumbnails, hook text, social proof badges ("9 continued"), "Continue Story" button on every card
-- **Character Universe** — Popular characters section with "Continue with [Character]" CTA
-- **Engagement Cards** — Streak system, credits card, daily challenge
-- **Tools Demoted** — All 10 tools moved to collapsed "More Creative Tools" section at bottom
-- **Story-First Layout** — Hero at top, tools at bottom — users see stories, not tools
+### Phase 11: Dashboard Transformation — Story-First Experience
+- Hero Section, Universal Prompt Bar, Live Social Proof, Trending Stories Grid
+- Character Universe, Engagement Cards, Tools Demoted
+
+### Phase 12: P0.5 "Make It Look Alive" (Current Session — 2026-03-26)
+- **Rotating Hero Carousel**: Cycles through 5 stories every 6 seconds, smooth fade, pause on hover, progress dots
+- **Truth-Based Hype Stats**: "59 stories created" | "Fresh stories waiting" | "Be the first to continue" — never shows zeros
+- **Story Card Social Proof**: Dynamic badges — "Just dropped" (emerald, 0 conts), "Early story" (violet, 1-9), "Trending" (amber, 10+)
+- **First Mover Advantage**: "Be first to continue" green CTA for 0-continuation stories
+- **Hover Motion Previews**: Zoom (scale 1.1) + brightness increase on story card hover
+- **Scroll Trap**: Dynamic story-specific hooks between trending and characters ("The next chapter is waiting...")
+- **Shimmer CTA Animations**: Pulsing glow on all primary action buttons
 
 ## Key DB Schema
 - `users`: Profile, role, credits (50 standard)
@@ -94,6 +92,7 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 - `seed_stories`: Content engine generated stories with quality scores
 - `video_ratings`: Hook quality ratings per job
 - `credit_transactions`: Credit ledger
+- `character_profiles`, `story_characters`: Character data for dashboard feed
 
 ## 3rd Party Integrations
 - OpenAI GPT-4o-mini (Planning/Content Engine) — Emergent LLM Key
@@ -109,27 +108,26 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
 ## Current Blocker
-**Emergent LLM key budget depleted** ($202.62/$202.44). User needs to add balance at Profile → Universal Key → Add Balance before generating new content.
+**Emergent LLM key budget depleted**. User needs to add balance at Profile > Universal Key > Add Balance before generating new content.
 
 ## Prioritized Backlog
+
 ### P0 — Ready to Execute (After Budget Top-Up)
-- Add $30-50 balance to Emergent LLM key
 - Generate 10 controlled videos through scoring pipeline
 - Rate each video's hook quality → Pick top 3
 
 ### P1 — Continue Story Everywhere + Share Rewards
-- Add "Continue Story" / "Add Twist" / "Next Episode" as PRIMARY action on all result pages (above Download)
+- Zero-Friction Entry: Remove login wall for first "Continue Story" experience
 - Share rewards: +5 credits per share, +10 if someone continues
 - Streak rewards: +5 credits for daily creation streak
 
 ### P2 — Gallery/Explore + Share Page Rebuild
-- Gallery/Explore page with 50-100 real outputs, categorized (kids, emotional, funny, mystery)
+- Gallery/Explore page with 50-100 real outputs, categorized
 - Rebuild /share/:id pages as conversion pages with hook text + Continue Story CTA
-- Zero-friction entry: no login before experience
+- A/B test hook text variations on public pages
 
 ### P3 — Scale & Optimize
 - Auto-improve weak hooks (rewrite LOW → HIGH)
-- A/B test hook variations on public pages
-- Migrate to self-hosted GPU stack (Wan2.1, Kokoro) — spec in SELF_HOSTED_STACK.md
+- Migrate to self-hosted GPU stack (Wan2.1, Kokoro)
 - Mobile App Wrapper
 - Collaborative story creation
