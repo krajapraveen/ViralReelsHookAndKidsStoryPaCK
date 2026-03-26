@@ -77,6 +77,16 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 - **Admin UI** — Hook score badges (amber=HIGH, blue=MEDIUM, red=LOW), VIDEO READY badges, Score All button, rejection reasons
 - **Auto-Reject** — Stories with no hook AND no cliffhanger, or too short, are immediately rejected
 
+### Phase 11: Dashboard Transformation — Story-First Experience (Current Session)
+- **Hero Section** — Dynamic featured story with hook text, autoplay video preview, "Continue This Story" + "Create Your Version" CTAs
+- **Universal Prompt Bar** — "Type anything..." with suggestion chips, auto-routes to Story Video
+- **Live Social Proof** — Real-time counter: "59 stories created | 0 today | 0 continuations"
+- **Trending Stories Grid** — 8 story cards with real R2 thumbnails, hook text, social proof badges ("9 continued"), "Continue Story" button on every card
+- **Character Universe** — Popular characters section with "Continue with [Character]" CTA
+- **Engagement Cards** — Streak system, credits card, daily challenge
+- **Tools Demoted** — All 10 tools moved to collapsed "More Creative Tools" section at bottom
+- **Story-First Layout** — Hero at top, tools at bottom — users see stories, not tools
+
 ## Key DB Schema
 - `users`: Profile, role, credits (50 standard)
 - `pipeline_jobs`: Legacy video generation jobs
@@ -104,24 +114,22 @@ Build a viral, addictive story-driven platform ("Growth Engine") with:
 ## Prioritized Backlog
 ### P0 — Ready to Execute (After Budget Top-Up)
 - Add $30-50 balance to Emergent LLM key
-- Generate 10 controlled videos through scoring pipeline: Generate stories → Rule filter → GPT score top 30% → Only HIGH hooks get Sora 2 video
-- Rate each video's hook quality (HIGH/MEDIUM/LOW)
-- Identify top 3 hooks that feel addictive
-- Validate continuation + share behavior
+- Generate 10 controlled videos through scoring pipeline
+- Rate each video's hook quality → Pick top 3
 
-### P1 — Scale What Works
-- Generate 30-50 videos from validated HIGH hooks only
-- Run social media ads with top 3 hooks
-- A/B test hook text variations on public pages
-- Auto-improve weak hooks (rewrite LOW → MEDIUM → HIGH)
+### P1 — Continue Story Everywhere + Share Rewards
+- Add "Continue Story" / "Add Twist" / "Next Episode" as PRIMARY action on all result pages (above Download)
+- Share rewards: +5 credits per share, +10 if someone continues
+- Streak rewards: +5 credits for daily creation streak
 
-### P2 — Platform Optimization
+### P2 — Gallery/Explore + Share Page Rebuild
+- Gallery/Explore page with 50-100 real outputs, categorized (kids, emotional, funny, mystery)
+- Rebuild /share/:id pages as conversion pages with hook text + Continue Story CTA
+- Zero-friction entry: no login before experience
+
+### P3 — Scale & Optimize
+- Auto-improve weak hooks (rewrite LOW → HIGH)
+- A/B test hook variations on public pages
 - Migrate to self-hosted GPU stack (Wan2.1, Kokoro) — spec in SELF_HOSTED_STACK.md
-- Upgrade admin dashboard to WebSockets
-- Implement "Remix Variants" on share pages
-- Story Chain leaderboard
-
-### P3 — Future
 - Mobile App Wrapper
 - Collaborative story creation
-- Scale to 100+ videos
