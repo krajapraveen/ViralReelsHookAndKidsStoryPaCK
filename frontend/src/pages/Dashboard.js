@@ -381,7 +381,7 @@ function TrendingStories({ stories, navigate }) {
         <h2 className="text-base font-black text-white flex items-center gap-2">
           <Flame className="w-5 h-5 text-amber-400" /> Trending Stories
         </h2>
-        <button className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
+        <button onClick={() => navigate('/app/explore')} className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
           View All <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>

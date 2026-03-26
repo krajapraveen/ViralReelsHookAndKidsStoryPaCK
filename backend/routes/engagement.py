@@ -346,3 +346,64 @@ async def card_analytics():
             for r in results
         ],
     }
+
+
+# ─── Category keyword patterns for explore ──────────────────────────
+_CAT_PATTERNS = {
+    "emotional": "love|heart|dream|memory|hope|wish|sky|star|light|tear|goodbye|coral|sky|moon",
+    "mystery": "mystery|secret|dark|shadow|hidden|night|door|lost|key|puzzle|whisper|forgotten",
+    "kids": None,  # determined by age_group
+    "viral": "adventure|magic|brave|journey|quest|amazing|epic|power|hero|robot|fox|pirate",
+}
+
+
+@router.get("/explore")
+async def explore_stories(category: str = "all", sort: str = "trending", cursor: int = 0, limit: int = 12):
+    """Gallery / Explore endpoint with category filters, sort, and cursor pagination."""
+    from utils.r2_presign import presign_url
+
+    base_q = {"status": "COMPLETED", "thumbnail_url": {"$exists": True, "$ne": None}}
+    query = {**base_q}
+
+    if category == "kids":
+        query["age_group"] = {"$regex": "kids|toddler|child", "$options": "i"}
+    elif category in _CAT_PATTERNS and _CAT_PATTERNS[category]:
+        query["title"] = {"$regex": _CAT_PATTERNS[category], "$options": "i"}
+
+    sort_map = {
+        "trending": [("remix_count", -1), ("created_at", -1)],
+        "new": [("created_at", -1)],
+        "most_continued": [("remix_count", -1)],
+    }
+    sort_key = sort_map.get(sort, sort_map["trending"])
+
+    total = await db.pipeline_jobs.count_documents(query)
+    raw = await db.pipeline_jobs.find(
+        query,
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1,
+         "animation_style": 1, "age_group": 1, "remix_count": 1, "created_at": 1},
+    ).sort(sort_key).skip(cursor).limit(limit).to_list(limit)
+
+    stories = []
+    for job in raw:
+        if job.get("thumbnail_url"):
+            job["thumbnail_url"] = presign_url(job["thumbnail_url"])
+        text = job.get("story_text", "")
+        sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
+        job["hook_text"] = (sentences[0] + "...") if sentences else job.get("title", "")
+        job.pop("story_text", None)
+        stories.append(job)
+
+    # Category counts (lightweight — only 59 completed jobs)
+    counts = {"all": await db.pipeline_jobs.count_documents(base_q)}
+    counts["kids"] = await db.pipeline_jobs.count_documents({**base_q, "age_group": {"$regex": "kids|toddler|child", "$options": "i"}})
+    for cat, pat in _CAT_PATTERNS.items():
+        if cat != "kids" and pat:
+            counts[cat] = await db.pipeline_jobs.count_documents({**base_q, "title": {"$regex": pat, "$options": "i"}})
+
+    return {
+        "stories": stories,
+        "next_cursor": cursor + limit if cursor + limit < total else None,
+        "total": total,
+        "categories": counts,
+    }

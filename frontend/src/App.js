@@ -183,6 +183,7 @@ function App() {
         <Route path="/share/:shareId" element={<SharePage />} />
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/explore" element={<ExplorePage />} />
+        <Route path="/app/explore" element={<ExplorePage />} />
         <Route path="/v/:slug" element={<PublicCreation />} />
         <Route path="/character/:characterId" element={<PublicCharacterPage />} />
         <Route path="/creator/:username" element={<CreatorProfile />} />
