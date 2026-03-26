@@ -563,21 +563,35 @@ function StoryVideoPipelineInner() {
     checkRateLimit();
   };
 
-  const viewJob = (j) => {
+  const viewJob = async (j) => {
     setJobId(j.job_id);
+
+    // Fetch full status (includes characters, cliffhanger) for completed/partial/failed jobs
+    const fetchFullJob = async (jid) => {
+      try {
+        const res = await api.get(`/api/story-engine/status/${jid}`);
+        if (res.data.success) return res.data.job;
+      } catch { /* fall through */ }
+      return null;
+    };
+
     if (['COMPLETED', 'PARTIAL'].includes(j.status)) {
-      setJob(j);
+      const fullJob = await fetchFullJob(j.job_id);
+      const jobData = fullJob || j;
+      setJob(jobData);
       setPhase('postgen');
-      validateAndResolve(j.job_id, j);
+      validateAndResolve(j.job_id, jobData);
     } else if (j.status === 'FAILED') {
-      if (j.has_recoverable_assets || j.fallback_status) {
-        setJob(j);
+      const fullJob = await fetchFullJob(j.job_id);
+      const jobData = fullJob || j;
+      if (jobData.has_recoverable_assets || jobData.fallback_status) {
+        setJob(jobData);
         setPhase('postgen');
-        validateAndResolve(j.job_id, j);
+        validateAndResolve(j.job_id, jobData);
       } else {
-        setJob(j);
+        setJob(jobData);
         setPhase('postgen');
-        dispatchPostGen({ type: 'SET_FAILED', reason: j.error || 'Generation failed' });
+        dispatchPostGen({ type: 'SET_FAILED', reason: jobData.error || 'Generation failed' });
       }
     } else {
       setPhase('processing');
@@ -1330,6 +1344,8 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               slug={job?.slug || jobId}
               shareUrl={shareUrl}
               downloadUrl={downloadUrl}
+              characterName={characterName}
+              cliffhanger={cliffhanger}
             />
           )}
 

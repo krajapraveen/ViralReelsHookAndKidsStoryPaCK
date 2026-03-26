@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Share2, Play, ArrowRight, Copy, Check, Zap, Gift, Clock, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -95,7 +96,7 @@ export function ForceShareGate({
     } catch {}
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" data-testid="force-share-gate">
       <div
         className="w-full max-w-md mx-4 bg-[#0c0c14] border border-violet-500/30 rounded-2xl overflow-hidden shadow-2xl shadow-violet-500/10"
@@ -221,7 +222,8 @@ export function ForceShareGate({
         @keyframes gate-enter { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes cta-glow { 0%, 100% { box-shadow: 0 0 30px -8px rgba(139,92,246,0.4); } 50% { box-shadow: 0 0 50px -5px rgba(139,92,246,0.6); } }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }
 
