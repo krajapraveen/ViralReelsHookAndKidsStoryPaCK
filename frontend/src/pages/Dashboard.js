@@ -4,7 +4,7 @@ import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
 import {
   Play, ChevronRight, Sparkles, Zap, Users,
-  BookOpen, ArrowRight, Film, Star, Clock,
+  BookOpen, ArrowRight, Film, Star, Clock, Eye,
   ChevronDown, Flame, Target, Trophy,
   Search, MessageSquare, Wand2, Rocket
 } from 'lucide-react';
@@ -17,6 +17,34 @@ function getProofLabel(count) {
   if (count >= 10) return { text: 'Trending', Icon: Flame, bg: 'bg-amber-500/20', fg: 'text-amber-400' };
   if (count > 0)   return { text: 'Early story', Icon: Zap, bg: 'bg-violet-500/20', fg: 'text-violet-400' };
   return { text: 'Just dropped', Icon: Sparkles, bg: 'bg-emerald-500/20', fg: 'text-emerald-400' };
+}
+
+/* ── Click Psychology: CTA variants for A/B testing ── */
+const CTA_VARIANTS = [
+  'See What Happens Next',
+  'Continue This Story',
+  'What Happens Next?',
+];
+
+/* ── Urgency messages: truth-based, no faking ── */
+const URGENCY_ACTIVE = [
+  'Someone just continued this',
+  'This story is gaining momentum',
+  'Others are watching this',
+];
+const URGENCY_FIRST = [
+  'Your turn to continue',
+  "This story isn\u2019t finished",
+  'Be the one who writes what\u2019s next',
+];
+
+/* ── Hook formatter: 1 line, incomplete thought, curiosity-driven ── */
+function formatHook(text) {
+  if (!text) return 'A story waiting to unfold\u2026';
+  const clean = text.replace(/\n/g, ' ').trim();
+  if (clean.length <= 65) return clean.endsWith('...') || clean.endsWith('\u2026') ? clean : clean;
+  const cut = clean.substring(0, 65).lastIndexOf(' ');
+  return clean.substring(0, cut > 20 ? cut : 60) + '\u2026';
 }
 
 const SCROLL_HOOKS = [
@@ -358,72 +386,104 @@ function TrendingStories({ stories, navigate }) {
         </button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {stories.slice(0, 8).map(story => (
-          <StoryCard key={story.job_id} story={story} navigate={navigate} />
+        {stories.slice(0, 8).map((story, idx) => (
+          <StoryCard key={story.job_id} story={story} navigate={navigate} index={idx} />
         ))}
       </div>
     </section>
   );
 }
 
-function StoryCard({ story, navigate }) {
+function StoryCard({ story, navigate, index = 0 }) {
   const [hovered, setHovered] = useState(false);
   const proof = getProofLabel(story.remix_count || 0);
   const ProofIcon = proof.Icon;
-  const isFirstMover = (story.remix_count || 0) === 0;
+  const isActive = (story.remix_count || 0) > 0;
+
+  const hook = formatHook(story.hook_text || story.title);
+  const ctaText = CTA_VARIANTS[index % CTA_VARIANTS.length];
+  const urgencyPool = isActive ? URGENCY_ACTIVE : URGENCY_FIRST;
+  const urgency = urgencyPool[index % urgencyPool.length];
+
+  const handleClick = () => {
+    axios.post(`${API}/api/engagement/card-click`, {
+      story_id: story.job_id, cta_variant: ctaText, source: 'dashboard'
+    }).catch(() => {});
+    localStorage.setItem('remix_data', JSON.stringify({
+      prompt: story.hook_text || story.title || '',
+      timestamp: Date.now(), source_tool: 'dashboard-continue',
+      remixFrom: { parent_video_id: story.job_id, title: story.title }
+    }));
+    navigate('/app/story-video-studio');
+  };
 
   return (
-    <div className="group relative bg-slate-900/60 border border-slate-800/40 rounded-xl overflow-hidden cursor-pointer hover:border-amber-500/30 transition-all duration-300"
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      onClick={() => {
-        localStorage.setItem('remix_data', JSON.stringify({
-          prompt: story.hook_text || story.title || '',
-          timestamp: Date.now(), source_tool: 'dashboard-continue',
-          remixFrom: { parent_video_id: story.job_id, title: story.title }
-        }));
-        navigate('/app/story-video-studio');
-      }}
-      data-testid="story-card">
-
-      {/* Thumbnail with motion preview: zoom + brightness on hover */}
-      <div className="aspect-video relative overflow-hidden bg-slate-900">
+    <div
+      className="group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10 border border-slate-800/40 hover:border-amber-500/30"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={handleClick}
+      data-testid="story-card"
+    >
+      {/* Full-bleed cinematic thumbnail */}
+      <div className="aspect-[4/5] relative overflow-hidden bg-slate-900">
         {story.thumbnail_url ? (
-          <img src={story.thumbnail_url} alt={story.title}
-            className={`w-full h-full object-cover transition-all duration-700 ${hovered ? 'scale-110 brightness-110' : 'scale-100 brightness-100'}`} />
+          <img
+            src={story.thumbnail_url}
+            alt={story.title}
+            className={`w-full h-full object-cover transition-all duration-700 ${
+              hovered ? 'scale-110 brightness-110' : 'scale-100 brightness-[0.85]'
+            }`}
+          />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-            <Film className="w-8 h-8 text-slate-700" />
+            <Film className="w-10 h-10 text-slate-700" />
           </div>
         )}
 
-        {/* Hover overlay with CTA glow */}
-        <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity duration-300 ${hovered ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="w-12 h-12 rounded-full bg-amber-500/90 flex items-center justify-center shimmer-cta">
-            <Play className="w-6 h-6 text-white fill-white ml-0.5" />
-          </div>
-        </div>
+        {/* Dark gradient from bottom for text */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
-        {/* Truth-based social proof badge */}
-        <div className={`absolute bottom-2 left-2 flex items-center gap-1 backdrop-blur-sm rounded-full px-2.5 py-1 ${proof.bg} ${proof.fg}`}>
+        {/* Badge — top left */}
+        <div className={`absolute top-2.5 left-2.5 flex items-center gap-1 backdrop-blur-md rounded-full px-2.5 py-1 ${proof.bg} ${proof.fg}`}>
           <ProofIcon className="w-3 h-3" />
           <span className="text-[10px] font-bold">{proof.text}</span>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="p-3">
-        <p className="text-xs text-slate-400 line-clamp-2 mb-2 leading-relaxed min-h-[32px]">
-          {story.hook_text || story.title}
-        </p>
-        <button className={`w-full h-8 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors ${
-          isFirstMover
-            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
-            : 'bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20'
+        {/* Hover play button — center */}
+        <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${
+          hovered ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
         }`}>
-          {isFirstMover
-            ? <><Rocket className="w-3.5 h-3.5" /> Be first to continue</>
-            : <><Play className="w-3.5 h-3.5 fill-amber-400" /> Continue Story</>}
-        </button>
+          <div className="w-14 h-14 rounded-full bg-amber-500/90 flex items-center justify-center shadow-xl shadow-amber-500/30 shimmer-cta">
+            <Play className="w-7 h-7 text-white fill-white ml-0.5" />
+          </div>
+        </div>
+
+        {/* Content overlay — bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-3.5 space-y-1.5">
+          {/* HOOK — biggest element, bold */}
+          <p className="text-sm font-black text-white leading-snug line-clamp-2" data-testid="story-hook">
+            {hook}
+          </p>
+
+          {/* Urgency — subtle truth-based message */}
+          <p className="text-[10px] text-slate-300/60 font-medium" data-testid="story-urgency">
+            {urgency}
+          </p>
+
+          {/* CTA — always visible, transforms on hover */}
+          <button
+            className={`w-full py-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${
+              hovered
+                ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
+                : 'bg-white/10 backdrop-blur-sm text-white border border-white/10'
+            }`}
+            data-testid="story-cta"
+          >
+            <Play className={`w-3.5 h-3.5 ${hovered ? 'fill-black' : 'fill-white'}`} />
+            {ctaText}
+          </button>
+        </div>
       </div>
     </div>
   );

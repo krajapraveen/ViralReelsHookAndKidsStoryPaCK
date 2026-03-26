@@ -316,3 +316,33 @@ async def get_story_feed():
             "total_continuations": total_continuations,
         },
     }
+
+
+@router.post("/card-click")
+async def track_card_click(data: dict):
+    """Track story card clicks for A/B testing CTA variants."""
+    await db.card_clicks.insert_one({
+        "story_id": data.get("story_id"),
+        "cta_variant": data.get("cta_variant"),
+        "source": data.get("source", "dashboard"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"success": True}
+
+
+@router.get("/card-analytics")
+async def card_analytics():
+    """A/B test results for card CTA variants."""
+    pipeline = [
+        {"$group": {"_id": "$cta_variant", "clicks": {"$sum": 1}}},
+        {"$sort": {"clicks": -1}},
+    ]
+    results = await db.card_clicks.aggregate(pipeline).to_list(100)
+    total = sum(r["clicks"] for r in results)
+    return {
+        "total_clicks": total,
+        "variants": [
+            {"variant": r["_id"], "clicks": r["clicks"], "pct": round(r["clicks"] / total * 100, 1) if total else 0}
+            for r in results
+        ],
+    }
