@@ -233,3 +233,86 @@ async def get_trending_creations():
             j["thumbnail_url"] = presign_url(j["thumbnail_url"])
 
     return {"trending": jobs}
+
+
+# ─── GET /api/engagement/story-feed ──────────────────────────────────────
+@router.get("/story-feed")
+async def get_story_feed():
+    """Return story-first dashboard data: hero, trending stories, characters, live counter."""
+    from utils.r2_presign import presign_url
+
+    # Hero story: most popular completed video with thumbnail
+    hero_job = await db.pipeline_jobs.find_one(
+        {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "thumbnail_url": {"$exists": True, "$ne": None}},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "remix_count": 1, "animation_style": 1},
+    )
+    if hero_job:
+        if hero_job.get("thumbnail_url"):
+            hero_job["thumbnail_url"] = presign_url(hero_job["thumbnail_url"])
+        if hero_job.get("output_url"):
+            hero_job["output_url"] = presign_url(hero_job["output_url"])
+        # Extract hook line from story text
+        text = hero_job.get("story_text", "")
+        sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
+        hero_job["hook_text"] = (sentences[0] + "...") if sentences else ""
+
+    # Trending stories: top 12 by remix count with thumbnails
+    trending = await db.pipeline_jobs.find(
+        {"status": "COMPLETED", "thumbnail_url": {"$exists": True, "$ne": None}},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "remix_count": 1, "animation_style": 1, "created_at": 1},
+    ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=12)
+
+    for job in trending:
+        if job.get("thumbnail_url"):
+            job["thumbnail_url"] = presign_url(job["thumbnail_url"])
+        text = job.get("story_text", "")
+        sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
+        job["hook_text"] = (sentences[0] + "...") if sentences else ""
+        job.pop("story_text", None)
+
+    # Popular characters
+    chars = await db.character_profiles.find(
+        {},
+        {"_id": 0, "character_id": 1, "name": 1, "species_or_type": 1, "personality_summary": 1},
+    ).to_list(length=6)
+
+    # Also try story_characters for richer data
+    story_chars = await db.story_characters.find(
+        {"name": {"$not": {"$regex": "^TEST_"}}},
+        {"_id": 0, "character_id": 1, "name": 1, "description": 1, "reference_images": 1, "appearance": 1},
+    ).to_list(length=6)
+
+    # Merge — prefer story_characters which have images
+    all_chars = []
+    seen = set()
+    for c in story_chars + chars:
+        name = c.get("name", "")
+        if name and name not in seen:
+            seen.add(name)
+            imgs = c.get("reference_images", [])
+            all_chars.append({
+                "character_id": c.get("character_id"),
+                "name": name,
+                "description": c.get("description") or c.get("personality_summary") or c.get("species_or_type", ""),
+                "image_url": imgs[0] if imgs else None,
+            })
+    all_chars = all_chars[:6]
+
+    # Live counter: stories created today
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    stories_today = await db.pipeline_jobs.count_documents({
+        "created_at": {"$gte": today_start.isoformat()},
+    })
+    total_stories = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
+    total_continuations = await db.pipeline_jobs.count_documents({"is_continuation": True})
+
+    return {
+        "hero": hero_job,
+        "trending": trending,
+        "characters": all_chars,
+        "live_stats": {
+            "stories_today": stories_today,
+            "total_stories": total_stories,
+            "total_continuations": total_continuations,
+        },
+    }
