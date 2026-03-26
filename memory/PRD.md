@@ -1,84 +1,89 @@
-# Visionary Suite — Growth Engine PRD
+# Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Build a viral, addictive story-driven platform ("Growth Engine") with real Story-to-Video generation (Sora 2, GPT Image 1, TTS), K-factor optimization, and content-driven growth loops.
+Build a viral, addictive "Story Universe Engine" with an optimized frontend growth loop and a Private, Self-Hosted Story-to-Video Engine backend. The architecture must enforce a strict pipeline: Episode Planning → Character Memory → Keyframe Generation → Moving Scene Clip Generation → FFmpeg Assembly.
 
-## Core Architecture
-```
-/app/
-├── backend/routes/
-│   ├── engagement.py          # Dashboard feeds, explore, card-click A/B tracking
-│   ├── growth_analytics.py    # Share rewards (+5/+15/+25), K-factor
-│   ├── admin_metrics.py       # Truth-based admin dashboard + share metrics
-│   ├── content_engine.py      # Batch generation, scoring
-│   ├── auth.py                # Auth with 50 credits
-├── backend/services/
-│   ├── story_engine/          # Sora 2 pipeline with Ken Burns fallback
-│   ├── hook_scoring_engine.py # Hybrid Rule + GPT evaluator
-├── frontend/src/pages/
-│   ├── Dashboard.js           # Story-first feed with click-psychology cards
-│   ├── ExplorePage.js         # Gallery with categories, infinite scroll, stickiness
-│   ├── StoryVideoPipeline.js  # Zero-friction studio with login gate
-│   ├── AdminDashboard.js      # Truth-based metrics + share rewards
-├── frontend/src/components/
-│   ├── ForceShareGate.js      # "Your story is live!" modal + ShareRewardBar
-```
+## Architecture
+- **Frontend**: React (Vite-like CRA), Shadcn UI, TailwindCSS
+- **Backend**: FastAPI, Python 3.11
+- **Database**: MongoDB
+- **Storage**: Cloudflare R2 (Object Storage)
+- **AI**: OpenAI GPT-4o-mini (planning), GPT Image 1 (keyframes), Sora 2 (clips), TTS — via Emergent LLM Key
+- **Payments**: Cashfree
 
-## What's Been Implemented (Current Session — 2026-03-26)
+## What's Been Implemented
 
-### Phase 12: P0.5 "Make It Look Alive"
-- Rotating Hero Carousel (6s, pause on hover, progress dots)
-- Truth-Based Hype Stats (never shows zeros)
-- Story Card Social Proof (Just dropped / Early story / Trending)
-- First Mover Advantage, Hover Motion, Scroll Trap, Shimmer CTAs
+### P0.5 "Make It Look Alive" (DONE)
+- Truth-based hype text, social proof badges, scroll traps on Dashboard
 
-### Phase 13: P1 Zero-Friction Entry
-- Studio accessible WITHOUT login, login gate on "Generate" only
-- ALL form state saved/restored across login redirect
+### P1 Zero-Friction Entry (DONE)
+- Login only required on "Generate" click, full state preservation via localStorage
 
-### Phase 14: P1 Share Reward System
-- ForceShareGate: "Your story is live!" with +5/+15/+25 rewards
-- 4 share buttons (WhatsApp, X, Instagram, Copy Link)
-- ShareRewardBar in post-gen result, admin share metrics
+### P1 Share Reward System (DONE)
+- +5/+15/+25 credit rewards for sharing, continuing, signing up
 
-### Phase 15: P1 Click Psychology Optimization
-- Cinematic 4:5 cards with hook overlay, CTA variants, urgency text
-- A/B click tracking with variant analytics
+### P1 Click Psychology (DONE)
+- Cinematic 4:5 ratio cards, overlaid hooks, urgency text, A/B tracking
 
-### Phase 16: P1 Gallery / Explore Page
-- **Route**: /app/explore (also /explore for public access)
-- **Category filters**: All (30), Emotional (8), Mystery (2), Kids (30), Viral Hooks (15)
-- **Sort options**: Trending, New, Most Continued
-- **Infinite scroll**: IntersectionObserver loads 12 per batch, cursor-based pagination
-- **Stickiness triggers**: "This story has no ending yet..." between rows with pulsing dots
-- **Card design**: Same click-psychology cards as Dashboard (cinematic 4:5, hook overlay, CTA variants, urgency)
-- **Empty state**: "Be the first to create a story in this category" with CTA
-- **End-of-list**: "You've explored all stories" with create CTA
-- **Lazy loading**: All images use loading="lazy"
-- **Backend**: GET /api/engagement/explore with category, sort, cursor params
-- **Dashboard link**: "View All" in Trending Stories navigates to /app/explore
+### P1 Gallery / Explore Page (DONE)
+- `/app/explore` with infinite scroll, category filters, sorting
 
-## 3rd Party Integrations
-- OpenAI GPT-4o-mini, GPT Image 1, Sora 2, TTS — Emergent LLM Key
-- Resend, Cashfree, Cloudflare R2
+### P0 Frontend → Story Engine Migration (DONE — 2026-03-26)
+- **Wired ALL frontend calls** from `/api/pipeline/*` to `/api/story-engine/*`
+- New Story Engine routes serve as SINGLE SOURCE OF TRUTH
+- Transparent fallback: new endpoints query BOTH `story_engine_jobs` AND legacy `pipeline_jobs`
+- Merged user-jobs listing shows all videos regardless of which pipeline created them
+- Legacy pipeline routes kept ONLY for Gallery and Admin analytics
+- Old pipeline_routes.py marked DEPRECATED
+- **Testing**: 100% pass rate (34/34 backend, 12/12 frontend features)
 
-## Credentials
-- Test: test@visionary-suite.com / Test@2026#
-- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
+### Trust & UI Fixes (DONE)
+- Fixed broken Security tab, truth-based admin metrics, authentic live feed
 
-## Blocker
-Emergent LLM key budget depleted. Add balance at Profile > Universal Key.
+### Monetization (DONE)
+- Cashfree payments, strict credit checks, 50-credit standard allocation
 
 ## Prioritized Backlog
 
-### P1
-- Rebuild /share/:id as conversion pages (auto-play, hook text, CTA)
-- Generate 10 videos after budget top-up
+### P0 — In Progress
+- None (migration complete)
 
-### P2
-- Auto-improve weak hooks via GPT rewriting
+### P1 — Next Up
 - A/B test hook text variations on public pages
+- Character-driven auto-share prompts after creation
+- Rebuild Public Share Page (`/v/{slug}`) with auto-play video + CTA
 
-### P3
-- Self-hosted GPU migration (Wan2.1, Kokoro)
-- Mobile App Wrapper
+### P2 — Future
+- Remix Variants on share pages
+- WebSocket upgrade for admin dashboard
+- Story Chain leaderboard
+- UI polish and style preset preview thumbnails
+
+### P3 — Long Term
+- Self-hosted GPU migration (Wan2.1, Kokoro) to replace Emergent APIs
+- Branching episodes
+- Mobile app wrapper
+
+## API Architecture (Current State)
+
+### PRIMARY: /api/story-engine/* (Story Engine — Single Source of Truth)
+- `GET /options` — Animation styles, age groups, voice presets
+- `GET /rate-limit-status` — Rate limit check
+- `POST /create` — Create new video job (uses Story Engine pipeline)
+- `GET /status/{job_id}` — Poll progress (queries both collections)
+- `GET /validate-asset/{job_id}` — Post-gen asset validation
+- `GET /user-jobs` — Merged jobs list (engine + legacy)
+- `POST /resume/{job_id}` — Resume failed jobs (both engines)
+- `GET /preview/{job_id}` — Scene preview data
+- `POST /notify-when-ready/{job_id}` — Completion notification
+- `GET /asset-proxy` — CORS proxy for R2 assets
+- `POST /generate-fallback/{job_id}` — Fallback assets for legacy jobs
+
+### LEGACY (DEPRECATED): /api/pipeline/*
+- Gallery endpoints (gallery, categories, leaderboard)
+- Admin analytics (funnel, performance, workers)
+- Kept because they query `pipeline_jobs` collection directly
+
+## Credentials
+- Test User: `test@visionary-suite.com` / `Test@2026#`
+- Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
