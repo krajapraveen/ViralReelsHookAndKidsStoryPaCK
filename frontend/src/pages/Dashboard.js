@@ -283,7 +283,14 @@ function HeroSection({ heroes, navigate }) {
         </h1>
         <p className="text-sm text-slate-400 mb-6">{current.title}</p>
         <div className="flex gap-3 flex-wrap">
-          <button onClick={() => navigate('/app/story-video-studio', { state: { continueFrom: current.job_id, prefill: current.story_text } })}
+          <button onClick={() => {
+              localStorage.setItem('remix_data', JSON.stringify({
+                prompt: current.story_text || current.hook_text || '',
+                timestamp: Date.now(), source_tool: 'dashboard-continue',
+                remixFrom: { parent_video_id: current.job_id, title: current.title }
+              }));
+              navigate('/app/story-video-studio');
+            }}
             className="h-12 px-8 bg-gradient-to-r from-amber-500 to-rose-500 rounded-xl text-white font-bold text-sm flex items-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20 shimmer-cta"
             data-testid="hero-continue-btn">
             <Play className="w-5 h-5 fill-white" /> Continue This Story
@@ -368,7 +375,14 @@ function StoryCard({ story, navigate }) {
   return (
     <div className="group relative bg-slate-900/60 border border-slate-800/40 rounded-xl overflow-hidden cursor-pointer hover:border-amber-500/30 transition-all duration-300"
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      onClick={() => navigate('/app/story-video-studio', { state: { continueFrom: story.job_id } })}
+      onClick={() => {
+        localStorage.setItem('remix_data', JSON.stringify({
+          prompt: story.hook_text || story.title || '',
+          timestamp: Date.now(), source_tool: 'dashboard-continue',
+          remixFrom: { parent_video_id: story.job_id, title: story.title }
+        }));
+        navigate('/app/story-video-studio');
+      }}
       data-testid="story-card">
 
       {/* Thumbnail with motion preview: zoom + brightness on hover */}

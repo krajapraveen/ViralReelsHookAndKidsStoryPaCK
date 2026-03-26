@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -127,6 +127,7 @@ class StudioErrorBoundary extends React.Component {
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 function StoryVideoPipelineInner() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [phase, setPhase] = useState('input'); // input | processing | postgen | error
   const [options, setOptions] = useState(null);
   const [title, setTitle] = useState('');
@@ -147,6 +148,7 @@ function StoryVideoPipelineInner() {
   const [remixSourceTitle, setRemixSourceTitle] = useState(null);
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
   const [formError, setFormError] = useState('');
+  const [showLoginGate, setShowLoginGate] = useState(false);
   const pollRef = useRef(null);
   const [searchParams] = useSearchParams();
 
@@ -172,6 +174,33 @@ function StoryVideoPipelineInner() {
     loadUserJobs();
     checkUpsell();
     checkRateLimit();
+
+    // ── Restore saved state (after login redirect) ──
+    const savedState = localStorage.getItem('studio_saved_state');
+    if (savedState) {
+      try {
+        const ss = JSON.parse(savedState);
+        if (ss.timestamp && Date.now() - ss.timestamp < 15 * 60 * 1000) {
+          if (ss.title) setTitle(ss.title);
+          if (ss.storyText) setStoryText(ss.storyText);
+          if (ss.animStyle) setAnimStyle(ss.animStyle);
+          if (ss.ageGroup) setAgeGroup(ss.ageGroup);
+          if (ss.voicePreset) setVoicePreset(ss.voicePreset);
+          if (ss.remixData) setRemixData(ss.remixData);
+          setShowWelcome(true);
+        }
+      } catch {}
+      localStorage.removeItem('studio_saved_state');
+    }
+
+    // ── Handle location.state from Dashboard "Continue Story" ──
+    const locState = location?.state || window.history?.state?.usr;
+    if (locState?.prefill && !savedState) {
+      setStoryText(locState.prefill);
+    }
+    if (locState?.continueFrom && !savedState) {
+      setRemixData({ parent_video_id: locState.continueFrom });
+    }
 
     // Handle remix
     const isRemix = searchParams.get('remix');
@@ -478,7 +507,14 @@ function StoryVideoPipelineInner() {
         }
         setShowUpsell(true);
       } else if (status === 401) {
-        setFormError('Log in to generate your video — your story will be saved!');
+        // Zero-friction: save ALL form state, then show gentle login gate
+        localStorage.setItem('studio_saved_state', JSON.stringify({
+          title: title.trim(), storyText: storyText.trim(),
+          animStyle, ageGroup, voicePreset,
+          remixData: remixData || null, timestamp: Date.now()
+        }));
+        localStorage.setItem('remix_return_url', '/app/story-video-studio');
+        setShowLoginGate(true);
       }
       else if (status === 500) setFormError(detail || 'Server error. Please try again.');
       else setFormError(detail || `Unexpected error (${status || 'network'}).`);
@@ -618,6 +654,7 @@ function StoryVideoPipelineInner() {
           showRemixBanner={showRemixBanner} remixSourceTool={remixSourceTool}
           remixSourceTitle={remixSourceTitle} onDismissRemix={() => setShowRemixBanner(false)}
           userCredits={userCredits}
+          showLoginGate={showLoginGate}
         />}
 
         {phase === 'processing' && (
@@ -663,7 +700,8 @@ export default function StoryVideoPipeline() {
 function InputPhase({ options, title, setTitle, storyText, setStoryText,
   animStyle, setAnimStyle, ageGroup, setAgeGroup, voicePreset, setVoicePreset,
   onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError,
-  showRemixBanner, remixSourceTool, remixSourceTitle, onDismissRemix, userCredits }) {
+  showRemixBanner, remixSourceTool, remixSourceTitle, onDismissRemix, userCredits,
+  showLoginGate }) {
 
   const styles = options?.animation_styles || [];
   const ages = options?.age_groups || [];
@@ -826,35 +864,60 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
             </div>
           )}
 
-          {/* Form error */}
-          {formError && (
+          {/* Form error — shown only for non-auth errors */}
+          {formError && !showLoginGate && (
             <div className="vs-panel p-4 flex items-start gap-3 border-[var(--vs-error)]/30" data-testid="form-error">
               <AlertCircle className="w-5 h-5 text-[var(--vs-error)] flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-red-300 text-sm">{formError}</p>
-                {formError.includes('Log in') && (
-                  <button onClick={() => {
-                    // Save current work before redirecting
-                    if (storyText) localStorage.setItem('onboarding_prompt', storyText);
-                    window.location.href = '/login?redirect=/app/story-video-studio';
-                  }} className="text-xs text-[var(--vs-text-accent)] underline mt-1">Log in to continue</button>
-                )}
                 {formError.includes('session') && <button onClick={() => window.location.href = '/login'} className="text-xs text-[var(--vs-text-accent)] underline mt-1">Go to Login</button>}
                 {formError.includes('credit') && <button onClick={() => window.location.href = '/app/billing'} className="text-xs text-[var(--vs-text-accent)] underline mt-1">Get More Credits</button>}
               </div>
             </div>
           )}
 
-          {/* Generate */}
-          <button onClick={onGenerate} disabled={submitting}
-            className={`w-full h-14 text-lg font-semibold rounded-[var(--vs-btn-radius)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              !canCreate ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'vs-btn-primary'
-            }`}
-            data-testid="generate-btn">
-            {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating Job...</>
-              : !canCreate ? <><ShieldAlert className="w-5 h-5" /> Generation Unavailable</>
-              : <><Wand2 className="w-5 h-5" /> Generate Video</>}
-          </button>
+          {/* ─── LOGIN GATE — gentle prompt, not an error ─── */}
+          {showLoginGate && (
+            <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-6 text-center space-y-4" data-testid="login-gate">
+              <div className="w-14 h-14 mx-auto rounded-full bg-indigo-500/20 flex items-center justify-center">
+                <Sparkles className="w-7 h-7 text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Log in to generate your story</h3>
+                <p className="text-sm text-slate-400 mt-1">Your story is saved. Create a free account to bring it to life.</p>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => window.location.href = '/login?redirect=/app/story-video-studio'}
+                  className="h-11 px-8 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-sm hover:opacity-90 transition-opacity flex items-center gap-2"
+                  data-testid="login-gate-login-btn"
+                >
+                  <ArrowRight className="w-4 h-4" /> Log In
+                </button>
+                <button
+                  onClick={() => window.location.href = '/signup'}
+                  className="h-11 px-8 rounded-xl border border-slate-600 text-white font-bold text-sm hover:bg-white/5 transition-colors flex items-center gap-2"
+                  data-testid="login-gate-signup-btn"
+                >
+                  Sign Up Free
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500">50 free credits on signup</p>
+            </div>
+          )}
+
+          {/* Generate — hidden when login gate is shown */}
+          {!showLoginGate && (
+            <button onClick={onGenerate} disabled={submitting}
+              className={`w-full h-14 text-lg font-semibold rounded-[var(--vs-btn-radius)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                !canCreate ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'vs-btn-primary'
+              }`}
+              data-testid="generate-btn">
+              {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating Job...</>
+                : !canCreate ? <><ShieldAlert className="w-5 h-5" /> Generation Unavailable</>
+                : <><Wand2 className="w-5 h-5" /> Generate Video</>}
+            </button>
+          )}
 
           {rateLimitStatus && (
             <p className="text-xs text-[var(--vs-text-muted)] text-center" style={{ fontFamily: 'var(--vs-font-mono)' }}>
