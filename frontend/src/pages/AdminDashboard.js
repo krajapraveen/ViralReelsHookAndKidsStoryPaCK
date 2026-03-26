@@ -7,7 +7,7 @@ import {
   Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw, ArrowLeft,
   LogOut, AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
   Film, ChevronRight, ChevronDown, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio, Sparkles
+  CheckCircle, XCircle, MinusCircle, Radio, Sparkles, Gift
 } from 'lucide-react';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
@@ -222,6 +222,7 @@ export default function AdminDashboard() {
   const [abResults, setAbResults] = useState({ data: null, state: 'loading', ts: null });
   const [leaderboard, setLeaderboard] = useState({ data: null, state: 'loading', ts: null });
   const [kFactor, setKFactor] = useState({ data: null, state: 'loading', ts: null });
+  const [shareRewards, setShareRewards] = useState({ data: null, state: 'loading', ts: null });
 
   const fetchSection = useCallback(async (name, setter, url) => {
     try {
@@ -262,6 +263,15 @@ export default function AdminDashboard() {
         }
       } catch {
         setKFactor(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
+      }
+    })();
+    // Share rewards metrics
+    (async () => {
+      try {
+        const res = await api.get('/api/admin/metrics/share-rewards');
+        setShareRewards({ data: res.data, state: 'ready', ts: new Date().toISOString() });
+      } catch {
+        setShareRewards(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
       }
     })();
   }, [days, fetchSection]);
@@ -546,6 +556,37 @@ export default function AdminDashboard() {
 
               {/* Email Nudge Status */}
               <EmailNudgeStatus />
+
+              {/* Share Rewards Metrics */}
+              {shareRewards.data && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6" data-testid="share-rewards-section">
+                  <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-emerald-400" /> Share Reward Metrics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-emerald-400">{shareRewards.data.total_share_rewards || 0}</p>
+                      <p className="text-[10px] text-emerald-400/70">Shares (+5 each)</p>
+                    </div>
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-amber-400">{shareRewards.data.total_continuation_rewards || 0}</p>
+                      <p className="text-[10px] text-amber-400/70">Continuations (+15)</p>
+                    </div>
+                    <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-violet-400">{shareRewards.data.total_signup_rewards || 0}</p>
+                      <p className="text-[10px] text-violet-400/70">Signups (+25)</p>
+                    </div>
+                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-cyan-400">{shareRewards.data.total_credits_given || 0}</p>
+                      <p className="text-[10px] text-cyan-400/70">Credits given</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>{shareRewards.data.unique_sharers || 0} unique sharers</span>
+                    <span>Last 7d: {shareRewards.data.last_7_days?.shares || 0} shares, {shareRewards.data.last_7_days?.continuations || 0} cont, {shareRewards.data.last_7_days?.signups || 0} signups</span>
+                  </div>
+                </div>
+              )}
             </div>
           </WidgetState>
         )}

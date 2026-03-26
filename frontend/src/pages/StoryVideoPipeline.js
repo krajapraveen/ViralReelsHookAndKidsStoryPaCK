@@ -21,7 +21,7 @@ import { useJobWebSocket } from '../hooks/useJobWebSocket';
 import ContextualUpgrade from '../components/ContextualUpgrade';
 import RemixBanner from '../components/RemixBanner';
 import SharePromptModal from '../components/SharePromptModal';
-import { ForceShareGate } from '../components/ForceShareGate';
+import { ForceShareGate, ShareRewardBar } from '../components/ForceShareGate';
 import { LiveViewerBadge } from '../components/AnimatedSocialProof';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -1259,6 +1259,17 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
         {/* RIGHT: Actions Panel — gated by uiState */}
         <div className="lg:col-span-2 space-y-4">
           <h3 className="text-white font-semibold text-lg" data-testid="video-title">{displayTitle}</h3>
+
+          {/* SHARE & EARN — above download, prominent */}
+          {isActionable && (
+            <ShareRewardBar
+              jobId={jobId}
+              title={displayTitle}
+              slug={job?.slug || jobId}
+              shareUrl={shareUrl}
+              downloadUrl={downloadUrl}
+            />
+          )}
 
           {/* Download — only when downloadReady is true */}
           <Button

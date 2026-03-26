@@ -770,3 +770,39 @@ async def get_leaderboard(admin: dict = Depends(get_admin_user)):
         "stories_with_continuations": stories_with_cont,
         "avg_chain_length": avg_chain_length,
     }
+
+
+
+@router.get("/share-rewards")
+async def admin_share_rewards(user: dict = Depends(get_admin_user)):
+    """Share reward metrics for admin dashboard."""
+    now = _now()
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    total_share_rewards = await db.share_rewards.count_documents({"credits_awarded": 5})
+    total_cont_rewards = await db.share_rewards.count_documents({"type": "continuation_reward"})
+    total_signup_rewards = await db.share_rewards.count_documents({"type": "signup_referral"})
+    total_credits = (total_share_rewards * 5) + (total_cont_rewards * 15) + (total_signup_rewards * 25)
+
+    # 7-day window
+    share_7d = await db.share_rewards.count_documents({"credits_awarded": 5, "timestamp": {"$gte": seven_days_ago}})
+    cont_7d = await db.share_rewards.count_documents({"type": "continuation_reward", "timestamp": {"$gte": seven_days_ago}})
+    signup_7d = await db.share_rewards.count_documents({"type": "signup_referral", "timestamp": {"$gte": seven_days_ago}})
+
+    # Unique sharers
+    pipeline = [{"$match": {"credits_awarded": 5}}, {"$group": {"_id": "$user_id"}}, {"$count": "total"}]
+    unique_res = await db.share_rewards.aggregate(pipeline).to_list(1)
+    unique_sharers = unique_res[0]["total"] if unique_res else 0
+
+    return {
+        "total_share_rewards": total_share_rewards,
+        "total_continuation_rewards": total_cont_rewards,
+        "total_signup_rewards": total_signup_rewards,
+        "total_credits_given": total_credits,
+        "unique_sharers": unique_sharers,
+        "last_7_days": {
+            "shares": share_7d,
+            "continuations": cont_7d,
+            "signups": signup_7d,
+        },
+    }
