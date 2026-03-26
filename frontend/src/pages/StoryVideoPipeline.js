@@ -170,7 +170,7 @@ function StoryVideoPipelineInner() {
 
   // ─── INIT ─────────────────────────────────────────────────────────
   useEffect(() => {
-    api.get('/api/pipeline/options').then(r => setOptions(r.data)).catch(() => {});
+    api.get('/api/story-engine/options').then(r => setOptions(r.data)).catch(() => {});
     loadUserJobs();
     checkUpsell();
     checkRateLimit();
@@ -265,7 +265,7 @@ function StoryVideoPipelineInner() {
   // ─── LOAD USER JOBS + RECONNECT SAFETY ────────────────────────────
   const loadUserJobs = async () => {
     try {
-      const res = await api.get('/api/pipeline/user-jobs');
+      const res = await api.get('/api/story-engine/user-jobs');
       if (res.data.success) {
         setUserJobs(res.data.jobs || []);
         // Reconnect to active job if any (refresh safety)
@@ -294,7 +294,7 @@ function StoryVideoPipelineInner() {
 
   const checkRateLimit = async () => {
     try {
-      const res = await api.get('/api/pipeline/rate-limit-status');
+      const res = await api.get('/api/story-engine/rate-limit-status');
       setRateLimitStatus(res.data);
     } catch { /* ignore */ }
   };
@@ -311,7 +311,7 @@ function StoryVideoPipelineInner() {
     dispatchPostGen({ type: 'START_VALIDATING', title: jobData?.title || '' });
 
     try {
-      const res = await api.get(`/api/pipeline/validate-asset/${jid}`);
+      const res = await api.get(`/api/story-engine/validate-asset/${jid}`);
       const v = res.data;
 
       if (v.ui_state === 'READY') {
@@ -382,7 +382,7 @@ function StoryVideoPipelineInner() {
 
     const poll = async () => {
       try {
-        const res = await api.get(`/api/pipeline/status/${jid}`);
+        const res = await api.get(`/api/story-engine/status/${jid}`);
         if (res.data.success) {
           const j = res.data.job;
           setJob(j);
@@ -454,7 +454,7 @@ function StoryVideoPipelineInner() {
       };
       if (remixData?.parent_video_id) payload.parent_video_id = remixData.parent_video_id;
 
-      const res = await api.post('/api/pipeline/create', payload);
+      const res = await api.post('/api/story-engine/create', payload);
       if (res.data.success) {
         setJobId(res.data.job_id);
         setPhase('processing');
@@ -527,7 +527,7 @@ function StoryVideoPipelineInner() {
   const handleResume = async () => {
     if (!jobId) return;
     try {
-      await api.post(`/api/pipeline/resume/${jobId}`);
+      await api.post(`/api/story-engine/resume/${jobId}`);
       setPhase('processing');
       dispatchPostGen({ type: 'RESET' });
       startPolling(jobId);

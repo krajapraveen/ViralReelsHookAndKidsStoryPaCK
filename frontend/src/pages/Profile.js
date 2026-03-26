@@ -154,7 +154,7 @@ export default function Profile() {
   const fetchPipelineJobs = async () => {
     setLoadingJobs(true);
     try {
-      const res = await api.get('/api/pipeline/user-jobs');
+      const res = await api.get('/api/story-engine/user-jobs');
       setPipelineJobs(res.data.jobs || []);
     } catch (error) {
       console.error('Failed to fetch pipeline jobs:', error);
@@ -165,7 +165,7 @@ export default function Profile() {
 
   const handleResumeJob = async (jobId) => {
     try {
-      await api.post(`/api/pipeline/resume/${jobId}`);
+      await api.post(`/api/story-engine/resume/${jobId}`);
       toast.success('Job resumed from last checkpoint!');
       fetchPipelineJobs();
     } catch (error) {
@@ -175,7 +175,7 @@ export default function Profile() {
 
   const handleGenerateFallback = async (jobId) => {
     try {
-      const res = await api.post(`/api/pipeline/generate-fallback/${jobId}`);
+      const res = await api.post(`/api/story-engine/generate-fallback/${jobId}`);
       toast.success(res.data.message || 'Fallback assets generated!');
       fetchPipelineJobs();
     } catch (error) {

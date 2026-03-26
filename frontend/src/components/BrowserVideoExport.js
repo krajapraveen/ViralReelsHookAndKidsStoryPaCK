@@ -23,7 +23,7 @@ function proxyUrl(url) {
   if (!url) return url;
   // Only proxy cross-origin R2 URLs
   if (url.includes('r2.cloudflarestorage.com') || url.includes('r2.dev')) {
-    return `${API_URL}/api/pipeline/asset-proxy?url=${encodeURIComponent(url)}`;
+    return `${API_URL}/api/story-engine/asset-proxy?url=${encodeURIComponent(url)}`;
   }
   return url;
 }

@@ -78,7 +78,7 @@ export default function Dashboard() {
 
   const fetchResume = useCallback(async () => {
     try {
-      const res = await api().get(`${API}/api/pipeline/my-jobs?limit=1&status=COMPLETED`);
+      const res = await api().get(`${API}/api/story-engine/user-jobs`);
       if (res.data?.jobs?.length > 0) setResumeStory(res.data.jobs[0]);
     } catch {}
   }, []);

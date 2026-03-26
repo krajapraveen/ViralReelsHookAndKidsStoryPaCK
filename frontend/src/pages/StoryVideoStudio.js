@@ -1126,7 +1126,7 @@ export default function StoryVideoStudio() {
               }
               onNotifyMe={renderJob?.job_id ? async () => {
                 try {
-                  await api.post(`/api/pipeline/notify-when-ready/${renderJob.job_id}`);
+                  await api.post(`/api/story-engine/notify-when-ready/${renderJob.job_id}`);
                   toast.success("We'll notify you when your video is ready!");
                 } catch {
                   toast.error('Could not subscribe to notifications');

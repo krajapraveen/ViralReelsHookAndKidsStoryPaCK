@@ -1,0 +1,104 @@
+{
+  "summary": "Story Engine Migration testing complete. All 12 features verified. Backend: 100% pass rate (34/34 tests). Frontend: 100% pass rate. All frontend components (StoryVideoPipeline.js, ProgressiveGeneration.js, Profile.js, Dashboard.js, StoryPreview.js, BrowserVideoExport.js) now use /api/story-engine/* endpoints instead of /api/pipeline/*. Legacy pipeline_jobs are transparently handled via fallback lookups.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_story_engine_migration_iteration344.py",
+    "/app/test_reports/pytest/pytest_story_engine_migration_iteration344.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/story-engine/options returns animation_styles (6), age_groups (5), voice_presets (5), credit_costs - all working",
+    "GET /api/story-engine/rate-limit-status returns can_create, recent_count, max_per_hour, concurrent, max_concurrent for authenticated users",
+    "GET /api/story-engine/user-jobs returns merged jobs from BOTH story_engine_jobs and pipeline_jobs collections with 'source' field",
+    "GET /api/story-engine/status/{job_id} works for both new engine jobs and legacy pipeline_jobs (fallback lookup)",
+    "GET /api/story-engine/validate-asset/{job_id} returns ui_state (READY/PARTIAL_READY/PROCESSING/FAILED), preview_ready, download_ready, share_ready",
+    "GET /api/story-engine/preview/{job_id} returns scene data for both engine and legacy jobs",
+    "POST /api/story-engine/create requires authentication (returns 401 without token) and validates title (min 3 chars) and story_text (min 50 chars)",
+    "POST /api/story-engine/resume/{job_id} works for both engine and legacy pipeline_jobs",
+    "POST /api/story-engine/notify-when-ready/{job_id} requires authentication and returns 404 for invalid jobs",
+    "GET /api/story-engine/asset-proxy returns 403 for non-R2 URLs (only r2.cloudflarestorage.com and r2.dev allowed)",
+    "Frontend StoryVideoPipeline.js uses /api/story-engine/options, /api/story-engine/user-jobs, /api/story-engine/create, /api/story-engine/status, /api/story-engine/validate-asset, /api/story-engine/resume",
+    "Frontend ProgressiveGeneration.js uses /api/story-engine/status/{jobId}, /api/story-engine/preview/{jobId}, /api/story-engine/notify-when-ready/{jobId}",
+    "Frontend Profile.js uses /api/story-engine/user-jobs, /api/story-engine/resume/{jobId}, /api/story-engine/generate-fallback/{jobId}",
+    "Frontend Dashboard.js uses /api/story-engine/user-jobs for resume story banner",
+    "Frontend StoryPreview.js uses /api/story-engine/preview/{jobId}",
+    "Frontend BrowserVideoExport.js uses /api/story-engine/asset-proxy for CORS bypass"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_story_engine_migration_iteration344.py"
+  ],
+  "success_rate": {
+    "backend": "100% (34/34 tests passed)",
+    "frontend": "100% (12/12 features verified)"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "None - used existing jobs from both story_engine_jobs and pipeline_jobs collections",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Story Engine Migration testing complete. All /api/story-engine/* endpoints verified: (1) /options returns animation_styles, age_groups, voice_presets. (2) /rate-limit-status returns can_create for authenticated users. (3) /user-jobs returns merged jobs from BOTH collections with 'source' field (story_engine or legacy_pipeline). (4) /status/{job_id} falls back to pipeline_jobs if not in story_engine_jobs. (5) /validate-asset/{job_id} returns ui_state for frontend. (6) /preview/{job_id} returns scene data. (7) /create requires auth and validates input. (8) /resume/{job_id} works for both collections. (9) /notify-when-ready/{job_id} requires auth. (10) /asset-proxy rejects non-R2 URLs. Frontend components all use new endpoints.",
+  "features_verified": {
+    "Feature_1_Options_Endpoint": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/options returns animation_styles (6), age_groups (5), voice_presets (5), credit_costs"
+    },
+    "Feature_2_Rate_Limit_Status": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/rate-limit-status returns can_create, recent_count, max_per_hour, concurrent, max_concurrent"
+    },
+    "Feature_3_User_Jobs_Merged": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/user-jobs returns 50 jobs merged from story_engine_jobs and pipeline_jobs with 'source' field"
+    },
+    "Feature_4_Status_Legacy_Fallback": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} works for legacy pipeline_jobs via fallback lookup"
+    },
+    "Feature_5_Validate_Asset_Legacy": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/validate-asset/{job_id} returns ui_state (READY/PARTIAL_READY/PROCESSING/FAILED)"
+    },
+    "Feature_6_Preview_Legacy": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/preview/{job_id} returns scene data for legacy pipeline_jobs"
+    },
+    "Feature_7_Create_Auth_Required": {
+      "status": "PASS",
+      "details": "POST /api/story-engine/create returns 401 without token, validates title (min 3) and story_text (min 50)"
+    },
+    "Feature_8_Resume_Legacy": {
+      "status": "PASS",
+      "details": "POST /api/story-engine/resume/{job_id} works for legacy pipeline_jobs"
+    },
+    "Feature_9_Notify_When_Ready": {
+      "status": "PASS",
+      "details": "POST /api/story-engine/notify-when-ready/{job_id} requires auth, returns 404 for invalid jobs"
+    },
+    "Feature_10_Asset_Proxy_R2_Only": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/asset-proxy returns 403 for non-R2 URLs"
+    },
+    "Feature_11_Frontend_Studio_Page": {
+      "status": "PASS",
+      "details": "Story Video Studio page loads with options from /api/story-engine/options, recent videos from /api/story-engine/user-jobs"
+    },
+    "Feature_12_Frontend_Preview_Page": {
+      "status": "PASS",
+      "details": "Story Preview page loads with scene viewer, Export MP4 button uses /api/story-engine/asset-proxy"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "note": "All APIs are real. No mocking."
+  }
+}

@@ -1,6 +1,10 @@
 """
-Pipeline API Routes
-Story → Video durable pipeline endpoints.
+Pipeline API Routes — DEPRECATED
+Use /api/story-engine/* for all new development.
+These routes are kept only for:
+  - Gallery endpoints (query legacy pipeline_jobs collection)
+  - Admin analytics endpoints
+  - Asset proxy
 """
 
 import os

@@ -324,7 +324,7 @@ export default function ProgressiveGeneration({
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await api.get(`/api/pipeline/status/${jobId}`);
+        const res = await api.get(`/api/story-engine/status/${jobId}`);
         const job = res.data?.job;
         if (!job) return;
 
@@ -336,7 +336,7 @@ export default function ProgressiveGeneration({
           clearInterval(pollRef.current);
           // Fetch full preview data
           try {
-            const preview = await api.get(`/api/pipeline/preview/${jobId}`);
+            const preview = await api.get(`/api/story-engine/preview/${jobId}`);
             if (preview.data?.preview?.scenes) {
               setScenes(preview.data.preview.scenes.map(s => ({
                 scene_number: s.scene_number,
@@ -370,7 +370,7 @@ export default function ProgressiveGeneration({
 
   const handleNotifyMe = async () => {
     try {
-      await api.post(`/api/pipeline/notify-when-ready/${jobId}`);
+      await api.post(`/api/story-engine/notify-when-ready/${jobId}`);
       setNotifySubscribed(true);
       toast.success("We'll notify you when it's ready!");
     } catch {

@@ -27,7 +27,7 @@ export default function StoryPreview() {
 
   const fetchPreview = async () => {
     try {
-      const res = await api.get(`/api/pipeline/preview/${jobId}`);
+      const res = await api.get(`/api/story-engine/preview/${jobId}`);
       if (res.data.success) {
         setPreview(res.data.preview);
       }
