@@ -21,12 +21,13 @@ def _ensure_dir():
 
 
 async def _run_ffmpeg(cmd: str, timeout: int = 120) -> bool:
-    """Run an FFmpeg command asynchronously."""
+    """Run an FFmpeg command asynchronously. Uses setsid for process group isolation."""
     logger.info(f"[FFMPEG] Running: {cmd[:200]}...")
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        preexec_fn=os.setsid,
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
@@ -35,7 +36,10 @@ async def _run_ffmpeg(cmd: str, timeout: int = 120) -> bool:
             return False
         return True
     except asyncio.TimeoutError:
-        proc.kill()
+        try:
+            os.killpg(os.getpgid(proc.pid), 9)
+        except OSError:
+            proc.kill()
         logger.error(f"[FFMPEG] Timed out after {timeout}s")
         return False
 
@@ -48,8 +52,7 @@ async def stitch_clips(
 ) -> bool:
     """
     Stitch scene clips together with crossfade transitions.
-    clip_paths: list of local file paths to scene clips
-    output_path: where to write the final stitched video
+    Pre-normalizes all clips to same resolution/fps/timebase to avoid xfade errors.
     """
     _ensure_dir()
 
@@ -58,22 +61,51 @@ async def stitch_clips(
         return False
 
     if len(clip_paths) == 1:
-        # Single clip — just copy
         cmd = f'ffmpeg -y -i "{clip_paths[0]}" -c:v libx264 -pix_fmt yuv420p -preset medium -crf 20 "{output_path}"'
         return await _run_ffmpeg(cmd)
 
-    # Multiple clips — use xfade transitions
-    inputs = " ".join([f'-i "{p}"' for p in clip_paths])
+    # Step 1: Normalize all clips to 25fps, 1280x720, same pixel format
+    normalized_paths = []
+    norm_dir = os.path.join(OUTPUT_DIR, "normalized")
+    os.makedirs(norm_dir, exist_ok=True)
+    for i, path in enumerate(clip_paths):
+        basename = os.path.basename(path).replace(".mp4", "")
+        norm_path = os.path.join(norm_dir, f"{basename}_norm.mp4")
+        norm_cmd = (
+            f'ffmpeg -y -i "{path}" '
+            f'-vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25,setpts=PTS-STARTPTS" '
+            f'-c:v libx264 -pix_fmt yuv420p -preset fast -crf 20 -an "{norm_path}"'
+        )
+        ok = await _run_ffmpeg(norm_cmd, timeout=60)
+        if ok and os.path.exists(norm_path):
+            normalized_paths.append(norm_path)
+        else:
+            logger.warning(f"[FFMPEG] Failed to normalize clip {i+1}, using original")
+            normalized_paths.append(path)
+
+    # Step 2: Get actual durations of normalized clips for accurate xfade offsets
+    durations = []
+    for np_path in normalized_paths:
+        dur_cmd = f'ffprobe -v error -show_entries format=duration -of csv=p=0 "{np_path}"'
+        proc = await asyncio.create_subprocess_shell(dur_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, _ = await proc.communicate()
+        try:
+            durations.append(float(stdout.decode().strip()))
+        except (ValueError, TypeError):
+            durations.append(4.0)  # fallback
+
+    # Step 3: Build xfade filter chain with correct offsets
+    inputs = " ".join([f'-i "{p}"' for p in normalized_paths])
     filter_parts = []
     prev_label = "0:v"
+    cumulative_offset = 0
 
-    for i in range(1, len(clip_paths)):
+    for i in range(1, len(normalized_paths)):
         trans = (transitions[i-1] if transitions and i-1 < len(transitions) else "fade")
-        out_label = f"v{i}" if i < len(clip_paths) - 1 else "v"
-        # Approximate offset: sum of clip durations minus transition overlap
-        offset = i * 4.5  # ~5s clips with 0.5s overlap
+        out_label = f"v{i}" if i < len(normalized_paths) - 1 else "v"
+        cumulative_offset += durations[i-1] - transition_duration
         filter_parts.append(
-            f"[{prev_label}][{i}:v]xfade=transition={trans}:duration={transition_duration}:offset={offset}[{out_label}]"
+            f"[{prev_label}][{i}:v]xfade=transition={trans}:duration={transition_duration}:offset={cumulative_offset:.2f}[{out_label}]"
         )
         prev_label = out_label
 
@@ -83,7 +115,17 @@ async def stitch_clips(
         f'-filter_complex "{filter_complex}" '
         f'-map "[v]" -c:v libx264 -pix_fmt yuv420p -crf 20 "{output_path}"'
     )
-    return await _run_ffmpeg(cmd, timeout=180)
+    result = await _run_ffmpeg(cmd, timeout=180)
+
+    # Cleanup normalized files
+    for np_path in normalized_paths:
+        if np_path.endswith("_norm.mp4"):
+            try:
+                os.remove(np_path)
+            except OSError:
+                pass
+
+    return result
 
 
 async def mix_audio(

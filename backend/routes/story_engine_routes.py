@@ -911,6 +911,59 @@ async def admin_retry_job(job_id: str, background_tasks: BackgroundTasks, admin:
     return {"success": True, "message": f"Retrying job {job_id[:8]}"}
 
 
+@router.post("/admin/retry-assembly/{job_id}")
+async def admin_retry_assembly(job_id: str, background_tasks: BackgroundTasks, admin: dict = Depends(_get_admin)):
+    """Admin: Re-run only FFmpeg assembly for a job that has all assets but failed at assembly."""
+    from services.story_engine.pipeline import _stage_assembly
+    from services.story_engine.continuity import validate_pipeline_outputs, should_mark_ready
+
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Run assembly in background
+    async def _retry_assembly():
+        try:
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"state": JobState.ASSEMBLING_VIDEO.value, "error_message": None}}
+            )
+            result = await _stage_assembly(job)
+            if result.get("status") == "success" and result.get("output", {}).get("output_url"):
+                await db.story_engine_jobs.update_one(
+                    {"job_id": job_id},
+                    {"$set": {"state": JobState.VALIDATING.value}}
+                )
+                # Re-validate
+                updated_job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+                validation = validate_pipeline_outputs(updated_job)
+                final_state = should_mark_ready(validation)
+                await db.story_engine_jobs.update_one(
+                    {"job_id": job_id},
+                    {"$set": {
+                        "state": final_state,
+                        "completed_at": datetime.now(timezone.utc).isoformat(),
+                        "validation_result": validation.to_dict(),
+                    }}
+                )
+                logger.info(f"[RETRY-ASSEMBLY] Job {job_id[:8]} assembly completed: {final_state}")
+            else:
+                error_msg = result.get("error", "Assembly produced no output")
+                await db.story_engine_jobs.update_one(
+                    {"job_id": job_id},
+                    {"$set": {"state": JobState.FAILED.value, "error_message": error_msg}}
+                )
+        except Exception as e:
+            logger.error(f"[RETRY-ASSEMBLY] Job {job_id[:8]} failed: {e}")
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"state": JobState.FAILED.value, "error_message": str(e)[:500]}}
+            )
+
+    background_tasks.add_task(_retry_assembly)
+    return {"success": True, "message": f"Retrying assembly for {job_id[:8]}"}
+
+
 @router.get("/admin/pipeline-health")
 async def admin_pipeline_health(admin: dict = Depends(_get_admin)):
     """Admin: Pipeline health overview."""
