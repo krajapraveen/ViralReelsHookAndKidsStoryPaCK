@@ -495,6 +495,12 @@ async def get_status(job_id: str, current_user: dict = Depends(get_current_user)
             "used_ken_burns_fallback": job.get("used_ken_burns_fallback", False),
             "sora_clips_count": job.get("sora_clips_count", 0),
             "fallback_clips_count": job.get("fallback_clips_count", 0),
+            # Character-driven share data
+            "characters": [
+                {"name": c.get("name"), "role": c.get("role"), "personality": c.get("personality_core", "")}
+                for c in (job.get("character_continuity") or {}).get("characters", [])
+            ],
+            "cliffhanger": (job.get("episode_plan") or {}).get("cliffhanger"),
         },
     }
 

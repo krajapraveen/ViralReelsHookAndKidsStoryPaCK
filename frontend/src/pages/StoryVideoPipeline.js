@@ -1174,12 +1174,13 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     }
   }, [uiState, jobId, showForceShare]);
 
-  // Extract character name from job data
+  // Extract character name and cliffhanger from job data for share prompts
   const characterName = job?.characters?.[0]?.name || job?.character_name || '';
+  const cliffhanger = job?.cliffhanger || '';
 
   return (
     <div className="space-y-6 vs-fade-up-1" data-testid="postgen-phase">
-      {/* Force Share Gate modal */}
+      {/* Force Share Gate modal — Character-driven */}
       {showForceShare && (
         <ForceShareGate
           jobId={jobId}
@@ -1187,6 +1188,9 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           slug={job?.slug || jobId}
           shareUrl={shareUrl}
           downloadUrl={downloadUrl}
+          characterName={characterName}
+          cliffhanger={cliffhanger}
+          characters={job?.characters}
           onContinue={() => {
             setShowForceShare(false);
             handleContinue(CONTINUE_DIRECTIONS[0]);
