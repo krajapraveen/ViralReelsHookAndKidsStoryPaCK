@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import {
   Film, Eye, RefreshCcw, Share2, Play, ArrowRight, Command,
   User, Copy, Check, Zap, Sparkles, ChevronRight, BookOpen,
-  Clock, AlertCircle, Flame, TrendingUp, Users
+  Clock, Flame, TrendingUp, Volume2, VolumeX, Pause,
+  Download, MessageSquare
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -31,29 +32,26 @@ function getToolRoute(creation) {
 export default function PublicCreation() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const videoRef = useRef(null);
   const [creation, setCreation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeScene, setActiveScene] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [abVariants, setAbVariants] = useState({});
   const [showUrgency, setShowUrgency] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
 
   useEffect(() => {
     fetchCreation();
-    loadAbVariants();
   }, [slug]);
 
-  // Delayed urgency trigger
   useEffect(() => {
     const timer = setTimeout(() => setShowUrgency(true), 4000);
     return () => clearTimeout(timer);
   }, []);
-
-  const loadAbVariants = async () => {
-    const assignments = await getAssignments();
-    setAbVariants(assignments);
-  };
 
   const fetchCreation = async () => {
     try {
@@ -61,14 +59,10 @@ export default function PublicCreation() {
       setCreation(r.data.creation);
       trackPageView({ source_page: `/v/${slug}`, source_slug: slug, origin: 'share_page', origin_slug: slug });
 
-      // ═══ REFERRAL TRACKING: Capture attribution for signup reward ═══
       const jobId = r.data.creation?.job_id;
       if (jobId) {
         localStorage.setItem('referral_source', JSON.stringify({
-          job_id: jobId,
-          slug: slug,
-          character_name: r.data.creation?.characters?.[0]?.name || r.data.creation?.character_name || null,
-          timestamp: Date.now(),
+          job_id: jobId, slug, character_name: r.data.creation?.character_name || null, timestamp: Date.now(),
         }));
       }
 
@@ -76,16 +70,39 @@ export default function PublicCreation() {
         const session = sessionStorage.getItem('growth_session_id') || '';
         const parentId = r.data.creation?.remix_parent_id || r.data.creation?.job_id;
         if (parentId) {
-          axios.post(`${API}/api/growth/continuation-reward`, {
-            parent_job_id: parentId,
-            session_id: session,
-          }).catch(() => {});
+          axios.post(`${API}/api/growth/continuation-reward`, { parent_job_id: parentId, session_id: session }).catch(() => {});
         }
       } catch {}
     } catch (e) {
       setError(e.response?.status === 404 ? 'Creation not found' : 'Failed to load');
     }
     setLoading(false);
+  };
+
+  const handleVideoPlay = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play();
+      setIsPlaying(true);
+      setVideoEnded(false);
+    }
+  };
+
+  const handleVideoEnd = () => {
+    setIsPlaying(false);
+    setVideoEnded(true);
+    setShowOverlay(true);
+  };
+
+  const toggleMute = (e) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
   };
 
   const handleContinue = (type = 'continue') => {
@@ -110,52 +127,34 @@ export default function PublicCreation() {
     }
 
     localStorage.setItem('remix_data', JSON.stringify({
-      prompt,
-      timestamp: Date.now(),
-      source_tool: 'public-page',
+      prompt, timestamp: Date.now(), source_tool: 'public-page',
       remixFrom: {
-        tool: creation.tool_type || 'story-video-studio',
-        prompt,
-        settings: {
-          animation_style: creation.animation_style,
-          age_group: creation.age_group,
-          voice_preset: creation.voice_preset,
-        },
-        title,
-        parentId: creation.job_id,
+        tool: creation.tool_type || 'story-video-studio', prompt,
+        settings: { animation_style: creation.animation_style, age_group: creation.age_group, voice_preset: creation.voice_preset },
+        title, parentId: creation.job_id,
       },
     }));
 
-    const eventName = type === 'twist' ? 'add_twist_click' : type === 'funny' ? 'make_funny_click' : type === 'episode' ? 'next_episode_click' : 'continue_click';
     trackRemixClick({ source_page: `/v/${slug}`, source_slug: slug, tool_type: creation.tool_type || 'story_video', origin: 'share_page' });
     trackConversion('cta_copy', 'remix_click');
     axios.post(`${API}/api/public/creation/${slug}/remix`).catch(() => {});
     try {
       fetch(`${API}/api/growth/event`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event: eventName,
-          session_id: sessionStorage.getItem('growth_session_id') || 'unknown',
-          source_slug: slug,
-          meta: { type },
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: type === 'twist' ? 'add_twist_click' : type === 'funny' ? 'make_funny_click' : type === 'episode' ? 'next_episode_click' : 'continue_click', session_id: sessionStorage.getItem('growth_session_id') || 'unknown', source_slug: slug, meta: { type } }),
       }).catch(() => {});
     } catch {}
     navigate(tool.path);
   };
 
-  const handleCreateOwn = () => {
-    if (!creation) return;
-    navigate(getToolRoute(creation).path);
-  };
-
   const pageUrl = `${window.location.origin}/v/${slug}`;
   const shareUrl = `${API}/api/public/s/${slug}`;
   const ogTitle = creation ? `${creation.title} — Made with AI` : 'AI Creation';
-  const ogDescription = creation?.prompt
-    ? `"${creation.prompt.slice(0, 120)}" — Continue the story!`
-    : 'Continue the story on Visionary Suite';
+  const ogDescription = creation?.cliffhanger
+    ? `"${creation.cliffhanger.slice(0, 140)}" — What happens next?`
+    : creation?.prompt
+      ? `"${creation.prompt.slice(0, 120)}" — Continue the story!`
+      : 'Continue the story on Visionary Suite';
   const ogImage = `${API}/api/public/og-image/${slug}`;
 
   const shareTo = (platform) => {
@@ -212,10 +211,12 @@ export default function PublicCreation() {
     );
   }
 
+  const hasVideo = !!creation.video_url;
   const currentScene = creation.scenes?.[activeScene];
   const lastScene = creation.scenes?.[creation.scenes.length - 1];
-  const cliffhangerText = lastScene?.narration || creation.story_text || creation.prompt || '';
-  const characterName = creation.characters?.[0]?.name || creation.character_name || null;
+  const cliffhangerText = creation.cliffhanger || lastScene?.narration || creation.story_text || creation.prompt || '';
+  const characterName = creation.character_name || creation.characters?.[0]?.name || null;
+  const primaryChar = creation.characters?.[0];
   const lastContTime = timeAgo(creation.last_continuation_at);
   const contCount = creation.remix_count || 0;
 
@@ -238,7 +239,7 @@ export default function PublicCreation() {
         <meta name="twitter:image" content={ogImage} />
       </Helmet>
 
-      {/* ═══ STICKY HEADER with Continue + Share equally weighted ═══ */}
+      {/* ═══ STICKY HEADER ═══ */}
       <header className="sticky top-0 z-40 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-5xl mx-auto px-4 h-13 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 py-3">
@@ -258,7 +259,7 @@ export default function PublicCreation() {
         </div>
       </header>
 
-      {/* ═══ ABOVE THE FOLD: Social Proof Banner ═══ */}
+      {/* ═══ SOCIAL PROOF BANNER ═══ */}
       <section className="bg-gradient-to-r from-violet-600/[0.04] to-rose-600/[0.04] border-b border-white/[0.04]" data-testid="social-proof-banner">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-center gap-4 flex-wrap">
           {contCount > 0 && (
@@ -283,9 +284,19 @@ export default function PublicCreation() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 mb-4" data-testid="character-intro">
               <User className="w-3 h-3 text-violet-400" />
               <span className="text-xs font-bold text-violet-300">Meet {characterName}</span>
-              {creation.character_story_count > 0 && (
-                <span className="text-[10px] text-violet-400/60">Featured in {creation.character_story_count} stories</span>
+              {primaryChar?.role && (
+                <span className="text-[10px] text-violet-400/60 capitalize">{primaryChar.role}</span>
               )}
+              {primaryChar?.personality && (
+                <span className="text-[10px] text-violet-400/40 hidden sm:inline">— {primaryChar.personality.slice(0, 40)}</span>
+              )}
+            </div>
+          )}
+
+          {creation.episode_number > 1 && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 mb-3 ml-2" data-testid="episode-badge">
+              <Film className="w-3 h-3 text-amber-400" />
+              <span className="text-xs font-bold text-amber-300">Episode {creation.episode_number}</span>
             </div>
           )}
 
@@ -293,7 +304,7 @@ export default function PublicCreation() {
             {creation.title}
           </h1>
 
-          {/* SOCIAL PROOF */}
+          {/* SOCIAL PROOF STATS */}
           <div className="flex items-center gap-4 text-sm mb-4" data-testid="social-proof">
             <span className="flex items-center gap-1.5 text-slate-400">
               <Eye className="w-3.5 h-3.5 text-blue-400" />
@@ -312,23 +323,85 @@ export default function PublicCreation() {
           </div>
 
           <div className="grid lg:grid-cols-5 gap-6">
-            {/* LEFT: Scene Viewer + Story */}
+            {/* LEFT: Video/Scene Viewer + Story */}
             <div className="lg:col-span-3">
-              <div className="rounded-2xl overflow-hidden border border-white/[0.06]" data-testid="scene-viewer">
+              <div className="rounded-2xl overflow-hidden border border-white/[0.06]" data-testid="media-viewer">
                 <div className="relative w-full aspect-video bg-[#0d0d15]">
-                  {currentScene?.image_url ? (
-                    <SafeImage src={currentScene.image_url} alt={`Scene ${activeScene + 1}`} aspectRatio="16/9" titleOverlay={`Scene ${activeScene + 1}`} className="rounded-none" />
-                  ) : creation.thumbnail_url ? (
-                    <SafeImage src={creation.thumbnail_url} alt={creation.title} aspectRatio="16/9" titleOverlay={creation.title} className="rounded-none" />
+
+                  {/* ═══ AUTO-PLAY VIDEO PLAYER ═══ */}
+                  {hasVideo ? (
+                    <>
+                      <video
+                        ref={videoRef}
+                        src={creation.video_url}
+                        poster={creation.thumbnail_url || currentScene?.image_url}
+                        className="w-full h-full object-cover"
+                        muted={isMuted}
+                        playsInline
+                        autoPlay
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onEnded={handleVideoEnd}
+                        data-testid="video-player"
+                      />
+                      {/* Video Controls Overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center" onClick={handleVideoPlay} data-testid="video-controls">
+                        {!isPlaying && !videoEnded && (
+                          <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-black/70 transition-all">
+                            <Play className="w-7 h-7 text-white ml-1" />
+                          </div>
+                        )}
+                      </div>
+                      {/* Mute toggle */}
+                      <button onClick={toggleMute} className="absolute bottom-4 left-4 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-black/70 transition-all z-10" data-testid="mute-toggle">
+                        {isMuted ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
+                      </button>
+
+                      {/* ═══ POST-VIDEO CTA OVERLAY ═══ */}
+                      {videoEnded && showOverlay && (
+                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in fade-in duration-500" data-testid="post-video-overlay">
+                          <p className="text-xl sm:text-2xl font-black text-white mb-2 text-center px-4">The story doesn't end here...</p>
+                          <p className="text-sm text-slate-300 mb-6 text-center px-4">You decide what happens next</p>
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <button
+                              onClick={() => handleContinue('continue')}
+                              className="inline-flex items-center gap-2 h-12 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 shadow-lg shadow-violet-500/30"
+                              style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
+                              data-testid="overlay-continue-btn"
+                            >
+                              <Play className="w-4 h-4" /> Continue This Story <ArrowRight className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => { setShowOverlay(false); setVideoEnded(false); videoRef.current?.play(); }}
+                              className="inline-flex items-center gap-2 h-12 px-6 rounded-xl border border-white/20 text-white/70 text-sm hover:bg-white/5"
+                              data-testid="overlay-replay-btn"
+                            >
+                              <RefreshCcw className="w-4 h-4" /> Replay
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <SafeImage src={null} alt={creation.title} aspectRatio="16/9" titleOverlay={creation.title} fallbackType="gradient" className="rounded-none" />
-                  )}
-                  {currentScene?.audio_url && (
-                    <button onClick={() => setActiveScene(activeScene)} className="absolute bottom-4 right-4 w-11 h-11 rounded-full bg-violet-600 hover:bg-violet-500 flex items-center justify-center shadow-xl" data-testid="play-scene-audio">
-                      <Play className="w-4 h-4 text-white ml-0.5" />
-                    </button>
+                    /* ═══ FALLBACK: SCENE IMAGE VIEWER ═══ */
+                    <>
+                      {currentScene?.image_url ? (
+                        <SafeImage src={currentScene.image_url} alt={`Scene ${activeScene + 1}`} aspectRatio="16/9" titleOverlay={`Scene ${activeScene + 1}`} className="rounded-none" />
+                      ) : creation.thumbnail_url ? (
+                        <SafeImage src={creation.thumbnail_url} alt={creation.title} aspectRatio="16/9" titleOverlay={creation.title} className="rounded-none" />
+                      ) : (
+                        <SafeImage src={null} alt={creation.title} aspectRatio="16/9" titleOverlay={creation.title} fallbackType="gradient" className="rounded-none" />
+                      )}
+                      {currentScene?.audio_url && (
+                        <button onClick={() => setActiveScene(activeScene)} className="absolute bottom-4 right-4 w-11 h-11 rounded-full bg-violet-600 hover:bg-violet-500 flex items-center justify-center shadow-xl" data-testid="play-scene-audio">
+                          <Play className="w-4 h-4 text-white ml-0.5" />
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
+
+                {/* Scene thumbnails (show for both video and non-video) */}
                 {creation.scenes?.length > 1 && (
                   <div className="flex gap-2 p-3 overflow-x-auto bg-[#0d0d15]" data-testid="scene-thumbnails">
                     {creation.scenes.map((s, i) => (
@@ -340,12 +413,14 @@ export default function PublicCreation() {
                 )}
               </div>
 
-              {/* CLIFFHANGER HOOK */}
+              {/* ═══ CLIFFHANGER HOOK ═══ */}
               {cliffhangerText && (
                 <div className="mt-4 bg-gradient-to-r from-amber-500/[0.06] to-rose-500/[0.06] border border-amber-500/15 rounded-2xl p-5" data-testid="story-hook">
                   <div className="flex items-center gap-2 mb-2">
                     <BookOpen className="w-4 h-4 text-amber-400" />
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Where the story left off...</span>
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                      {creation.cliffhanger ? 'The Cliffhanger' : 'Where the story left off...'}
+                    </span>
                   </div>
                   <p className="text-sm text-slate-300 italic leading-relaxed">
                     "{cliffhangerText.length > 300 ? '...' + cliffhangerText.slice(-300) : cliffhangerText}"
@@ -354,7 +429,7 @@ export default function PublicCreation() {
                 </div>
               )}
 
-              {/* MID-PAGE HOOK — "This story has no ending" */}
+              {/* ═══ MID-PAGE CTA ═══ */}
               <div className="mt-4 text-center py-6 border border-white/[0.06] rounded-2xl bg-white/[0.01]" data-testid="no-ending-hook">
                 <p className="text-lg font-black text-white mb-1">This story has no ending...</p>
                 <p className="text-sm text-slate-400 mb-4">You decide what happens next</p>
@@ -378,7 +453,7 @@ export default function PublicCreation() {
             {/* RIGHT: CONVERSION CTA ZONE */}
             <div className="lg:col-span-2 space-y-3" data-testid="cta-zone">
 
-              {/* ═══ PRIMARY CTA: Continue Story ═══ */}
+              {/* ═══ PRIMARY CTA ═══ */}
               <button
                 onClick={() => handleContinue('continue')}
                 className="w-full group relative overflow-hidden rounded-2xl p-5 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
@@ -399,7 +474,7 @@ export default function PublicCreation() {
                 <ArrowRight className="absolute top-5 right-5 w-5 h-5 text-white/30 group-hover:text-white/70 group-hover:translate-x-1 transition-all z-10" />
               </button>
 
-              {/* ═══ SHARE — Equally prominent ═══ */}
+              {/* ═══ SHARE & EARN ═══ */}
               <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4" data-testid="share-earn-section">
                 <div className="flex items-center gap-2 mb-2">
                   <Share2 className="w-4 h-4 text-emerald-400" />
@@ -420,14 +495,14 @@ export default function PublicCreation() {
                 </div>
               </div>
 
-              {/* ═══ SECONDARY: Add Twist / Make Funny / Next Episode ═══ */}
+              {/* ═══ SECONDARY CTAs ═══ */}
               <div className="grid grid-cols-3 gap-2" data-testid="secondary-ctas">
                 <button onClick={() => handleContinue('twist')} className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] transition-all text-center" data-testid="add-twist-btn">
                   <Sparkles className="w-4 h-4 text-amber-400 mx-auto mb-1" />
                   <span className="text-xs font-bold text-white block">Add Twist</span>
                 </button>
                 <button onClick={() => handleContinue('funny')} className="p-3 rounded-xl border border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08] transition-all text-center" data-testid="make-funny-btn">
-                  <AlertCircle className="w-4 h-4 text-pink-400 mx-auto mb-1" />
+                  <MessageSquare className="w-4 h-4 text-pink-400 mx-auto mb-1" />
                   <span className="text-xs font-bold text-white block">Make Funny</span>
                 </button>
                 <button onClick={() => handleContinue('episode')} className="p-3 rounded-xl border border-purple-500/20 bg-purple-500/[0.04] hover:bg-purple-500/[0.08] transition-all text-center" data-testid="next-episode-btn">
@@ -437,7 +512,7 @@ export default function PublicCreation() {
               </div>
 
               {/* ═══ CREATE YOUR OWN ═══ */}
-              <button onClick={handleCreateOwn} className="w-full group rounded-2xl border border-white/[0.08] hover:border-violet-500/20 bg-white/[0.02] hover:bg-white/[0.04] p-4 text-left transition-all" data-testid="create-own-btn">
+              <button onClick={() => navigate(getToolRoute(creation).path)} className="w-full group rounded-2xl border border-white/[0.08] hover:border-violet-500/20 bg-white/[0.02] hover:bg-white/[0.04] p-4 text-left transition-all" data-testid="create-own-btn">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
                     <Sparkles className="w-4 h-4 text-violet-400" />
@@ -450,14 +525,35 @@ export default function PublicCreation() {
                 </div>
               </button>
 
-              {/* ═══ SOCIAL PROOF MOMENTUM ═══ */}
+              {/* ═══ CHARACTER CARD (when characters exist) ═══ */}
+              {creation.characters?.length > 0 && (
+                <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.03] p-4" data-testid="character-card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <User className="w-4 h-4 text-violet-400" />
+                    <span className="text-xs font-bold text-violet-300 uppercase tracking-wider">Characters in this story</span>
+                  </div>
+                  {creation.characters.slice(0, 3).map((char, i) => (
+                    <div key={i} className="flex items-start gap-3 mb-2 last:mb-0">
+                      <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center flex-shrink-0 text-xs font-bold text-violet-300">
+                        {char.name?.[0] || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white">{char.name} <span className="text-xs text-violet-400/60 capitalize ml-1">{char.role}</span></p>
+                        {char.personality && <p className="text-xs text-slate-400 truncate">{char.personality}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ═══ SOCIAL PROOF ═══ */}
               <div className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-4" data-testid="momentum-section">
                 <p className="text-xs text-slate-400 mb-2 font-semibold">
                   {contCount > 0 ? `${contCount} people already continued this — join them` : 'Be the first to continue this story'}
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   {creation.animation_style && (
-                    <div><span className="text-slate-500">Style</span> <span className="text-slate-300 ml-1">{creation.animation_style.replace(/_/g, ' ')}</span></div>
+                    <div><span className="text-slate-500">Style</span> <span className="text-slate-300 ml-1">{(creation.animation_style || '').replace(/_/g, ' ')}</span></div>
                   )}
                   <div><span className="text-slate-500">Scenes</span> <span className="text-slate-300 ml-1">{creation.scenes?.length || 0}</span></div>
                   {creation.created_at && (
@@ -467,7 +563,7 @@ export default function PublicCreation() {
                 </div>
               </div>
 
-              {/* Remix as different format */}
+              {/* ═══ REMIX VARIANTS ═══ */}
               <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-3" data-testid="remix-variants">
                 <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider mb-2 block">Remix as...</span>
                 <div className="grid grid-cols-2 gap-2">
@@ -482,16 +578,8 @@ export default function PublicCreation() {
                       onClick={() => {
                         const remixPrompt = creation.story_text || creation.prompt || '';
                         localStorage.setItem('remix_data', JSON.stringify({
-                          prompt: remixPrompt,
-                          timestamp: Date.now(),
-                          source_tool: 'remix-variant',
-                          remixFrom: {
-                            tool: remix.key,
-                            prompt: remixPrompt,
-                            settings: { animation_style: creation.animation_style },
-                            title: creation.title,
-                            parentId: creation.job_id,
-                          },
+                          prompt: remixPrompt, timestamp: Date.now(), source_tool: 'remix-variant',
+                          remixFrom: { tool: remix.key, prompt: remixPrompt, settings: { animation_style: creation.animation_style }, title: creation.title, parentId: creation.job_id },
                         }));
                         trackRemixClick({ source_page: `/v/${slug}`, source_slug: slug, tool_type: remix.key, origin: 'remix_variant' });
                         axios.post(`${API}/api/public/creation/${slug}/remix`).catch(() => {});

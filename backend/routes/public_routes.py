@@ -66,19 +66,33 @@ async def get_platform_stats():
 async def get_public_creation(slug: str):
     """
     Get a public creation page by slug or job_id.
-    Increments view count. Returns momentum-based social proof.
+    Queries BOTH story_engine_jobs AND legacy pipeline_jobs.
+    Returns video URL for auto-play, character data, and momentum social proof.
     """
-    job = await db.pipeline_jobs.find_one(
+    # Try story_engine_jobs first (new engine)
+    job = await db.story_engine_jobs.find_one(
         {"$or": [{"slug": slug}, {"job_id": slug}]},
         {"_id": 0}
     )
+    source = "story_engine" if job else None
+
+    if not job:
+        # Fallback to legacy pipeline_jobs
+        job = await db.pipeline_jobs.find_one(
+            {"$or": [{"slug": slug}, {"job_id": slug}]},
+            {"_id": 0}
+        )
+        source = "legacy_pipeline" if job else None
 
     if not job:
         raise HTTPException(status_code=404, detail="Creation not found")
 
-    # Increment view count
-    await db.pipeline_jobs.update_one(
-        {"job_id": job["job_id"]},
+    job_id = job.get("job_id", slug)
+
+    # Increment view count in the correct collection
+    col = db.story_engine_jobs if source == "story_engine" else db.pipeline_jobs
+    await col.update_one(
+        {"job_id": job_id},
         {"$inc": {"views": 1}}
     )
 
@@ -92,46 +106,119 @@ async def get_public_creation(slug: str):
 
     # Presign URLs
     from utils.r2_presign import presign_url
-    thumbnail = presign_url(job.get("thumbnail_url", "")) if job.get("thumbnail_url") else None
 
+    # ── Build scenes + video URL based on source ──
     scenes = []
-    for s in job.get("scenes", []):
-        scene_data = {
-            "narration": s.get("narration", ""),
-            "image_url": presign_url(s["image_url"]) if s.get("image_url") else None,
-            "audio_url": presign_url(s["audio_url"]) if s.get("audio_url") else None,
-            "duration": s.get("duration"),
-        }
-        scenes.append(scene_data)
+    video_url = None
+    thumbnail = None
+    characters = []
+    cliffhanger = None
 
-    # ── Momentum-based social proof ──────────────────────────────────
+    if source == "story_engine":
+        # Story Engine: build scenes from scene_motion_plans + keyframe_urls
+        plans = job.get("scene_motion_plans") or []
+        keyframes = job.get("keyframe_urls") or []
+        ep_scenes = (job.get("episode_plan") or {}).get("scene_breakdown") or []
+
+        for i, plan in enumerate(plans):
+            kf_url = keyframes[i] if i < len(keyframes) else None
+            ep_scene = ep_scenes[i] if i < len(ep_scenes) else {}
+            scenes.append({
+                "narration": ep_scene.get("action_summary", plan.get("action", "")),
+                "image_url": presign_url(kf_url) if kf_url else None,
+                "audio_url": None,
+                "duration": plan.get("clip_duration_seconds", 5.0),
+            })
+
+        # Video URL for auto-play
+        if job.get("output_url"):
+            video_url = presign_url(job["output_url"])
+        elif job.get("preview_url"):
+            video_url = presign_url(job["preview_url"])
+
+        thumbnail = presign_url(job.get("thumbnail_url", "")) if job.get("thumbnail_url") else None
+        if not thumbnail and keyframes:
+            for kf in keyframes:
+                if kf:
+                    thumbnail = presign_url(kf)
+                    break
+
+        # Character data from character_continuity
+        continuity = job.get("character_continuity") or {}
+        for char in continuity.get("characters", []):
+            characters.append({
+                "name": char.get("name", "Unknown"),
+                "role": char.get("role", "character"),
+                "appearance": char.get("reference_prompt", char.get("clothing_default", "")),
+                "personality": char.get("personality_core", ""),
+            })
+
+        # Cliffhanger from episode plan
+        ep_plan = job.get("episode_plan") or {}
+        cliffhanger = ep_plan.get("cliffhanger")
+
+    else:
+        # Legacy pipeline: use existing scenes structure
+        for s in job.get("scenes", []):
+            scenes.append({
+                "narration": s.get("narration", ""),
+                "image_url": presign_url(s["image_url"]) if s.get("image_url") else None,
+                "audio_url": presign_url(s["audio_url"]) if s.get("audio_url") else None,
+                "duration": s.get("duration"),
+            })
+
+        # Video URL — check output_url, then fallback_outputs
+        if job.get("output_url"):
+            video_url = presign_url(job["output_url"])
+        elif job.get("fallback_outputs", {}).get("fallback_mp4", {}).get("url"):
+            video_url = presign_url(job["fallback_outputs"]["fallback_mp4"]["url"])
+
+        thumbnail = presign_url(job.get("thumbnail_url", "")) if job.get("thumbnail_url") else None
+
+    # ── Momentum-based social proof ──
     now = datetime.now(timezone.utc)
     one_hour_ago = (now - timedelta(hours=1)).isoformat()
     one_day_ago = (now - timedelta(hours=24)).isoformat()
-    job_id = job["job_id"]
 
-    # Find all continuations (remixes) of this creation
-    continuations = await db.pipeline_jobs.find(
+    # Check continuations in BOTH collections
+    engine_continuations = await db.story_engine_jobs.find(
+        {"parent_job_id": job_id},
+        {"_id": 0, "created_at": 1}
+    ).sort("created_at", -1).to_list(100)
+
+    legacy_continuations = await db.pipeline_jobs.find(
         {"remix_parent_id": job_id},
         {"_id": 0, "created_at": 1}
     ).sort("created_at", -1).to_list(100)
 
-    total_continuations = len(continuations)
-    last_continuation_at = continuations[0].get("created_at") if continuations else None
+    all_continuations = engine_continuations + legacy_continuations
+    # Normalize datetime for comparison
+    def _to_iso(val):
+        if hasattr(val, 'isoformat'):
+            return val.isoformat()
+        return str(val) if val else ""
 
-    continuations_1h = sum(1 for c in continuations if c.get("created_at", "") >= one_hour_ago)
-    continuations_24h = sum(1 for c in continuations if c.get("created_at", "") >= one_day_ago)
+    all_continuations_sorted = sorted(all_continuations, key=lambda c: _to_iso(c.get("created_at", "")), reverse=True)
 
-    # Also count remix_count from DB (broader — includes click-tracked remixes)
+    total_continuations = len(all_continuations_sorted)
+    last_continuation_at = _to_iso(all_continuations_sorted[0].get("created_at")) if all_continuations_sorted else None
+
+    continuations_1h = sum(1 for c in all_continuations_sorted if _to_iso(c.get("created_at", "")) >= one_hour_ago)
+    continuations_24h = sum(1 for c in all_continuations_sorted if _to_iso(c.get("created_at", "")) >= one_day_ago)
+
     db_remix_count = job.get("remix_count", 0)
     effective_continuations = max(total_continuations, db_remix_count)
 
-    # Trending: real threshold — recent activity matters
     views_value = job.get("views", 0)
     is_trending = (continuations_1h >= 2) or (continuations_24h >= 5 and views_value >= 20)
-
-    # Time-based decay: if no activity in 24h, mark as dormant
     is_alive = bool(continuations_24h > 0 or (last_continuation_at and last_continuation_at >= one_day_ago))
+
+    # Character name for display
+    character_name = None
+    if characters:
+        character_name = characters[0].get("name")
+    elif job.get("character_name"):
+        character_name = job["character_name"]
 
     return {
         "success": True,
@@ -139,16 +226,17 @@ async def get_public_creation(slug: str):
             "job_id": job_id,
             "slug": job.get("slug", slug),
             "title": job.get("title", "Untitled"),
-            "status": job.get("status"),
-            "animation_style": job.get("animation_style"),
+            "status": job.get("status") or job.get("state", ""),
+            "animation_style": job.get("animation_style") or job.get("style_id"),
             "age_group": job.get("age_group"),
             "voice_preset": job.get("voice_preset"),
             "tool_type": job.get("tool_type", "story-video-studio"),
             "scenes": scenes,
             "thumbnail_url": thumbnail,
+            "video_url": video_url,
             "views": views_value + 1,
             "remix_count": effective_continuations,
-            "created_at": job.get("created_at"),
+            "created_at": _to_iso(job.get("created_at")),
             "creator": {
                 "name": creator.get("name", "Anonymous") if creator else "Anonymous",
             },
@@ -156,12 +244,20 @@ async def get_public_creation(slug: str):
             "prompt": job.get("story_text", ""),
             "category": job.get("category", ""),
             "tags": job.get("tags", []),
+            # Character data
+            "characters": characters,
+            "character_name": character_name,
+            # Story engine extras
+            "cliffhanger": cliffhanger,
+            "episode_number": job.get("episode_number"),
+            "story_chain_id": job.get("story_chain_id"),
             # Momentum signals
             "last_continuation_at": last_continuation_at,
             "continuations_1h": continuations_1h,
             "continuations_24h": continuations_24h,
             "is_trending": is_trending,
             "is_alive": is_alive,
+            "source": source,
         }
     }
 
