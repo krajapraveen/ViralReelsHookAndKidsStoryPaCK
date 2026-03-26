@@ -285,7 +285,7 @@ export default function PublicCreation() {
               <User className="w-3 h-3 text-violet-400" />
               <span className="text-xs font-bold text-violet-300">Meet {characterName}</span>
               {primaryChar?.role && (
-                <span className="text-[10px] text-violet-400/60 capitalize">{primaryChar.role}</span>
+                <span className="text-[10px] text-violet-400/60 capitalize">— {primaryChar.role}</span>
               )}
               {primaryChar?.personality && (
                 <span className="text-[10px] text-violet-400/40 hidden sm:inline">— {primaryChar.personality.slice(0, 40)}</span>
