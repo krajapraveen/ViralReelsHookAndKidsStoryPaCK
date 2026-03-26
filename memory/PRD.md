@@ -1,55 +1,49 @@
 # Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Build a viral, addictive "Story Universe Engine" with an optimized frontend growth loop and a Private Story-to-Video Engine backend. Pipeline: Episode Planning → Character Memory → Keyframe Generation → Moving Scene Clip Generation → FFmpeg Assembly.
+Build a viral, addictive "Story Universe Engine" with an optimized frontend growth loop and a Private Story-to-Video Engine backend.
 
 ## Architecture
-- **Frontend**: React (CRA), Shadcn UI, TailwindCSS
+- **Frontend**: React, Shadcn UI, TailwindCSS
 - **Backend**: FastAPI, Python 3.11
 - **Database**: MongoDB
-- **Storage**: Cloudflare R2 (Object Storage)
-- **AI**: GPT-4o-mini (planning), GPT Image 1 (keyframes), Sora 2 (clips), OpenAI TTS — via Emergent LLM Key
-- **Video Assembly**: FFmpeg 5.1 (system binary, must be installed on deploy server)
+- **Storage**: Cloudflare R2
+- **AI**: GPT-4o-mini, GPT Image 1, Sora 2, OpenAI TTS — via Emergent LLM Key
+- **Video Assembly**: FFmpeg 5.1 (system binary)
 - **Payments**: Cashfree
-- **NOTE**: System is NOT yet a fully independent personal API. Still depends on external LLM/video/TTS budgets.
+- **NOTE**: NOT yet fully independent API — depends on external AI budgets
 
-## What's Been Implemented
+## Implemented Features
 
 ### P0 E2E Story Engine — PROVEN (2026-03-26)
-**"The Crystal Cave" — Full pipeline validated with real AI outputs:**
-- INIT → PLANNING (GPT-4o-mini episode plan with cliffhanger)
-- → BUILDING_CHARACTER_CONTEXT (2 characters: Sage the fox, Owl the wise mentor)
-- → PLANNING_SCENE_MOTION (4 scene motion plans with camera/action directives)
-- → GENERATING_KEYFRAMES (4 GPT Image 1 keyframes, uploaded to R2)
-- → GENERATING_SCENE_CLIPS (3 Sora 2 video clips + 1 Ken Burns fallback)
-- → GENERATING_AUDIO (OpenAI TTS narration)
-- → ASSEMBLING_VIDEO (FFmpeg stitch + audio mix + transitions)
-- → READY (final video 14.5s, 4.7MB, hosted on R2)
-- Credit deduction (21 credits) and refund on failure both proven
-- Public share page: video auto-plays, character intro, cliffhanger displayed
+- "The Crystal Cave": Full pipeline INIT→PLANNING→CHARACTER→MOTION→KEYFRAMES→CLIPS→AUDIO→ASSEMBLY→READY
+- 3 Sora 2 clips + 1 Ken Burns fallback, 14.5s final video on R2
+- FFmpeg clip normalization fix for mixed Sora + Ken Burns clips
+- Admin retry-assembly endpoint for FFmpeg-only retries
 
-**Known Issues:**
-- FFmpeg assembly requires `ffmpeg` system binary (not a Python package)
-- Hot-reload during FFmpeg assembly can kill subprocess — mitigated with `os.setsid` process isolation
-- Assembly retry-from-checkpoint available via admin endpoint `/admin/retry-assembly/{job_id}`
+### P0 Strict Credit Gate (2026-03-26)
+- **Frontend**: Pre-flight `/api/story-engine/credit-check` on Generate click
+- **Modal**: Shows "Not enough credits" with exact required/current/shortfall
+- **Buttons**: Buy Credits → /app/profile?tab=billing, View Plans → /pricing, Cancel
+- **Backend**: HTTP 402 enforcement — rejects creation if credits insufficient
+- **No generation starts, no credits deducted, no job created** when insufficient
+- Both frontend and backend gates tested and proven
 
-### P0 Frontend → Story Engine Migration (DONE)
+### P0 Frontend → Story Engine Migration (2026-03-26)
 - ALL frontend calls use `/api/story-engine/*` (single source of truth)
-- Transparent fallback queries both `story_engine_jobs` AND `pipeline_jobs`
-- Testing: 100% pass rate (iteration_344)
+- Transparent fallback queries both collections
+- Testing: 100% (iteration_344)
 
-### P1 Public Share Page Rebuild (DONE)
-- Auto-play video when video_url exists
-- Character intro badges, character cards, cliffhanger section
-- Post-video CTA overlay
-- Testing: 100% pass rate (iteration_345)
+### P1 Public Share Page Rebuild (2026-03-26)
+- Auto-play video, character intro, cliffhanger, post-video CTA overlay
+- Testing: 100% (iteration_345)
 
 ### Earlier Completed Work
-- P0.5 Truth-based hype text, social proof, scroll traps
-- P1 Zero-Friction Entry (login only on Generate)
-- P1 Share Reward System (+5/+15/+25 credits)
-- P1 Click Psychology (cinematic cards, A/B tracking)
-- P1 Gallery / Explore Page (infinite scroll, filters)
+- Truth-based hype text, social proof, scroll traps
+- Zero-Friction Entry (login only on Generate)
+- Share Reward System (+5/+15/+25 credits)
+- Click Psychology (cinematic cards, A/B tracking)
+- Gallery / Explore Page (infinite scroll, filters)
 - Trust & UI Fixes, Monetization (Cashfree)
 
 ## Prioritized Backlog
@@ -57,30 +51,12 @@ Build a viral, addictive "Story Universe Engine" with an optimized frontend grow
 ### P1 — Next Up
 - Character-driven auto-share prompts after creation
 - A/B test hook text variations on public pages
-- E2E validation: degraded/fallback job and continue/chain job (pending budget)
+- E2E: degraded/fallback job + continue/chain job (pending LLM budget)
 
 ### P2 — Future
-- Remix Variants, WebSocket admin dashboard, Story Chain leaderboard
-- Self-hosted GPU migration (Wan2.1, Kokoro) for true independence
-
-### P3 — Long Term
-- Branching episodes, Mobile app wrapper
-
-## API Architecture
-
-### PRIMARY: /api/story-engine/* (Single Source of Truth)
-- `GET /options`, `GET /rate-limit-status`, `POST /create`
-- `GET /status/{job_id}`, `GET /validate-asset/{job_id}`, `GET /user-jobs`
-- `POST /resume/{job_id}`, `GET /preview/{job_id}`, `POST /notify-when-ready/{job_id}`
-- `GET /asset-proxy`, `POST /generate-fallback/{job_id}`
-- `POST /admin/retry-assembly/{job_id}` — Retry only FFmpeg assembly
-
-### PUBLIC: /api/public/* (No Auth)
-- `GET /creation/{slug}` — Returns video_url, characters, cliffhanger
+- Remix Variants, WebSocket admin, Story Chain leaderboard
+- Self-hosted GPU (Wan2.1, Kokoro) for true independence
 
 ## Credentials
-- Test User: `test@visionary-suite.com` / `Test@2026#`
+- Test: `test@visionary-suite.com` / `Test@2026#`
 - Admin: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
-
-## Deploy Requirements
-- System: `apt-get install ffmpeg` (required for video assembly)

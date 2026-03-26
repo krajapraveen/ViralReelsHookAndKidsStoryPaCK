@@ -142,6 +142,7 @@ function StoryVideoPipelineInner() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
   const [userCredits, setUserCredits] = useState(null);
+  const [creditGate, setCreditGate] = useState(null); // { required, current, shortfall }
   const [remixData, setRemixData] = useState(null);
   const [showRemixBanner, setShowRemixBanner] = useState(false);
   const [remixSourceTool, setRemixSourceTool] = useState(null);
@@ -283,12 +284,8 @@ function StoryVideoPipelineInner() {
   const checkUpsell = async () => {
     try {
       const res = await api.get('/api/credits/check-upsell');
-      if (res.data.show_upsell) {
-        setUserCredits(res.data.credits);
-        setShowUpsell(true);
-      } else {
-        setUserCredits(res.data.credits ?? null);
-      }
+      setUserCredits(res.data.credits ?? null);
+      // Don't auto-show UpsellModal — the credit gate modal handles this at click time
     } catch { /* ignore — user might not be logged in */ }
   };
 
@@ -442,6 +439,24 @@ function StoryVideoPipelineInner() {
       return;
     }
 
+    // ═══ STRICT CREDIT GATE — Pre-flight check before ANY generation ═══
+    try {
+      const creditRes = await api.get('/api/story-engine/credit-check');
+      const { sufficient, required, current, shortfall } = creditRes.data;
+      setUserCredits(current);
+      if (!sufficient) {
+        setCreditGate({ required, current, shortfall });
+        return; // Block generation — modal will show
+      }
+    } catch (creditErr) {
+      if (creditErr.response?.status === 401) {
+        // Not logged in — let the create call handle the login gate
+      } else {
+        setFormError('Could not verify your credit balance. Please try again.');
+        return;
+      }
+    }
+
     createLockRef.current = true;
     setSubmitting(true);
     try {
@@ -494,18 +509,16 @@ function StoryVideoPipelineInner() {
         setFormError(admissionMsg || 'Rate limit reached.');
         checkRateLimit();
       } else if (status === 402) {
-        // Parse exact shortfall from backend
+        // Backend credit enforcement — show credit gate modal
         const match = detail.match(/Required:\s*(\d+).*Available:\s*(\d+)/i);
         if (match) {
           const required = parseInt(match[1], 10);
           const available = parseInt(match[2], 10);
-          const shortfall = required - available;
-          setFormError(`You need ${required} credits. You have ${available}. Buy ${shortfall} more to continue.`);
           setUserCredits(available);
+          setCreditGate({ required, current: available, shortfall: required - available });
         } else {
-          setFormError(detail || 'Insufficient credits. Please purchase more credits.');
+          setCreditGate({ required: 21, current: userCredits || 0, shortfall: Math.max(0, 21 - (userCredits || 0)) });
         }
-        setShowUpsell(true);
       } else if (status === 401) {
         // Zero-friction: save ALL form state, then show gentle login gate
         localStorage.setItem('studio_saved_state', JSON.stringify({
@@ -625,6 +638,71 @@ function StoryVideoPipelineInner() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {showUpsell && <UpsellModal credits={userCredits} onClose={() => setShowUpsell(false)} />}
+
+        {/* ═══ STRICT CREDIT GATE MODAL ═══ */}
+        {creditGate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" data-testid="credit-gate-modal">
+            <div className="bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+              {/* Header */}
+              <div className="px-6 pt-6 pb-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <Coins className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white" data-testid="credit-gate-title">Not enough credits</h3>
+                    <p className="text-xs text-slate-400">You need more credits to generate this Story-to-Video</p>
+                  </div>
+                </div>
+
+                {/* Credit breakdown */}
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-400">Credits required</span>
+                    <span className="text-sm font-bold text-white" data-testid="credits-required">{creditGate.required}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-400">Your current credits</span>
+                    <span className="text-sm font-bold text-amber-400" data-testid="credits-current">{creditGate.current}</span>
+                  </div>
+                  <div className="border-t border-white/[0.06] pt-3 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-rose-400">Additional credits needed</span>
+                    <span className="text-sm font-black text-rose-400" data-testid="credits-shortfall">{creditGate.shortfall}</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500 mt-3 text-center">
+                  Buy <strong className="text-white">{creditGate.shortfall}</strong> more credits to generate your video
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="px-6 pb-6 space-y-2">
+                <button
+                  onClick={() => { setCreditGate(null); navigate('/app/profile?tab=billing'); }}
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 flex items-center justify-center gap-2"
+                  data-testid="credit-gate-buy-btn"
+                >
+                  <Zap className="w-4 h-4" /> Buy Credits
+                </button>
+                <button
+                  onClick={() => { setCreditGate(null); navigate('/pricing'); }}
+                  className="w-full h-11 rounded-xl border border-white/10 text-slate-300 font-medium text-sm hover:bg-white/[0.03] flex items-center justify-center gap-2"
+                  data-testid="credit-gate-plans-btn"
+                >
+                  View Plans
+                </button>
+                <button
+                  onClick={() => setCreditGate(null)}
+                  className="w-full h-9 text-slate-500 hover:text-slate-300 text-xs font-medium"
+                  data-testid="credit-gate-cancel-btn"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {remixData && phase === 'input' && (
           <div className="mb-6 bg-pink-500/10 border border-pink-500/30 rounded-xl p-4 flex items-center gap-3" data-testid="remix-banner">
@@ -831,34 +909,14 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
             </div>
           </div>
 
-          {/* ─── CREDIT GATE ─── */}
-          {userCredits !== null && userCredits < 20 && (
-            <div className="vs-panel p-4 border-amber-500/30 rounded-xl" data-testid="credit-gate">
+          {/* ─── CREDIT INFO ─── */}
+          {userCredits !== null && userCredits < 21 && (
+            <div className="vs-panel p-4 border-amber-500/30 rounded-xl" data-testid="credit-warning">
               <div className="flex items-start gap-3">
-                <Zap className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <Coins className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-amber-200">Not enough credits to generate</p>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
-                      <p className="text-lg font-black text-red-400">{20}</p>
-                      <p className="text-[10px] text-red-300/60">Required</p>
-                    </div>
-                    <div className="bg-white/[0.04] border border-white/[0.08] rounded-lg p-2">
-                      <p className="text-lg font-black text-white">{userCredits}</p>
-                      <p className="text-[10px] text-slate-400">You have</p>
-                    </div>
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
-                      <p className="text-lg font-black text-amber-400">{Math.max(0, 20 - userCredits)}</p>
-                      <p className="text-[10px] text-amber-300/60">Shortfall</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => window.location.href = '/app/billing'}
-                    className="w-full mt-3 h-9 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
-                    data-testid="buy-credits-btn"
-                  >
-                    <Zap className="w-3.5 h-3.5" /> Buy {Math.max(0, 20 - userCredits)} More Credits
-                  </button>
+                  <p className="text-sm font-bold text-amber-200">Low credits — you have {userCredits}</p>
+                  <p className="text-xs text-slate-400 mt-1">Story-to-Video generation requires 21 credits. You'll need {Math.max(0, 21 - userCredits)} more.</p>
                 </div>
               </div>
             </div>
