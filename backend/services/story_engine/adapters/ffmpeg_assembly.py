@@ -4,24 +4,30 @@ Stitches scene clips, adds transitions, mixes audio, burns subtitles,
 generates preview and thumbnail.
 
 This is the ONLY assembly tool. It does NOT animate. Moving clips come from Wan2.1.
+
+Resilience: Long-running FFmpeg operations use a detached shell wrapper that survives
+backend hot-reloads. A marker file signals completion so the pipeline can resume.
 """
 import os
 import logging
 import asyncio
-import json
+import uuid
+import subprocess
 from typing import List, Optional, Dict
 
 logger = logging.getLogger("story_engine.adapters.ffmpeg")
 
 OUTPUT_DIR = os.environ.get("STORY_ENGINE_OUTPUT_DIR", "/tmp/story_engine_output")
+FFMPEG_WORK_DIR = os.path.join(OUTPUT_DIR, ".ffmpeg_work")
 
 
 def _ensure_dir():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(FFMPEG_WORK_DIR, exist_ok=True)
 
 
 async def _run_ffmpeg(cmd: str, timeout: int = 120) -> bool:
-    """Run an FFmpeg command asynchronously. Uses setsid for process group isolation."""
+    """Run a short FFmpeg command inline (thumbnails, previews, normalization)."""
     logger.info(f"[FFMPEG] Running: {cmd[:200]}...")
     proc = await asyncio.create_subprocess_shell(
         cmd,
@@ -42,6 +48,92 @@ async def _run_ffmpeg(cmd: str, timeout: int = 120) -> bool:
             proc.kill()
         logger.error(f"[FFMPEG] Timed out after {timeout}s")
         return False
+
+
+async def _run_ffmpeg_resilient(cmd: str, output_path: str, timeout: int = 300) -> bool:
+    """
+    Run a long FFmpeg command in a detached process that survives hot-reloads.
+    Uses a shell wrapper + marker files for completion signaling.
+    """
+    _ensure_dir()
+    task_id = uuid.uuid4().hex[:8]
+    marker_done = os.path.join(FFMPEG_WORK_DIR, f"{task_id}.done")
+    marker_fail = os.path.join(FFMPEG_WORK_DIR, f"{task_id}.fail")
+    log_file = os.path.join(FFMPEG_WORK_DIR, f"{task_id}.log")
+    script_path = os.path.join(FFMPEG_WORK_DIR, f"{task_id}.sh")
+
+    # Check if output already exists from a previous interrupted run
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
+        logger.info(f"[FFMPEG-RESILIENT] Output already exists: {output_path}")
+        return True
+
+    # Write wrapper script
+    script = f"""#!/bin/bash
+{cmd} > "{log_file}" 2>&1
+RC=$?
+if [ $RC -eq 0 ] && [ -f "{output_path}" ]; then
+    echo "OK" > "{marker_done}"
+else
+    echo "EXIT_CODE=$RC" > "{marker_fail}"
+fi
+rm -f "{script_path}"
+"""
+    with open(script_path, "w") as f:
+        f.write(script)
+    os.chmod(script_path, 0o755)
+
+    logger.info(f"[FFMPEG-RESILIENT] Launching detached task {task_id}: {cmd[:150]}...")
+
+    # Launch fully detached: nohup + setsid + stdin/stdout redirected
+    subprocess.Popen(
+        ["nohup", "bash", script_path],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    # Poll for completion markers
+    poll_interval = 2.0
+    elapsed = 0.0
+    while elapsed < timeout:
+        if os.path.exists(marker_done):
+            logger.info(f"[FFMPEG-RESILIENT] Task {task_id} completed successfully")
+            _cleanup_markers(task_id)
+            return True
+        if os.path.exists(marker_fail):
+            try:
+                with open(marker_fail) as f:
+                    reason = f.read().strip()
+            except Exception:
+                reason = "unknown"
+            logger.error(f"[FFMPEG-RESILIENT] Task {task_id} failed: {reason}")
+            # Log last 500 chars of FFmpeg output
+            if os.path.exists(log_file):
+                try:
+                    with open(log_file) as f:
+                        content = f.read()
+                    logger.error(f"[FFMPEG-RESILIENT] Log tail: {content[-500:]}")
+                except Exception:
+                    pass
+            _cleanup_markers(task_id)
+            return False
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+    logger.error(f"[FFMPEG-RESILIENT] Task {task_id} timed out after {timeout}s")
+    _cleanup_markers(task_id)
+    return False
+
+
+def _cleanup_markers(task_id: str):
+    """Remove marker and log files for a completed task."""
+    for ext in (".done", ".fail", ".log", ".sh"):
+        path = os.path.join(FFMPEG_WORK_DIR, f"{task_id}{ext}")
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 async def stitch_clips(
@@ -115,7 +207,7 @@ async def stitch_clips(
         f'-filter_complex "{filter_complex}" '
         f'-map "[v]" -c:v libx264 -pix_fmt yuv420p -crf 20 "{output_path}"'
     )
-    result = await _run_ffmpeg(cmd, timeout=180)
+    result = await _run_ffmpeg_resilient(cmd, output_path, timeout=300)
 
     # Cleanup normalized files
     for np_path in normalized_paths:
@@ -174,7 +266,7 @@ async def mix_audio(
         f'-filter_complex "{filter_complex}" '
         f'-map 0:v -map {audio_map} -c:v copy -c:a aac -b:a 192k "{output_path}"'
     )
-    return await _run_ffmpeg(cmd)
+    return await _run_ffmpeg_resilient(cmd, output_path, timeout=180)
 
 
 async def generate_preview(

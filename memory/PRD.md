@@ -9,14 +9,14 @@ Build a viral, addictive "Story Universe Engine" with an optimized frontend grow
 - **Database**: MongoDB
 - **Storage**: Cloudflare R2
 - **AI**: GPT-4o-mini, GPT Image 1, Sora 2, OpenAI TTS — via Emergent LLM Key
-- **Video Assembly**: FFmpeg 5.1 (system binary)
+- **Video Assembly**: FFmpeg 5.1 (system binary) with resilient detached execution
 - **Payments**: Cashfree
 - **NOTE**: NOT yet fully independent API — depends on external AI budgets
 
 ## Implemented Features
 
 ### P0 E2E Story Engine — PROVEN (2026-03-26)
-- "The Crystal Cave": Full pipeline INIT→PLANNING→CHARACTER→MOTION→KEYFRAMES→CLIPS→AUDIO→ASSEMBLY→READY
+- "The Crystal Cave": Full pipeline INIT->PLANNING->CHARACTER->MOTION->KEYFRAMES->CLIPS->AUDIO->ASSEMBLY->READY
 - 3 Sora 2 clips + 1 Ken Burns fallback, 14.5s final video on R2
 - FFmpeg clip normalization fix for mixed Sora + Ken Burns clips
 - Admin retry-assembly endpoint for FFmpeg-only retries
@@ -24,15 +24,33 @@ Build a viral, addictive "Story Universe Engine" with an optimized frontend grow
 ### P0 Strict Credit Gate (2026-03-26)
 - **Frontend**: Pre-flight `/api/story-engine/credit-check` on Generate click
 - **Modal**: Shows "Not enough credits" with exact required/current/shortfall
-- **Buttons**: Buy Credits → /app/profile?tab=billing, View Plans → /pricing, Cancel
+- **Buttons**: Buy Credits -> /app/profile?tab=billing, View Plans -> /pricing, Cancel
 - **Backend**: HTTP 402 enforcement — rejects creation if credits insufficient
-- **No generation starts, no credits deducted, no job created** when insufficient
 - Both frontend and backend gates tested and proven
 
-### P0 Frontend → Story Engine Migration (2026-03-26)
+### P0 Frontend -> Story Engine Migration (2026-03-26)
 - ALL frontend calls use `/api/story-engine/*` (single source of truth)
 - Transparent fallback queries both collections
 - Testing: 100% (iteration_344)
+
+### P0 Character-Driven Auto-Share Prompt — VERIFIED (2026-03-26)
+- ForceShareGate modal triggers immediately after video generation completes
+- Injects dynamic character_name and cliffhanger from story engine status API
+- Uses React Portal (createPortal) to bypass parent transform CSS containment
+- Character avatar, personalized title, cliffhanger hook, urgency line, reward tiers (+5/+15/+25)
+- Continue Story and Skip/Dismiss actions both verified
+- SessionStorage prevents re-trigger on same session
+- ShareRewardBar also personalized with character name
+- Bug fixed: viewJob now fetches full /status endpoint for character data
+- Testing: 100% (iteration_346)
+
+### P1 FFmpeg Subprocess Resilience — IMPLEMENTED (2026-03-26)
+- Long-running FFmpeg operations (stitch_clips, mix_audio) use detached shell wrapper
+- `_run_ffmpeg_resilient()`: writes shell script, launches via nohup/setsid, polls marker files
+- Survives backend hot-reloads and supervisor restarts
+- Short operations (thumbnail, preview, normalization) still use inline `_run_ffmpeg()`
+- Cleanup of marker/log files after completion
+- Unit tested: success, failure, and detached survival scenarios
 
 ### P1 Public Share Page Rebuild (2026-03-26)
 - Auto-play video, character intro, cliffhanger, post-video CTA overlay
@@ -49,9 +67,8 @@ Build a viral, addictive "Story Universe Engine" with an optimized frontend grow
 ## Prioritized Backlog
 
 ### P1 — Next Up
-- Character-driven auto-share prompts after creation
-- A/B test hook text variations on public pages
 - E2E: degraded/fallback job + continue/chain job (pending LLM budget)
+- A/B test hook text variations on public pages
 
 ### P2 — Future
 - Remix Variants, WebSocket admin, Story Chain leaderboard
