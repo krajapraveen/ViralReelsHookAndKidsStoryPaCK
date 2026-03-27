@@ -32,6 +32,7 @@ export function SafeImage({
 }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [retried, setRetried] = useState(false);
   const imgRef = useRef(null);
 
   // Determine if src is usable
@@ -73,7 +74,20 @@ export function SafeImage({
           style={{ objectFit }}
           className={`w-full h-full transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} ${imgClassName}`}
           onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
+          onError={() => {
+            if (!retried && src) {
+              // One retry with cache-bust for transient R2 errors
+              setRetried(true);
+              setTimeout(() => {
+                if (imgRef.current) {
+                  const bust = src.includes('?') ? `&_r=1` : `?_r=1`;
+                  imgRef.current.src = src + bust;
+                }
+              }, 1000);
+            } else {
+              setFailed(true);
+            }
+          }}
         />
       )}
 

@@ -5,6 +5,7 @@ import {
   Play, Flame, Sparkles, Zap, Film, Heart, Eye,
   SlidersHorizontal, ChevronDown, Rocket, ArrowRight, Wand2
 } from 'lucide-react';
+import { SafeImage } from '../components/SafeImage';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -285,14 +286,8 @@ function ExploreCard({ story, navigate, index = 0 }) {
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onClick={handleClick} data-testid="explore-card">
       <div className="aspect-[4/5] relative overflow-hidden bg-slate-900">
-        {story.thumbnail_url ? (
-          <img src={story.thumbnail_url} alt={story.title} loading="lazy"
-            className={`w-full h-full object-cover transition-all duration-700 ${hovered ? 'scale-110 brightness-110' : 'scale-100 brightness-[0.85]'}`} />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-            <Film className="w-10 h-10 text-slate-700" />
-          </div>
-        )}
+        <SafeImage src={story.thumbnail_url} alt={story.title} aspectRatio="4/5" fallbackType="gradient" titleOverlay={story.title}
+          className="rounded-none" imgClassName={`transition-all duration-700 ${hovered ? 'scale-110 brightness-110' : 'scale-100 brightness-[0.85]'}`} />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
         <div className={`absolute top-2.5 left-2.5 flex items-center gap-1 backdrop-blur-md rounded-full px-2.5 py-1 ${proof.bg} ${proof.fg}`}>
           <ProofIcon className="w-3 h-3" /><span className="text-[10px] font-bold">{proof.text}</span>

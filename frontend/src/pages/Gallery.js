@@ -30,9 +30,13 @@ export default function Gallery() {
       if (activeCategory !== 'all') params.set('category', activeCategory);
       params.set('sort', sortBy);
       const res = await fetch(`${API_URL}/api/pipeline/gallery?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json();
       setVideos(d.videos || []);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Gallery fetch error:', err);
+      setVideos([]);
+    }
     setLoading(false);
   }, [activeCategory, sortBy]);
 
@@ -255,13 +259,7 @@ export default function Gallery() {
             {videos.map((video, i) => (
               <div key={video.job_id || i} className="group rounded-2xl overflow-hidden border border-white/[0.05] bg-white/[0.015] hover:border-violet-500/20 transition-all" data-testid={`gallery-card-${i}`}>
                 <div className="aspect-video bg-black relative cursor-pointer" onClick={() => handlePreview(video)}>
-                  {video.thumbnail_url ? (
-                    <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-violet-900/40 to-slate-900 flex items-center justify-center">
-                      <Film className="w-10 h-10 text-slate-600" />
-                    </div>
-                  )}
+                  <SafeImage src={video.thumbnail_url} alt={video.title} aspectRatio="16/9" titleOverlay={video.title} fallbackType="gradient" className="rounded-none" />
                   {video.remix_count > 0 && (
                     <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-pink-300 px-2 py-1 rounded-full text-[11px] font-semibold">
                       <RefreshCcw className="w-3 h-3" /> {video.remix_count}
@@ -320,9 +318,10 @@ export default function Gallery() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-20 text-slate-500">
-            <Play className="w-16 h-16 mx-auto mb-4 opacity-20" />
-            <p>No videos found for this filter. Try another category.</p>
+          <div className="text-center py-20 text-slate-500" data-testid="gallery-empty">
+            <Film className="w-16 h-16 mx-auto mb-4 opacity-20" />
+            <p className="text-lg font-medium text-slate-400 mb-1">No videos found</p>
+            <p className="text-sm text-slate-600">Try a different category or sort, or be the first to create one.</p>
           </div>
         )}
 
