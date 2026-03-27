@@ -34,10 +34,11 @@ async def create_job(
     age_group: str = "teens",
     parent_job_id: Optional[str] = None,
     story_chain_id: Optional[str] = None,
+    skip_credits: bool = False,
 ) -> Dict:
     """
     Step 1-2: Credit check + Create job.
-    Returns the job document or raises on failure.
+    When skip_credits=True (guest mode), bypasses credit check/deduction.
     """
     now = datetime.now(timezone.utc).isoformat()
 
@@ -51,33 +52,39 @@ async def create_job(
         if title_violation:
             return {"success": False, "error": title_violation}
 
-    rate_error = await check_rate_limits(db, user_id)
-    if rate_error:
-        return {"success": False, "error": rate_error}
+    if not skip_credits:
+        rate_error = await check_rate_limits(db, user_id)
+        if rate_error:
+            return {"success": False, "error": rate_error}
 
-    abuse_error = await detect_abuse(db, user_id)
-    if abuse_error:
-        return {"success": False, "error": abuse_error}
+        abuse_error = await detect_abuse(db, user_id)
+        if abuse_error:
+            return {"success": False, "error": abuse_error}
 
-    # ── Credit check ──
-    user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
-    if not user:
-        return {"success": False, "error": "User not found"}
+    # ── Credit check (skip for guests) ──
+    cost = None
+    if not skip_credits:
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
+        if not user:
+            return {"success": False, "error": "User not found"}
 
-    user_credits = user.get("credits", 0)
-    cost = pre_flight_check(user_credits, scene_count=5)
+        user_credits = user.get("credits", 0)
+        cost = pre_flight_check(user_credits, scene_count=5)
 
-    if not cost.sufficient:
-        return {
-            "success": False,
-            "error": "insufficient_credits",
-            "credit_check": {
-                "required": cost.total_credits_required,
-                "current": cost.user_current_credits,
-                "shortfall": cost.shortfall,
-                "breakdown": cost.breakdown,
-            },
-        }
+        if not cost.sufficient:
+            return {
+                "success": False,
+                "error": "insufficient_credits",
+                "credit_check": {
+                    "required": cost.total_credits_required,
+                    "current": cost.user_current_credits,
+                    "shortfall": cost.shortfall,
+                    "breakdown": cost.breakdown,
+                },
+            }
+    else:
+        # Guest mode: create a dummy cost for the job doc
+        cost = pre_flight_check(999, scene_count=5)  # Passes check with fake high credits
 
     # ── Create job ──
     job_id = str(uuid.uuid4())
@@ -128,46 +135,48 @@ async def create_job(
 
     await db.story_engine_jobs.insert_one({k: v for k, v in job_doc.items() if k != "_id"})
 
-    # ── Atomic credit deduction ──
-    result = await db.users.update_one(
-        {"id": user_id, "credits": {"$gte": cost.total_credits_required}},
-        {
-            "$inc": {"credits": -cost.total_credits_required},
-            "$push": {
-                "credit_history": {
-                    "type": "deduction",
-                    "amount": -cost.total_credits_required,
-                    "reason": f"Story Engine job {job_id[:8]}",
-                    "timestamp": now,
-                }
+    # ── Atomic credit deduction (skip for guests) ──
+    credits_deducted = 0
+    if not skip_credits:
+        result = await db.users.update_one(
+            {"id": user_id, "credits": {"$gte": cost.total_credits_required}},
+            {
+                "$inc": {"credits": -cost.total_credits_required},
+                "$push": {
+                    "credit_history": {
+                        "type": "deduction",
+                        "amount": -cost.total_credits_required,
+                        "reason": f"Story Engine job {job_id[:8]}",
+                        "timestamp": now,
+                    }
+                },
             },
-        },
-    )
-
-    if result.modified_count == 0:
-        # Race condition — credits insufficient between check and deduction
-        await db.story_engine_jobs.update_one(
-            {"job_id": job_id},
-            {"$set": {"state": JobState.FAILED.value, "error_message": "Credit deduction failed — insufficient credits"}},
         )
-        return {"success": False, "error": "Credit deduction failed — try again"}
 
-    # Log credit transaction
-    await db.credit_transactions.insert_one({
-        "user_id": user_id,
-        "amount": -cost.total_credits_required,
-        "type": "story_engine_deduction",
-        "job_id": job_id,
-        "timestamp": now,
-    })
+        if result.modified_count == 0:
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"state": JobState.FAILED.value, "error_message": "Credit deduction failed — insufficient credits"}},
+            )
+            return {"success": False, "error": "Credit deduction failed — try again"}
 
-    logger.info(f"[PIPELINE] Job {job_id[:8]} created for user {user_id[:8]}, deducted {cost.total_credits_required} credits")
+        credits_deducted = cost.total_credits_required
+        # Log credit transaction
+        await db.credit_transactions.insert_one({
+            "user_id": user_id,
+            "amount": -cost.total_credits_required,
+            "type": "story_engine_deduction",
+            "job_id": job_id,
+            "timestamp": now,
+        })
+
+    logger.info(f"[PIPELINE] Job {job_id[:8]} created for user {user_id[:12]}, deducted {credits_deducted} credits (guest={skip_credits})")
 
     return {
         "success": True,
         "job_id": job_id,
         "state": JobState.INIT.value,
-        "credits_deducted": cost.total_credits_required,
+        "credits_deducted": credits_deducted,
         "cost_estimate": cost.model_dump(),
     }
 

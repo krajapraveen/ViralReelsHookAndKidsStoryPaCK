@@ -7,13 +7,13 @@ import os
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared import db, get_current_user
+from shared import db, get_current_user, get_optional_user
 
 from services.story_engine.schemas import CreateStoryRequest, JobState
 from services.story_engine.pipeline import create_job, run_pipeline, get_job_status
@@ -344,14 +344,31 @@ class CreateEngineRequest(BaseModel):
 async def create_engine_job(
     request: CreateEngineRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user),
+    req: Request,
+    current_user: dict = Depends(get_optional_user),
 ):
-    """Create a new Story Engine job. Returns instantly with job_id for polling."""
-    user_id = current_user.get("id") or str(current_user.get("_id"))
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    """
+    Create a new Story Engine job. Returns instantly with job_id for polling.
+    Supports guest mode: first-time anonymous users get ONE free generation per IP.
+    """
+    # Determine auth mode
+    is_guest = current_user is None
+    user_id = None
+    guest_ip = None
 
-    await _check_rate_limit(user_id)
+    if is_guest:
+        # Guest mode — IP-based free trial
+        guest_ip = req.client.host if req else "unknown"
+        # Check if this IP already used their free trial
+        existing = await db.free_trial_generations.find_one({"ip": guest_ip, "used": True})
+        if existing:
+            raise HTTPException(status_code=401, detail="Free trial used. Sign up to continue creating!")
+        user_id = f"guest_{guest_ip}"
+    else:
+        user_id = current_user.get("id") or str(current_user.get("_id"))
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        await _check_rate_limit(user_id)
 
     # Map animation_style to style_id
     style_id = request.animation_style if request.animation_style in ANIMATION_STYLES else "cartoon_2d"
@@ -364,11 +381,12 @@ async def create_engine_job(
         language="en",
         age_group=request.age_group,
         parent_job_id=request.parent_video_id,
+        skip_credits=is_guest,  # Don't deduct credits for guests
     )
 
     if not result.get("success"):
         error = result.get("error", "Job creation failed")
-        if error == "insufficient_credits":
+        if error == "insufficient_credits" and not is_guest:
             cc = result.get("credit_check", {})
             raise HTTPException(
                 status_code=402,
@@ -377,6 +395,18 @@ async def create_engine_job(
         raise HTTPException(status_code=400, detail=error)
 
     job_id = result["job_id"]
+
+    # Mark free trial as used
+    if is_guest:
+        await db.free_trial_generations.update_one(
+            {"ip": guest_ip},
+            {"$set": {"ip": guest_ip, "used": True, "job_id": job_id, "created_at": datetime.now(timezone.utc)}},
+            upsert=True,
+        )
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"is_guest": True, "guest_ip": guest_ip}}
+        )
 
     # Store voice preset and animation style on the job for UI display
     await db.story_engine_jobs.update_one(
@@ -395,7 +425,7 @@ async def create_engine_job(
         await db.analytics_events.insert_one({
             "event": "video_generation_started",
             "user_id": user_id,
-            "data": {"job_id": job_id, "credits": result.get("credits_deducted", 0), "style": style_id},
+            "data": {"job_id": job_id, "credits": result.get("credits_deducted", 0), "style": style_id, "is_guest": is_guest},
             "timestamp": datetime.now(timezone.utc),
         })
     except Exception:
@@ -406,12 +436,13 @@ async def create_engine_job(
         "job_id": job_id,
         "credits_charged": result.get("credits_deducted", 0),
         "estimated_scenes": 5,
+        "is_guest": is_guest,
         "message": "Video generation started. Poll /status for progress.",
     }
 
 
 @router.get("/status/{job_id}")
-async def get_status(job_id: str, current_user: dict = Depends(get_current_user)):
+async def get_status(job_id: str, current_user: dict = Depends(get_optional_user)):
     """Poll job progress. Returns frontend-compatible response shape.
     Falls back to legacy pipeline_jobs if not found in story_engine_jobs."""
     job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})

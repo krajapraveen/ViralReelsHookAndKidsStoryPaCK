@@ -126,16 +126,16 @@ export default function Landing() {
 
         <div className="relative max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-medium mb-6 fade-up" data-testid="hero-badge">
-            <Sparkles className="w-3 h-3" /> Create your own animated story in 30 seconds
+            <Sparkles className="w-3 h-3" /> Every story here is unfinished
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-[-0.04em] leading-[0.92] mb-5 fade-up" data-testid="hero-heading">
-            <span className="text-white">Stories that come</span><br />
-            <span className="bg-gradient-to-r from-violet-400 via-rose-400 to-amber-400 bg-clip-text text-transparent">alive with AI</span>
+            <span className="text-white">Stories that don't end</span><br />
+            <span className="bg-gradient-to-r from-violet-400 via-rose-400 to-amber-400 bg-clip-text text-transparent">until you continue them</span>
           </h1>
 
           <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-8 fade-up-2" data-testid="hero-subtitle">
-            Continue viral stories. Bring characters to life. Create animated videos in seconds — no skills needed.
+            Create, watch, and shape stories powered by AI. What happens next is up to you.
           </p>
 
           {/* ─── TWO BIG CTAs ─── */}
@@ -145,7 +145,7 @@ export default function Landing() {
               className="group h-14 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2 pulse-glow"
               data-testid="hero-continue-btn"
             >
-              <Play className="w-5 h-5" /> Continue a Story
+              <Play className="w-5 h-5" /> See What Happens Next
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
@@ -157,11 +157,7 @@ export default function Landing() {
             </button>
           </div>
 
-          <div className="flex items-center justify-center gap-6 text-sm text-slate-500 fade-up-4">
-            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-emerald-500" /> No login required</span>
-            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-emerald-500" /> Free to start</span>
-            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-emerald-500" /> Ready in 30s</span>
-          </div>
+          {/* Social proof line removed — no misleading claims */}
         </div>
       </section>
 
@@ -348,10 +344,10 @@ export default function Landing() {
       <section className="py-20 px-4 border-t border-white/[0.04]" data-testid="final-cta">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tight">
-            Your story is waiting
+            Someone already started this story
           </h2>
           <p className="text-lg text-slate-400 mb-8">
-            50 free credits. No login to start. Create your first video in 30 seconds.
+            Will you finish it? Watch it. Change it. Continue it.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
@@ -359,7 +355,7 @@ export default function Landing() {
               className="h-14 px-10 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-lg hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2"
               data-testid="final-cta-create"
             >
-              <Sparkles className="w-5 h-5" /> Create Your Story <ArrowRight className="w-5 h-5" />
+              <Sparkles className="w-5 h-5" /> Create Your Version <ArrowRight className="w-5 h-5" />
             </button>
             <Link to="/explore">
               <button className="h-14 px-10 rounded-xl border border-white/10 text-white font-medium text-lg hover:bg-white/[0.04] transition-colors" data-testid="final-cta-explore">
@@ -376,35 +372,75 @@ export default function Landing() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">Create</h4>
-              <div className="space-y-2">
-                <Link to="/app/story-video-studio" className="block text-sm text-slate-500 hover:text-white transition-colors">Story Video</Link>
-                <Link to="/app/reels" className="block text-sm text-slate-500 hover:text-white transition-colors">Reel Generator</Link>
-                <Link to="/app/comic-storybook" className="block text-sm text-slate-500 hover:text-white transition-colors">Comic Storybook</Link>
-                <Link to="/app/bedtime-story-builder" className="block text-sm text-slate-500 hover:text-white transition-colors">Bedtime Stories</Link>
+              <div className="space-y-3">
+                <Link to="/app/story-video-studio" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Story Video</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Turn your ideas into cinematic AI stories with characters, voice, and motion.</p>
+                </Link>
+                <Link to="/app/reels" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Reel Generator</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Create viral short videos with powerful hooks, captions, and ready-to-post formats.</p>
+                </Link>
+                <Link to="/app/comic-storybook" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Comic Storybook</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Transform your stories into illustrated comics with scenes, dialogues, and visuals.</p>
+                </Link>
+                <Link to="/app/bedtime-story-builder" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Bedtime Stories</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Generate soothing, magical stories for kids with gentle narration and calming visuals.</p>
+                </Link>
               </div>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">Discover</h4>
-              <div className="space-y-2">
-                <Link to="/explore" className="block text-sm text-slate-500 hover:text-white transition-colors">Explore</Link>
-                <Link to="/gallery" className="block text-sm text-slate-500 hover:text-white transition-colors">Gallery</Link>
-                <Link to="/explore?tab=most_remixed" className="block text-sm text-slate-500 hover:text-white transition-colors">Most Remixed</Link>
+              <div className="space-y-3">
+                <Link to="/explore" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Explore</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Discover trending AI stories, videos, and creative content from across the platform.</p>
+                </Link>
+                <Link to="/gallery" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Gallery</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Browse a growing collection of stories, videos, comics, and creative outputs.</p>
+                </Link>
+                <Link to="/explore?tab=most_remixed" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Most Remixed</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">See the stories people love to continue, remix, and transform into new versions.</p>
+                </Link>
               </div>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">Company</h4>
-              <div className="space-y-2">
-                <Link to="/pricing" className="block text-sm text-slate-500 hover:text-white transition-colors">Pricing</Link>
-                <Link to="/blog" className="block text-sm text-slate-500 hover:text-white transition-colors">Blog</Link>
-                <Link to="/contact" className="block text-sm text-slate-500 hover:text-white transition-colors">Contact</Link>
+              <div className="space-y-3">
+                <Link to="/pricing" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Pricing</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Choose the plan that fits your creativity and unlock powerful AI features.</p>
+                </Link>
+                <Link to="/blog" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Blog</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Learn how to create better stories, grow your content, and use AI effectively.</p>
+                </Link>
+                <div className="block">
+                  <span className="text-sm text-slate-400 font-medium">Contact</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Have questions or feedback? Reach out anytime.</p>
+                  <a href="mailto:krajapraveen@visionary-suite.com" className="text-[11px] text-violet-400 hover:text-violet-300 transition-colors mt-0.5 block">krajapraveen@visionary-suite.com</a>
+                </div>
               </div>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">Legal</h4>
-              <div className="space-y-2">
-                <Link to="/privacy" className="block text-sm text-slate-500 hover:text-white transition-colors">Privacy Policy</Link>
-                <Link to="/terms" className="block text-sm text-slate-500 hover:text-white transition-colors">Terms of Service</Link>
-                <Link to="/cookies" className="block text-sm text-slate-500 hover:text-white transition-colors">Cookie Policy</Link>
+              <div className="space-y-3">
+                <Link to="/privacy" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Privacy Policy</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Learn how we collect, use, and protect your data while you use our platform.</p>
+                </Link>
+                <Link to="/terms" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Terms of Service</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Understand your rights, responsibilities, and the rules for using our services.</p>
+                </Link>
+                <Link to="/cookies" className="block group">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Cookie Policy</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">See how cookies help improve your experience and how you can manage them.</p>
+                </Link>
               </div>
             </div>
           </div>
@@ -415,7 +451,7 @@ export default function Landing() {
               </div>
               <span className="text-sm font-semibold text-slate-500">Visionary Suite</span>
             </div>
-            <p className="text-xs text-slate-600">Stories that come alive with AI</p>
+            <p className="text-xs text-slate-600">Stories that don't end... until you continue them.</p>
           </div>
         </div>
       </footer>

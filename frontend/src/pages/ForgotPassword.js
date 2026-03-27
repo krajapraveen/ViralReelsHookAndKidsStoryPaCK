@@ -25,15 +25,24 @@ export default function ForgotPassword() {
     
     try {
       const captchaToken = await executeRecaptcha('forgot_password');
-      await authAPI.forgotPassword({ email }, {
+      const res = await authAPI.forgotPassword({ email }, {
         headers: { 'X-Captcha-Token': captchaToken }
       });
-      setEmailSent(true);
-      toast.success('Password reset email sent!');
+      if (res.data?.success === false) {
+        toast.error(res.data?.message || 'Unable to send reset email. Please try again later.');
+      } else {
+        setEmailSent(true);
+        toast.success('Password reset email sent!');
+      }
     } catch (error) {
-      // Show success message even if email doesn't exist (security best practice)
-      setEmailSent(true);
-      toast.success('If an account exists with this email, you will receive a password reset link.');
+      const msg = error.response?.data?.message;
+      if (msg && msg.includes('Unable')) {
+        toast.error(msg);
+      } else {
+        // Security: still show generic success for non-delivery errors
+        setEmailSent(true);
+        toast.success('If an account exists with this email, you will receive a password reset link.');
+      }
     } finally {
       setLoading(false);
     }

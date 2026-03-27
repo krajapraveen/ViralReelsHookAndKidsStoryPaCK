@@ -989,21 +989,22 @@ async def forgot_password(request: Request, data: ForgotPasswordRequest, backgro
             }
         )
         
-        # Send reset email
-        background_tasks.add_task(
-            send_password_reset_email,
+        # Send reset email synchronously to check result
+        email_sent = await send_password_reset_email(
             email,
             reset_token,
             user.get("name", "User")
         )
         
-        logger.info(f"Password reset requested for {email}")
-        
-        return {"success": True, "message": "If an account exists with this email, you will receive a password reset link."}
+        if email_sent:
+            logger.info(f"Password reset email sent to {email}")
+            return {"success": True, "message": "If an account exists with this email, you will receive a password reset link."}
+        else:
+            logger.error(f"Password reset email delivery failed for {email}")
+            return {"success": False, "message": "Unable to send reset email at this time. Please try again later or contact support."}
     except Exception as e:
         logger.error(f"Forgot password error: {e}")
-        # Don't reveal error details
-        return {"success": True, "message": "If an account exists with this email, you will receive a password reset link."}
+        return {"success": False, "message": "Unable to process password reset. Please try again later."}
 
 
 @router.post("/reset-password")

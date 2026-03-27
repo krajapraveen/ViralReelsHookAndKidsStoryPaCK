@@ -476,7 +476,9 @@ function StoryVideoPipelineInner() {
         setFormError('');
         dispatchPostGen({ type: 'RESET' });
 
-        if (res.data.degraded) {
+        if (res.data.is_guest) {
+          toast.success('Your free video is being created! Sign up after to save it.');
+        } else if (res.data.degraded) {
           toast.info(`System is busy — your video will use ${res.data.estimated_scenes} scenes for faster delivery.`);
         } else if (res.data.queue_warning) {
           toast.info(res.data.queue_warning);
@@ -520,7 +522,7 @@ function StoryVideoPipelineInner() {
           setCreditGate({ required: 21, current: userCredits || 0, shortfall: Math.max(0, 21 - (userCredits || 0)) });
         }
       } else if (status === 401) {
-        // Zero-friction: save ALL form state, then show gentle login gate
+        // Guest free trial already used OR auth needed — save form state and show login gate
         localStorage.setItem('studio_saved_state', JSON.stringify({
           title: title.trim(), storyText: storyText.trim(),
           animStyle, ageGroup, voicePreset,
