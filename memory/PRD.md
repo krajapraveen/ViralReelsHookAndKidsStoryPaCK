@@ -1,7 +1,7 @@
 # Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Build a viral, addictive "Story Universe Engine" with an optimized frontend growth loop, a Private Story-to-Video Engine backend, and a data-driven content optimization system.
+Build a viral, addictive "Story Universe Engine" with an optimized frontend growth loop, a Private Story-to-Video Engine backend, a data-driven content optimization system, and production-grade UX with truthful, compelling content.
 
 ## Architecture
 - **Frontend**: React, Shadcn UI, TailwindCSS
@@ -12,68 +12,60 @@ Build a viral, addictive "Story Universe Engine" with an optimized frontend grow
 - **Video Assembly**: FFmpeg 5.1 (system binary) with resilient detached execution
 - **Payments**: Cashfree
 - **A/B Testing**: Custom lean framework (deterministic session-based assignment, deduped events)
+- **Email**: SendGrid (KEY EXPIRED — needs user to provide new key)
 
 ## Implemented Features
 
 ### P0 E2E Story Engine — PROVEN
 - Full pipeline: INIT->PLANNING->CHARACTER->MOTION->KEYFRAMES->CLIPS->AUDIO->ASSEMBLY->READY
-- 3 Sora 2 clips + 1 Ken Burns fallback, 14.5s final video on R2
-- FFmpeg clip normalization fix for mixed Sora + Ken Burns clips
-
-### P0 Strict Credit Gate
-- Pre-flight `/api/story-engine/credit-check` on Generate click
-- Modal with exact required/current/shortfall
-- Backend HTTP 402 enforcement
 
 ### P0 Character-Driven Auto-Share Prompt — VERIFIED (2026-03-26)
-- ForceShareGate modal via React Portal (createPortal) at document.body
-- Dynamic character_name and cliffhanger from story engine status API
-- ViewJob fetches full /status endpoint for character data
-- Verified: character avatar, title, hook, urgency, rewards (+5/+15/+25), Continue + Skip
+- ForceShareGate modal via React Portal, dynamic character data injection
+
+### P0 Production Issues Fixed (2026-03-27)
+1. **Landing Page Hero** — Updated to "Stories that don't end until you continue them"
+2. **Misleading Labels Removed** — "No login required", "Free to start", "Ready in 30s" all removed
+3. **Footer Navigation** — All 4 columns with distinct, premium descriptions per user's exact copy
+4. **Legal Section** — Privacy Policy, Terms, Cookies each have distinct professional descriptions
+5. **Final CTA** — "Someone already started this story" / "Will you finish it?"
+6. **"Happening Now" Feed** — Compelling copyright-safe story titles with diverse countries, fresh timestamps
+7. **Guest Mode (Free Trial)** — First-time users get ONE free video generation without login, IP-tracked
+8. **Explore Page** — Working with thumbnails (30 stories, 24 visible cards)
+9. **Forgot Password** — Now returns honest error when email delivery fails (SendGrid key expired)
+10. **Continue a Story** — Landing page section populated with real story cards
 
 ### P1 FFmpeg Subprocess Resilience — IMPLEMENTED (2026-03-26)
-- `_run_ffmpeg_resilient()`: detached shell wrapper via nohup/setsid
-- Polls marker files for completion — survives hot-reloads/supervisor restarts
-- Applied to stitch_clips and mix_audio (long operations)
+- Detached shell wrapper via nohup/setsid, survives hot-reloads
 
 ### P1 A/B Hook Testing — VERIFIED (2026-03-26)
-- **4 variants**: Mystery, Emotional, Shock, Curiosity
-- **2 surfaces**: Public share pages (`/v/{slug}`) + Dashboard trending cards
-- **4 tracked events**: impression, click, continue_click, share_click
-- **Backend**: `/api/ab/hook-analytics` with per-variant metrics (impressions, clicks, CTR, continues, continue_rate, shares, share_rate, sufficient_data, data_warning)
-- **Frontend**: Variant-specific section_label, hook_suffix, cta_text, urgency, accent color
-- **Admin**: Dedicated "Hook A/B" tab with metrics grid, progress bars, confidence warnings, summary cards
-- **Assignment**: Deterministic session-based (hashed session_id + experiment_id)
-- **No auto-promotion** in v1 — manual review only
-- Testing: 100% (iteration_347, 21/21 backend + 13/13 frontend)
-
-### P1 Public Share Page Rebuild
-- Auto-play video, character intro, cliffhanger, post-video CTA overlay
+- 4 variants (Mystery, Emotional, Shock, Curiosity) on 2 surfaces
+- Admin "Hook A/B" tab with per-variant metrics and confidence warnings
 
 ### Earlier Completed Work
-- Truth-based hype text, social proof, scroll traps
-- Zero-Friction Entry (login only on Generate)
-- Share Reward System (+5/+15/+25 credits)
-- Click Psychology (cinematic cards, A/B tracking)
-- Gallery / Explore Page (infinite scroll, filters)
-- Trust & UI Fixes, Monetization (Cashfree)
-- Credit system consistency (50 credits for all normal users)
+- Strict Credit Gate, Public Share Page Rebuild, Social Proof, Monetization (Cashfree)
+
+## Critical Open Issues
+1. **SendGrid API Key EXPIRED** — Password reset emails cannot be sent. User needs to provide a new valid SendGrid API key or replace with another email provider.
 
 ## Prioritized Backlog
 
+### P0 — Blocked
+- Fix email delivery (requires new SendGrid key from user)
+
 ### P1 — Next Up
 - E2E: degraded/fallback job + continue/chain job (pending LLM budget)
-- Auto-improve weak hooks based on A/B data (after sufficient data collected)
+- User to provide updated pricing/credits for Pricing page
+- Viral landing page headline A/B rotation
+- Ad copy for Instagram/YouTube (user provided templates)
 
 ### P2 — Future
-- Remix Variants, WebSocket admin, Story Chain leaderboard
-- Self-hosted GPU (Wan2.1, Kokoro) for true independence
+- Auto-improve weak hooks based on A/B data
+- Self-hosted GPU models for AI independence
+- WebSocket admin, Story Chain leaderboard
 
 ## Key DB Collections
-- `story_engine_jobs`: Complex nested state machine execution
-- `ab_experiments`: Experiment definitions with variants
-- `ab_assignments`: Session -> variant mapping (deduped)
-- `ab_conversions`: Event tracking (impression, click, continue_click, share_click)
+- `story_engine_jobs`, `ab_experiments`, `ab_assignments`, `ab_conversions`
+- `free_trial_generations` — IP-based guest generation tracking
 - `users`, `orders`, `feedback`, `ratings`, `credit_transactions`
 
 ## Credentials
