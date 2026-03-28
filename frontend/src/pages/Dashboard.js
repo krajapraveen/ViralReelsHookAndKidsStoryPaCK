@@ -29,7 +29,7 @@ const HOOK_BANK = [
   "She recognized the voice... but he'd been dead for years.",
 ];
 
-// Seed cards shown when no real data exists — these are CTAs, not fake data
+// Seed cards shown when no real data exists — these feel like unfinished stories, not creation prompts
 const SEED_CARDS = [
   { job_id: 'seed-1', title: 'A Midnight Train to Nowhere', hook_text: "The station was empty... except for the girl with no shadow.", is_seed: true },
   { job_id: 'seed-2', title: 'The Last Dragon\'s Secret', hook_text: "She found the egg under the floorboards. It was warm.", is_seed: true },
@@ -49,7 +49,7 @@ function getHook(story, idx) {
 }
 
 function getBadge(story, idx) {
-  if (story.is_seed) return { text: 'CREATE', color: 'bg-violet-500 text-white' };
+  if (story.is_seed) return { text: 'UNFINISHED', color: 'bg-amber-500/90 text-black' };
   const rm = story.remix_count || 0;
   if (rm >= 5) return { text: 'TRENDING', color: 'bg-amber-500 text-black' };
   if (idx === 0) return { text: '#1', color: 'bg-rose-500 text-white' };
@@ -170,15 +170,18 @@ function HeroSection({ stories, navigate }) {
         ) : (
           /* Fallback hero when NO stories exist at all */
           <>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-amber-500 text-black text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded">UNFINISHED</span>
+            </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] mb-2 drop-shadow-2xl" data-testid="hero-title">
-              Your Story Universe Awaits
+              Every Story is Waiting for You
             </h1>
             <p className="text-sm sm:text-base text-white/70 leading-relaxed mb-5 max-w-xl">
-              Create AI-powered story videos, comics, and more. Type an idea and watch it come to life.
+              Worlds half-built. Characters mid-sentence. Pick any story below and decide what happens next.
             </p>
             <button onClick={() => navigate('/app/story-video-studio')}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-600 to-violet-600 text-white font-bold rounded-lg text-sm hover:scale-[1.03] active:scale-[0.97] transition-transform shadow-xl shadow-violet-600/20" data-testid="hero-create-btn">
-              <Sparkles className="w-4 h-4" /> Create Your First Story
+              className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-lg text-sm hover:scale-[1.03] active:scale-[0.97] transition-transform shadow-xl shadow-white/10" data-testid="hero-create-btn">
+              <Play className="w-4 h-4 fill-black" /> Continue a Story
             </button>
           </>
         )}
@@ -271,7 +274,7 @@ function StoryCard({ story, idx, navigate, size = 'md' }) {
         {/* Play button on hover */}
         <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${hovered ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
           <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/20">
-            {isSeed ? <Plus className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white fill-white ml-0.5" />}
+            <Play className="w-4 h-4 text-white fill-white ml-0.5" />
           </div>
         </div>
 
@@ -280,7 +283,7 @@ function StoryCard({ story, idx, navigate, size = 'md' }) {
           <h3 className="text-[11px] font-bold text-white leading-tight mb-0.5 line-clamp-1">{story.title || 'Untitled'}</h3>
           <p className="text-[9px] text-white/60 leading-snug line-clamp-2 italic mb-1.5">"{hook}"</p>
           <div className={`flex items-center gap-1 text-[9px] font-bold transition-colors ${hovered ? 'text-white' : 'text-white/40'}`}>
-            {isSeed ? <><Plus className="w-2.5 h-2.5" /> Create</> : <><Play className="w-2.5 h-2.5 fill-current" /> Continue</>}
+            {isSeed ? <><Play className="w-2.5 h-2.5 fill-current" /> Continue this</> : <><Play className="w-2.5 h-2.5 fill-current" /> See what happens</>}
             <ChevronRight className="w-2.5 h-2.5" />
           </div>
         </div>
@@ -350,18 +353,18 @@ function ScrollRow({ title, icon: Icon, iconColor, children, seeAllAction, testI
 /* ═══════════ QUICK TOOLS ═══════════ */
 function QuickToolsPills({ navigate }) {
   const tools = [
-    { name: 'Story Video', icon: Film, path: '/app/story-video-studio', color: 'text-violet-400' },
-    { name: 'Reels', icon: Play, path: '/app/reels', color: 'text-rose-400' },
-    { name: 'Comic', icon: BookOpen, path: '/app/comic-storybook', color: 'text-cyan-400' },
-    { name: 'Bedtime', icon: Star, path: '/app/bedtime-stories', color: 'text-amber-400' },
+    { name: 'Story Video', icon: Film, path: '/app/story-video-studio', color: 'text-violet-400/50' },
+    { name: 'Reels', icon: Play, path: '/app/reels', color: 'text-rose-400/50' },
+    { name: 'Comic', icon: BookOpen, path: '/app/comic-storybook', color: 'text-cyan-400/50' },
+    { name: 'Bedtime', icon: Star, path: '/app/bedtime-stories', color: 'text-amber-400/50' },
   ];
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide" data-testid="quick-tools">
       {tools.map(t => (
         <button key={t.name} onClick={() => navigate(t.path)}
-          className="flex items-center gap-1 px-2.5 py-1 bg-white/[0.03] border border-white/[0.06] rounded-md text-[10px] font-semibold text-white/35 hover:text-white/70 hover:bg-white/[0.06] transition-all flex-shrink-0"
+          className="flex items-center gap-1 px-2 py-0.5 bg-transparent border border-white/[0.04] rounded text-[9px] font-medium text-white/20 hover:text-white/50 hover:bg-white/[0.03] transition-all flex-shrink-0"
           data-testid={`tool-${t.name.replace(/\s/g, '-').toLowerCase()}`}>
-          <t.icon className={`w-2.5 h-2.5 ${t.color}`} /> {t.name}
+          <t.icon className={`w-2 h-2 ${t.color}`} /> {t.name}
         </button>
       ))}
     </div>
@@ -378,10 +381,10 @@ function CreateBar({ navigate }) {
         <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 focus-within:border-violet-500/40 transition-colors">
           <Search className="w-4 h-4 text-white/25 flex-shrink-0" />
           <input value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()}
-            placeholder="Type a story idea..." className="flex-1 bg-transparent text-white text-xs placeholder-white/25 outline-none" data-testid="create-bar-input" />
+            placeholder="What happens next? Continue any story or start fresh..." className="flex-1 bg-transparent text-white text-xs placeholder-white/25 outline-none" data-testid="create-bar-input" />
           <button onClick={go}
-            className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-rose-600 to-violet-600 text-white text-[10px] font-bold rounded-lg hover:opacity-90 transition-opacity flex-shrink-0" data-testid="create-bar-btn">
-            <Sparkles className="w-3 h-3" /> Create
+            className="flex items-center gap-1 px-3 py-1.5 bg-white text-black text-[10px] font-bold rounded-lg hover:opacity-90 transition-opacity flex-shrink-0" data-testid="create-bar-btn">
+            <ArrowRight className="w-3 h-3" /> Go
           </button>
         </div>
       </div>
@@ -472,16 +475,16 @@ export default function Dashboard() {
         ))}
       </ScrollRow>
 
-      {/* ▸ FRESH STORIES — ALWAYS renders (real stories or seed cards) */}
-      <ScrollRow title="Fresh Stories" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories">
+      {/* ▸ UNFINISHED WORLDS — ALWAYS renders (real stories or seed cards) */}
+      <ScrollRow title="Unfinished Worlds" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories">
         {freshStories.map((story, idx) => (
           <StoryCard key={`fresh-${story.job_id}`} story={story} idx={idx + 20} navigate={navigate} size="md" />
         ))}
       </ScrollRow>
 
-      {/* ▸ WATCH NOW — only if real video stories exist */}
+      {/* ▸ CONTINUE WATCHING — only if real video stories exist */}
       {watchableStories.length > 0 && (
-        <ScrollRow title="Watch Now" icon={Play} iconColor="text-emerald-400" testId="watch-now">
+        <ScrollRow title="Continue Watching" icon={Play} iconColor="text-emerald-400" testId="watch-now">
           {watchableStories.map((story, idx) => (
             <StoryCard key={`watch-${story.job_id}`} story={story} idx={idx + 40} navigate={navigate} size="md" />
           ))}
