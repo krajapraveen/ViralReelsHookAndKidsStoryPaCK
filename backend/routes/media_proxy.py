@@ -43,6 +43,7 @@ CONTENT_TYPES = {
 @router.get("/r2/{path:path}")
 async def proxy_r2(path: str):
     """Stream an R2 object directly — no presigned URL needed."""
+    from fastapi.responses import Response
     key = unquote(path)
     client, bucket = _get_client()
     if not client:
@@ -51,21 +52,14 @@ async def proxy_r2(path: str):
         resp = client.get_object(Bucket=bucket, Key=key)
         ext = '.' + key.rsplit('.', 1)[-1] if '.' in key else ''
         ct = CONTENT_TYPES.get(ext.lower(), resp.get('ContentType', 'application/octet-stream'))
+        body = resp['Body'].read()
 
-        def stream():
-            body = resp['Body']
-            while True:
-                chunk = body.read(65536)
-                if not chunk:
-                    break
-                yield chunk
-
-        return StreamingResponse(
-            stream(),
+        return Response(
+            content=body,
             media_type=ct,
             headers={
                 "Cache-Control": "public, max-age=86400, immutable",
-                "Content-Length": str(resp.get('ContentLength', '')),
+                "Content-Length": str(len(body)),
             }
         )
     except client.exceptions.NoSuchKey:
