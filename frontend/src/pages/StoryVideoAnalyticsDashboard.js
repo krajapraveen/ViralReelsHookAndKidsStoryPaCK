@@ -93,11 +93,6 @@ export default function StoryVideoAnalyticsDashboard() {
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/app/admin">
-              <Button variant="ghost" size="icon" className="text-white">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
             <div>
               <h1 className="text-xl font-bold text-white flex items-center gap-2">
                 <BarChart3 className="w-6 h-6 text-purple-400" />

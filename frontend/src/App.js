@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import AdminLayout from './components/AdminLayout';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { CreditProvider } from './contexts/CreditContext';
 import Landing from './pages/Landing';
@@ -201,9 +202,37 @@ function App() {
       <Route path="/app/story-pack" element={isAuthenticated ? <Navigate to="/app/story-generator" /> : <Navigate to="/login" />} />
       <Route path="/app/history" element={isAuthenticated ? <History /> : <Navigate to="/login" />} />
       <Route path="/app/billing" element={isAuthenticated ? <Billing /> : <Navigate to="/login" />} />
-      <Route path="/app/admin" element={isAuthenticated ? <AdminDashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/realtime-analytics" element={isAuthenticated ? <RealtimeAnalytics /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/automation" element={isAuthenticated ? <AutomationDashboard /> : <Navigate to="/login" />} />
+      {/* ═══ ADMIN ROUTES - All nested under AdminLayout ═══ */}
+      <Route path="/app/admin" element={<AdminLayout />}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="realtime-analytics" element={<RealtimeAnalytics />} />
+        <Route path="automation" element={<AutomationDashboard />} />
+        <Route path="story-video-analytics" element={<StoryVideoAnalyticsDashboard />} />
+        <Route path="performance" element={<AdminMonitoring />} />
+        <Route path="login-activity" element={<AdminLoginActivity />} />
+        <Route path="users" element={<AdminUsersManagement />} />
+        <Route path="self-healing" element={<SelfHealingDashboard />} />
+        <Route path="ttfd-analytics" element={<TTFDDashboard />} />
+        <Route path="user-analytics" element={<UserAnalyticsDashboard />} />
+        <Route path="security" element={<AdminSecurityDashboard />} />
+        <Route path="bio-templates" element={<BioTemplatesAdmin />} />
+        <Route path="workers" element={<WorkerDashboard />} />
+        <Route path="template-analytics" element={<TemplateAnalyticsDashboard />} />
+        <Route path="audit-logs" element={<AdminAuditLogs />} />
+        <Route path="leaderboard" element={<TemplateLeaderboard />} />
+        <Route path="daily-report" element={<DailyReportDashboard />} />
+        <Route path="account-locks" element={<AccountLockManagement />} />
+        <Route path="environment-monitor" element={<EnvironmentMonitor />} />
+        <Route path="user-activity" element={<UserActivityDashboard />} />
+        <Route path="system-health" element={<SystemHealthDashboard />} />
+        <Route path="anti-abuse" element={<AntiAbuseDashboard />} />
+        <Route path="revenue" element={<RevenueAnalyticsDashboard />} />
+        <Route path="revenue-analytics" element={<RevenueAnalyticsDashboard />} />
+        <Route path="monitoring" element={<MonitoringDashboard />} />
+        <Route path="ga4-tester" element={<GA4EventTester />} />
+        <Route path="growth" element={<GrowthDashboard />} />
+        <Route path="content-engine" element={<ContentEngine />} />
+      </Route>
       <Route path="/app/feature-requests" element={isAuthenticated ? <FeatureRequests /> : <Navigate to="/login" />} />
       <Route path="/app/privacy" element={isAuthenticated ? <PrivacySettings /> : <Navigate to="/login" />} />
       <Route path="/app/profile" element={isAuthenticated ? <Profile /> : <Navigate to="/login" />} />
@@ -222,8 +251,7 @@ function App() {
       <Route path="/app/story-video-studio" element={<ErrorBoundary><StoryVideoPipeline /></ErrorBoundary>} />
       {/* Story Preview (public for sharing, shows fallback assets) */}
       <Route path="/app/story-preview/:jobId" element={<StoryPreview />} />
-      {/* Story Video Analytics Dashboard */}
-      <Route path="/app/admin/story-video-analytics" element={isAuthenticated ? <StoryVideoAnalyticsDashboard /> : <Navigate to="/login" />} />
+      {/* Story Video Analytics - moved to admin layout */}
       {/* Character Consistency Studio */}
       <Route path="/app/character-studio" element={isAuthenticated ? <CharacterConsistencyStudio /> : <Navigate to="/login" />} />
       <Route path="/app/story-video-studio/characters" element={isAuthenticated ? <CharacterConsistencyStudio /> : <Navigate to="/login" />} />
@@ -248,16 +276,7 @@ function App() {
       {/* User Dashboard Routes */}
       <Route path="/app/subscription" element={isAuthenticated ? <SubscriptionManagement /> : <Navigate to="/login" />} />
       <Route path="/app/analytics" element={isAuthenticated ? <AnalyticsDashboard /> : <Navigate to="/login" />} />
-      {/* Admin Routes */}
-      <Route path="/app/admin/performance" element={isAuthenticated ? <AdminMonitoring /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/login-activity" element={isAuthenticated ? <AdminLoginActivity /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/users" element={isAuthenticated ? <AdminUsersManagement /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/self-healing" element={isAuthenticated ? <SelfHealingDashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/ttfd-analytics" element={isAuthenticated ? <TTFDDashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/user-analytics" element={isAuthenticated ? <UserAnalyticsDashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/security" element={isAuthenticated ? <AdminSecurityDashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/bio-templates" element={isAuthenticated ? <BioTemplatesAdmin /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/workers" element={isAuthenticated ? <WorkerDashboard /> : <Navigate to="/login" />} />
+      {/* Admin routes moved to AdminLayout */}
       {/* New Feature Routes */}
       <Route path="/app/comic" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
       <Route path="/app/comix" element={isAuthenticated ? <PhotoToComic /> : <Navigate to="/login" />} />
@@ -292,34 +311,8 @@ function App() {
       <Route path="/app/offer-generator" element={isAuthenticated ? <OfferGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/story-hook-generator" element={isAuthenticated ? <StoryHookGenerator /> : <Navigate to="/login" />} />
       <Route path="/app/daily-viral-ideas" element={isAuthenticated ? <DailyViralIdeas /> : <Navigate to="/login" />} />
-      {/* TEMPLATE ANALYTICS DASHBOARD */}
-      <Route path="/app/admin/template-analytics" element={isAuthenticated ? <TemplateAnalyticsDashboard /> : <Navigate to="/login" />} />
-      {/* ADMIN AUDIT LOGS */}
-      <Route path="/app/admin/audit-logs" element={isAuthenticated ? <AdminAuditLogs /> : <Navigate to="/login" />} />
-      {/* TEMPLATE LEADERBOARD */}
-      <Route path="/app/admin/leaderboard" element={isAuthenticated ? <TemplateLeaderboard /> : <Navigate to="/login" />} />
-      {/* DAILY REPORT DASHBOARD */}
-      <Route path="/app/admin/daily-report" element={isAuthenticated ? <DailyReportDashboard /> : <Navigate to="/login" />} />
-      {/* ACCOUNT LOCK MANAGEMENT */}
-      <Route path="/app/admin/account-locks" element={isAuthenticated ? <AccountLockManagement /> : <Navigate to="/login" />} />
-      {/* ENVIRONMENT MONITOR */}
-      <Route path="/app/admin/environment-monitor" element={isAuthenticated ? <EnvironmentMonitor /> : <Navigate to="/login" />} />
-      {/* USER ACTIVITY DASHBOARD */}
-      <Route path="/app/admin/user-activity" element={isAuthenticated ? <UserActivityDashboard /> : <Navigate to="/login" />} />
-      {/* SYSTEM HEALTH DASHBOARD */}
-      <Route path="/app/admin/system-health" element={isAuthenticated ? <SystemHealthDashboard /> : <Navigate to="/login" />} />
-      {/* ANTI-ABUSE DASHBOARD */}
-      <Route path="/app/admin/anti-abuse" element={isAuthenticated ? <AntiAbuseDashboard /> : <Navigate to="/login" />} />
-      {/* REVENUE ANALYTICS DASHBOARD */}
-      <Route path="/app/admin/revenue" element={isAuthenticated ? <RevenueAnalyticsDashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/revenue-analytics" element={isAuthenticated ? <RevenueAnalyticsDashboard /> : <Navigate to="/login" />} />
-      {/* MONITORING DASHBOARD */}
-      <Route path="/app/admin/monitoring" element={isAuthenticated ? <MonitoringDashboard /> : <Navigate to="/login" />} />
-      {/* GA4 EVENT TESTER */}
-      <Route path="/app/admin/ga4-tester" element={isAuthenticated ? <GA4EventTester /> : <Navigate to="/login" />} />
-      {/* GROWTH DASHBOARD */}
-      <Route path="/app/admin/growth" element={isAuthenticated ? <GrowthDashboard /> : <Navigate to="/login" />} />
-      <Route path="/app/admin/content-engine" element={isAuthenticated ? <ContentEngine /> : <Navigate to="/login" />} />
+      {/* Admin template/audit/leaderboard moved to AdminLayout */}
+      {/* Admin operational routes moved to AdminLayout */}
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/cookie-policy" element={<CookiePolicy />} />
       <Route path="/terms" element={<TermsOfService />} />

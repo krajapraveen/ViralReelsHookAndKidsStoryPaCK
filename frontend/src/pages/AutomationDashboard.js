@@ -109,12 +109,6 @@ export default function AutomationDashboard() {
       <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/app/admin">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Admin
-              </Button>
-            </Link>
             <div className="flex items-center gap-2">
               <Settings className="w-6 h-6 text-indigo-500" />
               <span className="text-xl font-bold">Automation Dashboard</span>

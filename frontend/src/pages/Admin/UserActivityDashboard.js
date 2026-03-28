@@ -123,9 +123,6 @@ const UserActivityDashboard = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Link to="/app/admin" className="text-gray-500 hover:text-gray-700" data-testid="back-button">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Activity className="h-6 w-6 text-indigo-500" />

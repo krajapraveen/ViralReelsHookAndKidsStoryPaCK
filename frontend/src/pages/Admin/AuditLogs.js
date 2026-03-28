@@ -183,9 +183,6 @@ const AdminAuditLogs = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Link to="/app/admin" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700">
-              <ArrowLeft className="w-5 h-5 text-slate-400" />
-            </Link>
             <div>
               <h1 className="text-2xl font-bold text-white flex items-center gap-2" data-testid="page-title">
                 <Activity className="w-6 h-6 text-purple-400" />

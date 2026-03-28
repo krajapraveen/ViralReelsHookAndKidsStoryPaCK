@@ -181,9 +181,6 @@ const AdminSecurityDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/app/dashboard" className="text-slate-400 hover:text-white">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
               <Shield className="w-8 h-8 text-violet-400" />
               <div>
                 <h1 className="text-xl font-bold">Security Command Center</h1>

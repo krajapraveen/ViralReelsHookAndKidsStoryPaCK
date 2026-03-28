@@ -197,12 +197,6 @@ export default function GA4EventTester() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Link to="/app/admin">
-              <Button variant="ghost" className="text-white hover:bg-white/10">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Admin
-              </Button>
-            </Link>
             <div>
               <h1 className="text-2xl font-bold text-white">GA4 Event Tester</h1>
               <p className="text-slate-400 text-sm">Test and verify Google Analytics 4 event tracking</p>

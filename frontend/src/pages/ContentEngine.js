@@ -245,9 +245,6 @@ export default function ContentEngine() {
       <div className="sticky top-0 z-30 bg-[var(--vs-bg-primary)]/95 backdrop-blur-md border-b border-slate-800/50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/app/admin')} className="p-2 rounded-lg hover:bg-slate-800/50 transition-colors" data-testid="back-btn">
-              <ArrowLeft className="w-4 h-4 text-slate-400" />
-            </button>
             <div>
               <h1 className="text-lg font-black flex items-center gap-2" style={{ fontFamily: 'var(--vs-font-heading)' }}>
                 <Sparkles className="w-5 h-5 text-violet-400" /> Content Engine

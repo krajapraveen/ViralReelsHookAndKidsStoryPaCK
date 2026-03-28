@@ -219,9 +219,6 @@ const BioTemplatesAdmin = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Link to="/app/admin" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-slate-400" />
-            </Link>
             <div>
               <h1 className="text-2xl font-bold text-white" data-testid="admin-bio-title">Bio Template Admin</h1>
               <p className="text-slate-400 text-sm">Manage Instagram Bio Generator templates</p>

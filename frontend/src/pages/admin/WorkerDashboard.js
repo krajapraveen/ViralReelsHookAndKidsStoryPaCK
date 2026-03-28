@@ -161,9 +161,6 @@ export default function WorkerDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Link to="/admin" className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
-              <ArrowLeft className="w-5 h-5 text-slate-400" />
-            </Link>
             <div>
               <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                 <Activity className="w-6 h-6 text-indigo-400" />

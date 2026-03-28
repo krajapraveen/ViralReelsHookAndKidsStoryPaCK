@@ -324,15 +324,6 @@ const RealtimeAnalytics = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/app/admin')}
-              className="text-gray-400 hover:text-white"
-              data-testid="back-to-admin-btn"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
                 <Activity className="w-7 h-7 text-green-400" />

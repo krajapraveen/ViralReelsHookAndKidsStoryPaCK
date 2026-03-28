@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Film, Briefcase, CreditCard, BarChart3,
+  LayoutDashboard, Users, Film, CreditCard, BarChart3,
   Shield, Server, Settings, LogOut, ChevronRight, ChevronDown,
   Activity, Eye, FileText, Heart, Zap, BookOpen, Star, TrendingUp,
   Lock, AlertTriangle, Clock, Monitor, Cpu, Radio, Sparkles,
@@ -26,13 +26,21 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: 'Content & Stories',
+    label: 'Content Engine',
     items: [
-      { path: '/app/admin/content-engine', label: 'Content Engine', icon: Sparkles },
+      { path: '/app/admin/content-engine', label: 'Seed Content', icon: Sparkles },
       { path: '/app/admin/story-video-analytics', label: 'Story Analytics', icon: Film },
       { path: '/app/admin/bio-templates', label: 'Templates', icon: FileText },
       { path: '/app/admin/leaderboard', label: 'Leaderboard', icon: Star },
       { path: '/app/admin/template-analytics', label: 'Template Analytics', icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Jobs & Pipelines',
+    items: [
+      { path: '/app/admin/workers', label: 'Worker Dashboard', icon: Cpu },
+      { path: '/app/admin/automation', label: 'Automation', icon: Zap },
+      { path: '/app/admin/ttfd-analytics', label: 'TTFD Analytics', icon: Clock },
     ],
   },
   {
@@ -43,11 +51,11 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: 'Jobs & Pipelines',
+    label: 'Analytics',
     items: [
-      { path: '/app/admin/workers', label: 'Worker Dashboard', icon: Cpu },
-      { path: '/app/admin/automation', label: 'Automation', icon: Zap },
-      { path: '/app/admin/ttfd-analytics', label: 'TTFD Analytics', icon: Clock },
+      { path: '/app/admin/realtime-analytics', label: 'Realtime Analytics', icon: BarChart3 },
+      { path: '/app/admin/daily-report', label: 'Daily Report', icon: BookOpen },
+      { path: '/app/admin/ga4-tester', label: 'GA4 Event Tester', icon: Radio },
     ],
   },
   {
@@ -68,16 +76,19 @@ const NAV_GROUPS = [
       { path: '/app/admin/audit-logs', label: 'Audit Logs', icon: FileText },
     ],
   },
-  {
-    label: 'Reports',
-    items: [
-      { path: '/app/admin/daily-report', label: 'Daily Report', icon: BookOpen },
-      { path: '/app/admin/realtime-analytics', label: 'Realtime Analytics', icon: BarChart3 },
-    ],
-  },
 ];
 
-function NavItem({ item, isActive, collapsed }) {
+function parseJwtRole(token) {
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    return decoded.role || '';
+  } catch {
+    return '';
+  }
+}
+
+function NavItem({ item, isActive }) {
   const Icon = item.icon;
   return (
     <Link to={item.path} data-testid={`admin-nav-${item.label.replace(/\s/g, '-').toLowerCase()}`}>
@@ -87,13 +98,13 @@ function NavItem({ item, isActive, collapsed }) {
           : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
       }`}>
         <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-indigo-400' : ''}`} />
-        {!collapsed && <span className="truncate">{item.label}</span>}
+        <span className="truncate">{item.label}</span>
       </div>
     </Link>
   );
 }
 
-function NavGroup({ group, location, collapsed, defaultOpen }) {
+function NavGroup({ group, location, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen);
   const hasActive = group.items.some(item =>
     item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
@@ -101,24 +112,22 @@ function NavGroup({ group, location, collapsed, defaultOpen }) {
 
   return (
     <div className="mb-1" data-testid={`admin-nav-group-${group.label.replace(/\s/g, '-').toLowerCase()}`}>
-      {!collapsed && (
-        <button
-          onClick={() => setOpen(!open)}
-          className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${
-            hasActive ? 'text-indigo-400/70' : 'text-slate-600'
-          } hover:text-slate-400 transition-colors`}
-        >
-          {group.label}
-          {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        </button>
-      )}
-      {(open || collapsed) && (
-        <div className={`space-y-0.5 ${collapsed ? '' : 'mt-0.5'}`}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${
+          hasActive ? 'text-indigo-400/70' : 'text-slate-600'
+        } hover:text-slate-400 transition-colors`}
+      >
+        {group.label}
+        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+      </button>
+      {open && (
+        <div className="space-y-0.5 mt-0.5">
           {group.items.map(item => {
             const isActive = item.exact
               ? location.pathname === item.path
               : location.pathname.startsWith(item.path);
-            return <NavItem key={item.path} item={item} isActive={isActive} collapsed={collapsed} />;
+            return <NavItem key={item.path} item={item} isActive={isActive} />;
           })}
         </div>
       )}
@@ -126,15 +135,49 @@ function NavGroup({ group, location, collapsed, defaultOpen }) {
   );
 }
 
-export default function AdminLayout({ children }) {
+export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [authState, setAuthState] = useState('checking'); // checking | authorized | unauthorized
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    const role = parseJwtRole(token);
+    if (role.toUpperCase() === 'ADMIN' || role.toUpperCase() === 'SUPERADMIN') {
+      setAuthState('authorized');
+    } else {
+      setAuthState('unauthorized');
+      navigate('/app', { replace: true });
+    }
+  }, [navigate]);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
   };
+
+  if (authState === 'checking') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <div className="flex items-center gap-3 text-slate-400">
+          <div className="w-5 h-5 border-2 border-slate-600 border-t-indigo-400 rounded-full animate-spin" />
+          <span className="text-sm">Verifying access...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === 'unauthorized') return null;
 
   const sidebar = (
     <div className="flex flex-col h-full">
@@ -152,7 +195,7 @@ export default function AdminLayout({ children }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin">
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin" data-testid="admin-sidebar-nav">
         {NAV_GROUPS.map((group, idx) => {
           const hasActive = group.items.some(item =>
             item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
@@ -204,7 +247,7 @@ export default function AdminLayout({ children }) {
       {mobileOpen && (
         <>
           <div className="lg:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setMobileOpen(false)} />
-          <aside className="lg:hidden fixed inset-y-0 left-0 w-[260px] bg-slate-900 border-r border-slate-800 z-50">
+          <aside className="lg:hidden fixed inset-y-0 left-0 w-[260px] bg-slate-900 border-r border-slate-800 z-50" data-testid="admin-mobile-sidebar">
             {sidebar}
           </aside>
         </>
@@ -212,7 +255,7 @@ export default function AdminLayout({ children }) {
 
       {/* Main content */}
       <main className="flex-1 lg:ml-[240px] min-h-screen" data-testid="admin-content">
-        {children}
+        <Outlet />
       </main>
 
       <style>{`

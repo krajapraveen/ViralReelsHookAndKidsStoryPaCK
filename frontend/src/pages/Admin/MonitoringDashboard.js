@@ -241,12 +241,6 @@ export default function MonitoringDashboard() {
       <header className="bg-slate-800/50 border-b border-slate-700 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/app/admin">
-              <button className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-                Back
-              </button>
-            </Link>
             <div className="flex items-center gap-2">
               <Activity className="w-6 h-6 text-cyan-500" />
               <h1 className="text-xl font-bold">System Monitoring</h1>

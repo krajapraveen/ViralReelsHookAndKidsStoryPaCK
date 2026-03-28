@@ -60,9 +60,6 @@ export default function AdminMonitoring() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/app/admin" className="text-slate-400 hover:text-white">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
               <div className="flex items-center gap-2">
                 <Shield className="w-8 h-8 text-green-400" />
                 <div>

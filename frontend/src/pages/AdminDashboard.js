@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import {
-  Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw, ArrowLeft,
-  LogOut, AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
-  Film, ChevronRight, ChevronDown, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio, Sparkles, Gift, Target, Share2
+  Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw,
+  AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
+  Film, Clock, Server, Database, BarChart3,
+  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2
 } from 'lucide-react';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
@@ -345,20 +345,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white" data-testid="admin-dashboard">
-      {/* Header */}
-      <header className="bg-slate-900/80 border-b border-slate-800 backdrop-blur-sm sticky top-0 z-50">
+      {/* Slim toolbar — nav is handled by AdminLayout sidebar */}
+      <div className="bg-slate-900/80 border-b border-slate-800 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/app">
-              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-sm font-bold text-white">Admin Control Center</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-sm font-bold text-white">Executive Dashboard</span>
           </div>
           <div className="flex items-center gap-3">
-            {/* Live indicator */}
             <div className="flex items-center gap-1.5 text-xs">
               <Radio className={`w-3 h-3 ${wsLive ? 'text-emerald-400 animate-pulse' : autoRefresh ? 'text-cyan-400 animate-pulse' : 'text-slate-600'}`} />
               <button
@@ -382,31 +376,9 @@ export default function AdminDashboard() {
             <Button onClick={fetchAll} variant="ghost" size="sm" className="text-slate-400 hover:text-white" data-testid="refresh-btn">
               <RefreshCw className="w-3.5 h-3.5" />
             </Button>
-            <Button onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} variant="ghost" size="sm" className="text-slate-400 hover:text-white" data-testid="admin-logout-btn">
-              <LogOut className="w-3.5 h-3.5" />
-            </Button>
           </div>
         </div>
-
-        {/* Navigation Links */}
-        <div className="max-w-7xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto">
-          {[
-            ['/app/admin/users', Users, 'Users'],
-            ['/app/admin/login-activity', Eye, 'Logins'],
-            ['/app/admin/monitoring', Activity, 'Monitor'],
-            ['/app/admin/audit-logs', FileText, 'Audit'],
-            ['/app/admin/system-health', Heart, 'Health'],
-            ['/app/admin/anti-abuse', Shield, 'Safety'],
-            ['/app/admin/content-engine', Sparkles, 'Content Engine'],
-          ].map(([href, Icon, label]) => (
-            <Link key={href} to={href}>
-              <Button variant="ghost" size="sm" className="text-slate-500 hover:text-white text-[11px] gap-1 h-7 px-2">
-                <Icon className="w-3 h-3" /> {label}
-              </Button>
-            </Link>
-          ))}
-        </div>
-      </header>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Section Tabs */}
