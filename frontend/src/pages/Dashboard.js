@@ -574,7 +574,7 @@ export default function Dashboard() {
           </span>
           <span className="flex items-center gap-1.5">
             <Zap className="w-3 h-3 text-violet-400" />
-            {credits === null ? '...' : credits >= 999999 ? 'Unlimited' : credits} credits
+            {credits === null ? <span className="inline-block w-8 h-3 bg-white/10 rounded animate-pulse" /> : credits >= 999999 ? 'Unlimited' : credits} credits
           </span>
         </div>
       </div>
