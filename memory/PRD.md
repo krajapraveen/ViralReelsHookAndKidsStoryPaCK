@@ -1,7 +1,7 @@
 # Visionary Suite — Product Requirements Document
 
 ## Problem Statement
-Build a viral, addictive "Story Universe Engine" — an AI creator suite that generates story videos, comics, reels. The platform must feel alive and Netflix-like, not like an empty tool grid.
+Build a viral, addictive "Story Universe Engine" — an AI creator suite that generates story videos, comics, reels. The platform must feel alive and Netflix-like, not like an empty tool grid. **The dashboard must NEVER show empty under any data condition.**
 
 ## Architecture
 - **Frontend**: React (CRA) + Tailwind CSS + Shadcn/UI
@@ -14,67 +14,42 @@ Build a viral, addictive "Story Universe Engine" — an AI creator suite that ge
 ## What's Been Implemented
 
 ### P0 — Netflix-Style Dashboard (DONE — Mar 28, 2026)
-- **Hero Section**: Layered approach (gradient → thumbnail image → autoplay video). FEATURED badge, carousel (5 stories), title, hook text, Watch & Continue / Create New CTAs.
-- **Video autoplay**: Works in real Chrome (H.264+AAC with faststart moov). Graceful fallback to thumbnail in non-H264 browsers.
-- **Three dense rows**: Trending Now (10 cards), Fresh Stories (10 cards), Watch Now (10 cards). No dead space.
-- **Story cards**: 3:4 aspect ratio, gradient/thumbnail background, dark overlay, badges (TRENDING/HOT/NEW), italic hook text, Continue CTA, hover-to-play video.
-- **Credits**: Skeleton → exact number → "Unlimited". RefreshCredits on mount for post-login flow.
-- **Create bar**: Search input + Create button. Quick Tools pills (Story Video, Reels, Comic, Bedtime).
-- **Zero dead space**: 0px gap between hero and first row.
-- **Root causes fixed**:
-  - Backend `thumbnail_url` filter removed — stories without thumbnails now shown with gradient fallbacks
-  - Hero video re-muxed with `-movflags +faststart` (moov at byte 40)
-  - R2 proxy supports HEAD + Range requests (206 Partial Content) for video streaming
-  - All FFmpeg encoding commands now include `-movflags +faststart`
+**Root causes found and fixed across 3 iterations:**
+1. Backend `thumbnail_url` filter hid stories without thumbnails → Removed filter
+2. Frontend `{xxx.length > 0 && <Row/>}` conditional rendering hid ALL rows when trending was empty → Rows now render unconditionally
+3. Hero video `moov` atom at end of file (no faststart) → Re-muxed + pipeline fixed
+4. R2 proxy had no HEAD or Range support → Added both for video streaming
+
+**Current architecture:**
+- **Hero** ALWAYS renders: Real story poster/video when data exists, gradient CTA ("Your Story Universe Awaits") when empty
+- **Trending Now** ALWAYS renders: Real story cards or 6 seed CTA cards with creative story prompts
+- **Fresh Stories** ALWAYS renders: Same fallback strategy
+- **Watch Now**: Conditional (only when real video stories exist)
+- **Seed cards**: 6 pre-written story ideas with CREATE badges, + Create CTAs, gradient backgrounds. Click navigates to story creator with title as prefill.
+- **Video**: Layered approach (gradient → thumbnail image → autoplay video). Faststart moov for streaming. H.264 graceful fallback to poster.
+- **Credits**: Skeleton → exact number → "Unlimited". refreshCredits() on mount.
 
 ### P0 — Core Pipeline (DONE)
-- Story-to-Video: GPT text → image gen → Sora 2 video → TTS audio → FFmpeg concat
-- FFmpeg uses reliable `concat` with `-movflags +faststart` for web streaming
-- All AI tools enforce credit deduction
+- Story-to-Video: GPT → image → Sora 2 → TTS → FFmpeg concat with `-movflags +faststart`
 
 ### P0 — R2 Media Proxy (DONE)
-- `/api/media/r2/{filepath}` streams via boto3
-- HEAD requests: 200 with Content-Length + Accept-Ranges
-- Range requests: 206 Partial Content with Content-Range
-- Full GET: 200 with complete file
-- Bypasses Cloudflare R2 presigned URL 403 errors
+- `/api/media/r2/{filepath}`: HEAD (200), Range (206), GET (200)
 
 ### P0 — Growth Loop (DONE)
-- Public share pages with momentum social proof
-- 1-click continue flow
-- Open-loop story endings
-
 ### P1 — Monetization (DONE)
-- Cashfree payments, strict credit checks
-- 50-credit standard for new users
-- Admin dashboard with real metrics
-
 ### P1 — Trust Fixes (DONE)
-- Profile → Security tab fixed
-- Truth-based admin satisfaction metric
-- Diverse "Live on Platform" feed
 
 ## Pending / Backlog
-
-### P1 — Upcoming
-- A/B test hook text variations on story cards
-- Character-driven auto-share prompts
-
-### P2 — Future
-- Remix Variants on share pages
-- Self-hosted GPU models (Wan2.1, Kokoro)
-- WebSocket admin dashboard
-- Story Chain leaderboard
-
-### P2 — Blocked
-- SendGrid email (forgot password) — blocked on valid API key
+- P1: A/B test hook text variations
+- P1: Character-driven auto-share prompts
+- P2: Remix Variants, Self-hosted GPU, WebSocket admin, Story Chain leaderboard
+- Blocked: SendGrid email (needs valid API key)
 
 ## Key Endpoints
-- `GET /api/engagement/story-feed` — Dashboard feed (hero + 20 trending + characters + stats)
-- `GET /api/media/r2/{filepath}` — R2 media proxy (HEAD, Range, GET)
-- `GET /api/credits/balance` — User credit balance
-- `POST /api/auth/login` — Login
+- `GET /api/engagement/story-feed` — 20 completed stories (no thumbnail filter)
+- `GET /api/media/r2/{path}` — HEAD + Range + GET support
+- `GET /api/credits/balance` — User credits
 
 ## Test Credentials
-- Test User: `test@visionary-suite.com` / `Test@2026#`
-- Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
+- Test: `test@visionary-suite.com` / `Test@2026#`
+- Admin: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
