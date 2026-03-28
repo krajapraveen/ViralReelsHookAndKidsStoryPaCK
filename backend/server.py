@@ -585,6 +585,9 @@ api_router.include_router(content_engine_router)
 from routes.story_engine_routes import router as story_engine_router
 api_router.include_router(story_engine_router)
 
+from routes.media_proxy import router as media_proxy_router
+api_router.include_router(media_proxy_router)
+
 
 
 # Include API router in app

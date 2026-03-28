@@ -8,23 +8,23 @@ logger = logging.getLogger(__name__)
 _r2_client = None
 
 def _get_r2_client():
-    """Lazy-initialize and cache the R2 client."""
+    """Lazy-initialize and cache the R2 client. Retries if previously unconfigured."""
     global _r2_client
     if _r2_client is not None:
         return _r2_client
     try:
-        from services.cloudflare_r2_storage import get_r2_storage
-        r2 = get_r2_storage()
-        if r2 and hasattr(r2, '_client') and r2._client:
+        from services.cloudflare_r2_storage import CloudflareR2Storage
+        # Force re-initialization if client wasn't set before (env vars may have loaded since)
+        r2 = CloudflareR2Storage()
+        if r2._client is None:
+            # Try re-initializing (dotenv might have loaded by now)
+            r2._initialize_client()
+        if r2._client:
             _r2_client = r2._client
             logger.info("R2 presign client initialized successfully")
             return _r2_client
-        elif r2 and hasattr(r2, 'client') and r2.client:
-            _r2_client = r2.client
-            logger.info("R2 presign client initialized (via .client)")
-            return _r2_client
         else:
-            logger.warning(f"R2 storage returned but no client found. is_configured={getattr(r2, 'is_configured', 'N/A')}")
+            logger.warning("R2 storage client still not configured after retry")
     except Exception as e:
         logger.warning(f"Failed to get R2 client: {e}")
     return None

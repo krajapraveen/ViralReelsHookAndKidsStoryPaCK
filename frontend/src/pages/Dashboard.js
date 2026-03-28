@@ -12,6 +12,13 @@ import {
 const API = process.env.REACT_APP_BACKEND_URL;
 const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
+/* ── Convert proxy URLs to full URLs ── */
+function mediaUrl(path) {
+  if (!path) return null;
+  if (path.startsWith('/api/media/')) return `${API}${path}`;
+  return path;
+}
+
 /* ── Hook text bank — ensures every card has tension ── */
 const HOOK_BANK = [
   "The door wasn't supposed to exist...",
@@ -119,14 +126,14 @@ function HeroSection({ stories, navigate }) {
   const hookText = getHook(current, activeIdx);
 
   return (
-    <section className="relative w-full" style={{ height: '65vh', minHeight: '420px' }} data-testid="hero-section">
+    <section className="relative w-full" style={{ height: '55vh', minHeight: '380px' }} data-testid="hero-section">
       {/* Background media */}
       <div className="absolute inset-0 overflow-hidden">
-        {current.output_url || current.preview_url ? (
+        {current.preview_url ? (
           <video
             ref={videoRef}
             key={current.job_id}
-            src={current.preview_url || current.output_url}
+            src={mediaUrl(current.preview_url)}
             muted={isMuted}
             autoPlay
             loop
@@ -135,7 +142,7 @@ function HeroSection({ stories, navigate }) {
             style={{ filter: 'brightness(0.5)' }}
           />
         ) : (
-          <HeroBg url={current.thumbnail_url} title={current.title} />
+          <HeroBg url={mediaUrl(current.thumbnail_url)} title={current.title} />
         )}
       </div>
 
@@ -240,13 +247,13 @@ function StoryCard({ story, idx, navigate, size = 'md' }) {
         <div className="absolute inset-0" style={{ transition: 'filter 0.3s', filter: isHovered ? 'brightness(1.15)' : 'brightness(0.85)' }}>
           {isHovered && (story.preview_url || story.output_url) ? (
             <video
-              src={story.preview_url || story.output_url}
+              src={mediaUrl(story.preview_url || story.output_url)}
               muted autoPlay loop playsInline
               className="w-full h-full object-cover"
             />
           ) : (
             <SafeImage
-              src={story.thumbnail_url}
+              src={mediaUrl(story.thumbnail_url)}
               alt={story.title}
               aspectRatio="4/5"
               fallbackType="gradient"

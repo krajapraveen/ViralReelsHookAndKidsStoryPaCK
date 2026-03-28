@@ -97,20 +97,26 @@ class CloudflareR2Storage:
     
     def _initialize_client(self):
         """Initialize the S3 client for R2"""
-        if not all([R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY]):
+        # Read env vars at init time (not module level) to ensure dotenv has loaded
+        account_id = os.environ.get("CLOUDFLARE_R2_ACCOUNT_ID", "")
+        access_key = os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID", "")
+        secret_key = os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "")
+        
+        if not all([account_id, access_key, secret_key]):
             logger.warning("Cloudflare R2 credentials not fully configured")
             return
         
         try:
+            endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
             self._client = boto3.client(
                 's3',
-                endpoint_url=R2_ENDPOINT,
-                aws_access_key_id=R2_ACCESS_KEY_ID,
-                aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+                endpoint_url=endpoint,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
                 config=Config(
                     signature_version='s3v4',
                     retries={'max_attempts': 3, 'mode': 'adaptive'},
-                    max_pool_connections=50  # Increase connection pool for parallel uploads
+                    max_pool_connections=50
                 ),
                 region_name='auto'
             )

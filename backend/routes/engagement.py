@@ -239,18 +239,37 @@ async def get_trending_creations():
 @router.get("/story-feed")
 async def get_story_feed():
     """Return story-first dashboard data: hero, trending stories, characters, live counter."""
-    from utils.r2_presign import presign_url
+
+    def to_proxy_url(stored_url: str) -> str:
+        """Convert R2 stored URL to backend proxy URL for reliable delivery."""
+        if not stored_url:
+            return stored_url
+        try:
+            base = stored_url.split('?')[0]  # strip query params
+            # Handle r2.dev public URLs: https://pub-xxx.r2.dev/{key}
+            if '.r2.dev/' in base:
+                key = base.split('.r2.dev/', 1)[1]
+                return f"/api/media/r2/{key}"
+            # Handle r2.cloudflarestorage.com URLs: https://{acct}.r2.cloudflarestorage.com/{bucket}/{key}
+            if '.r2.cloudflarestorage.com/' in base:
+                parts = base.split('.r2.cloudflarestorage.com/', 1)
+                if len(parts) > 1:
+                    bucket_and_key = parts[1].split('/', 1)
+                    if len(bucket_and_key) > 1:
+                        return f"/api/media/r2/{bucket_and_key[1]}"
+            return stored_url
+        except Exception:
+            return stored_url
 
     # Hero story: most popular completed video with thumbnail
     hero_job = await db.pipeline_jobs.find_one(
         {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "thumbnail_url": {"$exists": True, "$ne": None}},
-        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "remix_count": 1, "animation_style": 1},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1},
     )
     if hero_job:
-        if hero_job.get("thumbnail_url"):
-            hero_job["thumbnail_url"] = presign_url(hero_job["thumbnail_url"])
-        if hero_job.get("output_url"):
-            hero_job["output_url"] = presign_url(hero_job["output_url"])
+        hero_job["thumbnail_url"] = to_proxy_url(hero_job.get("thumbnail_url"))
+        hero_job["output_url"] = to_proxy_url(hero_job.get("output_url"))
+        hero_job["preview_url"] = to_proxy_url(hero_job.get("preview_url"))
         # Extract hook line from story text
         text = hero_job.get("story_text", "")
         sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
@@ -259,12 +278,13 @@ async def get_story_feed():
     # Trending stories: top 12 by remix count with thumbnails
     trending = await db.pipeline_jobs.find(
         {"status": "COMPLETED", "thumbnail_url": {"$exists": True, "$ne": None}},
-        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "remix_count": 1, "animation_style": 1, "created_at": 1},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "created_at": 1},
     ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=12)
 
     for job in trending:
-        if job.get("thumbnail_url"):
-            job["thumbnail_url"] = presign_url(job["thumbnail_url"])
+        job["thumbnail_url"] = to_proxy_url(job.get("thumbnail_url"))
+        job["output_url"] = to_proxy_url(job.get("output_url"))
+        job["preview_url"] = to_proxy_url(job.get("preview_url"))
         text = job.get("story_text", "")
         sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
         job["hook_text"] = (sentences[0] + "...") if sentences else ""
