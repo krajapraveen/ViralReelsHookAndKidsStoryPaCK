@@ -42,13 +42,15 @@ Build a viral, addictive "Story Universe Engine" — a full-stack AI creator sui
 
 ## What's Been Implemented
 
-### Bug Fix — Missing Story Card Thumbnails (DONE — Feb 28, 2026)
-- Root cause: Most stories (18/20) had `thumbnail_url: null` but DID have `scene_images` with full R2 URLs
-- Fix: Backend `engagement.py` now falls back to the first scene image when `thumbnail_url` is missing
-- Uses direct R2 CDN URLs for scene image thumbnails (faster than proxy for large PNGs)
-- Also fixed `explore` endpoint to include stories with scene_images (not just thumbnail_url)
-- Result: ALL story cards now display real scene images — no more gradient placeholders
-- Tests: Visual verification — 20/20 stories now have thumbnails
+### Bug Fix — Missing Story Card Thumbnails + Performance + UI Overhaul (DONE — Feb 28, 2026)
+- Root cause: Stories had `thumbnail_url: null` but DID have `scene_images` with R2 keys
+- Backend `engagement.py` now resolves thumbnails via `r2_key` proxy fallback (ALL 20/20 stories now have thumbnails)
+- R2 media proxy now returns CORS headers (`Access-Control-Allow-Origin: *`) + 7-day cache for cross-domain reliability
+- Frontend adds `Image()` preloading workers — staggered loading of first 16 images on mount
+- SafeImage component upgraded with `fetchPriority="high"` and eager loading for first 4 visible cards
+- Admin-only top bar with quick links (Content Engine, Jobs, Health, Users) — JWT role check
+- UI made bigger/bolder/brighter: larger cards, bigger badges with shadows, hero text-4xl+, brighter CTAs
+- Tests: iteration_358.json (14/14 PASS — both backend and frontend)
 
 ### P0 — Admin Sidebar Navigation (DONE — Feb 28, 2026)
 - Persistent sidebar wrapping ALL `/app/admin/*` routes via `AdminLayout.js` with `<Outlet />`
