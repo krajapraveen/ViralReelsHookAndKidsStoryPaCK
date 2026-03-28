@@ -2,706 +2,594 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
-import { getVariant, trackConversion } from '../lib/abTesting';
+import { SafeImage } from '../components/SafeImage';
 import {
-  Play, ChevronRight, Sparkles, Zap, Users,
-  BookOpen, ArrowRight, Film, Star, Clock, Eye,
-  ChevronDown, Flame, Target, Trophy,
-  Search, MessageSquare, Wand2, Rocket
+  Play, ChevronRight, ChevronLeft, Sparkles, Zap,
+  Flame, Clock, ArrowRight, Search, Plus, Volume2, VolumeX,
+  Film, BookOpen, Wand2, Star
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const api = () => axios.create({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
-/* ── Truth-based social proof: never shows zero ── */
-function getProofLabel(count) {
-  if (count >= 10) return { text: 'Trending', Icon: Flame, bg: 'bg-amber-500/20', fg: 'text-amber-400' };
-  if (count > 0)   return { text: 'Early story', Icon: Zap, bg: 'bg-violet-500/20', fg: 'text-violet-400' };
-  return { text: 'Just dropped', Icon: Sparkles, bg: 'bg-emerald-500/20', fg: 'text-emerald-400' };
-}
-
-/* ── Click Psychology: CTA variants for A/B testing ── */
-const CTA_VARIANTS = [
-  'See What Happens Next',
-  'Continue This Story',
-  'What Happens Next?',
+/* ── Hook text bank — ensures every card has tension ── */
+const HOOK_BANK = [
+  "The door wasn't supposed to exist...",
+  "He heard his name... from inside the wall.",
+  "She waited... but no one came.",
+  "The last message read: 'Don't look behind you.'",
+  "The mirror showed someone else staring back.",
+  "They said the forest was empty. They were wrong.",
+  "The clock struck thirteen.",
+  "She recognized the voice... but he'd been dead for years.",
+  "The letter had no sender — just a date. Tomorrow.",
+  "The child smiled... and the lights went out.",
 ];
 
-/* ── Urgency messages: truth-based, no faking ── */
-const URGENCY_ACTIVE = [
-  'Someone just continued this',
-  'This story is gaining momentum',
-  'Others are watching this',
-];
-const URGENCY_FIRST = [
-  'Your turn to continue',
-  "This story isn\u2019t finished",
-  'Be the one who writes what\u2019s next',
-];
-
-/* ── Hook formatter: 1 line, incomplete thought, curiosity-driven ── */
-function formatHook(text) {
-  if (!text) return 'A story waiting to unfold\u2026';
-  const clean = text.replace(/\n/g, ' ').trim();
-  if (clean.length <= 65) return clean.endsWith('...') || clean.endsWith('\u2026') ? clean : clean;
-  const cut = clean.substring(0, 65).lastIndexOf(' ');
-  return clean.substring(0, cut > 20 ? cut : 60) + '\u2026';
-}
-
-const SCROLL_HOOKS = [
-  "But this story doesn\u2019t end here\u2026",
-  "What happens next is up to you\u2026",
-  "The next chapter is waiting\u2026",
-  "This world is still being written\u2026",
-];
-
-export default function Dashboard() {
-  const { credits } = useCredits();
-  const navigate = useNavigate();
-  const [storyFeed, setStoryFeed] = useState(null);
-  const [resumeStory, setResumeStory] = useState(null);
-  const [engagement, setEngagement] = useState(null);
-  const [promptText, setPromptText] = useState('');
-  const [showMoreTools, setShowMoreTools] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [hookVariant, setHookVariant] = useState(null);
-
-  const fetchFeed = useCallback(async () => {
-    try {
-      const [feedRes, engRes] = await Promise.all([
-        axios.get(`${API}/api/engagement/story-feed`),
-        api().get(`${API}/api/engagement/dashboard`).catch(() => null),
-      ]);
-      setStoryFeed(feedRes.data);
-      if (engRes?.data) setEngagement(engRes.data);
-    } catch (e) { console.error('Feed load failed:', e); }
-    setLoading(false);
-  }, []);
-
-  const fetchResume = useCallback(async () => {
-    try {
-      const res = await api().get(`${API}/api/story-engine/user-jobs`);
-      if (res.data?.jobs?.length > 0) setResumeStory(res.data.jobs[0]);
-    } catch {}
-  }, []);
-
-  useEffect(() => { fetchFeed(); fetchResume(); }, [fetchFeed, fetchResume]);
-
-  // Fetch A/B hook variant for story cards
-  useEffect(() => {
-    (async () => {
-      try {
-        const v = await getVariant('story_hook');
-        if (v?.variant_data) setHookVariant(v);
-      } catch {}
-    })();
-  }, []);
-
-  const handlePrompt = () => {
-    if (!promptText.trim()) return;
-    navigate('/app/story-video-studio', { state: { prefill: promptText } });
-  };
-
-  const hero = storyFeed?.hero;
-  const trending = storyFeed?.trending || [];
-  const characters = storyFeed?.characters || [];
-  const liveStats = storyFeed?.live_stats || {};
-  const challenge = engagement?.daily_challenge;
-  const streak = engagement?.streak;
-
-  /* Build hero pool for rotation: main hero + top trending */
-  const heroPool = [];
-  if (hero) heroPool.push(hero);
-  trending.slice(0, 4).forEach(s => {
-    if (!heroPool.find(h => h.job_id === s.job_id)) {
-      heroPool.push({ ...s, hook_text: s.hook_text || s.title });
-    }
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#06060e] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
+/* ── Hero Background with image + gradient fallback ── */
+function HeroBg({ url, title }) {
+  const [imgOk, setImgOk] = useState(false);
+  const hash = (title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const bgs = [
+    'from-violet-900 via-indigo-900 to-slate-950',
+    'from-rose-900 via-purple-900 to-slate-950',
+    'from-emerald-900 via-teal-900 to-slate-950',
+    'from-amber-900 via-orange-900 to-slate-950',
+    'from-cyan-900 via-blue-900 to-slate-950',
+  ];
+  const bg = bgs[hash % bgs.length];
 
   return (
-    <div className="min-h-screen bg-[#06060e] text-white" data-testid="story-dashboard">
+    <div className="absolute inset-0">
+      {/* Animated gradient background — always present */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${bg}`} style={{ animation: 'heroShimmer 8s ease-in-out infinite alternate' }} />
+      {/* Subtle animated particles */}
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 20% 50%, rgba(139,92,246,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 30%, rgba(236,72,153,0.08) 0%, transparent 50%)', animation: 'heroDrift 10s ease-in-out infinite alternate' }} />
+      {/* Try to load actual image on top */}
+      {url && (
+        <img
+          src={url}
+          alt=""
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${imgOk ? 'opacity-100' : 'opacity-0'}`}
+          style={{ filter: 'brightness(0.55) saturate(1.2)' }}
+          onLoad={() => setImgOk(true)}
+          onError={() => setImgOk(false)}
+        />
+      )}
       <style>{`
-        @keyframes shimmer-glow {
-          0%,100%{box-shadow:0 0 8px rgba(245,158,11,.15)}
-          50%{box-shadow:0 0 22px rgba(245,158,11,.4)}
-        }
-        @keyframes hero-fade{from{opacity:0}to{opacity:1}}
-        .shimmer-cta{animation:shimmer-glow 2.5s ease-in-out infinite}
-        .hero-fade{animation:hero-fade .6s ease-out}
+        @keyframes heroShimmer { 0% { opacity: 0.7; } 100% { opacity: 1; } }
+        @keyframes heroDrift { 0% { transform: translateX(0) scale(1); } 100% { transform: translateX(-20px) scale(1.05); } }
       `}</style>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        <HeroSection heroes={heroPool} navigate={navigate} />
-
-        {/* Universal Prompt Bar */}
-        <div className="mt-6 mb-8" data-testid="universal-prompt">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-            <input
-              value={promptText}
-              onChange={e => setPromptText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handlePrompt()}
-              placeholder="Type anything... A fox in a dark forest, a robot learning emotions, a mystery door..."
-              className="w-full h-14 pl-12 pr-32 bg-slate-900/60 border border-slate-800/60 rounded-2xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500/40 transition-colors"
-              data-testid="universal-prompt-input"
-            />
-            <button
-              onClick={handlePrompt}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-10 px-5 bg-gradient-to-r from-amber-600 to-rose-600 rounded-xl text-white text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-opacity shimmer-cta"
-              data-testid="universal-prompt-btn"
-            >
-              <Wand2 className="w-4 h-4" /> Create Story
-            </button>
-          </div>
-          <div className="flex gap-2 mt-2 flex-wrap">
-            {['A brave fox...', 'The door opened...', 'She trusted him...', 'The robot refused...'].map(chip => (
-              <button key={chip} onClick={() => setPromptText(chip)}
-                className="text-xs px-3 py-1.5 rounded-full bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors border border-slate-800/40"
-              >{chip}</button>
-            ))}
-          </div>
-        </div>
-
-        <LiveStats stats={liveStats} />
-
-        {resumeStory && <ResumeStoryBanner story={resumeStory} navigate={navigate} />}
-
-        <TrendingStories stories={trending} navigate={navigate} hookVariant={hookVariant} />
-
-        <ScrollTrap />
-
-        {characters.length > 0 && <CharacterUniverse characters={characters} navigate={navigate} />}
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-          {challenge && <DailyChallenge challenge={challenge} navigate={navigate} />}
-          {streak && <StreakCard streak={streak} />}
-          <CreditsCard credits={credits} navigate={navigate} />
-        </div>
-
-        <MoreTools show={showMoreTools} toggle={() => setShowMoreTools(!showMoreTools)} navigate={navigate} />
-      </div>
     </div>
   );
 }
 
-
-/* ═══════════════════════════════════════════════════════════
-   LIVE STATS — Truth-based, never shows zero
-   ═══════════════════════════════════════════════════════════ */
-function LiveStats({ stats }) {
-  const total = stats.total_stories || 0;
-  const today = stats.stories_today || 0;
-  const conts = stats.total_continuations || 0;
-
-  return (
-    <div className="flex items-center justify-center gap-6 mb-8 text-xs text-slate-500 flex-wrap" data-testid="live-stats">
-      {total > 0 ? (
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <strong className="text-emerald-400">{total}</strong> stories created
-        </span>
-      ) : (
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-emerald-400 font-semibold">Stories launching soon</span>
-        </span>
-      )}
-
-      <span className="w-px h-4 bg-slate-800" />
-
-      {today > 0 ? (
-        <span className="flex items-center gap-1.5">
-          <Flame className="w-3.5 h-3.5 text-amber-400" />
-          <strong className="text-amber-400">{today}</strong> added today
-        </span>
-      ) : (
-        <span className="flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-amber-400 font-semibold">Fresh stories waiting</span>
-        </span>
-      )}
-
-      <span className="w-px h-4 bg-slate-800" />
-
-      {conts > 0 ? (
-        <span className="flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5 text-violet-400" />
-          <strong className="text-violet-400">{conts}</strong> continuations
-        </span>
-      ) : (
-        <span className="flex items-center gap-1.5">
-          <Rocket className="w-3.5 h-3.5 text-violet-400" />
-          <span className="text-violet-400 font-semibold">Be the first to continue</span>
-        </span>
-      )}
-    </div>
-  );
+function getHook(story, idx) {
+  if (story.hook_text && story.hook_text.length > 20) return story.hook_text;
+  if (story.story_text && story.story_text.length > 20) {
+    const sentences = story.story_text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    if (sentences.length > 0) return sentences[0].trim() + '...';
+  }
+  return HOOK_BANK[idx % HOOK_BANK.length];
 }
 
+function getBadge(story, idx) {
+  if (idx === 0) return { text: 'TRENDING', color: 'bg-amber-500 text-black' };
+  if (story.continuations > 0) return { text: 'CONTINUING', color: 'bg-emerald-500 text-black' };
+  if (idx < 4) return { text: 'HOT', color: 'bg-rose-500 text-white' };
+  return { text: 'NEW', color: 'bg-violet-500 text-white' };
+}
 
-/* ═══════════════════════════════════════════════════════════
-   HERO SECTION — Rotating carousel with progress dots
-   ═══════════════════════════════════════════════════════════ */
-function HeroSection({ heroes, navigate }) {
-  const [idx, setIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
+/* ═══════════════════════════════════════════════════════
+   HERO SECTION — Full-width autoplay video / thumbnail
+   ═══════════════════════════════════════════════════════ */
+function HeroSection({ stories, navigate }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef(null);
   const timerRef = useRef(null);
-  const count = heroes.length;
 
-  const startTimer = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (count <= 1) return;
-    timerRef.current = setInterval(() => setIdx(p => (p + 1) % count), 6000);
-  }, [count]);
+  const heroStories = stories.filter(s => s.thumbnail_url).slice(0, 5);
+  const current = heroStories[activeIdx] || {};
 
   useEffect(() => {
-    if (!paused) startTimer();
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [paused, startTimer]);
+    if (heroStories.length <= 1) return;
+    timerRef.current = setInterval(() => {
+      setActiveIdx(prev => (prev + 1) % heroStories.length);
+    }, 8000);
+    return () => clearInterval(timerRef.current);
+  }, [heroStories.length]);
 
-  const goTo = (i) => {
-    setIdx(i);
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (!paused) startTimer();
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  }, [activeIdx]);
+
+  const goTo = (idx) => {
+    clearInterval(timerRef.current);
+    setActiveIdx(idx);
+    timerRef.current = setInterval(() => {
+      setActiveIdx(prev => (prev + 1) % heroStories.length);
+    }, 8000);
   };
 
-  if (!count) {
-    return (
-      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-[#0c0c1a] to-slate-900 border border-slate-800/40 p-8 md:p-12" data-testid="hero-section">
-        <div className="max-w-2xl">
-          <p className="text-xs font-bold text-amber-400 tracking-widest mb-3">CREATE YOUR STORY</p>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight mb-4">
-            Create your own animated story in <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-rose-400">30 seconds</span>
-          </h1>
-          <p className="text-base text-slate-400 mb-6 max-w-lg">Continue viral stories. Build characters. Make episodes instantly.</p>
-          <button onClick={() => navigate('/app/story-video-studio')}
-            className="h-12 px-8 bg-gradient-to-r from-amber-500 to-rose-500 rounded-xl text-white font-bold text-sm flex items-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20 shimmer-cta"
-            data-testid="hero-create-btn">
-            <Play className="w-5 h-5" /> Create a Story
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (!heroStories.length) return null;
 
-  const current = heroes[idx];
-  const hookText = current.hook_text || current.title || 'A story waiting to be continued\u2026';
+  const hookText = getHook(current, activeIdx);
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-slate-800/40 group"
-      data-testid="hero-section"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}>
-
-      {/* Background: video or thumbnail */}
-      <div className="absolute inset-0 z-0 hero-fade" key={`hero-bg-${idx}`}>
-        {current.output_url ? (
-          <video src={current.output_url} className="w-full h-full object-cover opacity-40"
-            autoPlay muted loop playsInline onError={e => { e.target.style.display = 'none'; }} />
-        ) : current.thumbnail_url ? (
-          <img src={current.thumbnail_url} alt="" className="w-full h-full object-cover opacity-30" />
-        ) : null}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#06060e] via-[#06060e]/80 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#06060e] via-transparent to-[#06060e]/40" />
+    <section className="relative w-full" style={{ height: '65vh', minHeight: '420px' }} data-testid="hero-section">
+      {/* Background media */}
+      <div className="absolute inset-0 overflow-hidden">
+        {current.output_url || current.preview_url ? (
+          <video
+            ref={videoRef}
+            key={current.job_id}
+            src={current.preview_url || current.output_url}
+            muted={isMuted}
+            autoPlay
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ filter: 'brightness(0.5)' }}
+          />
+        ) : (
+          <HeroBg url={current.thumbnail_url} title={current.title} />
+        )}
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 p-8 md:p-12 min-h-[300px] flex flex-col justify-center hero-fade" key={`hero-txt-${idx}`}>
-        <p className="text-xs font-bold text-amber-400 tracking-widest mb-3">
-          {(current.remix_count || 0) > 0 ? 'TRENDING NOW' : 'CONTINUE THIS STORY'}
-        </p>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white leading-tight mb-3 max-w-2xl">
-          &ldquo;{hookText}&rdquo;
-        </h1>
-        <p className="text-sm text-slate-400 mb-6">{current.title}</p>
-        <div className="flex gap-3 flex-wrap">
-          <button onClick={() => {
-              localStorage.setItem('remix_data', JSON.stringify({
-                prompt: current.story_text || current.hook_text || '',
-                timestamp: Date.now(), source_tool: 'dashboard-continue',
-                remixFrom: { parent_video_id: current.job_id, title: current.title }
-              }));
-              navigate('/app/story-video-studio');
-            }}
-            className="h-12 px-8 bg-gradient-to-r from-amber-500 to-rose-500 rounded-xl text-white font-bold text-sm flex items-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20 shimmer-cta"
-            data-testid="hero-continue-btn">
-            <Play className="w-5 h-5 fill-white" /> Continue This Story
-          </button>
-          <button onClick={() => navigate('/app/story-video-studio')}
-            className="h-12 px-8 bg-slate-800/80 border border-slate-700/60 rounded-xl text-white font-bold text-sm flex items-center gap-2 hover:bg-slate-700/80 transition-colors"
-            data-testid="hero-create-btn">
-            <Sparkles className="w-5 h-5" /> Create Your Version
-          </button>
+      {/* Gradient overlays */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-transparent to-transparent" />
+
+      {/* Content overlay */}
+      <div className="relative h-full flex flex-col justify-end px-6 sm:px-10 lg:px-16 pb-16 max-w-3xl">
+        <div className="animate-[fadeInUp_0.6s_ease-out]">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="bg-rose-600 text-white text-[10px] font-black tracking-wider px-2 py-0.5 rounded">
+              FEATURED
+            </span>
+            {current.animation_style && (
+              <span className="bg-white/10 backdrop-blur-sm text-white/70 text-[10px] font-bold px-2 py-0.5 rounded">
+                {current.animation_style.replace(/_/g, ' ').toUpperCase()}
+              </span>
+            )}
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight mb-3 drop-shadow-lg" data-testid="hero-title">
+            {current.title || 'Untitled Story'}
+          </h1>
+
+          <p className="text-base sm:text-lg text-white/80 leading-relaxed mb-6 max-w-xl line-clamp-2 italic" data-testid="hero-hook">
+            "{hookText}"
+          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/app/story-video-studio', { state: { continueJob: current.job_id } })}
+              className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-lg text-sm hover:bg-white/90 transition-all shadow-lg shadow-white/10"
+              data-testid="hero-continue-btn"
+            >
+              <Play className="w-4 h-4 fill-black" /> Continue Story
+            </button>
+            <button
+              onClick={() => navigate('/app/story-video-studio')}
+              className="flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm text-white font-bold rounded-lg text-sm hover:bg-white/20 transition-all border border-white/10"
+              data-testid="hero-create-btn"
+            >
+              <Sparkles className="w-4 h-4" /> Create Your Own
+            </button>
+            {(current.output_url || current.preview_url) && (
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/10 text-white hover:bg-white/20 transition-all"
+                data-testid="hero-mute-btn"
+              >
+                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Progress dots */}
-      {count > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2" data-testid="hero-dots">
-          {heroes.map((_, i) => (
+      {/* Carousel dots */}
+      {heroStories.length > 1 && (
+        <div className="absolute bottom-6 right-6 sm:right-10 lg:right-16 flex items-center gap-1.5" data-testid="hero-dots">
+          {heroStories.map((_, i) => (
             <button key={i} onClick={() => goTo(i)}
-              className={`rounded-full transition-all duration-300 ${i === idx ? 'w-6 h-2 bg-amber-400' : 'w-2 h-2 bg-slate-600 hover:bg-slate-400'}`}
-              aria-label={`Go to story ${i + 1}`} />
+              className={`h-1 rounded-full transition-all duration-500 ${i === activeIdx ? 'w-8 bg-white' : 'w-3 bg-white/30 hover:bg-white/50'}`}
+              data-testid={`hero-dot-${i}`}
+            />
           ))}
         </div>
       )}
-    </div>
-  );
-}
 
-
-/* ═══════════════════════════════════════════════════════════
-   RESUME STORY BANNER
-   ═══════════════════════════════════════════════════════════ */
-function ResumeStoryBanner({ story, navigate }) {
-  return (
-    <div className="mb-8 bg-gradient-to-r from-violet-500/[0.07] to-rose-500/[0.07] border border-violet-500/20 rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-violet-500/40 transition-colors"
-      onClick={() => navigate('/app/story-video-studio', { state: { resumeJob: story.job_id } })}
-      data-testid="resume-story-banner">
-      <div className="flex items-center gap-4">
-        {story.thumbnail_url && <img src={story.thumbnail_url} alt="" className="w-14 h-14 rounded-lg object-cover" />}
-        <div>
-          <p className="text-xs font-bold text-violet-400 tracking-wider">CONTINUE YOUR STORY</p>
-          <p className="text-sm font-bold text-white">{story.title}</p>
-          <p className="text-xs text-slate-500">Your episode is waiting&hellip;</p>
-        </div>
-      </div>
-      <button className="h-10 px-5 bg-violet-600 hover:bg-violet-500 rounded-xl text-white text-xs font-bold flex items-center gap-2 transition-colors">
-        <Play className="w-4 h-4 fill-white" /> Continue Episode
-      </button>
-    </div>
-  );
-}
-
-
-/* ═══════════════════════════════════════════════════════════
-   TRENDING STORIES + STORY CARD
-   ═══════════════════════════════════════════════════════════ */
-function TrendingStories({ stories, navigate, hookVariant }) {
-  if (!stories.length) {
-    return (
-      <section data-testid="trending-stories-empty" className="mt-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-black text-white flex items-center gap-2">
-            <Flame className="w-5 h-5 text-amber-400" /> Start a Story
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[
-            { title: 'A fox who saved the forest...', cat: 'Adventure', gradient: 'from-emerald-900/40 to-slate-900' },
-            { title: 'The robot refused to shut down.', cat: 'Sci-Fi', gradient: 'from-cyan-900/40 to-slate-900' },
-            { title: 'She opened the old music box...', cat: 'Emotional', gradient: 'from-rose-900/40 to-slate-900' },
-          ].map((s, i) => (
-            <button key={i} onClick={() => navigate('/app/story-video-studio', { state: { prefill: s.title } })}
-              className={`group text-left p-6 rounded-xl border border-slate-800/40 bg-gradient-to-br ${s.gradient} hover:border-amber-500/30 transition-all`}
-              data-testid={`start-story-${i}`}>
-              <span className="text-[10px] font-bold tracking-wider uppercase text-amber-400/60 mb-2 block">{s.cat}</span>
-              <p className="text-sm font-bold text-white leading-relaxed mb-3 group-hover:text-amber-200 transition-colors">"{s.title}"</p>
-              <div className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
-                <Play className="w-3.5 h-3.5 fill-amber-400" /> Create this story
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-    );
-  }
-  return (
-    <section data-testid="trending-stories">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-black text-white flex items-center gap-2">
-          <Flame className="w-5 h-5 text-amber-400" /> Trending Stories
-        </h2>
-        <button onClick={() => navigate('/app/explore')} className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
-          View All <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {stories.slice(0, 8).map((story, idx) => (
-          <StoryCard key={story.job_id} story={story} navigate={navigate} index={idx} hookVariant={hookVariant} />
-        ))}
-      </div>
+      <style>{`
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+      `}</style>
     </section>
   );
 }
 
-function StoryCard({ story, navigate, index = 0, hookVariant }) {
-  const [hovered, setHovered] = useState(false);
-  const proof = getProofLabel(story.remix_count || 0);
-  const ProofIcon = proof.Icon;
-  const isActive = (story.remix_count || 0) > 0;
+/* ═══════════════════════════════════════════════════════
+   STORY CARD — Netflix 4:5 card with hover effects
+   ═══════════════════════════════════════════════════════ */
+function StoryCard({ story, idx, navigate, size = 'md' }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const hook = getHook(story, idx);
+  const badge = getBadge(story, idx);
 
-  const hook = formatHook(story.hook_text || story.title);
-  const hv = hookVariant?.variant_data || {};
-  const ctaText = hv.cta_text || CTA_VARIANTS[index % CTA_VARIANTS.length];
-  const urgencyPool = isActive ? URGENCY_ACTIVE : URGENCY_FIRST;
-  const urgency = hv.urgency || urgencyPool[index % urgencyPool.length];
-
-  const handleClick = () => {
-    axios.post(`${API}/api/engagement/card-click`, {
-      story_id: story.job_id, cta_variant: ctaText, source: 'dashboard'
-    }).catch(() => {});
-    trackConversion('story_hook', 'click');
-    trackConversion('story_hook', 'continue_click');
-    localStorage.setItem('remix_data', JSON.stringify({
-      prompt: story.hook_text || story.title || '',
-      timestamp: Date.now(), source_tool: 'dashboard-continue',
-      remixFrom: { parent_video_id: story.job_id, title: story.title }
-    }));
-    navigate('/app/story-video-studio');
+  const sizeClasses = {
+    sm: 'w-36 sm:w-40',
+    md: 'w-44 sm:w-52',
+    lg: 'w-52 sm:w-60',
   };
 
   return (
     <div
-      className="group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10 border border-slate-800/40 hover:border-amber-500/30"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={handleClick}
-      data-testid="story-card"
+      className={`${sizeClasses[size]} flex-shrink-0 group relative rounded-2xl overflow-hidden cursor-pointer select-none`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={() => navigate('/app/story-video-studio', { state: { continueJob: story.job_id } })}
+      data-testid={`story-card-${idx}`}
+      style={{ transition: 'transform 0.3s ease, box-shadow 0.3s ease', transform: isHovered ? 'scale(1.05)' : 'scale(1)', boxShadow: isHovered ? '0 16px 40px rgba(0,0,0,0.5)' : 'none' }}
     >
-      {/* Full-bleed cinematic thumbnail */}
-      <div className="aspect-[4/5] relative overflow-hidden bg-slate-900">
-        {story.thumbnail_url ? (
-          <img
-            src={story.thumbnail_url}
-            alt={story.title}
-            className={`w-full h-full object-cover transition-all duration-700 ${
-              hovered ? 'scale-110 brightness-110' : 'scale-100 brightness-[0.85]'
-            }`}
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-            <Film className="w-10 h-10 text-slate-700" />
-          </div>
-        )}
-
-        {/* Dark gradient from bottom for text */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-
-        {/* Badge — top left */}
-        <div className={`absolute top-2.5 left-2.5 flex items-center gap-1 backdrop-blur-md rounded-full px-2.5 py-1 ${proof.bg} ${proof.fg}`}>
-          <ProofIcon className="w-3 h-3" />
-          <span className="text-[10px] font-bold">{proof.text}</span>
+      <div className="relative aspect-[4/5] overflow-hidden bg-slate-900">
+        {/* Thumbnail / Video preview */}
+        <div className="absolute inset-0" style={{ transition: 'filter 0.3s', filter: isHovered ? 'brightness(1.15)' : 'brightness(0.85)' }}>
+          {isHovered && (story.preview_url || story.output_url) ? (
+            <video
+              src={story.preview_url || story.output_url}
+              muted autoPlay loop playsInline
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <SafeImage
+              src={story.thumbnail_url}
+              alt={story.title}
+              aspectRatio="4/5"
+              fallbackType="gradient"
+              titleOverlay={story.title}
+              className="w-full h-full"
+              imgClassName="w-full h-full object-cover"
+            />
+          )}
         </div>
 
-        {/* Hover play button — center */}
-        <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${
-          hovered ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
-        }`}>
-          <div className="w-14 h-14 rounded-full bg-amber-500/90 flex items-center justify-center shadow-xl shadow-amber-500/30 shimmer-cta">
-            <Play className="w-7 h-7 text-white fill-white ml-0.5" />
+        {/* Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent pointer-events-none" />
+
+        {/* Badge */}
+        <div className="absolute top-2.5 left-2.5">
+          <span className={`${badge.color} text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md`}>
+            {badge.text}
+          </span>
+        </div>
+
+        {/* Hover play icon */}
+        <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/20">
+            <Play className="w-5 h-5 text-white fill-white ml-0.5" />
           </div>
         </div>
 
-        {/* Content overlay — bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-3.5 space-y-1.5">
-          {/* HOOK — biggest element, bold */}
-          <p className="text-sm font-black text-white leading-snug line-clamp-2" data-testid="story-hook">
-            {hook}
-          </p>
-
-          {/* Urgency — subtle truth-based message */}
-          <p className="text-[10px] text-slate-300/60 font-medium" data-testid="story-urgency">
-            {urgency}
-          </p>
-
-          {/* CTA — always visible, transforms on hover */}
-          <button
-            className={`w-full py-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all duration-300 ${
-              hovered
-                ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
-                : 'bg-white/10 backdrop-blur-sm text-white border border-white/10'
-            }`}
-            data-testid="story-cta"
+        {/* Bottom content */}
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <h3 className="text-xs font-bold text-white leading-tight mb-1 line-clamp-1">{story.title || 'Untitled'}</h3>
+          <p className="text-[10px] text-white/70 leading-snug line-clamp-2 italic mb-2">"{hook}"</p>
+          <div
+            className={`flex items-center gap-1.5 text-[10px] font-bold transition-all duration-300 ${isHovered ? 'text-white translate-x-1' : 'text-white/50'}`}
           >
-            <Play className={`w-3.5 h-3.5 ${hovered ? 'fill-black' : 'fill-white'}`} />
-            {ctaText}
-          </button>
+            <Play className="w-2.5 h-2.5 fill-current" />
+            Continue Story <ChevronRight className="w-2.5 h-2.5" />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+/* ═══════════════════════════════════════════════════════
+   HORIZONTAL SCROLL ROW — With nav arrows
+   ═══════════════════════════════════════════════════════ */
+function ScrollRow({ title, icon: Icon, iconColor, children, seeAllAction, testId }) {
+  const scrollRef = useRef(null);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(true);
 
-/* ═══════════════════════════════════════════════════════════
-   SCROLL TRAP — Appears on scroll with story-specific hook
-   ═══════════════════════════════════════════════════════════ */
-function ScrollTrap() {
-  const [visible, setVisible] = useState(false);
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setShowLeft(el.scrollLeft > 20);
+    setShowRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 20);
+  }, []);
+
+  const scroll = (dir) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: 'smooth' });
+    setTimeout(checkScroll, 400);
+  };
+
+  useEffect(() => { checkScroll(); }, [checkScroll, children]);
+
+  return (
+    <section className="relative py-3" data-testid={testId}>
+      <div className="flex items-center justify-between px-6 sm:px-10 lg:px-16 mb-3">
+        <h2 className="flex items-center gap-2 text-base sm:text-lg font-black text-white">
+          {Icon && <Icon className={`w-5 h-5 ${iconColor || 'text-white'}`} />}
+          {title}
+        </h2>
+        {seeAllAction && (
+          <button onClick={seeAllAction} className="flex items-center gap-1 text-xs text-white/40 hover:text-white/70 font-semibold transition-colors" data-testid={`${testId}-see-all`}>
+            See All <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className="relative group/row">
+        {/* Left arrow */}
+        {showLeft && (
+          <button onClick={() => scroll(-1)}
+            className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/70 backdrop-blur-sm rounded-full flex items-center justify-center text-white opacity-0 group-hover/row:opacity-100 transition-opacity border border-white/10 hover:bg-black/90"
+            data-testid={`${testId}-scroll-left`}>
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Scroll container */}
+        <div
+          ref={scrollRef}
+          onScroll={checkScroll}
+          className="flex gap-3 overflow-x-auto px-6 sm:px-10 lg:px-16 pb-2 scrollbar-hide"
+          style={{ scrollSnapType: 'x mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {children}
+        </div>
+
+        {/* Right arrow */}
+        {showRight && (
+          <button onClick={() => scroll(1)}
+            className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/70 backdrop-blur-sm rounded-full flex items-center justify-center text-white opacity-0 group-hover/row:opacity-100 transition-opacity border border-white/10 hover:bg-black/90"
+            data-testid={`${testId}-scroll-right`}>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Fade edges */}
+        <div className="absolute top-0 left-0 bottom-0 w-12 bg-gradient-to-r from-[#0a0a0f] to-transparent pointer-events-none" />
+        <div className="absolute top-0 right-0 bottom-0 w-12 bg-gradient-to-l from-[#0a0a0f] to-transparent pointer-events-none" />
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCROLL HOOK — Tension between sections
+   ═══════════════════════════════════════════════════════ */
+function ScrollHook({ text }) {
   const ref = useRef(null);
-  const [hookIdx] = useState(() => Math.floor(Math.random() * SCROLL_HOOKS.length));
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setVisible(true);
+    const observer = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) setVisible(true);
     }, { threshold: 0.5 });
-    obs.observe(el);
-    return () => obs.disconnect();
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
   }, []);
 
   return (
-    <div ref={ref} data-testid="scroll-trap"
-      className={`my-10 py-6 text-center transition-all duration-700 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-      <p className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-rose-400">
-        {SCROLL_HOOKS[hookIdx]}
+    <div ref={ref} className="py-10 text-center" data-testid="scroll-hook">
+      <p className={`text-lg sm:text-xl font-bold bg-gradient-to-r from-rose-400 via-violet-400 to-amber-400 bg-clip-text text-transparent transition-all duration-1000 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        {text}
       </p>
-      <div className="mt-3 flex justify-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60 animate-pulse" />
-        <span className="w-1.5 h-1.5 rounded-full bg-rose-500/60 animate-pulse" style={{ animationDelay: '0.2s' }} />
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60 animate-pulse" style={{ animationDelay: '0.4s' }} />
+      <div className={`flex justify-center gap-1 mt-3 transition-all duration-1000 delay-300 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" style={{ animationDelay: '0.2s' }} />
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '0.4s' }} />
       </div>
     </div>
   );
 }
 
+/* ═══════════════════════════════════════════════════════
+   CREATE PROMPT — Compact inline prompt
+   ═══════════════════════════════════════════════════════ */
+function CreatePrompt({ navigate }) {
+  const [prompt, setPrompt] = useState('');
 
-/* ═══════════════════════════════════════════════════════════
-   CHARACTER UNIVERSE
-   ═══════════════════════════════════════════════════════════ */
-function CharacterUniverse({ characters, navigate }) {
+  const go = () => {
+    navigate('/app/story-video-studio', { state: { prefill: prompt || undefined } });
+  };
+
   return (
-    <section className="mt-8" data-testid="character-universe">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-black text-white flex items-center gap-2">
-          <Star className="w-5 h-5 text-violet-400" /> Popular Characters
-        </h2>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {characters.map(char => (
-          <div key={char.character_id || char.name}
-            className="bg-slate-900/60 border border-slate-800/40 rounded-xl p-4 text-center hover:border-violet-500/30 cursor-pointer transition-colors"
-            onClick={() => navigate('/app/character-studio')} data-testid="character-card">
-            <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-violet-600 to-rose-600 flex items-center justify-center mb-2 text-xl font-black text-white">
-              {char.name?.[0] || '?'}
-            </div>
-            <p className="text-xs font-bold text-white truncate">{char.name}</p>
-            <p className="text-[10px] text-slate-500 truncate mt-0.5">{char.description?.slice(0, 40) || 'AI Character'}</p>
-            <button className="mt-2 w-full text-[10px] font-bold text-violet-400 hover:text-violet-300 transition-colors">
-              Continue with {char.name?.split(' ')[0]}
-            </button>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-
-/* ═══════════════════════════════════════════════════════════
-   ENGAGEMENT CARDS
-   ═══════════════════════════════════════════════════════════ */
-function DailyChallenge({ challenge, navigate }) {
-  return (
-    <div className="bg-gradient-to-br from-amber-500/[0.06] to-rose-500/[0.06] border border-amber-500/20 rounded-xl p-5" data-testid="daily-challenge">
-      <div className="flex items-center gap-2 mb-2">
-        <Target className="w-4 h-4 text-amber-400" />
-        <p className="text-[10px] font-bold text-amber-400 tracking-wider">DAILY CHALLENGE</p>
-      </div>
-      <p className="text-sm font-bold text-white mb-1">{challenge.prompt}</p>
-      <p className="text-xs text-slate-500 mb-3">Reward: +{challenge.reward} credits</p>
-      <button onClick={() => navigate(`/app/${challenge.tool}`)}
-        className="w-full h-9 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-400 text-xs font-bold hover:bg-amber-500/20 transition-colors">
-        Accept Challenge
-      </button>
-    </div>
-  );
-}
-
-function StreakCard({ streak }) {
-  return (
-    <div className="bg-gradient-to-br from-emerald-500/[0.06] to-teal-500/[0.06] border border-emerald-500/20 rounded-xl p-5" data-testid="streak-card">
-      <div className="flex items-center gap-2 mb-2">
-        <Trophy className="w-4 h-4 text-emerald-400" />
-        <p className="text-[10px] font-bold text-emerald-400 tracking-wider">YOUR STREAK</p>
-      </div>
-      <p className="text-3xl font-black text-white mb-1">{streak.current_streak || 0}</p>
-      <p className="text-xs text-slate-500">days creating</p>
-      <div className="flex gap-1 mt-3">
-        {[1,2,3,4,5,6,7].map(d => (
-          <div key={d} className={`flex-1 h-1.5 rounded-full ${d <= (streak.current_streak || 0) ? 'bg-emerald-400' : 'bg-slate-800'}`} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CreditsCard({ credits, navigate }) {
-  const isLoading = credits === null || credits === undefined;
-  return (
-    <div className="bg-gradient-to-br from-violet-500/[0.06] to-indigo-500/[0.06] border border-violet-500/20 rounded-xl p-5" data-testid="credits-card">
-      <div className="flex items-center gap-2 mb-2">
-        <Zap className="w-4 h-4 text-violet-400" />
-        <p className="text-[10px] font-bold text-violet-400 tracking-wider">CREDITS</p>
-      </div>
-      {isLoading ? (
-        <div className="h-9 w-20 bg-slate-800/60 rounded-lg animate-pulse mb-1" />
-      ) : (
-        <p className="text-3xl font-black text-white mb-1" data-testid="credits-value">{credits.toLocaleString()}</p>
-      )}
-      <p className="text-xs text-slate-500">available credits</p>
-      <button onClick={() => navigate('/app/pricing')}
-        className="mt-3 w-full h-9 bg-violet-500/10 border border-violet-500/20 rounded-lg text-violet-400 text-xs font-bold hover:bg-violet-500/20 transition-colors"
-        data-testid="get-more-credits-btn">
-        Get More Credits
-      </button>
-    </div>
-  );
-}
-
-
-/* ═══════════════════════════════════════════════════════════
-   MORE TOOLS (DEMOTED)
-   ═══════════════════════════════════════════════════════════ */
-const TOOLS = [
-  { id: 'story-video-studio', name: 'Story Video', icon: Film, color: 'amber', path: '/app/story-video-studio', primary: true },
-  { id: 'story-series', name: 'Story Series', icon: BookOpen, color: 'violet', path: '/app/story-series' },
-  { id: 'reels', name: 'Reel Generator', icon: Play, color: 'rose', path: '/app/reels' },
-  { id: 'photo-to-comic', name: 'Photo to Comic', icon: Sparkles, color: 'cyan', path: '/app/photo-to-comic' },
-  { id: 'comic-storybook', name: 'Comic Storybook', icon: BookOpen, color: 'emerald', path: '/app/comic-storybook-builder' },
-  { id: 'bedtime-story', name: 'Bedtime Stories', icon: Star, color: 'purple', path: '/app/bedtime-story-builder' },
-  { id: 'gif-maker', name: 'Reaction GIF', icon: Zap, color: 'pink', path: '/app/gif-maker' },
-  { id: 'coloring-book', name: 'Coloring Book', icon: Wand2, color: 'orange', path: '/app/coloring-book' },
-  { id: 'caption-rewriter', name: 'Caption Rewriter', icon: MessageSquare, color: 'teal', path: '/app/caption-rewriter' },
-  { id: 'brand-story', name: 'Brand Story', icon: Target, color: 'blue', path: '/app/brand-story-builder' },
-];
-
-function MoreTools({ show, toggle, navigate }) {
-  return (
-    <section className="mt-8" data-testid="more-tools">
-      <button onClick={toggle}
-        className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-white mb-4 transition-colors"
-        data-testid="more-tools-toggle">
-        <ChevronDown className={`w-4 h-4 transition-transform ${show ? 'rotate-180' : ''}`} />
-        {show ? 'Hide Tools' : 'More Creative Tools'}
-      </button>
-      {show && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 animate-in fade-in duration-300">
-          {TOOLS.map(tool => {
-            const Icon = tool.icon;
-            return (
-              <button key={tool.id} onClick={() => navigate(tool.path)}
-                className={`p-4 rounded-xl border transition-all duration-200 text-left hover:scale-[1.02] ${
-                  tool.primary ? 'bg-amber-500/[0.06] border-amber-500/20 hover:border-amber-500/40'
-                    : 'bg-slate-900/60 border-slate-800/40 hover:border-slate-700/60'}`}
-                data-testid={`tool-${tool.id}`}>
-                <Icon className={`w-5 h-5 text-${tool.color}-400 mb-2`} />
-                <p className="text-xs font-bold text-white">{tool.name}</p>
-              </button>
-            );
-          })}
+    <section className="px-6 sm:px-10 lg:px-16 py-6" data-testid="create-prompt">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3 focus-within:border-violet-500/40 transition-colors">
+          <Search className="w-5 h-5 text-white/30 flex-shrink-0" />
+          <input
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && go()}
+            placeholder="Type a story idea... A fox in a dark forest, a robot learning emotions..."
+            className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
+            data-testid="create-prompt-input"
+          />
+          <button onClick={go}
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-rose-600 to-violet-600 text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity flex-shrink-0"
+            data-testid="create-prompt-btn">
+            <Sparkles className="w-3.5 h-3.5" /> Create
+          </button>
         </div>
-      )}
+        <div className="flex flex-wrap gap-2 mt-2.5 justify-center">
+          {['A brave fox...', 'The door opened...', 'She trusted him...', 'The robot refused...'].map(chip => (
+            <button key={chip} onClick={() => { setPrompt(chip); }}
+              className="px-3 py-1 bg-white/[0.04] border border-white/[0.06] rounded-full text-[11px] text-white/40 hover:text-white/70 hover:border-white/15 transition-all"
+              data-testid={`chip-${chip.slice(0,8)}`}>
+              {chip}
+            </button>
+          ))}
+        </div>
+      </div>
     </section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   QUICK TOOLS — Compact row, not the main focus
+   ═══════════════════════════════════════════════════════ */
+function QuickTools({ navigate }) {
+  const tools = [
+    { name: 'Story Video', icon: Film, path: '/app/story-video-studio', color: 'text-violet-400' },
+    { name: 'Reels', icon: Play, path: '/app/reels', color: 'text-rose-400' },
+    { name: 'Comic Book', icon: BookOpen, path: '/app/comic-storybook', color: 'text-cyan-400' },
+    { name: 'Bedtime Story', icon: Star, path: '/app/bedtime-stories', color: 'text-amber-400' },
+    { name: 'Caption AI', icon: Wand2, path: '/app/caption-rewriter', color: 'text-emerald-400' },
+  ];
+
+  return (
+    <section className="px-6 sm:px-10 lg:px-16 py-4" data-testid="quick-tools">
+      <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1">
+        <span className="text-[10px] font-bold text-white/20 uppercase tracking-wider flex-shrink-0">Tools</span>
+        {tools.map(t => (
+          <button key={t.name} onClick={() => navigate(t.path)}
+            className="flex items-center gap-2 px-4 py-2 bg-white/[0.03] border border-white/[0.06] rounded-xl text-xs font-semibold text-white/50 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.12] transition-all flex-shrink-0"
+            data-testid={`tool-${t.name.replace(/\s/g,'-').toLowerCase()}`}>
+            <t.icon className={`w-3.5 h-3.5 ${t.color}`} />
+            {t.name}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN DASHBOARD — Netflix-style story platform
+   ═══════════════════════════════════════════════════════ */
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { credits } = useCredits();
+  const [feed, setFeed] = useState({ hero: null, trending: [], characters: [], live_stats: {} });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await axios.get(`${API}/api/engagement/story-feed`, auth());
+        setFeed(res.data);
+      } catch (e) {
+        console.error('Feed load failed', e);
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const { trending, hero, live_stats } = feed;
+
+  // Build sections from data
+  const heroStories = [hero, ...trending.filter(s => s.job_id !== hero?.job_id)].filter(Boolean).filter(s => s.thumbnail_url);
+  const trendingStories = trending.filter(s => s.thumbnail_url);
+  const continueStories = trending.filter(s => s.continuations > 0 || s.output_url).slice(0, 8);
+  const newStories = trending.filter(s => !s.continuations).slice(0, 8);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-white/40">Loading your stories...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0f]" data-testid="dashboard">
+      {/* Hero — Full width autoplay */}
+      <HeroSection stories={heroStories} navigate={navigate} />
+
+      {/* Create prompt — subtle */}
+      <CreatePrompt navigate={navigate} />
+
+      {/* Continue Watching / Active Stories */}
+      {continueStories.length > 0 && (
+        <ScrollRow
+          title="Continue Watching"
+          icon={Play}
+          iconColor="text-emerald-400"
+          testId="continue-watching"
+        >
+          {continueStories.map((story, idx) => (
+            <StoryCard key={story.job_id || idx} story={story} idx={idx} navigate={navigate} size="md" />
+          ))}
+        </ScrollRow>
+      )}
+
+      {/* Trending Now */}
+      {trendingStories.length > 0 && (
+        <ScrollRow
+          title="Trending Now"
+          icon={Flame}
+          iconColor="text-amber-400"
+          seeAllAction={() => navigate('/app/explore')}
+          testId="trending-now"
+        >
+          {trendingStories.map((story, idx) => (
+            <StoryCard key={story.job_id || idx} story={story} idx={idx} navigate={navigate} size="lg" />
+          ))}
+        </ScrollRow>
+      )}
+
+      {/* Scroll hook */}
+      <ScrollHook text="You won't believe what happens next..." />
+
+      {/* Just Dropped / New Stories */}
+      {newStories.length > 0 && (
+        <ScrollRow
+          title="Just Dropped"
+          icon={Sparkles}
+          iconColor="text-violet-400"
+          testId="just-dropped"
+        >
+          {newStories.map((story, idx) => (
+            <StoryCard key={story.job_id || idx} story={story} idx={idx + 10} navigate={navigate} size="md" />
+          ))}
+        </ScrollRow>
+      )}
+
+      {/* Live pulse */}
+      <div className="px-6 sm:px-10 lg:px-16 py-4">
+        <div className="flex items-center justify-center gap-6 text-xs text-white/30">
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {live_stats.total_stories || 0} stories created
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Clock className="w-3 h-3" />
+            Stories ready in minutes
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Zap className="w-3 h-3 text-violet-400" />
+            {credits === null ? '...' : credits >= 999999 ? 'Unlimited' : credits} credits
+          </span>
+        </div>
+      </div>
+
+      {/* Quick tools — compact, bottom */}
+      <QuickTools navigate={navigate} />
+
+      {/* Bottom gradient fade */}
+      <div className="h-20" />
+
+      {/* Hide scrollbar globally for this page */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+    </div>
   );
 }
