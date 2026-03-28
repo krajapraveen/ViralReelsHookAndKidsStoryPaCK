@@ -1,8 +1,9 @@
-"""R2 Media Proxy — streams R2 objects through the backend to avoid presigned URL issues."""
+"""R2 Media Proxy — streams R2 objects with Range request support for video playback."""
 import os
+import re
 import logging
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 from urllib.parse import unquote
 
 logger = logging.getLogger(__name__)
@@ -40,28 +41,88 @@ CONTENT_TYPES = {
     '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
 }
 
-@router.get("/r2/{path:path}")
-async def proxy_r2(path: str):
-    """Stream an R2 object directly — no presigned URL needed."""
-    from fastapi.responses import Response
+def _get_content_type(key, fallback='application/octet-stream'):
+    ext = '.' + key.rsplit('.', 1)[-1] if '.' in key else ''
+    return CONTENT_TYPES.get(ext.lower(), fallback)
+
+
+@router.head("/r2/{path:path}")
+async def head_r2(path: str):
+    """HEAD request — returns metadata without body (needed by video players)."""
     key = unquote(path)
     client, bucket = _get_client()
     if not client:
         raise HTTPException(status_code=503, detail="Storage not configured")
     try:
-        resp = client.get_object(Bucket=bucket, Key=key)
-        ext = '.' + key.rsplit('.', 1)[-1] if '.' in key else ''
-        ct = CONTENT_TYPES.get(ext.lower(), resp.get('ContentType', 'application/octet-stream'))
-        body = resp['Body'].read()
+        head = client.head_object(Bucket=bucket, Key=key)
+        ct = _get_content_type(key, head.get('ContentType', 'application/octet-stream'))
+        return Response(
+            content=b'',
+            media_type=ct,
+            headers={
+                "Content-Length": str(head['ContentLength']),
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=86400, immutable",
+            }
+        )
+    except Exception as e:
+        logger.error(f"R2 HEAD error for {key}: {e}")
+        raise HTTPException(status_code=404, detail="Not found")
 
+
+@router.get("/r2/{path:path}")
+async def proxy_r2(path: str, request: Request):
+    """Stream an R2 object with Range request support for video/audio playback."""
+    key = unquote(path)
+    client, bucket = _get_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Storage not configured")
+
+    try:
+        # Get file size first
+        head = client.head_object(Bucket=bucket, Key=key)
+        total_size = head['ContentLength']
+        ct = _get_content_type(key, head.get('ContentType', 'application/octet-stream'))
+
+        range_header = request.headers.get('range')
+
+        if range_header:
+            # Parse Range: bytes=START-END
+            match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+            if match:
+                start = int(match.group(1))
+                end = int(match.group(2)) if match.group(2) else min(start + 2 * 1024 * 1024, total_size - 1)
+                end = min(end, total_size - 1)
+                length = end - start + 1
+
+                resp = client.get_object(Bucket=bucket, Key=key, Range=f'bytes={start}-{end}')
+                body = resp['Body'].read()
+
+                return Response(
+                    content=body,
+                    status_code=206,
+                    media_type=ct,
+                    headers={
+                        "Content-Range": f"bytes {start}-{end}/{total_size}",
+                        "Content-Length": str(length),
+                        "Accept-Ranges": "bytes",
+                        "Cache-Control": "public, max-age=86400, immutable",
+                    }
+                )
+
+        # No Range — return full content (fine for images, small files)
+        resp = client.get_object(Bucket=bucket, Key=key)
+        body = resp['Body'].read()
         return Response(
             content=body,
             media_type=ct,
             headers={
-                "Cache-Control": "public, max-age=86400, immutable",
                 "Content-Length": str(len(body)),
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=86400, immutable",
             }
         )
+
     except client.exceptions.NoSuchKey:
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e:

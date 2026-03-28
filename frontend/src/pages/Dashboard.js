@@ -52,12 +52,15 @@ function getBadge(story, idx) {
 function HeroSection({ stories, navigate }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
+  const [videoFailed, setVideoFailed] = useState(false);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
 
   const heroStories = stories.slice(0, 5);
   const current = heroStories[activeIdx] || {};
   const videoSrc = mediaUrl(current.preview_url || current.output_url);
+  const posterSrc = mediaUrl(current.thumbnail_url);
+  const canShowVideo = videoSrc && !videoFailed;
 
   useEffect(() => {
     if (heroStories.length <= 1) return;
@@ -68,6 +71,7 @@ function HeroSection({ stories, navigate }) {
   }, [heroStories.length]);
 
   useEffect(() => {
+    setVideoFailed(false);
     if (videoRef.current) {
       videoRef.current.load();
       videoRef.current.play().catch(() => {});
@@ -87,16 +91,33 @@ function HeroSection({ stories, navigate }) {
   const hookText = getHook(current, activeIdx);
   const hash = (current.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const fallbackGrads = [
-    'from-violet-900 via-indigo-950 to-black',
-    'from-rose-900 via-purple-950 to-black',
-    'from-emerald-900 via-teal-950 to-black',
+    'from-violet-800 via-indigo-900 to-black',
+    'from-rose-800 via-purple-900 to-black',
+    'from-emerald-800 via-teal-900 to-black',
+    'from-cyan-800 via-blue-900 to-black',
+    'from-amber-800 via-orange-900 to-black',
   ];
 
   return (
-    <section className="relative w-full" style={{ height: '50vh', minHeight: '360px' }} data-testid="hero-section">
+    <section className="relative w-full" style={{ height: '48vh', minHeight: '340px' }} data-testid="hero-section">
       {/* Video or gradient background */}
       <div className="absolute inset-0 overflow-hidden bg-black">
-        {videoSrc ? (
+        {/* Layer 1: Gradient fallback (always present) */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrads[hash % fallbackGrads.length]}`} />
+
+        {/* Layer 2: Thumbnail image (shows when available, covers gradient) */}
+        {posterSrc && (
+          <img
+            src={posterSrc}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ filter: 'brightness(0.7) saturate(1.2)' }}
+            data-testid="hero-poster"
+          />
+        )}
+
+        {/* Layer 3: Autoplay video (shows on top when it loads successfully) */}
+        {canShowVideo && (
           <video
             ref={videoRef}
             key={`hero-${current.job_id}`}
@@ -106,16 +127,15 @@ function HeroSection({ stories, navigate }) {
             loop
             playsInline
             className="absolute inset-0 w-full h-full object-cover"
-            style={{ filter: 'brightness(0.6) saturate(1.2)' }}
+            style={{ filter: 'brightness(0.7) saturate(1.2)' }}
             data-testid="hero-video"
+            onError={() => setVideoFailed(true)}
           />
-        ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrads[hash % fallbackGrads.length]}`} />
         )}
       </div>
 
-      {/* Layered gradients for text readability */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
+      {/* Layered gradients — lighter so video shows through */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-transparent to-transparent" />
 
       {/* Content */}
@@ -130,7 +150,7 @@ function HeroSection({ stories, navigate }) {
                 {current.animation_style.replace(/_/g, ' ').toUpperCase()}
               </span>
             )}
-            {videoSrc && (
+            {canShowVideo && (
               <span className="flex items-center gap-1 bg-red-600/80 text-white text-[9px] font-black px-2 py-0.5 rounded">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
               </span>
@@ -160,7 +180,7 @@ function HeroSection({ stories, navigate }) {
             >
               <Plus className="w-4 h-4" /> Create New
             </button>
-            {videoSrc && (
+            {canShowVideo && (
               <button
                 onClick={() => setIsMuted(!isMuted)}
                 className="w-9 h-9 flex items-center justify-center rounded-full bg-black/40 backdrop-blur border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all"
@@ -407,24 +427,24 @@ function DashboardSkeleton() {
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="dashboard-skeleton">
       {/* Hero skeleton */}
-      <div className="w-full bg-black/50 animate-pulse" style={{ height: '60vh', minHeight: '420px' }}>
+      <div className="w-full bg-gradient-to-br from-slate-900 to-black" style={{ height: '48vh', minHeight: '340px' }}>
         <div className="h-full flex flex-col justify-end p-10 max-w-3xl">
-          <div className="w-20 h-4 bg-white/10 rounded mb-3" />
-          <div className="w-80 h-10 bg-white/10 rounded mb-2" />
-          <div className="w-64 h-5 bg-white/5 rounded mb-5" />
+          <div className="w-20 h-4 bg-white/10 rounded mb-3 animate-pulse" />
+          <div className="w-72 h-9 bg-white/10 rounded mb-2 animate-pulse" />
+          <div className="w-56 h-5 bg-white/5 rounded mb-5 animate-pulse" />
           <div className="flex gap-3">
-            <div className="w-36 h-10 bg-white/10 rounded-lg" />
-            <div className="w-28 h-10 bg-white/5 rounded-lg" />
+            <div className="w-36 h-10 bg-white/10 rounded-lg animate-pulse" />
+            <div className="w-28 h-10 bg-white/5 rounded-lg animate-pulse" />
           </div>
         </div>
       </div>
       {/* Row skeletons */}
       {[1, 2].map(r => (
-        <div key={r} className="px-10 pt-5">
-          <div className="w-32 h-5 bg-white/10 rounded mb-3" />
-          <div className="flex gap-3">
-            {[1, 2, 3, 4, 5].map(c => (
-              <div key={c} className="w-56 aspect-[3/4] bg-white/5 rounded-xl animate-pulse flex-shrink-0" />
+        <div key={r} className="px-10 pt-4">
+          <div className="w-28 h-4 bg-white/10 rounded mb-2 animate-pulse" />
+          <div className="flex gap-2.5">
+            {[1, 2, 3, 4, 5, 6].map(c => (
+              <div key={c} className="w-60 aspect-[3/4] bg-white/[0.03] rounded-xl animate-pulse flex-shrink-0" />
             ))}
           </div>
         </div>
@@ -460,26 +480,25 @@ export default function Dashboard() {
 
   const { trending, hero, live_stats } = feed;
 
-  // Hero candidates: stories with thumbnails (prefer ones with video)
+  // Hero candidates: ALL stories (SafeImage handles missing thumbnails with gradient)
   const heroPool = [hero, ...trending.filter(s => s.job_id !== hero?.job_id)]
-    .filter(Boolean)
-    .filter(s => s.thumbnail_url);
+    .filter(Boolean);
 
-  // Row 1 — Trending Now: top stories by engagement (first 8)
-  const trendingStories = trending.filter(s => s.thumbnail_url).slice(0, 8);
+  // Row 1 — Trending Now: top stories by engagement (first 10)
+  const trendingStories = trending.slice(0, 10);
 
   // Row 2 — Fresh Stories: sort by created_at desc (different order than trending)
   const freshStories = [...trending]
-    .filter(s => s.thumbnail_url)
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
-    .slice(0, 8);
+    .slice(0, 10);
 
   // Row 3 — Watch Now: stories with actual video output
   const watchableStories = trending
-    .filter(s => s.thumbnail_url && s.output_url)
-    .slice(0, 8);
+    .filter(s => s.output_url)
+    .slice(0, 10);
 
-  const hasContent = heroPool.length > 0 || trendingStories.length > 0;
+  // Show content if we have ANY stories from the API, OR if live_stats says stories exist
+  const hasContent = heroPool.length > 0 || trendingStories.length > 0 || (live_stats.total_stories || 0) > 0;
   const isLoggedIn = !!localStorage.getItem('token');
 
   return (
@@ -558,16 +577,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Empty state — only if truly no content */}
+      {/* Empty state — only if truly ZERO stories in the entire system */}
       {!hasContent && (
-        <div className="flex flex-col items-center justify-center py-16 px-6 text-center" data-testid="empty-state">
-          <Film className="w-12 h-12 text-white/10 mb-4" />
-          <h2 className="text-lg font-bold text-white/50 mb-2">No stories yet</h2>
-          <p className="text-sm text-white/30 mb-6 max-w-md">Create your first AI story video and watch the feed come alive.</p>
+        <div className="flex flex-col items-center justify-center py-12 px-6 text-center" data-testid="empty-state">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600/20 to-rose-600/20 flex items-center justify-center mb-4">
+            <Film className="w-8 h-8 text-violet-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Your story feed is waiting</h2>
+          <p className="text-sm text-white/40 mb-6 max-w-sm">Create your first AI story video and this feed will come alive with content.</p>
           <button onClick={() => navigate('/app/story-video-studio')}
-            className="px-6 py-2.5 bg-gradient-to-r from-rose-600 to-violet-600 text-white text-sm font-bold rounded-lg hover:opacity-90 transition-opacity"
+            className="px-8 py-3 bg-gradient-to-r from-rose-600 to-violet-600 text-white text-sm font-bold rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-lg shadow-violet-600/20"
             data-testid="empty-create-btn">
-            <Sparkles className="w-4 h-4 inline mr-1.5" /> Create Your First Story
+            <Sparkles className="w-4 h-4 inline mr-2" /> Create Your First Story
           </button>
         </div>
       )}

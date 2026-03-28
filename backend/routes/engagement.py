@@ -261,11 +261,23 @@ async def get_story_feed():
         except Exception:
             return stored_url
 
-    # Hero story: most popular completed video with thumbnail
+    # Hero story: best completed story (prefer one with thumbnail+video, fallback to any)
     hero_job = await db.pipeline_jobs.find_one(
         {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "thumbnail_url": {"$exists": True, "$ne": None}},
         {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1},
     )
+    # Fallback: any completed story with video (no thumbnail required)
+    if not hero_job:
+        hero_job = await db.pipeline_jobs.find_one(
+            {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
+            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1},
+        )
+    # Fallback: any completed story at all
+    if not hero_job:
+        hero_job = await db.pipeline_jobs.find_one(
+            {"status": "COMPLETED"},
+            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1},
+        )
     if hero_job:
         hero_job["thumbnail_url"] = to_proxy_url(hero_job.get("thumbnail_url"))
         hero_job["output_url"] = to_proxy_url(hero_job.get("output_url"))
@@ -275,11 +287,11 @@ async def get_story_feed():
         sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
         hero_job["hook_text"] = (sentences[0] + "...") if sentences else ""
 
-    # Trending stories: top 12 by remix count with thumbnails
+    # Trending stories: top 20 completed stories (no thumbnail requirement — frontend handles missing thumbnails)
     trending = await db.pipeline_jobs.find(
-        {"status": "COMPLETED", "thumbnail_url": {"$exists": True, "$ne": None}},
+        {"status": "COMPLETED"},
         {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "created_at": 1},
-    ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=12)
+    ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=20)
 
     for job in trending:
         job["thumbnail_url"] = to_proxy_url(job.get("thumbnail_url"))

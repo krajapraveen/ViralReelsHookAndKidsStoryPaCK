@@ -153,7 +153,7 @@ async def stitch_clips(
         return False
 
     if len(clip_paths) == 1:
-        cmd = f'ffmpeg -y -i "{clip_paths[0]}" -c:v libx264 -pix_fmt yuv420p -preset medium -crf 20 "{output_path}"'
+        cmd = f'ffmpeg -y -i "{clip_paths[0]}" -c:v libx264 -pix_fmt yuv420p -preset medium -crf 20 -movflags +faststart "{output_path}"'
         return await _run_ffmpeg(cmd)
 
     # Step 1: Normalize all clips to 25fps, 1280x720, same pixel format
@@ -205,7 +205,7 @@ async def stitch_clips(
     cmd = (
         f'ffmpeg -y {inputs} '
         f"-filter_complex '{filter_complex}' "
-        f'-map "[v]" -c:v libx264 -pix_fmt yuv420p -crf 20 "{output_path}"'
+        f'-map "[v]" -c:v libx264 -pix_fmt yuv420p -crf 20 -movflags +faststart "{output_path}"'
     )
     # Use inline runner for stitch (fast enough for < 10 clips, avoids shell escaping issues with detached runner)
     result = await _run_ffmpeg(cmd, timeout=180)
@@ -219,7 +219,7 @@ async def stitch_clips(
                 f.write(f"file '{p}'\n")
         concat_cmd = (
             f'ffmpeg -y -f concat -safe 0 -i "{concat_list}" '
-            f'-c:v libx264 -pix_fmt yuv420p -crf 20 "{output_path}"'
+            f'-c:v libx264 -pix_fmt yuv420p -crf 20 -movflags +faststart "{output_path}"'
         )
         result = await _run_ffmpeg(concat_cmd, timeout=120)
         try:
@@ -251,7 +251,7 @@ async def mix_audio(
 
     if not narration_path and not music_path:
         # No audio — just copy video
-        cmd = f'ffmpeg -y -i "{video_path}" -c copy "{output_path}"'
+        cmd = f'ffmpeg -y -i "{video_path}" -c copy -movflags +faststart "{output_path}"'
         return await _run_ffmpeg(cmd)
 
     inputs = f'-i "{video_path}"'
@@ -282,7 +282,7 @@ async def mix_audio(
     cmd = (
         f'ffmpeg -y {inputs} '
         f"-filter_complex '{filter_complex}' "
-        f'-map 0:v -map {audio_map} -c:v copy -c:a aac -b:a 192k "{output_path}"'
+        f'-map 0:v -map {audio_map} -c:v copy -c:a aac -b:a 192k -movflags +faststart "{output_path}"'
     )
     return await _run_ffmpeg(cmd, timeout=180)
 
@@ -296,7 +296,7 @@ async def generate_preview(
     _ensure_dir()
     cmd = (
         f'ffmpeg -y -i "{video_path}" -t {duration} '
-        f'-c:v libx264 -pix_fmt yuv420p -crf 24 "{output_path}"'
+        f'-c:v libx264 -pix_fmt yuv420p -crf 24 -movflags +faststart "{output_path}"'
     )
     return await _run_ffmpeg(cmd)
 
@@ -324,7 +324,7 @@ async def burn_subtitles(
     _ensure_dir()
     cmd = (
         f'ffmpeg -y -i "{video_path}" '
-        f'-vf "subtitles={srt_path}" -c:v libx264 -crf 20 -c:a copy "{output_path}"'
+        f'-vf "subtitles={srt_path}" -c:v libx264 -crf 20 -c:a copy -movflags +faststart "{output_path}"'
     )
     return await _run_ffmpeg(cmd)
 
@@ -344,7 +344,7 @@ async def create_ken_burns_fallback(
         f'-vf "zoompan=z=\'min(zoom+0.0015,1.15)\':'
         f'x=\'iw/2-(iw/zoom/2)\':y=\'ih/2-(ih/zoom/2)\':'
         f'd={int(duration*25)}:s=1280x720,framerate=25" '
-        f'-t {duration} -c:v libx264 -pix_fmt yuv420p "{output_path}"'
+        f'-t {duration} -c:v libx264 -pix_fmt yuv420p -movflags +faststart "{output_path}"'
     )
     return await _run_ffmpeg(cmd)
 
