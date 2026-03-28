@@ -62,7 +62,10 @@ async def head_r2(path: str):
             headers={
                 "Content-Length": str(head['ContentLength']),
                 "Accept-Ranges": "bytes",
-                "Cache-Control": "public, max-age=86400, immutable",
+                "Cache-Control": "public, max-age=604800, immutable",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
             }
         )
     except Exception as e:
@@ -106,7 +109,10 @@ async def proxy_r2(path: str, request: Request):
                         "Content-Range": f"bytes {start}-{end}/{total_size}",
                         "Content-Length": str(length),
                         "Accept-Ranges": "bytes",
-                        "Cache-Control": "public, max-age=86400, immutable",
+                        "Cache-Control": "public, max-age=604800, immutable",
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                        "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
                     }
                 )
 
@@ -119,7 +125,10 @@ async def proxy_r2(path: str, request: Request):
             headers={
                 "Content-Length": str(len(body)),
                 "Accept-Ranges": "bytes",
-                "Cache-Control": "public, max-age=86400, immutable",
+                "Cache-Control": "public, max-age=604800, immutable",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
             }
         )
 

@@ -1,20 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { ImageOff } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
 
 /**
- * SafeImage — bulletproof image renderer.
- *
- * Handles: null, empty, data URIs, broken URLs, failed loads.
- * Always shows fallback or gradient placeholder. Never a broken image icon.
+ * SafeImage — bulletproof image renderer with priority loading support.
  *
  * Props:
- *   src           - image URL or data URI (can be null/empty)
+ *   src           - image URL (can be null/empty)
  *   alt           - alt text
- *   fallbackType  - 'gradient' | 'icon' | 'initials' (default: 'gradient')
+ *   fallbackType  - 'gradient' | 'initials' (default: 'gradient')
  *   aspectRatio   - CSS aspect-ratio value (default: '1/1')
  *   objectFit     - CSS object-fit (default: 'cover')
  *   titleOverlay  - text to overlay when image missing
- *   showSkeleton  - show pulse animation while loading
+ *   priority      - if true, use eager loading + fetchpriority=high
  *   className     - additional classes for the container
  *   imgClassName  - additional classes for the <img> tag
  */
@@ -25,7 +21,7 @@ export function SafeImage({
   aspectRatio = '1/1',
   objectFit = 'cover',
   titleOverlay,
-  showSkeleton = true,
+  priority = false,
   className = '',
   imgClassName = '',
   ...rest
@@ -35,13 +31,18 @@ export function SafeImage({
   const [retried, setRetried] = useState(false);
   const imgRef = useRef(null);
 
-  // Determine if src is usable
-  const isDataUri = src && src.startsWith('data:');
+  // Reset state when src changes
+  useEffect(() => {
+    setFailed(false);
+    setLoaded(false);
+    setRetried(false);
+  }, [src]);
+
   const isPlaceholder = src && src.includes('placehold.co');
   const hasValidSrc = src && !isPlaceholder && src.length > 5;
   const showImage = hasValidSrc && !failed;
 
-  // Gradient colors derived from alt/title for variety
+  // Gradient colors for fallback
   const hash = (alt || titleOverlay || 'a').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const gradients = [
     'from-indigo-600/40 to-cyan-600/30',
@@ -59,8 +60,8 @@ export function SafeImage({
       style={{ aspectRatio }}
       data-testid={rest['data-testid'] || undefined}
     >
-      {/* Skeleton loader */}
-      {showSkeleton && showImage && !loaded && (
+      {/* Skeleton pulse while image loading */}
+      {showImage && !loaded && (
         <div className="absolute inset-0 bg-slate-800 animate-pulse" />
       )}
 
@@ -70,20 +71,21 @@ export function SafeImage({
           ref={imgRef}
           src={src}
           alt={alt}
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding={priority ? 'sync' : 'async'}
           style={{ objectFit }}
           className={`w-full h-full transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} ${imgClassName}`}
           onLoad={() => setLoaded(true)}
           onError={() => {
             if (!retried && src) {
-              // One retry with cache-bust for transient R2 errors
               setRetried(true);
               setTimeout(() => {
                 if (imgRef.current) {
                   const bust = src.includes('?') ? `&_r=1` : `?_r=1`;
                   imgRef.current.src = src + bust;
                 }
-              }, 1000);
+              }, 800);
             } else {
               setFailed(true);
             }
@@ -91,20 +93,17 @@ export function SafeImage({
         />
       )}
 
-      {/* Fallback — shown when no valid src or image failed to load */}
+      {/* Gradient fallback — clean, no broken image icon */}
       {!showImage && (
         <div className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${grad}`}>
-          {fallbackType === 'icon' && (
-            <ImageOff className="w-6 h-6 text-white/20" />
-          )}
           {fallbackType === 'initials' && titleOverlay && (
-            <span className="text-xl font-bold text-white/30 uppercase">
+            <span className="text-2xl font-black text-white/20 uppercase">
               {titleOverlay.charAt(0)}
             </span>
           )}
           {titleOverlay && (
-            <div className="absolute inset-0 flex items-end p-2">
-              <span className="text-[10px] text-white/60 font-medium truncate leading-tight">
+            <div className="absolute inset-0 flex items-end p-3">
+              <span className="text-xs text-white/50 font-semibold truncate leading-tight">
                 {titleOverlay}
               </span>
             </div>

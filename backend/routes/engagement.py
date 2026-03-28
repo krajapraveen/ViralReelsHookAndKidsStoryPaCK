@@ -262,18 +262,23 @@ async def get_story_feed():
             return stored_url
 
     def resolve_thumbnail(job: dict) -> str | None:
-        """Resolve thumbnail: prefer thumbnail_url (via proxy), fallback to first scene image (direct R2 for speed)."""
+        """Resolve thumbnail: prefer thumbnail_url, fallback to first scene image via proxy."""
         thumb = to_proxy_url(job.get("thumbnail_url"))
         if thumb:
             return thumb
-        # Fallback: use the first scene image — serve directly from R2 CDN for speed
+        # Fallback: use the first scene image — always route through proxy for cross-domain reliability
         scene_imgs = job.get("scene_images", {})
         if scene_imgs:
             first_key = sorted(scene_imgs.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if scene_imgs else None
             if first_key and isinstance(scene_imgs[first_key], dict):
+                # Prefer r2_key for clean proxy URL
+                r2_key = scene_imgs[first_key].get("r2_key")
+                if r2_key:
+                    return f"/api/media/r2/{r2_key}"
+                # Fallback: convert direct URL to proxy
                 img_url = scene_imgs[first_key].get("url")
                 if img_url:
-                    return img_url  # direct R2 public URL — faster than proxy for thumbnails
+                    return to_proxy_url(img_url)
         return None
 
     # Hero story: best completed story (prefer one with thumbnail+video, fallback to any)
@@ -456,14 +461,18 @@ async def explore_stories(category: str = "all", sort: str = "trending", cursor:
 
     stories = []
     for job in raw:
-        # Resolve thumbnail: prefer thumbnail_url, fallback to first scene image (direct R2 for speed)
+        # Resolve thumbnail: prefer thumbnail_url, fallback to first scene image via proxy
         thumb = to_proxy_url(job.get("thumbnail_url"))
         if not thumb:
             scene_imgs = job.get("scene_images", {})
             if scene_imgs:
                 first_key = sorted(scene_imgs.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if scene_imgs else None
                 if first_key and isinstance(scene_imgs[first_key], dict):
-                    thumb = scene_imgs[first_key].get("url")  # direct R2 URL
+                    r2_key = scene_imgs[first_key].get("r2_key")
+                    if r2_key:
+                        thumb = f"/api/media/r2/{r2_key}"
+                    else:
+                        thumb = to_proxy_url(scene_imgs[first_key].get("url"))
         job["thumbnail_url"] = thumb
         job.pop("scene_images", None)
         text = job.get("story_text", "")
