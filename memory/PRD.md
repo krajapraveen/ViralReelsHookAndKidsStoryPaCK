@@ -42,6 +42,14 @@ Build a viral, addictive "Story Universe Engine" — a full-stack AI creator sui
 
 ## What's Been Implemented
 
+### Bug Fix — Missing Story Card Thumbnails (DONE — Feb 28, 2026)
+- Root cause: Most stories (18/20) had `thumbnail_url: null` but DID have `scene_images` with full R2 URLs
+- Fix: Backend `engagement.py` now falls back to the first scene image when `thumbnail_url` is missing
+- Uses direct R2 CDN URLs for scene image thumbnails (faster than proxy for large PNGs)
+- Also fixed `explore` endpoint to include stories with scene_images (not just thumbnail_url)
+- Result: ALL story cards now display real scene images — no more gradient placeholders
+- Tests: Visual verification — 20/20 stories now have thumbnails
+
 ### P0 — Admin Sidebar Navigation (DONE — Feb 28, 2026)
 - Persistent sidebar wrapping ALL `/app/admin/*` routes via `AdminLayout.js` with `<Outlet />`
 - 8 nav groups: Overview, Users, Content Engine, Jobs & Pipelines, Revenue & Credits, Analytics, System Health, Security

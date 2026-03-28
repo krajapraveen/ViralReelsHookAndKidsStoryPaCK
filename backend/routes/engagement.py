@@ -261,42 +261,59 @@ async def get_story_feed():
         except Exception:
             return stored_url
 
+    def resolve_thumbnail(job: dict) -> str | None:
+        """Resolve thumbnail: prefer thumbnail_url (via proxy), fallback to first scene image (direct R2 for speed)."""
+        thumb = to_proxy_url(job.get("thumbnail_url"))
+        if thumb:
+            return thumb
+        # Fallback: use the first scene image — serve directly from R2 CDN for speed
+        scene_imgs = job.get("scene_images", {})
+        if scene_imgs:
+            first_key = sorted(scene_imgs.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if scene_imgs else None
+            if first_key and isinstance(scene_imgs[first_key], dict):
+                img_url = scene_imgs[first_key].get("url")
+                if img_url:
+                    return img_url  # direct R2 public URL — faster than proxy for thumbnails
+        return None
+
     # Hero story: best completed story (prefer one with thumbnail+video, fallback to any)
     hero_job = await db.pipeline_jobs.find_one(
         {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "thumbnail_url": {"$exists": True, "$ne": None}},
-        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "scene_images": 1},
     )
     # Fallback: any completed story with video (no thumbnail required)
     if not hero_job:
         hero_job = await db.pipeline_jobs.find_one(
             {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
-            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1},
+            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "scene_images": 1},
         )
     # Fallback: any completed story at all
     if not hero_job:
         hero_job = await db.pipeline_jobs.find_one(
             {"status": "COMPLETED"},
-            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1},
+            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "scene_images": 1},
         )
     if hero_job:
-        hero_job["thumbnail_url"] = to_proxy_url(hero_job.get("thumbnail_url"))
+        hero_job["thumbnail_url"] = resolve_thumbnail(hero_job)
         hero_job["output_url"] = to_proxy_url(hero_job.get("output_url"))
         hero_job["preview_url"] = to_proxy_url(hero_job.get("preview_url"))
+        hero_job.pop("scene_images", None)
         # Extract hook line from story text
         text = hero_job.get("story_text", "")
         sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
         hero_job["hook_text"] = (sentences[0] + "...") if sentences else ""
 
-    # Trending stories: top 20 completed stories (no thumbnail requirement — frontend handles missing thumbnails)
+    # Trending stories: top 20 completed stories (no thumbnail requirement — fallback to scene images)
     trending = await db.pipeline_jobs.find(
         {"status": "COMPLETED"},
-        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "created_at": 1},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "created_at": 1, "scene_images": 1},
     ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=20)
 
     for job in trending:
-        job["thumbnail_url"] = to_proxy_url(job.get("thumbnail_url"))
+        job["thumbnail_url"] = resolve_thumbnail(job)
         job["output_url"] = to_proxy_url(job.get("output_url"))
         job["preview_url"] = to_proxy_url(job.get("preview_url"))
+        job.pop("scene_images", None)
         text = job.get("story_text", "")
         sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
         job["hook_text"] = (sentences[0] + "...") if sentences else ""
@@ -392,9 +409,30 @@ _CAT_PATTERNS = {
 @router.get("/explore")
 async def explore_stories(category: str = "all", sort: str = "trending", cursor: int = 0, limit: int = 12):
     """Gallery / Explore endpoint with category filters, sort, and cursor pagination."""
-    from utils.r2_presign import presign_url
 
-    base_q = {"status": "COMPLETED", "thumbnail_url": {"$exists": True, "$ne": None}}
+    def to_proxy_url(stored_url: str) -> str:
+        if not stored_url:
+            return stored_url
+        try:
+            base = stored_url.split('?')[0]
+            if '.r2.dev/' in base:
+                key = base.split('.r2.dev/', 1)[1]
+                return f"/api/media/r2/{key}"
+            if '.r2.cloudflarestorage.com/' in base:
+                parts = base.split('.r2.cloudflarestorage.com/', 1)
+                if len(parts) > 1:
+                    bucket_and_key = parts[1].split('/', 1)
+                    if len(bucket_and_key) > 1:
+                        return f"/api/media/r2/{bucket_and_key[1]}"
+            return stored_url
+        except Exception:
+            return stored_url
+
+    # Include stories that have thumbnail OR scene_images
+    base_q = {"status": "COMPLETED", "$or": [
+        {"thumbnail_url": {"$exists": True, "$ne": None}},
+        {"scene_images": {"$exists": True, "$ne": {}}},
+    ]}
     query = {**base_q}
 
     if category == "kids":
@@ -413,20 +451,28 @@ async def explore_stories(category: str = "all", sort: str = "trending", cursor:
     raw = await db.pipeline_jobs.find(
         query,
         {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1,
-         "animation_style": 1, "age_group": 1, "remix_count": 1, "created_at": 1},
+         "animation_style": 1, "age_group": 1, "remix_count": 1, "created_at": 1, "scene_images": 1},
     ).sort(sort_key).skip(cursor).limit(limit).to_list(limit)
 
     stories = []
     for job in raw:
-        if job.get("thumbnail_url"):
-            job["thumbnail_url"] = presign_url(job["thumbnail_url"])
+        # Resolve thumbnail: prefer thumbnail_url, fallback to first scene image (direct R2 for speed)
+        thumb = to_proxy_url(job.get("thumbnail_url"))
+        if not thumb:
+            scene_imgs = job.get("scene_images", {})
+            if scene_imgs:
+                first_key = sorted(scene_imgs.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if scene_imgs else None
+                if first_key and isinstance(scene_imgs[first_key], dict):
+                    thumb = scene_imgs[first_key].get("url")  # direct R2 URL
+        job["thumbnail_url"] = thumb
+        job.pop("scene_images", None)
         text = job.get("story_text", "")
         sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
         job["hook_text"] = (sentences[0] + "...") if sentences else job.get("title", "")
         job.pop("story_text", None)
         stories.append(job)
 
-    # Category counts (lightweight — only 59 completed jobs)
+    # Category counts
     counts = {"all": await db.pipeline_jobs.count_documents(base_q)}
     counts["kids"] = await db.pipeline_jobs.count_documents({**base_q, "age_group": {"$regex": "kids|toddler|child", "$options": "i"}})
     for cat, pat in _CAT_PATTERNS.items():
