@@ -1,0 +1,226 @@
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard, Users, Film, Briefcase, CreditCard, BarChart3,
+  Shield, Server, Settings, LogOut, ChevronRight, ChevronDown,
+  Activity, Eye, FileText, Heart, Zap, BookOpen, Star, TrendingUp,
+  Lock, AlertTriangle, Clock, Monitor, Cpu, Radio, Sparkles,
+  Menu, X, ArrowLeft
+} from 'lucide-react';
+
+const NAV_GROUPS = [
+  {
+    label: 'Overview',
+    items: [
+      { path: '/app/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+    ],
+  },
+  {
+    label: 'Users',
+    items: [
+      { path: '/app/admin/users', label: 'User Management', icon: Users },
+      { path: '/app/admin/user-analytics', label: 'User Analytics', icon: BarChart3 },
+      { path: '/app/admin/user-activity', label: 'User Activity', icon: Activity },
+      { path: '/app/admin/login-activity', label: 'Login Activity', icon: Eye },
+      { path: '/app/admin/account-locks', label: 'Account Locks', icon: Lock },
+    ],
+  },
+  {
+    label: 'Content & Stories',
+    items: [
+      { path: '/app/admin/content-engine', label: 'Content Engine', icon: Sparkles },
+      { path: '/app/admin/story-video-analytics', label: 'Story Analytics', icon: Film },
+      { path: '/app/admin/bio-templates', label: 'Templates', icon: FileText },
+      { path: '/app/admin/leaderboard', label: 'Leaderboard', icon: Star },
+      { path: '/app/admin/template-analytics', label: 'Template Analytics', icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Revenue & Credits',
+    items: [
+      { path: '/app/admin/revenue', label: 'Revenue Analytics', icon: CreditCard },
+      { path: '/app/admin/growth', label: 'Growth Metrics', icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Jobs & Pipelines',
+    items: [
+      { path: '/app/admin/workers', label: 'Worker Dashboard', icon: Cpu },
+      { path: '/app/admin/automation', label: 'Automation', icon: Zap },
+      { path: '/app/admin/ttfd-analytics', label: 'TTFD Analytics', icon: Clock },
+    ],
+  },
+  {
+    label: 'System Health',
+    items: [
+      { path: '/app/admin/system-health', label: 'System Health', icon: Heart },
+      { path: '/app/admin/performance', label: 'Performance', icon: Activity },
+      { path: '/app/admin/monitoring', label: 'Monitoring', icon: Monitor },
+      { path: '/app/admin/environment-monitor', label: 'Environment', icon: Server },
+      { path: '/app/admin/self-healing', label: 'Self-Healing', icon: Radio },
+    ],
+  },
+  {
+    label: 'Security',
+    items: [
+      { path: '/app/admin/security', label: 'Security Dashboard', icon: Shield },
+      { path: '/app/admin/anti-abuse', label: 'Anti-Abuse', icon: AlertTriangle },
+      { path: '/app/admin/audit-logs', label: 'Audit Logs', icon: FileText },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { path: '/app/admin/daily-report', label: 'Daily Report', icon: BookOpen },
+      { path: '/app/admin/realtime-analytics', label: 'Realtime Analytics', icon: BarChart3 },
+    ],
+  },
+];
+
+function NavItem({ item, isActive, collapsed }) {
+  const Icon = item.icon;
+  return (
+    <Link to={item.path} data-testid={`admin-nav-${item.label.replace(/\s/g, '-').toLowerCase()}`}>
+      <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all cursor-pointer ${
+        isActive
+          ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/20'
+          : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+      }`}>
+        <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-indigo-400' : ''}`} />
+        {!collapsed && <span className="truncate">{item.label}</span>}
+      </div>
+    </Link>
+  );
+}
+
+function NavGroup({ group, location, collapsed, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const hasActive = group.items.some(item =>
+    item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
+  );
+
+  return (
+    <div className="mb-1" data-testid={`admin-nav-group-${group.label.replace(/\s/g, '-').toLowerCase()}`}>
+      {!collapsed && (
+        <button
+          onClick={() => setOpen(!open)}
+          className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${
+            hasActive ? 'text-indigo-400/70' : 'text-slate-600'
+          } hover:text-slate-400 transition-colors`}
+        >
+          {group.label}
+          {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        </button>
+      )}
+      {(open || collapsed) && (
+        <div className={`space-y-0.5 ${collapsed ? '' : 'mt-0.5'}`}>
+          {group.items.map(item => {
+            const isActive = item.exact
+              ? location.pathname === item.path
+              : location.pathname.startsWith(item.path);
+            return <NavItem key={item.path} item={item} isActive={isActive} collapsed={collapsed} />;
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function AdminLayout({ children }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
+
+  const sidebar = (
+    <div className="flex flex-col h-full">
+      {/* Logo / Title */}
+      <div className="px-4 py-4 border-b border-slate-800/60">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center">
+            <Shield className="w-4 h-4 text-indigo-400" />
+          </div>
+          <div>
+            <h1 className="text-sm font-bold text-white leading-none">Admin</h1>
+            <p className="text-[10px] text-slate-500 mt-0.5">Control Center</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin">
+        {NAV_GROUPS.map((group, idx) => {
+          const hasActive = group.items.some(item =>
+            item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
+          );
+          return (
+            <NavGroup
+              key={group.label}
+              group={group}
+              location={location}
+              defaultOpen={idx === 0 || hasActive}
+            />
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="px-3 py-3 border-t border-slate-800/60 space-y-1">
+        <Link to="/app" data-testid="admin-nav-back-to-app">
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-slate-500 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer">
+            <ArrowLeft className="w-4 h-4" /> Back to App
+          </div>
+        </Link>
+        <button onClick={handleLogout} className="w-full" data-testid="admin-nav-logout">
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-red-400/60 hover:text-red-400 hover:bg-red-500/[0.06] transition-all cursor-pointer">
+            <LogOut className="w-4 h-4" /> Logout
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen bg-slate-950" data-testid="admin-layout">
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex flex-col w-[240px] bg-slate-900/50 border-r border-slate-800/40 fixed inset-y-0 left-0 z-40" data-testid="admin-sidebar">
+        {sidebar}
+      </aside>
+
+      {/* Mobile menu button */}
+      <button
+        onClick={() => setMobileOpen(!mobileOpen)}
+        className="lg:hidden fixed top-3 left-3 z-50 w-9 h-9 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-white"
+        data-testid="admin-mobile-menu"
+      >
+        {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+      </button>
+
+      {/* Mobile sidebar overlay */}
+      {mobileOpen && (
+        <>
+          <div className="lg:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setMobileOpen(false)} />
+          <aside className="lg:hidden fixed inset-y-0 left-0 w-[260px] bg-slate-900 border-r border-slate-800 z-50">
+            {sidebar}
+          </aside>
+        </>
+      )}
+
+      {/* Main content */}
+      <main className="flex-1 lg:ml-[240px] min-h-screen" data-testid="admin-content">
+        {children}
+      </main>
+
+      <style>{`
+        .scrollbar-thin::-webkit-scrollbar{width:4px}
+        .scrollbar-thin::-webkit-scrollbar-track{background:transparent}
+        .scrollbar-thin::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.05);border-radius:4px}
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.1)}
+      `}</style>
+    </div>
+  );
+}
