@@ -1,55 +1,86 @@
-# Visionary Suite — Story Universe Engine
+# Visionary Suite — Product Requirements Document
 
-## Product Overview
-A full-stack AI creator suite (React, FastAPI, MongoDB) — a Netflix-style story platform where users create, watch, and continue AI-generated animated stories.
+## Problem Statement
+Build a viral, addictive "Story Universe Engine" — an AI creator suite that generates story videos, comics, reels, and more. The platform must feel alive and Netflix-like, not like an empty tool grid.
 
-## Core Architecture
-- **Frontend**: React + Shadcn UI, Netflix-style dark theme
-- **Backend**: FastAPI + MongoDB
-- **Storage**: Cloudflare R2 (served via backend proxy — no presigned URL issues)
-- **AI**: OpenAI GPT-4o-mini (planning), GPT Image 1 (keyframes), Sora 2 (video clips), TTS (narration)
-- **Video Assembly**: FFmpeg (installed in container)
+## Core Users
+- **Creators**: Content creators using AI tools to generate story videos, comics, reels
+- **Viewers**: Users who discover and continue stories (viral loop)
+- **Admin**: Platform operator monitoring analytics, payments, and content
+
+## Architecture
+- **Frontend**: React (CRA) with Tailwind CSS + Shadcn/UI
+- **Backend**: FastAPI with MongoDB (async motor)
+- **Storage**: Cloudflare R2 via backend proxy (`/api/media/r2/`)
+- **AI**: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini via Emergent LLM Key
 - **Payments**: Cashfree
 - **Auth**: JWT + Emergent Google Auth
 
 ## What's Been Implemented
 
-### Netflix-Style Dashboard (March 28, 2026)
-- **Hero Section** (55vh): Real thumbnail background via R2 proxy, carousel (5 stories), FEATURED badge, hook text, "Continue Story" + "Create Your Own" CTAs
-- **Continue Watching**: Horizontal scroll, 8+ story cards with REAL AI thumbnails, TRENDING/HOT/NEW badges, hook text, "Continue Story >" CTA
-- **Trending Now**: Larger horizontal scroll row with See All link
-- **Scroll Hook**: "You won't believe what happens next..." gradient text with animated dots
-- **Just Dropped**: Third row of story cards
-- **Quick Tools**: Minimal tool chips at bottom (Story Video, Reels, Comic Book, Bedtime Story, Caption AI)
+### P0 — Core Pipeline (DONE)
+- Story-to-Video generation: GPT text → image gen → Sora 2 video → TTS audio → FFmpeg concat
+- FFmpeg assembly uses reliable `concat` method (xfade was broken)
+- All AI tools enforce credit deduction before generation
 
-### R2 Media Proxy (March 28, 2026) — ROOT CAUSE FIX
-- **Problem**: ALL R2 presigned URLs expired (403), R2 API keys couldn't generate new presigned URLs
-- **Fix**: Backend proxy at `/api/media/r2/{key}` streams R2 objects directly via `get_object` API
-- **Result**: All thumbnails and videos now load reliably through the proxy with 24h cache headers
-- **Files**: `/app/backend/routes/media_proxy.py` (new), `/app/backend/routes/engagement.py` (modified)
+### P0 — Netflix-Style Dashboard (DONE — Feb 28, 2026)
+- **Hero Section**: Full-bleed autoplaying video with muted/loop/playsInline, title, hook text, FEATURED badge, LIVE indicator, Watch & Continue / Create New CTAs, mute toggle, 5-hero carousel with dots
+- **Trending Now Row**: Top 8 stories by engagement, large cards (w-72), horizontal scroll with arrows
+- **Fresh Stories Row**: 8 most recent stories, medium cards
+- **Watch Now Row**: 8 stories with video output, medium cards
+- **Story Cards**: 3:4 aspect ratio, real thumbnails via R2 proxy, dark gradient overlay, badge (TRENDING/HOT/NEW), title, italic hook text, hover-to-play video, scale animation
+- **Credits Display**: Skeleton while loading, exact number when loaded, "Unlimited" for pro users
+- **Create Bar**: Inline search input + Create button
+- **Quick Tools**: Pill-style shortcuts (Story Video, Reels, Comic, Bedtime)
+- **Zero dead space**: 0px gap between hero and first content row
+- **Loading Skeleton**: Full-page skeleton with hero + card placeholders
 
-### Core Pipeline Fix (March 28, 2026)
-- Installed FFmpeg, inline runner, concat demuxer fallback
-- Full E2E: Planning → Keyframes → Sora 2 → TTS → FFmpeg → R2
+### P0 — R2 Media Proxy (DONE)
+- Backend proxy at `/api/media/r2/{filepath}` streams files via boto3
+- Bypasses Cloudflare R2 presigned URL 403 errors
+- Frontend `mediaUrl()` helper converts proxy paths to full URLs
 
-### All Generation Tools Working
-Reel Generator, Bedtime Story, Caption Rewriter, Brand Story, Story Generator, Comic Storybook, Coloring Book, Photo to Comic, GIF Maker
+### P0 — Growth Loop / Compulsion Engine (DONE)
+- Redesigned public share pages with momentum-based social proof
+- 1-click continue flow (generation before login)
+- Enforced open-loop story endings
+- Character Power Score
 
-### Credit Display Fix
-- Replaced literal '...' with animated loading skeletons across 7+ files
-- Dashboard, ReelGenerator, ComicStorybookBuilder, PhotoToComic, GifMaker, CreditStatusBadge
+### P1 — Monetization (DONE)
+- Cashfree payment integration
+- Strict credit checks before generation
+- 50-credit standard allocation for new users
+- Admin dashboard with real revenue/credit metrics
+
+### P1 — Trust Fixes (DONE)
+- Fixed broken Profile → Security tab
+- Truth-based admin satisfaction metric
+- Diverse "Live on Platform" feed (no fake data)
+- Credit system consistency (eliminated hidden 100-credit grants)
+
+## Pending / Backlog
+
+### P1 — Upcoming
+- A/B test hook text variations on story cards
+- Character-driven auto-share prompts after creation
+
+### P2 — Future
+- Remix Variants on share pages
+- Self-hosted GPU models (Wan2.1, Kokoro) to replace APIs
+- WebSocket admin dashboard for live updates
+- Story Chain leaderboard
+- General UI polish and style preset thumbnails
+
+### P2 — Blocked
+- SendGrid email (forgot password) — blocked on valid API key
+
+## Key Endpoints
+- `GET /api/engagement/story-feed` — Dashboard feed (hero + trending + characters + stats)
+- `GET /api/media/r2/{filepath}` — R2 media proxy
+- `GET /api/credits/balance` — User credit balance
+- `POST /api/auth/login` — Login
+- `GET /api/engagement/explore` — Gallery with category filters
 
 ## Test Credentials
-- **Test User**: test@visionary-suite.com / Test@2026#
-- **Admin User**: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-
-## Known Issues
-- FFmpeg xfade transitions fail (concat fallback works)
-- SendGrid forgot-password email fails (401 — needs valid API key)
-
-## Upcoming Tasks
-- (P1) A/B test hook text variations
-- (P1) Character avatars for stories
-- (P2) Remix Variants on share pages
-- (P2) Self-Hosted GPU Models (Wan2.1, Kokoro)
-- (P3) Auto-improve weak hooks from A/B data
+- Test User: `test@visionary-suite.com` / `Test@2026#`
+- Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
