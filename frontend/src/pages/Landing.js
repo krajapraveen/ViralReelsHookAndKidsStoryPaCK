@@ -185,27 +185,22 @@ export default function Landing() {
                     <div className="story-thumb transition-transform duration-500">
                       <SafeImage src={item.thumbnail_url} alt={item.title} aspectRatio="3/4" titleOverlay={item.title} fallbackType="gradient" className="w-full h-full object-cover" />
                     </div>
-                    {/* Dark gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                    {/* Hover overlay */}
                     <div className="story-overlay absolute inset-0 bg-violet-900/30 backdrop-blur-[2px] opacity-0 transition-opacity duration-300 flex items-center justify-center">
                       <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
                         <Play className="w-7 h-7 text-white ml-1" />
                       </div>
                     </div>
-                    {/* Rank badge */}
                     {idx < 3 && (
                       <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-black bg-black/60 backdrop-blur-sm text-amber-400 border border-amber-500/20">
                         #{idx + 1}
                       </div>
                     )}
-                    {/* Views badge */}
                     {(item.views > 0) && (
                       <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-[10px] text-white/70">
                         <Eye className="w-2.5 h-2.5" /> {item.views}
                       </div>
                     )}
-                    {/* Bottom content */}
                     <div className="absolute bottom-0 left-0 right-0 p-3">
                       <h3 className="text-sm font-bold text-white leading-tight mb-1 line-clamp-2">{item.title || 'Untitled Story'}</h3>
                       <p className="text-[10px] text-white/50 mb-2.5 line-clamp-1">{item.animation_style?.replace(/_/g, ' ')}</p>
@@ -222,13 +217,21 @@ export default function Landing() {
               ))}
             </div>
           ) : (
-            /* Skeleton loading */
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="rounded-2xl overflow-hidden border border-white/[0.04] bg-white/[0.01]">
-                  <div className="aspect-[3/4] bg-slate-800/50 animate-pulse" />
-                </div>
-              ))}
+            /* Curated fallback — no empty skeletons */
+            <div data-testid="showcase-fallback">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {STORY_HOOKS.slice(0, 3).map((hook, i) => (
+                  <button key={i} onClick={() => startFromHook(hook)}
+                    className="group text-left p-6 rounded-2xl border border-white/[0.06] bg-gradient-to-br from-violet-500/[0.04] to-rose-500/[0.04] hover:border-violet-500/30 transition-all">
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-violet-400/60 mb-2 block">{hook.category}</span>
+                    <p className="text-base font-bold text-white leading-relaxed mb-3 group-hover:text-violet-200 transition-colors">"{hook.prompt}"</p>
+                    <div className="flex items-center gap-1.5 text-xs text-violet-400 font-semibold">
+                      <Sparkles className="w-3.5 h-3.5" /> Be the first to create this story
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-center text-sm text-slate-500 mt-4">No trending stories yet — start one and it could be featured here.</p>
             </div>
           )}
 

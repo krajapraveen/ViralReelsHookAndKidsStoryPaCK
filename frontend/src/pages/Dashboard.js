@@ -386,7 +386,34 @@ function ResumeStoryBanner({ story, navigate }) {
    TRENDING STORIES + STORY CARD
    ═══════════════════════════════════════════════════════════ */
 function TrendingStories({ stories, navigate, hookVariant }) {
-  if (!stories.length) return null;
+  if (!stories.length) {
+    return (
+      <section data-testid="trending-stories-empty" className="mt-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-black text-white flex items-center gap-2">
+            <Flame className="w-5 h-5 text-amber-400" /> Start a Story
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[
+            { title: 'A fox who saved the forest...', cat: 'Adventure', gradient: 'from-emerald-900/40 to-slate-900' },
+            { title: 'The robot refused to shut down.', cat: 'Sci-Fi', gradient: 'from-cyan-900/40 to-slate-900' },
+            { title: 'She opened the old music box...', cat: 'Emotional', gradient: 'from-rose-900/40 to-slate-900' },
+          ].map((s, i) => (
+            <button key={i} onClick={() => navigate('/app/story-video-studio', { state: { prefill: s.title } })}
+              className={`group text-left p-6 rounded-xl border border-slate-800/40 bg-gradient-to-br ${s.gradient} hover:border-amber-500/30 transition-all`}
+              data-testid={`start-story-${i}`}>
+              <span className="text-[10px] font-bold tracking-wider uppercase text-amber-400/60 mb-2 block">{s.cat}</span>
+              <p className="text-sm font-bold text-white leading-relaxed mb-3 group-hover:text-amber-200 transition-colors">"{s.title}"</p>
+              <div className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
+                <Play className="w-3.5 h-3.5 fill-amber-400" /> Create this story
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
   return (
     <section data-testid="trending-stories">
       <div className="flex items-center justify-between mb-4">
@@ -610,16 +637,22 @@ function StreakCard({ streak }) {
 }
 
 function CreditsCard({ credits, navigate }) {
+  const isLoading = credits === null || credits === undefined;
   return (
     <div className="bg-gradient-to-br from-violet-500/[0.06] to-indigo-500/[0.06] border border-violet-500/20 rounded-xl p-5" data-testid="credits-card">
       <div className="flex items-center gap-2 mb-2">
         <Zap className="w-4 h-4 text-violet-400" />
         <p className="text-[10px] font-bold text-violet-400 tracking-wider">CREDITS</p>
       </div>
-      <p className="text-3xl font-black text-white mb-1">{credits ?? '...'}</p>
+      {isLoading ? (
+        <div className="h-9 w-20 bg-slate-800/60 rounded-lg animate-pulse mb-1" />
+      ) : (
+        <p className="text-3xl font-black text-white mb-1" data-testid="credits-value">{credits.toLocaleString()}</p>
+      )}
       <p className="text-xs text-slate-500">available credits</p>
       <button onClick={() => navigate('/app/pricing')}
-        className="mt-3 w-full h-9 bg-violet-500/10 border border-violet-500/20 rounded-lg text-violet-400 text-xs font-bold hover:bg-violet-500/20 transition-colors">
+        className="mt-3 w-full h-9 bg-violet-500/10 border border-violet-500/20 rounded-lg text-violet-400 text-xs font-bold hover:bg-violet-500/20 transition-colors"
+        data-testid="get-more-credits-btn">
         Get More Credits
       </button>
     </div>

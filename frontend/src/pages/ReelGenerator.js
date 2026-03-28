@@ -223,7 +223,7 @@ export default function ReelGenerator() {
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2">
               <Coins className="w-4 h-4 text-indigo-400" />
-              <span className="font-semibold text-indigo-300 text-sm sm:text-base">{credits ?? '...'}</span>
+              <span className="font-semibold text-indigo-300 text-sm sm:text-base" data-testid="reel-credits-display">{credits === null ? <span className="inline-block w-8 h-4 bg-indigo-500/20 rounded animate-pulse" /> : credits >= 999999 ? '∞' : credits.toLocaleString()}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="reel-logout-btn">
               <LogOut className="w-4 h-4" />

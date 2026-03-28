@@ -489,7 +489,7 @@ export default function GifMaker() {
             </div>
             <div className="flex items-center gap-4">
               <div className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 rounded-full px-4 py-2">
-                <span className="text-pink-300 font-medium" data-testid="gifmaker-credits">{credits === null ? '...' : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
+                <span className="text-pink-300 font-medium" data-testid="gifmaker-credits">{credits === null ? <span className="inline-block w-12 h-4 bg-pink-500/20 rounded animate-pulse" /> : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
               </div>
             </div>
           </div>

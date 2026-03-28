@@ -93,7 +93,7 @@ export default function CreditStatusBadge({ credits, onCreditsUpdate }) {
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all hover:scale-105 ${getStatusColor()}`}
         >
           <Coins className="w-4 h-4" />
-          <span className="font-semibold" data-testid="credit-badge-amount">{credits === null ? '...' : credits >= 999999 ? '∞' : (credits?.toLocaleString() ?? '...')}</span>
+          <span className="font-semibold" data-testid="credit-badge-amount">{credits === null ? <span className="inline-block w-8 h-4 bg-slate-600 rounded animate-pulse" /> : credits >= 999999 ? '∞' : (credits?.toLocaleString() ?? '0')}</span>
           {status === 'critical' && (
             <AlertTriangle className="w-4 h-4 text-red-400 animate-bounce" />
           )}

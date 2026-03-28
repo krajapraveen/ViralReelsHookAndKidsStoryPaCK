@@ -951,7 +951,7 @@ export default function PhotoToComic() {
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Balance</span>
                   <span className={canAfford ? 'text-emerald-400' : 'text-red-400'}>
-                    {isUnlimited ? 'Unlimited' : credits === null ? '...' : `${credits} cr`}
+                    {isUnlimited ? 'Unlimited' : credits === null ? <span className="inline-block w-10 h-3 bg-slate-700 rounded animate-pulse" /> : `${credits} cr`}
                   </span>
                 </div>
                 <button onClick={() => setHd(!hd)} className={`w-full p-2.5 rounded-lg border text-sm flex items-center justify-between transition-all ${hd ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-slate-700 text-slate-400 hover:border-slate-600'}`} data-testid="hd-toggle">
@@ -997,7 +997,7 @@ function Header({ credits, isUnlimited }) {
         <div className="flex items-center gap-1.5 bg-slate-800/50 rounded-full px-3 py-1.5 border border-slate-700">
           <Coins className="w-3.5 h-3.5 text-yellow-400" />
           <span className="font-bold text-white text-sm" data-testid="credit-display">
-            {isUnlimited ? '∞' : credits === null ? '...' : credits}
+            {isUnlimited ? '∞' : credits === null ? <span className="inline-block w-8 h-3.5 bg-slate-700 rounded animate-pulse" /> : credits}
           </span>
         </div>
       </div>

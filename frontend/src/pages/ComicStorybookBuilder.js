@@ -1072,8 +1072,8 @@ export default function ComicStorybookBuilder() {
           </div>
           <div className="text-right">
             <p className="text-slate-400 text-sm">Your Balance</p>
-            <p className={`text-xl font-bold ${(credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`}>
-              {credits === null ? '...' : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} credits`}
+            <p className={`text-xl font-bold ${(credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`} data-testid="storybook-balance-display">
+              {credits === null ? <span className="inline-block w-16 h-6 bg-slate-700 rounded animate-pulse" /> : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} credits`}
             </p>
           </div>
         </div>
@@ -1419,7 +1419,7 @@ export default function ComicStorybookBuilder() {
             </div>
             <div className="flex items-center gap-4">
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full px-4 py-2">
-                <span className="text-purple-300 font-medium" data-testid="storybook-credits">{credits === null ? '...' : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
+                <span className="text-purple-300 font-medium" data-testid="storybook-credits">{credits === null ? <span className="inline-block w-12 h-4 bg-purple-500/20 rounded animate-pulse" /> : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
               </div>
             </div>
           </div>

@@ -38,7 +38,7 @@ async def _run_ffmpeg(cmd: str, timeout: int = 120) -> bool:
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         if proc.returncode != 0:
-            logger.error(f"[FFMPEG] Failed (exit {proc.returncode}): {stderr.decode()[:500]}")
+            logger.error(f"[FFMPEG] Failed (exit {proc.returncode}): {stderr.decode()[-1500:]}")
             return False
         return True
     except asyncio.TimeoutError:
@@ -204,10 +204,28 @@ async def stitch_clips(
     filter_complex = ";".join(filter_parts)
     cmd = (
         f'ffmpeg -y {inputs} '
-        f'-filter_complex "{filter_complex}" '
+        f"-filter_complex '{filter_complex}' "
         f'-map "[v]" -c:v libx264 -pix_fmt yuv420p -crf 20 "{output_path}"'
     )
-    result = await _run_ffmpeg_resilient(cmd, output_path, timeout=300)
+    # Use inline runner for stitch (fast enough for < 10 clips, avoids shell escaping issues with detached runner)
+    result = await _run_ffmpeg(cmd, timeout=180)
+
+    # Fallback: if xfade stitch fails, use simple concat
+    if not result:
+        logger.warning("[FFMPEG] xfade stitch failed, falling back to concat demuxer")
+        concat_list = os.path.join(OUTPUT_DIR, "concat_list.txt")
+        with open(concat_list, "w") as f:
+            for p in normalized_paths:
+                f.write(f"file '{p}'\n")
+        concat_cmd = (
+            f'ffmpeg -y -f concat -safe 0 -i "{concat_list}" '
+            f'-c:v libx264 -pix_fmt yuv420p -crf 20 "{output_path}"'
+        )
+        result = await _run_ffmpeg(concat_cmd, timeout=120)
+        try:
+            os.remove(concat_list)
+        except OSError:
+            pass
 
     # Cleanup normalized files
     for np_path in normalized_paths:
@@ -263,10 +281,10 @@ async def mix_audio(
     filter_complex = ";".join(filter_parts)
     cmd = (
         f'ffmpeg -y {inputs} '
-        f'-filter_complex "{filter_complex}" '
+        f"-filter_complex '{filter_complex}' "
         f'-map 0:v -map {audio_map} -c:v copy -c:a aac -b:a 192k "{output_path}"'
     )
-    return await _run_ffmpeg_resilient(cmd, output_path, timeout=180)
+    return await _run_ffmpeg(cmd, timeout=180)
 
 
 async def generate_preview(
