@@ -312,31 +312,13 @@ async def security_headers_middleware(request: Request, call_next):
     
     return response
 
-# CORS Configuration - Restricted to specific allowed origins for security
-cors_origins_env = os.environ.get('CORS_ORIGINS', '')
+# CORS Configuration - uses CORS_ORIGINS from .env (auto-updated by deployment platform)
+cors_origins_env = os.environ.get('CORS_ORIGINS', '*')
 
-# Always include critical domains for production
-CRITICAL_ORIGINS = [
-    "https://visionary-suite.com",
-    "https://www.visionary-suite.com",
-    "https://auth.emergentagent.com",
-    "https://studio-deploy-2.emergent.host",
-    "https://trust-engine-5.preview.emergentagent.com",
-    "http://localhost:3000",
-    "http://localhost:8001"
-]
-
-# Build allowed origins list
-if cors_origins_env:
-    # Allow wildcard for development/testing
-    if cors_origins_env.strip() == '*':
-        ALLOWED_ORIGINS = ['*']
-    else:
-        # Parse comma-separated list of additional origins
-        additional_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
-        ALLOWED_ORIGINS = list(set(CRITICAL_ORIGINS + additional_origins))
+if cors_origins_env.strip() == '*':
+    ALLOWED_ORIGINS = ['*']
 else:
-    ALLOWED_ORIGINS = CRITICAL_ORIGINS
+    ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
 
 logger.info(f"CORS configured with origins: {ALLOWED_ORIGINS}")
 
