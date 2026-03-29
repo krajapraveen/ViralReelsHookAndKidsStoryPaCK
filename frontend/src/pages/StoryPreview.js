@@ -1,24 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import BrowserVideoExport from '../components/BrowserVideoExport';
 import {
   ArrowLeft, Download, Play, Pause, Image, Mic, FileText,
   Film, Package, Eye, AlertCircle, ChevronRight, ChevronLeft,
-  Volume2, VolumeX, Loader2, CheckCircle, ExternalLink
+  Volume2, VolumeX, Loader2, CheckCircle, ExternalLink, ArrowRight, Zap
 } from 'lucide-react';
 import { SafeImage } from '../components/SafeImage';
 import api from '../utils/api';
 
 export default function StoryPreview() {
   const { jobId } = useParams();
+  const navigate = useNavigate();
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showExport, setShowExport] = useState(false);
   const [error, setError] = useState(null);
   const [activeScene, setActiveScene] = useState(0);
   const [playingAudio, setPlayingAudio] = useState(null);
+  const [showContinueOverlay, setShowContinueOverlay] = useState(false);
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -46,6 +48,28 @@ export default function StoryPreview() {
       await api.post(`/api/analytics/track-event/${jobId}`, { event_type: eventType, value });
     } catch {}
   }, [jobId]);
+
+  const handleContinueStory = () => {
+    if (!preview) return;
+    const lastScene = preview.scenes?.[preview.scenes.length - 1];
+    const cliffhanger = preview.cliffhanger || lastScene?.narration_text || '';
+    localStorage.setItem('remix_data', JSON.stringify({
+      prompt: `[Continuation of "${preview.title}"]\n\n${(preview.story_text || '').slice(0, 500)}...\n\nDirection: Continue with higher stakes and tension. Keep the same characters and world.`,
+      timestamp: Date.now(),
+      source_tool: 'story-preview',
+      remixFrom: {
+        tool: 'story-video-studio',
+        prompt: preview.story_text || '',
+        settings: { animation_style: preview.animation_style, age_group: preview.age_group, voice_preset: preview.voice_preset },
+        title: preview.title?.startsWith('From:') ? preview.title : `From: ${preview.title}`,
+        parentId: jobId,
+        hook_text: cliffhanger,
+        characters: preview.characters || [],
+      },
+    }));
+    trackEvent('continue_clicked');
+    navigate('/app/story-video-studio');
+  };
 
   const playAudio = (url, sceneIndex) => {
     if (playingAudio === sceneIndex) {
@@ -129,26 +153,26 @@ export default function StoryPreview() {
             </div>
           </div>
 
-          {/* Download Actions */}
+          {/* Actions — Continue is PRIMARY */}
           <div className="flex items-center gap-2">
-            {/* Browser Export Button — primary action for all completed jobs */}
+            <Button
+              onClick={handleContinueStory}
+              className="bg-gradient-to-r from-violet-600 to-rose-600 hover:opacity-90 text-white font-bold shadow-lg shadow-violet-500/20"
+              data-testid="header-continue-btn"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              What Happens Next?
+            </Button>
             {preview.scenes?.some(s => s.image_url) && (
               <Button
                 onClick={() => { setShowExport(!showExport); if (!showExport) trackEvent('export_started'); }}
-                className={showExport ? 'bg-purple-700' : 'bg-purple-600 hover:bg-purple-700'}
+                variant="outline"
+                className={`border-slate-600 text-slate-300 hover:bg-slate-800 ${showExport ? 'bg-slate-800' : ''}`}
                 data-testid="browser-export-toggle-btn"
               >
                 <Film className="w-4 h-4 mr-2" />
-                {showExport ? 'Hide Export' : 'Export MP4'}
+                {showExport ? 'Hide Export' : 'Export'}
               </Button>
-            )}
-            {preview.story_pack_url && (
-              <a href={preview.story_pack_url} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('story_pack_downloaded')}>
-                <Button variant="outline" className="border-teal-500/50 text-teal-400 hover:bg-teal-500/10" data-testid="download-pack-btn">
-                  <Package className="w-4 h-4 mr-2" />
-                  Story Pack
-                </Button>
-              </a>
             )}
           </div>
         </div>
@@ -167,29 +191,30 @@ export default function StoryPreview() {
           </div>
         )}
 
-        {/* Story Ready Banner */}
+        {/* Story Continue Hook Banner */}
         {isReady && (
-          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl" data-testid="ready-banner">
-            <div className="flex items-start gap-3">
-              <CheckCircle className="w-6 h-6 text-emerald-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <h3 className="text-emerald-300 font-semibold">Your story is ready</h3>
-                <p className="text-emerald-200/70 text-sm mt-1">
-                  All your scenes, images, and voiceovers have been generated. Choose how to enjoy your story:
+          <div className="mb-6 p-5 bg-gradient-to-r from-violet-500/10 to-rose-500/10 border border-violet-500/20 rounded-xl" data-testid="ready-banner">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                <Zap className="w-5 h-5 text-violet-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-white font-bold text-lg">This story isn't finished...</h3>
+                <p className="text-slate-400 text-sm mt-1">
+                  {preview.cliffhanger
+                    ? `"${preview.cliffhanger.slice(0, 200)}${preview.cliffhanger.length > 200 ? '...' : ''}"`
+                    : 'The best stories leave you wanting more. What happens next is up to you.'
+                  }
                 </p>
-                <div className="mt-3 grid sm:grid-cols-3 gap-2">
-                  <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                    <p className="text-emerald-400 text-xs font-semibold">Instant Preview</p>
-                    <p className="text-emerald-300/60 text-[10px]">Watch scenes below with audio</p>
-                  </div>
-                  <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                    <p className="text-purple-400 text-xs font-semibold">Export MP4</p>
-                    <p className="text-purple-300/60 text-[10px]">Create downloadable video in your browser</p>
-                  </div>
-                  <div className="p-2 bg-teal-500/10 border border-teal-500/20 rounded-lg">
-                    <p className="text-teal-400 text-xs font-semibold">Story Pack</p>
-                    <p className="text-teal-300/60 text-[10px]">Download all images, audio, and text</p>
-                  </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    onClick={handleContinueStory}
+                    className="inline-flex items-center gap-2 h-10 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 shadow-lg shadow-violet-500/20"
+                    data-testid="banner-continue-btn"
+                  >
+                    <Play className="w-4 h-4" /> Continue This Story <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs text-slate-500">Your prompt will be pre-filled</span>
                 </div>
               </div>
             </div>
@@ -228,7 +253,7 @@ export default function StoryPreview() {
                     )}
                   </div>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-2">
-                    {activeScene < (preview.scenes?.length || 0) - 1 && (
+                    {activeScene < (preview.scenes?.length || 0) - 1 ? (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -238,8 +263,47 @@ export default function StoryPreview() {
                       >
                         <ChevronRight className="w-6 h-6" />
                       </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowContinueOverlay(true)}
+                        className="bg-violet-600/80 hover:bg-violet-600 text-white rounded-full animate-pulse"
+                        data-testid="last-scene-continue-btn"
+                      >
+                        <ArrowRight className="w-6 h-6" />
+                      </Button>
                     )}
                   </div>
+
+                  {/* Continue Overlay — triggers on last scene */}
+                  {showContinueOverlay && activeScene >= (preview.scenes?.length || 1) - 1 && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-black/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in fade-in duration-500" data-testid="scene-continue-overlay">
+                      <p className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-3">This wasn't the end...</p>
+                      {preview.cliffhanger && (
+                        <p className="text-sm sm:text-base text-slate-200 italic text-center px-6 mb-2 leading-relaxed max-w-md">
+                          "{preview.cliffhanger.length > 180 ? '...' + preview.cliffhanger.slice(-180) : preview.cliffhanger}"
+                        </p>
+                      )}
+                      <p className="text-sm font-bold text-amber-400 mb-5">What happens next?</p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={handleContinueStory}
+                          className="inline-flex items-center gap-2 h-11 px-7 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 shadow-lg shadow-violet-500/30"
+                          data-testid="overlay-continue-story-btn"
+                        >
+                          <Play className="w-4 h-4" /> Continue This Story <ArrowRight className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setShowContinueOverlay(false)}
+                          className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-white/20 text-white/60 text-sm hover:bg-white/5"
+                          data-testid="overlay-dismiss-btn"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Scene Counter */}
                   <div className="absolute bottom-3 right-3 px-3 py-1 bg-black/60 rounded-full text-white text-sm">
@@ -348,9 +412,30 @@ export default function StoryPreview() {
               ))}
             </div>
 
-            {/* Quick Downloads */}
+            {/* Continue Story — PRIMARY ACTION */}
+            <div className="bg-gradient-to-br from-violet-500/10 to-rose-500/10 rounded-xl border border-violet-500/20 p-4 space-y-3">
+              <h4 className="text-white font-bold text-sm flex items-center gap-2">
+                <Zap className="w-4 h-4 text-violet-400" />
+                What Happens Next?
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {preview.cliffhanger
+                  ? `"${preview.cliffhanger.slice(0, 120)}..."`
+                  : 'Continue this story — your studio will be pre-filled.'
+                }
+              </p>
+              <button
+                onClick={handleContinueStory}
+                className="w-full h-10 rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
+                data-testid="sidebar-continue-btn"
+              >
+                <Play className="w-4 h-4" /> Continue Story
+              </button>
+            </div>
+
+            {/* Downloads (secondary) */}
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 space-y-3">
-              <h4 className="text-white font-medium text-sm">Downloads</h4>
+              <h4 className="text-slate-400 font-medium text-sm">Downloads</h4>
               {preview.final_video_url && (
                 <a href={preview.final_video_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300">
                   <Film className="w-4 h-4" /> Final Video (MP4)

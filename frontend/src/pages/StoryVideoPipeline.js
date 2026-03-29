@@ -202,12 +202,12 @@ function StoryVideoPipelineInner() {
         // Legacy: bare string prompt
         setStoryText(pf);
       } else if (typeof pf === 'object') {
-        // Full prefill: title, prompt, animation_style, parent_video_id
+        // Full prefill: title, prompt, animation_style, parent_video_id, hook_text
         if (pf.title) setTitle(pf.title);
         if (pf.prompt) setStoryText(pf.prompt);
         if (pf.animation_style) setAnimStyle(pf.animation_style);
         if (pf.parent_video_id) {
-          setRemixData({ parent_video_id: pf.parent_video_id });
+          setRemixData({ parent_video_id: pf.parent_video_id, hook_text: pf.hook_text, characters: pf.characters });
         }
       }
     }
@@ -255,6 +255,15 @@ function StoryVideoPipelineInner() {
             setRemixSourceTool(rd.remixFrom.tool || rd.source_tool);
             setRemixSourceTitle(rd.remixFrom.title);
             setShowRemixBanner(true);
+            // Capture continuation context
+            if (rd.remixFrom.hook_text || rd.remixFrom.characters) {
+              setRemixData(prev => ({
+                ...prev,
+                hook_text: rd.remixFrom.hook_text || prev?.hook_text,
+                characters: rd.remixFrom.characters || prev?.characters,
+                parent_video_id: rd.remixFrom.parentId || prev?.parent_video_id,
+              }));
+            }
           }
           localStorage.removeItem('remix_data');
         }

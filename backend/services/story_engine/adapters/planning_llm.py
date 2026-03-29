@@ -136,7 +136,32 @@ async def generate_episode_plan(
             context += f"\n\nPrevious episode plan for continuity:\n{json.dumps(previous_plan, indent=2)[:1500]}"
 
         response = await llm.send_message(UserMessage(text=context))
-        return _parse_json(response)
+        plan = _parse_json(response)
+
+        # ── Cliffhanger enforcement: reject or rewrite if missing/weak ──
+        if plan and (not plan.get("cliffhanger") or len(plan.get("cliffhanger", "")) < 15):
+            logger.warning("[PLANNING] Weak/missing cliffhanger detected — requesting rewrite")
+            try:
+                rewrite_llm = LlmChat(
+                    api_key=EMERGENT_KEY,
+                    session_id=f"cliffhanger_fix_{episode_number}",
+                    system_message="You are a story cliffhanger specialist. Given a story plan, write ONE powerful cliffhanger ending sentence that creates unresolved tension, a question, a surprise, or an incomplete action. Return ONLY the cliffhanger text, nothing else.",
+                )
+                rewrite_llm = rewrite_llm.with_model("openai", "gpt-4o-mini")
+                rewrite_llm = rewrite_llm.with_params(temperature=0.9, max_tokens=200)
+                cliff_text = await rewrite_llm.send_message(UserMessage(
+                    text=f"Story title: {plan.get('title', 'Unknown')}\nSummary: {plan.get('summary', story_text[:300])}\nLast scene: {json.dumps(plan.get('scene_breakdown', [{}])[-1], indent=2)[:500]}\n\nWrite a cliffhanger ending that makes the audience NEED to know what happens next:"
+                ))
+                cliff_text = cliff_text.strip().strip('"').strip("'")
+                if cliff_text and len(cliff_text) > 10:
+                    plan["cliffhanger"] = cliff_text
+                    logger.info(f"[PLANNING] Cliffhanger rewritten: {cliff_text[:80]}...")
+            except Exception as cliff_err:
+                logger.error(f"[PLANNING] Cliffhanger rewrite failed: {cliff_err}")
+                if not plan.get("cliffhanger"):
+                    plan["cliffhanger"] = "But what they found next changed everything..."
+
+        return plan
 
     except Exception as e:
         logger.error(f"[PLANNING] Episode plan generation failed: {e}")

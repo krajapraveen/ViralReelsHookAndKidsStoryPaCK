@@ -148,6 +148,8 @@ export default function PublicCreation() {
         tool: creation.tool_type || 'story-video-studio', prompt,
         settings: { animation_style: creation.animation_style, age_group: creation.age_group, voice_preset: creation.voice_preset },
         title, parentId: creation.job_id,
+        hook_text: creation.cliffhanger || lastScene?.narration || '',
+        characters: creation.characters || [],
       },
     }));
 
@@ -391,9 +393,14 @@ export default function PublicCreation() {
 
                       {/* ═══ POST-VIDEO CTA OVERLAY ═══ */}
                       {videoEnded && showOverlay && (
-                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in fade-in duration-500" data-testid="post-video-overlay">
-                          <p className="text-xl sm:text-2xl font-black text-white mb-2 text-center px-4">The story doesn't end here...</p>
-                          <p className="text-sm text-slate-300 mb-6 text-center px-4">You decide what happens next</p>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-black/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in fade-in duration-500" data-testid="post-video-overlay">
+                          <p className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-3">This wasn't the end...</p>
+                          {cliffhangerText && (
+                            <p className="text-base sm:text-lg text-slate-200 italic text-center px-8 mb-2 leading-relaxed max-w-md">
+                              "{cliffhangerText.length > 180 ? '...' + cliffhangerText.slice(-180) : cliffhangerText}"
+                            </p>
+                          )}
+                          <p className="text-sm font-bold text-amber-400 mb-6">What happens next?</p>
                           <div className="flex flex-col sm:flex-row gap-3">
                             <button
                               onClick={() => handleContinue('continue')}
