@@ -28,29 +28,11 @@ function isAdminUser() {
   } catch { return false; }
 }
 
-/** Preload images in parallel using Image() workers for fast rendering */
-function preloadImages(urls) {
-  if (!urls || urls.length === 0) return;
-  const batch = urls.slice(0, 16); // Preload first 16 images (hero + 3 rows x 5 visible)
-  // Use staggered loading: first 6 immediately, rest after 200ms
-  const immediate = batch.slice(0, 6);
-  const deferred = batch.slice(6);
-
-  immediate.forEach(url => {
-    if (!url) return;
-    const img = new Image();
-    img.src = url;
-  });
-
-  if (deferred.length > 0) {
-    setTimeout(() => {
-      deferred.forEach(url => {
-        if (!url) return;
-        const img = new Image();
-        img.src = url;
-      });
-    }, 200);
-  }
+/** Preload only the hero poster image for instant first paint */
+function preloadHeroImage(url) {
+  if (!url) return;
+  const img = new Image();
+  img.src = url;
 }
 
 const HOOK_BANK = [
@@ -188,7 +170,7 @@ function HeroSection({ stories, navigate }) {
               "{getHook(current, activeIdx)}"
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => navigate('/app/story-video-studio', { state: { prefill: current.title, freshSession: true } })}
+              <button onClick={() => navigate('/app/story-video-studio', { state: { prefill: { title: current.title, prompt: current.hook_text || '', animation_style: current.animation_style || '', parent_video_id: current.job_id }, freshSession: true } })}
                 className="flex items-center gap-2 px-6 py-3 bg-white text-black font-extrabold rounded-lg text-sm hover:scale-[1.03] active:scale-[0.97] transition-transform shadow-xl shadow-white/15" data-testid="hero-play-btn">
                 <Play className="w-5 h-5 fill-black" /> Watch & Continue
               </button>
@@ -262,11 +244,13 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
   const sizes = { sm: 'w-44 sm:w-52', md: 'w-52 sm:w-60 lg:w-64', lg: 'w-60 sm:w-72 lg:w-80' };
 
   const handleClick = () => {
-    if (isSeed) {
-      navigate('/app/story-video-studio', { state: { prefill: story.title, freshSession: true } });
-    } else {
-      navigate('/app/story-video-studio', { state: { prefill: story.title, freshSession: true } });
-    }
+    const prefillData = {
+      title: story.title || '',
+      prompt: story.hook_text || '',
+      animation_style: story.animation_style || '',
+      parent_video_id: isSeed ? null : story.job_id,
+    };
+    navigate('/app/story-video-studio', { state: { prefill: prefillData, freshSession: true } });
   };
 
   return (
@@ -434,7 +418,7 @@ function FeaturesGrid({ navigate }) {
 /* ═══════════ CREATE BAR ═══════════ */
 function CreateBar({ navigate }) {
   const [prompt, setPrompt] = useState('');
-  const go = () => navigate('/app/story-video-studio', { state: { prefill: prompt || undefined, freshSession: true } });
+  const go = () => navigate('/app/story-video-studio', { state: { prefill: prompt ? { prompt } : undefined, freshSession: true } });
   return (
     <div className="px-6 sm:px-10 lg:px-14 pt-5 pb-2" data-testid="create-bar">
       <div className="max-w-2xl">
@@ -499,10 +483,10 @@ export default function Dashboard() {
         console.log('[Dashboard] Feed loaded:', { hero: !!res.data.hero, trending: res.data.trending?.length, stats: res.data.live_stats });
         setFeed(res.data);
 
-        // PRELOAD WORKER: Eagerly fetch first 12 thumbnail images in parallel
-        const allStories = [res.data.hero, ...(res.data.trending || [])].filter(Boolean);
-        const imageUrls = allStories.map(s => mediaUrl(s.thumbnail_url)).filter(Boolean);
-        preloadImages(imageUrls);
+        // Only preload the hero poster image — everything else uses lazy loading
+        if (res.data.hero?.thumbnail_url) {
+          preloadHeroImage(mediaUrl(res.data.hero.thumbnail_url));
+        }
       } catch (e) {
         console.error('[Dashboard] Feed load FAILED:', e.message);
         setFeed({ hero: null, trending: [], characters: [], live_stats: {} });

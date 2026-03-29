@@ -1,18 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 /**
- * SafeImage — bulletproof image renderer with priority loading support.
+ * SafeImage — viewport-aware image loader with IntersectionObserver.
  *
- * Props:
- *   src           - image URL (can be null/empty)
- *   alt           - alt text
- *   fallbackType  - 'gradient' | 'initials' (default: 'gradient')
- *   aspectRatio   - CSS aspect-ratio value (default: '1/1')
- *   objectFit     - CSS object-fit (default: 'cover')
- *   titleOverlay  - text to overlay when image missing
- *   priority      - if true, use eager loading + fetchpriority=high
- *   className     - additional classes for the container
- *   imgClassName  - additional classes for the <img> tag
+ * Priority images (hero, first 4 visible) load eagerly.
+ * All others defer loading until they enter the viewport.
  */
 export function SafeImage({
   src,
@@ -29,6 +21,8 @@ export function SafeImage({
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [retried, setRetried] = useState(false);
+  const [inView, setInView] = useState(priority);
+  const containerRef = useRef(null);
   const imgRef = useRef(null);
 
   // Reset state when src changes
@@ -36,11 +30,31 @@ export function SafeImage({
     setFailed(false);
     setLoaded(false);
     setRetried(false);
-  }, [src]);
+    if (!priority) setInView(false);
+  }, [src, priority]);
+
+  // IntersectionObserver — only observe non-priority images
+  useEffect(() => {
+    if (priority || inView) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px 0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [priority, inView]);
 
   const isPlaceholder = src && src.includes('placehold.co');
   const hasValidSrc = src && !isPlaceholder && src.length > 5;
-  const showImage = hasValidSrc && !failed;
+  const shouldRender = hasValidSrc && !failed && inView;
 
   // Gradient colors for fallback
   const hash = (alt || titleOverlay || 'a').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -56,17 +70,18 @@ export function SafeImage({
 
   return (
     <div
+      ref={containerRef}
       className={`relative overflow-hidden bg-slate-800 ${className}`}
       style={{ aspectRatio }}
       data-testid={rest['data-testid'] || undefined}
     >
-      {/* Skeleton pulse while image loading */}
-      {showImage && !loaded && (
+      {/* Skeleton pulse while loading */}
+      {shouldRender && !loaded && (
         <div className="absolute inset-0 bg-slate-800 animate-pulse" />
       )}
 
-      {/* Actual image */}
-      {showImage && (
+      {/* Actual image — only rendered when in viewport */}
+      {shouldRender && (
         <img
           ref={imgRef}
           src={src}
@@ -82,7 +97,7 @@ export function SafeImage({
               setRetried(true);
               setTimeout(() => {
                 if (imgRef.current) {
-                  const bust = src.includes('?') ? `&_r=1` : `?_r=1`;
+                  const bust = src.includes('?') ? '&_r=1' : '?_r=1';
                   imgRef.current.src = src + bust;
                 }
               }, 800);
@@ -94,7 +109,7 @@ export function SafeImage({
       )}
 
       {/* Gradient fallback — clean, no broken image icon */}
-      {!showImage && (
+      {(!shouldRender && inView) || (!hasValidSrc) || failed ? (
         <div className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${grad}`}>
           {fallbackType === 'initials' && titleOverlay && (
             <span className="text-2xl font-black text-white/20 uppercase">
@@ -109,7 +124,7 @@ export function SafeImage({
             </div>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

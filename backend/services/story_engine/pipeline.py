@@ -193,9 +193,14 @@ async def run_pipeline(job_id: str) -> Dict:
     stage_results = []
 
     try:
-        # ── Step 3: Generate episode plan ──
+        # ── Step 3: Generate episode plan (with 1 retry for transient LLM failures) ──
         job = await transition_job(db, job_id, JobState.PLANNING)
         plan_result = await _run_stage(job_id, "planning", _stage_planning, job)
+        if plan_result["status"] != "success":
+            logger.warning(f"[PIPELINE] Planning failed for {job_id[:8]}, retrying once...")
+            import asyncio as _aio
+            await _aio.sleep(2)
+            plan_result = await _run_stage(job_id, "planning_retry", _stage_planning, job)
         stage_results.append(plan_result)
         if plan_result["status"] != "success":
             await _fail_job(job_id, "Episode planning failed", stage_results)

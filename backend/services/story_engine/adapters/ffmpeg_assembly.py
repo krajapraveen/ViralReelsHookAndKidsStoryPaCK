@@ -136,6 +136,38 @@ def _cleanup_markers(task_id: str):
             pass
 
 
+def _sanitize_transition(raw: str) -> str:
+    """Map LLM-generated transition names to valid FFmpeg xfade transitions."""
+    VALID_XFADE = {
+        "fade", "fadeblack", "fadewhite", "dissolve",
+        "wipeleft", "wiperight", "wipeup", "wipedown",
+        "slideleft", "slideright", "slideup", "slidedown",
+        "smoothleft", "smoothright", "smoothup", "smoothdown",
+        "circlecrop", "circleopen", "circleclose",
+        "radial", "rectcrop", "distance", "pixelize",
+        "diagtl", "diagtr", "diagbl", "diagbr",
+        "horzopen", "horzclose", "vertopen", "vertclose",
+        "zoomin", "fadefast", "fadeslow",
+    }
+    LLM_MAP = {
+        "cut": "fade",
+        "crossfade": "fade",
+        "cross_fade": "fade",
+        "cross-fade": "fade",
+        "wipe": "wipeleft",
+        "slide": "slideleft",
+        "zoom": "zoomin",
+        "dissolve_slow": "dissolve",
+        "hard_cut": "fade",
+        "none": "fade",
+        "": "fade",
+    }
+    raw_lower = (raw or "").strip().lower()
+    if raw_lower in VALID_XFADE:
+        return raw_lower
+    return LLM_MAP.get(raw_lower, "fade")
+
+
 async def stitch_clips(
     clip_paths: List[str],
     output_path: str,
@@ -186,16 +218,20 @@ async def stitch_clips(
         except (ValueError, TypeError):
             durations.append(4.0)  # fallback
 
-    # Step 3: Build xfade filter chain with correct offsets
+    # Step 3: Build xfade filter chain with sanitized transitions and correct offsets
     inputs = " ".join([f'-i "{p}"' for p in normalized_paths])
     filter_parts = []
     prev_label = "0:v"
     cumulative_offset = 0
 
     for i in range(1, len(normalized_paths)):
-        trans = (transitions[i-1] if transitions and i-1 < len(transitions) else "fade")
+        raw_trans = transitions[i-1] if transitions and i-1 < len(transitions) else "fade"
+        trans = _sanitize_transition(raw_trans)
         out_label = f"v{i}" if i < len(normalized_paths) - 1 else "v"
         cumulative_offset += durations[i-1] - transition_duration
+        # Guard against negative or zero offsets
+        if cumulative_offset < 0.1:
+            cumulative_offset = 0.1
         filter_parts.append(
             f"[{prev_label}][{i}:v]xfade=transition={trans}:duration={transition_duration}:offset={cumulative_offset:.2f}[{out_label}]"
         )
@@ -207,10 +243,10 @@ async def stitch_clips(
         f"-filter_complex '{filter_complex}' "
         f'-map "[v]" -c:v libx264 -pix_fmt yuv420p -crf 20 -movflags +faststart "{output_path}"'
     )
-    # Use inline runner for stitch (fast enough for < 10 clips, avoids shell escaping issues with detached runner)
+    logger.info(f"[FFMPEG] Stitching {len(normalized_paths)} clips with transitions: {[_sanitize_transition(t) for t in (transitions or [])]}")
     result = await _run_ffmpeg(cmd, timeout=180)
 
-    # Fallback: if xfade stitch fails, use simple concat
+    # Fallback: if xfade stitch fails, use simple concat (no transitions)
     if not result:
         logger.warning("[FFMPEG] xfade stitch failed, falling back to concat demuxer")
         concat_list = os.path.join(OUTPUT_DIR, "concat_list.txt")

@@ -197,7 +197,19 @@ function StoryVideoPipelineInner() {
     // ── Handle location.state from Dashboard "Continue Story" ──
     const locState = location?.state || window.history?.state?.usr;
     if (locState?.prefill && !savedState) {
-      setStoryText(locState.prefill);
+      const pf = locState.prefill;
+      if (typeof pf === 'string') {
+        // Legacy: bare string prompt
+        setStoryText(pf);
+      } else if (typeof pf === 'object') {
+        // Full prefill: title, prompt, animation_style, parent_video_id
+        if (pf.title) setTitle(pf.title);
+        if (pf.prompt) setStoryText(pf.prompt);
+        if (pf.animation_style) setAnimStyle(pf.animation_style);
+        if (pf.parent_video_id) {
+          setRemixData({ parent_video_id: pf.parent_video_id });
+        }
+      }
     }
     // Only auto-reconnect to active jobs on page REFRESH (not fresh navigation from Dashboard)
     if (!locState?.freshSession) {
