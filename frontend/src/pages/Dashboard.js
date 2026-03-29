@@ -188,11 +188,11 @@ function HeroSection({ stories, navigate }) {
               "{getHook(current, activeIdx)}"
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => navigate('/app/story-video-studio', { state: { continueJob: current.job_id } })}
+              <button onClick={() => navigate('/app/story-video-studio', { state: { prefill: current.title, freshSession: true } })}
                 className="flex items-center gap-2 px-6 py-3 bg-white text-black font-extrabold rounded-lg text-sm hover:scale-[1.03] active:scale-[0.97] transition-transform shadow-xl shadow-white/15" data-testid="hero-play-btn">
                 <Play className="w-5 h-5 fill-black" /> Watch & Continue
               </button>
-              <button onClick={() => navigate('/app/story-video-studio')}
+              <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
                 className="flex items-center gap-2 px-6 py-3 bg-white/15 backdrop-blur text-white font-extrabold rounded-lg text-sm hover:bg-white/25 transition-colors border border-white/15" data-testid="hero-create-btn">
                 <Plus className="w-5 h-5" /> Create New
               </button>
@@ -215,7 +215,7 @@ function HeroSection({ stories, navigate }) {
             <p className="text-sm sm:text-base text-white/70 leading-relaxed mb-5 max-w-xl">
               Worlds half-built. Characters mid-sentence. Pick any story below and decide what happens next.
             </p>
-            <button onClick={() => navigate('/app/story-video-studio')}
+            <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
               className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-lg text-sm hover:scale-[1.03] active:scale-[0.97] transition-transform shadow-xl shadow-white/10" data-testid="hero-create-btn">
               <Play className="w-4 h-4 fill-black" /> Continue a Story
             </button>
@@ -263,9 +263,9 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
 
   const handleClick = () => {
     if (isSeed) {
-      navigate('/app/story-video-studio', { state: { prefill: story.title } });
+      navigate('/app/story-video-studio', { state: { prefill: story.title, freshSession: true } });
     } else {
-      navigate('/app/story-video-studio', { state: { continueJob: story.job_id } });
+      navigate('/app/story-video-studio', { state: { prefill: story.title, freshSession: true } });
     }
   };
 
@@ -386,31 +386,55 @@ function ScrollRow({ title, icon: Icon, iconColor, children, seeAllAction, testI
   );
 }
 
-/* ═══════════ QUICK TOOLS ═══════════ */
-function QuickToolsPills({ navigate }) {
-  const tools = [
-    { name: 'Story Video', icon: Film, path: '/app/story-video-studio', color: 'text-violet-400' },
-    { name: 'Reels', icon: Play, path: '/app/reels', color: 'text-rose-400' },
-    { name: 'Comic', icon: BookOpen, path: '/app/comic-storybook', color: 'text-cyan-400' },
-    { name: 'Bedtime', icon: Star, path: '/app/bedtime-stories', color: 'text-amber-400' },
+/* ═══════════ FEATURES GRID — 10 bold tools ═══════════ */
+function FeaturesGrid({ navigate }) {
+  const features = [
+    { name: 'Story Series', desc: 'Multi-episode sagas', icon: Film, path: '/app/story-series', color: 'from-violet-600 to-purple-700', iconBg: 'bg-violet-500/20' },
+    { name: 'Character Memory', desc: 'Persistent characters', icon: User, path: '/app/characters', color: 'from-cyan-600 to-blue-700', iconBg: 'bg-cyan-500/20' },
+    { name: 'Reel Generator', desc: 'Viral short reels', icon: Play, path: '/app/reels', color: 'from-rose-600 to-pink-700', iconBg: 'bg-rose-500/20' },
+    { name: 'Photo to Comic', desc: 'Photos become comics', icon: Sparkles, path: '/app/photo-to-comic', color: 'from-amber-600 to-orange-700', iconBg: 'bg-amber-500/20' },
+    { name: 'Comic Storybook', desc: 'Panel-by-panel stories', icon: BookOpen, path: '/app/comic-storybook', color: 'from-emerald-600 to-green-700', iconBg: 'bg-emerald-500/20' },
+    { name: 'Bedtime Stories', desc: 'Narrated sleep tales', icon: Star, path: '/app/bedtime-stories', color: 'from-indigo-600 to-blue-700', iconBg: 'bg-indigo-500/20' },
+    { name: 'Reaction GIF', desc: 'Custom reaction GIFs', icon: Zap, path: '/app/reaction-gif', color: 'from-yellow-500 to-amber-600', iconBg: 'bg-yellow-500/20' },
+    { name: 'Caption Rewriter', desc: 'AI-powered captions', icon: ArrowRight, path: '/app/caption-rewriter', color: 'from-teal-600 to-cyan-700', iconBg: 'bg-teal-500/20' },
+    { name: 'Brand Story', desc: 'Business storytelling', icon: Shield, path: '/app/brand-story', color: 'from-slate-600 to-gray-700', iconBg: 'bg-slate-500/20' },
+    { name: 'Daily Viral Ideas', desc: 'Trending content ideas', icon: Flame, path: '/app/daily-viral', color: 'from-red-600 to-rose-700', iconBg: 'bg-red-500/20' },
   ];
+
   return (
-    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide" data-testid="quick-tools">
-      {tools.map(t => (
-        <button key={t.name} onClick={() => navigate(t.path)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[10px] font-bold text-white/40 hover:text-white/80 hover:bg-white/[0.08] hover:border-white/15 transition-all flex-shrink-0"
-          data-testid={`tool-${t.name.replace(/\s/g, '-').toLowerCase()}`}>
-          <t.icon className={`w-3 h-3 ${t.color}`} /> {t.name}
-        </button>
-      ))}
-    </div>
+    <section className="px-6 sm:px-10 lg:px-14 py-6" data-testid="features-grid">
+      <h2 className="flex items-center gap-2.5 text-lg sm:text-xl font-extrabold text-white tracking-tight mb-5">
+        <Zap className="w-5 h-5 text-amber-400" />
+        Creator Tools
+      </h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        {features.map(f => {
+          const Icon = f.icon;
+          return (
+            <button
+              key={f.name}
+              onClick={() => navigate(f.path, { state: { freshSession: true } })}
+              className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/15 transition-all p-4 text-left cursor-pointer"
+              data-testid={`feature-${f.name.replace(/\s/g, '-').toLowerCase()}`}
+            >
+              <div className={`w-10 h-10 rounded-lg ${f.iconBg} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                <Icon className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-sm font-bold text-white leading-tight mb-0.5">{f.name}</h3>
+              <p className="text-[10px] text-white/40 leading-tight">{f.desc}</p>
+              <div className={`absolute inset-0 bg-gradient-to-br ${f.color} opacity-0 group-hover:opacity-[0.08] transition-opacity pointer-events-none`} />
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
 /* ═══════════ CREATE BAR ═══════════ */
 function CreateBar({ navigate }) {
   const [prompt, setPrompt] = useState('');
-  const go = () => navigate('/app/story-video-studio', { state: { prefill: prompt || undefined } });
+  const go = () => navigate('/app/story-video-studio', { state: { prefill: prompt || undefined, freshSession: true } });
   return (
     <div className="px-6 sm:px-10 lg:px-14 pt-5 pb-2" data-testid="create-bar">
       <div className="max-w-2xl">
@@ -556,8 +580,11 @@ export default function Dashboard() {
         </ScrollRow>
       )}
 
-      {/* ▸ CREATE BAR + CREDITS + TOOLS — footer */}
-      <div className="mt-3 border-t border-white/[0.06]">
+      {/* ▸ FEATURES GRID — 10 bold creator tools */}
+      <FeaturesGrid navigate={navigate} />
+
+      {/* ▸ CREATE BAR + CREDITS — footer */}
+      <div className="border-t border-white/[0.06]">
         <CreateBar navigate={navigate} />
         <div className="flex items-center justify-between px-6 sm:px-10 lg:px-14 py-2">
           <div className="flex items-center gap-5 text-xs text-white/35">
@@ -580,7 +607,6 @@ export default function Dashboard() {
               )}
             </span>
           </div>
-          <QuickToolsPills navigate={navigate} />
         </div>
       </div>
 

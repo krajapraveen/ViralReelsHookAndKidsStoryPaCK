@@ -199,8 +199,11 @@ function StoryVideoPipelineInner() {
     if (locState?.prefill && !savedState) {
       setStoryText(locState.prefill);
     }
-    if (locState?.continueFrom && !savedState) {
-      setRemixData({ parent_video_id: locState.continueFrom });
+    // Only auto-reconnect to active jobs on page REFRESH (not fresh navigation from Dashboard)
+    if (!locState?.freshSession) {
+      if (locState?.continueFrom && !savedState) {
+        setRemixData({ parent_video_id: locState.continueFrom });
+      }
     }
 
     // Handle remix
@@ -269,13 +272,17 @@ function StoryVideoPipelineInner() {
       const res = await api.get('/api/story-engine/user-jobs');
       if (res.data.success) {
         setUserJobs(res.data.jobs || []);
-        // Reconnect to active job if any (refresh safety)
-        const active = (res.data.jobs || []).find(j => ['QUEUED', 'PROCESSING'].includes(j.status));
-        if (active) {
-          setJobId(active.job_id);
-          setJob(active);
-          setPhase('processing');
-          startPolling(active.job_id);
+        // Only auto-reconnect to active jobs on page REFRESH (no location.state)
+        // If user navigated here from Dashboard (freshSession=true), let them input first
+        const locState = location?.state || window.history?.state?.usr;
+        if (!locState?.freshSession) {
+          const active = (res.data.jobs || []).find(j => ['QUEUED', 'PROCESSING'].includes(j.status));
+          if (active) {
+            setJobId(active.job_id);
+            setJob(active);
+            setPhase('processing');
+            startPolling(active.job_id);
+          }
         }
       }
     } catch { /* ignore */ }
