@@ -130,8 +130,10 @@ function HeroSection({ stories, navigate }) {
   const prefillObj = {
     title: current.title || '',
     prompt: current.hook_text || current.story_prompt || '',
+    hook_text: current.hook_text || '',
     animation_style: current.animation_style || '',
     parent_video_id: current.job_id || null,
+    source_surface: 'hero',
   };
 
   return (
@@ -252,8 +254,10 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
         prefill: {
           title: story.title || '',
           prompt: story.hook_text || story.story_prompt || '',
+          hook_text: story.hook_text || '',
           animation_style: story.animation_style || '',
           parent_video_id: isSeed ? null : story.job_id,
+          source_surface: story.badge === 'TRENDING' ? 'trending' : story.badge === 'FRESH' ? 'fresh' : story.badge === 'CONTINUE' ? 'continue' : story.badge === 'UNFINISHED' ? 'unfinished' : 'dashboard',
         },
         freshSession: true,
       },

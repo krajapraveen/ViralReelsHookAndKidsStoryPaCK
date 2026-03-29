@@ -68,11 +68,18 @@ async def get_balance(user: dict = Depends(get_current_user)):
     return {
         "credits": credits_val,
         "balance": credits_val,
+        "is_unlimited": is_exempt,
         "subscription": user_data.get("subscription"),
         "plan": plan_val,
         "isFreeTier": plan_val == "free",
         "unlimited": is_exempt,
     }
+
+
+@router.get("/me")
+async def get_credits_me(user: dict = Depends(get_current_user)):
+    """Alias for /balance — mandated endpoint name."""
+    return await get_balance(user)
 
 
 @router.get("/check-upsell")

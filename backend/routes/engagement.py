@@ -246,6 +246,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         "thumbnail_url": 1, "thumbnail_small_url": 1, "output_url": 1, "preview_url": 1,
         "remix_count": 1, "animation_style": 1, "created_at": 1,
         "scene_images": 1, "parent_video_id": 1, "user_id": 1,
+        "character_continuity": 1,
     }
 
     R2_PUBLIC = os.environ.get("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
@@ -308,17 +309,29 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         sentences = [s.strip() for s in (text or "").replace("\n", ". ").split(".") if s.strip() and len(s.strip()) > 5]
         return (sentences[0] + "...") if sentences else ""
 
+    def _extract_char_summary(job: dict) -> dict | None:
+        """Extract character summary from character_continuity or return None."""
+        cc = job.get("character_continuity") or {}
+        chars = cc.get("characters", [])
+        if chars and isinstance(chars, list) and len(chars) > 0:
+            c = chars[0]
+            return {"name": c.get("name"), "role": c.get("role")}
+        return None
+
     def _shape_item(job: dict, badge: str = "NEW") -> dict:
         """Shape a raw DB document into a standard feed item.
         Images → CDN direct (fast). Videos → proxy (Range/206 support)."""
         card_thumb = _cdn_url(job.get("thumbnail_small_url")) or _resolve_thumb(job)
         poster_thumb = _resolve_thumb(job)
+        jid = job.get("job_id")
         return {
-            "job_id": job.get("job_id"),
+            "id": jid,
+            "job_id": jid,
             "title": job.get("title", "Untitled"),
             "hook_text": _extract_hook(job.get("story_text", "")),
             "story_prompt": job.get("story_text", ""),
             "thumbnail_url": card_thumb,
+            "thumbnail_small_url": card_thumb,
             "poster_url": poster_thumb,
             "preview_url": _proxy_url(job.get("preview_url")),
             "output_url": _proxy_url(job.get("output_url")),
@@ -326,7 +339,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             "parent_video_id": job.get("parent_video_id"),
             "badge": badge,
             "created_at": job.get("created_at", ""),
-            "character_summary": None,
+            "character_summary": _extract_char_summary(job),
         }
 
     # ── Query: story_engine_jobs (PRIMARY) then pipeline_jobs (LEGACY fallback) ──
