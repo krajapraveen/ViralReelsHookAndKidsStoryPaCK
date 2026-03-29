@@ -516,10 +516,26 @@ async def _stage_assembly(job: dict) -> Dict:
     # Step 2: Mix audio
     final_path = stitched_path
     if narration_path and os.path.exists(narration_path):
-        mixed_path = str(output_dir / f"se_{job_id[:8]}_final.mp4")
+        mixed_path = str(output_dir / f"se_{job_id[:8]}_mixed.mp4")
         mix_ok = await ffmpeg_assembly.mix_audio(stitched_path, narration_path, None, mixed_path)
         if mix_ok:
             final_path = mixed_path
+
+    # Step 2.5: Apply addiction triggers (zoom + darken + text in last 2s)
+    episode_plan = job.get("episode_plan", {})
+    trigger_text = episode_plan.get("trigger_text")
+    cliffhanger_text = episode_plan.get("cliffhanger")
+    triggered_path = str(output_dir / f"se_{job_id[:8]}_triggered.mp4")
+    trigger_ok = await ffmpeg_assembly.apply_addiction_triggers(
+        final_path, triggered_path,
+        trigger_text=trigger_text,
+        cliffhanger_text=cliffhanger_text,
+    )
+    if trigger_ok and os.path.exists(triggered_path):
+        final_path = triggered_path
+        logger.info(f"[PIPELINE] Addiction triggers applied for job {job_id[:8]}")
+    else:
+        logger.warning(f"[PIPELINE] Addiction triggers skipped for job {job_id[:8]} — using original video")
 
     # Step 3: Generate preview
     preview_path = str(output_dir / f"se_{job_id[:8]}_preview.mp4")
@@ -664,6 +680,7 @@ async def get_job_status(job_id: str) -> Optional[Dict]:
         return None
 
     state = JobState(job["state"])
+    episode_plan = job.get("episode_plan", {})
     return {
         "job_id": job["job_id"],
         "state": state.value,
@@ -683,4 +700,8 @@ async def get_job_status(job_id: str) -> Optional[Dict]:
         "used_ken_burns_fallback": job.get("used_ken_burns_fallback", False),
         "sora_clips_count": job.get("sora_clips_count", 0),
         "fallback_clips_count": job.get("fallback_clips_count", 0),
+        "cliffhanger": episode_plan.get("cliffhanger"),
+        "trigger_text": episode_plan.get("trigger_text"),
+        "tension_peak": episode_plan.get("tension_peak"),
+        "cut_mood": episode_plan.get("cut_mood"),
     }

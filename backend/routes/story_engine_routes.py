@@ -532,6 +532,9 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
                 for c in (job.get("character_continuity") or {}).get("characters", [])
             ],
             "cliffhanger": (job.get("episode_plan") or {}).get("cliffhanger"),
+            "trigger_text": (job.get("episode_plan") or {}).get("trigger_text"),
+            "tension_peak": (job.get("episode_plan") or {}).get("tension_peak"),
+            "cut_mood": (job.get("episode_plan") or {}).get("cut_mood"),
         },
     }
 
@@ -789,6 +792,7 @@ async def get_preview(job_id: str):
                 "narration_text": ep_scene.get("action_summary", plan.get("action", "")),
                 "duration": plan.get("clip_duration_seconds", 5.0),
             })
+        episode_plan = job.get("episode_plan") or {}
         return {
             "success": True,
             "preview": {
@@ -796,6 +800,11 @@ async def get_preview(job_id: str):
                 "total_scenes": len(scenes),
                 "scenes": scenes,
                 "final_video_url": _make_presigned_url(job.get("output_url")),
+                "story_text": job.get("story_text", ""),
+                "cliffhanger": episode_plan.get("cliffhanger"),
+                "trigger_text": episode_plan.get("trigger_text"),
+                "tension_peak": episode_plan.get("tension_peak"),
+                "cut_mood": episode_plan.get("cut_mood"),
             },
         }
     else:

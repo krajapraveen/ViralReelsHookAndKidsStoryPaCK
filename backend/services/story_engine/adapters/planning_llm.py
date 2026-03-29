@@ -14,14 +14,14 @@ logger = logging.getLogger("story_engine.adapters.planning")
 
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
-EPISODE_PLAN_PROMPT = """You are a cinematic story planner. Given a story prompt, produce a STRICT JSON episode plan.
+EPISODE_PLAN_PROMPT = """You are a cinematic story planner who specializes in ADDICTIVE, UNFINISHED stories. Given a story prompt, produce a STRICT JSON episode plan.
 
 Output ONLY valid JSON matching this exact schema:
 {{
   "title": "episode title",
   "episode_number": {episode_number},
   "summary": "2-3 sentence summary",
-  "emotional_arc": "emotion1 → emotion2 → emotion3 → cliffhanger",
+  "emotional_arc": "emotion1 → emotion2 → TENSION_PEAK → cliffhanger_cut",
   "scene_breakdown": [
     {{
       "scene_number": 1,
@@ -45,19 +45,28 @@ Output ONLY valid JSON matching this exact schema:
       "voice_tone": "calm|dramatic|whisper|playful"
     }}
   ],
-  "cliffhanger": "the unresolved ending hook",
+  "tension_peak": "the single most intense moment — describe what happens at the height of tension",
+  "cliffhanger": "the unresolved ending hook — MUST be an interrupted action, unanswered question, or sudden revelation with NO resolution",
+  "trigger_text": "a 4-8 word phrase that appears mid-video to create dread/curiosity (e.g. 'He shouldn't have opened it...')",
+  "cut_mood": "the emotional state when the video abruptly cuts: dread|shock|mystery|urgency|suspense",
   "visual_style_constraints": ["style1", "style2"],
   "negative_constraints": ["avoid1", "avoid2"],
   "narration_style": "dramatic|calm|mysterious|playful",
   "target_total_duration_seconds": 30.0
 }}
 
-RULES:
-- 3-6 scenes, each 4-8 seconds
-- Every story MUST end with an unresolved cliffhanger
+CRITICAL ADDICTION RULES:
+- 3-5 scenes, each 4-6 seconds (total 12-18 seconds of content)
+- Build tension through scenes: calm → curious → tense → PEAK → CUT
+- The story MUST be interrupted at 70-85% completion — NEVER show resolution
+- The last scene MUST end mid-action: a door opening, a face turning, eyes widening, something moving
+- "cliffhanger" must be an unresolved moment that creates a NEED to know what happens
+- "trigger_text" must create dread or curiosity (NOT a summary — a FEELING)
+- "tension_peak" describes the exact moment of highest stakes
 - Character descriptions must be specific enough for visual consistency
 - Include at least 1 character with full appearance details
-- Scene locations must be visually describable"""
+- Scene locations must be visually describable
+- NEVER RESOLVE THE STORY. The audience must feel incomplete."""
 
 CHARACTER_CONTINUITY_PROMPT = """Given this episode plan and any previous character data, produce a CHARACTER CONTINUITY PACKAGE as strict JSON.
 
@@ -145,12 +154,12 @@ async def generate_episode_plan(
                 rewrite_llm = LlmChat(
                     api_key=EMERGENT_KEY,
                     session_id=f"cliffhanger_fix_{episode_number}",
-                    system_message="You are a story cliffhanger specialist. Given a story plan, write ONE powerful cliffhanger ending sentence that creates unresolved tension, a question, a surprise, or an incomplete action. Return ONLY the cliffhanger text, nothing else.",
+                    system_message="You are a story cliffhanger specialist. Given a story plan, write ONE powerful cliffhanger ending that is an INTERRUPTED ACTION — a door opening, eyes widening, something moving in darkness. It must be unresolved and create desperate curiosity. Return ONLY the cliffhanger text, nothing else.",
                 )
                 rewrite_llm = rewrite_llm.with_model("openai", "gpt-4o-mini")
                 rewrite_llm = rewrite_llm.with_params(temperature=0.9, max_tokens=200)
                 cliff_text = await rewrite_llm.send_message(UserMessage(
-                    text=f"Story title: {plan.get('title', 'Unknown')}\nSummary: {plan.get('summary', story_text[:300])}\nLast scene: {json.dumps(plan.get('scene_breakdown', [{}])[-1], indent=2)[:500]}\n\nWrite a cliffhanger ending that makes the audience NEED to know what happens next:"
+                    text=f"Story title: {plan.get('title', 'Unknown')}\nSummary: {plan.get('summary', story_text[:300])}\nLast scene: {json.dumps(plan.get('scene_breakdown', [{}])[-1], indent=2)[:500]}\n\nWrite a cliffhanger ending that INTERRUPTS the story at peak tension — an unfinished action, not a summary:"
                 ))
                 cliff_text = cliff_text.strip().strip('"').strip("'")
                 if cliff_text and len(cliff_text) > 10:
@@ -160,6 +169,21 @@ async def generate_episode_plan(
                 logger.error(f"[PLANNING] Cliffhanger rewrite failed: {cliff_err}")
                 if not plan.get("cliffhanger"):
                     plan["cliffhanger"] = "But what they found next changed everything..."
+
+        # ── Trigger text enforcement ──
+        if plan and (not plan.get("trigger_text") or len(plan.get("trigger_text", "")) < 5):
+            plan["trigger_text"] = _generate_trigger_text(plan)
+
+        # ── Tension peak enforcement ──
+        if plan and not plan.get("tension_peak"):
+            scenes = plan.get("scene_breakdown", [])
+            if scenes:
+                peak_scene = scenes[int(len(scenes) * 0.75)] if len(scenes) > 2 else scenes[-1]
+                plan["tension_peak"] = peak_scene.get("action_summary", "The moment everything changes...")
+
+        # ── Cut mood enforcement ──
+        if plan and not plan.get("cut_mood"):
+            plan["cut_mood"] = "suspense"
 
         return plan
 
@@ -250,3 +274,22 @@ def _parse_json(text: str) -> Optional[any]:
     except json.JSONDecodeError as e:
         logger.error(f"[PLANNING] JSON parse failed: {e}")
         return None
+
+
+def _generate_trigger_text(plan: Dict) -> str:
+    """Generate a short in-video trigger phrase from the plan context."""
+    TRIGGER_BANK = [
+        "He shouldn't have looked...",
+        "Something moved in the dark.",
+        "This wasn't supposed to happen.",
+        "Nobody was supposed to find this.",
+        "The silence was wrong.",
+        "Too late to turn back.",
+        "It was watching them.",
+        "The door wasn't there before.",
+    ]
+    title = plan.get("title", "")
+    cliffhanger = plan.get("cliffhanger", "")
+    # Use title hash to pick a consistent trigger
+    h = sum(ord(c) for c in (title + cliffhanger))
+    return TRIGGER_BANK[h % len(TRIGGER_BANK)]

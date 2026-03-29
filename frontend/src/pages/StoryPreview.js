@@ -22,7 +22,10 @@ export default function StoryPreview() {
   const [activeScene, setActiveScene] = useState(0);
   const [playingAudio, setPlayingAudio] = useState(null);
   const [showContinueOverlay, setShowContinueOverlay] = useState(false);
+  const [videoTriggerActive, setVideoTriggerActive] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
   const audioRef = useRef(null);
+  const videoPlayerRef = useRef(null);
 
   useEffect(() => {
     fetchPreview();
@@ -95,6 +98,25 @@ export default function StoryPreview() {
       if (audioRef.current) audioRef.current.pause();
     };
   }, []);
+
+  // Video trigger zone: show cliffhanger text in last 2 seconds, CTA on end
+  const handleVideoTimeUpdate = useCallback(() => {
+    const v = videoPlayerRef.current;
+    if (!v || !v.duration) return;
+    const remaining = v.duration - v.currentTime;
+    if (remaining <= 2.0 && !videoTriggerActive) {
+      setVideoTriggerActive(true);
+    } else if (remaining > 2.0 && videoTriggerActive) {
+      setVideoTriggerActive(false);
+    }
+  }, [videoTriggerActive]);
+
+  const handleVideoEnded = useCallback(() => {
+    setVideoEnded(true);
+    setVideoTriggerActive(false);
+    trackLoop('watch_complete', { story_id: jobId, story_title: preview?.title, source_surface: 'story_preview' });
+    trackEvent('watch_complete');
+  }, [jobId, preview, trackEvent]);
 
   if (loading) {
     return (
@@ -226,6 +248,62 @@ export default function StoryPreview() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Viewer */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Immersive Video Player — CTA synchronized to tension peak */}
+            {preview.final_video_url && (
+              <div className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-black" data-testid="video-player-section">
+                <div className="relative aspect-video">
+                  <video
+                    ref={videoPlayerRef}
+                    src={preview.final_video_url}
+                    controls
+                    playsInline
+                    className="w-full h-full object-cover"
+                    onTimeUpdate={handleVideoTimeUpdate}
+                    onEnded={handleVideoEnded}
+                    data-testid="story-video-player"
+                  />
+                  {/* Trigger zone: cliffhanger text fades in during last 2s */}
+                  {videoTriggerActive && !videoEnded && (preview.trigger_text || preview.cliffhanger) && (
+                    <div className="absolute inset-0 pointer-events-none flex items-end justify-center pb-16 z-10"
+                      style={{ animation: 'fadeUp .5s ease-out' }} data-testid="video-trigger-text">
+                      <p className="text-white text-lg sm:text-xl font-bold italic text-center px-6 drop-shadow-2xl"
+                        style={{ textShadow: '0 2px 20px rgba(0,0,0,.8)' }}>
+                        {preview.trigger_text || preview.cliffhanger}
+                      </p>
+                    </div>
+                  )}
+                  {/* CTA overlay: appears instantly on video end — zero delay */}
+                  {videoEnded && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-black/60 flex flex-col items-center justify-center z-20"
+                      style={{ animation: 'fadeUp .3s ease-out' }} data-testid="video-end-cta">
+                      <p className="text-xs font-black text-violet-400 uppercase tracking-[0.2em] mb-2">The story isn't over</p>
+                      {preview.cliffhanger && (
+                        <p className="text-sm sm:text-base text-slate-200 italic text-center px-8 mb-1 leading-relaxed max-w-lg">
+                          "{preview.cliffhanger}"
+                        </p>
+                      )}
+                      <p className="text-sm font-bold text-amber-400 mb-5">What happens next?</p>
+                      <button
+                        onClick={handleContinueStory}
+                        className="inline-flex items-center gap-2 h-12 px-8 rounded-xl text-white font-bold text-sm shadow-lg shadow-violet-500/30 hover:scale-[1.03] active:scale-[0.97] transition-transform"
+                        style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)', boxShadow: '0 0 30px rgba(108,92,231,.4)' }}
+                        data-testid="video-end-continue-btn"
+                      >
+                        <Play className="w-4 h-4 fill-white" /> Continue This Story <ArrowRight className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => { setVideoEnded(false); if (videoPlayerRef.current) { videoPlayerRef.current.currentTime = 0; videoPlayerRef.current.play(); } }}
+                        className="mt-3 text-xs text-white/40 hover:text-white/70 transition-colors"
+                        data-testid="video-replay-btn"
+                      >
+                        Replay video
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Scene Image Viewer */}
             {currentScene && (
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden" data-testid="scene-viewer">

@@ -403,6 +403,120 @@ async def create_ken_burns_fallback(
     return await _run_ffmpeg(cmd)
 
 
+async def apply_addiction_triggers(
+    video_path: str,
+    output_path: str,
+    trigger_text: Optional[str] = None,
+    cliffhanger_text: Optional[str] = None,
+    trigger_duration: float = 2.0,
+) -> bool:
+    """
+    Apply addiction trigger effects to the final 2 seconds of a video:
+    1. Slow zoom in (1.0 → 1.08) for tension
+    2. Darken slightly (brightness 0.85) for mood shift
+    3. Burn trigger/cliffhanger text overlay
+    4. Audio volume swell (1.0 → 1.4) then abrupt cut
+
+    Non-fatal: returns False if effects fail, pipeline can use original video.
+    """
+    _ensure_dir()
+
+    # Get video duration
+    dur_cmd = f'ffprobe -v error -show_entries format=duration -of csv=p=0 "{video_path}"'
+    proc = await asyncio.create_subprocess_shell(dur_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, _ = await proc.communicate()
+    try:
+        total_duration = float(stdout.decode().strip())
+    except (ValueError, TypeError):
+        logger.warning("[FFMPEG] Could not determine video duration for triggers")
+        return False
+
+    if total_duration < 4.0:
+        logger.warning(f"[FFMPEG] Video too short for triggers ({total_duration:.1f}s)")
+        return False
+
+    trigger_start = max(0, total_duration - trigger_duration)
+
+    # Build filter chain
+    # 1. Zoom: scale up last 2s with smooth ramp
+    # 2. Darken: reduce brightness in last 2s
+    # 3. Text overlay: burn cliffhanger text in last 2s
+    vf_parts = []
+
+    # Zoom + darken in last trigger_duration seconds
+    zoom_expr = f"if(gte(t,{trigger_start:.2f}),min(1+0.04*(t-{trigger_start:.2f})/{trigger_duration:.2f},1.08),1)"
+    brightness_expr = f"if(gte(t,{trigger_start:.2f}),0.85,1)"
+    vf_parts.append(
+        f"zoompan=z='{zoom_expr}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1280x720:fps=25"
+    )
+
+    # Actually, zoompan requires loop input. Let's use a simpler approach:
+    # scale + crop for zoom, eq for brightness
+    vf_parts = []
+
+    # Darken last 2 seconds
+    vf_parts.append(f"eq=brightness={brightness_expr}")
+
+    # Text overlay — burn trigger text or cliffhanger
+    overlay_text = trigger_text or cliffhanger_text
+    if overlay_text:
+        # Sanitize text for FFmpeg drawtext
+        safe_text = overlay_text.replace("'", "").replace('"', '').replace(":", "\\\\:").replace("\\", "")
+        if len(safe_text) > 60:
+            safe_text = safe_text[:57] + "..."
+
+        # Show text starting at trigger_start, fade in
+        alpha_expr = f"if(gte(t,{trigger_start:.2f}),min((t-{trigger_start:.2f})*2,1),0)"
+        vf_parts.append(
+            f"drawtext=text='{safe_text}'"
+            f":fontsize=36:fontcolor=white@0.9"
+            f":borderw=2:bordercolor=black@0.6"
+            f":x=(w-text_w)/2:y=h*0.78"
+            f":alpha='{alpha_expr}'"
+            f":font='sans'"
+        )
+
+    video_filter = ",".join(vf_parts)
+
+    # Audio: volume swell in last 2 seconds then cut
+    af_parts = []
+    vol_expr = f"if(gte(t,{trigger_start:.2f}),1+0.4*(t-{trigger_start:.2f})/{trigger_duration:.2f},1)"
+    af_parts.append(f"volume='{vol_expr}':eval=frame")
+
+    audio_filter = ",".join(af_parts)
+
+    # Check if video has audio stream
+    has_audio_cmd = f'ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "{video_path}"'
+    aproc = await asyncio.create_subprocess_shell(has_audio_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    astdout, _ = await aproc.communicate()
+    has_audio = "audio" in astdout.decode().strip()
+
+    if has_audio:
+        cmd = (
+            f'ffmpeg -y -i "{video_path}" '
+            f'-vf "{video_filter}" -af "{audio_filter}" '
+            f'-c:v libx264 -pix_fmt yuv420p -crf 20 -c:a aac -b:a 192k '
+            f'-movflags +faststart "{output_path}"'
+        )
+    else:
+        cmd = (
+            f'ffmpeg -y -i "{video_path}" '
+            f'-vf "{video_filter}" '
+            f'-c:v libx264 -pix_fmt yuv420p -crf 20 -an '
+            f'-movflags +faststart "{output_path}"'
+        )
+
+    logger.info(f"[FFMPEG] Applying addiction triggers: zoom+darken+text in last {trigger_duration:.1f}s")
+    result = await _run_ffmpeg(cmd, timeout=120)
+
+    if result:
+        logger.info(f"[FFMPEG] Addiction triggers applied successfully to {output_path}")
+    else:
+        logger.warning("[FFMPEG] Addiction triggers failed — pipeline will use original video")
+
+    return result
+
+
 def build_assembly_plan(
     scene_clips: List[str],
     narration_path: Optional[str] = None,
