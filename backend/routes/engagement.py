@@ -1,6 +1,7 @@
 """
 Engagement System Routes — Daily Challenges, Streaks, Creator Levels, Trending
 """
+import os
 import random
 import logging
 from datetime import datetime, timezone, timedelta
@@ -247,7 +248,32 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         "scene_images": 1, "parent_video_id": 1, "user_id": 1,
     }
 
-    def _to_proxy(url: str) -> str | None:
+    R2_PUBLIC = os.environ.get("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
+
+    def _cdn_url(url: str) -> str | None:
+        """Convert stored R2 URL to direct CDN URL for images (fast, no proxy)."""
+        if not url:
+            return None
+        try:
+            base = url.split("?")[0]
+            if ".r2.dev/" in base:
+                key = base.split(".r2.dev/", 1)[1]
+                return f"{R2_PUBLIC}/{key}" if R2_PUBLIC else f"/api/media/r2/{key}"
+            if ".r2.cloudflarestorage.com/" in base:
+                parts = base.split(".r2.cloudflarestorage.com/", 1)
+                if len(parts) > 1:
+                    bk = parts[1].split("/", 1)
+                    if len(bk) > 1:
+                        return f"{R2_PUBLIC}/{bk[1]}" if R2_PUBLIC else f"/api/media/r2/{bk[1]}"
+            if url.startswith("/api/media/"):
+                key = url.replace("/api/media/r2/", "")
+                return f"{R2_PUBLIC}/{key}" if R2_PUBLIC else url
+            return url
+        except Exception:
+            return url
+
+    def _proxy_url(url: str) -> str | None:
+        """Convert stored R2 URL to proxy URL for videos (Range/206 support)."""
         if not url:
             return None
         try:
@@ -265,7 +291,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             return url
 
     def _resolve_thumb(job: dict) -> str | None:
-        thumb = _to_proxy(job.get("thumbnail_url"))
+        thumb = _cdn_url(job.get("thumbnail_url"))
         if thumb:
             return thumb
         si = job.get("scene_images", {})
@@ -274,8 +300,8 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             if fk and isinstance(si[fk], dict):
                 r2k = si[fk].get("r2_key")
                 if r2k:
-                    return f"/api/media/r2/{r2k}"
-                return _to_proxy(si[fk].get("url"))
+                    return f"{R2_PUBLIC}/{r2k}" if R2_PUBLIC else f"/api/media/r2/{r2k}"
+                return _cdn_url(si[fk].get("url"))
         return None
 
     def _extract_hook(text: str) -> str:
@@ -283,9 +309,9 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         return (sentences[0] + "...") if sentences else ""
 
     def _shape_item(job: dict, badge: str = "NEW") -> dict:
-        """Shape a raw DB document into a standard feed item."""
-        # Prefer compressed thumbnail_small for cards, fallback to full thumbnail
-        card_thumb = _to_proxy(job.get("thumbnail_small_url")) or _resolve_thumb(job)
+        """Shape a raw DB document into a standard feed item.
+        Images → CDN direct (fast). Videos → proxy (Range/206 support)."""
+        card_thumb = _cdn_url(job.get("thumbnail_small_url")) or _resolve_thumb(job)
         poster_thumb = _resolve_thumb(job)
         return {
             "job_id": job.get("job_id"),
@@ -294,8 +320,8 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             "story_prompt": job.get("story_text", ""),
             "thumbnail_url": card_thumb,
             "poster_url": poster_thumb,
-            "preview_url": _to_proxy(job.get("preview_url")),
-            "output_url": _to_proxy(job.get("output_url")),
+            "preview_url": _proxy_url(job.get("preview_url")),
+            "output_url": _proxy_url(job.get("output_url")),
             "animation_style": job.get("animation_style", ""),
             "parent_video_id": job.get("parent_video_id"),
             "badge": badge,
