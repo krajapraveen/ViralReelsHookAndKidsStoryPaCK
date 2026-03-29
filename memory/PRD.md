@@ -42,6 +42,13 @@ Build a viral, addictive "Story Universe Engine" — a full-stack AI creator sui
 
 ## What's Been Implemented
 
+### Bug Fix — Auto-processing on Navigation + 10 Creator Tools + Bolder UI (DONE — Mar 29, 2026)
+- **Critical Bug Fix**: Clicking Watch & Continue, Create New, or story cards was auto-triggering story processing. Fixed by adding `freshSession: true` flag in navigation state. StoryVideoPipeline now only auto-reconnects to active jobs on page REFRESH, not fresh navigation from Dashboard.
+- **10 Creator Tools Grid**: Story Series, Character Memory, Reel Generator, Photo to Comic, Comic Storybook, Bedtime Stories, Reaction GIF, Caption Rewriter, Brand Story, Daily Viral Ideas — all in a bold 5-column grid with icons and descriptions.
+- **Admin Top Bar**: Admin-only bar with Shield icon "ADMIN PANEL" and quick links (Content Engine, Jobs, Health, Users).
+- **Bolder UI**: Bigger cards (w-60→w-80 for lg), bigger badges (text-[10px] with shadow-lg), hero text-4xl/5xl/6xl, bigger create bar (text-sm input), brighter CTAs.
+- Tests: iteration_359.json (13/13 PASS — both backend and frontend)
+
 ### Bug Fix — Missing Story Card Thumbnails + Performance + UI Overhaul (DONE — Feb 28, 2026)
 - Root cause: Stories had `thumbnail_url: null` but DID have `scene_images` with R2 keys
 - Backend `engagement.py` now resolves thumbnails via `r2_key` proxy fallback (ALL 20/20 stories now have thumbnails)
