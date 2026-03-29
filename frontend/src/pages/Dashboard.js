@@ -1,26 +1,26 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
 import { SafeImage } from '../components/SafeImage';
 import { trackLoop } from '../utils/growthTracker';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
-  Flame, Clock, LogIn, Search, Plus, Volume2, VolumeX,
+  Flame, Clock, Search, Plus, Volume2, VolumeX,
   Film, BookOpen, Star, ArrowRight, Shield, User,
-  Camera, Palette, PenTool, Lightbulb, RefreshCw, Mic, Share2, Activity
+  Camera, Palette, PenTool, RefreshCw, Share2, Activity,
+  Home, Heart, Wand2, Megaphone, Lightbulb, Image as ImageIcon
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
-// ── Design tokens ──
 const BG = '#0B0B0F';
 const CARD_BG = '#121218';
 
 function mediaUrl(path) {
   if (!path) return null;
-  if (path.startsWith('/api/media/')) return `${API}${path}`;
+  if (path.startsWith('/api/media/') || path.startsWith('/api/generated/')) return `${API}${path}`;
   return path;
 }
 
@@ -76,11 +76,24 @@ const GRAD_COLORS = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════
-   1. HERO SECTION — 72vh, auto-rotate 6s, pause on hover
+   SHIMMER — replaces all spinners
+   ═══════════════════════════════════════════════════════════════════ */
+function Shimmer({ w, h, rounded = 'rounded-xl', className = '' }) {
+  return (
+    <div className={`${rounded} ${className} flex-shrink-0 overflow-hidden`}
+      style={{ width: w, height: h, background: 'rgba(255,255,255,.04)' }}>
+      <div className="w-full h-full shimmer-bar" />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   1. HERO — 60vh mobile / 72vh desktop, blur→video swap
    ═══════════════════════════════════════════════════════════════════ */
 function HeroSection({ stories, navigate }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
+  const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -90,32 +103,25 @@ function HeroSection({ stories, navigate }) {
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
   const videoSrc = mediaUrl(current.preview_url || current.output_url);
-  const posterSrc = mediaUrl(current.thumbnail_url);
+  const posterSrc = mediaUrl(current.thumbnail_url || current.thumbnail_small_url);
   const canShowVideo = videoSrc && !videoFailed;
   const hasHero = heroStories.length > 0;
-  const mediaVisible = (posterSrc && !posterFailed) || canShowVideo;
+  const mediaVisible = (posterSrc && !posterFailed) || (canShowVideo && videoLoaded);
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
     if (heroStories.length <= 1) return;
-    timerRef.current = setInterval(() => {
-      setActiveIdx(prev => (prev + 1) % heroStories.length);
-    }, 6000);
+    timerRef.current = setInterval(() => setActiveIdx(prev => (prev + 1) % heroStories.length), 6000);
   }, [heroStories.length]);
 
-  useEffect(() => {
-    if (!paused) startTimer();
-    return () => clearInterval(timerRef.current);
-  }, [paused, startTimer]);
+  useEffect(() => { if (!paused) startTimer(); return () => clearInterval(timerRef.current); }, [paused, startTimer]);
 
   useEffect(() => {
-    setVideoFailed(false);
-    setPosterFailed(false);
+    setVideoFailed(false); setPosterFailed(false); setVideoLoaded(false);
     if (videoRef.current) { videoRef.current.load(); videoRef.current.play().catch(() => {}); }
   }, [activeIdx]);
 
   const goTo = (idx) => { clearInterval(timerRef.current); setActiveIdx(idx); startTimer(); };
-
   const hash = (current.title || 'story').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const fallbackGrad = GRAD_COLORS[hash % GRAD_COLORS.length];
 
@@ -126,73 +132,85 @@ function HeroSection({ stories, navigate }) {
   };
 
   return (
-    <section className="relative w-full" style={{ height: '72vh', minHeight: '420px' }}
+    <section className="relative w-full h-[60vh] lg:h-[72vh]" style={{ minHeight: '360px' }}
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
 
       <div className="absolute inset-0 overflow-hidden" style={{ background: BG }}>
-        {/* Always-visible gradient fallback — saturated when no media loads */}
+        {/* Always-visible gradient — full saturation when no media */}
         <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-500`}
           style={{ opacity: mediaVisible ? 0.6 : 1 }} />
+        {/* Blurred poster — instant perceived load (Technique 1) */}
         {posterSrc && !posterFailed && (
           <img src={posterSrc} alt="" loading="eager" fetchPriority="high" decoding="sync"
-            className="absolute inset-0 w-full h-full object-cover" style={{ filter: 'brightness(0.6) saturate(1.3)' }}
-            onError={() => setPosterFailed(true)}
-            data-testid="hero-poster" />
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
+            style={{ filter: videoLoaded ? 'brightness(0.5) saturate(1.3)' : 'brightness(0.5) saturate(1.2) blur(8px)', transform: 'scale(1.05)' }}
+            onError={() => setPosterFailed(true)} data-testid="hero-poster" />
         )}
+        {/* Video — fades in over blur (Technique 1) */}
         {canShowVideo && (
           <video ref={videoRef} key={`hero-${current.job_id}`} src={videoSrc} muted={isMuted} autoPlay loop playsInline preload="auto"
-            className="absolute inset-0 w-full h-full object-cover" style={{ filter: 'brightness(0.6) saturate(1.3)' }}
-            data-testid="hero-video" onError={() => setVideoFailed(true)} />
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+            style={{ opacity: videoLoaded ? 1 : 0, filter: 'brightness(0.55) saturate(1.3)' }}
+            onCanPlay={() => setVideoLoaded(true)}
+            onError={() => setVideoFailed(true)}
+            data-testid="hero-video" />
         )}
       </div>
-      {/* Gradient overlays: lighter when no media loaded so fallback gradient stays vivid */}
-      <div className="absolute inset-0" style={{ background: mediaVisible ? 'linear-gradient(to right, rgba(0,0,0,.7), rgba(0,0,0,.3), transparent)' : 'linear-gradient(to right, rgba(0,0,0,.4), rgba(0,0,0,.1), transparent)' }} />
-      <div className="absolute inset-0" style={{ background: mediaVisible ? `linear-gradient(to top, ${BG}, transparent 60%)` : `linear-gradient(to top, ${BG}, transparent 40%)` }} />
 
-      <div className="relative h-full flex flex-col justify-end px-6 sm:px-10 lg:px-14 pb-10 z-10" style={{ maxWidth: '40%', minWidth: '320px', animation: 'fadeUp .5s ease-out' }}>
+      {/* Overlays — lighter when no media */}
+      <div className="absolute inset-0" style={{ background: mediaVisible ? 'linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25), transparent)' : 'linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,.1), transparent)' }} />
+      <div className="absolute inset-0" style={{ background: mediaVisible ? `linear-gradient(to top, ${BG}, transparent 55%)` : `linear-gradient(to top, ${BG}, transparent 35%)` }} />
+
+      {/* Content */}
+      <div className="relative h-full flex flex-col justify-end px-5 sm:px-10 lg:px-14 pb-6 sm:pb-10 z-10 max-w-full lg:max-w-[40%] lg:min-w-[320px]"
+        style={{ animation: 'fadeUp .5s ease-out' }}>
         {hasHero ? (
           <>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[11px] font-black tracking-widest px-3 py-1 rounded-md shadow-lg text-white" style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)', boxShadow: '0 4px 15px rgba(108,92,231,.3)' }} data-testid="hero-featured-badge">FEATURED</span>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-md text-white"
+                style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }} data-testid="hero-featured-badge">FEATURED</span>
               {canShowVideo && (
-                <span className="flex items-center gap-1 bg-red-600 text-white text-[10px] font-black px-2.5 py-1 rounded-md shadow-lg shadow-red-600/30">
-                  <span className="w-2 h-2 rounded-full bg-white animate-pulse" /> LIVE
+                <span className="flex items-center gap-1 bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
                 </span>
               )}
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.05] mb-3 drop-shadow-2xl" data-testid="hero-title">
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] mb-1.5 sm:mb-3 drop-shadow-2xl" data-testid="hero-title">
               {current.title || 'Untitled Story'}
             </h1>
-            <p className="text-base sm:text-lg text-[#A0A0B2] leading-relaxed mb-6 line-clamp-2 italic" data-testid="hero-hook">
+            <p className="text-sm sm:text-base text-white/60 leading-relaxed mb-4 sm:mb-6 line-clamp-2 italic" data-testid="hero-hook">
               "{getHook(current, activeIdx)}"
             </p>
-            <div className="flex items-center gap-3">
+            {/* CTA — full width on mobile */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
               <button onClick={() => { trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' }); navigate('/app/story-video-studio', { state: { prefill: prefillObj, freshSession: true } }); }}
-                className="flex items-center gap-2 px-7 py-3.5 font-extrabold rounded-xl text-sm text-white transition-all hover:scale-[1.03] active:scale-[0.97] shadow-xl"
-                style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)', boxShadow: '0 8px 30px rgba(108,92,231,.4)' }}
+                className="flex items-center justify-center gap-2 px-6 py-3 sm:py-3.5 font-extrabold rounded-xl text-sm text-white cta-glow transition-all hover:scale-[1.03] active:scale-[0.97]"
+                style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }}
                 data-testid="hero-play-btn">
-                <Play className="w-5 h-5 fill-white" /> Continue Story
+                <Play className="w-4 h-4 fill-white" /> Continue Story
               </button>
-              <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
-                className="flex items-center gap-2 px-6 py-3.5 font-extrabold rounded-xl text-sm text-white/80 hover:text-white transition-all border border-white/15 hover:border-white/30"
-                style={{ background: 'rgba(255,255,255,.08)', backdropFilter: 'blur(12px)' }}
-                data-testid="hero-create-btn">
-                <Plus className="w-5 h-5" /> Remix
-              </button>
-              {canShowVideo && (
-                <button onClick={() => setIsMuted(!isMuted)} className="w-10 h-10 flex items-center justify-center rounded-full border border-white/10 text-white/50 hover:text-white transition-all" style={{ background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(8px)' }} data-testid="hero-mute-btn">
-                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              <div className="flex items-center gap-2.5">
+                <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 sm:py-3.5 font-extrabold rounded-xl text-sm text-white/80 hover:text-white border border-white/15 hover:border-white/30 transition-all"
+                  style={{ background: 'rgba(255,255,255,.08)', backdropFilter: 'blur(12px)' }}
+                  data-testid="hero-create-btn">
+                  <Plus className="w-4 h-4" /> Remix
                 </button>
-              )}
+                {canShowVideo && (
+                  <button onClick={() => setIsMuted(!isMuted)} className="w-10 h-10 flex items-center justify-center rounded-full border border-white/10 text-white/50 hover:text-white transition-all flex-shrink-0" style={{ background: 'rgba(0,0,0,.4)' }} data-testid="hero-mute-btn">
+                    {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </button>
+                )}
+              </div>
             </div>
           </>
         ) : (
           <>
             <span className="bg-amber-500 text-black text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded w-fit mb-2">UNFINISHED</span>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] mb-2 drop-shadow-2xl" data-testid="hero-title">Every Story is Waiting for You</h1>
-            <p className="text-sm sm:text-base text-[#A0A0B2] leading-relaxed mb-5">Worlds half-built. Characters mid-sentence. Pick any story and decide what happens next.</p>
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] mb-2" data-testid="hero-title">Every Story is Waiting for You</h1>
+            <p className="text-sm text-white/50 leading-relaxed mb-4">Worlds half-built. Characters mid-sentence. Pick any story and decide what happens next.</p>
             <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
-              className="flex items-center gap-2 px-7 py-3.5 font-bold rounded-xl text-sm text-white transition-all hover:scale-[1.03] shadow-xl w-fit"
+              className="flex items-center justify-center gap-2 px-6 py-3 font-bold rounded-xl text-sm text-white cta-glow transition-all hover:scale-[1.03] w-full sm:w-fit"
               style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }} data-testid="hero-create-btn">
               <Play className="w-4 h-4 fill-white" /> Start a Story
             </button>
@@ -200,41 +218,41 @@ function HeroSection({ stories, navigate }) {
         )}
       </div>
 
+      {/* Dots */}
       {heroStories.length > 1 && (
-        <div className="absolute bottom-5 right-8 flex items-center gap-1.5 z-10" data-testid="hero-dots">
+        <div className="absolute bottom-3 sm:bottom-5 right-5 sm:right-8 flex items-center gap-1.5 z-10" data-testid="hero-dots">
           {heroStories.map((_, i) => (
             <button key={i} onClick={() => goTo(i)}
-              className={`h-[3px] rounded-full transition-all duration-500 ${i === activeIdx ? 'w-8 bg-white' : 'w-3 bg-white/25 hover:bg-white/40'}`}
+              className={`h-[3px] rounded-full transition-all duration-500 ${i === activeIdx ? 'w-6 sm:w-8 bg-white' : 'w-2.5 sm:w-3 bg-white/25 hover:bg-white/40'}`}
               data-testid={`hero-dot-${i}`} />
           ))}
         </div>
       )}
-      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </section>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   2. METRICS STRIP — Stripe-style
+   2. METRICS STRIP — horizontal scroll pills on mobile
    ═══════════════════════════════════════════════════════════════════ */
 function MetricsStrip({ metrics }) {
   const items = [
-    { label: 'Continue Rate', value: `${metrics.continue_rate || 0}%`, icon: ArrowRight, color: '#6C5CE7' },
-    { label: 'Share Rate', value: `${metrics.share_rate || 0}%`, icon: Share2, color: '#00C2FF' },
+    { label: 'Continue', value: `${metrics.continue_rate || 0}%`, icon: ArrowRight, color: '#6C5CE7' },
+    { label: 'Share', value: `${metrics.share_rate || 0}%`, icon: Share2, color: '#00C2FF' },
     { label: 'K-Factor', value: `${metrics.k_factor || 0}`, icon: Activity, color: '#6C5CE7' },
-    { label: 'Active Now', value: `${metrics.active_users || 0}`, icon: Zap, color: '#00C2FF' },
+    { label: 'Live', value: `${metrics.active_users || 0}`, icon: Zap, color: '#00C2FF' },
   ];
   return (
-    <div className="px-6 sm:px-10 lg:px-14 -mt-6 relative z-20" data-testid="metrics-strip">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div className="px-4 sm:px-10 lg:px-14 -mt-5 sm:-mt-6 relative z-20" data-testid="metrics-strip">
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-4 sm:gap-4 pb-1">
         {items.map(m => (
-          <div key={m.label} className="rounded-xl p-4 border border-white/[0.06] group hover:-translate-y-0.5 transition-all cursor-default"
+          <div key={m.label} className="flex-shrink-0 sm:flex-shrink rounded-xl px-4 py-3 sm:p-4 border border-white/[0.06] min-w-[130px] sm:min-w-0 group hover:-translate-y-0.5 transition-all"
             style={{ background: CARD_BG, boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
-            <div className="flex items-center gap-2 mb-2">
-              <m.icon className="w-3.5 h-3.5" style={{ color: m.color }} />
-              <span className="text-[10px] text-[#A0A0B2] uppercase tracking-wider font-medium">{m.label}</span>
+            <div className="flex items-center gap-1.5 mb-1 sm:mb-2">
+              <m.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" style={{ color: m.color }} />
+              <span className="text-[9px] sm:text-[10px] text-white/40 uppercase tracking-wider font-medium whitespace-nowrap">{m.label}</span>
             </div>
-            <p className="text-2xl font-black text-white font-mono">{m.value}</p>
+            <p className="text-xl sm:text-2xl font-black text-white font-mono">{m.value}</p>
           </div>
         ))}
       </div>
@@ -243,7 +261,7 @@ function MetricsStrip({ metrics }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   3. STORY CARD — 220×300, 4:5, hover scale(1.05), preview video
+   3. STORY CARD — 160×220 mobile / 220×300 desktop, micro-animations
    ═══════════════════════════════════════════════════════════════════ */
 function StoryCard({ story, idx, navigate, priority = false }) {
   const [hovered, setHovered] = useState(false);
@@ -257,10 +275,10 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
   const videoSrc = mediaUrl(story.preview_url || story.output_url);
+  const thumbSrc = mediaUrl(story.thumbnail_small_url || story.thumbnail_url);
   const isSeed = story.is_seed;
   const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
 
-  // Impression tracking
   useEffect(() => {
     const el = cardRef.current;
     if (!el || impressionFired.current) return;
@@ -275,7 +293,6 @@ function StoryCard({ story, idx, navigate, priority = false }) {
     return () => obs.disconnect();
   }, [story]);
 
-  // Preview video: start after 300ms hover
   useEffect(() => {
     if (!videoSrc || isSeed) return;
     if (hovered) {
@@ -307,54 +324,45 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   };
 
   return (
-    <div ref={cardRef} className="flex-shrink-0 group relative cursor-pointer" style={{ width: '220px', scrollSnapAlign: 'start' }}
+    <div ref={cardRef} className="flex-shrink-0 group relative cursor-pointer card-float w-[160px] lg:w-[220px]"
+      style={{ scrollSnapAlign: 'start' }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onClick={handleClick} data-testid={`story-card-${idx}`}>
-      <div className="relative overflow-hidden rounded-xl" style={{
-        width: '220px', height: '300px', background: CARD_BG,
+      <div className="relative overflow-hidden rounded-xl w-[160px] h-[220px] lg:w-[220px] lg:h-[300px]" style={{
+        background: CARD_BG,
         transition: 'transform .25s ease, box-shadow .25s ease',
         transform: hovered ? 'scale(1.05)' : 'scale(1)',
         boxShadow: hovered ? '0 20px 50px rgba(0,0,0,.8)' : '0 4px 12px rgba(0,0,0,.4)',
-        filter: hovered ? 'brightness(1.1)' : 'brightness(1)',
       }}>
-        {/* Thumbnail (always loads first) */}
-        {story.thumbnail_url ? (
-          <SafeImage src={mediaUrl(story.thumbnail_url)} alt={story.title} aspectRatio="4/5" fallbackType="gradient" titleOverlay={story.title}
+        {thumbSrc ? (
+          <SafeImage src={thumbSrc} alt={story.title} aspectRatio="4/5" fallbackType="gradient" titleOverlay={story.title}
             priority={priority} className="w-full h-full" imgClassName="w-full h-full object-cover" />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${GRAD_COLORS[gradIdx]}`}>
             <div className="absolute inset-0 flex items-center justify-center">
-              {isSeed ? <Sparkles className="w-12 h-12 text-white/30" /> : <Film className="w-12 h-12 text-white/30" />}
-            </div>
-            <div className="absolute bottom-8 left-3 right-3">
-              <p className="text-[10px] text-white/30 font-medium truncate">{story.title || 'Untitled'}</p>
+              {isSeed ? <Sparkles className="w-10 h-10 lg:w-12 lg:h-12 text-white/30" /> : <Film className="w-10 h-10 lg:w-12 lg:h-12 text-white/30" />}
             </div>
           </div>
         )}
-        {/* Preview video (on hover after 300ms) */}
         {videoSrc && !isSeed && (
           <video ref={videoRef} src={videoSrc} muted loop playsInline preload="metadata"
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${showPreview ? 'opacity-100' : 'opacity-0'}`} />
         )}
-        {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
-        {/* Badge */}
-        <div className="absolute top-3 left-3">
-          <span className={`${badgeStyle} text-[10px] font-black tracking-wider px-2.5 py-1 rounded-md shadow-lg`}>{badge}</span>
+        <div className="absolute top-2.5 left-2.5 lg:top-3 lg:left-3">
+          <span className={`${badgeStyle} text-[9px] lg:text-[10px] font-black tracking-wider px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-md shadow-lg`}>{badge}</span>
         </div>
-        {/* Hover play icon */}
         <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${hovered ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
-          <div className="w-14 h-14 rounded-full flex items-center justify-center border border-white/20" style={{ background: 'rgba(255,255,255,.15)', backdropFilter: 'blur(8px)' }}>
-            <Play className="w-5 h-5 text-white fill-white ml-0.5" />
+          <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-full flex items-center justify-center border border-white/20" style={{ background: 'rgba(255,255,255,.15)', backdropFilter: 'blur(8px)' }}>
+            <Play className="w-4 h-4 lg:w-5 lg:h-5 text-white fill-white ml-0.5" />
           </div>
         </div>
-        {/* Bottom text */}
-        <div className="absolute bottom-0 left-0 right-0 p-3.5">
-          <h3 className="text-sm font-extrabold text-white leading-tight mb-1 line-clamp-1 drop-shadow-lg">{story.title || 'Untitled'}</h3>
-          <p className="text-[10px] text-[#A0A0B2] leading-snug line-clamp-2 italic mb-2.5">"{hook}"</p>
-          <div className={`flex items-center gap-1.5 text-[10px] font-bold transition-all ${hovered ? 'text-white translate-x-0.5' : 'text-white/40'}`}>
-            <Play className="w-3 h-3 fill-current" />
-            {badge === 'CONTINUE' ? 'Continue watching' : 'Continue'} <ArrowRight className="w-3 h-3" />
+        <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-3.5">
+          <h3 className="text-xs lg:text-sm font-extrabold text-white leading-tight mb-0.5 lg:mb-1 line-clamp-1 drop-shadow-lg">{story.title || 'Untitled'}</h3>
+          <p className="text-[9px] lg:text-[10px] text-white/50 leading-snug line-clamp-2 italic mb-2">"{hook}"</p>
+          <div className={`flex items-center gap-1 text-[9px] lg:text-[10px] font-bold transition-all ${hovered ? 'text-white translate-x-0.5' : 'text-white/40'}`}>
+            <Play className="w-2.5 h-2.5 lg:w-3 lg:h-3 fill-current" />
+            {badge === 'CONTINUE' ? 'Continue watching' : 'Continue'} <ArrowRight className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
           </div>
         </div>
       </div>
@@ -363,9 +371,9 @@ function StoryCard({ story, idx, navigate, priority = false }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   SCROLL ROW — horizontal, lazy loaded via IntersectionObserver
+   SCROLL ROW — horizontal, lazy loaded, progressive reveal
    ═══════════════════════════════════════════════════════════════════ */
-function ScrollRow({ title, icon: Icon, iconColor, children, testId }) {
+function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0 }) {
   const scrollRef = useRef(null);
   const sectionRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
@@ -388,7 +396,6 @@ function ScrollRow({ title, icon: Icon, iconColor, children, testId }) {
 
   useEffect(() => { checkScroll(); }, [checkScroll, children]);
 
-  // Lazy load via IntersectionObserver (Tier 2)
   useEffect(() => {
     const el = sectionRef.current;
     if (!el) return;
@@ -399,75 +406,85 @@ function ScrollRow({ title, icon: Icon, iconColor, children, testId }) {
     return () => obs.disconnect();
   }, []);
 
+  const shimmerW = typeof window !== 'undefined' && window.innerWidth < 1024 ? 160 : 220;
+  const shimmerH = typeof window !== 'undefined' && window.innerWidth < 1024 ? 220 : 300;
+
   return (
-    <section ref={sectionRef} className="relative" style={{ paddingTop: '32px' }} data-testid={testId}>
-      <div className="flex items-center justify-between px-6 sm:px-10 lg:px-14 mb-3">
-        <h2 className="flex items-center gap-2 text-base sm:text-lg font-extrabold text-white tracking-tight">
-          {Icon && <Icon className={`w-5 h-5 ${iconColor || 'text-white/60'}`} />}
+    <section ref={sectionRef} className="relative pt-6 sm:pt-8" data-testid={testId}
+      style={{ animationDelay: `${delay}ms` }}>
+      <div className="flex items-center justify-between px-4 sm:px-10 lg:px-14 mb-2.5 sm:mb-3">
+        <h2 className="flex items-center gap-2 text-sm sm:text-base lg:text-lg font-extrabold text-white tracking-tight">
+          {Icon && <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${iconColor || 'text-white/60'}`} />}
           {title}
         </h2>
-        <button onClick={() => scroll(1)} className="text-[11px] text-[#A0A0B2] hover:text-white font-medium flex items-center gap-1 transition-colors">
-          See all <ChevronRight className="w-3.5 h-3.5" />
+        <button onClick={() => scroll(1)} className="text-[10px] sm:text-[11px] text-white/40 hover:text-white font-medium flex items-center gap-1 transition-colors">
+          See all <ChevronRight className="w-3 h-3" />
         </button>
       </div>
       <div className="relative group/row">
         {showLeft && (
-          <button onClick={() => scroll(-1)} className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white opacity-0 group-hover/row:opacity-100 transition-opacity border border-white/10" style={{ background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(8px)' }} data-testid={`${testId}-scroll-left`}>
+          <button onClick={() => scroll(-1)} className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-full hidden sm:flex items-center justify-center text-white opacity-0 group-hover/row:opacity-100 transition-opacity border border-white/10" style={{ background: 'rgba(0,0,0,.8)' }} data-testid={`${testId}-scroll-left`}>
             <ChevronLeft className="w-4 h-4" />
           </button>
         )}
         <div ref={scrollRef} onScroll={checkScroll}
-          className="flex overflow-x-auto px-6 sm:px-10 lg:px-14 pb-2 scrollbar-hide"
-          style={{ gap: '16px', scrollSnapType: 'x mandatory', scrollbarWidth: 'none' }}>
-          {visible ? children : <div className="flex gap-4">{[1,2,3,4,5].map(i => <div key={i} className="rounded-xl animate-pulse flex-shrink-0" style={{ width: 220, height: 300, background: 'rgba(255,255,255,.03)' }} />)}</div>}
+          className="flex overflow-x-auto px-4 sm:px-10 lg:px-14 pb-2 scrollbar-hide"
+          style={{ gap: '12px', scrollSnapType: 'x mandatory', scrollbarWidth: 'none' }}>
+          {visible ? children : (
+            <div className="flex" style={{ gap: '12px' }}>
+              {[1,2,3,4,5].map(i => <Shimmer key={i} w={shimmerW} h={shimmerH} />)}
+            </div>
+          )}
         </div>
         {showRight && (
-          <button onClick={() => scroll(1)} className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white opacity-0 group-hover/row:opacity-100 transition-opacity border border-white/10" style={{ background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(8px)' }} data-testid={`${testId}-scroll-right`}>
+          <button onClick={() => scroll(1)} className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-full hidden sm:flex items-center justify-center text-white opacity-0 group-hover/row:opacity-100 transition-opacity border border-white/10" style={{ background: 'rgba(0,0,0,.8)' }} data-testid={`${testId}-scroll-right`}>
             <ChevronRight className="w-4 h-4" />
           </button>
         )}
-        <div className="absolute top-0 left-0 bottom-0 w-12 pointer-events-none" style={{ background: `linear-gradient(to right, ${BG}, transparent)` }} />
-        <div className="absolute top-0 right-0 bottom-0 w-12 pointer-events-none" style={{ background: `linear-gradient(to left, ${BG}, transparent)` }} />
+        <div className="absolute top-0 left-0 bottom-0 w-6 sm:w-12 pointer-events-none" style={{ background: `linear-gradient(to right, ${BG}, transparent)` }} />
+        <div className="absolute top-0 right-0 bottom-0 w-6 sm:w-12 pointer-events-none" style={{ background: `linear-gradient(to left, ${BG}, transparent)` }} />
       </div>
     </section>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   6. FEATURE TOOLS — 2 rows × 4 columns
+   5. FEATURE BLOCKS — 2-col mobile / 4-col desktop, 10 tools
    ═══════════════════════════════════════════════════════════════════ */
 const FEATURES = [
-  { name: 'Story Video', desc: 'Turn ideas into cinematic stories', icon: Film, path: '/app/story-video-studio', gradient: 'from-violet-600 to-indigo-800' },
-  { name: 'Story Series', desc: 'Multi-episode sagas with memory', icon: BookOpen, path: '/app/story-series', gradient: 'from-purple-600 to-fuchsia-800' },
-  { name: 'Character Memory', desc: 'Persistent characters across stories', icon: User, path: '/app/characters', gradient: 'from-cyan-600 to-blue-800' },
-  { name: 'Reel Generator', desc: 'Viral short-form video reels', icon: Play, path: '/app/reels', gradient: 'from-rose-600 to-pink-800' },
-  { name: 'Photo to Comic', desc: 'Transform photos into comic panels', icon: Camera, path: '/app/photo-to-comic', gradient: 'from-amber-600 to-orange-800' },
-  { name: 'Comic Storybook', desc: 'Panel-by-panel illustrated stories', icon: Palette, path: '/app/comic-storybook', gradient: 'from-emerald-600 to-green-800' },
-  { name: 'Bedtime Stories', desc: 'Narrated sleep tales with visuals', icon: Star, path: '/app/bedtime-stories', gradient: 'from-indigo-600 to-blue-800' },
-  { name: 'Caption Rewriter', desc: 'AI-powered caption rewriting', icon: PenTool, path: '/app/caption-rewriter', gradient: 'from-teal-600 to-cyan-800' },
+  { name: 'Story Video', desc: 'Turn ideas into cinematic stories', icon: Film, path: '/app/story-video-studio', gradient: 'from-indigo-500 to-blue-700' },
+  { name: 'Story Series', desc: 'Multi-episode sagas with memory', icon: BookOpen, path: '/app/story-series', gradient: 'from-purple-500 to-fuchsia-700' },
+  { name: 'Character Memory', desc: 'Persistent characters across stories', icon: User, path: '/app/characters', gradient: 'from-cyan-500 to-blue-700' },
+  { name: 'Reel Generator', desc: 'Viral short-form video reels', icon: Play, path: '/app/reels', gradient: 'from-rose-500 to-pink-700' },
+  { name: 'Photo to Comic', desc: 'Transform photos into comic panels', icon: Camera, path: '/app/photo-to-comic', gradient: 'from-amber-500 to-orange-700' },
+  { name: 'Comic Storybook', desc: 'Panel-by-panel illustrated stories', icon: Palette, path: '/app/comic-storybook', gradient: 'from-emerald-500 to-green-700' },
+  { name: 'Bedtime Stories', desc: 'Narrated sleep tales with visuals', icon: Star, path: '/app/bedtime-stories', gradient: 'from-indigo-500 to-purple-700' },
+  { name: 'Reaction GIF', desc: 'Photo-to-reaction GIF in seconds', icon: ImageIcon, path: '/app/gif-maker', gradient: 'from-pink-500 to-rose-700' },
+  { name: 'Brand Story', desc: 'Cinematic brand narratives', icon: Megaphone, path: '/app/brand-story-builder', gradient: 'from-teal-500 to-cyan-700' },
+  { name: 'Daily Viral Ideas', desc: 'AI-generated trending prompts', icon: Lightbulb, path: '/app/daily-viral-ideas', gradient: 'from-amber-500 to-red-700' },
 ];
 
 function FeaturesGrid({ navigate }) {
   return (
-    <section className="px-6 sm:px-10 lg:px-14" style={{ paddingTop: '32px', paddingBottom: '24px' }} data-testid="features-grid">
-      <h2 className="flex items-center gap-2.5 text-base sm:text-lg font-extrabold text-white tracking-tight mb-5">
-        <Zap className="w-5 h-5 text-amber-400" /> Creator Tools
+    <section className="px-4 sm:px-10 lg:px-14 pt-6 sm:pt-8 pb-4 sm:pb-6" data-testid="features-grid">
+      <h2 className="flex items-center gap-2 text-sm sm:text-base lg:text-lg font-extrabold text-white tracking-tight mb-4 sm:mb-5">
+        <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" /> Creator Tools
       </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
         {FEATURES.map(f => {
           const Icon = f.icon;
           return (
             <button key={f.name} onClick={() => navigate(f.path, { state: { freshSession: true } })}
-              className="group relative overflow-hidden rounded-2xl border border-white/[0.06] text-left cursor-pointer transition-all hover:-translate-y-1"
-              style={{ background: CARD_BG, padding: '24px' }}
+              className="group relative overflow-hidden rounded-2xl border border-white/[0.06] text-left cursor-pointer transition-all hover:-translate-y-1 active:scale-[0.97]"
+              style={{ background: CARD_BG, padding: '16px' }}
               data-testid={`feature-${f.name.replace(/\s/g, '-').toLowerCase()}`}>
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
-                <Icon className="w-6 h-6 text-white" />
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-lg`}>
+                <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <h3 className="text-sm font-bold text-white leading-tight mb-1">{f.name}</h3>
-              <p className="text-xs text-[#A0A0B2] leading-relaxed mb-3">{f.desc}</p>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-white/40 group-hover:text-white transition-colors">
-                Continue Creating <ArrowRight className="w-3 h-3" />
+              <h3 className="text-xs sm:text-sm font-bold text-white leading-tight mb-0.5">{f.name}</h3>
+              <p className="text-[10px] sm:text-xs text-white/40 leading-relaxed mb-2 line-clamp-1">{f.desc}</p>
+              <span className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-white/30 group-hover:text-white transition-colors">
+                Continue <ArrowRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
               </span>
               <div className={`absolute inset-0 bg-gradient-to-br ${f.gradient} opacity-0 group-hover:opacity-[0.08] transition-opacity pointer-events-none rounded-2xl`} />
             </button>
@@ -479,7 +496,7 @@ function FeaturesGrid({ navigate }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   7. REAL-TIME ACTIVITY BAR — floating bottom-right
+   6. REAL-TIME ACTIVITY BAR (Technique 6)
    ═══════════════════════════════════════════════════════════════════ */
 function ActivityBar({ feed }) {
   const [visible, setVisible] = useState(true);
@@ -496,39 +513,90 @@ function ActivityBar({ feed }) {
   const labels = { continue: 'continued', share: 'shared', watch_complete: 'finished watching', signup_from_share: 'signed up from' };
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 max-w-xs animate-in slide-in-from-right" data-testid="activity-bar">
-      <div className="rounded-xl border border-white/[0.08] px-4 py-3 flex items-center gap-3 shadow-2xl" style={{ background: 'rgba(18,18,24,.95)', backdropFilter: 'blur(16px)' }}>
+    <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-30 max-w-[280px] sm:max-w-xs" data-testid="activity-bar"
+      style={{ animation: 'fadeUp .4s ease-out' }}>
+      <div className="rounded-xl border border-white/[0.08] px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2.5 shadow-2xl" style={{ background: 'rgba(18,18,24,.95)', backdropFilter: 'blur(16px)' }}>
         <div className={`w-2 h-2 rounded-full flex-shrink-0 animate-pulse ${item.event === 'continue' ? 'bg-violet-400' : item.event === 'share' ? 'bg-blue-400' : 'bg-emerald-400'}`} />
-        <p className="text-xs text-[#A0A0B2] flex-1">
-          User {item.location ? `in ${item.location} ` : ''}<span className="text-white font-medium">{labels[item.event] || item.event}</span> "{item.story_title}"
+        <p className="text-[10px] sm:text-xs text-white/50 flex-1 line-clamp-1">
+          Someone <span className="text-white font-medium">{labels[item.event] || item.event}</span> "{item.story_title}"
         </p>
-        <button onClick={() => setVisible(false)} className="text-white/20 hover:text-white/60 text-xs">x</button>
+        <button onClick={() => setVisible(false)} className="text-white/20 hover:text-white/60 text-xs flex-shrink-0">x</button>
       </div>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   LOADING SKELETON
+   7. STICKY BOTTOM NAV — mobile only
+   ═══════════════════════════════════════════════════════════════════ */
+function StickyBottomNav({ navigate, currentPath }) {
+  const items = [
+    { label: 'Home', icon: Home, path: '/app' },
+    { label: 'Explore', icon: Search, path: '/app/explore' },
+    { label: 'Create', icon: Plus, path: '/app/story-video-studio', isCenter: true },
+    { label: 'Stories', icon: Heart, path: '/app/my-stories' },
+    { label: 'Profile', icon: User, path: '/app/profile' },
+  ];
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-white/[0.06]"
+      style={{ background: 'rgba(11,11,15,.92)', backdropFilter: 'blur(20px)' }}
+      data-testid="sticky-bottom-nav">
+      <div className="flex items-center justify-around px-2 py-1.5 safe-bottom">
+        {items.map(item => {
+          const Icon = item.icon;
+          const isActive = currentPath === item.path || (item.path === '/app' && currentPath === '/app');
+          if (item.isCenter) {
+            return (
+              <button key={item.label} onClick={() => navigate(item.path, { state: { freshSession: true } })}
+                className="flex flex-col items-center gap-0.5 -mt-4"
+                data-testid="nav-create-btn">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg cta-glow"
+                  style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }}>
+                  <Icon className="w-5 h-5 text-white" strokeWidth={2.5} />
+                </div>
+                <span className="text-[9px] font-bold text-white/80">{item.label}</span>
+              </button>
+            );
+          }
+          return (
+            <button key={item.label} onClick={() => navigate(item.path)}
+              className="flex flex-col items-center gap-0.5 py-1 px-3 transition-colors"
+              data-testid={`nav-${item.label.toLowerCase()}`}>
+              <Icon className={`w-5 h-5 transition-colors ${isActive ? 'text-white' : 'text-white/30'}`} strokeWidth={isActive ? 2 : 1.5} />
+              <span className={`text-[9px] font-medium transition-colors ${isActive ? 'text-white' : 'text-white/30'}`}>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SHIMMER SKELETON (Technique 2 — no spinners)
    ═══════════════════════════════════════════════════════════════════ */
 function DashboardSkeleton() {
   return (
     <div className="min-h-screen" style={{ background: BG }} data-testid="dashboard-skeleton">
-      <div className="w-full" style={{ height: '72vh', minHeight: '420px', background: 'linear-gradient(135deg, #1a1a2e, #0B0B0F)' }}>
-        <div className="h-full flex flex-col justify-end p-10" style={{ maxWidth: '40%', minWidth: '320px' }}>
-          <div className="w-20 h-4 bg-white/10 rounded mb-3 animate-pulse" />
-          <div className="w-72 h-9 bg-white/10 rounded mb-2 animate-pulse" />
-          <div className="w-56 h-5 bg-white/5 rounded mb-5 animate-pulse" />
-          <div className="flex gap-3"><div className="w-36 h-11 bg-white/10 rounded-xl animate-pulse" /><div className="w-28 h-11 bg-white/5 rounded-xl animate-pulse" /></div>
+      <div className="w-full h-[60vh] lg:h-[72vh]" style={{ minHeight: '360px', background: 'linear-gradient(135deg, #1a1a2e, #0B0B0F)' }}>
+        <div className="h-full flex flex-col justify-end p-5 sm:p-10 max-w-full lg:max-w-[40%] lg:min-w-[320px]">
+          <Shimmer w={72} h={18} rounded="rounded-md" className="mb-3" />
+          <Shimmer w={280} h={36} rounded="rounded-md" className="mb-2" />
+          <Shimmer w={200} h={16} rounded="rounded-md" className="mb-5" />
+          <div className="flex gap-3">
+            <Shimmer w={140} h={44} rounded="rounded-xl" />
+            <Shimmer w={100} h={44} rounded="rounded-xl" />
+          </div>
         </div>
       </div>
-      <div className="px-10 -mt-6 relative z-20 grid grid-cols-4 gap-4">
-        {[1,2,3,4].map(i => <div key={i} className="rounded-xl animate-pulse" style={{ height: 80, background: CARD_BG }} />)}
+      <div className="flex gap-3 px-4 sm:px-10 -mt-5 overflow-hidden">
+        {[1,2,3,4].map(i => <Shimmer key={i} w={130} h={70} className="flex-shrink-0 sm:flex-1" />)}
       </div>
-      {[1,2,3,4].map(r => (
-        <div key={r} className="px-10" style={{ paddingTop: 32 }}>
-          <div className="w-28 h-4 bg-white/10 rounded mb-3 animate-pulse" />
-          <div className="flex gap-4">{[1,2,3,4,5].map(c => <div key={c} className="rounded-xl animate-pulse flex-shrink-0" style={{ width: 220, height: 300, background: 'rgba(255,255,255,.03)' }} />)}</div>
+      {[1,2].map(r => (
+        <div key={r} className="px-4 sm:px-10 pt-6 sm:pt-8">
+          <Shimmer w={120} h={16} rounded="rounded-md" className="mb-3" />
+          <div className="flex gap-3">{[1,2,3,4,5].map(c => <Shimmer key={c} w={160} h={220} />)}</div>
         </div>
       ))}
     </div>
@@ -536,17 +604,30 @@ function DashboardSkeleton() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   MAIN DASHBOARD
-   Hero → Metrics → Story Rows → Features → Footer
+   MAIN DASHBOARD — Progressive loading (Technique 3)
+   Hero → Metrics → Rows → Features → Nav
    ═══════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { credits, creditsLoaded, refreshCredits } = useCredits();
   const [feed, setFeed] = useState(null);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({});
   const [liveFeed, setLiveFeed] = useState([]);
   const isAdmin = isAdminUser();
+  const isLoggedIn = !!localStorage.getItem('token');
+
+  // Technique 4 — preload next thumbnails when idle
+  const preloadThumbs = useCallback((stories) => {
+    if (!stories || stories.length === 0) return;
+    requestIdleCallback(() => {
+      stories.slice(0, 8).forEach(s => {
+        const url = s.thumbnail_small_url || s.thumbnail_url;
+        if (url) { const img = new Image(); img.src = mediaUrl(url); }
+      });
+    });
+  }, []);
 
   useEffect(() => {
     refreshCredits();
@@ -559,9 +640,10 @@ export default function Dashboard() {
         setFeed(feedRes.data);
         setMetrics({ ...metricsRes.data.health, active_users: metricsRes.data.raw?.active_users || 0 });
         setLiveFeed(metricsRes.data.live_feed || []);
-        // Preload hero image
+        // Technique 4 — preload hero + next row thumbs
         const heroUrl = feedRes.data.featured_story?.thumbnail_url;
         if (heroUrl) { const img = new Image(); img.src = mediaUrl(heroUrl); }
+        preloadThumbs(feedRes.data.trending_stories);
       } catch (e) {
         console.error('[Dashboard] Feed load failed:', e.message);
         setFeed({ featured_story: null, trending_stories: [], fresh_stories: [], continue_stories: [], unfinished_worlds: [], live_stats: {} });
@@ -574,7 +656,6 @@ export default function Dashboard() {
   if (loading) return <DashboardSkeleton />;
 
   const { featured_story, trending_stories = [], fresh_stories = [], continue_stories = [], unfinished_worlds = [], live_stats = {} } = feed || {};
-  const isLoggedIn = !!localStorage.getItem('token');
   const heroPool = [featured_story, ...trending_stories.filter(s => s?.job_id !== featured_story?.job_id)].filter(Boolean).slice(0, 5);
 
   const trendingRow = trending_stories.length > 0 ? trending_stories : SEED_CARDS;
@@ -583,12 +664,12 @@ export default function Dashboard() {
   const unfinishedRow = unfinished_worlds.length > 0 ? unfinished_worlds : SEED_CARDS;
 
   return (
-    <div className="min-h-screen" style={{ background: BG }} data-testid="dashboard">
+    <div className="min-h-screen pb-16 lg:pb-0" style={{ background: BG }} data-testid="dashboard">
 
-      {/* ADMIN BAR */}
+      {/* ADMIN BAR — desktop only */}
       {isAdmin && (
-        <div className="fixed top-0 left-0 right-0 z-50 border-b border-indigo-500/20" style={{ background: 'rgba(11,11,15,.95)', backdropFilter: 'blur(12px)' }} data-testid="admin-top-bar">
-          <div className="flex items-center justify-between px-4 sm:px-8 py-2">
+        <div className="fixed top-0 left-0 right-0 z-50 border-b border-indigo-500/20 hidden lg:block" style={{ background: 'rgba(11,11,15,.95)', backdropFilter: 'blur(12px)' }} data-testid="admin-top-bar">
+          <div className="flex items-center justify-between px-8 py-2">
             <Link to="/app/admin" className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors" data-testid="admin-menu-link">
               <Shield className="w-4 h-4" /><span className="text-xs font-bold tracking-wide">ADMIN PANEL</span>
             </Link>
@@ -606,48 +687,49 @@ export default function Dashboard() {
       )}
 
       {/* 1. HERO */}
-      <div className={isAdmin ? 'pt-10' : ''}>
+      <div className={isAdmin ? 'lg:pt-10' : ''}>
         <HeroSection stories={heroPool} navigate={navigate} />
       </div>
 
       {/* 2. METRICS STRIP */}
       <MetricsStrip metrics={metrics} />
 
-      {/* 3. STORY ROWS — Netflix-style, all 4 always render */}
-      <ScrollRow title="Trending Now" icon={Flame} iconColor="text-amber-400" testId="trending-now">
+      {/* 3. STORY ROWS — progressive reveal with staggered delays */}
+      <ScrollRow title="Trending Now" icon={Flame} iconColor="text-amber-400" testId="trending-now" delay={0}>
         {trendingRow.map((story, idx) => <StoryCard key={story.job_id || `t-${idx}`} story={story} idx={idx} navigate={navigate} priority={idx < 4} />)}
       </ScrollRow>
 
-      <ScrollRow title="Fresh Stories" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories">
-        {freshRow.map((story, idx) => <StoryCard key={`f-${story.job_id || idx}`} story={story} idx={idx + 20} navigate={navigate} priority={idx < 4} />)}
-      </ScrollRow>
-
-      <ScrollRow title="Continue Your Story" icon={RefreshCw} iconColor="text-blue-400" testId="continue-stories">
+      {/* 4. CONTINUE ROW — personal, prioritized */}
+      <ScrollRow title="Continue Your Story" icon={RefreshCw} iconColor="text-blue-400" testId="continue-stories" delay={100}>
         {continueRow.map((story, idx) => <StoryCard key={`c-${story.job_id || idx}`} story={story} idx={idx + 40} navigate={navigate} />)}
       </ScrollRow>
 
-      <ScrollRow title="Unfinished Worlds" icon={Clock} iconColor="text-emerald-400" testId="unfinished-worlds">
+      <ScrollRow title="Fresh Stories" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories" delay={200}>
+        {freshRow.map((story, idx) => <StoryCard key={`f-${story.job_id || idx}`} story={story} idx={idx + 20} navigate={navigate} priority={idx < 4} />)}
+      </ScrollRow>
+
+      <ScrollRow title="Unfinished Worlds" icon={Clock} iconColor="text-emerald-400" testId="unfinished-worlds" delay={300}>
         {unfinishedRow.map((story, idx) => <StoryCard key={`u-${story.job_id || idx}`} story={story} idx={idx + 60} navigate={navigate} />)}
       </ScrollRow>
 
-      {/* 6. FEATURE TOOLS */}
+      {/* 5. FEATURE BLOCKS */}
       <FeaturesGrid navigate={navigate} />
 
       {/* FOOTER */}
       <div className="border-t border-white/[0.04]">
-        <div className="flex items-center justify-between px-6 sm:px-10 lg:px-14 py-4">
-          <div className="flex items-center gap-5 text-xs text-[#A0A0B2]">
+        <div className="flex items-center justify-between px-4 sm:px-10 lg:px-14 py-3 sm:py-4">
+          <div className="flex items-center gap-4 text-[10px] sm:text-xs text-white/30">
             <span className="flex items-center gap-1.5 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> {live_stats.total_stories || 0} stories
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse" /> {live_stats.total_stories || 0} stories
             </span>
             <span className="flex items-center gap-1.5" data-testid="credits-display">
-              <Zap className="w-3.5 h-3.5" style={{ color: '#6C5CE7' }} />
+              <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5" style={{ color: '#6C5CE7' }} />
               {!isLoggedIn ? (
-                <button onClick={() => navigate('/login')} className="flex items-center gap-1 font-bold hover:text-white transition-colors" style={{ color: '#6C5CE7' }} data-testid="credits-login-cta">
-                  <LogIn className="w-3 h-3" /> Sign in to create
+                <button onClick={() => navigate('/login')} className="font-bold hover:text-white transition-colors" style={{ color: '#6C5CE7' }} data-testid="credits-login-cta">
+                  Sign in to create
                 </button>
               ) : !creditsLoaded ? (
-                <span className="inline-block w-10 h-3 bg-white/10 rounded animate-pulse" data-testid="credits-skeleton" />
+                <span className="inline-block w-10 h-3 bg-white/10 rounded shimmer-bar" data-testid="credits-skeleton" />
               ) : (
                 <span className="text-white/50 font-bold" data-testid="credits-value">{credits >= 999999 ? 'Unlimited' : `${credits} credits`}</span>
               )}
@@ -656,10 +738,24 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 7. REAL-TIME ACTIVITY BAR */}
+      {/* 6. ACTIVITY BAR (Technique 6) */}
       <ActivityBar feed={liveFeed} />
 
-      <style>{`.scrollbar-hide::-webkit-scrollbar{display:none}.scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}`}</style>
+      {/* 7. STICKY BOTTOM NAV — mobile only */}
+      <StickyBottomNav navigate={navigate} currentPath={location.pathname} />
+
+      {/* Global styles */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar{display:none}
+        .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+        .shimmer-bar{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 50%,transparent 100%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+        .cta-glow{box-shadow:0 0 20px rgba(108,92,231,.35),0 0 60px rgba(0,194,255,.15)}
+        .card-float{transition:transform .3s ease}
+        .card-float:hover{transform:translateY(-2px)}
+        .safe-bottom{padding-bottom:env(safe-area-inset-bottom,0)}
+      `}</style>
     </div>
   );
 }
