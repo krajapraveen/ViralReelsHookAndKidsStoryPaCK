@@ -184,68 +184,25 @@ async def check_credits(user: dict, amount: int, feature_name: str = "this featu
 
 async def deduct_credits(user_id: str, amount: int, description: str) -> int:
     """
-    Atomically deduct credits from user and log transaction.
-    Uses MongoDB's atomic update with $gte condition to prevent race conditions.
+    Atomically deduct credits from user — delegates to CreditsService.
+    Raises HTTPException on failure.
     """
-    # Atomic credit deduction - prevents race conditions
-    # The $gte condition ensures we only deduct if sufficient credits exist
-    result = await db.users.find_one_and_update(
-        {"id": user_id, "credits": {"$gte": amount}},  # Only if credits >= amount
-        {"$inc": {"credits": -amount}},  # Atomic decrement
-        return_document=True
-    )
-    
-    if not result:
-        # Check if user exists vs insufficient credits
-        user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        current_credits = user.get("credits", 0)
-        raise HTTPException(
-            status_code=402, 
-            detail=f"Insufficient credits. Need {amount}, have {current_credits}"
-        )
-    
-    new_balance = result.get("credits", 0)
-    
-    # Log to credit ledger
-    await db.credit_ledger.insert_one({
-        "id": str(uuid.uuid4()),
-        "userId": user_id,
-        "amount": -amount,
-        "type": "USAGE",
-        "description": description,
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
-    
-    return new_balance
+    from services.credits_service import get_credits_service, InsufficientCreditsError
+    svc = get_credits_service(db)
+    try:
+        result = await svc.deduct_credits(user_id, amount, reason=description)
+        return result["new_balance"]
+    except InsufficientCreditsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 async def add_credits(user_id: str, amount: int, description: str, tx_type: str = "PURCHASE", order_id: str = None) -> int:
-    """Add credits to user and log transaction"""
-    result = await db.users.find_one_and_update(
-        {"id": user_id},
-        {"$inc": {"credits": amount}},
-        return_document=True
-    )
-    
-    if not result:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    ledger_entry = {
-        "id": str(uuid.uuid4()),
-        "userId": user_id,
-        "amount": amount,
-        "type": tx_type,
-        "description": description,
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    }
-    
-    if order_id:
-        ledger_entry["orderId"] = order_id
-    
-    await db.credit_ledger.insert_one(ledger_entry)
-    
-    return result.get("credits", 0)
+    """Add credits to user — delegates to CreditsService."""
+    from services.credits_service import get_credits_service
+    svc = get_credits_service(db)
+    result = await svc.award_credits(user_id, amount, reason=description, reference_id=order_id)
+    return result["new_balance"]
 
 # =============================================================================
 # EXCEPTION LOGGING

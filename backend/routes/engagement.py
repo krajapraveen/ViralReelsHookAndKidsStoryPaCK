@@ -156,8 +156,9 @@ async def complete_daily_challenge(current_user: dict = Depends(get_current_user
 
     # Award credits via Credits Service
     reward = challenge["reward"]
-    from services.credits_service import award as credits_award
-    result = await credits_award(db, user_id, reward, reason=f"Daily challenge: {challenge['challenge_id']}")
+    from services.credits_service import get_credits_service
+    svc = get_credits_service(db)
+    result = await svc.award_credits(user_id, reward, reason=f"Daily challenge: {challenge['challenge_id']}")
     await db.challenge_completions.insert_one({
         "user_id": user_id,
         "challenge_id": challenge["challenge_id"],
@@ -165,7 +166,7 @@ async def complete_daily_challenge(current_user: dict = Depends(get_current_user
         "reward": reward,
     })
 
-    return {"success": True, "reward": reward, "new_balance": result.new_balance}
+    return {"success": True, "reward": reward, "new_balance": result["new_balance"]}
 
 
 # ─── POST /api/engagement/streak/update ────────────────────────────────
@@ -211,8 +212,9 @@ async def update_creation_streak(current_user: dict = Depends(get_current_user))
     milestone_reward = 0
     if new_streak in STREAK_MILESTONES:
         milestone_reward = STREAK_MILESTONES[new_streak]
-        from services.credits_service import award as credits_award
-        await credits_award(db, user_id, milestone_reward, reason=f"Streak milestone: {new_streak} days")
+        from services.credits_service import get_credits_service
+        svc = get_credits_service(db)
+        await svc.award_credits(user_id, milestone_reward, reason=f"Streak milestone: {new_streak} days")
 
     return {"success": True, "streak": new_streak, "milestone_reward": milestone_reward}
 

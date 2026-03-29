@@ -172,27 +172,15 @@ async def generate_fast_video(
     else:
         credit_cost = FAST_CREDIT_COSTS["full_video_large"]
     
-    from bson import ObjectId
-    user = None
+    # Deduct credits via Credits Service
+    from services.credits_service import get_credits_service, InsufficientCreditsError
+    svc = get_credits_service(db)
     try:
-        user = await db.users.find_one({"_id": ObjectId(user_id)})
-    except Exception:
-        user = await db.users.find_one({"id": user_id})
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    current_credits = user.get("credits", 0)
-    if current_credits < credit_cost:
-        raise HTTPException(status_code=402, detail=f"Insufficient credits. Required: {credit_cost}, Available: {current_credits}")
-    
-    await db.users.update_one(
-        {"_id": user.get("_id")},
-        {
-            "$inc": {"credits": -credit_cost},
-            "$push": {"credit_transactions": {"amount": -credit_cost, "description": f"Fast video: {request.title}", "timestamp": datetime.now(timezone.utc)}}
-        }
-    )
+        await svc.deduct_credits(user_id, credit_cost, reason=f"Fast video: {request.title}")
+    except InsufficientCreditsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     
     job_id = str(uuid.uuid4())
     job_doc = {
@@ -656,21 +644,13 @@ async def process_fast_video_optimized(job_id: str):
         
         # Refund credits on failure
         try:
-            from bson import ObjectId
             user_id = job.get("user_id")
             credit_cost = job.get("credits_charged", 0)
             if user_id and credit_cost:
-                user = None
-                try:
-                    user = await db.users.find_one({"_id": ObjectId(user_id)})
-                except Exception:
-                    user = await db.users.find_one({"id": user_id})
-                if user:
-                    await db.users.update_one(
-                        {"_id": user.get("_id")},
-                        {"$inc": {"credits": credit_cost}, "$push": {"credit_transactions": {"amount": credit_cost, "description": f"Refund: fast video failed - {job.get('title','')}", "timestamp": datetime.now(timezone.utc)}}}
-                    )
-                    logger.info(f"[REFUND] Refunded {credit_cost} credits to user {user_id}")
+                from services.credits_service import get_credits_service
+                svc = get_credits_service(db)
+                await svc.refund_credits(user_id, credit_cost, reason=f"Refund: fast video failed - {job.get('title','')}", reference_id=job_id)
+                logger.info(f"[REFUND] Refunded {credit_cost} credits to user {user_id}")
         except Exception as refund_err:
             logger.error(f"[REFUND] Failed to refund: {refund_err}")
         

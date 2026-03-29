@@ -532,29 +532,22 @@ async def generate_full_book(
     cost_breakdown = calculate_cost(mode, option, addons, user_plan)
     total_cost = cost_breakdown["total"]
     
-    # Check credits
-    user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
-    current_credits = user_data.get("credits", 0) if user_data else 0
-    
-    if current_credits < total_cost:
+    # Check and deduct credits via Credits Service
+    from services.credits_service import get_credits_service, InsufficientCreditsError
+    svc = get_credits_service(db)
+    try:
+        deduction_result = await svc.deduct_credits(user_id, total_cost, reason=f"Coloring book: {mode}", reference_id=user_id)
+    except InsufficientCreditsError as e:
         raise HTTPException(
             status_code=402,
             detail={
                 "error": "insufficient_credits",
-                "required": total_cost,
-                "available": current_credits,
-                "message": f"Need {total_cost} credits. You have {current_credits}."
+                "required": e.required,
+                "available": e.available,
+                "message": str(e)
             }
         )
-    
-    # Deduct credits atomically
-    result = await db.users.update_one(
-        {"id": user_id, "credits": {"$gte": total_cost}},
-        {"$inc": {"credits": -total_cost}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=402, detail="Failed to deduct credits")
+    new_balance_after_deduction = deduction_result["new_balance"]
     
     # Create generation record
     generation_id = str(uuid.uuid4())
@@ -627,7 +620,7 @@ async def generate_full_book(
     
     logger.info(f"Generated coloring book {generation_id} for user {user_id}, charged {total_cost} credits")
     
-    new_balance = current_credits - total_cost
+    new_balance = new_balance_after_deduction
     
     return {
         "success": True,
@@ -662,25 +655,20 @@ async def upgrade_to_hd(
     if generation.get("hdUpgraded"):
         raise HTTPException(status_code=400, detail="Already upgraded to HD")
     
-    # Check credits
-    user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
-    current_credits = user_data.get("credits", 0) if user_data else 0
-    
-    if current_credits < hd_cost:
+    # Check and deduct credits via Credits Service
+    from services.credits_service import get_credits_service, InsufficientCreditsError
+    svc = get_credits_service(db)
+    try:
+        hd_deduction = await svc.deduct_credits(user_id, hd_cost, reason="Coloring book HD upgrade", reference_id=generation_id)
+    except InsufficientCreditsError as e:
         raise HTTPException(
             status_code=402,
             detail={
                 "error": "insufficient_credits",
-                "required": hd_cost,
-                "available": current_credits
+                "required": e.required,
+                "available": e.available
             }
         )
-    
-    # Deduct credits
-    await db.users.update_one(
-        {"id": user_id},
-        {"$inc": {"credits": -hd_cost}}
-    )
     
     # Update generation
     await db.coloring_generations.update_one(
@@ -688,23 +676,11 @@ async def upgrade_to_hd(
         {"$set": {"hdUpgraded": True, "hdUpgradedAt": datetime.now(timezone.utc).isoformat()}}
     )
     
-    # Log to ledger
-    await db.credit_ledger.insert_one({
-        "id": str(uuid.uuid4()),
-        "userId": user_id,
-        "entryType": "CAPTURE",
-        "amount": hd_cost,
-        "refType": "COLORING_BOOK_HD_UPGRADE",
-        "refId": generation_id,
-        "status": "ACTIVE",
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
-    
     return {
         "success": True,
         "message": "Upgraded to HD print quality",
         "creditsCharged": hd_cost,
-        "newBalance": current_credits - hd_cost
+        "newBalance": hd_deduction["new_balance"]
     }
 
 

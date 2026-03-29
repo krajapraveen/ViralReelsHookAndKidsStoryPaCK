@@ -529,40 +529,14 @@ async def generate_story(
             detail="Copyrighted characters/brands are not allowed. Please use original names."
         )
     
-    # Check credits
+    # Check and deduct credits via Credits Service
     user_id = user.get("id", user.get("_id", ""))
-    user_credits = user.get("credits", 0)
-    
-    wallet = await db.wallets.find_one({"userId": str(user_id)})
-    wallet_credits = wallet.get("balanceCredits", 0) if wallet else 0
-    current_credits = max(user_credits, wallet_credits)
-    
-    if current_credits < STORY_COST:
-        raise HTTPException(
-            status_code=402,
-            detail=f"Insufficient credits. Required: {STORY_COST}, Available: {current_credits}"
-        )
-    
-    # Deduct credits
-    await db.wallets.update_one(
-        {"userId": str(user_id)},
-        {"$inc": {"balanceCredits": -STORY_COST, "availableCredits": -STORY_COST}},
-        upsert=True
-    )
-    await db.users.update_one(
-        {"id": user_id},
-        {"$inc": {"credits": -STORY_COST}}
-    )
-    
-    # Record transaction
-    await db.credit_transactions.insert_one({
-        "userId": str(user_id),
-        "type": "debit",
-        "amount": STORY_COST,
-        "reason": "Bedtime Story Builder",
-        "feature": "bedtime-story-builder",
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
+    from services.credits_service import get_credits_service, InsufficientCreditsError
+    svc = get_credits_service(db)
+    try:
+        await svc.deduct_credits(user_id, STORY_COST, reason="Bedtime Story Builder")
+    except InsufficientCreditsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
     
     try:
         # Generate story
@@ -576,8 +550,8 @@ async def generate_story(
         )
         
         # Get updated balance
-        updated_wallet = await db.wallets.find_one({"userId": str(user_id)})
-        remaining = updated_wallet.get("balanceCredits", 0) if updated_wallet else max(0, current_credits - STORY_COST)
+        updated_user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
+        remaining = updated_user.get("credits", 0) if updated_user else 0
         
         # Log generation
         await db.story_generations.insert_one({
@@ -599,15 +573,11 @@ async def generate_story(
         }
         
     except Exception as e:
-        # Refund on error
-        await db.wallets.update_one(
-            {"userId": str(user_id)},
-            {"$inc": {"balanceCredits": STORY_COST, "availableCredits": STORY_COST}}
-        )
-        await db.users.update_one(
-            {"id": user_id},
-            {"$inc": {"credits": STORY_COST}}
-        )
+        # Refund on error via Credits Service
+        try:
+            await svc.refund_credits(user_id, STORY_COST, reason="Bedtime story generation failed")
+        except Exception:
+            pass
         logger.error(f"Story generation error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed. Credits refunded.")
 

@@ -104,47 +104,16 @@ CREDIT_COSTS = {
 }
 
 async def check_and_deduct_credits(user_id: str, amount: int, description: str) -> bool:
-    """Check if user has enough credits and deduct them BEFORE processing"""
-    from bson import ObjectId
-    
-    # Try to find user by various ID formats
-    user = None
+    """Check if user has enough credits and deduct them — delegates to Credits Service."""
+    from services.credits_service import get_credits_service, InsufficientCreditsError
+    svc = get_credits_service(db)
     try:
-        user = await db.users.find_one({"_id": ObjectId(user_id)})
-    except Exception:
-        pass
-    
-    if not user:
-        user = await db.users.find_one({"id": user_id})
-    if not user:
-        user = await db.users.find_one({"_id": user_id})
-    
-    if not user:
-        raise HTTPException(status_code=404, detail=f"User not found with id: {user_id}")
-    
-    current_credits = user.get("credits", 0)
-    if current_credits < amount:
-        raise HTTPException(
-            status_code=402, 
-            detail=f"Insufficient credits. Required: {amount}, Available: {current_credits}. Please purchase more credits."
-        )
-    
-    # Deduct credits BEFORE processing
-    await db.users.update_one(
-        {"_id": user.get("_id")},
-        {
-            "$inc": {"credits": -amount},
-            "$push": {
-                "credit_transactions": {
-                    "amount": -amount,
-                    "description": description,
-                    "timestamp": datetime.now(timezone.utc)
-                }
-            }
-        }
-    )
-    
-    return True
+        await svc.deduct_credits(user_id, amount, reason=description)
+        return True
+    except InsufficientCreditsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 # =============================================================================
 # PHASE 2: IMAGE GENERATION
@@ -560,25 +529,16 @@ async def _process_image_generation_job(
             else:
                 logger.error(f"[IMAGE JOB {job_id[:8]}] Scene {scene_number} FAILED: {result.get('error')}")
                 # Refund for this specific scene
-                from bson import ObjectId
-                user = None
                 try:
-                    user = await db.users.find_one({"_id": ObjectId(user_id)})
-                except Exception:
-                    user = await db.users.find_one({"id": user_id})
-                if user:
-                    await db.users.update_one(
-                        {"_id": user.get("_id")},
-                        {
-                            "$inc": {"credits": CREDIT_COSTS["image_per_scene"]},
-                            "$push": {"credit_transactions": {
-                                "amount": CREDIT_COSTS["image_per_scene"],
-                                "description": f"Refund: failed image scene {scene_number} in {project_id[:8]}",
-                                "timestamp": datetime.now(timezone.utc),
-                                "type": "refund"
-                            }}
-                        }
+                    from services.credits_service import get_credits_service
+                    svc = get_credits_service(db)
+                    await svc.refund_credits(
+                        user_id, CREDIT_COSTS["image_per_scene"],
+                        reason=f"Refund: failed image scene {scene_number} in {project_id[:8]}",
+                        reference_id=project_id,
                     )
+                except Exception as refund_err:
+                    logger.error(f"[IMAGE JOB {job_id[:8]}] Scene refund failed: {refund_err}")
                 return {
                     "scene_number": scene_number,
                     "error": result.get("error", "Image generation failed"),
@@ -664,26 +624,14 @@ async def _process_image_generation_job(
         
         # Refund ALL credits on total failure
         try:
-            from bson import ObjectId
-            user = None
-            try:
-                user = await db.users.find_one({"_id": ObjectId(user_id)})
-            except Exception:
-                user = await db.users.find_one({"id": user_id})
-            if user:
-                await db.users.update_one(
-                    {"_id": user.get("_id")},
-                    {
-                        "$inc": {"credits": total_cost},
-                        "$push": {"credit_transactions": {
-                            "amount": total_cost,
-                            "description": f"Refund: image generation failed for {project_id[:8]}",
-                            "timestamp": datetime.now(timezone.utc),
-                            "type": "refund"
-                        }}
-                    }
-                )
-                logger.info(f"[IMAGE JOB {job_id[:8]}] Refunded {total_cost} credits")
+            from services.credits_service import get_credits_service
+            svc = get_credits_service(db)
+            await svc.refund_credits(
+                user_id, total_cost,
+                reason=f"Refund: image generation failed for {project_id[:8]}",
+                reference_id=project_id,
+            )
+            logger.info(f"[IMAGE JOB {job_id[:8]}] Refunded {total_cost} credits")
         except Exception as refund_err:
             logger.error(f"[IMAGE JOB {job_id[:8]}] Refund failed: {refund_err}")
         
@@ -1031,18 +979,13 @@ async def _process_voice_generation_job(
         error_msg = str(e)
         logger.error(f"[VOICE JOB {job_id[:8]}] FAILED: {error_msg}")
         try:
-            from bson import ObjectId
-            user = None
-            try:
-                user = await db.users.find_one({"_id": ObjectId(user_id)})
-            except Exception:
-                user = await db.users.find_one({"id": user_id})
-            if user:
-                await db.users.update_one(
-                    {"_id": user.get("_id")},
-                    {"$inc": {"credits": total_cost},
-                     "$push": {"credit_transactions": {"amount": total_cost, "description": f"Refund: voice gen failed for {project_id[:8]}", "timestamp": datetime.now(timezone.utc), "type": "refund"}}}
-                )
+            from services.credits_service import get_credits_service
+            svc = get_credits_service(db)
+            await svc.refund_credits(
+                user_id, total_cost,
+                reason=f"Refund: voice gen failed for {project_id[:8]}",
+                reference_id=project_id,
+            )
         except Exception as refund_err:
             logger.error(f"[VOICE JOB {job_id[:8]}] Refund failed: {refund_err}")
         
@@ -1482,10 +1425,12 @@ async def assemble_video(
     
     if missing_files:
         # Refund credits since we can't proceed
-        await db.users.update_one(
-            {"id": user_id},
-            {"$inc": {"credits": total_cost}}
-        )
+        from services.credits_service import get_credits_service
+        svc = get_credits_service(db)
+        try:
+            await svc.refund_credits(user_id, total_cost, reason=f"Refund: missing files for render", reference_id=user_id)
+        except Exception:
+            pass
         raise HTTPException(
             status_code=400, 
             detail=f"Some files are missing and need to be regenerated: {', '.join(missing_files[:5])}{'...' if len(missing_files) > 5 else ''}. Please regenerate images/voices for this project."
@@ -1880,31 +1825,18 @@ async def render_video_task(
                 if not job_doc.get("include_watermark", True):
                     refund_amount += CREDIT_COSTS["watermark_removal"]
                 
-                from bson import ObjectId
-                # Try to find user and refund
-                user = None
+                # Try to refund via Credits Service
                 try:
-                    user = await db.users.find_one({"_id": ObjectId(user_id)})
-                except Exception:
-                    user = await db.users.find_one({"id": user_id})
-                
-                if user:
-                    await db.users.update_one(
-                        {"_id": user.get("_id")},
-                        {
-                            "$inc": {"credits": refund_amount},
-                            "$push": {
-                                "credit_transactions": {
-                                    "amount": refund_amount,
-                                    "description": f"Automatic refund for failed video generation (Job: {job_id[:8]}...)",
-                                    "timestamp": datetime.now(timezone.utc),
-                                    "type": "refund",
-                                    "reason": "generation_failed"
-                                }
-                            }
-                        }
+                    from services.credits_service import get_credits_service
+                    svc = get_credits_service(db)
+                    await svc.refund_credits(
+                        user_id, refund_amount,
+                        reason=f"Automatic refund for failed video generation (Job: {job_id[:8]}...)",
+                        reference_id=job_id,
                     )
                     logger.info(f"Refunded {refund_amount} credits to user {user_id} for failed job {job_id}")
+                except Exception as refund_inner_err:
+                    logger.error(f"Credits service refund failed: {refund_inner_err}")
         except Exception as refund_error:
             logger.error(f"Failed to process refund for job {job_id}: {refund_error}")
         
@@ -2428,17 +2360,12 @@ async def cancel_stuck_job(
         if not job.get("include_watermark", True):
             refund_amount += CREDIT_COSTS.get("watermark_removal", 10)
         
-        from bson import ObjectId
+        from services.credits_service import get_credits_service
+        svc = get_credits_service(db)
         try:
-            await db.users.update_one(
-                {"_id": ObjectId(user_id)},
-                {"$inc": {"credits": refund_amount}}
-            )
+            await svc.refund_credits(user_id, refund_amount, reason=f"Job cancelled: {job_id[:8]}", reference_id=job_id)
         except Exception:
-            await db.users.update_one(
-                {"id": user_id},
-                {"$inc": {"credits": refund_amount}}
-            )
+            pass
         
         await db.credit_transactions.insert_one({
             "user_id": user_id,

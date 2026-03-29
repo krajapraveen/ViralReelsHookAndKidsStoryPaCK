@@ -58,16 +58,17 @@ async def get_credit_history(
 @router.get("/balance")
 async def get_balance(user: dict = Depends(get_current_user)):
     """Get current credit balance. Admin/exempt users show unlimited."""
-    from services.credits_service import get_balance as svc_get_balance
-    balance = await svc_get_balance(db, user["id"])
+    from services.credits_service import get_credits_service
+    svc = get_credits_service(db)
+    state = await svc.get_user_credit_state(user["id"])
     return {
-        "credits": balance["credits"],
-        "balance": balance["credits"],
-        "is_unlimited": balance["is_unlimited"],
+        "credits": 999999 if state["is_unlimited"] else state["credits"],
+        "balance": 999999 if state["is_unlimited"] else state["credits"],
+        "is_unlimited": state["is_unlimited"],
         "subscription": user.get("subscription"),
-        "plan": balance["plan"],
-        "isFreeTier": balance["plan"] == "free",
-        "unlimited": balance["is_unlimited"],
+        "plan": "pro" if state["is_unlimited"] else user.get("plan", "free"),
+        "isFreeTier": not state["is_unlimited"] and user.get("plan", "free") == "free",
+        "unlimited": state["is_unlimited"],
     }
 
 

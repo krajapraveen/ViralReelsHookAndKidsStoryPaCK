@@ -188,11 +188,13 @@ CREDIT_COSTS = {
 
 async def check_and_deduct_credits(db: AsyncIOMotorDatabase, user_id: str, amount: int, description: str) -> bool:
     """Check if user has enough credits and deduct them — delegates to Credits Service."""
-    from services.credits_service import deduct as credits_deduct
-    result = await credits_deduct(db, user_id, amount, reason=description)
-    if not result.success:
-        raise HTTPException(status_code=402, detail=result.error)
-    return True
+    from services.credits_service import get_credits_service, InsufficientCreditsError
+    svc = get_credits_service(db)
+    try:
+        await svc.deduct_credits(user_id, amount, reason=description)
+        return True
+    except InsufficientCreditsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
 
 # =============================================================================
 # LLM INTEGRATION FOR SCENE GENERATION

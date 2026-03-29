@@ -138,19 +138,21 @@ async def create_job(
     # ── Atomic credit deduction via Credits Service (skip for guests) ──
     credits_deducted = 0
     if not skip_credits:
-        from services.credits_service import deduct as credits_deduct
-        deduction = await credits_deduct(
-            db, user_id, cost.total_credits_required,
-            reason=f"Story Engine job {job_id[:8]}",
-            job_id=job_id,
-        )
-        if not deduction.success:
+        from services.credits_service import get_credits_service, InsufficientCreditsError
+        svc = get_credits_service(db)
+        try:
+            deduction = await svc.deduct_credits(
+                user_id, cost.total_credits_required,
+                reason=f"Story Engine job {job_id[:8]}",
+                reference_id=job_id,
+            )
+            credits_deducted = deduction["amount"]
+        except InsufficientCreditsError as e:
             await db.story_engine_jobs.update_one(
                 {"job_id": job_id},
-                {"$set": {"state": JobState.FAILED.value, "error_message": deduction.error}},
+                {"$set": {"state": JobState.FAILED.value, "error_message": str(e)}},
             )
-            return {"success": False, "error": deduction.error}
-        credits_deducted = deduction.amount
+            return {"success": False, "error": str(e)}
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} created for user {user_id[:12]}, deducted {credits_deducted} credits (guest={skip_credits})")
 
@@ -642,11 +644,12 @@ async def _fail_job(job_id: str, error: str, stage_results: list):
     if job and job.get("cost_estimate"):
         refund_amount = job["cost_estimate"].get("total_credits_required", 0)
         if refund_amount > 0:
-            from services.credits_service import refund as credits_refund
-            await credits_refund(
-                db, job["user_id"], refund_amount,
+            from services.credits_service import get_credits_service
+            svc = get_credits_service(db)
+            await svc.refund_credits(
+                job["user_id"], refund_amount,
                 reason=f"Pipeline failure: {error[:100]}",
-                job_id=job_id,
+                reference_id=job_id,
             )
             await db.story_engine_jobs.update_one(
                 {"job_id": job_id},
