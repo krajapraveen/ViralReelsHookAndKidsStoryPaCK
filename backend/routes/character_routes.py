@@ -56,7 +56,7 @@ async def list_characters(
     """List all characters for current user"""
     user_id = current_user.get("id") or str(current_user.get("_id"))
     
-    characters = await db.story_characters.find(
+    characters = await db.character_profiles.find(
         {"user_id": user_id, "deleted": {"$ne": True}},
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
@@ -99,7 +99,7 @@ async def create_character(
         "deleted": False
     }
     
-    await db.story_characters.insert_one(character_doc)
+    await db.character_profiles.insert_one(character_doc)
     
     # Remove _id for response
     character_doc.pop("_id", None)
@@ -121,7 +121,7 @@ async def get_character(
     """Get a specific character"""
     user_id = current_user.get("id") or str(current_user.get("_id"))
     
-    character = await db.story_characters.find_one(
+    character = await db.character_profiles.find_one(
         {"character_id": character_id, "user_id": user_id, "deleted": {"$ne": True}},
         {"_id": 0}
     )
@@ -147,7 +147,7 @@ async def update_character(
     update_data = {k: v for k, v in request.dict().items() if v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc)
     
-    result = await db.story_characters.update_one(
+    result = await db.character_profiles.update_one(
         {"character_id": character_id, "user_id": user_id, "deleted": {"$ne": True}},
         {"$set": update_data}
     )
@@ -157,10 +157,10 @@ async def update_character(
     
     # Regenerate consistency prompt if appearance/clothing/style changed
     if any(k in update_data for k in ["appearance", "clothing", "style", "description"]):
-        character = await db.story_characters.find_one({"character_id": character_id})
+        character = await db.character_profiles.find_one({"character_id": character_id})
         if character:
             consistency_prompt = build_consistency_prompt_from_doc(character)
-            await db.story_characters.update_one(
+            await db.character_profiles.update_one(
                 {"character_id": character_id},
                 {"$set": {"consistency_prompt": consistency_prompt}}
             )
@@ -178,7 +178,7 @@ async def delete_character(
     """Soft delete a character"""
     user_id = current_user.get("id") or str(current_user.get("_id"))
     
-    result = await db.story_characters.update_one(
+    result = await db.character_profiles.update_one(
         {"character_id": character_id, "user_id": user_id},
         {"$set": {"deleted": True, "deleted_at": datetime.now(timezone.utc)}}
     )
@@ -204,7 +204,7 @@ async def generate_character_variations(
     user_id = current_user.get("id") or str(current_user.get("_id"))
     
     # Get character
-    character = await db.story_characters.find_one(
+    character = await db.character_profiles.find_one(
         {"character_id": request.character_id, "user_id": user_id, "deleted": {"$ne": True}}
     )
     
@@ -251,7 +251,7 @@ async def generate_character_variations(
     
     # Store generated variations
     if generated_images:
-        await db.story_characters.update_one(
+        await db.character_profiles.update_one(
             {"character_id": request.character_id},
             {
                 "$push": {"generated_variations": {"$each": generated_images}},
@@ -274,7 +274,7 @@ async def get_character_prompt(
     """Get the consistency prompt for a character"""
     user_id = current_user.get("id") or str(current_user.get("_id"))
     
-    character = await db.story_characters.find_one(
+    character = await db.character_profiles.find_one(
         {"character_id": character_id, "user_id": user_id, "deleted": {"$ne": True}},
         {"_id": 0, "consistency_prompt": 1, "name": 1}
     )

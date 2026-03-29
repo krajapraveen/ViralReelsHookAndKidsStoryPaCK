@@ -154,9 +154,10 @@ async def complete_daily_challenge(current_user: dict = Depends(get_current_user
     if existing:
         raise HTTPException(status_code=400, detail="Challenge already completed today")
 
-    # Award credits
+    # Award credits via Credits Service
     reward = challenge["reward"]
-    await db.users.update_one({"id": user_id}, {"$inc": {"credits": reward}})
+    from services.credits_service import award as credits_award
+    result = await credits_award(db, user_id, reward, reason=f"Daily challenge: {challenge['challenge_id']}")
     await db.challenge_completions.insert_one({
         "user_id": user_id,
         "challenge_id": challenge["challenge_id"],
@@ -164,9 +165,7 @@ async def complete_daily_challenge(current_user: dict = Depends(get_current_user
         "reward": reward,
     })
 
-    user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
-    logger.info(f"[ENGAGEMENT] User {user_id[:8]} completed challenge, awarded {reward} credits")
-    return {"success": True, "reward": reward, "new_balance": user.get("credits", 0)}
+    return {"success": True, "reward": reward, "new_balance": result.new_balance}
 
 
 # ─── POST /api/engagement/streak/update ────────────────────────────────
@@ -212,8 +211,8 @@ async def update_creation_streak(current_user: dict = Depends(get_current_user))
     milestone_reward = 0
     if new_streak in STREAK_MILESTONES:
         milestone_reward = STREAK_MILESTONES[new_streak]
-        await db.users.update_one({"id": user_id}, {"$inc": {"credits": milestone_reward}})
-        logger.info(f"[ENGAGEMENT] User {user_id[:8]} hit {new_streak}-day streak, awarded {milestone_reward} credits")
+        from services.credits_service import award as credits_award
+        await credits_award(db, user_id, milestone_reward, reason=f"Streak milestone: {new_streak} days")
 
     return {"success": True, "streak": new_streak, "milestone_reward": milestone_reward}
 

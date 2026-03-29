@@ -187,36 +187,11 @@ CREDIT_COSTS = {
 }
 
 async def check_and_deduct_credits(db: AsyncIOMotorDatabase, user_id: str, amount: int, description: str) -> bool:
-    """Check if user has enough credits and deduct them"""
-    user = await db.users.find_one({"_id": user_id})
-    if not user:
-        user = await db.users.find_one({"id": user_id})
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    current_credits = user.get("credits", 0)
-    if current_credits < amount:
-        raise HTTPException(
-            status_code=402, 
-            detail=f"Insufficient credits. Required: {amount}, Available: {current_credits}"
-        )
-    
-    # Deduct credits
-    await db.users.update_one(
-        {"_id": user.get("_id")},
-        {
-            "$inc": {"credits": -amount},
-            "$push": {
-                "credit_transactions": {
-                    "amount": -amount,
-                    "description": description,
-                    "timestamp": datetime.now(timezone.utc)
-                }
-            }
-        }
-    )
-    
+    """Check if user has enough credits and deduct them — delegates to Credits Service."""
+    from services.credits_service import deduct as credits_deduct
+    result = await credits_deduct(db, user_id, amount, reason=description)
+    if not result.success:
+        raise HTTPException(status_code=402, detail=result.error)
     return True
 
 # =============================================================================

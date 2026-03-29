@@ -135,40 +135,22 @@ async def create_job(
 
     await db.story_engine_jobs.insert_one({k: v for k, v in job_doc.items() if k != "_id"})
 
-    # ── Atomic credit deduction (skip for guests) ──
+    # ── Atomic credit deduction via Credits Service (skip for guests) ──
     credits_deducted = 0
     if not skip_credits:
-        result = await db.users.update_one(
-            {"id": user_id, "credits": {"$gte": cost.total_credits_required}},
-            {
-                "$inc": {"credits": -cost.total_credits_required},
-                "$push": {
-                    "credit_history": {
-                        "type": "deduction",
-                        "amount": -cost.total_credits_required,
-                        "reason": f"Story Engine job {job_id[:8]}",
-                        "timestamp": now,
-                    }
-                },
-            },
+        from services.credits_service import deduct as credits_deduct
+        deduction = await credits_deduct(
+            db, user_id, cost.total_credits_required,
+            reason=f"Story Engine job {job_id[:8]}",
+            job_id=job_id,
         )
-
-        if result.modified_count == 0:
+        if not deduction.success:
             await db.story_engine_jobs.update_one(
                 {"job_id": job_id},
-                {"$set": {"state": JobState.FAILED.value, "error_message": "Credit deduction failed — insufficient credits"}},
+                {"$set": {"state": JobState.FAILED.value, "error_message": deduction.error}},
             )
-            return {"success": False, "error": "Credit deduction failed — try again"}
-
-        credits_deducted = cost.total_credits_required
-        # Log credit transaction
-        await db.credit_transactions.insert_one({
-            "user_id": user_id,
-            "amount": -cost.total_credits_required,
-            "type": "story_engine_deduction",
-            "job_id": job_id,
-            "timestamp": now,
-        })
+            return {"success": False, "error": deduction.error}
+        credits_deducted = deduction.amount
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} created for user {user_id[:12]}, deducted {credits_deducted} credits (guest={skip_credits})")
 
@@ -655,29 +637,21 @@ async def _fail_job(job_id: str, error: str, stage_results: list):
         {"$set": {"stage_results": stage_results}},
     )
 
-    # Refund credits
+    # Refund credits via Credits Service
     job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
     if job and job.get("cost_estimate"):
         refund_amount = job["cost_estimate"].get("total_credits_required", 0)
         if refund_amount > 0:
-            now = datetime.now(timezone.utc).isoformat()
-            await db.users.update_one(
-                {"id": job["user_id"]},
-                {"$inc": {"credits": refund_amount}},
+            from services.credits_service import refund as credits_refund
+            await credits_refund(
+                db, job["user_id"], refund_amount,
+                reason=f"Pipeline failure: {error[:100]}",
+                job_id=job_id,
             )
-            await db.credit_transactions.insert_one({
-                "user_id": job["user_id"],
-                "amount": refund_amount,
-                "type": "story_engine_refund",
-                "job_id": job_id,
-                "reason": f"Pipeline failure: {error[:100]}",
-                "timestamp": now,
-            })
             await db.story_engine_jobs.update_one(
                 {"job_id": job_id},
                 {"$set": {"credits_refunded": refund_amount}},
             )
-            logger.info(f"[PIPELINE] Refunded {refund_amount} credits for failed job {job_id[:8]}")
 
 
 async def get_job_status(job_id: str) -> Optional[Dict]:

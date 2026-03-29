@@ -58,21 +58,16 @@ async def get_credit_history(
 @router.get("/balance")
 async def get_balance(user: dict = Depends(get_current_user)):
     """Get current credit balance. Admin/exempt users show unlimited."""
-    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1, "subscription": 1, "plan": 1, "email": 1, "role": 1})
-    email = user_data.get("email", "")
-    role = user_data.get("role", "")
-    EXEMPT_EMAILS = {"admin@creatorstudio.ai", "test@visionary-suite.com", "demo@visionary-suite.com"}
-    is_exempt = email in EXEMPT_EMAILS or role in ("admin", "ADMIN")
-    credits_val = 999999 if is_exempt else user_data.get("credits", 0)
-    plan_val = "pro" if is_exempt else user_data.get("plan", "free")
+    from services.credits_service import get_balance as svc_get_balance
+    balance = await svc_get_balance(db, user["id"])
     return {
-        "credits": credits_val,
-        "balance": credits_val,
-        "is_unlimited": is_exempt,
-        "subscription": user_data.get("subscription"),
-        "plan": plan_val,
-        "isFreeTier": plan_val == "free",
-        "unlimited": is_exempt,
+        "credits": balance["credits"],
+        "balance": balance["credits"],
+        "is_unlimited": balance["is_unlimited"],
+        "subscription": user.get("subscription"),
+        "plan": balance["plan"],
+        "isFreeTier": balance["plan"] == "free",
+        "unlimited": balance["is_unlimited"],
     }
 
 
