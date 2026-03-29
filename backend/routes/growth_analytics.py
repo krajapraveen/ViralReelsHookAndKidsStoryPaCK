@@ -19,7 +19,7 @@ router = APIRouter(prefix="/growth", tags=["growth-analytics"])
 
 class GrowthEvent(BaseModel):
     event: str
-    session_id: str
+    session_id: Optional[str] = None
     user_id: Optional[str] = None
     anonymous_id: Optional[str] = None
     source_page: Optional[str] = None
@@ -42,6 +42,9 @@ VALID_EVENTS = {
     "generate_click", "signup_triggered", "signup_completed",
     "creation_completed", "share_click", "continue_click",
     "add_twist_click", "make_funny_click", "next_episode_click",
+    # ── Addiction Loop Events ──
+    "impression", "click", "watch_start", "watch_complete",
+    "continue", "share", "signup_from_share",
 }
 
 # ─── TRACK EVENT ─────────────────────────────────────────────────────────────
@@ -318,6 +321,214 @@ async def get_daily_trends(days: int = Query(7, ge=1, le=30)):
         trends[date][event] = doc["count"]
 
     return {"period_days": days, "daily": trends}
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADDICTION LOOP METRICS DASHBOARD
+# Tracks: impression → click → watch_start → watch_complete → continue → share
+# ═══════════════════════════════════════════════════════════════════════════════
+
+LOOP_STAGES = ["impression", "click", "watch_start", "watch_complete", "continue", "share"]
+
+@router.get("/loop-dashboard")
+async def get_loop_dashboard(days: int = Query(7, ge=1, le=90)):
+    """Return all 7 sections of the Addiction Loop Metrics Dashboard in one call."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    base_match = {"timestamp": {"$gte": cutoff}}
+
+    # ── Section 1+2: Funnel counts ──
+    count_pipeline = [
+        {"$match": {**base_match, "event": {"$in": LOOP_STAGES + ["signup_from_share"]}}},
+        {"$group": {"_id": "$event", "count": {"$sum": 1}}},
+    ]
+    counts = {}
+    async for doc in db.growth_events.aggregate(count_pipeline):
+        counts[doc["_id"]] = doc["count"]
+
+    imp = counts.get("impression", 0)
+    clk = counts.get("click", 0)
+    ws = counts.get("watch_start", 0)
+    wc = counts.get("watch_complete", 0)
+    cont = counts.get("continue", 0)
+    shr = counts.get("share", 0)
+    sfs = counts.get("signup_from_share", 0)
+
+    def rate(num, den):
+        return round(num / den * 100, 1) if den > 0 else 0
+
+    click_rate = rate(clk, imp)
+    completion_rate = rate(wc, ws)
+    continue_rate = rate(cont, wc)
+    share_rate = rate(shr, wc)
+
+    # K-factor: new_users_from_shares / active_users
+    active_users_pipeline = [
+        {"$match": {**base_match, "user_id": {"$ne": None}}},
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "total"},
+    ]
+    active_result = await db.growth_events.aggregate(active_users_pipeline).to_list(1)
+    active_users = active_result[0]["total"] if active_result else 0
+    k_factor = round(sfs / max(active_users, 1), 3)
+
+    # ── Section 3: Drop-off analysis ──
+    funnel_pairs = [
+        ("click", "watch_start", clk, ws),
+        ("watch_start", "watch_complete", ws, wc),
+        ("watch_complete", "continue", wc, cont),
+        ("continue", "share", cont, shr),
+    ]
+    dropoffs = []
+    worst_drop = {"from": "", "to": "", "drop_pct": 0}
+    for from_s, to_s, from_c, to_c in funnel_pairs:
+        drop = rate(from_c - to_c, from_c) if from_c > 0 else 0
+        entry = {"from": from_s, "to": to_s, "drop_pct": drop, "lost": from_c - to_c}
+        dropoffs.append(entry)
+        if drop > worst_drop["drop_pct"]:
+            worst_drop = entry
+
+    # ── Section 4: Top performing stories ──
+    top_stories_pipeline = [
+        {"$match": {**base_match, "event": {"$in": ["watch_complete", "continue", "share"]}, "meta.story_id": {"$ne": None}}},
+        {"$group": {
+            "_id": {"story_id": "$meta.story_id", "event": "$event"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    story_stats = {}
+    async for doc in db.growth_events.aggregate(top_stories_pipeline):
+        sid = doc["_id"]["story_id"]
+        evt = doc["_id"]["event"]
+        if sid not in story_stats:
+            story_stats[sid] = {"story_id": sid, "completions": 0, "continues": 0, "shares": 0}
+        if evt == "watch_complete":
+            story_stats[sid]["completions"] = doc["count"]
+        elif evt == "continue":
+            story_stats[sid]["continues"] = doc["count"]
+        elif evt == "share":
+            story_stats[sid]["shares"] = doc["count"]
+
+    # Enrich with titles
+    top_stories = sorted(story_stats.values(), key=lambda s: s["continues"], reverse=True)[:10]
+    for s in top_stories:
+        job = await db.story_engine_jobs.find_one({"job_id": s["story_id"]}, {"_id": 0, "title": 1})
+        s["title"] = job.get("title", s["story_id"][:12]) if job else s["story_id"][:12]
+        comp = s["completions"]
+        s["continue_pct"] = rate(s["continues"], comp)
+        s["share_pct"] = rate(s["shares"], comp)
+        s["completion_pct"] = 0  # needs impression data per story
+
+    # ── Section 5: Hook A/B performance ──
+    hook_pipeline = [
+        {"$match": {**base_match, "event": {"$in": ["impression", "click", "watch_complete", "continue"]}, "meta.hook_variant": {"$ne": None}}},
+        {"$group": {
+            "_id": {"hook": "$meta.hook_variant", "event": "$event"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    hook_stats = {}
+    async for doc in db.growth_events.aggregate(hook_pipeline):
+        h = doc["_id"]["hook"]
+        evt = doc["_id"]["event"]
+        if h not in hook_stats:
+            hook_stats[h] = {"hook": h, "impressions": 0, "clicks": 0, "completions": 0, "continues": 0}
+        if evt == "impression":
+            hook_stats[h]["impressions"] = doc["count"]
+        elif evt == "click":
+            hook_stats[h]["clicks"] = doc["count"]
+        elif evt == "watch_complete":
+            hook_stats[h]["completions"] = doc["count"]
+        elif evt == "continue":
+            hook_stats[h]["continues"] = doc["count"]
+
+    hooks = []
+    for h in hook_stats.values():
+        h["ctr"] = rate(h["clicks"], h["impressions"])
+        h["continue_pct"] = rate(h["continues"], h["completions"])
+        hooks.append(h)
+    hooks.sort(key=lambda x: x["continue_pct"], reverse=True)
+
+    # ── Section 6: Category performance ──
+    cat_pipeline = [
+        {"$match": {**base_match, "event": {"$in": ["watch_complete", "continue", "share"]}, "meta.category": {"$ne": None}}},
+        {"$group": {
+            "_id": {"cat": "$meta.category", "event": "$event"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    cat_stats = {}
+    async for doc in db.growth_events.aggregate(cat_pipeline):
+        c = doc["_id"]["cat"]
+        evt = doc["_id"]["event"]
+        if c not in cat_stats:
+            cat_stats[c] = {"category": c, "completions": 0, "continues": 0, "shares": 0}
+        if evt == "watch_complete":
+            cat_stats[c]["completions"] = doc["count"]
+        elif evt == "continue":
+            cat_stats[c]["continues"] = doc["count"]
+        elif evt == "share":
+            cat_stats[c]["shares"] = doc["count"]
+
+    categories = []
+    for c in cat_stats.values():
+        c["continue_pct"] = rate(c["continues"], c["completions"])
+        c["share_pct"] = rate(c["shares"], c["completions"])
+        categories.append(c)
+    categories.sort(key=lambda x: x["continue_pct"], reverse=True)
+
+    # ── Section 7: Real-time activity feed (last 20 events) ──
+    recent_pipeline = [
+        {"$match": {"event": {"$in": ["continue", "share", "watch_complete", "signup_from_share"]}}},
+        {"$sort": {"timestamp": -1}},
+        {"$limit": 20},
+        {"$project": {"_id": 0, "event": 1, "timestamp": 1, "meta": 1, "ip": 1}},
+    ]
+    live_feed = []
+    async for doc in db.growth_events.aggregate(recent_pipeline):
+        live_feed.append({
+            "event": doc["event"],
+            "timestamp": doc.get("timestamp"),
+            "story_title": (doc.get("meta") or {}).get("story_title", "a story"),
+            "location": (doc.get("meta") or {}).get("location", ""),
+        })
+
+    return {
+        "period_days": days,
+        # Section 1: Growth Loop Health
+        "health": {
+            "continue_rate": continue_rate,
+            "share_rate": share_rate,
+            "k_factor": k_factor,
+            "continue_benchmark": "strong" if continue_rate >= 25 else "weak" if continue_rate < 15 else "decent",
+            "share_benchmark": "viral" if share_rate >= 15 else "good" if share_rate >= 5 else "weak",
+            "k_benchmark": "viral" if k_factor >= 1 else "decent" if k_factor >= 0.3 else "weak",
+        },
+        # Section 2: Funnel
+        "funnel": {
+            "stages": [
+                {"stage": "Impressions", "event": "impression", "count": imp},
+                {"stage": "Clicks", "event": "click", "count": clk, "rate": click_rate},
+                {"stage": "Watch Start", "event": "watch_start", "count": ws},
+                {"stage": "Watch Complete", "event": "watch_complete", "count": wc, "rate": completion_rate},
+                {"stage": "Continue", "event": "continue", "count": cont, "rate": continue_rate},
+                {"stage": "Share", "event": "share", "count": shr, "rate": share_rate},
+            ],
+        },
+        # Section 3: Drop-off
+        "dropoffs": dropoffs,
+        "worst_dropoff": worst_drop,
+        # Section 4: Top stories
+        "top_stories": top_stories[:10],
+        # Section 5: Hook A/B
+        "hooks": hooks[:10],
+        # Section 6: Categories
+        "categories": categories,
+        # Section 7: Live feed
+        "live_feed": live_feed,
+        # Raw counts
+        "raw": {"impressions": imp, "clicks": clk, "watch_starts": ws, "watch_completes": wc, "continues": cont, "shares": shr, "signups_from_share": sfs, "active_users": active_users},
+    }
 
 
 # ─── SHARE REWARDS ───────────────────────────────────────────────────────────

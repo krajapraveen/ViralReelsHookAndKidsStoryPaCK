@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
 import { SafeImage } from '../components/SafeImage';
+import { trackLoop } from '../utils/growthTracker';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, LogIn, Search, Plus, Volume2, VolumeX,
@@ -247,8 +248,25 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
   }, [hovered, videoSrc, isSeed]);
 
   const sizes = { sm: 'w-44 sm:w-52', md: 'w-52 sm:w-60 lg:w-64', lg: 'w-60 sm:w-72 lg:w-80' };
+  const cardRef = useRef(null);
+  const impressionFired = useRef(false);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || impressionFired.current) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !impressionFired.current) {
+        impressionFired.current = true;
+        trackLoop('impression', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
+        obs.disconnect();
+      }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [story]);
 
   const handleClick = () => {
+    trackLoop('click', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
     navigate('/app/story-video-studio', {
       state: {
         prefill: {
@@ -265,7 +283,7 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
   };
 
   return (
-    <div className={`${sizes[size]} flex-shrink-0 group relative rounded-xl overflow-hidden cursor-pointer`}
+    <div ref={cardRef} className={`${sizes[size]} flex-shrink-0 group relative rounded-xl overflow-hidden cursor-pointer`}
       style={{ scrollSnapAlign: 'start' }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onClick={handleClick} data-testid={`story-card-${idx}`}>

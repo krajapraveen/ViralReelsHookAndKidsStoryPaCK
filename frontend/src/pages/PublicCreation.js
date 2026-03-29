@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { SafeImage } from '../components/SafeImage';
 import { AnimatedViewerCount } from '../components/AnimatedSocialProof';
 import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growthAnalytics';
+import { trackLoop } from '../utils/growthTracker';
 import { getVariant, trackConversion } from '../lib/abTesting';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -111,6 +112,7 @@ export default function PublicCreation() {
     setIsPlaying(false);
     setVideoEnded(true);
     setShowOverlay(true);
+    if (creation) trackLoop('watch_complete', { story_id: creation.job_id, story_title: creation.title, category: creation.category, source_surface: 'share_page' });
   };
 
   const toggleMute = (e) => {
@@ -154,6 +156,7 @@ export default function PublicCreation() {
     }));
 
     trackRemixClick({ source_page: `/v/${slug}`, source_slug: slug, tool_type: creation.tool_type || 'story_video', origin: 'share_page' });
+    trackLoop('continue', { story_id: creation.job_id, story_title: creation.title, category: creation.category, source_surface: 'share_page', hook_variant: creation.cliffhanger || '' });
     trackConversion('cta_copy', 'remix_click');
     trackConversion('story_hook', 'continue_click');
     axios.post(`${API}/api/public/creation/${slug}/remix`).catch(() => {});
@@ -181,6 +184,7 @@ export default function PublicCreation() {
       ? `"${creation.title}" — created with AI in seconds! What happens next?`
       : 'This was created with AI in seconds! Continue the story:';
     trackShareClick({ source_page: `/v/${slug}`, source_slug: slug, origin: 'share_page', meta: { platform } });
+    trackLoop('share', { story_id: creation?.job_id, story_title: creation?.title, category: creation?.category, source_surface: 'share_page' });
     trackConversion('story_hook', 'share_click');
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
@@ -373,7 +377,7 @@ export default function PublicCreation() {
                         muted={isMuted}
                         playsInline
                         autoPlay
-                        onPlay={() => setIsPlaying(true)}
+                        onPlay={() => { setIsPlaying(true); if (creation) trackLoop('watch_start', { story_id: creation.job_id, story_title: creation.title, source_surface: 'share_page' }); }}
                         onPause={() => setIsPlaying(false)}
                         onEnded={handleVideoEnd}
                         data-testid="video-player"

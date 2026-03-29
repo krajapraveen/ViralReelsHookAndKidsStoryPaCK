@@ -9,6 +9,7 @@ import {
   Volume2, VolumeX, Loader2, CheckCircle, ExternalLink, ArrowRight, Zap
 } from 'lucide-react';
 import { SafeImage } from '../components/SafeImage';
+import { trackLoop } from '../utils/growthTracker';
 import api from '../utils/api';
 
 export default function StoryPreview() {
@@ -51,6 +52,7 @@ export default function StoryPreview() {
 
   const handleContinueStory = () => {
     if (!preview) return;
+    trackLoop('continue', { story_id: jobId, story_title: preview.title, source_surface: 'story_preview', hook_variant: preview.cliffhanger || '' });
     const lastScene = preview.scenes?.[preview.scenes.length - 1];
     const cliffhanger = preview.cliffhanger || lastScene?.narration_text || '';
     localStorage.setItem('remix_data', JSON.stringify({
