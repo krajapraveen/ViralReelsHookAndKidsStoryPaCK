@@ -70,9 +70,9 @@ const BADGE_STYLES = {
 };
 
 const GRAD_COLORS = [
-  'from-violet-600 to-indigo-900', 'from-rose-600 to-purple-900',
-  'from-emerald-600 to-teal-900', 'from-cyan-600 to-blue-900',
-  'from-amber-600 to-orange-900', 'from-pink-600 to-fuchsia-900',
+  'from-indigo-500 to-blue-800', 'from-rose-500 to-purple-800',
+  'from-emerald-500 to-teal-800', 'from-cyan-500 to-blue-800',
+  'from-amber-500 to-orange-800', 'from-pink-500 to-rose-800',
 ];
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -82,6 +82,7 @@ function HeroSection({ stories, navigate }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
   const [paused, setPaused] = useState(false);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
@@ -92,6 +93,7 @@ function HeroSection({ stories, navigate }) {
   const posterSrc = mediaUrl(current.thumbnail_url);
   const canShowVideo = videoSrc && !videoFailed;
   const hasHero = heroStories.length > 0;
+  const mediaVisible = (posterSrc && !posterFailed) || canShowVideo;
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
@@ -108,6 +110,7 @@ function HeroSection({ stories, navigate }) {
 
   useEffect(() => {
     setVideoFailed(false);
+    setPosterFailed(false);
     if (videoRef.current) { videoRef.current.load(); videoRef.current.play().catch(() => {}); }
   }, [activeIdx]);
 
@@ -125,14 +128,16 @@ function HeroSection({ stories, navigate }) {
   return (
     <section className="relative w-full" style={{ height: '72vh', minHeight: '420px' }}
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
-      {/* Preload hero video */}
-      {canShowVideo && <link rel="preload" as="video" href={videoSrc} />}
 
       <div className="absolute inset-0 overflow-hidden" style={{ background: BG }}>
-        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad}`} />
-        {posterSrc && (
+        {/* Always-visible gradient fallback — saturated when no media loads */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-500`}
+          style={{ opacity: mediaVisible ? 0.6 : 1 }} />
+        {posterSrc && !posterFailed && (
           <img src={posterSrc} alt="" loading="eager" fetchPriority="high" decoding="sync"
-            className="absolute inset-0 w-full h-full object-cover" style={{ filter: 'brightness(0.6) saturate(1.3)' }} data-testid="hero-poster" />
+            className="absolute inset-0 w-full h-full object-cover" style={{ filter: 'brightness(0.6) saturate(1.3)' }}
+            onError={() => setPosterFailed(true)}
+            data-testid="hero-poster" />
         )}
         {canShowVideo && (
           <video ref={videoRef} key={`hero-${current.job_id}`} src={videoSrc} muted={isMuted} autoPlay loop playsInline preload="auto"
@@ -140,9 +145,9 @@ function HeroSection({ stories, navigate }) {
             data-testid="hero-video" onError={() => setVideoFailed(true)} />
         )}
       </div>
-      {/* Gradient overlays: left fade + bottom fade */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0F] via-transparent to-transparent" />
+      {/* Gradient overlays: lighter when no media loaded so fallback gradient stays vivid */}
+      <div className="absolute inset-0" style={{ background: mediaVisible ? 'linear-gradient(to right, rgba(0,0,0,.7), rgba(0,0,0,.3), transparent)' : 'linear-gradient(to right, rgba(0,0,0,.4), rgba(0,0,0,.1), transparent)' }} />
+      <div className="absolute inset-0" style={{ background: mediaVisible ? `linear-gradient(to top, ${BG}, transparent 60%)` : `linear-gradient(to top, ${BG}, transparent 40%)` }} />
 
       <div className="relative h-full flex flex-col justify-end px-6 sm:px-10 lg:px-14 pb-10 z-10" style={{ maxWidth: '40%', minWidth: '320px', animation: 'fadeUp .5s ease-out' }}>
         {hasHero ? (
@@ -319,7 +324,10 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${GRAD_COLORS[gradIdx]}`}>
             <div className="absolute inset-0 flex items-center justify-center">
-              {isSeed ? <Sparkles className="w-12 h-12 text-white/20" /> : <Film className="w-12 h-12 text-white/20" />}
+              {isSeed ? <Sparkles className="w-12 h-12 text-white/30" /> : <Film className="w-12 h-12 text-white/30" />}
+            </div>
+            <div className="absolute bottom-8 left-3 right-3">
+              <p className="text-[10px] text-white/30 font-medium truncate">{story.title || 'Untitled'}</p>
             </div>
           </div>
         )}

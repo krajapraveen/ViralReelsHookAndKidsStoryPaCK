@@ -59,12 +59,12 @@ export function SafeImage({
   // Gradient colors for fallback
   const hash = (alt || titleOverlay || 'a').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const gradients = [
-    'from-indigo-600/40 to-cyan-600/30',
-    'from-purple-600/40 to-pink-600/30',
-    'from-emerald-600/40 to-teal-600/30',
-    'from-amber-600/40 to-orange-600/30',
-    'from-rose-600/40 to-red-600/30',
-    'from-blue-600/40 to-violet-600/30',
+    'from-indigo-600/60 to-cyan-700/50',
+    'from-purple-600/60 to-pink-700/50',
+    'from-emerald-600/60 to-teal-700/50',
+    'from-amber-600/60 to-orange-700/50',
+    'from-rose-600/60 to-red-700/50',
+    'from-blue-600/60 to-indigo-700/50',
   ];
   const grad = gradients[hash % gradients.length];
 
