@@ -1,5 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+const API = process.env.REACT_APP_BACKEND_URL;
+
+/**
+ * Convert R2 CDN URLs to backend proxy URLs for cross-browser CORS compatibility.
+ * Safari and mobile browsers block direct R2 CDN requests (no CORS headers).
+ */
+function safeMediaUrl(url) {
+  if (!url) return url;
+  const r2Match = url.match(/^https?:\/\/pub-[a-f0-9]+\.r2\.dev\/(.+)$/);
+  if (r2Match) return `${API}/api/media/r2/${r2Match[1]}`;
+  return url;
+}
+
 /**
  * SafeImage — viewport-aware image loader with IntersectionObserver.
  *
@@ -7,7 +20,7 @@ import React, { useState, useRef, useEffect } from 'react';
  * All others defer loading until they enter the viewport.
  */
 export function SafeImage({
-  src,
+  src: rawSrc,
   alt = '',
   fallbackType = 'gradient',
   aspectRatio = '1/1',
@@ -24,6 +37,9 @@ export function SafeImage({
   const [inView, setInView] = useState(priority);
   const containerRef = useRef(null);
   const imgRef = useRef(null);
+
+  // Convert R2 CDN URLs to proxy for cross-browser safety
+  const src = safeMediaUrl(rawSrc);
 
   // Reset state when src changes
   useEffect(() => {

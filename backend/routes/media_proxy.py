@@ -10,6 +10,21 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/media", tags=["Media Proxy"])
 
+
+@router.options("/r2/{path:path}")
+async def options_r2(path: str):
+    """CORS preflight for cross-origin image/video requests (Safari/mobile)."""
+    return Response(
+        content=b'',
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "Range, Content-Type",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
 _r2_client = None
 _r2_bucket = None
 

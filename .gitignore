@@ -165,3 +165,11 @@ frontend/node_modules/.cache/default-development/69.pack
 *.env
 *.env.*
 frontend/node_modules/.cache/default-development/70.pack
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*

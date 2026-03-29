@@ -20,7 +20,11 @@ const CARD_BG = '#121218';
 
 function mediaUrl(path) {
   if (!path) return null;
+  // Route proxy-prefixed paths through backend
   if (path.startsWith('/api/media/') || path.startsWith('/api/generated/')) return `${API}${path}`;
+  // CRITICAL: Route direct R2 CDN URLs through backend proxy for CORS/Safari/mobile compatibility
+  const r2Match = path.match(/^https?:\/\/pub-[a-f0-9]+\.r2\.dev\/(.+)$/);
+  if (r2Match) return `${API}/api/media/r2/${r2Match[1]}`;
   return path;
 }
 
@@ -88,25 +92,29 @@ function Shimmer({ w, h, rounded = 'rounded-xl', className = '' }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   1. HERO — 60vh mobile / 72vh desktop, blur→video swap
+   1. HERO — 60vh mobile / 72vh desktop, POSTER-FIRST for Safari/mobile
    ═══════════════════════════════════════════════════════════════════ */
 function HeroSection({ stories, navigate }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [posterLoaded, setPosterLoaded] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const [paused, setPaused] = useState(false);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
+  const posterTimeoutRef = useRef(null);
+  const videoTimeoutRef = useRef(null);
 
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
-  const videoSrc = mediaUrl(current.preview_url || current.output_url);
+  // Prefer preview_url (short, Safari-safe) over full output_url
+  const videoSrc = mediaUrl(current.preview_url) || mediaUrl(current.output_url);
   const posterSrc = mediaUrl(current.thumbnail_url || current.thumbnail_small_url);
-  const canShowVideo = videoSrc && !videoFailed;
+  const canShowVideo = videoSrc && !videoFailed && posterLoaded; // Only try video AFTER poster loads
   const hasHero = heroStories.length > 0;
-  const mediaVisible = (posterSrc && !posterFailed) || (canShowVideo && videoLoaded);
+  const mediaVisible = posterLoaded || videoLoaded;
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
@@ -117,9 +125,32 @@ function HeroSection({ stories, navigate }) {
   useEffect(() => { if (!paused) startTimer(); return () => clearInterval(timerRef.current); }, [paused, startTimer]);
 
   useEffect(() => {
-    setVideoFailed(false); setPosterFailed(false); setVideoLoaded(false);
-    if (videoRef.current) { videoRef.current.load(); videoRef.current.play().catch(() => {}); }
+    setVideoFailed(false); setPosterFailed(false); setPosterLoaded(false); setVideoLoaded(false);
+    clearTimeout(posterTimeoutRef.current);
+    clearTimeout(videoTimeoutRef.current);
+    // Aggressive poster timeout: if poster doesn't load in 2s, show gradient fallback
+    posterTimeoutRef.current = setTimeout(() => {
+      setPosterFailed(prev => prev ? prev : true); // only set if not already loaded
+    }, 2000);
+    return () => { clearTimeout(posterTimeoutRef.current); clearTimeout(videoTimeoutRef.current); };
   }, [activeIdx]);
+
+  // Video timeout: if video doesn't canplay in 4s, give up
+  useEffect(() => {
+    if (!canShowVideo) return;
+    clearTimeout(videoTimeoutRef.current);
+    videoTimeoutRef.current = setTimeout(() => {
+      if (!videoLoaded) setVideoFailed(true);
+    }, 4000);
+    if (videoRef.current) { videoRef.current.load(); videoRef.current.play().catch(() => {}); }
+    return () => clearTimeout(videoTimeoutRef.current);
+  }, [canShowVideo]);
+
+  const handlePosterLoad = () => {
+    clearTimeout(posterTimeoutRef.current);
+    setPosterLoaded(true);
+    setPosterFailed(false);
+  };
 
   const goTo = (idx) => { clearInterval(timerRef.current); setActiveIdx(idx); startTimer(); };
   const hash = (current.title || 'story').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -136,28 +167,37 @@ function HeroSection({ stories, navigate }) {
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
 
       <div className="absolute inset-0 overflow-hidden" style={{ background: BG }}>
-        {/* Always-visible gradient — full saturation when no media */}
+        {/* Layer 1: Always-visible gradient — full saturation when no media loads */}
         <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-500`}
           style={{ opacity: mediaVisible ? 0.6 : 1 }} />
-        {/* Blurred poster — instant perceived load (Technique 1) */}
+        {/* Layer 2: POSTER-FIRST — loads sharp, no blur, immediate display for all browsers */}
         {posterSrc && !posterFailed && (
           <img src={posterSrc} alt="" loading="eager" fetchPriority="high" decoding="sync"
-            className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
-            style={{ filter: videoLoaded ? 'brightness(0.5) saturate(1.3)' : 'brightness(0.5) saturate(1.2) blur(8px)', transform: 'scale(1.05)' }}
-            onError={() => setPosterFailed(true)} data-testid="hero-poster" />
+            crossOrigin="anonymous"
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+            style={{ opacity: posterLoaded ? 1 : 0, filter: 'brightness(0.55) saturate(1.3)' }}
+            onLoad={handlePosterLoad}
+            onError={() => { clearTimeout(posterTimeoutRef.current); setPosterFailed(true); }}
+            data-testid="hero-poster" />
         )}
-        {/* Video — fades in over blur (Technique 1) */}
+        {/* Layer 3: Preview video — only loads AFTER poster succeeds, with poster attr for Safari */}
         {canShowVideo && (
-          <video ref={videoRef} key={`hero-${current.job_id}`} src={videoSrc} muted={isMuted} autoPlay loop playsInline preload="auto"
+          <video ref={videoRef} key={`hero-${current.job_id}`}
+            src={videoSrc}
+            poster={posterSrc || undefined}
+            muted={isMuted} autoPlay loop playsInline
+            preload="metadata"
+            crossOrigin="anonymous"
             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
             style={{ opacity: videoLoaded ? 1 : 0, filter: 'brightness(0.55) saturate(1.3)' }}
-            onCanPlay={() => setVideoLoaded(true)}
-            onError={() => setVideoFailed(true)}
+            onCanPlay={() => { clearTimeout(videoTimeoutRef.current); setVideoLoaded(true); }}
+            onError={() => { clearTimeout(videoTimeoutRef.current); setVideoFailed(true); }}
+            onStalled={() => { /* Safari fires stalled when video can't buffer */ setTimeout(() => { if (!videoLoaded) setVideoFailed(true); }, 2000); }}
             data-testid="hero-video" />
         )}
       </div>
 
-      {/* Overlays — lighter when no media */}
+      {/* Overlays — lighter when no media so gradient fallback stays vivid */}
       <div className="absolute inset-0" style={{ background: mediaVisible ? 'linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25), transparent)' : 'linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,.1), transparent)' }} />
       <div className="absolute inset-0" style={{ background: mediaVisible ? `linear-gradient(to top, ${BG}, transparent 55%)` : `linear-gradient(to top, ${BG}, transparent 35%)` }} />
 
@@ -345,7 +385,8 @@ function StoryCard({ story, idx, navigate, priority = false }) {
           </div>
         )}
         {videoSrc && !isSeed && (
-          <video ref={videoRef} src={videoSrc} muted loop playsInline preload="metadata"
+          <video ref={videoRef} src={videoSrc} muted loop playsInline preload="none"
+            crossOrigin="anonymous"
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${showPreview ? 'opacity-100' : 'opacity-0'}`} />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />

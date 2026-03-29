@@ -13,6 +13,7 @@ import { SafeImage } from '../components/SafeImage';
 import { AnimatedViewerCount } from '../components/AnimatedSocialProof';
 import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growthAnalytics';
 import { trackLoop } from '../utils/growthTracker';
+import { safeMediaUrl } from '../utils/safeMediaUrl';
 import { getVariant, trackConversion } from '../lib/abTesting';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -371,8 +372,9 @@ export default function PublicCreation() {
                     <>
                       <video
                         ref={videoRef}
-                        src={creation.video_url}
-                        poster={creation.thumbnail_url || currentScene?.image_url}
+                        src={safeMediaUrl(creation.video_url)}
+                        poster={safeMediaUrl(creation.thumbnail_url || currentScene?.image_url)}
+                        crossOrigin="anonymous"
                         className="w-full h-full object-cover"
                         muted={isMuted}
                         playsInline
