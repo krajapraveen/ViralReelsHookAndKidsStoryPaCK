@@ -6,7 +6,8 @@ import { SafeImage } from '../components/SafeImage';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, LogIn, Search, Plus, Volume2, VolumeX,
-  Film, BookOpen, Star, ArrowRight, Shield, User, Settings
+  Film, BookOpen, Star, ArrowRight, Shield, User,
+  Camera, Palette, PenTool, Lightbulb, RefreshCw, Mic
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -18,7 +19,6 @@ function mediaUrl(path) {
   return path;
 }
 
-/** Decode JWT to check admin role */
 function isAdminUser() {
   try {
     const token = localStorage.getItem('token');
@@ -28,7 +28,6 @@ function isAdminUser() {
   } catch { return false; }
 }
 
-/** Preload only the hero poster image for instant first paint */
 function preloadHeroImage(url) {
   if (!url) return;
   const img = new Image();
@@ -46,33 +45,34 @@ const HOOK_BANK = [
   "She recognized the voice... but he'd been dead for years.",
 ];
 
-// Seed cards shown when no real data exists — these feel like unfinished stories, not creation prompts
 const SEED_CARDS = [
-  { job_id: 'seed-1', title: 'A Midnight Train to Nowhere', hook_text: "The station was empty... except for the girl with no shadow.", is_seed: true },
-  { job_id: 'seed-2', title: 'The Last Dragon\'s Secret', hook_text: "She found the egg under the floorboards. It was warm.", is_seed: true },
-  { job_id: 'seed-3', title: 'Echoes in the Library', hook_text: "The book opened itself to page 47. It was blank yesterday.", is_seed: true },
-  { job_id: 'seed-4', title: 'The Clockmaker\'s Daughter', hook_text: "Every clock in town stopped at 3:33 AM.", is_seed: true },
-  { job_id: 'seed-5', title: 'Whispers Under the Ice', hook_text: "Something was moving beneath the frozen lake.", is_seed: true },
-  { job_id: 'seed-6', title: 'The Map That Bleeds', hook_text: "The old map showed a country that doesn't exist.", is_seed: true },
+  { job_id: 'seed-1', title: 'A Midnight Train to Nowhere', hook_text: "The station was empty... except for the girl with no shadow.", is_seed: true, badge: 'UNFINISHED', animation_style: 'watercolor' },
+  { job_id: 'seed-2', title: "The Last Dragon's Secret", hook_text: "She found the egg under the floorboards. It was warm.", is_seed: true, badge: 'UNFINISHED', animation_style: 'anime' },
+  { job_id: 'seed-3', title: 'Echoes in the Library', hook_text: "The book opened itself to page 47. It was blank yesterday.", is_seed: true, badge: 'UNFINISHED', animation_style: 'cartoon_2d' },
+  { job_id: 'seed-4', title: "The Clockmaker's Daughter", hook_text: "Every clock in town stopped at 3:33 AM.", is_seed: true, badge: 'UNFINISHED', animation_style: 'cinematic' },
+  { job_id: 'seed-5', title: 'Whispers Under the Ice', hook_text: "Something was moving beneath the frozen lake.", is_seed: true, badge: 'UNFINISHED', animation_style: 'watercolor' },
+  { job_id: 'seed-6', title: 'The Map That Bleeds', hook_text: "The old map showed a country that doesn't exist.", is_seed: true, badge: 'UNFINISHED', animation_style: 'anime' },
 ];
 
 function getHook(story, idx) {
   if (story.hook_text && story.hook_text.length > 15) return story.hook_text;
-  if (story.story_text) {
-    const sentences = story.story_text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  if (story.story_prompt) {
+    const sentences = story.story_prompt.split(/[.!?]+/).filter(s => s.trim().length > 10);
     if (sentences.length > 0) return sentences[0].trim() + '...';
   }
   return HOOK_BANK[idx % HOOK_BANK.length];
 }
 
-function getBadge(story, idx) {
-  if (story.is_seed) return { text: 'UNFINISHED', color: 'bg-amber-500/90 text-black' };
-  const rm = story.remix_count || 0;
-  if (rm >= 5) return { text: 'TRENDING', color: 'bg-amber-500 text-black' };
-  if (idx === 0) return { text: '#1', color: 'bg-rose-500 text-white' };
-  if (idx < 3) return { text: 'HOT', color: 'bg-rose-500/80 text-white' };
-  return { text: 'NEW', color: 'bg-white/15 text-white' };
-}
+const BADGE_STYLES = {
+  TRENDING: 'bg-amber-500 text-black',
+  FEATURED: 'bg-rose-600 text-white',
+  '#1': 'bg-rose-500 text-white',
+  HOT: 'bg-rose-500/80 text-white',
+  FRESH: 'bg-emerald-500 text-white',
+  CONTINUE: 'bg-blue-500 text-white',
+  UNFINISHED: 'bg-amber-500/90 text-black',
+  NEW: 'bg-white/15 text-white',
+};
 
 const GRAD_COLORS = [
   'from-violet-600 to-indigo-900',
@@ -83,7 +83,9 @@ const GRAD_COLORS = [
   'from-pink-600 to-fuchsia-900',
 ];
 
-/* ═══════════ HERO SECTION — Always renders ═══════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   1. HERO STORY SECTION
+   ═══════════════════════════════════════════════════════════════════ */
 function HeroSection({ stories, navigate }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
@@ -118,18 +120,22 @@ function HeroSection({ stories, navigate }) {
     clearInterval(timerRef.current);
     setActiveIdx(idx);
     if (heroStories.length > 1) {
-      timerRef.current = setInterval(() => {
-        setActiveIdx(prev => (prev + 1) % heroStories.length);
-      }, 10000);
+      timerRef.current = setInterval(() => setActiveIdx(prev => (prev + 1) % heroStories.length), 10000);
     }
   };
 
   const hash = (current.title || 'story').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const fallbackGrad = GRAD_COLORS[hash % GRAD_COLORS.length];
 
+  const prefillObj = {
+    title: current.title || '',
+    prompt: current.hook_text || current.story_prompt || '',
+    animation_style: current.animation_style || '',
+    parent_video_id: current.job_id || null,
+  };
+
   return (
     <section className="relative w-full" style={{ height: '48vh', minHeight: '340px' }} data-testid="hero-section">
-      {/* Background layers: gradient → image → video */}
       <div className="absolute inset-0 overflow-hidden bg-black">
         <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad}`} />
         {posterSrc && (
@@ -138,17 +144,13 @@ function HeroSection({ stories, navigate }) {
         )}
         {canShowVideo && (
           <video ref={videoRef} key={`hero-${current.job_id}`} src={videoSrc} muted={isMuted} autoPlay loop playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ filter: 'brightness(0.7) saturate(1.2)' }}
+            className="absolute inset-0 w-full h-full object-cover" style={{ filter: 'brightness(0.7) saturate(1.2)' }}
             data-testid="hero-video" onError={() => setVideoFailed(true)} />
         )}
       </div>
-
-      {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-transparent to-transparent" />
 
-      {/* Content */}
       <div className="relative h-full flex flex-col justify-end px-6 sm:px-10 lg:px-14 pb-8 max-w-3xl z-10" style={{ animation: 'fadeUp .5s ease-out' }}>
         {hasHero ? (
           <>
@@ -170,13 +172,13 @@ function HeroSection({ stories, navigate }) {
               "{getHook(current, activeIdx)}"
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => navigate('/app/story-video-studio', { state: { prefill: { title: current.title, prompt: current.hook_text || '', animation_style: current.animation_style || '', parent_video_id: current.job_id }, freshSession: true } })}
+              <button onClick={() => navigate('/app/story-video-studio', { state: { prefill: prefillObj, freshSession: true } })}
                 className="flex items-center gap-2 px-6 py-3 bg-white text-black font-extrabold rounded-lg text-sm hover:scale-[1.03] active:scale-[0.97] transition-transform shadow-xl shadow-white/15" data-testid="hero-play-btn">
-                <Play className="w-5 h-5 fill-black" /> Watch & Continue
+                <Play className="w-5 h-5 fill-black" /> Continue Story
               </button>
               <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
                 className="flex items-center gap-2 px-6 py-3 bg-white/15 backdrop-blur text-white font-extrabold rounded-lg text-sm hover:bg-white/25 transition-colors border border-white/15" data-testid="hero-create-btn">
-                <Plus className="w-5 h-5" /> Create New
+                <Plus className="w-5 h-5" /> Create Your Version
               </button>
               {canShowVideo && (
                 <button onClick={() => setIsMuted(!isMuted)} className="w-9 h-9 flex items-center justify-center rounded-full bg-black/40 backdrop-blur border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all" data-testid="hero-mute-btn">
@@ -186,7 +188,6 @@ function HeroSection({ stories, navigate }) {
             </div>
           </>
         ) : (
-          /* Fallback hero when NO stories exist at all */
           <>
             <div className="flex items-center gap-2 mb-2">
               <span className="bg-amber-500 text-black text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded">UNFINISHED</span>
@@ -199,13 +200,12 @@ function HeroSection({ stories, navigate }) {
             </p>
             <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
               className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-lg text-sm hover:scale-[1.03] active:scale-[0.97] transition-transform shadow-xl shadow-white/10" data-testid="hero-create-btn">
-              <Play className="w-4 h-4 fill-black" /> Continue a Story
+              <Play className="w-4 h-4 fill-black" /> Start a Story
             </button>
           </>
         )}
       </div>
 
-      {/* Carousel dots */}
       {heroStories.length > 1 && (
         <div className="absolute bottom-4 right-6 sm:right-10 flex items-center gap-1 z-10" data-testid="hero-dots">
           {heroStories.map((_, i) => (
@@ -221,12 +221,15 @@ function HeroSection({ stories, navigate }) {
   );
 }
 
-/* ═══════════ STORY CARD ═══════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   3. STORY CARD
+   ═══════════════════════════════════════════════════════════════════ */
 function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
   const [hovered, setHovered] = useState(false);
   const videoRef = useRef(null);
   const hook = getHook(story, idx);
-  const badge = getBadge(story, idx);
+  const badge = story.badge || 'NEW';
+  const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
   const videoSrc = mediaUrl(story.preview_url || story.output_url);
   const isSeed = story.is_seed;
   const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
@@ -244,13 +247,17 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
   const sizes = { sm: 'w-44 sm:w-52', md: 'w-52 sm:w-60 lg:w-64', lg: 'w-60 sm:w-72 lg:w-80' };
 
   const handleClick = () => {
-    const prefillData = {
-      title: story.title || '',
-      prompt: story.hook_text || '',
-      animation_style: story.animation_style || '',
-      parent_video_id: isSeed ? null : story.job_id,
-    };
-    navigate('/app/story-video-studio', { state: { prefill: prefillData, freshSession: true } });
+    navigate('/app/story-video-studio', {
+      state: {
+        prefill: {
+          title: story.title || '',
+          prompt: story.hook_text || story.story_prompt || '',
+          animation_style: story.animation_style || '',
+          parent_video_id: isSeed ? null : story.job_id,
+        },
+        freshSession: true,
+      },
+    });
   };
 
   return (
@@ -260,50 +267,35 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
       onClick={handleClick} data-testid={`story-card-${idx}`}>
       <div className="relative aspect-[3/4] overflow-hidden bg-black rounded-xl"
         style={{ transition: 'transform .3s ease, box-shadow .3s ease', transform: hovered ? 'scale(1.03)' : 'scale(1)', boxShadow: hovered ? '0 16px 40px rgba(0,0,0,.7)' : '0 4px 12px rgba(0,0,0,.4)' }}>
-
-        {/* Background: thumbnail via SafeImage with priority loading */}
         {story.thumbnail_url ? (
           <SafeImage src={mediaUrl(story.thumbnail_url)} alt={story.title} aspectRatio="3/4" fallbackType="gradient" titleOverlay={story.title}
             priority={priority} className="w-full h-full" imgClassName="w-full h-full object-cover" />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${GRAD_COLORS[gradIdx]}`}>
             <div className="absolute inset-0 flex items-center justify-center p-4">
-              {isSeed ? (
-                <Sparkles className="w-12 h-12 text-white/25" />
-              ) : (
-                <Film className="w-12 h-12 text-white/25" />
-              )}
+              {isSeed ? <Sparkles className="w-12 h-12 text-white/25" /> : <Film className="w-12 h-12 text-white/25" />}
             </div>
           </div>
         )}
-
-        {/* Video hover overlay */}
         {videoSrc && !isSeed && (
           <video ref={videoRef} src={videoSrc} muted loop playsInline preload="none"
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${hovered ? 'opacity-100' : 'opacity-0'}`} />
         )}
-
-        {/* Dark gradient from bottom */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent pointer-events-none" />
-
-        {/* Badge — BIGGER + BRIGHTER */}
         <div className="absolute top-2.5 left-2.5">
-          <span className={`${badge.color} text-[10px] font-black tracking-wider px-2.5 py-1 rounded-md shadow-lg`}>{badge.text}</span>
+          <span className={`${badgeStyle} text-[10px] font-black tracking-wider px-2.5 py-1 rounded-md shadow-lg`}>{badge}</span>
         </div>
-
-        {/* Play button on hover */}
         <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${hovered ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
           <div className="w-14 h-14 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-2xl">
             <Play className="w-5 h-5 text-white fill-white ml-0.5" />
           </div>
         </div>
-
-        {/* Bottom text — BIGGER + BOLDER */}
         <div className="absolute bottom-0 left-0 right-0 p-3">
           <h3 className="text-sm font-extrabold text-white leading-tight mb-1 line-clamp-1 drop-shadow-lg">{story.title || 'Untitled'}</h3>
           <p className="text-[10px] text-white/70 leading-snug line-clamp-2 italic mb-2">"{hook}"</p>
           <div className={`flex items-center gap-1.5 text-[10px] font-bold transition-colors ${hovered ? 'text-white' : 'text-white/50'}`}>
-            {isSeed ? <><Play className="w-3 h-3 fill-current" /> Continue this</> : <><Play className="w-3 h-3 fill-current" /> See what happens</>}
+            <Play className="w-3 h-3 fill-current" />
+            {badge === 'CONTINUE' ? 'Continue watching' : 'See what happens'}
             <ChevronRight className="w-3 h-3" />
           </div>
         </div>
@@ -312,8 +304,10 @@ function StoryCard({ story, idx, navigate, size = 'md', priority = false }) {
   );
 }
 
-/* ═══════════ SCROLL ROW ═══════════ */
-function ScrollRow({ title, icon: Icon, iconColor, children, seeAllAction, testId }) {
+/* ═══════════════════════════════════════════════════════════════════
+   SCROLL ROW — horizontal card row with navigation
+   ═══════════════════════════════════════════════════════════════════ */
+function ScrollRow({ title, icon: Icon, iconColor, children, testId }) {
   const scrollRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
@@ -341,11 +335,6 @@ function ScrollRow({ title, icon: Icon, iconColor, children, seeAllAction, testI
           {Icon && <Icon className={`w-5 h-5 ${iconColor || 'text-white/60'}`} />}
           {title}
         </h2>
-        {seeAllAction && (
-          <button onClick={seeAllAction} className="flex items-center gap-1 text-xs text-white/40 hover:text-white/70 font-bold transition-colors" data-testid={`${testId}-see-all`}>
-            See all <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
       <div className="relative group/row">
         {showLeft && (
@@ -370,43 +359,51 @@ function ScrollRow({ title, icon: Icon, iconColor, children, seeAllAction, testI
   );
 }
 
-/* ═══════════ FEATURES GRID — 10 bold tools ═══════════ */
-function FeaturesGrid({ navigate }) {
-  const features = [
-    { name: 'Story Series', desc: 'Multi-episode sagas', icon: Film, path: '/app/story-series', color: 'from-violet-600 to-purple-700', iconBg: 'bg-violet-500/20' },
-    { name: 'Character Memory', desc: 'Persistent characters', icon: User, path: '/app/characters', color: 'from-cyan-600 to-blue-700', iconBg: 'bg-cyan-500/20' },
-    { name: 'Reel Generator', desc: 'Viral short reels', icon: Play, path: '/app/reels', color: 'from-rose-600 to-pink-700', iconBg: 'bg-rose-500/20' },
-    { name: 'Photo to Comic', desc: 'Photos become comics', icon: Sparkles, path: '/app/photo-to-comic', color: 'from-amber-600 to-orange-700', iconBg: 'bg-amber-500/20' },
-    { name: 'Comic Storybook', desc: 'Panel-by-panel stories', icon: BookOpen, path: '/app/comic-storybook', color: 'from-emerald-600 to-green-700', iconBg: 'bg-emerald-500/20' },
-    { name: 'Bedtime Stories', desc: 'Narrated sleep tales', icon: Star, path: '/app/bedtime-stories', color: 'from-indigo-600 to-blue-700', iconBg: 'bg-indigo-500/20' },
-    { name: 'Reaction GIF', desc: 'Custom reaction GIFs', icon: Zap, path: '/app/reaction-gif', color: 'from-yellow-500 to-amber-600', iconBg: 'bg-yellow-500/20' },
-    { name: 'Caption Rewriter', desc: 'AI-powered captions', icon: ArrowRight, path: '/app/caption-rewriter', color: 'from-teal-600 to-cyan-700', iconBg: 'bg-teal-500/20' },
-    { name: 'Brand Story', desc: 'Business storytelling', icon: Shield, path: '/app/brand-story', color: 'from-slate-600 to-gray-700', iconBg: 'bg-slate-500/20' },
-    { name: 'Daily Viral Ideas', desc: 'Trending content ideas', icon: Flame, path: '/app/daily-viral', color: 'from-red-600 to-rose-700', iconBg: 'bg-red-500/20' },
-  ];
+/* ═══════════════════════════════════════════════════════════════════
+   15. SECONDARY FEATURE CARDS — large format below story rows
+   ═══════════════════════════════════════════════════════════════════ */
+const FEATURES = [
+  { name: 'Story Video', desc: 'Create cinematic AI story videos from any prompt', icon: Film, path: '/app/story-video-studio', gradient: 'from-violet-600 to-indigo-800', iconBg: 'bg-violet-500/25' },
+  { name: 'Story Series', desc: 'Multi-episode sagas with character memory', icon: BookOpen, path: '/app/story-series', gradient: 'from-purple-600 to-fuchsia-800', iconBg: 'bg-purple-500/25' },
+  { name: 'Character Memory', desc: 'Persistent characters across stories', icon: User, path: '/app/characters', gradient: 'from-cyan-600 to-blue-800', iconBg: 'bg-cyan-500/25' },
+  { name: 'Reel Generator', desc: 'Viral short-form video reels', icon: Play, path: '/app/reels', gradient: 'from-rose-600 to-pink-800', iconBg: 'bg-rose-500/25' },
+  { name: 'Photo to Comic', desc: 'Transform photos into comic panels', icon: Camera, path: '/app/photo-to-comic', gradient: 'from-amber-600 to-orange-800', iconBg: 'bg-amber-500/25' },
+  { name: 'Comic Storybook', desc: 'Panel-by-panel illustrated stories', icon: Palette, path: '/app/comic-storybook', gradient: 'from-emerald-600 to-green-800', iconBg: 'bg-emerald-500/25' },
+  { name: 'Bedtime Stories', desc: 'Narrated sleep tales with visuals', icon: Star, path: '/app/bedtime-stories', gradient: 'from-indigo-600 to-blue-800', iconBg: 'bg-indigo-500/25' },
+  { name: 'Reaction GIF', desc: 'Create custom reaction GIFs', icon: Zap, path: '/app/reaction-gif', gradient: 'from-yellow-500 to-amber-700', iconBg: 'bg-yellow-500/25' },
+  { name: 'Caption Rewriter', desc: 'AI-powered caption and copy rewriting', icon: PenTool, path: '/app/caption-rewriter', gradient: 'from-teal-600 to-cyan-800', iconBg: 'bg-teal-500/25' },
+  { name: 'Brand Story', desc: 'Professional business narratives', icon: Shield, path: '/app/brand-story', gradient: 'from-slate-600 to-gray-800', iconBg: 'bg-slate-500/25' },
+  { name: 'Daily Viral Ideas', desc: 'Trending content hooks and ideas', icon: Lightbulb, path: '/app/daily-viral', gradient: 'from-red-600 to-rose-800', iconBg: 'bg-red-500/25' },
+];
 
+function FeaturesGrid({ navigate }) {
   return (
-    <section className="px-6 sm:px-10 lg:px-14 py-6" data-testid="features-grid">
-      <h2 className="flex items-center gap-2.5 text-lg sm:text-xl font-extrabold text-white tracking-tight mb-5">
+    <section className="px-6 sm:px-10 lg:px-14 py-8" data-testid="features-grid">
+      <h2 className="flex items-center gap-2.5 text-lg sm:text-xl font-extrabold text-white tracking-tight mb-6">
         <Zap className="w-5 h-5 text-amber-400" />
         Creator Tools
       </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {features.map(f => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {FEATURES.map(f => {
           const Icon = f.icon;
           return (
             <button
               key={f.name}
               onClick={() => navigate(f.path, { state: { freshSession: true } })}
-              className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/15 transition-all p-4 text-left cursor-pointer"
+              className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] hover:border-white/15 transition-all p-5 text-left cursor-pointer"
               data-testid={`feature-${f.name.replace(/\s/g, '-').toLowerCase()}`}
             >
-              <div className={`w-10 h-10 rounded-lg ${f.iconBg} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                <Icon className="w-5 h-5 text-white" />
+              <div className="flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-xl ${f.iconBg} flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-white leading-tight mb-1">{f.name}</h3>
+                  <p className="text-xs text-white/45 leading-relaxed">{f.desc}</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors flex-shrink-0 mt-1" />
               </div>
-              <h3 className="text-sm font-bold text-white leading-tight mb-0.5">{f.name}</h3>
-              <p className="text-[10px] text-white/40 leading-tight">{f.desc}</p>
-              <div className={`absolute inset-0 bg-gradient-to-br ${f.color} opacity-0 group-hover:opacity-[0.08] transition-opacity pointer-events-none`} />
+              <div className={`absolute inset-0 bg-gradient-to-br ${f.gradient} opacity-0 group-hover:opacity-[0.06] transition-opacity pointer-events-none`} />
             </button>
           );
         })}
@@ -415,7 +412,9 @@ function FeaturesGrid({ navigate }) {
   );
 }
 
-/* ═══════════ CREATE BAR ═══════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   CREATE BAR
+   ═══════════════════════════════════════════════════════════════════ */
 function CreateBar({ navigate }) {
   const [prompt, setPrompt] = useState('');
   const go = () => navigate('/app/story-video-studio', { state: { prefill: prompt ? { prompt } : undefined, freshSession: true } });
@@ -436,7 +435,9 @@ function CreateBar({ navigate }) {
   );
 }
 
-/* ═══════════ LOADING SKELETON ═══════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   LOADING SKELETON
+   ═══════════════════════════════════════════════════════════════════ */
 function DashboardSkeleton() {
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="dashboard-skeleton">
@@ -451,7 +452,7 @@ function DashboardSkeleton() {
           </div>
         </div>
       </div>
-      {[1, 2].map(r => (
+      {[1, 2, 3, 4].map(r => (
         <div key={r} className="px-10 pt-4">
           <div className="w-28 h-4 bg-white/10 rounded mb-2 animate-pulse" />
           <div className="flex gap-2.5">
@@ -465,9 +466,11 @@ function DashboardSkeleton() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   MAIN DASHBOARD — NEVER shows empty. Always has content.
-   ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN DASHBOARD — section order enforced:
+   1. Hero → 2. Story Rows → 3. Feature Cards → 4. Footer
+   NEVER shows empty. Always has content.
+   ═══════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
   const navigate = useNavigate();
   const { credits, creditsLoaded, refreshCredits } = useCredits();
@@ -480,16 +483,13 @@ export default function Dashboard() {
     const load = async () => {
       try {
         const res = await axios.get(`${API}/api/engagement/story-feed`, auth());
-        console.log('[Dashboard] Feed loaded:', { hero: !!res.data.hero, trending: res.data.trending?.length, stats: res.data.live_stats });
         setFeed(res.data);
-
-        // Only preload the hero poster image — everything else uses lazy loading
-        if (res.data.hero?.thumbnail_url) {
-          preloadHeroImage(mediaUrl(res.data.hero.thumbnail_url));
+        if (res.data.featured_story?.thumbnail_url) {
+          preloadHeroImage(mediaUrl(res.data.featured_story.thumbnail_url));
         }
       } catch (e) {
-        console.error('[Dashboard] Feed load FAILED:', e.message);
-        setFeed({ hero: null, trending: [], characters: [], live_stats: {} });
+        console.error('[Dashboard] Feed load failed:', e.message);
+        setFeed({ featured_story: null, trending_stories: [], fresh_stories: [], continue_stories: [], unfinished_worlds: [], characters: [], live_stats: {} });
       }
       setLoading(false);
     };
@@ -498,23 +498,30 @@ export default function Dashboard() {
 
   if (loading) return <DashboardSkeleton />;
 
-  const { trending = [], hero = null, live_stats = {} } = feed || {};
+  const {
+    featured_story,
+    trending_stories = [],
+    fresh_stories = [],
+    continue_stories = [],
+    unfinished_worlds = [],
+    live_stats = {},
+  } = feed || {};
+
   const isLoggedIn = !!localStorage.getItem('token');
 
-  // Hero pool: real stories, or empty (HeroSection handles empty internally)
-  const heroPool = [hero, ...trending.filter(s => s.job_id !== hero?.job_id)].filter(Boolean);
+  // Hero pool: featured story + trending for carousel
+  const heroPool = [featured_story, ...trending_stories.filter(s => s?.job_id !== featured_story?.job_id)].filter(Boolean).slice(0, 5);
 
-  // Row data: real stories or seed cards. ROWS ALWAYS RENDER.
-  const trendingStories = trending.length > 0 ? trending.slice(0, 10) : SEED_CARDS;
-  const freshStories = trending.length > 0
-    ? [...trending].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, 10)
-    : SEED_CARDS.slice().reverse();
-  const watchableStories = trending.filter(s => s.output_url).slice(0, 10);
+  // ROWS ALWAYS RENDER — inject seed cards when real data insufficient
+  const trendingRow = trending_stories.length > 0 ? trending_stories : SEED_CARDS;
+  const freshRow = fresh_stories.length > 0 ? fresh_stories : [...SEED_CARDS].reverse();
+  const continueRow = continue_stories.length > 0 ? continue_stories : SEED_CARDS.slice(0, 4).map(s => ({ ...s, badge: 'CONTINUE' }));
+  const unfinishedRow = unfinished_worlds.length > 0 ? unfinished_worlds : SEED_CARDS;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]" data-testid="dashboard">
 
-      {/* ADMIN MENU BAR — only visible to admin users */}
+      {/* ADMIN BAR */}
       {isAdmin && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-indigo-500/20" data-testid="admin-top-bar">
           <div className="flex items-center justify-between px-4 sm:px-8 py-2">
@@ -535,42 +542,43 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ▸ HERO — ALWAYS renders */}
+      {/* ──── SECTION 1: HERO ──── */}
       <div className={isAdmin ? 'pt-10' : ''}>
         <HeroSection stories={heroPool} navigate={navigate} />
       </div>
 
-      {/* ▸ TRENDING NOW — first 4 cards get priority loading */}
-      <ScrollRow title="Trending Now" icon={Flame} iconColor="text-amber-400"
-        seeAllAction={trending.length > 0 ? () => navigate('/app/explore') : undefined} testId="trending-now">
-        {trendingStories.map((story, idx) => (
-          <StoryCard key={story.job_id} story={story} idx={idx} navigate={navigate} size="lg" priority={idx < 4} />
+      {/* ──── SECTION 2: STORY FEED ROWS — all 4 always render ──── */}
+      <ScrollRow title="Trending Now" icon={Flame} iconColor="text-amber-400" testId="trending-now">
+        {trendingRow.map((story, idx) => (
+          <StoryCard key={story.job_id || `t-${idx}`} story={story} idx={idx} navigate={navigate} size="lg" priority={idx < 4} />
         ))}
       </ScrollRow>
 
-      {/* ▸ UNFINISHED WORLDS — ALWAYS renders */}
-      <ScrollRow title="Unfinished Worlds" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories">
-        {freshStories.map((story, idx) => (
-          <StoryCard key={`fresh-${story.job_id}`} story={story} idx={idx + 20} navigate={navigate} size="md" priority={idx < 4} />
+      <ScrollRow title="Fresh Stories" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories">
+        {freshRow.map((story, idx) => (
+          <StoryCard key={`f-${story.job_id || idx}`} story={story} idx={idx + 20} navigate={navigate} size="md" priority={idx < 4} />
         ))}
       </ScrollRow>
 
-      {/* ▸ CONTINUE WATCHING — only if real video stories exist */}
-      {watchableStories.length > 0 && (
-        <ScrollRow title="Continue Watching" icon={Play} iconColor="text-emerald-400" testId="watch-now">
-          {watchableStories.map((story, idx) => (
-            <StoryCard key={`watch-${story.job_id}`} story={story} idx={idx + 40} navigate={navigate} size="md" priority={idx < 4} />
-          ))}
-        </ScrollRow>
-      )}
+      <ScrollRow title="Continue Your Story" icon={RefreshCw} iconColor="text-blue-400" testId="continue-stories">
+        {continueRow.map((story, idx) => (
+          <StoryCard key={`c-${story.job_id || idx}`} story={story} idx={idx + 40} navigate={navigate} size="md" />
+        ))}
+      </ScrollRow>
 
-      {/* ▸ FEATURES GRID — 10 bold creator tools */}
+      <ScrollRow title="Unfinished Worlds" icon={Clock} iconColor="text-emerald-400" testId="unfinished-worlds">
+        {unfinishedRow.map((story, idx) => (
+          <StoryCard key={`u-${story.job_id || idx}`} story={story} idx={idx + 60} navigate={navigate} size="md" />
+        ))}
+      </ScrollRow>
+
+      {/* ──── SECTION 3: FEATURED STORY CARDS → SECONDARY FEATURE CARDS ──── */}
       <FeaturesGrid navigate={navigate} />
 
-      {/* ▸ CREATE BAR + CREDITS — footer */}
+      {/* ──── SECTION 4: SUPPORT / FOOTER ──── */}
       <div className="border-t border-white/[0.06]">
         <CreateBar navigate={navigate} />
-        <div className="flex items-center justify-between px-6 sm:px-10 lg:px-14 py-2">
+        <div className="flex items-center justify-between px-6 sm:px-10 lg:px-14 py-3 pb-6">
           <div className="flex items-center gap-5 text-xs text-white/35">
             <span className="flex items-center gap-1.5 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -586,7 +594,7 @@ export default function Dashboard() {
                 <span className="inline-block w-10 h-3 bg-white/10 rounded animate-pulse" data-testid="credits-skeleton" />
               ) : (
                 <span className="text-white/50 font-bold" data-testid="credits-value">
-                  {credits >= 999999 ? 'Unlimited' : `${credits}`} credits
+                  {credits >= 999999 ? 'Unlimited' : `${credits} credits`}
                 </span>
               )}
             </span>

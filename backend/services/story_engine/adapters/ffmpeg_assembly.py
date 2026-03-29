@@ -342,11 +342,29 @@ async def generate_thumbnail(
     output_path: str,
     timestamp: float = 2.0,
 ) -> bool:
-    """Extract a single frame as thumbnail."""
+    """Extract a single frame as poster-quality thumbnail (poster_large)."""
     _ensure_dir()
     cmd = (
         f'ffmpeg -y -i "{video_path}" -ss {timestamp} '
         f'-vframes 1 -q:v 2 "{output_path}"'
+    )
+    return await _run_ffmpeg(cmd)
+
+
+async def generate_thumbnail_small(
+    video_path: str,
+    output_path: str,
+    timestamp: float = 2.0,
+    width: int = 400,
+    height: int = 530,
+) -> bool:
+    """Generate a compressed card-sized thumbnail (thumbnail_small) for feed cards.
+    Outputs JPEG at ~30-50KB for fast loading on cards."""
+    _ensure_dir()
+    cmd = (
+        f'ffmpeg -y -i "{video_path}" -ss {timestamp} '
+        f'-vframes 1 -vf "scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}" '
+        f'-q:v 6 "{output_path}"'
     )
     return await _run_ffmpeg(cmd)
 

@@ -4,9 +4,9 @@ Engagement System Routes — Daily Challenges, Streaks, Creator Levels, Trending
 import random
 import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
-from shared import db, get_current_user
+from shared import db, get_current_user, get_optional_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/engagement", tags=["engagement"])
@@ -237,137 +237,171 @@ async def get_trending_creations():
 
 # ─── GET /api/engagement/story-feed ──────────────────────────────────────
 @router.get("/story-feed")
-async def get_story_feed():
-    """Return story-first dashboard data: hero, trending stories, characters, live counter."""
+async def get_story_feed(user: dict = Depends(get_optional_user)):
+    """Return story-first homepage data with separate row arrays per the architecture spec."""
 
-    def to_proxy_url(stored_url: str) -> str:
-        """Convert R2 stored URL to backend proxy URL for reliable delivery."""
-        if not stored_url:
-            return stored_url
+    PROJ = {
+        "_id": 0, "job_id": 1, "title": 1, "story_text": 1,
+        "thumbnail_url": 1, "thumbnail_small_url": 1, "output_url": 1, "preview_url": 1,
+        "remix_count": 1, "animation_style": 1, "created_at": 1,
+        "scene_images": 1, "parent_video_id": 1, "user_id": 1,
+    }
+
+    def _to_proxy(url: str) -> str | None:
+        if not url:
+            return None
         try:
-            base = stored_url.split('?')[0]  # strip query params
-            # Handle r2.dev public URLs: https://pub-xxx.r2.dev/{key}
-            if '.r2.dev/' in base:
-                key = base.split('.r2.dev/', 1)[1]
-                return f"/api/media/r2/{key}"
-            # Handle r2.cloudflarestorage.com URLs: https://{acct}.r2.cloudflarestorage.com/{bucket}/{key}
-            if '.r2.cloudflarestorage.com/' in base:
-                parts = base.split('.r2.cloudflarestorage.com/', 1)
+            base = url.split("?")[0]
+            if ".r2.dev/" in base:
+                return f"/api/media/r2/{base.split('.r2.dev/', 1)[1]}"
+            if ".r2.cloudflarestorage.com/" in base:
+                parts = base.split(".r2.cloudflarestorage.com/", 1)
                 if len(parts) > 1:
-                    bucket_and_key = parts[1].split('/', 1)
-                    if len(bucket_and_key) > 1:
-                        return f"/api/media/r2/{bucket_and_key[1]}"
-            return stored_url
+                    bk = parts[1].split("/", 1)
+                    if len(bk) > 1:
+                        return f"/api/media/r2/{bk[1]}"
+            return url
         except Exception:
-            return stored_url
+            return url
 
-    def resolve_thumbnail(job: dict) -> str | None:
-        """Resolve thumbnail: prefer thumbnail_url, fallback to first scene image via proxy."""
-        thumb = to_proxy_url(job.get("thumbnail_url"))
+    def _resolve_thumb(job: dict) -> str | None:
+        thumb = _to_proxy(job.get("thumbnail_url"))
         if thumb:
             return thumb
-        # Fallback: use the first scene image — always route through proxy for cross-domain reliability
-        scene_imgs = job.get("scene_images", {})
-        if scene_imgs:
-            first_key = sorted(scene_imgs.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if scene_imgs else None
-            if first_key and isinstance(scene_imgs[first_key], dict):
-                # Prefer r2_key for clean proxy URL
-                r2_key = scene_imgs[first_key].get("r2_key")
-                if r2_key:
-                    return f"/api/media/r2/{r2_key}"
-                # Fallback: convert direct URL to proxy
-                img_url = scene_imgs[first_key].get("url")
-                if img_url:
-                    return to_proxy_url(img_url)
+        si = job.get("scene_images", {})
+        if si:
+            fk = sorted(si.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if si else None
+            if fk and isinstance(si[fk], dict):
+                r2k = si[fk].get("r2_key")
+                if r2k:
+                    return f"/api/media/r2/{r2k}"
+                return _to_proxy(si[fk].get("url"))
         return None
 
-    # Hero story: best completed story (prefer one with thumbnail+video, fallback to any)
-    hero_job = await db.pipeline_jobs.find_one(
-        {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}, "thumbnail_url": {"$exists": True, "$ne": None}},
-        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "scene_images": 1},
-    )
-    # Fallback: any completed story with video (no thumbnail required)
-    if not hero_job:
-        hero_job = await db.pipeline_jobs.find_one(
-            {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
-            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "scene_images": 1},
-        )
-    # Fallback: any completed story at all
-    if not hero_job:
-        hero_job = await db.pipeline_jobs.find_one(
-            {"status": "COMPLETED"},
-            {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "scene_images": 1},
-        )
-    if hero_job:
-        hero_job["thumbnail_url"] = resolve_thumbnail(hero_job)
-        hero_job["output_url"] = to_proxy_url(hero_job.get("output_url"))
-        hero_job["preview_url"] = to_proxy_url(hero_job.get("preview_url"))
-        hero_job.pop("scene_images", None)
-        # Extract hook line from story text
-        text = hero_job.get("story_text", "")
-        sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
-        hero_job["hook_text"] = (sentences[0] + "...") if sentences else ""
+    def _extract_hook(text: str) -> str:
+        sentences = [s.strip() for s in (text or "").replace("\n", ". ").split(".") if s.strip() and len(s.strip()) > 5]
+        return (sentences[0] + "...") if sentences else ""
 
-    # Trending stories: top 20 completed stories (no thumbnail requirement — fallback to scene images)
-    trending = await db.pipeline_jobs.find(
+    def _shape_item(job: dict, badge: str = "NEW") -> dict:
+        """Shape a raw DB document into a standard feed item."""
+        # Prefer compressed thumbnail_small for cards, fallback to full thumbnail
+        card_thumb = _to_proxy(job.get("thumbnail_small_url")) or _resolve_thumb(job)
+        poster_thumb = _resolve_thumb(job)
+        return {
+            "job_id": job.get("job_id"),
+            "title": job.get("title", "Untitled"),
+            "hook_text": _extract_hook(job.get("story_text", "")),
+            "story_prompt": job.get("story_text", ""),
+            "thumbnail_url": card_thumb,
+            "poster_url": poster_thumb,
+            "preview_url": _to_proxy(job.get("preview_url")),
+            "output_url": _to_proxy(job.get("output_url")),
+            "animation_style": job.get("animation_style", ""),
+            "parent_video_id": job.get("parent_video_id"),
+            "badge": badge,
+            "created_at": job.get("created_at", ""),
+            "character_summary": None,
+        }
+
+    # ── Query both pipeline_jobs and story_engine_jobs for combined pool ──
+    pj_all = await db.pipeline_jobs.find(
         {"status": "COMPLETED"},
-        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "thumbnail_url": 1, "output_url": 1, "preview_url": 1, "remix_count": 1, "animation_style": 1, "created_at": 1, "scene_images": 1},
-    ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=20)
+        PROJ,
+    ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=40)
 
-    for job in trending:
-        job["thumbnail_url"] = resolve_thumbnail(job)
-        job["output_url"] = to_proxy_url(job.get("output_url"))
-        job["preview_url"] = to_proxy_url(job.get("preview_url"))
-        job.pop("scene_images", None)
-        text = job.get("story_text", "")
-        sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
-        job["hook_text"] = (sentences[0] + "...") if sentences else ""
-        job.pop("story_text", None)
+    se_all = await db.story_engine_jobs.find(
+        {"state": "READY"},
+        {**PROJ, "state": 1},
+    ).sort("created_at", -1).to_list(length=20)
 
-    # Popular characters
-    chars = await db.character_profiles.find(
-        {},
-        {"_id": 0, "character_id": 1, "name": 1, "species_or_type": 1, "personality_summary": 1},
-    ).to_list(length=6)
+    # ── 1. Featured story (hero) — prefer with thumbnail + output ──
+    hero_item = None
+    for job in pj_all:
+        if job.get("output_url") and (job.get("thumbnail_url") or job.get("scene_images")):
+            hero_item = _shape_item(job, "FEATURED")
+            break
+    if not hero_item and pj_all:
+        hero_item = _shape_item(pj_all[0], "FEATURED")
+    if not hero_item and se_all:
+        hero_item = _shape_item(se_all[0], "FEATURED")
 
-    # Also try story_characters for richer data
+    # ── 2. Trending stories — by remix_count desc (already sorted) ──
+    trending_stories = []
+    for i, job in enumerate(pj_all[:15]):
+        b = "TRENDING" if (job.get("remix_count") or 0) >= 5 else ("#1" if i == 0 else ("HOT" if i < 3 else "NEW"))
+        trending_stories.append(_shape_item(job, b))
+    # Mix in story_engine READY jobs
+    for job in se_all[:5]:
+        trending_stories.append(_shape_item(job, "NEW"))
+
+    # ── 3. Fresh stories — by created_at desc ──
+    pj_fresh = sorted(pj_all, key=lambda j: j.get("created_at", ""), reverse=True)
+    fresh_stories = [_shape_item(j, "FRESH") for j in pj_fresh[:12]]
+    for job in se_all[:5]:
+        if not any(f["job_id"] == job.get("job_id") for f in fresh_stories):
+            fresh_stories.insert(0, _shape_item(job, "FRESH"))
+
+    # ── 4. Continue stories — user's own jobs (requires auth) ──
+    continue_stories = []
+    if user:
+        uid = user.get("id")
+        user_jobs = await db.pipeline_jobs.find(
+            {"user_id": uid, "status": "COMPLETED"},
+            PROJ,
+        ).sort("created_at", -1).to_list(length=10)
+        user_se = await db.story_engine_jobs.find(
+            {"user_id": uid, "state": {"$in": ["READY", "PARTIAL_READY"]}},
+            {**PROJ, "state": 1},
+        ).sort("created_at", -1).to_list(length=5)
+        for j in user_jobs:
+            continue_stories.append(_shape_item(j, "CONTINUE"))
+        for j in user_se:
+            continue_stories.append(_shape_item(j, "CONTINUE"))
+
+    # ── 5. Unfinished worlds — partial/in-progress jobs from all users ──
+    partial_pj = await db.pipeline_jobs.find(
+        {"status": {"$in": ["COMPLETED"]}, "parent_video_id": {"$exists": False}},
+        PROJ,
+    ).sort("created_at", -1).to_list(length=12)
+    unfinished_worlds = [_shape_item(j, "UNFINISHED") for j in partial_pj[:12]]
+
+    # ── Characters (optional row data) ──
     story_chars = await db.story_characters.find(
         {"name": {"$not": {"$regex": "^TEST_"}}},
-        {"_id": 0, "character_id": 1, "name": 1, "description": 1, "reference_images": 1, "appearance": 1},
+        {"_id": 0, "character_id": 1, "name": 1, "description": 1, "reference_images": 1},
     ).to_list(length=6)
-
-    # Merge — prefer story_characters which have images
-    all_chars = []
-    seen = set()
-    for c in story_chars + chars:
+    char_profiles = await db.character_profiles.find(
+        {}, {"_id": 0, "character_id": 1, "name": 1, "species_or_type": 1, "personality_summary": 1},
+    ).to_list(length=6)
+    characters = []
+    seen_names = set()
+    for c in story_chars + char_profiles:
         name = c.get("name", "")
-        if name and name not in seen:
-            seen.add(name)
+        if name and name not in seen_names:
+            seen_names.add(name)
             imgs = c.get("reference_images", [])
-            all_chars.append({
+            characters.append({
                 "character_id": c.get("character_id"),
                 "name": name,
                 "description": c.get("description") or c.get("personality_summary") or c.get("species_or_type", ""),
                 "image_url": imgs[0] if imgs else None,
             })
-    all_chars = all_chars[:6]
 
-    # Live counter: stories created today
+    # ── Live stats ──
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    stories_today = await db.pipeline_jobs.count_documents({
-        "created_at": {"$gte": today_start.isoformat()},
-    })
+    stories_today = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start.isoformat()}})
     total_stories = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
-    total_continuations = await db.pipeline_jobs.count_documents({"is_continuation": True})
 
     return {
-        "hero": hero_job,
-        "trending": trending,
-        "characters": all_chars,
+        "featured_story": hero_item,
+        "trending_stories": trending_stories,
+        "fresh_stories": fresh_stories,
+        "continue_stories": continue_stories,
+        "unfinished_worlds": unfinished_worlds,
+        "characters": characters[:6],
         "live_stats": {
             "stories_today": stories_today,
             "total_stories": total_stories,
-            "total_continuations": total_continuations,
         },
     }
 

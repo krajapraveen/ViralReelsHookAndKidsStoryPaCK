@@ -541,9 +541,13 @@ async def _stage_assembly(job: dict) -> Dict:
     preview_path = str(output_dir / f"se_{job_id[:8]}_preview.mp4")
     await ffmpeg_assembly.generate_preview(final_path, preview_path)
 
-    # Step 4: Generate thumbnail
+    # Step 4: Generate thumbnail (poster_large)
     thumb_path = str(output_dir / f"se_{job_id[:8]}_thumb.jpg")
     await ffmpeg_assembly.generate_thumbnail(final_path, thumb_path)
+
+    # Step 5: Generate thumbnail_small (compressed card thumbnail)
+    thumb_small_path = str(output_dir / f"se_{job_id[:8]}_thumb_sm.jpg")
+    await ffmpeg_assembly.generate_thumbnail_small(final_path, thumb_small_path)
 
     # Upload all to R2
     from services.story_engine.adapters.video_gen import _upload_to_r2
@@ -551,6 +555,7 @@ async def _stage_assembly(job: dict) -> Dict:
     output_url = None
     preview_url = None
     thumbnail_url = None
+    thumbnail_small_url = None
 
     if os.path.exists(final_path):
         with open(final_path, "rb") as f:
@@ -570,6 +575,12 @@ async def _stage_assembly(job: dict) -> Dict:
         if not thumbnail_url:
             thumbnail_url = f"/api/generated/se_{job_id[:8]}_thumb.jpg"
 
+    if os.path.exists(thumb_small_path):
+        with open(thumb_small_path, "rb") as f:
+            thumbnail_small_url = await _upload_to_r2(f.read(), f"se_{job_id[:8]}_thumb_sm.jpg", job_id, "image")
+        if not thumbnail_small_url:
+            thumbnail_small_url = f"/api/generated/se_{job_id[:8]}_thumb_sm.jpg"
+
     # Update job with real URLs
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
@@ -577,6 +588,7 @@ async def _stage_assembly(job: dict) -> Dict:
             "output_url": output_url,
             "preview_url": preview_url,
             "thumbnail_url": thumbnail_url,
+            "thumbnail_small_url": thumbnail_small_url,
         }},
     )
 
@@ -586,6 +598,7 @@ async def _stage_assembly(job: dict) -> Dict:
             "output_url": output_url,
             "preview_url": preview_url,
             "thumbnail_url": thumbnail_url,
+            "thumbnail_small_url": thumbnail_small_url,
             "clips_stitched": len(clip_paths),
             "has_narration": bool(narration_path),
         },
