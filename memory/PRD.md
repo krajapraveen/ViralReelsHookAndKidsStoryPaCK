@@ -72,6 +72,7 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with 11 creato
 - **Mobile-first Dashboard** — 60vh mobile hero with full-width CTA, 160x220 mobile cards (220x300 desktop), horizontal scroll metrics pills, 2-col feature grid (10 tools), sticky bottom nav (Home/Explore/Create/Stories/Profile)
 - **First 1-second perception optimization** — blur-to-video hero swap, shimmer loading (no spinners), progressive IntersectionObserver row reveal, requestIdleCallback thumbnail preloading, CTA glow pulse, card float micro-animations, real-time activity signals, zero dead states
 - **Addiction Triggers in Video Generation** — Episode plan extended with tension_peak, trigger_text, cut_mood. FFmpeg apply_addiction_triggers (zoom+darken+text overlay+audio swell in last 2s). Pipeline wires triggers into assembly. Frontend: synchronized video player CTA appears instantly on video end (zero delay), trigger text shown in last 2 seconds, replay option.
+- **P0 Cross-Browser Media Fix** — All R2 CDN URLs routed through backend proxy for CORS/Safari/mobile compatibility. Poster-first hero strategy (poster loads first, video only after poster succeeds). Aggressive fallback timeouts (poster 2s, video 4s). SafeImage auto-converts R2 URLs. CORS OPTIONS preflight on media proxy. crossOrigin=anonymous on img/video. No more ERR_BLOCKED_BY_ORB.
 
 ## Deployment Status
 - Deployment health check: PASSED (Mar 2026)
