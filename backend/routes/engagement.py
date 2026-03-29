@@ -329,60 +329,71 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             "character_summary": None,
         }
 
-    # ── Query both pipeline_jobs and story_engine_jobs for combined pool ──
+    # ── Query: story_engine_jobs (PRIMARY) then pipeline_jobs (LEGACY fallback) ──
+    se_all = await db.story_engine_jobs.find(
+        {"state": "READY"},
+        {**PROJ, "state": 1},
+    ).sort("created_at", -1).to_list(length=30)
+
     pj_all = await db.pipeline_jobs.find(
         {"status": "COMPLETED"},
         PROJ,
     ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=40)
 
-    se_all = await db.story_engine_jobs.find(
-        {"state": "READY"},
-        {**PROJ, "state": 1},
-    ).sort("created_at", -1).to_list(length=20)
-
-    # ── 1. Featured story (hero) — prefer with thumbnail + output ──
+    # ── 1. Featured story (hero) — prefer story_engine_jobs, then pipeline_jobs ──
     hero_item = None
-    for job in pj_all:
+    for job in se_all:
         if job.get("output_url") and (job.get("thumbnail_url") or job.get("scene_images")):
             hero_item = _shape_item(job, "FEATURED")
             break
-    if not hero_item and pj_all:
-        hero_item = _shape_item(pj_all[0], "FEATURED")
+    if not hero_item:
+        for job in pj_all:
+            if job.get("output_url") and (job.get("thumbnail_url") or job.get("scene_images")):
+                hero_item = _shape_item(job, "FEATURED")
+                break
     if not hero_item and se_all:
         hero_item = _shape_item(se_all[0], "FEATURED")
+    if not hero_item and pj_all:
+        hero_item = _shape_item(pj_all[0], "FEATURED")
 
-    # ── 2. Trending stories — by remix_count desc (already sorted) ──
+    # ── 2. Trending stories — story_engine_jobs first, then legacy pipeline_jobs ──
     trending_stories = []
-    for i, job in enumerate(pj_all[:15]):
-        b = "TRENDING" if (job.get("remix_count") or 0) >= 5 else ("#1" if i == 0 else ("HOT" if i < 3 else "NEW"))
-        trending_stories.append(_shape_item(job, b))
-    # Mix in story_engine READY jobs
-    for job in se_all[:5]:
+    seen_ids = set()
+    for job in se_all:
         trending_stories.append(_shape_item(job, "NEW"))
+        seen_ids.add(job.get("job_id"))
+    for i, job in enumerate(pj_all[:15]):
+        if job.get("job_id") not in seen_ids:
+            b = "TRENDING" if (job.get("remix_count") or 0) >= 5 else ("#1" if i == 0 else ("HOT" if i < 3 else "NEW"))
+            trending_stories.append(_shape_item(job, b))
 
-    # ── 3. Fresh stories — by created_at desc ──
+    # ── 3. Fresh stories — by created_at desc, story_engine_jobs first ──
+    fresh_stories = [_shape_item(j, "FRESH") for j in se_all[:10]]
+    fresh_seen = {j.get("job_id") for j in se_all[:10]}
     pj_fresh = sorted(pj_all, key=lambda j: j.get("created_at", ""), reverse=True)
-    fresh_stories = [_shape_item(j, "FRESH") for j in pj_fresh[:12]]
-    for job in se_all[:5]:
-        if not any(f["job_id"] == job.get("job_id") for f in fresh_stories):
-            fresh_stories.insert(0, _shape_item(job, "FRESH"))
+    for j in pj_fresh[:12]:
+        if j.get("job_id") not in fresh_seen:
+            fresh_stories.append(_shape_item(j, "FRESH"))
 
-    # ── 4. Continue stories — user's own jobs (requires auth) ──
+    # ── 4. Continue stories — user's own jobs (requires auth), story_engine_jobs first ──
     continue_stories = []
     if user:
         uid = user.get("id")
+        user_se = await db.story_engine_jobs.find(
+            {"user_id": uid, "state": {"$in": ["READY", "PARTIAL_READY"]}},
+            {**PROJ, "state": 1},
+        ).sort("created_at", -1).to_list(length=10)
+        for j in user_se:
+            continue_stories.append(_shape_item(j, "CONTINUE"))
+        # Legacy fallback
         user_jobs = await db.pipeline_jobs.find(
             {"user_id": uid, "status": "COMPLETED"},
             PROJ,
         ).sort("created_at", -1).to_list(length=10)
-        user_se = await db.story_engine_jobs.find(
-            {"user_id": uid, "state": {"$in": ["READY", "PARTIAL_READY"]}},
-            {**PROJ, "state": 1},
-        ).sort("created_at", -1).to_list(length=5)
+        cont_seen = {j.get("job_id") for j in user_se}
         for j in user_jobs:
-            continue_stories.append(_shape_item(j, "CONTINUE"))
-        for j in user_se:
-            continue_stories.append(_shape_item(j, "CONTINUE"))
+            if j.get("job_id") not in cont_seen:
+                continue_stories.append(_shape_item(j, "CONTINUE"))
 
     # ── 5. Unfinished worlds — partial/in-progress jobs from all users ──
     partial_pj = await db.pipeline_jobs.find(
@@ -391,32 +402,30 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
     ).sort("created_at", -1).to_list(length=12)
     unfinished_worlds = [_shape_item(j, "UNFINISHED") for j in partial_pj[:12]]
 
-    # ── Characters (optional row data) ──
-    story_chars = await db.story_characters.find(
-        {"name": {"$not": {"$regex": "^TEST_"}}},
-        {"_id": 0, "character_id": 1, "name": 1, "description": 1, "reference_images": 1},
-    ).to_list(length=6)
+    # ── Characters — source of truth: character_profiles only (per mandated schema) ──
     char_profiles = await db.character_profiles.find(
-        {}, {"_id": 0, "character_id": 1, "name": 1, "species_or_type": 1, "personality_summary": 1},
+        {},
+        {"_id": 0, "character_id": 1, "name": 1, "species": 1, "personality": 1, "portrait_url": 1, "role": 1},
     ).to_list(length=6)
     characters = []
     seen_names = set()
-    for c in story_chars + char_profiles:
+    for c in char_profiles:
         name = c.get("name", "")
         if name and name not in seen_names:
             seen_names.add(name)
-            imgs = c.get("reference_images", [])
             characters.append({
                 "character_id": c.get("character_id"),
                 "name": name,
-                "description": c.get("description") or c.get("personality_summary") or c.get("species_or_type", ""),
-                "image_url": imgs[0] if imgs else None,
+                "description": c.get("personality") or c.get("species") or c.get("role", ""),
+                "image_url": c.get("portrait_url"),
             })
 
-    # ── Live stats ──
+    # ── Live stats — combined story_engine_jobs + pipeline_jobs (legacy) ──
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    stories_today = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start.isoformat()}})
-    total_stories = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
+    se_today = await db.story_engine_jobs.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    pj_today = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    se_total = await db.story_engine_jobs.count_documents({"state": "READY"})
+    pj_total = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
 
     return {
         "featured_story": hero_item,
@@ -426,8 +435,8 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         "unfinished_worlds": unfinished_worlds,
         "characters": characters[:6],
         "live_stats": {
-            "stories_today": stories_today,
-            "total_stories": total_stories,
+            "stories_today": se_today + pj_today,
+            "total_stories": se_total + pj_total,
         },
     }
 
