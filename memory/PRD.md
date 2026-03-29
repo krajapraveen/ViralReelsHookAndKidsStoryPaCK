@@ -69,6 +69,8 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with 11 creato
 - **Frontend event tracking** — impression, click, watch, continue, share
 - **Netflix-style Dashboard UI** — 9 sections: Hero (72vh, auto-rotate, video/poster/gradient fallback), Metrics Strip, 4 Story Rows (Trending/Fresh/Continue/Unfinished), Creator Tools grid, Activity Bar, Footer
 - **Dashboard media resilience** — Hero never shows black void (gradient fallback on poster/video failure), SafeImage gradient fallback on card thumbnail failure, removed invalid preload warning
+- **Mobile-first Dashboard** — 60vh mobile hero with full-width CTA, 160x220 mobile cards (220x300 desktop), horizontal scroll metrics pills, 2-col feature grid (10 tools), sticky bottom nav (Home/Explore/Create/Stories/Profile)
+- **First 1-second perception optimization** — blur-to-video hero swap, shimmer loading (no spinners), progressive IntersectionObserver row reveal, requestIdleCallback thumbnail preloading, CTA glow pulse, card float micro-animations, real-time activity signals, zero dead states
 
 ## Deployment Status
 - Deployment health check: PASSED (Mar 2026)
