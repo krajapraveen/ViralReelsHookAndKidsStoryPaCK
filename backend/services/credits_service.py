@@ -166,7 +166,7 @@ class CreditsService:
         }
 
     async def _log(self, user_id: str, tx_type: str, amount: int, reason: str, reference_id: Optional[str]):
-        if not self.ledger:
+        if self.ledger is None:
             return
         await self.ledger.insert_one({
             "user_id": user_id,
