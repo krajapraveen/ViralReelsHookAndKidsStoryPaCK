@@ -315,7 +315,8 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
 
     def _has_displayable_media(item: dict) -> bool:
         """Returns True if the feed item has at least one displayable image."""
-        return bool(item.get("thumbnail_small_url") or item.get("poster_url"))
+        media = item.get("media") or {}
+        return bool(media.get("thumbnail_small_url") or media.get("poster_large_url"))
 
     def _extract_hook(text: str) -> str:
         sentences = [s.strip() for s in (text or "").replace("\n", ". ").split(".") if s.strip() and len(s.strip()) > 5]
@@ -331,8 +332,10 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
 
     def _shape_item(job: dict, badge: str = "NEW") -> dict:
         """Shape a raw DB document into a standard feed item.
-        Reads from the strict media schema. No runtime derivation."""
+        Returns nested media object per the frontend component contract.
+        Pipeline generates -> DB stores -> API returns -> Frontend renders."""
         card_thumb, poster = _resolve_media(job)
+        preview = _to_proxy(job.get("preview_url"))
 
         jid = job.get("job_id")
         return {
@@ -341,9 +344,14 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             "title": job.get("title", "Untitled"),
             "hook_text": _extract_hook(job.get("story_text", "")),
             "story_prompt": job.get("story_text", ""),
-            "thumbnail_small_url": card_thumb,
-            "poster_url": poster,
-            "preview_url": _to_proxy(job.get("preview_url")),
+            # ── Nested media object (MANDATORY per component contract) ──
+            "media": {
+                "thumb_blur": None,
+                "thumbnail_small_url": card_thumb,
+                "poster_large_url": poster,
+                "preview_short_url": preview,
+                "media_version": "v3",
+            },
             "output_url": _to_proxy(job.get("output_url")),
             "animation_style": job.get("animation_style", ""),
             "parent_video_id": job.get("parent_video_id"),

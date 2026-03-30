@@ -1,7 +1,7 @@
 # Story Universe Engine — Product Requirements Document
 
 ## Original Problem Statement
-Build a "Story Universe Engine" — a full-stack AI creator suite with growth engine, monetization, and viral sharing. The core mandate is a production-grade, mobile-first UI with Netflix-level media delivery.
+Build a "Story Universe Engine" — a full-stack AI creator suite with growth engine, monetization, and viral sharing. The core mandate is a production-grade, mobile-first UI with Netflix-level media delivery. All homepage media must be deterministic: pipeline generates, DB stores, API returns, frontend renders. NO runtime derivation.
 
 ## Core Architecture
 - Frontend: React (CRA + Craco) on port 3000
@@ -13,18 +13,15 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with growth en
 
 ## Deterministic Media Pipeline (IMPLEMENTED — Mar 30 2026)
 
-### Architecture (Netflix-Level)
-Pipeline generates → DB stores → API returns → Frontend renders. **NO runtime derivation. EVER.**
+### Pipeline Stage (`pipeline.py` -> `_stage_assembly`)
+- FFmpeg extracts frame at 00:00:01
+- Pillow generates:
+  - `thumbnail_small`: 400x530 JPEG, quality=75, ~30KB
+  - `poster_large`: 1280x720 JPEG, quality=85, ~100KB
+- Uploads to R2 under `media/{job_id}/`
+- Stores in DB as nested `media` object
 
-### Pipeline Stage (`pipeline.py` → `_stage_assembly`)
-- After video assembly, calls `generate_media_assets()` from `media_gen.py`
-- **FFmpeg** extracts a stable frame at 00:00:01
-- **Pillow** generates:
-  - `thumbnail_small`: 400x530 JPEG, quality=75, ~30KB (center-crop + LANCZOS)
-  - `poster_large`: 1280x720 JPEG, quality=85, ~100KB (center-crop + LANCZOS)
-- Uploads both to R2 under `media/{job_id}/`
-
-### DB Schema (Nested `media` object)
+### DB Schema
 ```json
 {
   "media": {
@@ -34,54 +31,81 @@ Pipeline generates → DB stores → API returns → Frontend renders. **NO runt
 }
 ```
 
-### Feed API (`engagement.py` → `_shape_item`)
-- Reads from `media.*` first, legacy flat fields as fallback
-- Converts all URLs to same-origin proxy: `/api/media/r2/{key}`
-- Returns ONLY `thumbnail_small_url` and `poster_url` — no old fields
+## Frontend Component Contract (IMPLEMENTED — Mar 30 2026)
 
-### Frontend (`Dashboard.js`)
-- Hero uses `poster_url` from API
-- Story cards use `thumbnail_small_url` from API
-- No gradient fallback chains, no scene_images derivation
+### API Response Shape (engagement.py)
+```json
+{
+  "id": "story_123",
+  "title": "...",
+  "hook_text": "...",
+  "media": {
+    "thumb_blur": null,
+    "thumbnail_small_url": "/api/media/r2/...",
+    "poster_large_url": "/api/media/r2/...",
+    "preview_short_url": "/api/media/r2/...",
+    "media_version": "v3"
+  }
+}
+```
 
-### Backfill Script
-- `scripts/backfill_media_schema.py` — migrated 61 existing jobs to new schema
+### Components
+- **HeroMedia.jsx** — Renders hero poster (eager, high priority). Blur-up placeholder, optional preview enhancement, designed local fallback.
+- **StoryCardMedia.jsx** — Renders card thumbnail (thumbnail_small -> poster_large -> fallback). Optional hover preview. No autoplay by default.
+- **MediaPreloader.jsx** — Preloads hero poster + first 4 thumbnails only. Preconnect + dns-prefetch to image origin.
 
-## Media Delivery (Production-Grade)
-- ALL media via same-origin proxy `/api/media/r2/{key}` — Safari-safe
-- Content-Type from R2 metadata (authoritative). nosniff safe. ETag.
-- Videos streamed 64KB chunks. Range <2MB buffered.
-- Hero poster: eager + fetchPriority="high". First 6 cards: loading="eager"
+### Dashboard.js Integration
+- `resolveMedia()` converts API proxy paths to absolute URLs
+- HeroMedia: wrapped in absolute container, Dashboard handles title/hook/CTAs/carousel
+- StoryCardMedia: wrapped in card container, Dashboard handles badge/hook/play button
+- MediaPreloader: receives resolved absolute URLs for hero + first row
 
-### Platform Constraints (K8s Ingress)
-- Strips Content-Length from GET (HEAD preserves it)
-- Overrides Cache-Control to no-store (Surrogate-Control survives)
+### Eager/Lazy Rules
+- Hero: always eager
+- First visible row (Trending): first 6 cards eager
+- Continue row: first 4 cards eager
+- Below-fold rows: lazy
+
+### Forbidden Patterns (NEVER DO)
+- No raw scene_images in components
+- No static mapping by job_id
+- No output_full_url on homepage
+- No gradient fallbacks as primary state
+- No hidden-until-JS-load behavior for hero
+- No autoplay card previews by default
 
 ## Key Files
 - `/app/backend/services/story_engine/adapters/media_gen.py` — Pillow-based media generation
 - `/app/backend/services/story_engine/pipeline.py` — Pipeline assembly with media generation
-- `/app/backend/routes/engagement.py` — Feed API with strict media schema
-- `/app/frontend/src/pages/Dashboard.js` — Frontend consuming only API-provided media
+- `/app/backend/routes/engagement.py` — Feed API with nested media object
+- `/app/frontend/src/components/HeroMedia.jsx` — Hero media component (exact contract)
+- `/app/frontend/src/components/StoryCardMedia.jsx` — Card media component (exact contract)
+- `/app/frontend/src/components/MediaPreloader.jsx` — Preloader component (exact contract)
+- `/app/frontend/src/pages/Dashboard.js` — Dashboard using contract components
+- `/app/frontend/src/assets/fallbacks/hero-fallback.jpg` — Local hero fallback
+- `/app/frontend/src/assets/fallbacks/card-fallback.jpg` — Local card fallback
 - `/app/backend/scripts/backfill_media_schema.py` — DB migration script
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
-## Completed (P0)
-- [x] Deterministic media pipeline (Pillow + FFmpeg)
-- [x] Nested media DB schema
-- [x] Feed API strict media resolution
-- [x] Frontend simplified rendering
-- [x] DB backfill for existing jobs (61 migrated)
-- [x] Verified: 100% test pass rate (23/23 tests)
+## Completed
+- [x] Deterministic media pipeline (Pillow + FFmpeg) — tested 100%
+- [x] Nested media DB schema + backfill (61 jobs migrated)
+- [x] Feed API nested media object (media_version: v3) — tested 100%
+- [x] HeroMedia component (exact contract skeleton)
+- [x] StoryCardMedia component (exact contract skeleton)
+- [x] MediaPreloader component (exact contract skeleton)
+- [x] Dashboard.js rewrite using contract components
+- [x] Local fallback images (hero-fallback.jpg, card-fallback.jpg)
+- [x] Verified: Backend 20/20 tests passed, Frontend code review verified
 
 ## Upcoming Tasks
-- (P1) A/B test hook text variations on public pages
-- (P1) Character-driven auto-share prompts
-- (P1) CDN-first delivery (post-proxy optimization)
-- (P2) Remix Variants on share pages
+- (P1) Blurhash/thumb_blur generation in pipeline for instant perception
+- (P1) Preview_short video generation in pipeline for Netflix autoplay
+- (P1) CDN-first delivery optimization (Cloudflare edge caching)
+- (P2) A/B test hook text variations on public pages
+- (P2) "Remix Variants" on share pages
 - (P2) Admin dashboard WebSocket upgrade
 - (P2) Story Chain leaderboard
-- (P2) Blurhash placeholders for instant perception
-- (P2) Preview_short Netflix autoplay

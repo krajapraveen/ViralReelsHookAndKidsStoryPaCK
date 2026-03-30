@@ -7,9 +7,16 @@ import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
   Film, BookOpen, Star, ArrowRight, Shield, User,
-  Camera, Palette, PenTool, RefreshCw, Share2, Activity,
-  Home, Heart, Wand2, Megaphone, Lightbulb, Image as ImageIcon
+  Camera, Palette, Megaphone, Lightbulb, Image as ImageIcon,
+  RefreshCw, Share2, Activity, Home, Heart,
 } from 'lucide-react';
+
+import HeroMedia from '../components/HeroMedia';
+import StoryCardMedia from '../components/StoryCardMedia';
+import MediaPreloader from '../components/MediaPreloader';
+
+import heroFallback from '../assets/fallbacks/hero-fallback.jpg';
+import cardFallback from '../assets/fallbacks/card-fallback.jpg';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
@@ -38,12 +45,12 @@ const HOOK_BANK = [
 ];
 
 const SEED_CARDS = [
-  { job_id: 'seed-1', title: 'A Midnight Train to Nowhere', hook_text: "The station was empty... except for the girl with no shadow.", is_seed: true, badge: 'UNFINISHED', animation_style: 'watercolor' },
-  { job_id: 'seed-2', title: "The Last Dragon's Secret", hook_text: "She found the egg under the floorboards. It was warm.", is_seed: true, badge: 'UNFINISHED', animation_style: 'anime' },
-  { job_id: 'seed-3', title: 'Echoes in the Library', hook_text: "The book opened itself to page 47. It was blank yesterday.", is_seed: true, badge: 'UNFINISHED', animation_style: 'cartoon_2d' },
-  { job_id: 'seed-4', title: "The Clockmaker's Daughter", hook_text: "Every clock in town stopped at 3:33 AM.", is_seed: true, badge: 'UNFINISHED', animation_style: 'cinematic' },
-  { job_id: 'seed-5', title: 'Whispers Under the Ice', hook_text: "Something was moving beneath the frozen lake.", is_seed: true, badge: 'UNFINISHED', animation_style: 'watercolor' },
-  { job_id: 'seed-6', title: 'The Map That Bleeds', hook_text: "The old map showed a country that doesn't exist.", is_seed: true, badge: 'UNFINISHED', animation_style: 'anime' },
+  { job_id: 'seed-1', title: 'A Midnight Train to Nowhere', hook_text: "The station was empty... except for the girl with no shadow.", is_seed: true, badge: 'UNFINISHED', animation_style: 'watercolor', media: null },
+  { job_id: 'seed-2', title: "The Last Dragon's Secret", hook_text: "She found the egg under the floorboards. It was warm.", is_seed: true, badge: 'UNFINISHED', animation_style: 'anime', media: null },
+  { job_id: 'seed-3', title: 'Echoes in the Library', hook_text: "The book opened itself to page 47. It was blank yesterday.", is_seed: true, badge: 'UNFINISHED', animation_style: 'cartoon_2d', media: null },
+  { job_id: 'seed-4', title: "The Clockmaker's Daughter", hook_text: "Every clock in town stopped at 3:33 AM.", is_seed: true, badge: 'UNFINISHED', animation_style: 'cinematic', media: null },
+  { job_id: 'seed-5', title: 'Whispers Under the Ice', hook_text: "Something was moving beneath the frozen lake.", is_seed: true, badge: 'UNFINISHED', animation_style: 'watercolor', media: null },
+  { job_id: 'seed-6', title: 'The Map That Bleeds', hook_text: "The old map showed a country that doesn't exist.", is_seed: true, badge: 'UNFINISHED', animation_style: 'anime', media: null },
 ];
 
 function getHook(story, idx) {
@@ -62,11 +69,19 @@ const BADGE_STYLES = {
   UNFINISHED: 'bg-amber-500/90 text-black', NEW: 'bg-white/15 text-white',
 };
 
-const GRAD_COLORS = [
-  'from-indigo-500 to-blue-800', 'from-rose-500 to-purple-800',
-  'from-emerald-500 to-teal-800', 'from-cyan-500 to-blue-800',
-  'from-amber-500 to-orange-800', 'from-pink-500 to-rose-800',
-];
+/* ═══════════════════════════════════════════════════════════════════
+   RESOLVE MEDIA — Convert API proxy paths to absolute URLs
+   ═══════════════════════════════════════════════════════════════════ */
+function resolveMedia(rawMedia) {
+  if (!rawMedia) return null;
+  return {
+    thumb_blur: rawMedia.thumb_blur || null,
+    thumbnail_small_url: rawMedia.thumbnail_small_url ? `${API}${rawMedia.thumbnail_small_url}` : null,
+    poster_large_url: rawMedia.poster_large_url ? `${API}${rawMedia.poster_large_url}` : null,
+    preview_short_url: rawMedia.preview_short_url ? `${API}${rawMedia.preview_short_url}` : null,
+    media_version: rawMedia.media_version || null,
+  };
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    SHIMMER — replaces all spinners
@@ -81,22 +96,18 @@ function Shimmer({ w, h, rounded = 'rounded-xl', className = '' }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   1. HERO — 60vh mobile / 72vh desktop, POSTER-ONLY (no video)
-      Ken Burns slow-zoom on poster. Light sweep overlay for motion.
-      Real video lives on watch/result pages, not the homepage.
+   1. HERO — Uses HeroMedia component for deterministic media
+      Dashboard handles carousel, CTAs, dots, pause-on-hover.
    ═══════════════════════════════════════════════════════════════════ */
 function HeroSection({ stories, navigate }) {
   const [activeIdx, setActiveIdx] = useState(0);
-  const [posterLoaded, setPosterLoaded] = useState(false);
-  const [posterFailed, setPosterFailed] = useState(false);
   const [paused, setPaused] = useState(false);
   const timerRef = useRef(null);
 
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
-  // Same-origin proxy image — Safari-safe, auto-resized, LRU-cached
-  const posterSrc = current.poster_url ? `${API}${current.poster_url}` : null;
   const hasHero = heroStories.length > 0;
+  const media = resolveMedia(current.media);
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
@@ -106,14 +117,7 @@ function HeroSection({ stories, navigate }) {
 
   useEffect(() => { if (!paused) startTimer(); return () => clearInterval(timerRef.current); }, [paused, startTimer]);
 
-  useEffect(() => {
-    setPosterFailed(false); setPosterLoaded(false);
-  }, [activeIdx]);
-
-  const handlePosterLoad = () => { setPosterLoaded(true); setPosterFailed(false); };
   const goTo = (idx) => { clearInterval(timerRef.current); setActiveIdx(idx); startTimer(); };
-  const hash = (current.title || 'story').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const fallbackGrad = GRAD_COLORS[hash % GRAD_COLORS.length];
 
   const prefillObj = {
     title: current.title || '', prompt: current.hook_text || current.story_prompt || '',
@@ -125,37 +129,23 @@ function HeroSection({ stories, navigate }) {
     <section className="relative w-full h-[60vh] lg:h-[72vh]" style={{ minHeight: '360px' }}
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
 
-      <div className="absolute inset-0 overflow-hidden" style={{ background: BG }}>
-        {/* Layer 1: Gradient fallback — dims once poster loads */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-1000`}
-          style={{ opacity: posterLoaded ? 0.3 : 0.8 }} />
-
-        {/* Layer 2: Poster — ALWAYS VISIBLE. No opacity:0 gate.
-            CSS transition handles the smooth appearance. */}
-        {posterSrc && !posterFailed && (
-          <img src={posterSrc} alt="" loading="eager" fetchPriority="high" decoding="sync"
-            key={`poster-${activeIdx}`}
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
-            style={{
-              opacity: posterLoaded ? 1 : 0.6,
-              filter: 'brightness(0.55) saturate(1.3)',
-              animation: posterLoaded ? `kenBurns ${heroStories.length > 1 ? '8s' : '20s'} ease-in-out forwards` : 'none',
-              transformOrigin: `${50 + (hash % 30 - 15)}% ${50 + (hash % 20 - 10)}%`,
-            }}
-            onLoad={handlePosterLoad}
-            onError={() => setPosterFailed(true)}
-            data-testid="hero-poster" />
-        )}
-
-        {/* Layer 3: Light sweep shimmer — subtle motion illusion */}
-        {posterLoaded && <div className="absolute inset-0 hero-light-sweep pointer-events-none" />}
+      {/* HeroMedia — handles media rendering per contract (poster, blur, fallback) */}
+      <div className="absolute inset-0">
+        <HeroMedia
+          key={`hero-${activeIdx}`}
+          title={null}
+          media={media}
+          eager={true}
+          enablePreview={false}
+          fallbackImageUrl={heroFallback}
+        />
       </div>
 
-      {/* Overlays */}
-      <div className="absolute inset-0" style={{ background: posterLoaded ? 'linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25), transparent)' : 'linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,.1), transparent)' }} />
-      <div className="absolute inset-0" style={{ background: posterLoaded ? `linear-gradient(to top, ${BG}, transparent 55%)` : `linear-gradient(to top, ${BG}, transparent 35%)` }} />
+      {/* Dashboard overlays — gradient for text readability */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25), transparent)' }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${BG}, transparent 55%)` }} />
 
-      {/* Content */}
+      {/* Content — title, hook, CTAs */}
       <div className="relative h-full flex flex-col justify-end px-5 sm:px-10 lg:px-14 pb-6 sm:pb-10 z-10 max-w-full lg:max-w-[40%] lg:min-w-[320px]"
         style={{ animation: 'fadeUp .5s ease-out' }}>
         {hasHero ? (
@@ -242,8 +232,8 @@ function MetricsStrip({ metrics }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   3. STORY CARD — 160×220 mobile / 220×300 desktop
-      Poster-only. No video. CSS hover effects for alive feel.
+   3. STORY CARD — Uses StoryCardMedia for deterministic media
+      Dashboard handles badge, hook, click tracking, navigation.
    ═══════════════════════════════════════════════════════════════════ */
 function StoryCard({ story, idx, navigate, priority = false }) {
   const [hovered, setHovered] = useState(false);
@@ -253,9 +243,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
-  // Deterministic media — pipeline generates, DB stores, API returns, we render.
-  const thumbSrc = story.thumbnail_small_url ? `${API}${story.thumbnail_small_url}` : null;
-  const isSeed = story.is_seed;
+  const media = resolveMedia(story.media);
 
   useEffect(() => {
     const el = cardRef.current;
@@ -278,7 +266,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         prefill: {
           title: story.title || '', prompt: story.hook_text || story.story_prompt || '',
           hook_text: story.hook_text || '', animation_style: story.animation_style || '',
-          parent_video_id: isSeed ? null : story.job_id,
+          parent_video_id: story.is_seed ? null : story.job_id,
           source_surface: story.badge === 'TRENDING' ? 'trending' : story.badge === 'FRESH' ? 'fresh' : story.badge === 'CONTINUE' ? 'continue' : 'dashboard',
         },
         freshSession: true,
@@ -292,35 +280,36 @@ function StoryCard({ story, idx, navigate, priority = false }) {
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onClick={handleClick} data-testid={`story-card-${idx}`}>
       <div className="relative overflow-hidden rounded-xl w-[160px] h-[220px] lg:w-[220px] lg:h-[300px]" style={{
-        background: CARD_BG,
         transition: 'transform .25s ease, box-shadow .25s ease',
         transform: hovered ? 'scale(1.05)' : 'scale(1)',
         boxShadow: hovered ? '0 20px 50px rgba(0,0,0,.8)' : '0 4px 12px rgba(0,0,0,.4)',
       }}>
-        {thumbSrc ? (
-          <img src={thumbSrc} alt={story.title || ''} loading={priority ? 'eager' : 'lazy'} decoding={priority ? 'sync' : 'async'}
-            className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`} />
-        ) : (
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e)' }}>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Film className="w-10 h-10 lg:w-12 lg:h-12 text-white/20" />
-            </div>
-          </div>
-        )}
+        {/* StoryCardMedia — deterministic media per contract */}
+        <StoryCardMedia
+          title={null}
+          media={media}
+          eager={priority}
+          fallbackImageUrl={cardFallback}
+          className="absolute inset-0 w-full h-full rounded-none"
+        />
 
         {/* Card light sweep on hover */}
-        {hovered && <div className="absolute inset-0 card-light-sweep pointer-events-none" />}
+        {hovered && <div className="absolute inset-0 card-light-sweep pointer-events-none z-[2]" />}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
-        <div className="absolute top-2.5 left-2.5 lg:top-3 lg:left-3">
+        {/* Badge */}
+        <div className="absolute top-2.5 left-2.5 lg:top-3 lg:left-3 z-[3]">
           <span className={`${badgeStyle} text-[9px] lg:text-[10px] font-black tracking-wider px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-md shadow-lg badge-pulse`}>{badge}</span>
         </div>
-        <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${hovered ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
+
+        {/* Play button on hover */}
+        <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 z-[3] ${hovered ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
           <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-full flex items-center justify-center border border-white/20" style={{ background: 'rgba(255,255,255,.15)', backdropFilter: 'blur(8px)' }}>
             <Play className="w-4 h-4 lg:w-5 lg:h-5 text-white fill-white ml-0.5" />
           </div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-3.5">
+
+        {/* Title + hook + CTA at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-3.5 z-[3]">
           <h3 className="text-xs lg:text-sm font-extrabold text-white leading-tight mb-0.5 lg:mb-1 line-clamp-1 drop-shadow-lg">{story.title || 'Untitled'}</h3>
           <p className={`text-[9px] lg:text-[10px] text-white/50 leading-snug line-clamp-2 italic mb-2 transition-all duration-300 ${hovered ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-0.5'}`}>"{hook}"</p>
           <div className={`flex items-center gap-1 text-[9px] lg:text-[10px] font-bold transition-all ${hovered ? 'text-white translate-x-0.5' : 'text-white/40'}`}>
@@ -341,7 +330,7 @@ function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0, 
   const sectionRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
-  const [visible, setVisible] = useState(eager); // eager rows render immediately, no IO gate
+  const [visible, setVisible] = useState(eager);
 
   const checkScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -459,7 +448,7 @@ function FeaturesGrid({ navigate }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   6. REAL-TIME ACTIVITY BAR (Technique 6)
+   6. REAL-TIME ACTIVITY BAR
    ═══════════════════════════════════════════════════════════════════ */
 function ActivityBar({ feed }) {
   const [visible, setVisible] = useState(true);
@@ -537,7 +526,7 @@ function StickyBottomNav({ navigate, currentPath }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   SHIMMER SKELETON (Technique 2 — no spinners)
+   SHIMMER SKELETON (loading state)
    ═══════════════════════════════════════════════════════════════════ */
 function DashboardSkeleton() {
   return (
@@ -567,8 +556,9 @@ function DashboardSkeleton() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   MAIN DASHBOARD — Progressive loading (Technique 3)
-   Hero → Metrics → Rows → Features → Nav
+   MAIN DASHBOARD — Progressive loading
+   Hero -> Metrics -> Rows -> Features -> Nav
+   Uses: HeroMedia, StoryCardMedia, MediaPreloader per contract
    ═══════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -601,29 +591,6 @@ export default function Dashboard() {
     load();
   }, []);
 
-  // ── Preload hero poster + first 4 card thumbnails for instant perception ──
-  useEffect(() => {
-    if (!feed) return;
-    const hero = feed.featured_story;
-    const preloads = [];
-    if (hero?.poster_url) {
-      preloads.push(`${API}${hero.poster_url}`);
-    }
-    (feed.trending_stories || []).slice(0, 4).forEach(s => {
-      if (s?.thumbnail_small_url) preloads.push(`${API}${s.thumbnail_small_url}`);
-    });
-    const links = preloads.map((href, i) => {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.href = href;
-      if (i === 0) link.fetchPriority = 'high';
-      document.head.appendChild(link);
-      return link;
-    });
-    return () => links.forEach(l => l.remove());
-  }, [feed]);
-
   if (loading) return <DashboardSkeleton />;
 
   const { featured_story, trending_stories = [], fresh_stories = [], continue_stories = [], unfinished_worlds = [], live_stats = {} } = feed || {};
@@ -634,8 +601,19 @@ export default function Dashboard() {
   const continueRow = continue_stories.length > 0 ? continue_stories : SEED_CARDS.slice(0, 4).map(s => ({ ...s, badge: 'CONTINUE' }));
   const unfinishedRow = unfinished_worlds.length > 0 ? unfinished_worlds : SEED_CARDS;
 
+  // MediaPreloader inputs — resolve proxy paths to absolute URLs
+  const heroPreloadMedia = featured_story?.media ? {
+    poster_large_url: featured_story.media.poster_large_url ? `${API}${featured_story.media.poster_large_url}` : null,
+  } : null;
+  const firstRowPreloadCards = (trending_stories.length > 0 ? trending_stories : []).slice(0, 4).map(s => ({
+    thumbnail_small_url: s?.media?.thumbnail_small_url ? `${API}${s.media.thumbnail_small_url}` : null,
+  }));
+
   return (
     <div className="min-h-screen pb-16 lg:pb-0" style={{ background: BG }} data-testid="dashboard">
+
+      {/* MediaPreloader — hero poster + first 4 thumbnails ONLY */}
+      <MediaPreloader hero={heroPreloadMedia} firstRowCards={firstRowPreloadCards} />
 
       {/* ADMIN BAR — desktop only */}
       {isAdmin && (
@@ -709,7 +687,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 6. ACTIVITY BAR (Technique 6) */}
+      {/* 6. ACTIVITY BAR */}
       <ActivityBar feed={liveFeed} />
 
       {/* 7. STICKY BOTTOM NAV — mobile only */}
@@ -726,40 +704,10 @@ export default function Dashboard() {
         .card-float{transition:transform .3s ease}
         .card-float:hover{transform:translateY(-2px)}
         .safe-bottom{padding-bottom:env(safe-area-inset-bottom,0)}
-
-        /* Ken Burns slow zoom for hero poster */
-        @keyframes kenBurns{
-          0%{transform:scale(1)}
-          100%{transform:scale(1.08)}
-        }
-
-        /* Hero light sweep — subtle diagonal shimmer across poster */
-        @keyframes heroSweep{
-          0%{transform:translateX(-100%) skewX(-15deg)}
-          100%{transform:translateX(300%) skewX(-15deg)}
-        }
-        .hero-light-sweep{
-          background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.04) 40%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 60%,transparent 100%);
-          animation:heroSweep 6s ease-in-out infinite;
-          animation-delay:1s;
-        }
-
-        /* Card light sweep on hover */
-        @keyframes cardSweep{
-          0%{transform:translateX(-100%) skewX(-15deg)}
-          100%{transform:translateX(300%) skewX(-15deg)}
-        }
-        .card-light-sweep{
-          background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 40%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.06) 60%,transparent 100%);
-          animation:cardSweep .8s ease-out forwards;
-        }
-
-        /* Badge pulse — subtle glow for NEW/TRENDING/CONTINUE badges */
+        @keyframes cardSweep{0%{transform:translateX(-100%) skewX(-15deg)}100%{transform:translateX(300%) skewX(-15deg)}}
+        .card-light-sweep{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 40%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.06) 60%,transparent 100%);animation:cardSweep .8s ease-out forwards}
         .badge-pulse{animation:badgePulse 3s ease-in-out infinite}
-        @keyframes badgePulse{
-          0%,100%{box-shadow:0 0 4px rgba(255,255,255,.1)}
-          50%{box-shadow:0 0 12px rgba(255,255,255,.2)}
-        }
+        @keyframes badgePulse{0%,100%{box-shadow:0 0 4px rgba(255,255,255,.1)}50%{box-shadow:0 0 12px rgba(255,255,255,.2)}}
       `}</style>
     </div>
   );
