@@ -1,10 +1,11 @@
-"""R2 Media Proxy — Safari-safe streaming with Range/206 support.
+"""R2 Media Proxy — Safari-safe, protocol-correct media delivery.
 
 Architecture:
   - IMAGES: Buffered + LRU cached (small files, <500KB after resize)
-  - VIDEO/AUDIO: True streaming via StreamingResponse (never buffered in memory)
-  - ALL responses: Full Safari-compliant headers via _safari_safe_headers()
-  - Cache workaround: CDN-Cache-Control + Surrogate-Control bypass ingress override
+  - VIDEO/AUDIO: True streaming via StreamingResponse (never buffered)
+  - Content-Type: Read from R2 metadata (authoritative), NOT guessed from extension
+  - All responses: Safari-compliant headers via _safari_safe_headers()
+  - Cache: Surrogate-Control bypasses K8s ingress Cache-Control override
 """
 import os
 import re
@@ -70,17 +71,29 @@ def _get_client():
         return None, None
 
 
-# ── Content Type Detection ──────────────────────────────────────────
-CONTENT_TYPES = {
+# ── Content Type: R2 METADATA is authoritative ──────────────────────
+# Extension-based is fallback ONLY if R2 doesn't provide ContentType.
+_EXT_TYPES = {
     '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
     '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4',
     '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
-    '.m4a': 'audio/mp4', '.mov': 'video/quicktime',
+    '.m4a': 'audio/mp4', '.mov': 'video/quicktime', '.svg': 'image/svg+xml',
 }
 
-def _get_content_type(key, fallback='application/octet-stream'):
-    ext = '.' + key.rsplit('.', 1)[-1] if '.' in key else ''
-    return CONTENT_TYPES.get(ext.lower(), fallback)
+def _ext_content_type(key: str) -> str:
+    """Fallback: guess Content-Type from file extension."""
+    ext = '.' + key.rsplit('.', 1)[-1].lower() if '.' in key else ''
+    return _EXT_TYPES.get(ext, 'application/octet-stream')
+
+def _resolve_content_type(r2_metadata: dict, key: str) -> str:
+    """Get the AUTHORITATIVE Content-Type from R2 metadata.
+    Falls back to extension-based only if R2 returns generic/missing type."""
+    r2_ct = r2_metadata.get('ContentType', '')
+    # R2 returns real type if set during upload. Trust it.
+    if r2_ct and r2_ct != 'application/octet-stream' and r2_ct != 'binary/octet-stream':
+        return r2_ct
+    # R2 didn't set a meaningful type — fall back to extension
+    return _ext_content_type(key)
 
 
 # ── S3 Operations ───────────────────────────────────────────────────
@@ -88,12 +101,14 @@ def _s3_head(client, bucket, key):
     return client.head_object(Bucket=bucket, Key=key)
 
 def _s3_get_bytes(client, bucket, key, **kw):
-    """Fetch and READ entire object — for images only (small files)."""
+    """Fetch and READ entire object — images only."""
     resp = client.get_object(Bucket=bucket, Key=key, **kw)
-    return resp['Body'].read(), resp
+    body = resp['Body'].read()
+    resp['Body'].close()
+    return body, resp
 
 def _s3_get_stream(client, bucket, key, **kw):
-    """Get object WITHOUT reading — returns StreamingBody for chunked delivery."""
+    """Get object WITHOUT reading — returns response with StreamingBody."""
     return client.get_object(Bucket=bucket, Key=key, **kw)
 
 
@@ -101,6 +116,8 @@ def _s3_get_stream(client, bucket, key, **kw):
 def _pillow_resize(body: bytes, w: int, q: int) -> bytes:
     from PIL import Image as PILImage
     img = PILImage.open(io.BytesIO(body))
+    if img.width <= w:
+        return body  # Already smaller, don't upscale
     ratio = w / img.width
     new_h = int(img.height * ratio)
     img = img.resize((w, new_h), PILImage.LANCZOS)
@@ -118,47 +135,27 @@ def _pillow_resize(body: bytes, w: int, q: int) -> bytes:
 
 
 # ── Safari-Safe Headers ─────────────────────────────────────────────
-# Multiple cache directives to survive ingress override:
-#   Cache-Control: standard (ingress may strip)
-#   CDN-Cache-Control: Cloudflare-specific (survives ingress)
-#   Surrogate-Control: Varnish/Fastly/generic CDN (survives ingress)
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, ETag",
 }
 
-def _safari_safe_headers(content_length: int = None, etag_seed: str = None) -> dict:
-    """Build the complete Safari-safe header set."""
-    headers = {
+def _safari_safe_headers(content_length: int, etag_seed: str = "") -> dict:
+    """Build complete Safari-safe header set. Content-Length is MANDATORY."""
+    tag = hashlib.md5((etag_seed or str(content_length)).encode()).hexdigest()[:16]
+    return {
+        "Content-Length": str(content_length),
         "Accept-Ranges": "bytes",
         "Content-Disposition": "inline",
+        "ETag": f'W/"{tag}"',
         "X-Content-Type-Options": "nosniff",
-        "Vary": "Range, Accept-Encoding",
-        # Triple cache strategy to survive ingress override
+        "Vary": "Range",
         "Cache-Control": "public, max-age=31536000, immutable",
         "CDN-Cache-Control": "public, max-age=31536000, immutable",
         "Surrogate-Control": "public, max-age=31536000, immutable",
         **_CORS_HEADERS,
     }
-    if content_length is not None:
-        headers["Content-Length"] = str(content_length)
-    if etag_seed:
-        tag = hashlib.md5(etag_seed.encode()).hexdigest()[:16]
-        headers["ETag"] = f'W/"{tag}"'
-    return headers
-
-
-def _image_response(body: bytes, content_type: str) -> Response:
-    """Buffered response for images (small, cached)."""
-    return Response(
-        content=body,
-        media_type=content_type,
-        headers=_safari_safe_headers(
-            content_length=len(body),
-            etag_seed=f"{len(body)}:{content_type}:{hashlib.md5(body[:1024]).hexdigest()[:8]}"
-        ),
-    )
 
 
 # ── CORS Preflight ──────────────────────────────────────────────────
@@ -179,14 +176,15 @@ async def options_r2(path: str):
 # ── HEAD ────────────────────────────────────────────────────────────
 @router.head("/r2/{path:path}")
 async def head_r2(path: str):
-    """HEAD — returns metadata. Safari sends this before video playback."""
+    """HEAD — returns metadata. Safari sends this before video playback.
+    Content-Type from R2 metadata (authoritative), NOT guessed."""
     key = unquote(path)
     client, bucket = _get_client()
     if not client:
         raise HTTPException(status_code=503, detail="Storage not configured")
     try:
         head = await asyncio.to_thread(_s3_head, client, bucket, key)
-        ct = _get_content_type(key)
+        ct = _resolve_content_type(head, key)  # R2 metadata, not extension
         return Response(
             content=b'',
             media_type=ct,
@@ -201,7 +199,7 @@ async def head_r2(path: str):
 
 
 # ── GET (main handler) ──────────────────────────────────────────────
-STREAM_CHUNK_SIZE = 65536  # 64KB chunks for streaming
+STREAM_CHUNK_SIZE = 65536  # 64KB chunks
 
 @router.get("/r2/{path:path}")
 async def proxy_r2(
@@ -210,11 +208,11 @@ async def proxy_r2(
     w: Optional[int] = Query(None, ge=50, le=1920),
     q: Optional[int] = Query(None, ge=10, le=100),
 ):
-    """Serve R2 media: images buffered+cached, video/audio streamed.
+    """Serve R2 media with correct protocol for Safari/Mobile.
 
-    Images: Fetched, optionally resized, LRU-cached, returned as Response.
-    Video/Audio: Streamed in 64KB chunks via StreamingResponse. Never buffered.
-    Range requests: Return 206 with Content-Range (Safari video requirement).
+    Content-Type: from R2 metadata (authoritative), never guessed.
+    Images: buffered + cached. Content-Length always present.
+    Video/Audio: streamed in 64KB chunks. Range/206 supported.
     """
     key = unquote(path)
     client, bucket = _get_client()
@@ -222,22 +220,28 @@ async def proxy_r2(
         raise HTTPException(status_code=503, detail="Storage not configured")
 
     try:
-        ct = _get_content_type(key)
-        is_image = ct.startswith('image/')
         quality = q or 80
 
+        # ── Get R2 metadata (authoritative Content-Type + size) ───────
+        head = await asyncio.to_thread(_s3_head, client, bucket, key)
+        total_size = head['ContentLength']
+        ct = _resolve_content_type(head, key)  # R2 metadata, not extension
+        is_image = ct.startswith('image/')
+
         # ══════════════════════════════════════════════════════════════
-        # IMAGE PATH — buffered + LRU cached (small files)
+        # IMAGE PATH — buffered Response (NOT StreamingResponse)
+        # Content-Length is always exact. Safari gets full bytes.
         # ══════════════════════════════════════════════════════════════
         if is_image:
             effective_w = w
             cache_key = f"{key}:{effective_w}:{quality}"
             cached = _cache_get(cache_key)
             if cached:
-                return _image_response(cached[0], cached[1])
-
-            head = await asyncio.to_thread(_s3_head, client, bucket, key)
-            total_size = head['ContentLength']
+                body, cached_ct = cached[0], cached[1]
+                return Response(
+                    content=body, media_type=cached_ct,
+                    headers=_safari_safe_headers(len(body), f"{cache_key}:{len(body)}"),
+                )
 
             if not effective_w and total_size > 300_000:
                 effective_w = 800
@@ -246,31 +250,43 @@ async def proxy_r2(
                 cache_key = f"{key}:{effective_w}:{quality}"
                 cached = _cache_get(cache_key)
                 if cached:
-                    return _image_response(cached[0], cached[1])
+                    body, cached_ct = cached[0], cached[1]
+                    return Response(
+                        content=body, media_type=cached_ct,
+                        headers=_safari_safe_headers(len(body), f"{cache_key}:{len(body)}"),
+                    )
 
                 body, _ = await asyncio.to_thread(_s3_get_bytes, client, bucket, key)
                 try:
                     resized = await asyncio.to_thread(_pillow_resize, body, effective_w, quality)
-                    _cache_set(cache_key, resized, 'image/jpeg')
-                    return _image_response(resized, 'image/jpeg')
+                    out_ct = 'image/jpeg'  # Pillow resize always outputs JPEG
+                    _cache_set(cache_key, resized, out_ct)
+                    return Response(
+                        content=resized, media_type=out_ct,
+                        headers=_safari_safe_headers(len(resized), f"{cache_key}:{len(resized)}"),
+                    )
                 except Exception as resize_err:
-                    logger.warning(f"Resize failed for {key}: {resize_err}")
-                    return _image_response(body, ct)
+                    logger.warning(f"Resize failed for {key}: {resize_err}, serving original")
+                    _cache_set(cache_key, body, ct)
+                    return Response(
+                        content=body, media_type=ct,
+                        headers=_safari_safe_headers(len(body), f"{key}:{len(body)}"),
+                    )
 
-            # Small image, no resize
+            # Small image, no resize needed
             body, _ = await asyncio.to_thread(_s3_get_bytes, client, bucket, key)
             _cache_set(f"{key}:None:{quality}", body, ct)
-            return _image_response(body, ct)
+            return Response(
+                content=body, media_type=ct,
+                headers=_safari_safe_headers(len(body), f"{key}:{len(body)}"),
+            )
 
         # ══════════════════════════════════════════════════════════════
-        # VIDEO/AUDIO PATH — true streaming, never buffered
+        # VIDEO/AUDIO — Range/206 or full stream
         # ══════════════════════════════════════════════════════════════
-        head = await asyncio.to_thread(_s3_head, client, bucket, key)
-        total_size = head['ContentLength']
         range_header = request.headers.get('range')
 
         if range_header:
-            # ── Range request → 206 Partial Content (streamed) ────────
             match = re.match(r'bytes=(\d+)-(\d*)', range_header)
             if match:
                 start = int(match.group(1))
@@ -278,6 +294,20 @@ async def proxy_r2(
                 end = min(end, total_size - 1)
                 length = end - start + 1
 
+                # For small ranges (<2MB), buffer for exact Content-Length
+                if length <= 2 * 1024 * 1024:
+                    body, _ = await asyncio.to_thread(
+                        _s3_get_bytes, client, bucket, key,
+                        Range=f'bytes={start}-{end}'
+                    )
+                    headers = _safari_safe_headers(len(body), f"{key}:{total_size}")
+                    headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
+                    return Response(
+                        content=body, status_code=206, media_type=ct,
+                        headers=headers,
+                    )
+
+                # Large range — stream
                 resp = await asyncio.to_thread(
                     _s3_get_stream, client, bucket, key,
                     Range=f'bytes={start}-{end}'
@@ -294,10 +324,7 @@ async def proxy_r2(
                     finally:
                         await asyncio.to_thread(s3_body.close)
 
-                headers = _safari_safe_headers(
-                    content_length=length,
-                    etag_seed=f"{key}:{total_size}"
-                )
+                headers = _safari_safe_headers(length, f"{key}:{total_size}")
                 headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
 
                 return StreamingResponse(
@@ -307,7 +334,15 @@ async def proxy_r2(
                     headers=headers,
                 )
 
-        # ── Full file → 200 (streamed) ────────────────────────────────
+        # ── Full file (no Range) — buffer if small, stream if large ──
+        if total_size <= 5 * 1024 * 1024:  # ≤5MB: buffer for exact headers
+            body, _ = await asyncio.to_thread(_s3_get_bytes, client, bucket, key)
+            return Response(
+                content=body, media_type=ct,
+                headers=_safari_safe_headers(len(body), f"{key}:{len(body)}"),
+            )
+
+        # >5MB: stream
         resp = await asyncio.to_thread(_s3_get_stream, client, bucket, key)
         s3_body = resp['Body']
 
@@ -325,10 +360,7 @@ async def proxy_r2(
             stream_full(),
             status_code=200,
             media_type=ct,
-            headers=_safari_safe_headers(
-                content_length=total_size,
-                etag_seed=f"{key}:{total_size}"
-            ),
+            headers=_safari_safe_headers(total_size, f"{key}:{total_size}"),
         )
 
     except Exception as e:
