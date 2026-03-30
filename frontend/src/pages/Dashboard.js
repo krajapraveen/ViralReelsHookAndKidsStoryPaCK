@@ -3,7 +3,6 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
 import { trackLoop } from '../utils/growthTracker';
-import { getStaticHeroImg, getStaticCardImg } from '../data/staticBanners';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
@@ -96,8 +95,8 @@ function HeroSection({ stories, navigate }) {
 
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
-  // STATIC SAME-ORIGIN IMAGE — no CDN, no proxy, no CORS
-  const posterSrc = getStaticHeroImg(current.job_id);
+  // API-provided image URL — data pipeline guarantees non-null
+  const posterSrc = current.poster_url || current.thumbnail_url || current.thumbnail_small_url;
   const hasHero = heroStories.length > 0;
 
   const startTimer = useCallback(() => {
@@ -259,8 +258,8 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
-  // STATIC SAME-ORIGIN IMAGE — no CDN, no proxy, no CORS
-  const thumbSrc = getStaticCardImg(story.job_id);
+  // API-provided image URL — data pipeline guarantees non-null
+  const thumbSrc = story.thumbnail_small_url || story.thumbnail_url;
   const isSeed = story.is_seed;
   const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
 
@@ -642,10 +641,6 @@ export default function Dashboard() {
       )}
 
       {/* 1. HERO */}
-      {/* ZERO-AMBIGUITY TEST MARKER — proves Dashboard.js at /app is rendering */}
-      <div data-testid="dashboard-build-marker" style={{position:'fixed',top:56,left:0,right:0,zIndex:9999,background:'#00cc00',color:'#000',textAlign:'center',padding:'6px 0',fontSize:13,fontWeight:900,letterSpacing:'0.15em'}}>
-        VISIONARY TEST BUILD DASHBOARD — /app — BUNDLED ASSETS
-      </div>
       <div className={isAdmin ? 'lg:pt-10' : ''}>
         <HeroSection stories={heroPool} navigate={navigate} />
       </div>

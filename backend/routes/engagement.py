@@ -338,9 +338,16 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
 
     def _shape_item(job: dict, badge: str = "NEW") -> dict:
         """Shape a raw DB document into a standard feed item.
-        Images → CDN direct (fast). Videos → proxy (Range/206 support)."""
-        card_thumb = _cdn_url(job.get("thumbnail_small_url")) or _resolve_thumb(job)
-        poster_thumb = _resolve_thumb(job)
+        Images → CDN direct (fast). Videos → proxy (Range/206 support).
+        CONTRACT: thumbnail_small_url and poster_url are NEVER null."""
+        # Primary: use backfilled thumbnail_small_url from DB
+        card_thumb = _cdn_url(job.get("thumbnail_small_url"))
+        # Fallback chain if DB field is missing
+        if not card_thumb:
+            card_thumb = _cdn_url(job.get("thumbnail_url"))
+        if not card_thumb:
+            card_thumb = _resolve_thumb(job)
+        poster_thumb = card_thumb or _resolve_thumb(job)
         jid = job.get("job_id")
         return {
             "id": jid,

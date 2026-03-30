@@ -120,10 +120,6 @@ export default function Landing() {
 
       {/* ═══════ 1. HERO — STORY-DRIVEN ═══════ */}
       <section className="relative pt-24 pb-8 md:pt-32 md:pb-12 px-4" data-testid="hero-section">
-        {/* ZERO-AMBIGUITY TEST MARKER — proves this is the correct component */}
-        <div data-testid="build-marker" style={{position:'fixed',top:56,left:0,right:0,zIndex:9999,background:'#ff0000',color:'#fff',textAlign:'center',padding:'6px 0',fontSize:13,fontWeight:900,letterSpacing:'0.15em'}}>
-          VISIONARY TEST BUILD 01 — BUNDLED ASSETS ACTIVE
-        </div>
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-20 left-1/4 w-[600px] h-[600px] bg-violet-600/[0.06] rounded-full blur-[180px]" />
           <div className="absolute bottom-0 right-1/3 w-[400px] h-[400px] bg-rose-500/[0.04] rounded-full blur-[120px]" />
