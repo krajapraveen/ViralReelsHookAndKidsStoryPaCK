@@ -642,6 +642,10 @@ export default function Dashboard() {
       )}
 
       {/* 1. HERO */}
+      {/* ZERO-AMBIGUITY TEST MARKER — proves Dashboard.js at /app is rendering */}
+      <div data-testid="dashboard-build-marker" style={{position:'fixed',top:56,left:0,right:0,zIndex:9999,background:'#00cc00',color:'#000',textAlign:'center',padding:'6px 0',fontSize:13,fontWeight:900,letterSpacing:'0.15em'}}>
+        VISIONARY TEST BUILD DASHBOARD — /app — BUNDLED ASSETS
+      </div>
       <div className={isAdmin ? 'lg:pt-10' : ''}>
         <HeroSection stories={heroPool} navigate={navigate} />
       </div>
