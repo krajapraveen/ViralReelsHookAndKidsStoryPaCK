@@ -117,7 +117,7 @@ function HeroSection({ stories, navigate }) {
   const current = heroStories[activeIdx] || {};
   // Prefer preview_url (short, Safari-safe) over full output_url
   const videoSrc = mediaUrl(current.preview_url) || mediaUrl(current.output_url);
-  const posterSrc = mediaUrl(current.thumbnail_url || current.thumbnail_small_url);
+  const posterSrc = mediaUrl(current.thumbnail_url || current.thumbnail_small_url, 800);
   const canShowVideo = videoSrc && !videoFailed && posterLoaded; // Only try video AFTER poster loads
   const hasHero = heroStories.length > 0;
   const mediaVisible = posterLoaded || videoLoaded;
@@ -125,7 +125,8 @@ function HeroSection({ stories, navigate }) {
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
     if (heroStories.length <= 1) return;
-    timerRef.current = setInterval(() => setActiveIdx(prev => (prev + 1) % heroStories.length), 6000);
+    // Only rotate after poster has loaded so the current slide is visible
+    timerRef.current = setInterval(() => setActiveIdx(prev => (prev + 1) % heroStories.length), 8000);
   }, [heroStories.length]);
 
   useEffect(() => { if (!paused) startTimer(); return () => clearInterval(timerRef.current); }, [paused, startTimer]);
@@ -134,10 +135,10 @@ function HeroSection({ stories, navigate }) {
     setVideoFailed(false); setPosterFailed(false); setPosterLoaded(false); setVideoLoaded(false);
     clearTimeout(posterTimeoutRef.current);
     clearTimeout(videoTimeoutRef.current);
-    // Aggressive poster timeout: if poster doesn't load in 2s, show gradient fallback
+    // Poster timeout: give enough time for proxy + resize to complete
     posterTimeoutRef.current = setTimeout(() => {
-      setPosterFailed(prev => prev ? prev : true); // only set if not already loaded
-    }, 2000);
+      setPosterFailed(prev => prev ? prev : true);
+    }, 10000);
     return () => { clearTimeout(posterTimeoutRef.current); clearTimeout(videoTimeoutRef.current); };
   }, [activeIdx]);
 
@@ -671,7 +672,7 @@ export default function Dashboard() {
     requestIdleCallback(() => {
       stories.slice(0, 8).forEach(s => {
         const url = s.thumbnail_small_url || s.thumbnail_url;
-        if (url) { const img = new Image(); img.src = mediaUrl(url); }
+        if (url) { const img = new Image(); img.src = mediaUrl(url, 400); }
       });
     });
   }, []);
@@ -689,7 +690,7 @@ export default function Dashboard() {
         setLiveFeed(metricsRes.data.live_feed || []);
         // Technique 4 — preload hero + next row thumbs
         const heroUrl = feedRes.data.featured_story?.thumbnail_url;
-        if (heroUrl) { const img = new Image(); img.src = mediaUrl(heroUrl); }
+        if (heroUrl) { const img = new Image(); img.src = mediaUrl(heroUrl, 800); }
         preloadThumbs(feedRes.data.trending_stories);
       } catch (e) {
         console.error('[Dashboard] Feed load failed:', e.message);
