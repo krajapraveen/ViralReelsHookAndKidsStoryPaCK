@@ -26,7 +26,7 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with 11 creato
 - **5 Core Metrics**: Click Rate, Completion Rate, Continue Rate (NORTH STAR), Share Rate, K-Factor
 - **7 Dashboard Sections**:
   1. Growth Loop Health (top bar with benchmarks)
-  2. Funnel (impression → click → watch → complete → continue → share)
+  2. Funnel (impression > click > watch > complete > continue > share)
   3. Drop-off Analysis (with worst drop-off highlighted)
   4. Top Performing Stories (continue%, share%, completions)
   5. Hook A/B Performance (CTR, continue% per variant)
@@ -73,6 +73,7 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with 11 creato
 - **First 1-second perception optimization** — blur-to-video hero swap, shimmer loading (no spinners), progressive IntersectionObserver row reveal, requestIdleCallback thumbnail preloading, CTA glow pulse, card float micro-animations, real-time activity signals, zero dead states
 - **Addiction Triggers in Video Generation** — Episode plan extended with tension_peak, trigger_text, cut_mood. FFmpeg apply_addiction_triggers (zoom+darken+text overlay+audio swell in last 2s). Pipeline wires triggers into assembly. Frontend: synchronized video player CTA appears instantly on video end (zero delay), trigger text shown in last 2 seconds, replay option.
 - **P0 Cross-Browser Media Fix** — All R2 CDN URLs routed through backend proxy for CORS/Safari/mobile compatibility. Poster-first hero strategy (poster loads first, video only after poster succeeds). Aggressive fallback timeouts (poster 2s, video 4s). SafeImage auto-converts R2 URLs. CORS OPTIONS preflight on media proxy. crossOrigin=anonymous on img/video. No more ERR_BLOCKED_BY_ORB.
+- **P0 Media Proxy Concurrent Performance Fix (Mar 2026)** — Root cause: synchronous boto3 blocked FastAPI event loop when 17+ images loaded concurrently (9.7s per request). Fix: 1) asyncio.to_thread() for all S3 calls, 2) In-memory LRU cache (150 entries, 1hr TTL) for resized images, 3) Auto-resize images >300KB to 800px even without ?w param, 4) Hero poster uses resize=800 (2MB PNG reduced to 54KB), 5) Hero rotation increased to 8s, poster timeout to 10s. Result: 5 concurrent images in 0.16s, cached requests in 0.11s.
 
 ## Deployment Status
 - Deployment health check: PASSED (Mar 2026)
