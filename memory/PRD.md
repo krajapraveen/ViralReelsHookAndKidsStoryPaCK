@@ -7,47 +7,47 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with 11 creato
 - **Frontend**: React (CRA + Craco) on port 3000
 - **Backend**: FastAPI on port 8001
 - **Database**: MongoDB (no migrations — compatibility layer only)
-- **Storage**: Cloudflare R2 (CDN for images, proxy for video)
+- **Storage**: Cloudflare R2 (for story detail/watch/result pages only)
 - **Payments**: Cashfree
 - **AI**: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini 3 via Emergent LLM Key
+
+## Homepage Media Architecture (STATIC SAME-ORIGIN — Mar 30 2026)
+
+### Mandatory Rule
+**Homepage = same-origin static media. ZERO CDN/R2/proxy dependency.**
+
+### Implementation
+- **17 curated banners** in `/public/homepage-banners/` (compressed JPEG, 8-126KB each)
+- **Hero images**: 800px wide, ~30KB each
+- **Card images**: 400px wide, ~15KB each
+- **Data module**: `/src/data/staticBanners.js` — maps job_id → static image paths
+- **Dashboard.js** uses `getStaticHeroImg(jobId)` and `getStaticCardImg(jobId)` — plain `<img>` tags, no SafeImage, no mediaUrl, no CORS
+- **Feed API** still provides row organization (trending, continue, fresh, unfinished) — images resolved from static lookup
+
+### What's NOT on the homepage
+- No `<video>` elements
+- No R2 CDN URLs
+- No `/api/media/r2/` proxy calls
+- No `crossOrigin` attributes
+- No SafeImage component
+- No mediaUrl function
+
+### Where dynamic media IS used
+- Story detail page
+- Watch/result page
+- Share page
+- Story Video Studio
+
+### Why
+Autoplay video + R2 CDN proxy was unreliable across Safari, mobile Chrome, mobile Safari. The homepage's job is: load fast, look alive, get clicks. It doesn't need to prove dynamic media infrastructure on first render.
 
 ## Key Design Principles
 1. **NO DB MIGRATIONS** — use API-level compatibility mapping
 2. **Explicit consent** — no auto-generation, user must click Generate
-3. **R2 CDN for images** — backend proxy only for video chunked streaming
-4. **Trust-first** — no synthetic/mocked data in user-facing UI
-5. **Centralized Credits Service** — all credit ops go through CreditsService
-6. **Continue Loop** — every story must drive continuation
-7. **Track behavior, not traffic** — only loop events matter
-8. **POSTER-FIRST HOMEPAGE** — no autoplay video on homepage; video belongs on watch/result/share pages only
-
-## Homepage Media Architecture (POSTER-FIRST — Mar 2026)
-### Mandatory Rules
-- **Homepage = posters only.** No `<video>` elements on Dashboard.js.
-- **Watch/result/share pages = real video.** All video playback complexity lives deeper in the flow.
-- **Motion on homepage = CSS only.** Ken Burns zoom, light sweep shimmer, badge pulse, hover scale — no browser video dependencies.
-
-### Why
-Autoplay video on homepage causes: Safari failures, mobile failures, slow paint, black/blank states, codec/CORS issues, battery/network problems. The homepage is for attraction, speed, click-through — not video playback.
-
-### Implementation
-- **Hero**: Poster image + Ken Burns slow zoom (8s cycle) + light sweep shimmer overlay + gradient fallback
-- **Story Cards**: Poster thumbnail + badge pulse + hover scale(1.05) + card light sweep on hover + play button overlay
-- **No video, mute, autoplay, playsInline, crossOrigin on any homepage element**
-- **Click → navigate to studio** where real video plays
-
-## Media Proxy Architecture (Mar 2026)
-- All R2 CDN URLs routed through `/api/media/r2/{path}` for CORS/Safari/mobile compatibility
-- `asyncio.to_thread()` for all boto3 S3 calls — prevents event loop blocking
-- In-memory LRU cache (150 entries, 1hr TTL) for resized images
-- Auto-resize images >300KB to 800px even without `?w` parameter
-- `?w=400&q=80` for card thumbnails, `?w=800` for hero poster
-- 5 concurrent images: 0.33s (was 9.7s/each before fix)
-
-## Addiction Loop Metrics Dashboard
-- **Endpoint**: `GET /api/growth/loop-dashboard?days=7|14|30`
-- **5 Core Metrics**: Click Rate, Completion Rate, Continue Rate (NORTH STAR), Share Rate, K-Factor
-- **Frontend Tracking**: `growthTracker.js` — batched event queue (3s flush / 10 events)
+3. **Trust-first** — no synthetic/mocked data in user-facing UI
+4. **Centralized Credits Service** — all credit ops go through CreditsService
+5. **Continue Loop** — every story must drive continuation
+6. **Homepage = static, deeper pages = dynamic** — media reliability architecture
 
 ## Credits Service Architecture
 - **File**: `/app/backend/services/credits_service.py`
@@ -56,28 +56,24 @@ Autoplay video on homepage causes: Safari failures, mobile failures, slow paint,
 
 ## What's Been Implemented
 - Story Universe Engine with 11 creator tools
-- Homepage with 4 story rows + hero (poster-first)
-- Story-to-Video pipeline
-- Media optimization (R2 CDN + async proxy + LRU cache)
+- **Static same-origin homepage** with 4 story rows + hero (17 curated banners)
+- Story-to-Video pipeline with addiction triggers
+- Media proxy (asyncio.to_thread + LRU cache) for deeper pages
 - Compatibility layer
 - Cashfree payments + Google Auth
 - Admin dashboard (truth-based)
-- Credit system centralized (50 credits for new users)
-- Character routes fixed to character_profiles
+- Credit system (50 credits for new users)
 - Continue Story Loop Optimization
-- Addiction Loop Metrics Dashboard — all 7 sections
-- Frontend event tracking — impression, click, watch, continue, share
-- Netflix-style Dashboard UI — poster-first, CSS-only motion
-- Mobile-first Dashboard — 60vh mobile hero, 160x220 mobile cards
-- 1-second perception optimization — shimmer loading, progressive IntersectionObserver
-- Addiction Triggers in Video Generation (watch/result pages)
-- Cross-Browser Media Fix (media proxy for CORS/Safari)
-- **Poster-First Homepage Architecture (Mar 30 2026)** — ZERO video on homepage, Ken Burns + light sweep + badge pulse + hover scale
-- **Media Proxy Concurrent Fix (Mar 30 2026)** — asyncio.to_thread, LRU cache, auto-resize
+- Addiction Loop Metrics Dashboard
+- Frontend event tracking (impression, click, watch, continue, share)
+- Netflix-style Dashboard UI — poster-first, CSS-only motion (Ken Burns, light sweep, badge pulse)
+- Mobile-first Dashboard (60vh mobile hero, 160x220 mobile cards)
+- 1-second perception optimization (shimmer, progressive IntersectionObserver)
+- GitHub Actions workflows fixed (manual-only triggers, CJS config)
 
 ## Prioritized Backlog
 ### P1
-- Soft Launch monitoring using the new dashboard
+- Soft Launch monitoring
 
 ### P2 (User-paused)
 - Migrate remaining ~35 routes to CreditsService
