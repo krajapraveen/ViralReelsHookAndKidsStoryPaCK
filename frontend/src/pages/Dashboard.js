@@ -6,7 +6,7 @@ import { SafeImage } from '../components/SafeImage';
 import { trackLoop } from '../utils/growthTracker';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
-  Flame, Clock, Search, Plus, Volume2, VolumeX,
+  Flame, Clock, Search, Plus,
   Film, BookOpen, Star, ArrowRight, Shield, User,
   Camera, Palette, PenTool, RefreshCw, Share2, Activity,
   Home, Heart, Wand2, Megaphone, Lightbulb, Image as ImageIcon
@@ -98,67 +98,41 @@ function Shimmer({ w, h, rounded = 'rounded-xl', className = '' }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   1. HERO — 60vh mobile / 72vh desktop, POSTER-FIRST for Safari/mobile
+   1. HERO — 60vh mobile / 72vh desktop, POSTER-ONLY (no video)
+      Ken Burns slow-zoom on poster. Light sweep overlay for motion.
+      Real video lives on watch/result pages, not the homepage.
    ═══════════════════════════════════════════════════════════════════ */
 function HeroSection({ stories, navigate }) {
   const [activeIdx, setActiveIdx] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
-  const [videoLoaded, setVideoLoaded] = useState(false);
-  const [videoFailed, setVideoFailed] = useState(false);
   const [posterLoaded, setPosterLoaded] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const [paused, setPaused] = useState(false);
-  const videoRef = useRef(null);
   const timerRef = useRef(null);
   const posterTimeoutRef = useRef(null);
-  const videoTimeoutRef = useRef(null);
 
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
-  // Prefer preview_url (short, Safari-safe) over full output_url
-  const videoSrc = mediaUrl(current.preview_url) || mediaUrl(current.output_url);
   const posterSrc = mediaUrl(current.thumbnail_url || current.thumbnail_small_url, 800);
-  const canShowVideo = videoSrc && !videoFailed && posterLoaded; // Only try video AFTER poster loads
   const hasHero = heroStories.length > 0;
-  const mediaVisible = posterLoaded || videoLoaded;
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
     if (heroStories.length <= 1) return;
-    // Only rotate after poster has loaded so the current slide is visible
     timerRef.current = setInterval(() => setActiveIdx(prev => (prev + 1) % heroStories.length), 8000);
   }, [heroStories.length]);
 
   useEffect(() => { if (!paused) startTimer(); return () => clearInterval(timerRef.current); }, [paused, startTimer]);
 
   useEffect(() => {
-    setVideoFailed(false); setPosterFailed(false); setPosterLoaded(false); setVideoLoaded(false);
+    setPosterFailed(false); setPosterLoaded(false);
     clearTimeout(posterTimeoutRef.current);
-    clearTimeout(videoTimeoutRef.current);
-    // Poster timeout: give enough time for proxy + resize to complete
     posterTimeoutRef.current = setTimeout(() => {
       setPosterFailed(prev => prev ? prev : true);
-    }, 10000);
-    return () => { clearTimeout(posterTimeoutRef.current); clearTimeout(videoTimeoutRef.current); };
+    }, 12000);
+    return () => clearTimeout(posterTimeoutRef.current);
   }, [activeIdx]);
 
-  // Video timeout: if video doesn't canplay in 4s, give up
-  useEffect(() => {
-    if (!canShowVideo) return;
-    clearTimeout(videoTimeoutRef.current);
-    videoTimeoutRef.current = setTimeout(() => {
-      if (!videoLoaded) setVideoFailed(true);
-    }, 4000);
-    if (videoRef.current) { videoRef.current.load(); videoRef.current.play().catch(() => {}); }
-    return () => clearTimeout(videoTimeoutRef.current);
-  }, [canShowVideo]);
-
-  const handlePosterLoad = () => {
-    clearTimeout(posterTimeoutRef.current);
-    setPosterLoaded(true);
-    setPosterFailed(false);
-  };
-
+  const handlePosterLoad = () => { clearTimeout(posterTimeoutRef.current); setPosterLoaded(true); setPosterFailed(false); };
   const goTo = (idx) => { clearInterval(timerRef.current); setActiveIdx(idx); startTimer(); };
   const hash = (current.title || 'story').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const fallbackGrad = GRAD_COLORS[hash % GRAD_COLORS.length];
@@ -174,39 +148,33 @@ function HeroSection({ stories, navigate }) {
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
 
       <div className="absolute inset-0 overflow-hidden" style={{ background: BG }}>
-        {/* Layer 1: Always-visible gradient — full saturation when no media loads */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-500`}
-          style={{ opacity: mediaVisible ? 0.6 : 1 }} />
-        {/* Layer 2: POSTER-FIRST — loads sharp, no blur, immediate display for all browsers */}
+        {/* Layer 1: Gradient fallback — always present */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-700`}
+          style={{ opacity: posterLoaded ? 0.5 : 1 }} />
+
+        {/* Layer 2: Poster with Ken Burns slow zoom/pan */}
         {posterSrc && !posterFailed && (
           <img src={posterSrc} alt="" loading="eager" fetchPriority="high" decoding="sync"
-            crossOrigin="anonymous"
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
-            style={{ opacity: posterLoaded ? 1 : 0, filter: 'brightness(0.55) saturate(1.3)' }}
+            key={`poster-${activeIdx}`}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+            style={{
+              opacity: posterLoaded ? 1 : 0,
+              filter: 'brightness(0.55) saturate(1.3)',
+              animation: posterLoaded ? `kenBurns ${heroStories.length > 1 ? '8s' : '20s'} ease-in-out forwards` : 'none',
+              transformOrigin: `${50 + (hash % 30 - 15)}% ${50 + (hash % 20 - 10)}%`,
+            }}
             onLoad={handlePosterLoad}
             onError={() => { clearTimeout(posterTimeoutRef.current); setPosterFailed(true); }}
             data-testid="hero-poster" />
         )}
-        {/* Layer 3: Preview video — only loads AFTER poster succeeds, with poster attr for Safari */}
-        {canShowVideo && (
-          <video ref={videoRef} key={`hero-${current.job_id}`}
-            src={videoSrc}
-            poster={posterSrc || undefined}
-            muted={isMuted} autoPlay loop playsInline
-            preload="metadata"
-            crossOrigin="anonymous"
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
-            style={{ opacity: videoLoaded ? 1 : 0, filter: 'brightness(0.55) saturate(1.3)' }}
-            onCanPlay={() => { clearTimeout(videoTimeoutRef.current); setVideoLoaded(true); }}
-            onError={() => { clearTimeout(videoTimeoutRef.current); setVideoFailed(true); }}
-            onStalled={() => { /* Safari fires stalled when video can't buffer */ setTimeout(() => { if (!videoLoaded) setVideoFailed(true); }, 2000); }}
-            data-testid="hero-video" />
-        )}
+
+        {/* Layer 3: Light sweep shimmer — subtle motion illusion */}
+        {posterLoaded && <div className="absolute inset-0 hero-light-sweep pointer-events-none" />}
       </div>
 
-      {/* Overlays — lighter when no media so gradient fallback stays vivid */}
-      <div className="absolute inset-0" style={{ background: mediaVisible ? 'linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25), transparent)' : 'linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,.1), transparent)' }} />
-      <div className="absolute inset-0" style={{ background: mediaVisible ? `linear-gradient(to top, ${BG}, transparent 55%)` : `linear-gradient(to top, ${BG}, transparent 35%)` }} />
+      {/* Overlays */}
+      <div className="absolute inset-0" style={{ background: posterLoaded ? 'linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25), transparent)' : 'linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,.1), transparent)' }} />
+      <div className="absolute inset-0" style={{ background: posterLoaded ? `linear-gradient(to top, ${BG}, transparent 55%)` : `linear-gradient(to top, ${BG}, transparent 35%)` }} />
 
       {/* Content */}
       <div className="relative h-full flex flex-col justify-end px-5 sm:px-10 lg:px-14 pb-6 sm:pb-10 z-10 max-w-full lg:max-w-[40%] lg:min-w-[320px]"
@@ -216,11 +184,6 @@ function HeroSection({ stories, navigate }) {
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-md text-white"
                 style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }} data-testid="hero-featured-badge">FEATURED</span>
-              {canShowVideo && (
-                <span className="flex items-center gap-1 bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
-                </span>
-              )}
             </div>
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] mb-1.5 sm:mb-3 drop-shadow-2xl" data-testid="hero-title">
               {current.title || 'Untitled Story'}
@@ -228,7 +191,6 @@ function HeroSection({ stories, navigate }) {
             <p className="text-sm sm:text-base text-white/60 leading-relaxed mb-4 sm:mb-6 line-clamp-2 italic" data-testid="hero-hook">
               "{getHook(current, activeIdx)}"
             </p>
-            {/* CTA — full width on mobile */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
               <button onClick={() => { trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' }); navigate('/app/story-video-studio', { state: { prefill: prefillObj, freshSession: true } }); }}
                 className="flex items-center justify-center gap-2 px-6 py-3 sm:py-3.5 font-extrabold rounded-xl text-sm text-white cta-glow transition-all hover:scale-[1.03] active:scale-[0.97]"
@@ -236,19 +198,12 @@ function HeroSection({ stories, navigate }) {
                 data-testid="hero-play-btn">
                 <Play className="w-4 h-4 fill-white" /> Continue Story
               </button>
-              <div className="flex items-center gap-2.5">
-                <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 sm:py-3.5 font-extrabold rounded-xl text-sm text-white/80 hover:text-white border border-white/15 hover:border-white/30 transition-all"
-                  style={{ background: 'rgba(255,255,255,.08)', backdropFilter: 'blur(12px)' }}
-                  data-testid="hero-create-btn">
-                  <Plus className="w-4 h-4" /> Remix
-                </button>
-                {canShowVideo && (
-                  <button onClick={() => setIsMuted(!isMuted)} className="w-10 h-10 flex items-center justify-center rounded-full border border-white/10 text-white/50 hover:text-white transition-all flex-shrink-0" style={{ background: 'rgba(0,0,0,.4)' }} data-testid="hero-mute-btn">
-                    {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-                )}
-              </div>
+              <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 sm:py-3.5 font-extrabold rounded-xl text-sm text-white/80 hover:text-white border border-white/15 hover:border-white/30 transition-all"
+                style={{ background: 'rgba(255,255,255,.08)', backdropFilter: 'blur(12px)' }}
+                data-testid="hero-create-btn">
+                <Plus className="w-4 h-4" /> Remix
+              </button>
             </div>
           </>
         ) : (
@@ -308,20 +263,17 @@ function MetricsStrip({ metrics }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   3. STORY CARD — 160×220 mobile / 220×300 desktop, micro-animations
+   3. STORY CARD — 160×220 mobile / 220×300 desktop
+      Poster-only. No video. CSS hover effects for alive feel.
    ═══════════════════════════════════════════════════════════════════ */
 function StoryCard({ story, idx, navigate, priority = false }) {
   const [hovered, setHovered] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const videoRef = useRef(null);
-  const previewTimer = useRef(null);
   const cardRef = useRef(null);
   const impressionFired = useRef(false);
 
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
-  const videoSrc = mediaUrl(story.preview_url || story.output_url);
   const thumbSrc = mediaUrl(story.thumbnail_small_url || story.thumbnail_url, 400);
   const isSeed = story.is_seed;
   const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
@@ -339,21 +291,6 @@ function StoryCard({ story, idx, navigate, priority = false }) {
     obs.observe(el);
     return () => obs.disconnect();
   }, [story]);
-
-  useEffect(() => {
-    if (!videoSrc || isSeed) return;
-    if (hovered) {
-      previewTimer.current = setTimeout(() => {
-        setShowPreview(true);
-        if (videoRef.current) videoRef.current.play().catch(() => {});
-      }, 300);
-    } else {
-      clearTimeout(previewTimer.current);
-      setShowPreview(false);
-      if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
-    }
-    return () => clearTimeout(previewTimer.current);
-  }, [hovered, videoSrc, isSeed]);
 
   const handleClick = () => {
     trackLoop('click', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
@@ -383,7 +320,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
       }}>
         {thumbSrc ? (
           <SafeImage src={thumbSrc} alt={story.title} aspectRatio="4/5" fallbackType="gradient" titleOverlay={story.title}
-            priority={priority} className="w-full h-full" imgClassName="w-full h-full object-cover" />
+            priority={priority} className="w-full h-full" imgClassName={`w-full h-full object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`} />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${GRAD_COLORS[gradIdx]}`}>
             <div className="absolute inset-0 flex items-center justify-center">
@@ -391,14 +328,13 @@ function StoryCard({ story, idx, navigate, priority = false }) {
             </div>
           </div>
         )}
-        {videoSrc && !isSeed && (
-          <video ref={videoRef} src={videoSrc} muted loop playsInline preload="none"
-            crossOrigin="anonymous"
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${showPreview ? 'opacity-100' : 'opacity-0'}`} />
-        )}
+
+        {/* Card light sweep on hover */}
+        {hovered && <div className="absolute inset-0 card-light-sweep pointer-events-none" />}
+
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
         <div className="absolute top-2.5 left-2.5 lg:top-3 lg:left-3">
-          <span className={`${badgeStyle} text-[9px] lg:text-[10px] font-black tracking-wider px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-md shadow-lg`}>{badge}</span>
+          <span className={`${badgeStyle} text-[9px] lg:text-[10px] font-black tracking-wider px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-md shadow-lg badge-pulse`}>{badge}</span>
         </div>
         <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${hovered ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
           <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-full flex items-center justify-center border border-white/20" style={{ background: 'rgba(255,255,255,.15)', backdropFilter: 'blur(8px)' }}>
@@ -407,7 +343,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-3.5">
           <h3 className="text-xs lg:text-sm font-extrabold text-white leading-tight mb-0.5 lg:mb-1 line-clamp-1 drop-shadow-lg">{story.title || 'Untitled'}</h3>
-          <p className="text-[9px] lg:text-[10px] text-white/50 leading-snug line-clamp-2 italic mb-2">"{hook}"</p>
+          <p className={`text-[9px] lg:text-[10px] text-white/50 leading-snug line-clamp-2 italic mb-2 transition-all duration-300 ${hovered ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-0.5'}`}>"{hook}"</p>
           <div className={`flex items-center gap-1 text-[9px] lg:text-[10px] font-bold transition-all ${hovered ? 'text-white translate-x-0.5' : 'text-white/40'}`}>
             <Play className="w-2.5 h-2.5 lg:w-3 lg:h-3 fill-current" />
             {badge === 'CONTINUE' ? 'Continue watching' : 'Continue'} <ArrowRight className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
@@ -803,6 +739,40 @@ export default function Dashboard() {
         .card-float{transition:transform .3s ease}
         .card-float:hover{transform:translateY(-2px)}
         .safe-bottom{padding-bottom:env(safe-area-inset-bottom,0)}
+
+        /* Ken Burns slow zoom for hero poster */
+        @keyframes kenBurns{
+          0%{transform:scale(1)}
+          100%{transform:scale(1.08)}
+        }
+
+        /* Hero light sweep — subtle diagonal shimmer across poster */
+        @keyframes heroSweep{
+          0%{transform:translateX(-100%) skewX(-15deg)}
+          100%{transform:translateX(300%) skewX(-15deg)}
+        }
+        .hero-light-sweep{
+          background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.04) 40%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 60%,transparent 100%);
+          animation:heroSweep 6s ease-in-out infinite;
+          animation-delay:1s;
+        }
+
+        /* Card light sweep on hover */
+        @keyframes cardSweep{
+          0%{transform:translateX(-100%) skewX(-15deg)}
+          100%{transform:translateX(300%) skewX(-15deg)}
+        }
+        .card-light-sweep{
+          background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 40%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.06) 60%,transparent 100%);
+          animation:cardSweep .8s ease-out forwards;
+        }
+
+        /* Badge pulse — subtle glow for NEW/TRENDING/CONTINUE badges */
+        .badge-pulse{animation:badgePulse 3s ease-in-out infinite}
+        @keyframes badgePulse{
+          0%,100%{box-shadow:0 0 4px rgba(255,255,255,.1)}
+          50%{box-shadow:0 0 12px rgba(255,255,255,.2)}
+        }
       `}</style>
     </div>
   );
