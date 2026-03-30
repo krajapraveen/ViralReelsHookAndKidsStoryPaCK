@@ -115,13 +115,13 @@ export default function StoryCardMedia({
         />
       ) : null}
 
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+      {/* Overlay — lighter, does NOT crush media */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
 
-      {/* Content slot intentionally lightweight */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
+      {/* Content slot */}
+      <div className="absolute inset-x-0 bottom-0 z-10 p-3 sm:p-4 pointer-events-none">
         {title ? (
-          <h3 className="text-white text-sm sm:text-base font-bold line-clamp-2" data-testid="story-card-media-title">
+          <h3 className="text-white text-sm sm:text-base font-bold leading-snug line-clamp-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]" data-testid="story-card-media-title">
             {title}
           </h3>
         ) : null}

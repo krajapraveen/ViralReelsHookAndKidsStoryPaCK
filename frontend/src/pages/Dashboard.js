@@ -88,9 +88,9 @@ function resolveMedia(rawMedia) {
    ═══════════════════════════════════════════════════════════════════ */
 function Shimmer({ w, h, rounded = 'rounded-xl', className = '' }) {
   return (
-    <div className={`${rounded} ${className} flex-shrink-0 overflow-hidden`}
-      style={{ width: w, height: h, background: 'rgba(255,255,255,.04)' }}>
-      <div className="w-full h-full shimmer-bar" />
+    <div className={`${rounded} ${className} relative overflow-hidden bg-white/[0.08] flex-shrink-0`}
+      style={{ width: w, height: h }}>
+      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_1.6s_infinite]" />
     </div>
   );
 }
@@ -126,7 +126,7 @@ function HeroSection({ stories, navigate }) {
   };
 
   return (
-    <section className="relative w-full h-[60vh] lg:h-[72vh]" style={{ minHeight: '360px' }}
+    <section className="relative w-full h-[58vh] sm:h-[64vh] lg:h-[72vh] overflow-hidden rounded-none bg-[#0B0B0F]"
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
 
       {/* HeroMedia — handles media rendering per contract (poster, blur, fallback) */}
@@ -141,50 +141,48 @@ function HeroSection({ stories, navigate }) {
         />
       </div>
 
-      {/* Dashboard overlays — gradient for text readability */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25), transparent)' }} />
-      <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to top, ${BG}, transparent 55%)` }} />
-
-      {/* Content — title, hook, CTAs */}
-      <div className="relative h-full flex flex-col justify-end px-5 sm:px-10 lg:px-14 pb-6 sm:pb-10 z-10 max-w-full lg:max-w-[40%] lg:min-w-[320px]"
+      {/* Content — title, hook, CTAs per visual contract */}
+      <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-6 sm:px-6 sm:pb-8 lg:px-10 lg:pb-10"
         style={{ animation: 'fadeUp .5s ease-out' }}>
         {hasHero ? (
           <>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded-md text-white"
-                style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }} data-testid="hero-featured-badge">FEATURED</span>
+            <div className="mb-3 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center rounded-full bg-white/15 backdrop-blur-md text-white text-[10px] sm:text-xs font-semibold px-3 py-1 border border-white/20"
+                data-testid="hero-featured-badge">FEATURED</span>
             </div>
-            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] mb-1.5 sm:mb-3 drop-shadow-2xl" data-testid="hero-title">
+            <h1 className="max-w-3xl text-white font-extrabold tracking-tight text-2xl sm:text-4xl lg:text-5xl leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]" data-testid="hero-title">
               {current.title || 'Untitled Story'}
             </h1>
-            <p className="text-sm sm:text-base text-white/60 leading-relaxed mb-4 sm:mb-6 line-clamp-2 italic" data-testid="hero-hook">
+            <p className="mt-3 max-w-2xl text-white/85 text-sm sm:text-base lg:text-lg leading-relaxed" data-testid="hero-hook">
               "{getHook(current, activeIdx)}"
             </p>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
+            <div className="mt-5 flex flex-wrap items-center gap-3">
               <button onClick={() => { trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' }); navigate('/app/story-video-studio', { state: { prefill: prefillObj, freshSession: true } }); }}
-                className="flex items-center justify-center gap-2 px-6 py-3 sm:py-3.5 font-extrabold rounded-xl text-sm text-white cta-glow transition-all hover:scale-[1.03] active:scale-[0.97]"
-                style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }}
+                className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-bold text-white bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] shadow-[0_0_24px_rgba(0,194,255,0.28)] hover:scale-[1.02] transition-transform duration-200"
                 data-testid="hero-play-btn">
-                <Play className="w-4 h-4 fill-white" /> Continue Story
+                <Play className="w-4 h-4 fill-white mr-2" /> Continue Story
               </button>
               <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 sm:py-3.5 font-extrabold rounded-xl text-sm text-white/80 hover:text-white border border-white/15 hover:border-white/30 transition-all"
-                style={{ background: 'rgba(255,255,255,.08)', backdropFilter: 'blur(12px)' }}
+                className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-semibold text-white bg-white/10 backdrop-blur-md border border-white/15 hover:bg-white/15 transition-colors duration-200"
                 data-testid="hero-create-btn">
-                <Plus className="w-4 h-4" /> Remix
+                <Plus className="w-4 h-4 mr-2" /> Remix
               </button>
             </div>
           </>
         ) : (
           <>
-            <span className="bg-amber-500 text-black text-[10px] font-black tracking-widest px-2.5 py-0.5 rounded w-fit mb-2">UNFINISHED</span>
-            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] mb-2" data-testid="hero-title">Every Story is Waiting for You</h1>
-            <p className="text-sm text-white/50 leading-relaxed mb-4">Worlds half-built. Characters mid-sentence. Pick any story and decide what happens next.</p>
-            <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
-              className="flex items-center justify-center gap-2 px-6 py-3 font-bold rounded-xl text-sm text-white cta-glow transition-all hover:scale-[1.03] w-full sm:w-fit"
-              style={{ background: 'linear-gradient(135deg, #6C5CE7, #00C2FF)' }} data-testid="hero-create-btn">
-              <Play className="w-4 h-4 fill-white" /> Start a Story
-            </button>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-white/15 backdrop-blur-md text-white text-[10px] sm:text-xs font-semibold px-3 py-1 border border-white/20">UNFINISHED</span>
+            </div>
+            <h1 className="max-w-3xl text-white font-extrabold tracking-tight text-2xl sm:text-4xl lg:text-5xl leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]" data-testid="hero-title">Every Story is Waiting for You</h1>
+            <p className="mt-3 max-w-2xl text-white/85 text-sm sm:text-base leading-relaxed">Worlds half-built. Characters mid-sentence. Pick any story and decide what happens next.</p>
+            <div className="mt-5">
+              <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
+                className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-bold text-white bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] shadow-[0_0_24px_rgba(0,194,255,0.28)] hover:scale-[1.02] transition-transform duration-200"
+                data-testid="hero-create-btn">
+                <Play className="w-4 h-4 fill-white mr-2" /> Start a Story
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -214,16 +212,15 @@ function MetricsStrip({ metrics }) {
     { label: 'Live', value: `${metrics.active_users || 0}`, icon: Zap, color: '#00C2FF' },
   ];
   return (
-    <div className="px-4 sm:px-10 lg:px-14 -mt-5 sm:-mt-6 relative z-20" data-testid="metrics-strip">
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-4 sm:gap-4 pb-1">
+    <div className="px-4 py-5 sm:px-6 lg:px-10" data-testid="metrics-strip">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar">
         {items.map(m => (
-          <div key={m.label} className="flex-shrink-0 sm:flex-shrink rounded-xl px-4 py-3 sm:p-4 border border-white/[0.06] min-w-[130px] sm:min-w-0 group hover:-translate-y-0.5 transition-all"
-            style={{ background: CARD_BG, boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
-            <div className="flex items-center gap-1.5 mb-1 sm:mb-2">
-              <m.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" style={{ color: m.color }} />
-              <span className="text-[9px] sm:text-[10px] text-white/40 uppercase tracking-wider font-medium whitespace-nowrap">{m.label}</span>
+          <div key={m.label} className="min-w-[140px] sm:min-w-[180px] rounded-2xl bg-[#121218] border border-white/[0.08] px-4 py-4 shadow-[0_8px_30px_rgba(0,0,0,0.18)]">
+            <div className="flex items-center gap-1.5">
+              <m.icon className="w-3.5 h-3.5" style={{ color: m.color }} />
+              <span className="text-[11px] uppercase tracking-[0.14em] text-white/50 font-semibold whitespace-nowrap">{m.label}</span>
             </div>
-            <p className="text-xl sm:text-2xl font-black text-white font-mono">{m.value}</p>
+            <p className="mt-2 text-white text-xl sm:text-2xl font-bold font-mono">{m.value}</p>
           </div>
         ))}
       </div>
@@ -236,13 +233,11 @@ function MetricsStrip({ metrics }) {
       Dashboard handles badge, hook, click tracking, navigation.
    ═══════════════════════════════════════════════════════════════════ */
 function StoryCard({ story, idx, navigate, priority = false }) {
-  const [hovered, setHovered] = useState(false);
   const cardRef = useRef(null);
   const impressionFired = useRef(false);
 
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
-  const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
   const media = resolveMedia(story.media);
 
   useEffect(() => {
@@ -275,47 +270,42 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   };
 
   return (
-    <div ref={cardRef} className="flex-shrink-0 group relative cursor-pointer card-float w-[160px] lg:w-[220px]"
+    <div ref={cardRef} className="group relative shrink-0 cursor-pointer w-[160px] h-[220px] sm:w-[200px] sm:h-[280px] lg:w-[220px] lg:h-[300px] rounded-2xl overflow-hidden bg-[#121218] border border-white/[0.08] shadow-[0_10px_32px_rgba(0,0,0,0.18)] hover:scale-[1.02] hover:shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition-all duration-200"
       style={{ scrollSnapAlign: 'start' }}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onClick={handleClick} data-testid={`story-card-${idx}`}>
-      <div className="relative overflow-hidden rounded-xl w-[160px] h-[220px] lg:w-[220px] lg:h-[300px]" style={{
-        transition: 'transform .25s ease, box-shadow .25s ease',
-        transform: hovered ? 'scale(1.05)' : 'scale(1)',
-        boxShadow: hovered ? '0 20px 50px rgba(0,0,0,.8)' : '0 4px 12px rgba(0,0,0,.4)',
-      }}>
-        {/* StoryCardMedia — deterministic media per contract */}
-        <StoryCardMedia
-          title={null}
-          media={media}
-          eager={priority}
-          fallbackImageUrl={cardFallback}
-          className="absolute inset-0 w-full h-full rounded-none"
-        />
 
-        {/* Card light sweep on hover */}
-        {hovered && <div className="absolute inset-0 card-light-sweep pointer-events-none z-[2]" />}
+      {/* StoryCardMedia — deterministic media per contract */}
+      <StoryCardMedia
+        title={null}
+        media={media}
+        eager={priority}
+        fallbackImageUrl={cardFallback}
+        className="absolute inset-0 w-full h-full rounded-none"
+      />
 
-        {/* Badge */}
-        <div className="absolute top-2.5 left-2.5 lg:top-3 lg:left-3 z-[3]">
-          <span className={`${badgeStyle} text-[9px] lg:text-[10px] font-black tracking-wider px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-md shadow-lg badge-pulse`}>{badge}</span>
+      {/* Card overlay — lighter, per contract */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent pointer-events-none" />
+
+      {/* Badge */}
+      <div className="absolute top-2.5 left-2.5 z-[3]">
+        <span className="mb-2 inline-flex items-center rounded-full bg-black/35 backdrop-blur-md text-white text-[10px] font-semibold px-2.5 py-1 border border-white/15">{badge}</span>
+      </div>
+
+      {/* Play button on hover — CSS group-hover, no JS state */}
+      <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 z-[3] opacity-0 group-hover:opacity-100 pointer-events-none">
+        <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-full flex items-center justify-center border border-white/20" style={{ background: 'rgba(255,255,255,.15)', backdropFilter: 'blur(8px)' }}>
+          <Play className="w-4 h-4 lg:w-5 lg:h-5 text-white fill-white ml-0.5" />
         </div>
+      </div>
 
-        {/* Play button on hover */}
-        <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 z-[3] ${hovered ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
-          <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-full flex items-center justify-center border border-white/20" style={{ background: 'rgba(255,255,255,.15)', backdropFilter: 'blur(8px)' }}>
-            <Play className="w-4 h-4 lg:w-5 lg:h-5 text-white fill-white ml-0.5" />
-          </div>
-        </div>
-
-        {/* Title + hook + CTA at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-3.5 z-[3]">
-          <h3 className="text-xs lg:text-sm font-extrabold text-white leading-tight mb-0.5 lg:mb-1 line-clamp-1 drop-shadow-lg">{story.title || 'Untitled'}</h3>
-          <p className={`text-[9px] lg:text-[10px] text-white/50 leading-snug line-clamp-2 italic mb-2 transition-all duration-300 ${hovered ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-0.5'}`}>"{hook}"</p>
-          <div className={`flex items-center gap-1 text-[9px] lg:text-[10px] font-bold transition-all ${hovered ? 'text-white translate-x-0.5' : 'text-white/40'}`}>
-            <Play className="w-2.5 h-2.5 lg:w-3 lg:h-3 fill-current" />
-            {badge === 'CONTINUE' ? 'Continue watching' : 'Continue'} <ArrowRight className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
-          </div>
+      {/* Content per contract */}
+      <div className="absolute inset-x-0 bottom-0 z-[3] p-3 sm:p-4">
+        <h3 className="text-white text-sm sm:text-base font-bold leading-snug line-clamp-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">{story.title || 'Untitled'}</h3>
+        <p className="mt-1 text-white/80 text-[12px] sm:text-sm leading-snug line-clamp-2">"{hook}"</p>
+        <div className="mt-3 inline-flex items-center text-white text-xs sm:text-sm font-semibold">
+          <Play className="w-2.5 h-2.5 lg:w-3 lg:h-3 fill-current mr-1" />
+          {badge === 'CONTINUE' ? 'Continue watching' : 'Continue'}
+          <ArrowRight className="w-2.5 h-2.5 lg:w-3 lg:h-3 ml-1" />
         </div>
       </div>
     </div>
@@ -362,14 +352,14 @@ function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0, 
   const shimmerH = typeof window !== 'undefined' && window.innerWidth < 1024 ? 220 : 300;
 
   return (
-    <section ref={sectionRef} className="relative pt-6 sm:pt-8" data-testid={testId}
+    <section ref={sectionRef} className="px-4 py-4 sm:px-6 lg:px-10" data-testid={testId}
       style={{ animationDelay: `${delay}ms` }}>
-      <div className="flex items-center justify-between px-4 sm:px-10 lg:px-14 mb-2.5 sm:mb-3">
-        <h2 className="flex items-center gap-2 text-sm sm:text-base lg:text-lg font-extrabold text-white tracking-tight">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-white text-xl sm:text-2xl font-bold tracking-tight">
           {Icon && <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${iconColor || 'text-white/60'}`} />}
           {title}
         </h2>
-        <button onClick={() => scroll(1)} className="text-[10px] sm:text-[11px] text-white/40 hover:text-white font-medium flex items-center gap-1 transition-colors">
+        <button onClick={() => scroll(1)} className="text-white/70 text-sm font-medium hover:text-white transition-colors flex items-center gap-1">
           See all <ChevronRight className="w-3 h-3" />
         </button>
       </div>
@@ -380,10 +370,10 @@ function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0, 
           </button>
         )}
         <div ref={scrollRef} onScroll={checkScroll}
-          className="flex overflow-x-auto px-4 sm:px-10 lg:px-14 pb-2 scrollbar-hide"
-          style={{ gap: '12px', scrollSnapType: 'x mandatory', scrollbarWidth: 'none' }}>
+          className="flex gap-4 overflow-x-auto no-scrollbar pb-1"
+          style={{ scrollSnapType: 'x mandatory' }}>
           {visible ? children : (
-            <div className="flex" style={{ gap: '12px' }}>
+            <div className="flex gap-4">
               {[1,2,3,4,5].map(i => <Shimmer key={i} w={shimmerW} h={shimmerH} />)}
             </div>
           )}
@@ -418,27 +408,25 @@ const FEATURES = [
 
 function FeaturesGrid({ navigate }) {
   return (
-    <section className="px-4 sm:px-10 lg:px-14 pt-6 sm:pt-8 pb-4 sm:pb-6" data-testid="features-grid">
-      <h2 className="flex items-center gap-2 text-sm sm:text-base lg:text-lg font-extrabold text-white tracking-tight mb-4 sm:mb-5">
+    <section className="px-4 py-8 sm:px-6 lg:px-10" data-testid="features-grid">
+      <h2 className="flex items-center gap-2 text-white text-xl sm:text-2xl font-bold tracking-tight mb-4 sm:mb-5">
         <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" /> Creator Tools
       </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {FEATURES.map(f => {
           const Icon = f.icon;
           return (
             <button key={f.name} onClick={() => navigate(f.path, { state: { freshSession: true } })}
-              className="group relative overflow-hidden rounded-2xl border border-white/[0.06] text-left cursor-pointer transition-all hover:-translate-y-1 active:scale-[0.97]"
-              style={{ background: CARD_BG, padding: '16px' }}
+              className="group rounded-2xl border border-white/[0.08] bg-[#121218] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.16)] hover:border-white/15 hover:shadow-[0_12px_30px_rgba(0,0,0,0.24)] transition-all duration-200 text-left"
               data-testid={`feature-${f.name.replace(/\s/g, '-').toLowerCase()}`}>
-              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-lg`}>
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6C5CE7]/25 to-[#00C2FF]/25 text-white text-xl border border-white/10 group-hover:scale-110 transition-transform">
                 <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <h3 className="text-xs sm:text-sm font-bold text-white leading-tight mb-0.5">{f.name}</h3>
-              <p className="text-[10px] sm:text-xs text-white/40 leading-relaxed mb-2 line-clamp-1">{f.desc}</p>
-              <span className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-white/30 group-hover:text-white transition-colors">
-                Continue <ArrowRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              <h3 className="text-white text-lg font-bold tracking-tight">{f.name}</h3>
+              <p className="mt-2 text-white/70 text-sm leading-relaxed line-clamp-1">{f.desc}</p>
+              <span className="mt-4 inline-flex items-center text-white text-sm font-semibold group-hover:text-white transition-colors">
+                Continue <ArrowRight className="w-3 h-3 ml-1" />
               </span>
-              <div className={`absolute inset-0 bg-gradient-to-br ${f.gradient} opacity-0 group-hover:opacity-[0.08] transition-opacity pointer-events-none rounded-2xl`} />
             </button>
           );
         })}
@@ -467,9 +455,9 @@ function ActivityBar({ feed }) {
   return (
     <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-30 max-w-[280px] sm:max-w-xs" data-testid="activity-bar"
       style={{ animation: 'fadeUp .4s ease-out' }}>
-      <div className="rounded-xl border border-white/[0.08] px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2.5 shadow-2xl" style={{ background: 'rgba(18,18,24,.95)', backdropFilter: 'blur(16px)' }}>
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 animate-pulse ${item.event === 'continue' ? 'bg-violet-400' : item.event === 'share' ? 'bg-blue-400' : 'bg-emerald-400'}`} />
-        <p className="text-[10px] sm:text-xs text-white/50 flex-1 line-clamp-1">
+      <div className="rounded-2xl border border-white/[0.08] bg-[#121218] px-4 py-3 flex items-center gap-3 overflow-hidden shadow-2xl" style={{ backdropFilter: 'blur(16px)' }}>
+        <div className="h-2.5 w-2.5 rounded-full bg-[#00C2FF] animate-pulse flex-shrink-0" />
+        <p className="text-white/80 text-sm flex-1 line-clamp-1 whitespace-nowrap">
           Someone <span className="text-white font-medium">{labels[item.event] || item.event}</span> "{item.story_title}"
         </p>
         <button onClick={() => setVisible(false)} className="text-white/20 hover:text-white/60 text-xs flex-shrink-0">x</button>
@@ -491,8 +479,7 @@ function StickyBottomNav({ navigate, currentPath }) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-white/[0.06]"
-      style={{ background: 'rgba(11,11,15,.92)', backdropFilter: 'blur(20px)' }}
+    <nav className="fixed bottom-0 inset-x-0 z-40 lg:hidden border-t border-white/10 bg-[#0B0B0F]/95 backdrop-blur-lg"
       data-testid="sticky-bottom-nav">
       <div className="flex items-center justify-around px-2 py-1.5 safe-bottom">
         {items.map(item => {
@@ -693,21 +680,13 @@ export default function Dashboard() {
       {/* 7. STICKY BOTTOM NAV — mobile only */}
       <StickyBottomNav navigate={navigate} currentPath={location.pathname} />
 
-      {/* Global styles */}
+      {/* Global styles — visual contract */}
       <style>{`
-        .scrollbar-hide::-webkit-scrollbar{display:none}
-        .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
+        .no-scrollbar::-webkit-scrollbar{display:none}
+        .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-        .shimmer-bar{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 50%,transparent 100%);background-size:200% 100%;animation:shimmer 1.5s infinite}
-        .cta-glow{box-shadow:0 0 20px rgba(108,92,231,.35),0 0 60px rgba(0,194,255,.15)}
-        .card-float{transition:transform .3s ease}
-        .card-float:hover{transform:translateY(-2px)}
+        @keyframes shimmer{100%{transform:translateX(200%)}}
         .safe-bottom{padding-bottom:env(safe-area-inset-bottom,0)}
-        @keyframes cardSweep{0%{transform:translateX(-100%) skewX(-15deg)}100%{transform:translateX(300%) skewX(-15deg)}}
-        .card-light-sweep{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 40%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.06) 60%,transparent 100%);animation:cardSweep .8s ease-out forwards}
-        .badge-pulse{animation:badgePulse 3s ease-in-out infinite}
-        @keyframes badgePulse{0%,100%{box-shadow:0 0 4px rgba(255,255,255,.1)}50%{box-shadow:0 0 12px rgba(255,255,255,.2)}}
       `}</style>
     </div>
   );
