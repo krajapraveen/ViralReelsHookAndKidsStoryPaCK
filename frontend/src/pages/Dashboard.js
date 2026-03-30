@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
-import { SafeImage } from '../components/SafeImage';
 import { trackLoop } from '../utils/growthTracker';
+import { getStaticHeroImg, getStaticCardImg } from '../data/staticBanners';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
@@ -17,22 +17,6 @@ const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('
 
 const BG = '#0B0B0F';
 const CARD_BG = '#121218';
-
-function mediaUrl(path, resize) {
-  if (!path) return null;
-  // Route proxy-prefixed paths through backend
-  if (path.startsWith('/api/media/') || path.startsWith('/api/generated/')) {
-    const base = `${API}${path}`;
-    return resize ? `${base}?w=${resize}&q=80` : base;
-  }
-  // CRITICAL: Route direct R2 CDN URLs through backend proxy for CORS/Safari/mobile compatibility
-  const r2Match = path.match(/^https?:\/\/pub-[a-f0-9]+\.r2\.dev\/(.+)$/);
-  if (r2Match) {
-    const base = `${API}/api/media/r2/${r2Match[1]}`;
-    return resize ? `${base}?w=${resize}&q=80` : base;
-  }
-  return path;
-}
 
 function isAdminUser() {
   try {
@@ -112,7 +96,8 @@ function HeroSection({ stories, navigate }) {
 
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
-  const posterSrc = mediaUrl(current.thumbnail_url || current.thumbnail_small_url, 800);
+  // STATIC SAME-ORIGIN IMAGE — no CDN, no proxy, no CORS
+  const posterSrc = getStaticHeroImg(current.job_id);
   const hasHero = heroStories.length > 0;
 
   const startTimer = useCallback(() => {
@@ -274,7 +259,8 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
-  const thumbSrc = mediaUrl(story.thumbnail_small_url || story.thumbnail_url, 400);
+  // STATIC SAME-ORIGIN IMAGE — no CDN, no proxy, no CORS
+  const thumbSrc = getStaticCardImg(story.job_id);
   const isSeed = story.is_seed;
   const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
 
@@ -319,8 +305,8 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         boxShadow: hovered ? '0 20px 50px rgba(0,0,0,.8)' : '0 4px 12px rgba(0,0,0,.4)',
       }}>
         {thumbSrc ? (
-          <SafeImage src={thumbSrc} alt={story.title} aspectRatio="4/5" fallbackType="gradient" titleOverlay={story.title}
-            priority={priority} className="w-full h-full" imgClassName={`w-full h-full object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`} />
+          <img src={thumbSrc} alt={story.title || ''} loading={priority ? 'eager' : 'lazy'}
+            className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`} />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${GRAD_COLORS[gradIdx]}`}>
             <div className="absolute inset-0 flex items-center justify-center">
@@ -602,17 +588,6 @@ export default function Dashboard() {
   const isAdmin = isAdminUser();
   const isLoggedIn = !!localStorage.getItem('token');
 
-  // Technique 4 — preload next thumbnails when idle
-  const preloadThumbs = useCallback((stories) => {
-    if (!stories || stories.length === 0) return;
-    requestIdleCallback(() => {
-      stories.slice(0, 8).forEach(s => {
-        const url = s.thumbnail_small_url || s.thumbnail_url;
-        if (url) { const img = new Image(); img.src = mediaUrl(url, 400); }
-      });
-    });
-  }, []);
-
   useEffect(() => {
     refreshCredits();
     const load = async () => {
@@ -624,10 +599,6 @@ export default function Dashboard() {
         setFeed(feedRes.data);
         setMetrics({ ...metricsRes.data.health, active_users: metricsRes.data.raw?.active_users || 0 });
         setLiveFeed(metricsRes.data.live_feed || []);
-        // Technique 4 — preload hero + next row thumbs
-        const heroUrl = feedRes.data.featured_story?.thumbnail_url;
-        if (heroUrl) { const img = new Image(); img.src = mediaUrl(heroUrl, 800); }
-        preloadThumbs(feedRes.data.trending_stories);
       } catch (e) {
         console.error('[Dashboard] Feed load failed:', e.message);
         setFeed({ featured_story: null, trending_stories: [], fresh_stories: [], continue_stories: [], unfinished_worlds: [], live_stats: {} });
