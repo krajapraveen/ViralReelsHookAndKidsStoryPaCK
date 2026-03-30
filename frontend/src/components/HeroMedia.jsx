@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { requestPlay, requestPause, isVideoReady, trackPreviewEvent } from "../utils/videoController";
 
 function getBlurSrc(thumbBlur) {
   if (!thumbBlur) return null;
@@ -8,11 +9,14 @@ function getBlurSrc(thumbBlur) {
   return null;
 }
 
+const HERO_AUTOPLAY_DELAY = 1000; // ms after poster loads before hero preview starts
+
 export default function HeroMedia({
   title,
   hookText = null,
   badge = null,
   media,
+  jobId,
   eager = true,
   enablePreview = false,
   fallbackImageUrl,
@@ -26,20 +30,66 @@ export default function HeroMedia({
   const resolvedFallback = resolveMediaUrl(fallbackImageUrl);
   const effectiveAlt = alt || title || "Story hero image";
 
+  const videoRef = useRef(null);
+  const delayTimerRef = useRef(null);
+  const playFired = useRef(false);
+  const watchStartRef = useRef(null);
+
   const [posterLoaded, setPosterLoaded] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const [previewEnabled, setPreviewEnabled] = useState(false);
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
 
+  // ── Delayed autoplay: only after poster is fully loaded ──
   useEffect(() => {
-    // Preview is enhancement only.
-    // Enable it only after poster is already present and if allowed.
-    if (enablePreview && posterSrc && !posterFailed && previewSrc) {
-      const timer = setTimeout(() => setPreviewEnabled(true), 250);
-      return () => clearTimeout(timer);
-    }
-  }, [enablePreview, posterSrc, posterFailed, previewSrc]);
+    if (!enablePreview || !posterLoaded || posterFailed || !previewSrc) return;
+
+    delayTimerRef.current = setTimeout(() => {
+      setPreviewEnabled(true);
+    }, HERO_AUTOPLAY_DELAY);
+
+    return () => clearTimeout(delayTimerRef.current);
+  }, [enablePreview, posterLoaded, posterFailed, previewSrc]);
+
+  // ── Play video when enabled and ready ──
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !previewEnabled) return;
+
+    const tryPlay = () => {
+      if (isVideoReady(vid)) {
+        const ok = requestPlay(vid);
+        if (ok && !playFired.current && jobId) {
+          playFired.current = true;
+          watchStartRef.current = Date.now();
+          trackPreviewEvent(jobId, "preview_play", { surface: "hero" });
+        }
+      } else {
+        vid.addEventListener("canplay", tryPlay, { once: true });
+      }
+    };
+    tryPlay();
+
+    return () => {
+      requestPause(vid);
+      if (watchStartRef.current && jobId) {
+        const watchTime = (Date.now() - watchStartRef.current) / 1000;
+        if (watchTime > 0.5) {
+          trackPreviewEvent(jobId, "preview_watch_complete", { watch_time: Math.round(watchTime * 10) / 10, surface: "hero" });
+        }
+        watchStartRef.current = null;
+      }
+    };
+  }, [previewEnabled, jobId]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(delayTimerRef.current);
+      if (videoRef.current) requestPause(videoRef.current);
+    };
+  }, []);
 
   const showPoster = !!posterSrc && !posterFailed;
   const showFallback = !showPoster && !!fallbackImageUrl;
@@ -68,7 +118,7 @@ export default function HeroMedia({
         />
       ) : null}
 
-      {/* Poster: must be visible immediately, not hidden behind onLoad */}
+      {/* Poster: must load before preview can start */}
       {showPoster ? (
         <img
           src={posterSrc}
@@ -85,14 +135,14 @@ export default function HeroMedia({
         />
       ) : null}
 
-      {/* Preview: optional enhancement only */}
+      {/* Preview video: delayed autoplay after poster loads */}
       {showPreview ? (
         <video
+          ref={videoRef}
           src={previewSrc}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
             previewLoaded ? "opacity-100" : "opacity-0"
           }`}
-          autoPlay
           muted
           loop
           playsInline
@@ -116,7 +166,7 @@ export default function HeroMedia({
         />
       ) : null}
 
-      {/* Main overlay — lighter, does NOT crush the image */}
+      {/* Main overlay */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent pointer-events-none" />
       {/* Bottom fade */}
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />

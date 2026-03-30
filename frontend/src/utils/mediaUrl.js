@@ -25,9 +25,14 @@ export function getCdnBase() {
 
 /**
  * Resolve a media URL for use as <img src> or <video src>.
- * - Proxy paths (/api/media/r2/KEY) → CDN URL (https://...r2.dev/KEY)
+ * - Image proxy paths (/api/media/r2/images/...) → CDN URL (fast, Safari-safe)
+ * - Video proxy paths (/api/media/r2/videos/...) → origin proxy (CORS-safe streaming)
  * - Already absolute URLs → pass through
  * - null/undefined → null
+ *
+ * NOTE: Videos must use origin proxy because R2 public bucket has no CORS headers,
+ * and cross-origin video loading triggers ORB (Opaque Response Blocking) in browsers.
+ * Images use CDN because they need proper Cache-Control for Safari rendering.
  */
 export function resolveMediaUrl(url) {
   if (!url) return null;
@@ -37,13 +42,16 @@ export function resolveMediaUrl(url) {
     return url;
   }
 
-  // Proxy path: /api/media/r2/KEY → CDN
+  // Proxy path: /api/media/r2/KEY
   if (url.startsWith('/api/media/r2/') && CDN_BASE) {
     const key = url.slice('/api/media/r2/'.length);
-    return CDN_BASE + '/' + key;
+    // Only CDN-ify images (not videos — no CORS headers on R2)
+    if (!key.startsWith('videos/')) {
+      return CDN_BASE + '/' + key;
+    }
   }
 
-  // Fallback: relative path → use app origin
+  // Fallback: relative path → use app origin (proxy)
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   return origin + url;
 }

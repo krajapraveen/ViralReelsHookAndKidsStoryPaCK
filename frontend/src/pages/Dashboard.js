@@ -136,8 +136,9 @@ function HeroSection({ stories, navigate }) {
           key={`hero-${activeIdx}`}
           title={null}
           media={media}
+          jobId={current.job_id}
           eager={true}
-          enablePreview={false}
+          enablePreview={true}
           fallbackImageUrl={heroFallback}
         />
       </div>
@@ -285,11 +286,14 @@ function StoryCard({ story, idx, navigate, priority = false }) {
       style={{ scrollSnapAlign: 'start' }}
       onClick={handleClick} data-testid={`story-card-${idx}`}>
 
-      {/* StoryCardMedia — deterministic media per contract */}
+      {/* StoryCardMedia — deterministic media per contract + autoplay */}
       <StoryCardMedia
         title={null}
         media={media}
+        jobId={story.job_id}
         eager={priority}
+        enablePreviewOnHover={true}
+        enablePreviewOnVisible={priority}
         fallbackImageUrl={cardFallback}
         className="absolute inset-0 w-full h-full rounded-none"
       />

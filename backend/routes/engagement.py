@@ -5,7 +5,9 @@ import os
 import random
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from shared import db, get_current_user, get_optional_user
 
@@ -637,9 +639,34 @@ async def track_card_click(data: dict):
     return {"success": True}
 
 
+# ─── PREVIEW AUTOPLAY EVENT TRACKING ────────────────────────────────────
+class PreviewEvent(BaseModel):
+    job_id: str
+    event_type: str  # "preview_impression", "preview_play", "preview_watch_complete", "preview_click"
+    watch_time: Optional[float] = None
+    surface: Optional[str] = None  # "hero", "card"
+    timestamp: Optional[str] = None
+
+
+@router.post("/preview-event")
+async def track_preview_event(data: PreviewEvent, user: dict = Depends(get_optional_user)):
+    """Track autoplay preview analytics for engagement optimization."""
+    user_id = None
+    if user:
+        user_id = user.get("id") or str(user.get("_id", ""))
+
+    await db.preview_events.insert_one({
+        "job_id": data.job_id,
+        "event_type": data.event_type,
+        "user_id": user_id,
+        "watch_time": data.watch_time,
+        "surface": data.surface,
+        "timestamp": data.timestamp or datetime.now(timezone.utc).isoformat(),
+    })
+    return {"success": True}
+
+
 # ─── HOOK A/B EVENT TRACKING ────────────────────────────────────────────
-from pydantic import BaseModel
-from typing import Optional
 
 
 class HookEvent(BaseModel):
