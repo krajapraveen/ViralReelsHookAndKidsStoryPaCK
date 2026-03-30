@@ -339,6 +339,7 @@ export default function AdminDashboard() {
     { id: 'reliability', label: 'Reliability', icon: Server },
     { id: 'series', label: 'Story Intelligence', icon: BookOpen },
     { id: 'revenue', label: 'Revenue', icon: DollarSign },
+    { id: 'retention', label: 'Retention', icon: Activity },
     { id: 'credits', label: 'Credits', icon: Zap },
     { id: 'conversion', label: 'Conversion', icon: TrendingUp },
   ];
@@ -754,6 +755,24 @@ export default function AdminDashboard() {
               </div>
             </div>
           </WidgetState>
+        )}
+
+        {/* ═══ Retention Section — Links to full retention dashboard ═══ */}
+        {section === 'retention' && (
+          <div className="space-y-4" data-testid="retention-section">
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 text-center">
+              <Activity className="w-10 h-10 text-purple-400 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2">Retention Analytics</h3>
+              <p className="text-sm text-slate-400 mb-4">The 5 metrics that determine whether users stay or leave.</p>
+              <button
+                onClick={() => navigate('/app/admin/retention')}
+                className="px-6 py-2 rounded-xl bg-purple-500/20 text-purple-300 font-semibold text-sm hover:bg-purple-500/30 border border-purple-500/20 transition-colors"
+                data-testid="retention-dashboard-link"
+              >
+                Open Retention Dashboard
+              </button>
+            </div>
+          </div>
         )}
 
         {/* ═══ Credits Section ═══ */}

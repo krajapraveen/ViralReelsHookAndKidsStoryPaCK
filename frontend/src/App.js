@@ -13,6 +13,7 @@ import History from './pages/History';
 import Billing from './pages/Billing';
 import Pricing from './pages/Pricing';
 import AdminDashboard from './pages/AdminDashboard';
+import RetentionDashboard from './pages/RetentionDashboard';
 import FeatureRequests from './pages/FeatureRequests';
 import AuthCallback from './pages/AuthCallback';
 import Contact from './pages/Contact';
@@ -228,6 +229,7 @@ function App() {
         <Route path="anti-abuse" element={<AntiAbuseDashboard />} />
         <Route path="revenue" element={<RevenueAnalyticsDashboard />} />
         <Route path="revenue-analytics" element={<RevenueAnalyticsDashboard />} />
+        <Route path="retention" element={<RetentionDashboard />} />
         <Route path="monitoring" element={<MonitoringDashboard />} />
         <Route path="ga4-tester" element={<GA4EventTester />} />
         <Route path="growth" element={<GrowthDashboard />} />

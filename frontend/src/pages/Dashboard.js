@@ -5,6 +5,7 @@ import axios from 'axios';
 import { trackLoop } from '../utils/growthTracker';
 import { setCdnBase } from '../utils/mediaUrl';
 import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
+import { startSession, endSession, trackAction } from '../utils/sessionTracker';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
@@ -273,6 +274,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   }, [story]);
 
   const handleClick = () => {
+    trackAction(); // Session action tracking
     trackLoop('click', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
     // Real-time session momentum + profile update
     sendFeedEvent('click', { jobId: story.job_id, category: story.animation_style, hookText: story.hook_text });
@@ -633,6 +635,12 @@ export default function Dashboard() {
       setLoading(false);
     };
     load();
+  }, []);
+
+  // ── Session tracking ──
+  useEffect(() => {
+    startSession();
+    return () => endSession();
   }, []);
 
   // ── Scroll speed tracking for dynamic hook timing ──

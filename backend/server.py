@@ -573,6 +573,9 @@ api_router.include_router(media_proxy_router)
 from routes.backfill_blur import router as backfill_blur_router
 api_router.include_router(backfill_blur_router)
 
+from routes.retention_analytics import router as retention_router
+api_router.include_router(retention_router)
+
 
 
 # Include API router in app
