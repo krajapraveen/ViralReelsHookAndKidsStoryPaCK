@@ -541,21 +541,28 @@ async def _stage_assembly(job: dict) -> Dict:
     preview_path = str(output_dir / f"se_{job_id[:8]}_preview.mp4")
     await ffmpeg_assembly.generate_preview(final_path, preview_path)
 
-    # Step 4: Generate thumbnail (poster_large)
-    thumb_path = str(output_dir / f"se_{job_id[:8]}_thumb.jpg")
-    await ffmpeg_assembly.generate_thumbnail(final_path, thumb_path)
+    # ── Step 4: Generate deterministic media assets (Pillow + FFmpeg) ──
+    # This is the ONLY place thumbnails and posters are ever created.
+    from services.story_engine.adapters.media_gen import generate_media_assets
 
-    # Step 5: Generate thumbnail_small (compressed card thumbnail)
-    thumb_small_path = str(output_dir / f"se_{job_id[:8]}_thumb_sm.jpg")
-    await ffmpeg_assembly.generate_thumbnail_small(final_path, thumb_small_path)
+    # Find first available keyframe as fallback image source
+    fallback_kf = None
+    for kp in job.get("keyframe_local_paths", []):
+        if kp and os.path.exists(kp):
+            fallback_kf = kp
+            break
 
-    # Upload all to R2
+    thumb_url, poster_url = await generate_media_assets(
+        video_path=final_path,
+        job_id=job_id,
+        fallback_image_path=fallback_kf,
+    )
+
+    # Upload video + preview to R2
     from services.story_engine.adapters.video_gen import _upload_to_r2
 
     output_url = None
     preview_url = None
-    thumbnail_url = None
-    thumbnail_small_url = None
 
     if os.path.exists(final_path):
         with open(final_path, "rb") as f:
@@ -569,27 +576,25 @@ async def _stage_assembly(job: dict) -> Dict:
         if not preview_url:
             preview_url = f"/api/generated/se_{job_id[:8]}_preview.mp4"
 
-    if os.path.exists(thumb_path):
-        with open(thumb_path, "rb") as f:
-            thumbnail_url = await _upload_to_r2(f.read(), f"se_{job_id[:8]}_thumb.jpg", job_id, "image")
-        if not thumbnail_url:
-            thumbnail_url = f"/api/generated/se_{job_id[:8]}_thumb.jpg"
+    # ── Store in STRICT media schema + legacy flat fields for backcompat ──
+    update_fields = {
+        "output_url": output_url,
+        "preview_url": preview_url,
+        # Legacy flat fields (kept for backcompat during migration)
+        "thumbnail_url": poster_url,
+        "thumbnail_small_url": thumb_url,
+    }
+    # Nested media object — the single source of truth going forward
+    if thumb_url:
+        update_fields["media.thumbnail_small.url"] = thumb_url
+        update_fields["media.thumbnail_small.type"] = "image/jpeg"
+    if poster_url:
+        update_fields["media.poster_large.url"] = poster_url
+        update_fields["media.poster_large.type"] = "image/jpeg"
 
-    if os.path.exists(thumb_small_path):
-        with open(thumb_small_path, "rb") as f:
-            thumbnail_small_url = await _upload_to_r2(f.read(), f"se_{job_id[:8]}_thumb_sm.jpg", job_id, "image")
-        if not thumbnail_small_url:
-            thumbnail_small_url = f"/api/generated/se_{job_id[:8]}_thumb_sm.jpg"
-
-    # Update job with real URLs
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
-        {"$set": {
-            "output_url": output_url,
-            "preview_url": preview_url,
-            "thumbnail_url": thumbnail_url,
-            "thumbnail_small_url": thumbnail_small_url,
-        }},
+        {"$set": update_fields},
     )
 
     return {
@@ -597,8 +602,10 @@ async def _stage_assembly(job: dict) -> Dict:
         "output": {
             "output_url": output_url,
             "preview_url": preview_url,
-            "thumbnail_url": thumbnail_url,
-            "thumbnail_small_url": thumbnail_small_url,
+            "media": {
+                "thumbnail_small": thumb_url,
+                "poster_large": poster_url,
+            },
             "clips_stitched": len(clip_paths),
             "has_narration": bool(narration_path),
         },

@@ -244,15 +244,21 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
 
     PROJ = {
         "_id": 0, "job_id": 1, "title": 1, "story_text": 1,
-        "thumbnail_url": 1, "thumbnail_small_url": 1, "output_url": 1, "preview_url": 1,
+        "output_url": 1, "preview_url": 1,
         "remix_count": 1, "animation_style": 1, "created_at": 1,
-        "scene_images": 1, "parent_video_id": 1, "user_id": 1,
+        "parent_video_id": 1, "user_id": 1,
         "character_continuity": 1,
+        # Strict media schema (new pipeline)
+        "media": 1,
+        # Legacy flat fields (pre-migration backcompat)
+        "thumbnail_url": 1, "thumbnail_small_url": 1,
+        "scene_images": 1,
     }
 
-    # ── ALL homepage images served via same-origin proxy — NO direct R2 CDN ──
-    # This eliminates Safari/Mobile CORS/ORB blocking completely.
-    # Proxy auto-resizes + LRU caches, so repeated loads are instant.
+    # ═══════════════════════════════════════════════════════════════
+    # DETERMINISTIC MEDIA RESOLUTION — No runtime derivation
+    # Pipeline generates → DB stores → API returns → Frontend renders
+    # ═══════════════════════════════════════════════════════════════
 
     def _to_r2_key(url: str) -> str | None:
         """Extract the R2 object key from any stored URL format."""
@@ -270,71 +276,52 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
                         return bk[1]
             if url.startswith("/api/media/r2/"):
                 return url[len("/api/media/r2/"):]
-            # Already a bare key (no domain)
             if not url.startswith("http") and not url.startswith("/"):
                 return url
             return None
         except Exception:
             return None
 
-    def _proxy_img(url: str, w: int = None, q: int = 80) -> str | None:
-        """Convert any R2 URL to same-origin proxy path with optional resize.
-        Returns: /api/media/r2/{key}?w=480&q=80 (relative, same-origin)."""
-        key = _to_r2_key(url)
-        if not key:
-            return None
-        path = f"/api/media/r2/{key}"
-        if w:
-            path += f"?w={w}&q={q}"
-        return path
-
-    def _proxy_url(url: str) -> str | None:
-        """Convert stored R2 URL to proxy URL for videos (Range/206 support)."""
+    def _to_proxy(url: str) -> str | None:
+        """Convert any R2/CDN URL to same-origin proxy path for Safari safety."""
         key = _to_r2_key(url)
         return f"/api/media/r2/{key}" if key else None
 
-    def _resolve_thumb_key(job: dict) -> str | None:
-        """Resolve the best available R2 key for a thumbnail."""
-        # 1. Try dedicated thumbnail
-        key = _to_r2_key(job.get("thumbnail_url"))
-        if key:
-            return key
-        # 2. Try scene_images dict (pipeline_jobs)
-        si = job.get("scene_images", {})
-        if si:
-            fk = sorted(si.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if si else None
-            if fk and isinstance(si[fk], dict):
-                r2k = si[fk].get("r2_key")
-                if r2k:
-                    return r2k
-                url = si[fk].get("url")
-                k = _to_r2_key(url)
-                if k:
-                    return k
-        # 3. Try stage_results image_gen outputs (story_engine_jobs)
-        for stage in job.get("stage_results", []):
-            if stage.get("stage") == "image_gen":
-                for out in stage.get("outputs", []):
-                    if isinstance(out, dict):
-                        r2k = out.get("r2_key") or out.get("image_r2_key")
-                        if r2k:
-                            return r2k
-                        url = out.get("url") or out.get("image_url")
-                        k = _to_r2_key(url)
-                        if k:
-                            return k
-        return None
+    def _resolve_media(job: dict) -> tuple:
+        """Resolve thumbnail_small and poster_large from the strict media schema.
+        Falls back to legacy flat fields ONLY for pre-migration jobs.
+        Returns (thumbnail_small_proxy, poster_large_proxy)."""
+        media = job.get("media") or {}
+        thumb_raw = (media.get("thumbnail_small") or {}).get("url")
+        poster_raw = (media.get("poster_large") or {}).get("url")
+
+        # If media schema populated, use it directly
+        if thumb_raw and poster_raw:
+            return _to_proxy(thumb_raw), _to_proxy(poster_raw)
+
+        # Legacy fallback: flat fields from pre-migration jobs
+        thumb_raw = thumb_raw or job.get("thumbnail_small_url") or job.get("thumbnail_url")
+        poster_raw = poster_raw or job.get("thumbnail_url") or job.get("thumbnail_small_url")
+
+        # Last resort for very old pipeline_jobs: first scene_image
+        if not thumb_raw:
+            si = job.get("scene_images") or {}
+            if si:
+                fk = sorted(si.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if si else None
+                if fk and isinstance(si[fk], dict):
+                    thumb_raw = si[fk].get("url")
+
+        return _to_proxy(thumb_raw), _to_proxy(poster_raw or thumb_raw)
 
     def _has_displayable_media(item: dict) -> bool:
         """Returns True if the feed item has at least one displayable image."""
-        return bool(item.get("thumbnail_url") or item.get("poster_url"))
+        return bool(item.get("thumbnail_small_url") or item.get("poster_url"))
 
     def _extract_hook(text: str) -> str:
         sentences = [s.strip() for s in (text or "").replace("\n", ". ").split(".") if s.strip() and len(s.strip()) > 5]
         return (sentences[0] + "...") if sentences else ""
 
     def _extract_char_summary(job: dict) -> dict | None:
-        """Extract character summary from character_continuity or return None."""
         cc = job.get("character_continuity") or {}
         chars = cc.get("characters", [])
         if chars and isinstance(chars, list) and len(chars) > 0:
@@ -344,18 +331,8 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
 
     def _shape_item(job: dict, badge: str = "NEW") -> dict:
         """Shape a raw DB document into a standard feed item.
-        ALL images → same-origin proxy (Safari-safe). Videos → proxy (Range/206).
-        CONTRACT: thumbnail_small_url and poster_url are NEVER null."""
-        # Resolve the R2 key for the best available thumbnail
-        thumb_key = _to_r2_key(job.get("thumbnail_small_url"))
-        if not thumb_key:
-            thumb_key = _to_r2_key(job.get("thumbnail_url"))
-        if not thumb_key:
-            thumb_key = _resolve_thumb_key(job)
-
-        # Build proxy URLs with appropriate sizing
-        card_thumb = f"/api/media/r2/{thumb_key}?w=480&q=80" if thumb_key else None
-        poster = f"/api/media/r2/{thumb_key}?w=1200&q=85" if thumb_key else None
+        Reads from the strict media schema. No runtime derivation."""
+        card_thumb, poster = _resolve_media(job)
 
         jid = job.get("job_id")
         return {
@@ -364,11 +341,10 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             "title": job.get("title", "Untitled"),
             "hook_text": _extract_hook(job.get("story_text", "")),
             "story_prompt": job.get("story_text", ""),
-            "thumbnail_url": card_thumb,
             "thumbnail_small_url": card_thumb,
             "poster_url": poster,
-            "preview_url": _proxy_url(job.get("preview_url")),
-            "output_url": _proxy_url(job.get("output_url")),
+            "preview_url": _to_proxy(job.get("preview_url")),
+            "output_url": _to_proxy(job.get("output_url")),
             "animation_style": job.get("animation_style", ""),
             "parent_video_id": job.get("parent_video_id"),
             "badge": badge,
@@ -379,7 +355,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
     # ── Query: story_engine_jobs (PRIMARY) then pipeline_jobs (LEGACY fallback) ──
     se_all = await db.story_engine_jobs.find(
         {"state": "READY"},
-        {**PROJ, "state": 1, "stage_results": 1},
+        {**PROJ, "state": 1},
     ).sort("created_at", -1).to_list(length=30)
 
     pj_all = await db.pipeline_jobs.find(
@@ -387,16 +363,18 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         PROJ,
     ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=40)
 
-    # ── 1. Featured story (hero) — prefer story_engine_jobs, then pipeline_jobs ──
+    # ── 1. Featured story (hero) — prefer items with media assets ──
     hero_item = None
     for job in se_all:
-        if job.get("output_url") and (job.get("thumbnail_url") or job.get("scene_images")):
-            hero_item = _shape_item(job, "FEATURED")
+        shaped = _shape_item(job, "FEATURED")
+        if _has_displayable_media(shaped):
+            hero_item = shaped
             break
     if not hero_item:
         for job in pj_all:
-            if job.get("output_url") and (job.get("thumbnail_url") or job.get("scene_images")):
-                hero_item = _shape_item(job, "FEATURED")
+            shaped = _shape_item(job, "FEATURED")
+            if _has_displayable_media(shaped):
+                hero_item = shaped
                 break
     if not hero_item and se_all:
         hero_item = _shape_item(se_all[0], "FEATURED")
@@ -438,7 +416,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         uid = user.get("id")
         user_se = await db.story_engine_jobs.find(
             {"user_id": uid, "state": {"$in": ["READY", "PARTIAL_READY"]}},
-            {**PROJ, "state": 1, "stage_results": 1},
+            {**PROJ, "state": 1},
         ).sort("created_at", -1).to_list(length=10)
         for j in user_se:
             item = _shape_item(j, "CONTINUE")

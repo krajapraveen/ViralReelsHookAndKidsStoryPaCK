@@ -253,12 +253,9 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
-  // Same-origin proxy image — Safari-safe, auto-resized, LRU-cached
-  const thumbSrc = (story.thumbnail_small_url || story.thumbnail_url)
-    ? `${API}${story.thumbnail_small_url || story.thumbnail_url}`
-    : null;
+  // Deterministic media — pipeline generates, DB stores, API returns, we render.
+  const thumbSrc = story.thumbnail_small_url ? `${API}${story.thumbnail_small_url}` : null;
   const isSeed = story.is_seed;
-  const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
 
   useEffect(() => {
     const el = cardRef.current;
@@ -304,9 +301,9 @@ function StoryCard({ story, idx, navigate, priority = false }) {
           <img src={thumbSrc} alt={story.title || ''} loading={priority ? 'eager' : 'lazy'} decoding={priority ? 'sync' : 'async'}
             className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`} />
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${GRAD_COLORS[gradIdx]}`}>
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e)' }}>
             <div className="absolute inset-0 flex items-center justify-center">
-              {isSeed ? <Sparkles className="w-10 h-10 lg:w-12 lg:h-12 text-white/30" /> : <Film className="w-10 h-10 lg:w-12 lg:h-12 text-white/30" />}
+              <Film className="w-10 h-10 lg:w-12 lg:h-12 text-white/20" />
             </div>
           </div>
         )}
