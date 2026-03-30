@@ -183,7 +183,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
-      url: ${{ secrets.PRODUCTION_URL }}
+      url: ${{ vars.PRODUCTION_URL || 'https://trust-engine-5.preview.emergentagent.com' }}
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -236,7 +236,7 @@ jobs:
         working-directory: playwright-tests
         run: yarn test:smoke
         env:
-          BASE_URL: ${{ secrets.PRODUCTION_URL }}
+          BASE_URL: ${{ vars.PRODUCTION_URL || 'https://trust-engine-5.preview.emergentagent.com' }}
 
       - name: 📊 Upload Verification Results
         uses: actions/upload-artifact@v4

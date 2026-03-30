@@ -67,7 +67,7 @@ jobs:
         working-directory: ./frontend
         run: yarn build
         env:
-          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL }}
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com' }}
 
   # E2E Tests with Playwright
   e2e-tests:
@@ -95,7 +95,7 @@ jobs:
         working-directory: ./frontend
         run: npx playwright test
         env:
-          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL }}
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com' }}
           
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -126,7 +126,7 @@ jobs:
         run: |
           python tests/load_tests/load_test_runner.py
         env:
-          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL }}
+          REACT_APP_BACKEND_URL: ${{ secrets.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com' }}
           
       - name: Upload load test results
         uses: actions/upload-artifact@v4
@@ -178,9 +178,9 @@ jobs:
         uses: treosh/lighthouse-ci-action@v12
         with:
           urls: |
-            ${{ secrets.REACT_APP_BACKEND_URL }}
-            ${{ secrets.REACT_APP_BACKEND_URL }}/login
-            ${{ secrets.REACT_APP_BACKEND_URL }}/pricing
+            ${{ secrets.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com' }}
+            ${{ secrets.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com' }}/login
+            ${{ secrets.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com' }}/pricing
           uploadArtifacts: true
           configPath: './lighthouserc.json'
         continue-on-error: true
