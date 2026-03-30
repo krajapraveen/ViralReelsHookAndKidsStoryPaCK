@@ -5,7 +5,7 @@ import {
   ChevronRight, Sparkles, Film, BookOpen, Users
 } from 'lucide-react';
 import axios from 'axios';
-import { SafeImage } from '../components/SafeImage';
+import { getStaticCardImg, getAllStaticBanners } from '../data/staticBanners';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -22,14 +22,15 @@ const STORY_HOOKS = [
 export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState(null);
-  const [showcase, setShowcase] = useState([]);
   const [liveFeed, setLiveFeed] = useState([]);
   const navigate = useNavigate();
   const showcaseRef = useRef(null);
 
+  // Showcase = 100% static bundled data. ZERO API dependency for images.
+  const showcase = getAllStaticBanners();
+
   useEffect(() => {
     axios.get(`${API}/api/public/stats`).then(r => setStats(r.data)).catch(() => {});
-    axios.get(`${API}/api/public/trending-weekly?limit=12`).then(r => setShowcase(r.data.items || [])).catch(() => {});
     axios.get(`${API}/api/public/live-activity?limit=6`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
   }, []);
 
@@ -43,12 +44,12 @@ export default function Landing() {
 
   const continueStory = (item) => {
     const data = {
-      prompt: item.story_text || item.title || '',
+      prompt: item.story_prompt || item.hook_text || item.title || '',
       timestamp: Date.now(),
       source_tool: 'landing-continue',
       remixFrom: {
         tool: 'story-video-studio',
-        prompt: item.story_text || item.title,
+        prompt: item.story_prompt || item.hook_text || item.title,
         title: item.title,
         settings: { animation_style: item.animation_style },
         parentId: item.job_id,
@@ -119,6 +120,10 @@ export default function Landing() {
 
       {/* ═══════ 1. HERO — STORY-DRIVEN ═══════ */}
       <section className="relative pt-24 pb-8 md:pt-32 md:pb-12 px-4" data-testid="hero-section">
+        {/* ZERO-AMBIGUITY TEST MARKER — proves this is the correct component */}
+        <div data-testid="build-marker" style={{position:'fixed',top:56,left:0,right:0,zIndex:9999,background:'#ff0000',color:'#fff',textAlign:'center',padding:'6px 0',fontSize:13,fontWeight:900,letterSpacing:'0.15em'}}>
+          VISIONARY TEST BUILD 01 — BUNDLED ASSETS ACTIVE
+        </div>
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-20 left-1/4 w-[600px] h-[600px] bg-violet-600/[0.06] rounded-full blur-[180px]" />
           <div className="absolute bottom-0 right-1/3 w-[400px] h-[400px] bg-rose-500/[0.04] rounded-full blur-[120px]" />
@@ -179,11 +184,21 @@ export default function Landing() {
 
           {showcase.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3" data-testid="showcase-grid">
-              {showcase.slice(0, 10).map((item, idx) => (
+              {showcase.slice(0, 10).map((item, idx) => {
+                // Direct webpack-bundled image — part of the JS build
+                const bundledImg = item.card_img;
+                return (
                 <div key={item.job_id || idx} className="story-card group relative rounded-2xl overflow-hidden border border-white/[0.06] bg-white/[0.02] cursor-pointer transition-all hover:border-violet-500/30" data-testid={`showcase-card-${idx}`}>
                   <div className="relative aspect-[3/4] overflow-hidden bg-slate-900">
                     <div className="story-thumb transition-transform duration-500">
-                      <SafeImage src={item.thumbnail_url} alt={item.title} aspectRatio="3/4" titleOverlay={item.title} fallbackType="gradient" className="w-full h-full object-cover" />
+                      {bundledImg ? (
+                        <img src={bundledImg} alt={item.title || ''} loading={idx < 4 ? 'eager' : 'lazy'}
+                          className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-violet-800 to-rose-800 flex items-center justify-center">
+                          <Film className="w-10 h-10 text-white/20" />
+                        </div>
+                      )}
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                     <div className="story-overlay absolute inset-0 bg-violet-900/30 backdrop-blur-[2px] opacity-0 transition-opacity duration-300 flex items-center justify-center">
@@ -214,7 +229,8 @@ export default function Landing() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             /* Curated fallback — no empty skeletons */
