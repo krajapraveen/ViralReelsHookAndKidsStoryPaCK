@@ -60,6 +60,7 @@ story_score = (0.25 × category_affinity) + (0.20 × hook_strength)
 - [x] Updated scoring formula (no continue_rate duplication)
 - [x] **Homepage regression protection** (backend + frontend fallback guards)
 - [x] Validated: Hero ✅, 4/4 rows ✅, 10/10 features ✅, Credits ✅
+- [x] **P0 CDN Bypass Fix** (Mar 30 2026): Removed `${API}` prefix from `resolveMedia()` in Dashboard.js. All media now loads directly from R2 CDN (`https://pub-...r2.dev/KEY`) instead of K8s proxy. Safari/mobile rendering fixed.
 
 ## Upcoming Tasks
 - (P1) Backfill hooks for existing stories

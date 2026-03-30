@@ -77,9 +77,9 @@ function resolveMedia(rawMedia) {
   if (!rawMedia) return null;
   return {
     thumb_blur: rawMedia.thumb_blur || null,
-    thumbnail_small_url: rawMedia.thumbnail_small_url ? `${API}${rawMedia.thumbnail_small_url}` : null,
-    poster_large_url: rawMedia.poster_large_url ? `${API}${rawMedia.poster_large_url}` : null,
-    preview_short_url: rawMedia.preview_short_url ? `${API}${rawMedia.preview_short_url}` : null,
+    thumbnail_small_url: rawMedia.thumbnail_small_url || null,
+    poster_large_url: rawMedia.poster_large_url || null,
+    preview_short_url: rawMedia.preview_short_url || null,
     media_version: rawMedia.media_version || null,
   };
 }
