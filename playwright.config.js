@@ -1,10 +1,10 @@
 // Playwright configuration for stable CI
 // CreatorStudio AI E2E Tests
-import { defineConfig, devices } from '@playwright/test';
+const { defineConfig, devices } = require('@playwright/test');
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://trust-engine-5.preview.emergentagent.com';
 
-export default defineConfig({
+module.exports = defineConfig({
   testDir: './tests/e2e',
   
   // Test timeout
