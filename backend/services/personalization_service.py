@@ -239,10 +239,13 @@ def _global_trending_score(story: dict, max_remix: int) -> float:
 
 def score_story(story: dict, profile: dict, max_remix: int) -> float:
     """
-    EXACT formula:
-      (0.30 × category_affinity) + (0.20 × continue_rate) + (0.15 × completion_rate)
-      + (0.10 × share_rate) + (0.10 × freshness_score) + (0.10 × momentum_score)
+    EXACT formula (corrected — no continue_rate duplication):
+      (0.25 × category_affinity) + (0.20 × hook_strength)
+      + (0.15 × completion_rate) + (0.15 × momentum_score)
+      + (0.10 × freshness_score) + (0.10 × share_rate)
       + (0.05 × global_trending_score)
+
+    hook_strength already encodes continue signal — no double counting.
     """
     cat_aff = profile.get("category_affinity", {})
     bm = profile.get("behavior_metrics", {})
@@ -256,7 +259,9 @@ def score_story(story: dict, profile: dict, max_remix: int) -> float:
     if meta_cat and meta_cat in cat_aff:
         story_cat_score = max(story_cat_score, cat_aff[meta_cat])
 
-    continue_rate = bm.get("continue_rate", 0.0)
+    # Hook strength from A/B testing data
+    hook_strength = story.get("hook_strength", 0.0)
+
     completion_rate = bm.get("completion_rate", 0.0)
     share_rate = bm.get("share_rate", 0.0)
     freshness = _freshness_score(story.get("created_at", ""))
@@ -264,12 +269,12 @@ def score_story(story: dict, profile: dict, max_remix: int) -> float:
     trending = _global_trending_score(story, max_remix)
 
     return (
-        0.30 * story_cat_score
-        + 0.20 * continue_rate
+        0.25 * story_cat_score
+        + 0.20 * hook_strength
         + 0.15 * completion_rate
-        + 0.10 * share_rate
+        + 0.15 * momentum
         + 0.10 * freshness
-        + 0.10 * momentum
+        + 0.10 * share_rate
         + 0.05 * trending
     )
 

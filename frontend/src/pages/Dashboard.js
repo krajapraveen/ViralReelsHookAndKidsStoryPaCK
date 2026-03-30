@@ -157,7 +157,9 @@ function HeroSection({ stories, navigate }) {
               "{getHook(current, activeIdx)}"
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
-              <button onClick={() => { trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' }); navigate('/app/story-video-studio', { state: { prefill: prefillObj, freshSession: true } }); }}
+              <button onClick={() => { trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' });
+                if (current.job_id && current.hook_variant_id) { axios.post(`${API}/api/engagement/hook-event`, { job_id: current.job_id, hook_variant_id: current.hook_variant_id, event_type: 'continue' }).catch(() => {}); }
+                navigate('/app/story-video-studio', { state: { prefill: prefillObj, freshSession: true } }); }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-bold text-white bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] shadow-[0_0_24px_rgba(0,194,255,0.28)] hover:scale-[1.02] transition-transform duration-200"
                 data-testid="hero-play-btn">
                 <Play className="w-4 h-4 fill-white mr-2" /> Continue Story
@@ -247,6 +249,10 @@ function StoryCard({ story, idx, navigate, priority = false }) {
       if (entry.isIntersecting && !impressionFired.current) {
         impressionFired.current = true;
         trackLoop('impression', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
+        // Track hook A/B impression
+        if (story.job_id && story.hook_variant_id) {
+          axios.post(`${API}/api/engagement/hook-event`, { job_id: story.job_id, hook_variant_id: story.hook_variant_id, event_type: 'impression' }).catch(() => {});
+        }
         obs.disconnect();
       }
     }, { threshold: 0.5 });
@@ -256,6 +262,10 @@ function StoryCard({ story, idx, navigate, priority = false }) {
 
   const handleClick = () => {
     trackLoop('click', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
+    // Track hook A/B continue click
+    if (story.job_id && story.hook_variant_id) {
+      axios.post(`${API}/api/engagement/hook-event`, { job_id: story.job_id, hook_variant_id: story.hook_variant_id, event_type: 'continue' }).catch(() => {});
+    }
     navigate('/app/story-video-studio', {
       state: {
         prefill: {

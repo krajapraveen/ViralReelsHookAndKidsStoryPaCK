@@ -315,16 +315,30 @@ def _extract_char_summary(job: dict) -> dict | None:
 
 
 def _shape_item(job: dict, badge: str = "NEW") -> dict:
-    """Shape a raw DB document into a standard feed item."""
+    """Shape a raw DB document into a standard feed item.
+    Includes hook A/B data for personalized hook serving."""
     card_thumb, poster = _resolve_media(job)
     preview = _to_proxy(job.get("preview_url"))
 
     jid = job.get("job_id")
+
+    # Hook system: use stored hook_text, fallback to extracted hook from story_text
+    hooks = job.get("hooks") or []
+    hook_text = job.get("hook_text") or _extract_hook(job.get("story_text", ""))
+    hook_locked = job.get("hook_locked", False)
+    winning_hook = job.get("winning_hook")
+
+    # Compute hook_strength for ranking
+    hook_strength = 0.0
+    if hooks:
+        from services.hook_service import compute_hook_strength
+        hook_strength = compute_hook_strength(hooks, hook_locked, winning_hook)
+
     return {
         "id": jid,
         "job_id": jid,
         "title": job.get("title", "Untitled"),
-        "hook_text": _extract_hook(job.get("story_text", "")),
+        "hook_text": hook_text,
         "story_prompt": job.get("story_text", ""),
         "media": {
             "thumb_blur": None,
@@ -339,6 +353,11 @@ def _shape_item(job: dict, badge: str = "NEW") -> dict:
         "badge": badge,
         "created_at": job.get("created_at", ""),
         "character_summary": _extract_char_summary(job),
+        # Hook A/B internals (used by ranking, stripped before response)
+        "_hooks": hooks,
+        "_hook_locked": hook_locked,
+        "_winning_hook": winning_hook,
+        "hook_strength": hook_strength,
     }
 
 
@@ -371,6 +390,8 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         "media": 1,
         "thumbnail_url": 1, "thumbnail_small_url": 1,
         "scene_images": 1,
+        # Hook A/B fields
+        "hooks": 1, "hook_text": 1, "hook_locked": 1, "winning_hook": 1,
     }
 
     # ── Fetch user profile (or cold-start empty) ──
@@ -480,10 +501,26 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
     }
     rows = rank_rows(row_candidates, profile)
 
-    # Strip internal _score from story objects before response
+    # Strip internal fields + serve correct hook variant per user
+    from services.hook_service import select_hook_for_user
+
+    def _clean_story(s):
+        """Strip internals and serve the right hook via A/B."""
+        hooks = s.pop("_hooks", [])
+        hook_locked = s.pop("_hook_locked", False)
+        winning_hook_id = s.pop("_winning_hook", None)
+        s.pop("_score", None)
+        s.pop("hook_strength", None)
+        # Serve the right hook to this user
+        if hooks:
+            selected = select_hook_for_user(hooks, hook_locked, winning_hook_id)
+            if selected:
+                s["hook_text"] = selected["text"]
+                s["hook_variant_id"] = selected["id"]
+
     for row in rows:
         for s in row.get("stories", []):
-            s.pop("_score", None)
+            _clean_story(s)
 
     # ── SELECT hero ──
     hero_candidates = trending_ranked + fresh_ranked
@@ -498,7 +535,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         if not hero:
             hero = hero_candidates[0] if hero_candidates else None
     if hero:
-        hero.pop("_score", None)
+        _clean_story(hero)
         hero["badge"] = "FEATURED"
 
     # ── RANK features ──
@@ -556,6 +593,98 @@ async def track_card_click(data: dict):
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     return {"success": True}
+
+
+# ─── HOOK A/B EVENT TRACKING ────────────────────────────────────────────
+from pydantic import BaseModel
+from typing import Optional
+
+
+class HookEvent(BaseModel):
+    job_id: str
+    hook_variant_id: str
+    event_type: str  # "impression", "continue", "share", "completion"
+
+
+@router.post("/hook-event")
+async def track_hook_event(data: HookEvent):
+    """
+    Track hook A/B events. Updates hook metrics in story_engine_jobs.
+    Checks lock condition and triggers evolution if needed.
+    """
+    from services.hook_service import (
+        check_lock_condition, check_evolution_needed, get_evolution_targets,
+        evolve_hook_from_best,
+    )
+
+    job = await db.story_engine_jobs.find_one(
+        {"job_id": data.job_id},
+        {"_id": 0, "hooks": 1, "hook_locked": 1, "winning_hook": 1, "story_text": 1, "title": 1},
+    )
+    if not job or not job.get("hooks"):
+        return {"success": False, "error": "Job or hooks not found"}
+
+    if job.get("hook_locked"):
+        return {"success": True, "locked": True}
+
+    hooks = job["hooks"]
+    target = None
+    for h in hooks:
+        if h["id"] == data.hook_variant_id:
+            target = h
+            break
+
+    if not target:
+        return {"success": False, "error": "Hook variant not found"}
+
+    # Increment the right counter
+    field_map = {
+        "impression": "impressions",
+        "continue": "continues",
+        "share": "shares",
+        "completion": "completions",
+    }
+    counter = field_map.get(data.event_type)
+    if counter:
+        target[counter] = target.get(counter, 0) + 1
+
+    update_set = {"hooks": hooks}
+
+    # Check lock condition: ≥300 impressions + ≥15% margin
+    should_lock, winner_id = check_lock_condition(hooks)
+    if should_lock:
+        update_set["hook_locked"] = True
+        update_set["winning_hook"] = winner_id
+        winner_hook = next((h for h in hooks if h["id"] == winner_id), None)
+        if winner_hook:
+            update_set["hook_text"] = winner_hook["text"]
+
+    # Check evolution: every 100 impressions, drop worst, rewrite from best
+    if not should_lock and check_evolution_needed(hooks):
+        worst, best = get_evolution_targets(hooks)
+        if worst and best and worst["id"] != best["id"]:
+            new_text = await evolve_hook_from_best(
+                best["text"],
+                job.get("story_text", ""),
+                job.get("title", ""),
+            )
+            # Replace worst hook with evolved variant
+            for h in hooks:
+                if h["id"] == worst["id"]:
+                    h["text"] = new_text
+                    h["impressions"] = 0
+                    h["continues"] = 0
+                    h["shares"] = 0
+                    h["completions"] = 0
+                    break
+            update_set["hooks"] = hooks
+
+    await db.story_engine_jobs.update_one(
+        {"job_id": data.job_id},
+        {"$set": update_set},
+    )
+
+    return {"success": True, "locked": should_lock, "evolved": check_evolution_needed(hooks)}
 
 
 @router.get("/card-analytics")

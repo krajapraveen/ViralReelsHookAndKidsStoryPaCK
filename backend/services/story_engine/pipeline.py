@@ -125,6 +125,11 @@ async def create_job(
         "is_seed_content": False,
         "public": False,
         "slug": None,
+        # ── Hook A/B system ──
+        "hooks": [],
+        "hook_text": None,
+        "winning_hook": None,
+        "hook_locked": False,
         "created_at": now,
         "updated_at": now,
         "completed_at": None,
@@ -189,6 +194,10 @@ async def run_pipeline(job_id: str) -> Dict:
         if plan_result["status"] != "success":
             await _fail_job(job_id, "Episode planning failed", stage_results)
             return {"success": False, "error": "Planning failed", "stage_results": stage_results}
+
+        # ── Step 3.5: Generate hook variants (non-blocking, doesn't fail pipeline) ──
+        hook_result = await _run_stage(job_id, "hook_generation", _stage_hooks, job)
+        stage_results.append(hook_result)
 
         # ── Step 4: Build character continuity ──
         job = await transition_job(db, job_id, JobState.BUILDING_CHARACTER_CONTEXT)
@@ -293,6 +302,46 @@ async def _stage_planning(job: dict) -> Dict:
     )
 
     return {"status": "success", "output": {"title": plan.get("title"), "scenes": len(plan.get("scene_breakdown", []))}}
+
+
+async def _stage_hooks(job: dict) -> Dict:
+    """Generate 3 hook variants for A/B testing. Non-blocking — pipeline continues even if this fails."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from services.hook_service import generate_hook_variants
+
+    job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
+    story_text = job.get("story_text", "")
+    title = job.get("episode_plan", {}).get("title") or job.get("title", "Untitled")
+    style_id = job.get("style_id", "default")
+    age_group = job.get("age_group", "")
+
+    try:
+        hooks = await generate_hook_variants(
+            story_prompt=story_text,
+            title=title,
+            style_id=style_id,
+            age_group=age_group,
+            n=3,
+        )
+
+        # Set hook_text to the first variant as default
+        hook_text = hooks[0]["text"] if hooks else None
+
+        await db.story_engine_jobs.update_one(
+            {"job_id": job["job_id"]},
+            {"$set": {
+                "hooks": hooks,
+                "hook_text": hook_text,
+                "winning_hook": None,
+                "hook_locked": False,
+            }},
+        )
+
+        return {"status": "success", "output": {"hooks_generated": len(hooks), "default_hook": hook_text}}
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Hook generation failed (non-blocking): {e}")
+        return {"status": "partial", "error": str(e)}
 
 
 async def _stage_character_context(job: dict) -> Dict:
