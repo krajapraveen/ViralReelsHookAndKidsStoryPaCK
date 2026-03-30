@@ -7,10 +7,11 @@ import os
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Request, HTTPException, Depends, Query
+from fastapi import APIRouter, Request, HTTPException, Depends, Query, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
 from shared import db
+from services.personalization_service import update_profile_on_event
 
 logger = logging.getLogger("growth_analytics")
 router = APIRouter(prefix="/growth", tags=["growth-analytics"])
@@ -50,7 +51,7 @@ VALID_EVENTS = {
 # ─── TRACK EVENT ─────────────────────────────────────────────────────────────
 
 @router.post("/event")
-async def track_event(data: GrowthEvent, request: Request):
+async def track_event(data: GrowthEvent, request: Request, background_tasks: BackgroundTasks):
     """Track a single growth funnel event with deduplication."""
     if data.event not in VALID_EVENTS:
         raise HTTPException(status_code=400, detail=f"Invalid event: {data.event}")
@@ -88,6 +89,11 @@ async def track_event(data: GrowthEvent, request: Request):
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await db.growth_events.insert_one(doc)
+
+    # ── Update user_homepage_profile for personalization ──
+    if data.user_id:
+        background_tasks.add_task(update_profile_on_event, db, data.user_id, data.event, data.meta or {})
+
     return {"success": True, "event_id": doc["id"]}
 
 
@@ -97,10 +103,11 @@ class BatchEvents(BaseModel):
     events: list[GrowthEvent]
 
 @router.post("/events/batch")
-async def track_batch(data: BatchEvents, request: Request):
+async def track_batch(data: BatchEvents, request: Request, background_tasks: BackgroundTasks):
     """Track multiple events at once with deduplication."""
     ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
     docs = []
+    profile_updates = []
     for e in data.events[:50]:
         if e.event not in VALID_EVENTS:
             continue
@@ -134,8 +141,16 @@ async def track_batch(data: BatchEvents, request: Request):
             "ip": ip,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+        # Collect profile updates for authenticated events
+        if e.user_id:
+            profile_updates.append((e.user_id, e.event, e.meta or {}))
     if docs:
         await db.growth_events.insert_many(docs)
+
+    # ── Update user_homepage_profile for personalization ──
+    for user_id, event, meta in profile_updates:
+        background_tasks.add_task(update_profile_on_event, db, user_id, event, meta)
+
     return {"success": True, "tracked": len(docs)}
 
 

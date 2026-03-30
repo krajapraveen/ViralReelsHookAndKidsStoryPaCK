@@ -391,34 +391,25 @@ function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0, 
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   5. FEATURE BLOCKS — 2-col mobile / 4-col desktop, 10 tools
+   5. FEATURE BLOCKS — Rendered in API-determined order (personalized)
    ═══════════════════════════════════════════════════════════════════ */
-const FEATURES = [
-  { name: 'Story Video', desc: 'Turn ideas into cinematic stories', icon: Film, path: '/app/story-video-studio', gradient: 'from-indigo-500 to-blue-700' },
-  { name: 'Story Series', desc: 'Multi-episode sagas with memory', icon: BookOpen, path: '/app/story-series', gradient: 'from-purple-500 to-fuchsia-700' },
-  { name: 'Character Memory', desc: 'Persistent characters across stories', icon: User, path: '/app/characters', gradient: 'from-cyan-500 to-blue-700' },
-  { name: 'Reel Generator', desc: 'Viral short-form video reels', icon: Play, path: '/app/reels', gradient: 'from-rose-500 to-pink-700' },
-  { name: 'Photo to Comic', desc: 'Transform photos into comic panels', icon: Camera, path: '/app/photo-to-comic', gradient: 'from-amber-500 to-orange-700' },
-  { name: 'Comic Storybook', desc: 'Panel-by-panel illustrated stories', icon: Palette, path: '/app/comic-storybook', gradient: 'from-emerald-500 to-green-700' },
-  { name: 'Bedtime Stories', desc: 'Narrated sleep tales with visuals', icon: Star, path: '/app/bedtime-stories', gradient: 'from-indigo-500 to-purple-700' },
-  { name: 'Reaction GIF', desc: 'Photo-to-reaction GIF in seconds', icon: ImageIcon, path: '/app/gif-maker', gradient: 'from-pink-500 to-rose-700' },
-  { name: 'Brand Story', desc: 'Cinematic brand narratives', icon: Megaphone, path: '/app/brand-story-builder', gradient: 'from-teal-500 to-cyan-700' },
-  { name: 'Daily Viral Ideas', desc: 'AI-generated trending prompts', icon: Lightbulb, path: '/app/daily-viral-ideas', gradient: 'from-amber-500 to-red-700' },
-];
+const ICON_MAP = {
+  Film, BookOpen, User, Play, Camera, Palette, Star, ImageIcon, Megaphone, Lightbulb,
+};
 
-function FeaturesGrid({ navigate }) {
+function FeaturesGrid({ features, navigate }) {
   return (
     <section className="px-4 py-8 sm:px-6 lg:px-10" data-testid="features-grid">
       <h2 className="flex items-center gap-2 text-white text-xl sm:text-2xl font-bold tracking-tight mb-4 sm:mb-5">
         <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" /> Creator Tools
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {FEATURES.map(f => {
-          const Icon = f.icon;
+        {features.map(f => {
+          const Icon = ICON_MAP[f.icon] || Zap;
           return (
-            <button key={f.name} onClick={() => navigate(f.path, { state: { freshSession: true } })}
+            <button key={f.key} onClick={() => navigate(f.path, { state: { freshSession: true } })}
               className="group rounded-2xl border border-white/[0.08] bg-[#121218] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.16)] hover:border-white/15 hover:shadow-[0_12px_30px_rgba(0,0,0,0.24)] transition-all duration-200 text-left"
-              data-testid={`feature-${f.name.replace(/\s/g, '-').toLowerCase()}`}>
+              data-testid={`feature-${f.key}`}>
               <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6C5CE7]/25 to-[#00C2FF]/25 text-white text-xl border border-white/10 group-hover:scale-110 transition-transform">
                 <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
@@ -543,10 +534,16 @@ function DashboardSkeleton() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   MAIN DASHBOARD — Progressive loading
-   Hero -> Metrics -> Rows -> Features -> Nav
+   MAIN DASHBOARD — Progressive loading, API-driven ordering
+   Backend owns ALL ordering — frontend is a DUMB RENDERER.
    Uses: HeroMedia, StoryCardMedia, MediaPreloader per contract
    ═══════════════════════════════════════════════════════════════════ */
+
+// Map backend icon string names to Lucide components
+const ROW_ICON_MAP = {
+  Flame, RefreshCw, Sparkles, Clock, Zap, Star,
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -571,7 +568,7 @@ export default function Dashboard() {
         setLiveFeed(metricsRes.data.live_feed || []);
       } catch (e) {
         console.error('[Dashboard] Feed load failed:', e.message);
-        setFeed({ featured_story: null, trending_stories: [], fresh_stories: [], continue_stories: [], unfinished_worlds: [], live_stats: {} });
+        setFeed({ hero: null, rows: [], features: [], live_stats: {} });
       }
       setLoading(false);
     };
@@ -580,21 +577,28 @@ export default function Dashboard() {
 
   if (loading) return <DashboardSkeleton />;
 
-  const { featured_story, trending_stories = [], fresh_stories = [], continue_stories = [], unfinished_worlds = [], live_stats = {} } = feed || {};
-  const heroPool = [featured_story, ...trending_stories.filter(s => s?.job_id !== featured_story?.job_id)].filter(Boolean).slice(0, 5);
+  const { hero, rows = [], features = [], live_stats = {} } = feed || {};
 
-  const trendingRow = trending_stories.length > 0 ? trending_stories : SEED_CARDS;
-  const freshRow = fresh_stories.length > 0 ? fresh_stories : [...SEED_CARDS].reverse();
-  const continueRow = continue_stories.length > 0 ? continue_stories : SEED_CARDS.slice(0, 4).map(s => ({ ...s, badge: 'CONTINUE' }));
-  const unfinishedRow = unfinished_worlds.length > 0 ? unfinished_worlds : SEED_CARDS;
+  // Hero pool: hero + first trending row stories for carousel
+  const firstTrendingRow = rows.find(r => r.key === 'trending_now') || rows.find(r => r.key === 'fresh_stories');
+  const heroPool = [
+    hero,
+    ...(firstTrendingRow?.stories || []).filter(s => s?.job_id !== hero?.job_id),
+  ].filter(Boolean).slice(0, 5);
 
-  // MediaPreloader inputs — resolve proxy paths to absolute URLs
-  const heroPreloadMedia = featured_story?.media ? {
-    poster_large_url: featured_story.media.poster_large_url ? `${API}${featured_story.media.poster_large_url}` : null,
+  // First row's stories for preloading
+  const firstRow = rows[0] || { stories: [] };
+
+  // MediaPreloader inputs
+  const heroPreloadMedia = hero?.media ? {
+    poster_large_url: hero.media.poster_large_url ? `${API}${hero.media.poster_large_url}` : null,
   } : null;
-  const firstRowPreloadCards = (trending_stories.length > 0 ? trending_stories : []).slice(0, 4).map(s => ({
+  const firstRowPreloadCards = (firstRow.stories || []).slice(0, 4).map(s => ({
     thumbnail_small_url: s?.media?.thumbnail_small_url ? `${API}${s.media.thumbnail_small_url}` : null,
   }));
+
+  // Features: use API order, fallback to seed if empty
+  const featureList = features.length > 0 ? features : [];
 
   return (
     <div className="min-h-screen pb-16 lg:pb-0" style={{ background: BG }} data-testid="dashboard">
@@ -630,26 +634,35 @@ export default function Dashboard() {
       {/* 2. METRICS STRIP */}
       <MetricsStrip metrics={metrics} />
 
-      {/* 3. STORY ROWS — first row eager (above-the-fold), rest lazy */}
-      <ScrollRow title="Trending Now" icon={Flame} iconColor="text-amber-400" testId="trending-now" delay={0} eager>
-        {trendingRow.map((story, idx) => <StoryCard key={story.job_id || `t-${idx}`} story={story} idx={idx} navigate={navigate} priority={idx < 6} />)}
-      </ScrollRow>
+      {/* 3. STORY ROWS — Backend-determined order, first row eager */}
+      {rows.map((row, rowIdx) => {
+        const RowIcon = ROW_ICON_MAP[row.icon] || Zap;
+        const stories = row.stories?.length > 0 ? row.stories : SEED_CARDS.map(s => ({ ...s, badge: row.key === 'continue_stories' ? 'CONTINUE' : s.badge }));
+        return (
+          <ScrollRow
+            key={row.key}
+            title={row.title}
+            icon={RowIcon}
+            iconColor={row.icon_color || 'text-white/60'}
+            testId={row.key}
+            delay={rowIdx * 100}
+            eager={rowIdx < 2}
+          >
+            {stories.map((story, idx) => (
+              <StoryCard
+                key={`${row.key}-${story.job_id || idx}`}
+                story={story}
+                idx={idx + rowIdx * 20}
+                navigate={navigate}
+                priority={rowIdx === 0 && idx < 6}
+              />
+            ))}
+          </ScrollRow>
+        );
+      })}
 
-      {/* 4. CONTINUE ROW — personal, prioritized */}
-      <ScrollRow title="Continue Your Story" icon={RefreshCw} iconColor="text-blue-400" testId="continue-stories" delay={100} eager>
-        {continueRow.map((story, idx) => <StoryCard key={`c-${story.job_id || idx}`} story={story} idx={idx + 40} navigate={navigate} priority={idx < 4} />)}
-      </ScrollRow>
-
-      <ScrollRow title="Fresh Stories" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories" delay={200}>
-        {freshRow.map((story, idx) => <StoryCard key={`f-${story.job_id || idx}`} story={story} idx={idx + 20} navigate={navigate} priority={idx < 4} />)}
-      </ScrollRow>
-
-      <ScrollRow title="Unfinished Worlds" icon={Clock} iconColor="text-emerald-400" testId="unfinished-worlds" delay={300}>
-        {unfinishedRow.map((story, idx) => <StoryCard key={`u-${story.job_id || idx}`} story={story} idx={idx + 60} navigate={navigate} />)}
-      </ScrollRow>
-
-      {/* 5. FEATURE BLOCKS */}
-      <FeaturesGrid navigate={navigate} />
+      {/* 4. FEATURE BLOCKS — API-determined order */}
+      <FeaturesGrid features={featureList} navigate={navigate} />
 
       {/* FOOTER */}
       <div className="border-t border-white/[0.04]">
@@ -674,10 +687,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 6. ACTIVITY BAR */}
+      {/* 5. ACTIVITY BAR */}
       <ActivityBar feed={liveFeed} />
 
-      {/* 7. STICKY BOTTOM NAV — mobile only */}
+      {/* 6. STICKY BOTTOM NAV — mobile only */}
       <StickyBottomNav navigate={navigate} currentPath={location.pathname} />
 
       {/* Global styles — visual contract */}

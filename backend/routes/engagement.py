@@ -237,10 +237,130 @@ async def get_trending_creations():
     return {"trending": jobs}
 
 
+# ═══════════════════════════════════════════════════════════════
+# DETERMINISTIC MEDIA RESOLUTION — Module-level helpers
+# Pipeline generates → DB stores → API returns → Frontend renders
+# ═══════════════════════════════════════════════════════════════
+
+def _to_r2_key(url: str) -> str | None:
+    """Extract the R2 object key from any stored URL format."""
+    if not url:
+        return None
+    try:
+        base = url.split("?")[0]
+        if ".r2.dev/" in base:
+            return base.split(".r2.dev/", 1)[1]
+        if ".r2.cloudflarestorage.com/" in base:
+            parts = base.split(".r2.cloudflarestorage.com/", 1)
+            if len(parts) > 1:
+                bk = parts[1].split("/", 1)
+                if len(bk) > 1:
+                    return bk[1]
+        if url.startswith("/api/media/r2/"):
+            return url[len("/api/media/r2/"):]
+        if not url.startswith("http") and not url.startswith("/"):
+            return url
+        return None
+    except Exception:
+        return None
+
+
+def _to_proxy(url: str) -> str | None:
+    """Convert any R2/CDN URL to same-origin proxy path for Safari safety."""
+    key = _to_r2_key(url)
+    return f"/api/media/r2/{key}" if key else None
+
+
+def _resolve_media(job: dict) -> tuple:
+    """Resolve thumbnail_small and poster_large from the strict media schema.
+    Falls back to legacy flat fields ONLY for pre-migration jobs."""
+    media = job.get("media") or {}
+    thumb_raw = (media.get("thumbnail_small") or {}).get("url")
+    poster_raw = (media.get("poster_large") or {}).get("url")
+
+    if thumb_raw and poster_raw:
+        return _to_proxy(thumb_raw), _to_proxy(poster_raw)
+
+    thumb_raw = thumb_raw or job.get("thumbnail_small_url") or job.get("thumbnail_url")
+    poster_raw = poster_raw or job.get("thumbnail_url") or job.get("thumbnail_small_url")
+
+    if not thumb_raw:
+        si = job.get("scene_images") or {}
+        if si:
+            fk = sorted(si.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if si else None
+            if fk and isinstance(si[fk], dict):
+                thumb_raw = si[fk].get("url")
+
+    return _to_proxy(thumb_raw), _to_proxy(poster_raw or thumb_raw)
+
+
+def _has_displayable_media(item: dict) -> bool:
+    """Returns True if the feed item has at least one displayable image."""
+    media = item.get("media") or {}
+    return bool(media.get("thumbnail_small_url") or media.get("poster_large_url"))
+
+
+def _extract_hook(text: str) -> str:
+    sentences = [s.strip() for s in (text or "").replace("\n", ". ").split(".") if s.strip() and len(s.strip()) > 5]
+    return (sentences[0] + "...") if sentences else ""
+
+
+def _extract_char_summary(job: dict) -> dict | None:
+    cc = job.get("character_continuity") or {}
+    chars = cc.get("characters", [])
+    if chars and isinstance(chars, list) and len(chars) > 0:
+        c = chars[0]
+        return {"name": c.get("name"), "role": c.get("role")}
+    return None
+
+
+def _shape_item(job: dict, badge: str = "NEW") -> dict:
+    """Shape a raw DB document into a standard feed item."""
+    card_thumb, poster = _resolve_media(job)
+    preview = _to_proxy(job.get("preview_url"))
+
+    jid = job.get("job_id")
+    return {
+        "id": jid,
+        "job_id": jid,
+        "title": job.get("title", "Untitled"),
+        "hook_text": _extract_hook(job.get("story_text", "")),
+        "story_prompt": job.get("story_text", ""),
+        "media": {
+            "thumb_blur": None,
+            "thumbnail_small_url": card_thumb,
+            "poster_large_url": poster,
+            "preview_short_url": preview,
+            "media_version": "v3",
+        },
+        "output_url": _to_proxy(job.get("output_url")),
+        "animation_style": job.get("animation_style", ""),
+        "parent_video_id": job.get("parent_video_id"),
+        "badge": badge,
+        "created_at": job.get("created_at", ""),
+        "character_summary": _extract_char_summary(job),
+    }
+
+
 # ─── GET /api/engagement/story-feed ──────────────────────────────────────
 @router.get("/story-feed")
 async def get_story_feed(user: dict = Depends(get_optional_user)):
-    """Return story-first homepage data with separate row arrays per the architecture spec."""
+    """Return personalized, pre-ranked homepage data.
+    Backend owns ALL ordering — frontend is a dumb renderer.
+
+    Response contract:
+    {
+      personalization: { enabled, profile_strength, event_count },
+      hero: { ...story },
+      rows: [ { key, title, icon, icon_color, stories: [...] }, ... ],
+      features: [ { name, desc, icon, path, key, gradient, score }, ... ],
+      live_stats: { stories_today, total_stories },
+    }
+    """
+    from services.personalization_service import (
+        get_or_create_profile, is_personalized, profile_strength as calc_strength,
+        rank_stories, rank_rows, rank_features, select_hero, _empty_profile,
+    )
 
     PROJ = {
         "_id": 0, "job_id": 1, "title": 1, "story_text": 1,
@@ -248,119 +368,19 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         "remix_count": 1, "animation_style": 1, "created_at": 1,
         "parent_video_id": 1, "user_id": 1,
         "character_continuity": 1,
-        # Strict media schema (new pipeline)
         "media": 1,
-        # Legacy flat fields (pre-migration backcompat)
         "thumbnail_url": 1, "thumbnail_small_url": 1,
         "scene_images": 1,
     }
 
-    # ═══════════════════════════════════════════════════════════════
-    # DETERMINISTIC MEDIA RESOLUTION — No runtime derivation
-    # Pipeline generates → DB stores → API returns → Frontend renders
-    # ═══════════════════════════════════════════════════════════════
+    # ── Fetch user profile (or cold-start empty) ──
+    user_id = None
+    if user:
+        user_id = user.get("id") or str(user.get("_id", ""))
+    profile = await get_or_create_profile(db, user_id) if user_id else _empty_profile("anonymous")
+    personalized = is_personalized(profile)
 
-    def _to_r2_key(url: str) -> str | None:
-        """Extract the R2 object key from any stored URL format."""
-        if not url:
-            return None
-        try:
-            base = url.split("?")[0]
-            if ".r2.dev/" in base:
-                return base.split(".r2.dev/", 1)[1]
-            if ".r2.cloudflarestorage.com/" in base:
-                parts = base.split(".r2.cloudflarestorage.com/", 1)
-                if len(parts) > 1:
-                    bk = parts[1].split("/", 1)
-                    if len(bk) > 1:
-                        return bk[1]
-            if url.startswith("/api/media/r2/"):
-                return url[len("/api/media/r2/"):]
-            if not url.startswith("http") and not url.startswith("/"):
-                return url
-            return None
-        except Exception:
-            return None
-
-    def _to_proxy(url: str) -> str | None:
-        """Convert any R2/CDN URL to same-origin proxy path for Safari safety."""
-        key = _to_r2_key(url)
-        return f"/api/media/r2/{key}" if key else None
-
-    def _resolve_media(job: dict) -> tuple:
-        """Resolve thumbnail_small and poster_large from the strict media schema.
-        Falls back to legacy flat fields ONLY for pre-migration jobs.
-        Returns (thumbnail_small_proxy, poster_large_proxy)."""
-        media = job.get("media") or {}
-        thumb_raw = (media.get("thumbnail_small") or {}).get("url")
-        poster_raw = (media.get("poster_large") or {}).get("url")
-
-        # If media schema populated, use it directly
-        if thumb_raw and poster_raw:
-            return _to_proxy(thumb_raw), _to_proxy(poster_raw)
-
-        # Legacy fallback: flat fields from pre-migration jobs
-        thumb_raw = thumb_raw or job.get("thumbnail_small_url") or job.get("thumbnail_url")
-        poster_raw = poster_raw or job.get("thumbnail_url") or job.get("thumbnail_small_url")
-
-        # Last resort for very old pipeline_jobs: first scene_image
-        if not thumb_raw:
-            si = job.get("scene_images") or {}
-            if si:
-                fk = sorted(si.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if si else None
-                if fk and isinstance(si[fk], dict):
-                    thumb_raw = si[fk].get("url")
-
-        return _to_proxy(thumb_raw), _to_proxy(poster_raw or thumb_raw)
-
-    def _has_displayable_media(item: dict) -> bool:
-        """Returns True if the feed item has at least one displayable image."""
-        media = item.get("media") or {}
-        return bool(media.get("thumbnail_small_url") or media.get("poster_large_url"))
-
-    def _extract_hook(text: str) -> str:
-        sentences = [s.strip() for s in (text or "").replace("\n", ". ").split(".") if s.strip() and len(s.strip()) > 5]
-        return (sentences[0] + "...") if sentences else ""
-
-    def _extract_char_summary(job: dict) -> dict | None:
-        cc = job.get("character_continuity") or {}
-        chars = cc.get("characters", [])
-        if chars and isinstance(chars, list) and len(chars) > 0:
-            c = chars[0]
-            return {"name": c.get("name"), "role": c.get("role")}
-        return None
-
-    def _shape_item(job: dict, badge: str = "NEW") -> dict:
-        """Shape a raw DB document into a standard feed item.
-        Returns nested media object per the frontend component contract.
-        Pipeline generates -> DB stores -> API returns -> Frontend renders."""
-        card_thumb, poster = _resolve_media(job)
-        preview = _to_proxy(job.get("preview_url"))
-
-        jid = job.get("job_id")
-        return {
-            "id": jid,
-            "job_id": jid,
-            "title": job.get("title", "Untitled"),
-            "hook_text": _extract_hook(job.get("story_text", "")),
-            "story_prompt": job.get("story_text", ""),
-            # ── Nested media object (MANDATORY per component contract) ──
-            "media": {
-                "thumb_blur": None,
-                "thumbnail_small_url": card_thumb,
-                "poster_large_url": poster,
-                "preview_short_url": preview,
-                "media_version": "v3",
-            },
-            "output_url": _to_proxy(job.get("output_url")),
-            "animation_style": job.get("animation_style", ""),
-            "parent_video_id": job.get("parent_video_id"),
-            "badge": badge,
-            "created_at": job.get("created_at", ""),
-            "character_summary": _extract_char_summary(job),
-        }
-
-    # ── Query: story_engine_jobs (PRIMARY) then pipeline_jobs (LEGACY fallback) ──
+    # ── Query stories from both collections ──
     se_all = await db.story_engine_jobs.find(
         {"state": "READY"},
         {**PROJ, "state": 1},
@@ -371,85 +391,120 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         PROJ,
     ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=40)
 
-    # ── 1. Featured story (hero) — prefer items with media assets ──
-    hero_item = None
-    for job in se_all:
-        shaped = _shape_item(job, "FEATURED")
-        if _has_displayable_media(shaped):
-            hero_item = shaped
-            break
-    if not hero_item:
-        for job in pj_all:
-            shaped = _shape_item(job, "FEATURED")
+    # ── Shape all items ──
+    def _shape_all(jobs, badge="NEW"):
+        items = []
+        for job in jobs:
+            shaped = _shape_item(job, badge)
             if _has_displayable_media(shaped):
-                hero_item = shaped
-                break
-    if not hero_item and se_all:
-        hero_item = _shape_item(se_all[0], "FEATURED")
-    if not hero_item and pj_all:
-        hero_item = _shape_item(pj_all[0], "FEATURED")
+                items.append(shaped)
+        return items
 
-    # ── 2. Trending stories — story_engine_jobs first, then legacy pipeline_jobs ──
-    trending_stories = []
+    all_se_items = _shape_all(se_all, "NEW")
+    all_pj_items = _shape_all(pj_all, "TRENDING")
+
+    # ── Build candidate pools ──
     seen_ids = set()
-    for job in se_all:
-        item = _shape_item(job, "NEW")
-        if _has_displayable_media(item):
-            trending_stories.append(item)
-            seen_ids.add(job.get("job_id"))
-    for i, job in enumerate(pj_all[:15]):
-        if job.get("job_id") not in seen_ids:
-            b = "TRENDING" if (job.get("remix_count") or 0) >= 5 else ("#1" if i == 0 else ("HOT" if i < 3 else "NEW"))
-            item = _shape_item(job, b)
-            if _has_displayable_media(item):
-                trending_stories.append(item)
+    trending_pool = []
+    for item in all_se_items:
+        trending_pool.append(item)
+        seen_ids.add(item.get("job_id"))
+    for item in all_pj_items:
+        if item.get("job_id") not in seen_ids:
+            trending_pool.append(item)
 
-    # ── 3. Fresh stories — by created_at desc, story_engine_jobs first ──
-    fresh_stories = []
-    for j in se_all[:10]:
-        item = _shape_item(j, "FRESH")
-        if _has_displayable_media(item):
-            fresh_stories.append(item)
-    fresh_seen = {j.get("job_id") for j in se_all[:10]}
-    pj_fresh = sorted(pj_all, key=lambda j: j.get("created_at", ""), reverse=True)
-    for j in pj_fresh[:12]:
-        if j.get("job_id") not in fresh_seen:
-            item = _shape_item(j, "FRESH")
-            if _has_displayable_media(item):
-                fresh_stories.append(item)
+    # Fresh: sorted by created_at (normalize to str for mixed types)
+    fresh_pool = sorted(
+        [i for i in (all_se_items + all_pj_items)],
+        key=lambda x: str(x.get("created_at", "")),
+        reverse=True,
+    )
+    # Dedupe fresh
+    fresh_seen = set()
+    fresh_deduped = []
+    for i in fresh_pool:
+        jid = i.get("job_id")
+        if jid not in fresh_seen:
+            fresh_seen.add(jid)
+            fresh_deduped.append({**i, "badge": "FRESH"})
+    fresh_pool = fresh_deduped[:20]
 
-    # ── 4. Continue stories — user's own jobs (requires auth), story_engine_jobs first ──
-    continue_stories = []
-    if user:
-        uid = user.get("id")
+    # Continue: user's own jobs
+    continue_pool = []
+    if user_id:
         user_se = await db.story_engine_jobs.find(
-            {"user_id": uid, "state": {"$in": ["READY", "PARTIAL_READY"]}},
+            {"user_id": user_id, "state": {"$in": ["READY", "PARTIAL_READY"]}},
             {**PROJ, "state": 1},
         ).sort("created_at", -1).to_list(length=10)
         for j in user_se:
-            item = _shape_item(j, "CONTINUE")
-            if _has_displayable_media(item):
-                continue_stories.append(item)
-        # Legacy fallback
-        user_jobs = await db.pipeline_jobs.find(
-            {"user_id": uid, "status": "COMPLETED"},
+            shaped = _shape_item(j, "CONTINUE")
+            if _has_displayable_media(shaped):
+                continue_pool.append(shaped)
+        user_pj = await db.pipeline_jobs.find(
+            {"user_id": user_id, "status": "COMPLETED"},
             PROJ,
         ).sort("created_at", -1).to_list(length=10)
         cont_seen = {j.get("job_id") for j in user_se}
-        for j in user_jobs:
+        for j in user_pj:
             if j.get("job_id") not in cont_seen:
-                item = _shape_item(j, "CONTINUE")
-                if _has_displayable_media(item):
-                    continue_stories.append(item)
+                shaped = _shape_item(j, "CONTINUE")
+                if _has_displayable_media(shaped):
+                    continue_pool.append(shaped)
 
-    # ── 5. Unfinished worlds — partial/in-progress jobs from all users ──
+    # Unfinished worlds
     partial_pj = await db.pipeline_jobs.find(
-        {"status": {"$in": ["COMPLETED"]}, "parent_video_id": {"$exists": False}},
+        {"status": "COMPLETED", "parent_video_id": {"$exists": False}},
         PROJ,
     ).sort("created_at", -1).to_list(length=12)
-    unfinished_worlds = [item for j in partial_pj[:12] if _has_displayable_media(item := _shape_item(j, "UNFINISHED"))]
+    unfinished_pool = [item for j in partial_pj if _has_displayable_media(item := _shape_item(j, "UNFINISHED"))]
 
-    # ── Characters — source of truth: character_profiles only (per mandated schema) ──
+    # ── RANK stories inside each pool ──
+    if personalized:
+        trending_ranked = rank_stories(trending_pool, profile)
+        fresh_ranked = rank_stories(fresh_pool, profile)
+        continue_ranked = rank_stories(continue_pool, profile) if continue_pool else []
+        unfinished_ranked = rank_stories(unfinished_pool, profile)
+    else:
+        # Cold start: use default ordering (already sorted by DB query)
+        trending_ranked = trending_pool
+        fresh_ranked = fresh_pool
+        continue_ranked = continue_pool
+        unfinished_ranked = unfinished_pool
+
+    # ── RANK rows ──
+    row_candidates = {
+        "continue_stories": continue_ranked,
+        "trending_stories": trending_ranked,
+        "fresh_stories": fresh_ranked,
+        "unfinished_worlds": unfinished_ranked,
+    }
+    rows = rank_rows(row_candidates, profile)
+
+    # Strip internal _score from story objects before response
+    for row in rows:
+        for s in row.get("stories", []):
+            s.pop("_score", None)
+
+    # ── SELECT hero ──
+    hero_candidates = trending_ranked + fresh_ranked
+    hero = select_hero(hero_candidates, profile) if personalized else None
+    if not hero and hero_candidates:
+        # Cold start: pick first with media
+        for c in hero_candidates:
+            media = c.get("media") or {}
+            if media.get("thumbnail_small_url") or media.get("poster_large_url"):
+                hero = c
+                break
+        if not hero:
+            hero = hero_candidates[0] if hero_candidates else None
+    if hero:
+        hero.pop("_score", None)
+        hero["badge"] = "FEATURED"
+
+    # ── RANK features ──
+    features = rank_features(profile) if personalized else rank_features(_empty_profile("anonymous"))
+
+    # ── Characters (unchanged) ──
     char_profiles = await db.character_profiles.find(
         {},
         {"_id": 0, "character_id": 1, "name": 1, "species": 1, "personality": 1, "portrait_url": 1, "role": 1},
@@ -467,7 +522,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
                 "image_url": c.get("portrait_url"),
             })
 
-    # ── Live stats — combined story_engine_jobs + pipeline_jobs (legacy) ──
+    # ── Live stats ──
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     se_today = await db.story_engine_jobs.count_documents({"created_at": {"$gte": today_start.isoformat()}})
     pj_today = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start.isoformat()}})
@@ -475,11 +530,14 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
     pj_total = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
 
     return {
-        "featured_story": hero_item,
-        "trending_stories": trending_stories,
-        "fresh_stories": fresh_stories,
-        "continue_stories": continue_stories,
-        "unfinished_worlds": unfinished_worlds,
+        "personalization": {
+            "enabled": personalized,
+            "profile_strength": calc_strength(profile),
+            "event_count": profile.get("counts", {}).get("total_events", 0),
+        },
+        "hero": hero,
+        "rows": rows,
+        "features": features,
         "characters": characters[:6],
         "live_stats": {
             "stories_today": se_today + pj_today,

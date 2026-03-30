@@ -31,7 +31,7 @@ function flush() {
  * @param {Object} meta - { story_id, story_title, hook_variant, category, location, source_surface }
  */
 export function trackLoop(event, meta = {}) {
-  const userId = localStorage.getItem('userId') || null;
+  const userId = localStorage.getItem('user_id') || localStorage.getItem('userId') || null;
   queue.push({
     event,
     session_id: sessionId,
