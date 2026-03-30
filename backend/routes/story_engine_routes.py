@@ -405,6 +405,10 @@ async def create_engine_job(
                 status_code=402,
                 detail=f"Insufficient credits. Required: {cc.get('required', 0)}, Available: {cc.get('current', 0)}"
             )
+        # Safety module rate-limit errors — convert to proper 429 with friendly message
+        if error.startswith("SLOTS_BUSY:"):
+            friendly_msg = error[len("SLOTS_BUSY:"):]
+            raise HTTPException(status_code=429, detail=friendly_msg)
         raise HTTPException(status_code=400, detail=error)
 
     job_id = result["job_id"]

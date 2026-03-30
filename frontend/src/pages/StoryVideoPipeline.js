@@ -549,7 +549,7 @@ function StoryVideoPipelineInner() {
       else if (status === 422) setFormError(detail || 'Check your input.');
       else if (status === 429) {
         const admissionMsg = rawDetail?.message || rawDetail?.reason || detail;
-        setFormError(admissionMsg || 'All rendering slots are busy. Please wait for your current video to finish.');
+        setFormError(admissionMsg || 'All rendering slots are busy. Your current video is still being created — please wait for it to finish, then you can start a new one.');
         checkRateLimit();
       } else if (status === 402) {
         // Backend credit enforcement — show credit gate modal
@@ -870,12 +870,12 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
             <Clock className="w-5 h-5 text-[var(--vs-text-accent)] flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-white font-medium text-sm">All rendering slots are busy ({rateLimitStatus.concurrent}/{rateLimitStatus.max_concurrent})</p>
-              <p className="text-[var(--vs-text-secondary)] text-xs mt-1">Your earlier video is still processing. Wait for it to finish, or cancel it to free up a slot.</p>
+              <p className="text-[var(--vs-text-secondary)] text-xs mt-1">Your current video is still being created. Once it finishes, you'll be able to start a new one right away.</p>
             </div>
           </div>
           {rateLimitStatus.active_jobs?.length > 0 && (
             <div className="space-y-2 mt-3 pt-3 border-t border-white/[0.06]">
-              <p className="text-[var(--vs-text-muted)] text-xs font-semibold uppercase tracking-wider">Active Videos</p>
+              <p className="text-[var(--vs-text-muted)] text-xs font-semibold uppercase tracking-wider">Your Videos In Progress</p>
               {rateLimitStatus.active_jobs.map((job) => (
                 <div key={job.job_id} className="flex items-center justify-between gap-3 bg-white/[0.03] rounded-xl px-3 py-2.5">
                   <div className="flex items-center gap-2 min-w-0">
@@ -888,10 +888,11 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                     className="vs-btn-primary h-7 px-3 text-[11px] flex-shrink-0"
                     data-testid={`view-active-job-${job.job_id}`}
                   >
-                    <Eye className="w-3 h-3 mr-1" /> View
+                    <Eye className="w-3 h-3 mr-1" /> View Progress
                   </button>
                 </div>
               ))}
+              <p className="text-[var(--vs-text-muted)] text-[10px] mt-2">Tip: You can view your video's progress or wait here — the slot will free up automatically once it's done.</p>
             </div>
           )}
         </div>
@@ -1012,6 +1013,9 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                 <p className="text-red-300 text-sm">{formError}</p>
                 {formError.includes('session') && <button onClick={() => window.location.href = '/login'} className="text-xs text-[var(--vs-text-accent)] underline mt-1">Go to Login</button>}
                 {formError.includes('credit') && <button onClick={() => window.location.href = '/app/billing'} className="text-xs text-[var(--vs-text-accent)] underline mt-1">Get More Credits</button>}
+                {(formError.includes('slots') || formError.includes('rendering') || formError.includes('still being created')) && (
+                  <p className="text-xs text-slate-400 mt-2">Your video is actively being processed. Check back shortly or view its progress above.</p>
+                )}
               </div>
             </div>
           )}

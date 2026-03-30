@@ -75,14 +75,26 @@ async def _check_rate_limit(user_id: str):
         "created_at": {"$gte": one_hour_ago},
     })
     if recent_count >= MAX_VIDEOS_PER_HOUR:
-        raise HTTPException(status_code=429, detail=f"Rate limit: max {MAX_VIDEOS_PER_HOUR} videos per hour. Please wait.")
+        raise HTTPException(status_code=429, detail=f"You've created {recent_count} videos in the last hour. To ensure quality for everyone, please wait a few minutes before starting another.")
 
     concurrent = await db.pipeline_jobs.count_documents({
         "user_id": user_id,
         "status": {"$in": ["QUEUED", "PROCESSING"]},
     })
     if concurrent >= MAX_CONCURRENT_JOBS:
-        raise HTTPException(status_code=429, detail="You already have a video generating. Please wait for it to finish.")
+        # Fetch active jobs so the frontend can show them
+        active_docs = await db.pipeline_jobs.find(
+            {"user_id": user_id, "status": {"$in": ["QUEUED", "PROCESSING"]}},
+            {"_id": 0, "job_id": 1, "title": 1, "status": 1, "created_at": 1},
+        ).sort("created_at", -1).to_list(5)
+        active_jobs = [
+            {"job_id": j.get("job_id"), "title": j.get("title", "Untitled"), "state": j.get("status")}
+            for j in active_docs
+        ]
+        raise HTTPException(status_code=429, detail={
+            "message": f"All rendering slots are busy ({concurrent}/{MAX_CONCURRENT_JOBS}). Your current video is still being created — please wait for it to finish, then you can start a new one.",
+            "active_jobs": active_jobs,
+        })
 
 
 @router.get("/rate-limit-status")
@@ -124,9 +136,9 @@ async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
     can_create = recent_count < MAX_VIDEOS_PER_HOUR and concurrent < MAX_CONCURRENT_JOBS
     reason = None
     if concurrent >= MAX_CONCURRENT_JOBS:
-        reason = "You have a video currently generating. Please wait for it to finish."
+        reason = f"All rendering slots are busy ({concurrent}/{MAX_CONCURRENT_JOBS}). Your current video is still being created — please wait for it to finish, then you can start a new one."
     elif recent_count >= MAX_VIDEOS_PER_HOUR:
-        reason = f"You've reached the limit of {MAX_VIDEOS_PER_HOUR} videos per hour. Please wait."
+        reason = f"You've created {recent_count} videos in the last hour. To ensure quality for everyone, please wait a few minutes before starting another."
 
     return {
         "can_create": can_create,

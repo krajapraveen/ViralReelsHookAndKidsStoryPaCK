@@ -88,7 +88,7 @@ async def check_rate_limits(db, user_id: str) -> Optional[str]:
         "state": {"$nin": ["READY", "PARTIAL_READY", "FAILED"]},
     })
     if active_count >= MAX_CONCURRENT_JOBS:
-        return f"Rate limit: You have {active_count} active jobs. Max {MAX_CONCURRENT_JOBS} concurrent."
+        return f"SLOTS_BUSY:All rendering slots are busy ({active_count}/{MAX_CONCURRENT_JOBS}). Your current video is still being created — please wait for it to finish, then you can start a new one."
 
     # Hourly limit
     one_hour_ago = (now - timedelta(hours=1)).isoformat()
@@ -97,7 +97,7 @@ async def check_rate_limits(db, user_id: str) -> Optional[str]:
         "created_at": {"$gte": one_hour_ago},
     })
     if hourly_count >= MAX_JOBS_PER_HOUR:
-        return f"Rate limit: {MAX_JOBS_PER_HOUR} jobs per hour exceeded. Please wait."
+        return f"SLOTS_BUSY:You've created {hourly_count} videos in the last hour. To ensure quality for everyone, please wait a few minutes before starting another."
 
     # Daily limit
     day_start = now.replace(hour=0, minute=0, second=0).isoformat()
@@ -106,7 +106,7 @@ async def check_rate_limits(db, user_id: str) -> Optional[str]:
         "created_at": {"$gte": day_start},
     })
     if daily_count >= MAX_JOBS_PER_DAY:
-        return f"Rate limit: {MAX_JOBS_PER_DAY} jobs per day exceeded."
+        return f"SLOTS_BUSY:You've reached today's generation limit ({daily_count}/{MAX_JOBS_PER_DAY}). Your limit resets at midnight — come back tomorrow to create more!"
 
     return None
 
@@ -124,7 +124,7 @@ async def detect_abuse(db, user_id: str) -> Optional[str]:
         "created_at": {"$gte": ten_min_ago},
     })
     if recent >= 5:
-        return "Abuse detection: Too many rapid submissions. Please slow down."
+        return "SLOTS_BUSY:You've submitted several videos in quick succession. Please wait a few minutes before starting another to ensure the best quality."
 
     # Repeated failures (possible probing)
     one_hour_ago = (now - timedelta(hours=1)).isoformat()
@@ -134,6 +134,6 @@ async def detect_abuse(db, user_id: str) -> Optional[str]:
         "created_at": {"$gte": one_hour_ago},
     })
     if failed >= 8:
-        return "Abuse detection: High failure rate. Account flagged for review."
+        return "SLOTS_BUSY:We noticed several failed attempts. Our team is looking into it — please try again in a little while."
 
     return None
