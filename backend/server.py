@@ -969,6 +969,17 @@ async def startup():
             logger.warning(f"Pipeline worker startup warning: {e}")
     asyncio.create_task(_delayed_pipeline_start())
     
+    # Start Story Engine recovery daemon (watchdog for stuck jobs)
+    async def _delayed_recovery_daemon():
+        await asyncio.sleep(15)  # Let server + pipeline workers stabilize
+        try:
+            from services.story_engine.recovery_daemon import start_recovery_daemon
+            await start_recovery_daemon()
+            logger.info("Story Engine recovery daemon started")
+        except Exception as e:
+            logger.warning(f"Recovery daemon startup warning: {e}")
+    asyncio.create_task(_delayed_recovery_daemon())
+    
     # Initialize self-healing system
     try:
         from services.self_healing_core import initialize_self_healing

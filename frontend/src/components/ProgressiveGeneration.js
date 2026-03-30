@@ -329,7 +329,25 @@ export default function ProgressiveGeneration({
         if (!job) return;
 
         setProgress(job.progress || 0);
-        if (job.current_step) setMessage(job.current_step);
+
+        // Use honest backend status instead of generic labels
+        const retryInfo = job.retry_info;
+        const engineState = job.engine_state || '';
+        let statusMsg = job.current_step || message;
+
+        // Show retry/recovery info when available
+        if (retryInfo?.current_attempt > 1 && !['COMPLETED','PARTIAL','FAILED'].includes(job.status)) {
+          const failedStates = ['FAILED_PLANNING','FAILED_IMAGES','FAILED_TTS','FAILED_RENDER'];
+          if (failedStates.includes(engineState)) {
+            statusMsg = `Recovering — ${job.current_step}`;
+          } else {
+            statusMsg = `${job.current_step} (attempt ${retryInfo.current_attempt}/${retryInfo.max_attempts})`;
+          }
+        }
+        if (retryInfo?.heartbeat_detail && retryInfo.heartbeat_detail.includes('Recovered by daemon')) {
+          statusMsg = `Recovering stuck job — retrying ${job.current_step}`;
+        }
+        setMessage(statusMsg);
 
         // Sync scenes from job data (fallback when WS misses events)
         if (job.status === 'COMPLETED' || job.status === 'PARTIAL') {
@@ -384,10 +402,10 @@ export default function ProgressiveGeneration({
   const totalScenes = scenes.length;
 
   const stageLabels = {
-    scenes: 'Writing scenes...',
-    images: `Generating images (${imagesReady}/${totalScenes})`,
-    voices: `Creating narration (${audioReady}/${totalScenes})`,
-    render: 'Rendering video...',
+    scenes: message || 'Generating scenes...',
+    images: imagesReady > 0 ? `Generating images (${imagesReady}/${totalScenes})` : (message || 'Generating images...'),
+    voices: audioReady > 0 ? `Creating narration (${audioReady}/${totalScenes})` : (message || 'Creating narration...'),
+    render: message || 'Rendering video...',
     preview: 'Preview ready!',
     complete: 'Done!',
   };

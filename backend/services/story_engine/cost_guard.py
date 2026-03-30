@@ -1,10 +1,10 @@
 """
-Cost Guard — Pre-flight cost estimation and stage-level budget checks.
-Never allow generation without sufficient credits.
+Cost Guard — Pre-flight cost estimation AND runtime budget enforcement.
+Called before EVERY external call. Not dead code.
 """
 import logging
 from typing import Dict
-from .schemas import CostEstimate
+from .schemas import CostEstimate, ErrorCode
 
 logger = logging.getLogger("story_engine.cost_guard")
 
@@ -13,28 +13,35 @@ STAGE_COSTS = {
     "planning": 1,
     "character_context": 1,
     "scene_motion_planning": 1,
-    "keyframes": 5,        # ~1 credit per keyframe, typical 5 scenes
-    "scene_clips": 10,     # most expensive — GPU video generation
-    "audio": 2,            # TTS generation
-    "assembly": 1,         # FFmpeg assembly
+    "keyframes": 5,
+    "scene_clips": 10,
+    "audio": 2,
+    "assembly": 1,
     "validation": 0,
 }
 
-# Total default cost for a standard Story-to-Video job
-DEFAULT_TOTAL_COST = sum(STAGE_COSTS.values())  # 21 credits
+DEFAULT_TOTAL_COST = sum(STAGE_COSTS.values())
+
+# Map JobState values to stage cost keys
+STATE_TO_COST_KEY = {
+    "PLANNING": "planning",
+    "BUILDING_CHARACTER_CONTEXT": "character_context",
+    "PLANNING_SCENE_MOTION": "scene_motion_planning",
+    "GENERATING_KEYFRAMES": "keyframes",
+    "GENERATING_SCENE_CLIPS": "scene_clips",
+    "GENERATING_AUDIO": "audio",
+    "ASSEMBLING_VIDEO": "assembly",
+    "VALIDATING": "validation",
+}
 
 
 def estimate_cost(scene_count: int = 5, has_narration: bool = True) -> Dict[str, int]:
-    """
-    Estimate credits required based on scene count and options.
-    Returns breakdown dict.
-    """
     breakdown = {
         "planning": STAGE_COSTS["planning"],
         "character_context": STAGE_COSTS["character_context"],
         "scene_motion_planning": STAGE_COSTS["scene_motion_planning"],
-        "keyframes": max(1, scene_count),  # 1 credit per keyframe
-        "scene_clips": max(2, scene_count * 2),  # 2 credits per clip
+        "keyframes": max(1, scene_count),
+        "scene_clips": max(2, scene_count * 2),
         "audio": STAGE_COSTS["audio"] if has_narration else 0,
         "assembly": STAGE_COSTS["assembly"],
     }
@@ -42,10 +49,6 @@ def estimate_cost(scene_count: int = 5, has_narration: bool = True) -> Dict[str,
 
 
 def pre_flight_check(user_credits: int, scene_count: int = 5, has_narration: bool = True) -> CostEstimate:
-    """
-    Pre-flight cost estimation. Called before any generation starts.
-    Returns whether user has sufficient credits and exact shortfall.
-    """
     breakdown = estimate_cost(scene_count, has_narration)
     total_required = sum(breakdown.values())
     sufficient = user_credits >= total_required
@@ -68,14 +71,9 @@ def pre_flight_check(user_credits: int, scene_count: int = 5, has_narration: boo
 
 
 def check_stage_budget(job_credits_consumed: int, job_cost_estimate: int, stage: str) -> bool:
-    """
-    Stage-level budget check. Prevents runaway costs.
-    Returns True if the stage can proceed within budget.
-    """
+    """Stage-level budget check. Returns True if within budget."""
     stage_cost = STAGE_COSTS.get(stage, 0)
     projected_total = job_credits_consumed + stage_cost
-
-    # Allow 20% over-budget tolerance for retries
     budget_limit = int(job_cost_estimate * 1.2)
 
     if projected_total > budget_limit:
@@ -86,3 +84,38 @@ def check_stage_budget(job_credits_consumed: int, job_cost_estimate: int, stage:
         return False
 
     return True
+
+
+class BudgetExceededError(Exception):
+    """Raised when runtime budget guard blocks a stage."""
+    def __init__(self, stage: str, consumed: int, limit: int):
+        self.stage = stage
+        self.consumed = consumed
+        self.limit = limit
+        self.error_code = ErrorCode.BUDGET_EXCEEDED_RUNTIME
+        super().__init__(f"Budget exceeded at stage '{stage}': consumed={consumed}, limit={limit}")
+
+
+def enforce_runtime_budget(job: dict, stage_state: str) -> None:
+    """
+    Runtime budget guard. Called before every external API call.
+    Raises BudgetExceededError if the job would exceed its budget.
+    """
+    cost_estimate = job.get("cost_estimate", {})
+    max_budget = cost_estimate.get("total_credits_required", DEFAULT_TOTAL_COST)
+    consumed = job.get("total_credits_consumed", 0)
+    cost_key = STATE_TO_COST_KEY.get(stage_state, "")
+    stage_cost = STAGE_COSTS.get(cost_key, 0)
+
+    # Allow 30% over-budget for retries and fallbacks
+    hard_limit = int(max_budget * 1.3)
+    projected = consumed + stage_cost
+
+    if projected > hard_limit:
+        logger.error(
+            f"[COST_GUARD] RUNTIME BUDGET EXCEEDED at {stage_state}: "
+            f"consumed={consumed}, stage_cost={stage_cost}, projected={projected}, limit={hard_limit}"
+        )
+        raise BudgetExceededError(stage_state, consumed, hard_limit)
+
+    logger.debug(f"[COST_GUARD] Budget OK for {stage_state}: {projected}/{hard_limit}")

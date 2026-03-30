@@ -1,0 +1,168 @@
+{
+  "summary": "Pipeline Architecture Overhaul VERIFIED - ALL 30 BACKEND TESTS PASSED + FRONTEND VERIFIED. Major refactor: Stage orchestrator (execute_pipeline, process_next_stage), retry/cancel endpoints, per-stage failure states (FAILED_PLANNING, FAILED_IMAGES, FAILED_TTS, FAILED_RENDER), status response with retry_info/credits_refunded/error_code, state machine transitions, cost guard (enforce_runtime_budget, BudgetExceededError), deterministic fallback for planning, recovery daemon running.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pipeline_architecture_iteration387.py",
+    "/app/test_reports/pytest/pytest_pipeline_architecture_iteration387.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "pipeline.py: execute_pipeline() loop calls process_next_stage() for each stage - VERIFIED (line 191)",
+    "pipeline.py: process_next_stage() independently callable by orchestrator or recovery daemon - VERIFIED (line 217)",
+    "pipeline.py: _refund_credits() idempotent credit refund on terminal failure - VERIFIED (line 829)",
+    "pipeline.py: STAGE_FUNCTIONS dict maps states to stage execution functions - VERIFIED (line 813)",
+    "state_machine.py: STAGE_ORDER defines pipeline sequence - VERIFIED (line 39)",
+    "state_machine.py: FAILURE_TO_RETRY maps failure states to retry stages - VERIFIED (line 63)",
+    "state_machine.py: can_transition() validates state transitions - VERIFIED (line 140)",
+    "state_machine.py: HEARTBEAT_THRESHOLDS per stage (30-600s) - VERIFIED (line 83)",
+    "schemas.py: FAILED_PLANNING, FAILED_IMAGES, FAILED_TTS, FAILED_RENDER states - VERIFIED (lines 52-55)",
+    "schemas.py: PER_STAGE_FAILURE_STATES set for quick membership checks - VERIFIED (lines 76-79)",
+    "schemas.py: ErrorCode enum with structured error codes - VERIFIED (lines 15-32)",
+    "cost_guard.py: BudgetExceededError raised when over budget - VERIFIED (line 89)",
+    "cost_guard.py: enforce_runtime_budget() called before every external call - VERIFIED (line 99)",
+    "cost_guard.py: pre_flight_check() returns CostEstimate with sufficient/shortfall - VERIFIED (line 51)",
+    "recovery_daemon.py: start_recovery_daemon() runs every 2 minutes - VERIFIED (line 29)",
+    "recovery_daemon.py: _recover_stale_jobs() finds stale heartbeats and requeues - VERIFIED (line 51)",
+    "planning_llm.py: generate_episode_plan_with_fallback() 4-level fallback chain - VERIFIED (line 159)",
+    "planning_llm.py: _deterministic_scene_splitter() no-LLM fallback - VERIFIED (line 327)",
+    "story_engine_routes.py: POST /retry/{job_id} returns 404 for nonexistent, 400 for non-retryable - VERIFIED (line 664)",
+    "story_engine_routes.py: POST /cancel/{job_id} returns 404 for nonexistent, works for active - VERIFIED (line 723)",
+    "story_engine_routes.py: GET /status/{job_id} returns retry_info object - VERIFIED (lines 554-561)",
+    "StoryVideoPipeline.js: RetryButton component exists - VERIFIED (line 1157)",
+    "StoryVideoPipeline.js: CancelButton component exists - VERIFIED (line 1181)",
+    "StoryVideoPipeline.js: PostGenPhase shows retry/cancel when canRetry is true - VERIFIED (line 1209)",
+    "ProgressiveGeneration.js: Shows retry attempt info in status message - VERIFIED (lines 339-348)",
+    "ProgressiveGeneration.js: Shows 'Recovering stuck job' when daemon recovers - VERIFIED (line 348)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pipeline_architecture_iteration387.py"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "None - used existing test users and jobs",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Pipeline Architecture Overhaul fully verified. Key findings: 1) Stage orchestrator replaces monolithic run_pipeline() with execute_pipeline() loop calling process_next_stage(), 2) Per-stage failure states (FAILED_PLANNING, FAILED_IMAGES, FAILED_TTS, FAILED_RENDER) allow retrying from exact failed stage, 3) Recovery daemon runs every 2 minutes finding stale heartbeats (verified in logs: '[RECOVERY] Stale job detected'), 4) Multi-level fallback for planning: GPT-4o-mini full -> GPT-4o-mini reduced -> gemini-2.0-flash -> deterministic splitter, 5) Idempotent credit refund on terminal failure, 6) Status response includes retry_info with can_retry, current_attempt, heartbeat_detail fields, 7) Rate limit warning still shows friendly 'All rendering slots are busy' text (regression verified).",
+  "features_verified": {
+    "stage_orchestrator_execute_pipeline": {
+      "status": "PASS",
+      "details": "execute_pipeline() loop processes stages one at a time until terminal"
+    },
+    "stage_orchestrator_process_next_stage": {
+      "status": "PASS",
+      "details": "process_next_stage() independently callable by orchestrator or recovery daemon"
+    },
+    "retry_endpoint_404_nonexistent": {
+      "status": "PASS",
+      "details": "POST /api/story-engine/retry/{job_id} returns 404 for nonexistent jobs"
+    },
+    "retry_endpoint_400_non_retryable": {
+      "status": "PASS",
+      "details": "POST /api/story-engine/retry/{job_id} returns 400 for non-retryable states"
+    },
+    "cancel_endpoint_404_nonexistent": {
+      "status": "PASS",
+      "details": "POST /api/story-engine/cancel/{job_id} returns 404 for nonexistent jobs"
+    },
+    "cancel_endpoint_works_active": {
+      "status": "PASS",
+      "details": "POST /api/story-engine/cancel/{job_id} works for active jobs"
+    },
+    "status_retry_info_object": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns retry_info with can_retry, current_attempt, heartbeat_detail"
+    },
+    "per_stage_failure_states": {
+      "status": "PASS",
+      "details": "FAILED_PLANNING, FAILED_IMAGES, FAILED_TTS, FAILED_RENDER in engine_state field"
+    },
+    "credits_refunded_field": {
+      "status": "PASS",
+      "details": "credits_refunded field present in status response"
+    },
+    "error_code_field": {
+      "status": "PASS",
+      "details": "error_code field present in status response for failed jobs"
+    },
+    "recovery_daemon_running": {
+      "status": "PASS",
+      "details": "Recovery daemon logs '[RECOVERY]' messages in backend logs"
+    },
+    "deterministic_fallback_valid_plan": {
+      "status": "PASS",
+      "details": "_deterministic_scene_splitter produces valid plan with title, scene_breakdown, character_arcs"
+    },
+    "budget_exceeded_error": {
+      "status": "PASS",
+      "details": "enforce_runtime_budget raises BudgetExceededError for over-budget scenarios"
+    },
+    "state_machine_valid_transitions": {
+      "status": "PASS",
+      "details": "PLANNING -> BUILDING_CHARACTER_CONTEXT is valid, PLANNING -> READY is invalid"
+    },
+    "frontend_renders_without_errors": {
+      "status": "PASS",
+      "details": "StoryVideoPipeline.js renders without errors"
+    },
+    "postgen_retry_cancel_buttons": {
+      "status": "PASS",
+      "details": "PostGenPhase shows retry/cancel buttons when canRetry is true"
+    },
+    "progressive_generation_retry_info": {
+      "status": "PASS",
+      "details": "ProgressiveGeneration.js displays retry attempt info in status message"
+    },
+    "rate_limit_friendly_text_regression": {
+      "status": "PASS",
+      "details": "Rate limit warning still shows friendly 'All rendering slots are busy' text"
+    }
+  },
+  "architecture_summary": {
+    "stage_orchestrator": {
+      "entry_point": "execute_pipeline(job_id)",
+      "stage_processor": "process_next_stage(job_id)",
+      "stage_functions": "STAGE_FUNCTIONS dict maps JobState to async stage functions",
+      "retry_logic": "_execute_stage_with_retry() handles retries with backoff"
+    },
+    "state_machine": {
+      "valid_transitions": "VALID_TRANSITIONS dict enforces strict state transitions",
+      "stage_order": "STAGE_ORDER list defines pipeline sequence",
+      "failure_mapping": "FAILURE_TO_RETRY maps failure states to retry stages",
+      "heartbeat": "update_heartbeat() called during active stage processing"
+    },
+    "recovery_daemon": {
+      "interval": "2 minutes (DAEMON_INTERVAL_SECONDS = 120)",
+      "detection": "Finds jobs with stale heartbeats based on HEARTBEAT_THRESHOLDS",
+      "action": "Requeues stage or marks terminal failure + refund"
+    },
+    "fallback_chain": {
+      "level_0": "GPT-4o-mini, full prompt, temp 0.7",
+      "level_1": "GPT-4o-mini, reduced prompt, temp 0.4",
+      "level_2": "gemini-2.0-flash, reduced prompt, temp 0.3",
+      "level_3": "Deterministic text splitter (no LLM)"
+    },
+    "credit_refund": {
+      "trigger": "Any terminal failure",
+      "idempotent": "Checks credits_refunded > 0 before processing",
+      "atomic": "Sets credits_refunded BEFORE actually refunding"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

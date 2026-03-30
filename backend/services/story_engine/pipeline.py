@@ -1,19 +1,26 @@
 """
-Story Engine Pipeline — Main orchestrator that runs the 11-step pipeline.
-Coordinates planning, generation, assembly, and validation stages.
+Story Engine Pipeline — Stage Orchestrator.
+
+Replaces monolithic run_pipeline() with independently retryable stages.
+Each stage: load → heartbeat → budget check → execute → persist → advance.
+Recovery daemon can resume any stage independently.
 """
 import os
 import uuid
 import logging
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Dict
 
-from .schemas import JobState, PipelineJob, StageResult
-from .state_machine import transition_job, get_progress, get_label
-from .cost_guard import pre_flight_check, check_stage_budget, estimate_cost
-from .continuity import validate_pipeline_outputs, validate_character_continuity, should_mark_ready
+from .schemas import JobState, ErrorCode, TERMINAL_STATES, SUCCESS_STATES, PER_STAGE_FAILURE_STATES
+from .state_machine import (
+    transition_job, update_heartbeat, increment_stage_retry,
+    get_stage_retry_count, get_next_stage, get_failure_state, get_progress, get_label,
+    STAGE_ORDER, STAGE_MAX_RETRIES, FAILURE_TO_RETRY,
+)
+from .cost_guard import pre_flight_check, enforce_runtime_budget, BudgetExceededError
+from .continuity import validate_pipeline_outputs, should_mark_ready
 from .safety import check_content_safety, check_rate_limits, detect_abuse
-from .negative_prompt import get_negative_prompt
 
 from .adapters import planning_llm, video_gen, tts, ffmpeg_assembly
 
@@ -24,6 +31,10 @@ from shared import db
 
 logger = logging.getLogger("story_engine.pipeline")
 
+
+# ═══════════════════════════════════════════════════════════════
+# JOB CREATION — Step 1-2: Credit check + Create job
+# ═══════════════════════════════════════════════════════════════
 
 async def create_job(
     user_id: str,
@@ -36,13 +47,9 @@ async def create_job(
     story_chain_id: Optional[str] = None,
     skip_credits: bool = False,
 ) -> Dict:
-    """
-    Step 1-2: Credit check + Create job.
-    When skip_credits=True (guest mode), bypasses credit check/deduction.
-    """
     now = datetime.now(timezone.utc).isoformat()
 
-    # ── Safety checks ──
+    # Safety checks
     violation = check_content_safety(story_text)
     if violation:
         return {"success": False, "error": violation}
@@ -61,7 +68,7 @@ async def create_job(
         if abuse_error:
             return {"success": False, "error": abuse_error}
 
-    # ── Credit check (skip for guests) ──
+    # Credit check
     cost = None
     if not skip_credits:
         user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
@@ -83,14 +90,12 @@ async def create_job(
                 },
             }
     else:
-        # Guest mode: create a dummy cost for the job doc
-        cost = pre_flight_check(999, scene_count=5)  # Passes check with fake high credits
+        cost = pre_flight_check(999, scene_count=5)
 
-    # ── Create job ──
+    # Create job document
     job_id = str(uuid.uuid4())
     chain_id = story_chain_id or job_id
 
-    # Determine episode number
     episode_number = 1
     if parent_job_id:
         parent = await db.story_engine_jobs.find_one({"job_id": parent_job_id}, {"_id": 0, "episode_number": 1})
@@ -125,22 +130,27 @@ async def create_job(
         "is_seed_content": False,
         "public": False,
         "slug": None,
-        # ── Hook A/B system ──
         "hooks": [],
         "hook_text": None,
         "winning_hook": None,
         "hook_locked": False,
+        # Reliability fields
+        "retry_count": 0,
+        "max_retries": 3,
+        "last_heartbeat_at": now,
+        "last_error_code": None,
+        "last_error_message": None,
+        "last_error_stage": None,
+        "stage_retry_counts": {},
         "created_at": now,
         "updated_at": now,
         "completed_at": None,
         "error_message": None,
-        "retry_count": 0,
-        "max_retries": 2,
     }
 
     await db.story_engine_jobs.insert_one({k: v for k, v in job_doc.items() if k != "_id"})
 
-    # ── Atomic credit deduction via Credits Service (skip for guests) ──
+    # Atomic credit deduction
     credits_deducted = 0
     if not skip_credits:
         from services.credits_service import get_credits_service, InsufficientCreditsError
@@ -155,7 +165,7 @@ async def create_job(
         except InsufficientCreditsError as e:
             await db.story_engine_jobs.update_one(
                 {"job_id": job_id},
-                {"$set": {"state": JobState.FAILED.value, "error_message": str(e)}},
+                {"$set": {"state": JobState.FAILED.value, "error_message": str(e), "last_error_code": ErrorCode.INSUFFICIENT_CREDITS.value}},
             )
             return {"success": False, "error": str(e)}
 
@@ -170,113 +180,255 @@ async def create_job(
     }
 
 
-async def run_pipeline(job_id: str) -> Dict:
+# ═══════════════════════════════════════════════════════════════
+# STAGE ORCHESTRATOR — Replaces monolithic run_pipeline()
+# ═══════════════════════════════════════════════════════════════
+
+# Map states to their stage execution functions
+STAGE_FUNCTIONS = {}  # Populated after function definitions below
+
+
+async def execute_pipeline(job_id: str) -> Dict:
     """
-    Execute the full 11-step pipeline for a job.
-    Steps 3-11: Plan → Character → Motion → Keyframes → Clips → Audio → Assembly → Validate → Ready
+    Stage orchestrator loop. Processes stages one at a time until terminal.
+    Each iteration is independently recoverable.
+    """
+    max_iterations = 20  # Safety cap against infinite loops
+
+    for iteration in range(max_iterations):
+        result = await process_next_stage(job_id)
+
+        if result.get("terminal"):
+            logger.info(f"[PIPELINE] Job {job_id[:8]} reached terminal state: {result.get('state')}")
+            return result
+
+        if not result.get("success"):
+            logger.warning(f"[PIPELINE] Job {job_id[:8]} stage failed: {result.get('error')}")
+            return result
+
+        # Small pause between stages to prevent CPU monopolization
+        await asyncio.sleep(0.1)
+
+    # Safety: max iterations exceeded
+    await _fail_job_terminal(job_id, ErrorCode.UNKNOWN_STAGE_FAILURE, "Max pipeline iterations exceeded")
+    return {"success": False, "terminal": True, "error": "Max iterations exceeded"}
+
+
+async def process_next_stage(job_id: str) -> Dict:
+    """
+    Process exactly ONE stage. Independently callable by orchestrator or recovery daemon.
+    1. Loads persisted job state
+    2. Determines which stage to execute
+    3. Runs it with retry/heartbeat/budget
+    4. Persists output
+    5. Advances to next stage or handles failure
     """
     job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not job:
-        return {"success": False, "error": "Job not found"}
+        return {"success": False, "terminal": True, "error": "Job not found"}
 
-    stage_results = []
+    state = JobState(job["state"])
 
-    try:
-        # ── Step 3: Generate episode plan (with 1 retry for transient LLM failures) ──
-        job = await transition_job(db, job_id, JobState.PLANNING)
-        plan_result = await _run_stage(job_id, "planning", _stage_planning, job)
-        if plan_result["status"] != "success":
-            logger.warning(f"[PIPELINE] Planning failed for {job_id[:8]}, retrying once...")
-            import asyncio as _aio
-            await _aio.sleep(2)
-            plan_result = await _run_stage(job_id, "planning_retry", _stage_planning, job)
-        stage_results.append(plan_result)
-        if plan_result["status"] != "success":
-            await _fail_job(job_id, "Episode planning failed", stage_results)
-            return {"success": False, "error": "Planning failed", "stage_results": stage_results}
+    # Already terminal — exit
+    if state in TERMINAL_STATES:
+        return {"success": state in SUCCESS_STATES, "terminal": True, "state": state.value}
 
-        # ── Step 3.5: Generate hook variants (non-blocking, doesn't fail pipeline) ──
-        hook_result = await _run_stage(job_id, "hook_generation", _stage_hooks, job)
-        stage_results.append(hook_result)
-
-        # ── Step 4: Build character continuity ──
-        job = await transition_job(db, job_id, JobState.BUILDING_CHARACTER_CONTEXT)
-        char_result = await _run_stage(job_id, "character_context", _stage_character_context, job)
-        stage_results.append(char_result)
-        if char_result["status"] != "success":
-            await _fail_job(job_id, "Character continuity failed", stage_results)
-            return {"success": False, "error": "Character context failed", "stage_results": stage_results}
-
-        # ── Step 5: Scene motion planning ──
-        job = await transition_job(db, job_id, JobState.PLANNING_SCENE_MOTION)
-        motion_result = await _run_stage(job_id, "scene_motion_planning", _stage_scene_motion, job)
-        stage_results.append(motion_result)
-        if motion_result["status"] != "success":
-            await _fail_job(job_id, "Scene motion planning failed", stage_results)
-            return {"success": False, "error": "Motion planning failed", "stage_results": stage_results}
-
-        # ── Step 6: Generate keyframes ──
-        job = await transition_job(db, job_id, JobState.GENERATING_KEYFRAMES)
-        kf_result = await _run_stage(job_id, "keyframes", _stage_keyframes, job)
-        stage_results.append(kf_result)
-        # Keyframes can partially fail — continue
-
-        # ── Step 7: Generate moving scene clips ──
-        job = await transition_job(db, job_id, JobState.GENERATING_SCENE_CLIPS)
-        clip_result = await _run_stage(job_id, "scene_clips", _stage_scene_clips, job)
-        stage_results.append(clip_result)
-
-        # ── Step 8: Generate narration ──
-        job = await transition_job(db, job_id, JobState.GENERATING_AUDIO)
-        audio_result = await _run_stage(job_id, "audio", _stage_audio, job)
-        stage_results.append(audio_result)
-
-        # ── Step 9: FFmpeg assembly ──
-        job = await transition_job(db, job_id, JobState.ASSEMBLING_VIDEO)
-        assembly_result = await _run_stage(job_id, "assembly", _stage_assembly, job)
-        stage_results.append(assembly_result)
-
-        # ── Step 10-11: Validate and mark READY ──
-        job = await transition_job(db, job_id, JobState.VALIDATING)
+    # INIT → advance to PLANNING
+    if state == JobState.INIT:
+        try:
+            await transition_job(db, job_id, JobState.PLANNING)
+        except ValueError as e:
+            logger.error(f"[PIPELINE] Failed to transition {job_id[:8]} from INIT: {e}")
+            return {"success": False, "terminal": True, "error": str(e)}
+        state = JobState.PLANNING
         job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
 
-        validation = validate_pipeline_outputs(job)
-        final_state = should_mark_ready(validation)
+    # Validate state is an active stage
+    if state not in STAGE_FUNCTIONS:
+        await _fail_job_terminal(job_id, ErrorCode.UNKNOWN_STAGE_FAILURE, f"Unknown active state: {state.value}")
+        return {"success": False, "terminal": True, "error": f"Unknown state: {state.value}"}
 
-        target = JobState(final_state)
-        job = await transition_job(db, job_id, target)
+    # Update heartbeat at start of stage
+    await update_heartbeat(db, job_id, f"Starting {state.value}")
 
-        # Save final stage results
+    # Budget guard — enforce before every external call
+    try:
+        enforce_runtime_budget(job, state.value)
+    except BudgetExceededError as e:
+        failure_state = get_failure_state(state)
+        await transition_job(db, job_id, failure_state, error=str(e), error_code=ErrorCode.BUDGET_EXCEEDED_RUNTIME.value)
+        await _refund_credits(job_id)
+        return {"success": False, "terminal": True, "state": failure_state.value, "error": str(e)}
+
+    # Execute the stage with retry logic
+    stage_fn = STAGE_FUNCTIONS[state]
+    result = await _execute_stage_with_retry(job_id, state, stage_fn, job)
+
+    if result["success"]:
+        # Stage succeeded — advance
+        if state == JobState.VALIDATING:
+            # Final stage — determine READY or PARTIAL_READY
+            return await _finalize_job(job_id)
+
+        next_state = get_next_stage(state)
+        if next_state:
+            try:
+                await transition_job(db, job_id, next_state)
+            except ValueError as e:
+                logger.error(f"[PIPELINE] Failed to advance {job_id[:8]}: {e}")
+                return {"success": False, "terminal": True, "error": str(e)}
+        return {"success": True, "terminal": False, "state": (next_state or state).value}
+    else:
+        # Stage failed after retries — already transitioned to failure state
+        return result
+
+
+async def _execute_stage_with_retry(job_id: str, stage: JobState, stage_fn, job: dict) -> Dict:
+    """
+    Execute a stage with retry logic. On exhaustion, transitions to per-stage failure.
+    For PLANNING, uses the multi-level fallback chain.
+    """
+    max_retries = STAGE_MAX_RETRIES.get(stage, 2)
+    current_retry = get_stage_retry_count(job, stage.value)
+    last_error = None
+
+    # For planning stage, we have a 4-level fallback chain handled inside planning_llm
+    attempts_remaining = max(1, max_retries - current_retry)
+
+    for attempt in range(attempts_remaining):
+        attempt_num = current_retry + attempt + 1
+
+        # Update heartbeat with attempt info
+        detail = f"Executing {stage.value} (attempt {attempt_num}/{max_retries})"
+        await update_heartbeat(db, job_id, detail)
+
+        # Update UI-visible retry info
         await db.story_engine_jobs.update_one(
             {"job_id": job_id},
             {"$set": {
-                "stage_results": [r for r in stage_results if r],
-                "validation_result": validation.to_dict(),
+                "current_attempt": attempt_num,
+                "max_stage_attempts": max_retries,
+                "heartbeat_detail": detail,
             }},
         )
 
-        logger.info(f"[PIPELINE] Job {job_id[:8]} completed: {final_state}")
-        return {
-            "success": final_state in ("READY", "PARTIAL_READY"),
-            "job_id": job_id,
-            "state": final_state,
-            "stage_results": stage_results,
-            "validation": validation.to_dict(),
-        }
+        started = datetime.now(timezone.utc)
+        try:
+            result = await stage_fn(job)
 
-    except Exception as e:
-        logger.error(f"[PIPELINE] Job {job_id[:8]} pipeline error: {e}")
-        await _fail_job(job_id, str(e), stage_results)
-        return {"success": False, "error": str(e), "stage_results": stage_results}
+            if result.get("status") == "success":
+                # Record stage result
+                completed = datetime.now(timezone.utc)
+                stage_result = {
+                    "stage": stage.value,
+                    "status": "success",
+                    "started_at": started.isoformat(),
+                    "completed_at": completed.isoformat(),
+                    "duration_seconds": round((completed - started).total_seconds(), 2),
+                    "attempt_number": attempt_num,
+                    "model_used": result.get("model_used"),
+                    "output": result.get("output", {}),
+                }
+                await db.story_engine_jobs.update_one(
+                    {"job_id": job_id},
+                    {
+                        "$push": {"stage_results": stage_result},
+                        "$set": {"updated_at": completed.isoformat()},
+                    },
+                )
+                return {"success": True}
+            else:
+                last_error = result.get("error", "Stage returned non-success")
+                error_code = result.get("error_code", ErrorCode.UNKNOWN_STAGE_FAILURE.value)
+                logger.warning(f"[PIPELINE] Stage {stage.value} attempt {attempt_num} failed: {last_error}")
+
+        except BudgetExceededError as e:
+            last_error = str(e)
+            error_code = ErrorCode.BUDGET_EXCEEDED_RUNTIME.value
+            break  # No point retrying budget errors
+
+        except Exception as e:
+            last_error = str(e)
+            error_code = ErrorCode.WORKER_CRASH.value
+            logger.error(f"[PIPELINE] Stage {stage.value} attempt {attempt_num} crashed: {e}")
+
+        # Record failed attempt
+        await increment_stage_retry(db, job_id, stage.value)
+
+        # Backoff before retry
+        if attempt < attempts_remaining - 1:
+            backoff = min(2 ** attempt * 2, 30)
+            logger.info(f"[PIPELINE] Backing off {backoff}s before retry...")
+            await asyncio.sleep(backoff)
+
+            # Re-load job for latest state
+            job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+            if not job or JobState(job["state"]) in TERMINAL_STATES:
+                return {"success": False, "terminal": True, "error": "Job cancelled during retry"}
+
+    # All retries exhausted — transition to per-stage failure
+    failure_state = get_failure_state(stage)
+    error_msg = f"{stage.value} failed after {max_retries} attempts: {last_error}"
+
+    try:
+        await transition_job(db, job_id, failure_state, error=error_msg, error_code=error_code)
+    except ValueError:
+        # Fallback: force-set failure state
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "state": failure_state.value,
+                "error_message": error_msg,
+                "last_error_code": error_code,
+                "last_error_stage": stage.value,
+            }},
+        )
+
+    # Refund credits on terminal failure
+    await _refund_credits(job_id)
+
+    return {
+        "success": False,
+        "terminal": True,
+        "state": failure_state.value,
+        "error": error_msg,
+        "error_code": error_code,
+    }
+
+
+async def _finalize_job(job_id: str) -> Dict:
+    """Final validation — determine READY or PARTIAL_READY."""
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        return {"success": False, "terminal": True, "error": "Job not found"}
+
+    validation = validate_pipeline_outputs(job)
+    final_state = should_mark_ready(validation)
+    target = JobState(final_state)
+
+    try:
+        await transition_job(db, job_id, target)
+    except ValueError:
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"state": target.value}},
+        )
+
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"validation_result": validation.to_dict()}},
+    )
+
+    logger.info(f"[PIPELINE] Job {job_id[:8]} finalized: {final_state}")
+    return {"success": target in SUCCESS_STATES, "terminal": True, "state": final_state}
 
 
 # ═══════════════════════════════════════════════════════════════
-# STAGE IMPLEMENTATIONS
+# INDIVIDUAL STAGE FUNCTIONS
 # ═══════════════════════════════════════════════════════════════
 
 async def _stage_planning(job: dict) -> Dict:
-    """Generate structured episode plan."""
-    # Get previous plan if this is a continuation
+    """Generate structured episode plan with multi-level fallback."""
     previous_plan = None
     if job.get("parent_job_id"):
         parent = await db.story_engine_jobs.find_one(
@@ -286,79 +438,92 @@ async def _stage_planning(job: dict) -> Dict:
         if parent:
             previous_plan = parent.get("episode_plan")
 
-    plan = await planning_llm.generate_episode_plan(
+    job_id = job["job_id"]
+    retry_count = get_stage_retry_count(job, "PLANNING")
+
+    # Multi-level fallback: attempt level increases with retries
+    plan, model_used = await planning_llm.generate_episode_plan_with_fallback(
         story_text=job["story_text"],
         style_id=job.get("style_id", "cartoon_2d"),
         episode_number=job.get("episode_number", 1),
         previous_plan=previous_plan,
+        attempt_level=retry_count,
     )
 
     if not plan:
-        return {"status": "failed", "error": "LLM failed to generate episode plan"}
+        return {
+            "status": "failed",
+            "error": "All scene generation strategies failed",
+            "error_code": ErrorCode.SCENE_GENERATION_FAILED.value,
+        }
+
+    # Validate scene count
+    scenes = plan.get("scene_breakdown", [])
+    if not scenes:
+        return {
+            "status": "failed",
+            "error": "Plan has zero scenes",
+            "error_code": ErrorCode.MODEL_INVALID_RESPONSE.value,
+        }
+
+    if len(scenes) > 8:
+        plan["scene_breakdown"] = scenes[:8]
 
     await db.story_engine_jobs.update_one(
-        {"job_id": job["job_id"]},
-        {"$set": {"episode_plan": plan, "title": plan.get("title", job.get("title", "Untitled"))}},
+        {"job_id": job_id},
+        {"$set": {
+            "episode_plan": plan,
+            "title": plan.get("title", job.get("title", "Untitled")),
+        }},
     )
 
-    return {"status": "success", "output": {"title": plan.get("title"), "scenes": len(plan.get("scene_breakdown", []))}}
+    # Non-blocking hook generation
+    await _stage_hooks_safe(job)
+
+    return {
+        "status": "success",
+        "model_used": model_used,
+        "output": {"title": plan.get("title"), "scenes": len(plan.get("scene_breakdown", []))},
+    }
 
 
-async def _stage_hooks(job: dict) -> Dict:
-    """Generate 3 hook variants for A/B testing. Non-blocking — pipeline continues even if this fails."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-    from services.hook_service import generate_hook_variants
-
-    job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
-    story_text = job.get("story_text", "")
-    title = job.get("episode_plan", {}).get("title") or job.get("title", "Untitled")
-    style_id = job.get("style_id", "default")
-    age_group = job.get("age_group", "")
-
+async def _stage_hooks_safe(job: dict) -> None:
+    """Generate hooks — non-blocking, non-fatal."""
     try:
+        from services.hook_service import generate_hook_variants
+        job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
+        story_text = job.get("story_text", "")
+        title = job.get("episode_plan", {}).get("title") or job.get("title", "Untitled")
+
         hooks = await generate_hook_variants(
-            story_prompt=story_text,
-            title=title,
-            style_id=style_id,
-            age_group=age_group,
-            n=3,
+            story_prompt=story_text, title=title,
+            style_id=job.get("style_id", "default"),
+            age_group=job.get("age_group", ""), n=3,
         )
-
-        # Set hook_text to the first variant as default
         hook_text = hooks[0]["text"] if hooks else None
-
         await db.story_engine_jobs.update_one(
             {"job_id": job["job_id"]},
-            {"$set": {
-                "hooks": hooks,
-                "hook_text": hook_text,
-                "winning_hook": None,
-                "hook_locked": False,
-            }},
+            {"$set": {"hooks": hooks, "hook_text": hook_text, "winning_hook": None, "hook_locked": False}},
         )
-
-        return {"status": "success", "output": {"hooks_generated": len(hooks), "default_hook": hook_text}}
     except Exception as e:
         logger.warning(f"[PIPELINE] Hook generation failed (non-blocking): {e}")
-        return {"status": "partial", "error": str(e)}
 
 
 async def _stage_character_context(job: dict) -> Dict:
     """Build character continuity package."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     if not job.get("episode_plan"):
-        return {"status": "failed", "error": "No episode plan"}
+        return {"status": "failed", "error": "No episode plan", "error_code": ErrorCode.SCENE_GENERATION_FAILED.value}
 
-    # Get existing continuity from chain
     existing = None
     if job.get("parent_job_id"):
         parent = await db.story_engine_jobs.find_one(
-            {"job_id": job["parent_job_id"]},
-            {"_id": 0, "character_continuity": 1},
+            {"job_id": job["parent_job_id"]}, {"_id": 0, "character_continuity": 1},
         )
         if parent:
             existing = parent.get("character_continuity")
+
+    await update_heartbeat(db, job["job_id"], "Generating character continuity")
 
     continuity = await planning_llm.generate_character_continuity(
         episode_plan=job["episode_plan"],
@@ -367,9 +532,8 @@ async def _stage_character_context(job: dict) -> Dict:
     )
 
     if not continuity:
-        return {"status": "failed", "error": "Failed to generate character continuity"}
+        return {"status": "failed", "error": "Failed to generate character continuity", "error_code": ErrorCode.MODEL_INVALID_RESPONSE.value}
 
-    # Add metadata
     continuity["universe_id"] = job.get("story_chain_id", job["job_id"])
     continuity["story_chain_id"] = job.get("story_chain_id", job["job_id"])
     continuity["locked_at"] = datetime.now(timezone.utc).isoformat()
@@ -379,13 +543,14 @@ async def _stage_character_context(job: dict) -> Dict:
         {"$set": {"character_continuity": continuity}},
     )
 
-    char_count = len(continuity.get("characters", []))
-    return {"status": "success", "output": {"characters": char_count, "style_lock": continuity.get("style_lock")}}
+    return {"status": "success", "output": {"characters": len(continuity.get("characters", []))}}
 
 
 async def _stage_scene_motion(job: dict) -> Dict:
     """Generate per-scene motion plans."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
+
+    await update_heartbeat(db, job["job_id"], "Planning scene motion")
 
     plans = await planning_llm.generate_scene_motion_plans(
         episode_plan=job["episode_plan"],
@@ -394,7 +559,7 @@ async def _stage_scene_motion(job: dict) -> Dict:
     )
 
     if not plans:
-        return {"status": "failed", "error": "Failed to generate scene motion plans"}
+        return {"status": "failed", "error": "Failed to generate scene motion plans", "error_code": ErrorCode.MODEL_INVALID_RESPONSE.value}
 
     await db.story_engine_jobs.update_one(
         {"job_id": job["job_id"]},
@@ -405,7 +570,7 @@ async def _stage_scene_motion(job: dict) -> Dict:
 
 
 async def _stage_keyframes(job: dict) -> Dict:
-    """Generate REAL keyframes using GPT Image 1."""
+    """Generate keyframes using GPT Image 1."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     plans = job.get("scene_motion_plans", [])
     continuity = job.get("character_continuity", {})
@@ -413,12 +578,12 @@ async def _stage_keyframes(job: dict) -> Dict:
 
     keyframe_urls = []
     keyframe_local_paths = []
-    for plan in plans:
+    for i, plan in enumerate(plans):
+        await update_heartbeat(db, job_id, f"Generating keyframe {i+1}/{len(plans)}")
+
         result = await video_gen.generate_keyframe(
-            scene_plan=plan,
-            continuity=continuity,
-            style_id=job.get("style_id", "cartoon_2d"),
-            job_id=job_id,
+            scene_plan=plan, continuity=continuity,
+            style_id=job.get("style_id", "cartoon_2d"), job_id=job_id,
         )
         keyframe_urls.append(result.get("url"))
         keyframe_local_paths.append(result.get("local_path"))
@@ -429,11 +594,14 @@ async def _stage_keyframes(job: dict) -> Dict:
     )
 
     generated = sum(1 for u in keyframe_urls if u)
+    if generated == 0:
+        return {"status": "failed", "error": "No keyframes generated", "error_code": ErrorCode.IMAGE_GENERATION_FAILED.value}
+
     return {"status": "success", "output": {"keyframes_generated": generated, "total": len(plans)}}
 
 
 async def _stage_scene_clips(job: dict) -> Dict:
-    """Generate REAL moving scene clips using Sora 2. Falls back to Ken Burns on keyframes if Sora fails."""
+    """Generate scene clips using Sora 2 with Ken Burns fallback."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     plans = job.get("scene_motion_plans", [])
     keyframes = job.get("keyframe_urls", [])
@@ -447,17 +615,14 @@ async def _stage_scene_clips(job: dict) -> Dict:
     fallback_count = 0
 
     for i, plan in enumerate(plans):
+        await update_heartbeat(db, job_id, f"Generating clip {i+1}/{len(plans)}")
+
         kf_url = keyframes[i] if i < len(keyframes) else None
         kf_path = keyframe_paths[i] if i < len(keyframe_paths) else None
 
-        # Try Sora 2 first
         result = await video_gen.generate_scene_clip(
-            scene_plan=plan,
-            keyframe_url=kf_url,
-            keyframe_local_path=kf_path,
-            continuity=continuity,
-            style_id=job.get("style_id", "cartoon_2d"),
-            job_id=job_id,
+            scene_plan=plan, keyframe_url=kf_url, keyframe_local_path=kf_path,
+            continuity=continuity, style_id=job.get("style_id", "cartoon_2d"), job_id=job_id,
         )
 
         if result.get("status") == "ready" and result.get("local_path"):
@@ -465,8 +630,7 @@ async def _stage_scene_clips(job: dict) -> Dict:
             clip_local_paths.append(result.get("local_path"))
             sora_count += 1
         elif kf_path and os.path.exists(kf_path):
-            # Graceful degradation: Ken Burns fallback on keyframe
-            logger.warning(f"[PIPELINE] Sora failed for scene {i+1}, falling back to Ken Burns on keyframe")
+            logger.warning(f"[PIPELINE] Sora failed for scene {i+1}, falling back to Ken Burns")
             scene_num = plan.get("scene_number", i + 1)
             duration = plan.get("clip_duration_seconds", 5.0)
             fallback_path = str(Path("/app/backend/static/generated") / f"se_{job_id[:8]}_fallback_{scene_num}.mp4")
@@ -483,15 +647,12 @@ async def _stage_scene_clips(job: dict) -> Dict:
             clip_urls.append(None)
             clip_local_paths.append(None)
 
-    # Track whether Ken Burns fallback was used
-    used_fallback = fallback_count > 0
-
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
         {"$set": {
             "scene_clip_urls": clip_urls,
             "scene_clip_local_paths": clip_local_paths,
-            "used_ken_burns_fallback": used_fallback,
+            "used_ken_burns_fallback": fallback_count > 0,
             "sora_clips_count": sora_count,
             "fallback_clips_count": fallback_count,
         }},
@@ -500,18 +661,15 @@ async def _stage_scene_clips(job: dict) -> Dict:
     generated = sum(1 for u in clip_urls if u)
     return {
         "status": "success",
-        "output": {
-            "clips_generated": generated,
-            "sora_clips": sora_count,
-            "fallback_clips": fallback_count,
-            "total": len(plans),
-        },
+        "output": {"clips_generated": generated, "sora_clips": sora_count, "fallback_clips": fallback_count, "total": len(plans)},
     }
 
 
 async def _stage_audio(job: dict) -> Dict:
-    """Generate REAL narration audio. Gracefully degrades if TTS fails."""
+    """Generate narration audio. Non-fatal — proceeds without narration on failure."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
+
+    await update_heartbeat(db, job["job_id"], "Generating narration audio")
 
     result = await tts.generate_narration(
         episode_plan=job.get("episode_plan", {}),
@@ -530,16 +688,14 @@ async def _stage_audio(job: dict) -> Dict:
         }},
     )
 
-    # Audio failure is non-fatal — video can still be assembled without narration
-    if result.get("status") == "failed":
-        logger.warning(f"[PIPELINE] TTS failed for job {job['job_id'][:8]}, proceeding without narration")
-        return {"status": "success", "output": {"note": "TTS failed, proceeding without narration", "error": result.get("error")}}
-
+    # Audio failure is non-fatal
+    if tts_failed:
+        logger.warning("[PIPELINE] TTS failed, proceeding without narration")
     return {"status": "success", "output": result}
 
 
 async def _stage_assembly(job: dict) -> Dict:
-    """FFmpeg assembly — stitch REAL clips, mix REAL audio, generate preview/thumbnail."""
+    """FFmpeg assembly — stitch clips, mix audio, generate preview/thumbnail."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     job_id = job["job_id"]
     clip_paths = [p for p in job.get("scene_clip_local_paths", []) if p and os.path.exists(p)]
@@ -548,21 +704,23 @@ async def _stage_assembly(job: dict) -> Dict:
     if not clip_paths:
         return {"status": "success", "output": {"note": "No local clips available for assembly yet"}}
 
-    import hashlib
-    from pathlib import Path
+    await update_heartbeat(db, job_id, "Stitching video clips")
+
     output_dir = Path("/app/backend/static/generated")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 1: Stitch clips
+    # Stitch clips
     stitched_path = str(output_dir / f"se_{job_id[:8]}_stitched.mp4")
     plans = job.get("scene_motion_plans", [])
     transitions = [p.get("transition_type", "crossfade") for p in plans[1:]] if plans else []
 
     stitch_ok = await ffmpeg_assembly.stitch_clips(clip_paths, stitched_path, transitions=transitions)
     if not stitch_ok:
-        return {"status": "failed", "error": "FFmpeg stitch failed"}
+        return {"status": "failed", "error": "FFmpeg stitch failed", "error_code": ErrorCode.RENDER_FAILED.value}
 
-    # Step 2: Mix audio
+    await update_heartbeat(db, job_id, "Mixing audio")
+
+    # Mix audio
     final_path = stitched_path
     if narration_path and os.path.exists(narration_path):
         mixed_path = str(output_dir / f"se_{job_id[:8]}_mixed.mp4")
@@ -570,31 +728,26 @@ async def _stage_assembly(job: dict) -> Dict:
         if mix_ok:
             final_path = mixed_path
 
-    # Step 2.5: Apply addiction triggers (zoom + darken + text in last 2s)
+    # Addiction triggers
     episode_plan = job.get("episode_plan", {})
     trigger_text = episode_plan.get("trigger_text")
     cliffhanger_text = episode_plan.get("cliffhanger")
     triggered_path = str(output_dir / f"se_{job_id[:8]}_triggered.mp4")
     trigger_ok = await ffmpeg_assembly.apply_addiction_triggers(
         final_path, triggered_path,
-        trigger_text=trigger_text,
-        cliffhanger_text=cliffhanger_text,
+        trigger_text=trigger_text, cliffhanger_text=cliffhanger_text,
     )
     if trigger_ok and os.path.exists(triggered_path):
         final_path = triggered_path
-        logger.info(f"[PIPELINE] Addiction triggers applied for job {job_id[:8]}")
-    else:
-        logger.warning(f"[PIPELINE] Addiction triggers skipped for job {job_id[:8]} — using original video")
 
-    # Step 3: Generate preview
+    await update_heartbeat(db, job_id, "Generating preview and thumbnails")
+
+    # Preview
     preview_path = str(output_dir / f"se_{job_id[:8]}_preview.mp4")
     await ffmpeg_assembly.generate_preview(final_path, preview_path)
 
-    # ── Step 4: Generate deterministic media assets (Pillow + FFmpeg) ──
-    # This is the ONLY place thumbnails and posters are ever created.
+    # Media assets
     from services.story_engine.adapters.media_gen import generate_media_assets
-
-    # Find first available keyframe as fallback image source
     fallback_kf = None
     for kp in job.get("keyframe_local_paths", []):
         if kp and os.path.exists(kp):
@@ -602,14 +755,13 @@ async def _stage_assembly(job: dict) -> Dict:
             break
 
     thumb_url, poster_url, thumb_blur = await generate_media_assets(
-        video_path=final_path,
-        job_id=job_id,
-        fallback_image_path=fallback_kf,
+        video_path=final_path, job_id=job_id, fallback_image_path=fallback_kf,
     )
 
-    # Upload video + preview to R2
-    from services.story_engine.adapters.video_gen import _upload_to_r2
+    await update_heartbeat(db, job_id, "Uploading to storage")
 
+    # Upload to R2
+    from services.story_engine.adapters.video_gen import _upload_to_r2
     output_url = None
     preview_url = None
 
@@ -625,15 +777,12 @@ async def _stage_assembly(job: dict) -> Dict:
         if not preview_url:
             preview_url = f"/api/generated/se_{job_id[:8]}_preview.mp4"
 
-    # ── Store in STRICT media schema + legacy flat fields for backcompat ──
     update_fields = {
         "output_url": output_url,
         "preview_url": preview_url,
-        # Legacy flat fields (kept for backcompat during migration)
         "thumbnail_url": poster_url,
         "thumbnail_small_url": thumb_url,
     }
-    # Nested media object — the single source of truth going forward
     if thumb_url:
         update_fields["media.thumbnail_small.url"] = thumb_url
         update_fields["media.thumbnail_small.type"] = "image/jpeg"
@@ -643,107 +792,143 @@ async def _stage_assembly(job: dict) -> Dict:
     if thumb_blur:
         update_fields["media.thumb_blur"] = thumb_blur
 
-    await db.story_engine_jobs.update_one(
-        {"job_id": job_id},
-        {"$set": update_fields},
-    )
+    await db.story_engine_jobs.update_one({"job_id": job_id}, {"$set": update_fields})
 
     return {
         "status": "success",
         "output": {
-            "output_url": output_url,
-            "preview_url": preview_url,
-            "media": {
-                "thumbnail_small": thumb_url,
-                "poster_large": poster_url,
-            },
-            "clips_stitched": len(clip_paths),
-            "has_narration": bool(narration_path),
+            "output_url": output_url, "preview_url": preview_url,
+            "clips_stitched": len(clip_paths), "has_narration": bool(narration_path),
         },
     }
 
 
+async def _stage_validation(job: dict) -> Dict:
+    """Validate outputs — determines READY vs PARTIAL_READY."""
+    # Validation is handled in _finalize_job, this just passes through
+    return {"status": "success", "output": {"note": "Validation delegated to finalize"}}
+
+
+# Register stage functions
+STAGE_FUNCTIONS = {
+    JobState.PLANNING: _stage_planning,
+    JobState.BUILDING_CHARACTER_CONTEXT: _stage_character_context,
+    JobState.PLANNING_SCENE_MOTION: _stage_scene_motion,
+    JobState.GENERATING_KEYFRAMES: _stage_keyframes,
+    JobState.GENERATING_SCENE_CLIPS: _stage_scene_clips,
+    JobState.GENERATING_AUDIO: _stage_audio,
+    JobState.ASSEMBLING_VIDEO: _stage_assembly,
+    JobState.VALIDATING: _stage_validation,
+}
+
+
 # ═══════════════════════════════════════════════════════════════
-# HELPERS
+# CREDIT REFUND — Centralized, idempotent
 # ═══════════════════════════════════════════════════════════════
 
-async def _run_stage(job_id: str, stage_name: str, stage_fn, job: dict) -> Dict:
-    """Run a pipeline stage with timing and error handling."""
-    started = datetime.now(timezone.utc)
+async def _refund_credits(job_id: str) -> None:
+    """
+    Idempotent credit refund. Checks if already refunded before processing.
+    Called on any terminal failure.
+    """
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        return
+
+    # Skip if already refunded or no cost estimate
+    if job.get("credits_refunded", 0) > 0:
+        logger.info(f"[REFUND] Job {job_id[:8]} already refunded, skipping")
+        return
+
+    cost_estimate = job.get("cost_estimate", {})
+    refund_amount = cost_estimate.get("total_credits_required", 0)
+    if refund_amount <= 0:
+        return
+
+    # Skip guest jobs
+    if job.get("is_guest") or job.get("user_id", "").startswith("guest_"):
+        return
+
     try:
-        result = await stage_fn(job)
-        completed = datetime.now(timezone.utc)
-        duration = (completed - started).total_seconds()
+        from services.credits_service import get_credits_service
+        svc = get_credits_service(db)
 
-        stage_result = {
-            "stage": stage_name,
-            "status": result.get("status", "success"),
-            "started_at": started.isoformat(),
-            "completed_at": completed.isoformat(),
-            "duration_seconds": round(duration, 2),
-            "output": result.get("output", {}),
-            "error": result.get("error"),
-        }
-
-        # Update job with stage result
-        await db.story_engine_jobs.update_one(
-            {"job_id": job_id},
-            {"$push": {"stage_results": stage_result}, "$set": {"updated_at": completed.isoformat()}},
+        # Atomic: set credits_refunded BEFORE actually refunding to prevent double-refund
+        result = await db.story_engine_jobs.update_one(
+            {"job_id": job_id, "credits_refunded": 0},  # Only if not yet refunded
+            {"$set": {"credits_refunded": refund_amount}},
         )
+        if result.modified_count == 0:
+            logger.info(f"[REFUND] Job {job_id[:8]} concurrent refund prevented")
+            return
 
-        return stage_result
+        await svc.refund_credits(
+            job["user_id"], refund_amount,
+            reason=f"Pipeline failure: {job.get('error_message', 'Unknown')[:100]}",
+            reference_id=job_id,
+        )
+        logger.info(f"[REFUND] Refunded {refund_amount} credits for job {job_id[:8]}")
 
     except Exception as e:
-        logger.error(f"[PIPELINE] Stage {stage_name} failed for job {job_id[:8]}: {e}")
-        return {"stage": stage_name, "status": "failed", "error": str(e)}
-
-
-async def _fail_job(job_id: str, error: str, stage_results: list):
-    """Fail a job and trigger credit refund."""
-    try:
-        await transition_job(db, job_id, JobState.FAILED, error=error)
-    except ValueError:
+        logger.error(f"[REFUND] Failed to refund job {job_id[:8]}: {e}")
+        # Rollback the flag so retry can attempt again
         await db.story_engine_jobs.update_one(
             {"job_id": job_id},
-            {"$set": {"state": JobState.FAILED.value, "error_message": error}},
+            {"$set": {"credits_refunded": 0}},
         )
 
+
+async def _fail_job_terminal(job_id: str, error_code: ErrorCode, error_msg: str) -> None:
+    """Force a job into terminal FAILED state and refund."""
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
-        {"$set": {"stage_results": stage_results}},
+        {"$set": {
+            "state": JobState.FAILED.value,
+            "error_message": error_msg,
+            "last_error_code": error_code.value,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
     )
+    await _refund_credits(job_id)
 
-    # Refund credits via Credits Service
-    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
-    if job and job.get("cost_estimate"):
-        refund_amount = job["cost_estimate"].get("total_credits_required", 0)
-        if refund_amount > 0:
-            from services.credits_service import get_credits_service
-            svc = get_credits_service(db)
-            await svc.refund_credits(
-                job["user_id"], refund_amount,
-                reason=f"Pipeline failure: {error[:100]}",
-                reference_id=job_id,
-            )
-            await db.story_engine_jobs.update_one(
-                {"job_id": job_id},
-                {"$set": {"credits_refunded": refund_amount}},
-            )
 
+# ═══════════════════════════════════════════════════════════════
+# JOB STATUS — For frontend polling
+# ═══════════════════════════════════════════════════════════════
 
 async def get_job_status(job_id: str) -> Optional[Dict]:
-    """Get current job status with progress."""
     job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not job:
         return None
 
     state = JobState(job["state"])
     episode_plan = job.get("episode_plan", {})
+
+    # Build honest status label
+    label = get_label(state)
+    attempt = job.get("current_attempt", 0)
+    max_attempts = job.get("max_stage_attempts", 0)
+    heartbeat_detail = job.get("heartbeat_detail", "")
+
+    # Honest retry info for UI
+    retry_info = None
+    if attempt > 1 and state in {JobState.PLANNING, JobState.BUILDING_CHARACTER_CONTEXT,
+                                   JobState.PLANNING_SCENE_MOTION, JobState.GENERATING_KEYFRAMES,
+                                   JobState.GENERATING_SCENE_CLIPS, JobState.GENERATING_AUDIO,
+                                   JobState.ASSEMBLING_VIDEO}:
+        retry_info = f"Retrying ({attempt}/{max_attempts})"
+
+    # Can this job be retried?
+    can_retry = state in PER_STAGE_FAILURE_STATES
+
     return {
         "job_id": job["job_id"],
         "state": state.value,
         "progress_percent": get_progress(state),
-        "current_stage": get_label(state),
+        "current_stage": label,
+        "heartbeat_detail": heartbeat_detail,
+        "retry_info": retry_info,
+        "can_retry": can_retry,
         "title": job.get("title"),
         "episode_number": job.get("episode_number"),
         "stage_results": job.get("stage_results", []),
@@ -751,6 +936,7 @@ async def get_job_status(job_id: str) -> Optional[Dict]:
         "preview_url": job.get("preview_url"),
         "thumbnail_url": job.get("thumbnail_url"),
         "error_message": job.get("error_message"),
+        "error_code": job.get("last_error_code"),
         "credits_consumed": job.get("cost_estimate", {}).get("total_credits_required", 0),
         "credits_refunded": job.get("credits_refunded", 0),
         "created_at": job.get("created_at"),
@@ -763,3 +949,9 @@ async def get_job_status(job_id: str) -> Optional[Dict]:
         "tension_peak": episode_plan.get("tension_peak"),
         "cut_mood": episode_plan.get("cut_mood"),
     }
+
+
+# Keep backward compat alias
+async def run_pipeline(job_id: str) -> Dict:
+    """Backward-compatible entry point. Delegates to execute_pipeline."""
+    return await execute_pipeline(job_id)

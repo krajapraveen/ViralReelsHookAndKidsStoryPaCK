@@ -49,6 +49,9 @@ const INITIAL_POST_GEN_STATE = {
   failReason: '',
   stageDetail: '',
   jobTitle: '',
+  canRetry: false,
+  errorCode: null,
+  creditsRefunded: 0,
 };
 
 function postGenReducer(state, action) {
@@ -95,6 +98,9 @@ function postGenReducer(state, action) {
         downloadUrl: action.downloadUrl || null,
         storyPackUrl: action.storyPackUrl || null,
         downloadReady: action.downloadReady || false,
+        canRetry: action.canRetry || false,
+        errorCode: action.errorCode || null,
+        creditsRefunded: action.creditsRefunded || 0,
       };
     case 'RESET':
       return INITIAL_POST_GEN_STATE;
@@ -431,8 +437,11 @@ function StoryVideoPipelineInner() {
             lastProgressRef.current = j.progress;
             lastProgressTimeRef.current = now;
           } else if (now - lastProgressTimeRef.current > STALE_THRESHOLD_MS && j.status === 'PROCESSING') {
-            // Progress hasn't changed in 90 seconds
-            toast.warning('Generation is taking longer than usual...', { id: 'stale-warning' });
+            // Progress hasn't changed in 90 seconds — but check if retries are happening
+            const retrying = j.retry_info?.current_attempt > 1;
+            if (!retrying) {
+              toast.warning('Generation is taking longer than usual — the system is working on it.', { id: 'stale-warning' });
+            }
           }
 
           if (j.status === 'COMPLETED' || j.status === 'PARTIAL') {
@@ -443,6 +452,7 @@ function StoryVideoPipelineInner() {
             clearAllTimeouts();
             // Check if there are recoverable assets
             const hasRecoverable = j.has_recoverable_assets || j.fallback?.has_preview || j.fallback?.story_pack_url;
+            const canRetry = j.retry_info?.can_retry === true;
             if (hasRecoverable) {
               setPhase('postgen');
               await validateAndResolve(jid, j);
@@ -452,6 +462,9 @@ function StoryVideoPipelineInner() {
                 type: 'SET_FAILED',
                 reason: j.error || 'Generation failed',
                 stageDetail: j.error || 'No recoverable assets',
+                canRetry,
+                errorCode: j.error_code,
+                creditsRefunded: j.credits_refunded || 0,
               });
             }
           }
@@ -847,6 +860,14 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
     const createdAt = new Date(j.created_at || j.createdAt || 0).getTime();
     return (Date.now() - createdAt) < 15 * 60 * 1000;
   });
+  const failedRetryableJobs = userJobs.filter(j => {
+    if (j.status !== 'FAILED') return false;
+    // Show retryable failed jobs that are recent (< 1 hour)
+    const retryInfo = j.retry_info;
+    if (!retryInfo?.can_retry) return false;
+    const createdAt = new Date(j.created_at || j.createdAt || 0).getTime();
+    return (Date.now() - createdAt) < 60 * 60 * 1000;
+  });
   const recentJobs = userJobs.filter(j => ['COMPLETED', 'PARTIAL'].includes(j.status)).slice(0, 3);
   const canCreate = rateLimitStatus?.can_create !== false;
 
@@ -897,6 +918,29 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           )}
         </div>
       )}
+
+      {/* Retryable failed jobs — show with retry option */}
+      {failedRetryableJobs.length > 0 && (
+        <div className="vs-panel p-4 border-amber-500/30" data-testid="retryable-failed-banner">
+          <div className="flex items-start gap-3 mb-2">
+            <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-white font-medium text-sm">A recent video had an issue — you can retry it</p>
+            </div>
+          </div>
+          {failedRetryableJobs.map((fj) => (
+            <div key={fj.job_id} className="flex items-center justify-between gap-3 bg-white/[0.03] rounded-xl px-3 py-2.5 mt-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span className="text-white text-sm truncate">{fj.title || 'Untitled Video'}</span>
+                {fj.credits_refunded > 0 && <span className="text-emerald-400 text-[10px] flex-shrink-0">Credits refunded</span>}
+              </div>
+              <RetryButton jobId={fj.job_id} onRetryStarted={() => { window.location.reload(); }} />
+            </div>
+          ))}
+        </div>
+      )}
+
 
       {showRemixBanner && <RemixBanner sourceTool={remixSourceTool} sourceTitle={remixSourceTitle} onDismiss={onDismissRemix} />}
 
@@ -1108,6 +1152,57 @@ const CONTINUE_DIRECTIONS = [
   { id: 'episode', label: 'New Episode', desc: 'Fresh chapter, same universe', modifier: 'Create a brand new episode in the same universe with the same characters, but a completely new adventure.', icon: Film, color: 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10' },
   { id: 'custom', label: 'Your Direction', desc: 'Write your own next chapter', modifier: '', icon: BookOpen, color: 'border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10' },
 ];
+
+// ─── RETRY & CANCEL BUTTONS ─────────────────────────────────────────────────
+function RetryButton({ jobId, onRetryStarted }) {
+  const [retrying, setRetrying] = useState(false);
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      const res = await api.post(`/api/story-engine/retry/${jobId}`);
+      if (res.data?.success) {
+        toast.success(`Retrying from ${res.data.retrying_from || 'last failed stage'}...`);
+        onRetryStarted?.(res.data);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Retry failed');
+    } finally {
+      setRetrying(false);
+    }
+  };
+  return (
+    <Button onClick={handleRetry} disabled={retrying} className="bg-purple-600 hover:bg-purple-700" data-testid="retry-failed-stage-btn">
+      {retrying ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+      {retrying ? 'Retrying...' : 'Retry Failed Stage'}
+    </Button>
+  );
+}
+
+function CancelButton({ jobId, onCancelled }) {
+  const [cancelling, setCancelling] = useState(false);
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      const res = await api.post(`/api/story-engine/cancel/${jobId}`);
+      if (res.data?.success) {
+        toast.success('Job cancelled. Credits refunded.');
+        onCancelled?.(res.data);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Cancel failed');
+    } finally {
+      setCancelling(false);
+    }
+  };
+  return (
+    <Button onClick={handleCancel} disabled={cancelling} variant="outline" className="border-red-500/30 text-red-400 hover:bg-red-500/10" data-testid="cancel-job-btn">
+      {cancelling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
+      Cancel
+    </Button>
+  );
+}
+
+
 
 // ─── POST-GENERATION PHASE (State Machine Driven) ─────────────────────────────
 // Renders based on postGen.uiState ONLY. No contradictory states possible.
@@ -1348,15 +1443,27 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               </div>
             </div>
           ) : uiState === 'FAILED' ? (
-            /* Generation failed — no fake preview */
-            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-8 text-center" data-testid="generation-failed-panel">
-              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-white mb-2">Generation Issue</h3>
-              <p className="text-red-300 text-sm mb-4">{failReason || 'Video generation did not produce output.'}</p>
-              <div className="flex gap-3 justify-center">
-                <Button onClick={onResume} className="bg-purple-600 hover:bg-purple-700" data-testid="retry-failed-btn">
-                  <RotateCcw className="w-4 h-4 mr-2" /> Retry
-                </Button>
+            /* Generation failed — honest status with retry/cancel controls */
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-8" data-testid="generation-failed-panel">
+              <div className="text-center">
+                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-white mb-2">Generation Issue</h3>
+                <p className="text-red-300 text-sm mb-2">{failReason || 'Video generation did not produce output.'}</p>
+                {postGen.errorCode && (
+                  <p className="text-red-400/50 text-[11px] font-mono mb-2">Error: {postGen.errorCode}</p>
+                )}
+                {postGen.creditsRefunded > 0 && (
+                  <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1 mb-4">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-300 text-xs">{postGen.creditsRefunded} credits refunded to your account</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3 justify-center mt-4">
+                {postGen.canRetry && (
+                  <RetryButton jobId={jobId} onRetryStarted={(j) => { onResume?.(j); }} />
+                )}
+                <CancelButton jobId={jobId} onCancelled={() => { onNew?.(); }} />
                 <Button onClick={onNew} variant="outline" className="border-slate-600 text-slate-300" data-testid="start-fresh-btn">
                   Start Fresh
                 </Button>

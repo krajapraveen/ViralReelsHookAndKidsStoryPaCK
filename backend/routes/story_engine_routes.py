@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 import sys
@@ -15,11 +16,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared import db, get_current_user, get_optional_user
 
-from services.story_engine.schemas import CreateStoryRequest, JobState
-from services.story_engine.pipeline import create_job, run_pipeline, get_job_status
+from services.story_engine.schemas import CreateStoryRequest, JobState, ErrorCode, TERMINAL_STATES, PER_STAGE_FAILURE_STATES
+from services.story_engine.pipeline import create_job, run_pipeline, get_job_status, execute_pipeline, process_next_stage
 from services.story_engine.cost_guard import pre_flight_check
 from services.story_engine.safety import check_content_safety
-from services.story_engine.state_machine import get_progress, get_label
+from services.story_engine.state_machine import get_progress, get_label, FAILURE_TO_RETRY
 
 logger = logging.getLogger("story_engine.routes")
 router = APIRouter(prefix="/story-engine", tags=["Story Engine"])
@@ -83,7 +84,7 @@ def _map_state_to_legacy_status(state: str) -> str:
         return "COMPLETED"
     elif state == "PARTIAL_READY":
         return "PARTIAL"
-    elif state == "FAILED":
+    elif state in ("FAILED", "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER"):
         return "FAILED"
     return "PROCESSING"
 
@@ -103,6 +104,10 @@ def _map_state_to_legacy_stage(state: str) -> str:
         "READY": "render",
         "PARTIAL_READY": "render",
         "FAILED": "render",
+        "FAILED_PLANNING": "scenes",
+        "FAILED_IMAGES": "images",
+        "FAILED_TTS": "voices",
+        "FAILED_RENDER": "render",
     }
     return mapping.get(state, "scenes")
 
@@ -255,7 +260,7 @@ async def _check_rate_limit(user_id: str):
     if total_recent >= MAX_VIDEOS_PER_HOUR:
         raise HTTPException(status_code=429, detail=f"You've created {total_recent} videos this hour. Please wait a bit before starting another one.")
 
-    active_states = [s.value for s in JobState if s not in (JobState.READY, JobState.PARTIAL_READY, JobState.FAILED)]
+    active_states = [s.value for s in JobState if s not in TERMINAL_STATES]
     engine_concurrent = await db.story_engine_jobs.count_documents({
         "user_id": user_id, "state": {"$in": active_states},
     })
@@ -523,10 +528,12 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,
             "error": job.get("error_message"),
+            "error_code": job.get("last_error_code"),
             "stages": stages_summary,
             "scene_progress": scene_progress,
             "timing": {},
             "credits_charged": job.get("cost_estimate", {}).get("total_credits_required", 0),
+            "credits_refunded": job.get("credits_refunded", 0),
             "animation_style": job.get("animation_style", job.get("style_id", "cartoon_2d")),
             "age_group": job.get("age_group", "kids_5_8"),
             "voice_preset": job.get("voice_preset", "narrator_warm"),
@@ -543,6 +550,15 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "used_ken_burns_fallback": job.get("used_ken_burns_fallback", False),
             "sora_clips_count": job.get("sora_clips_count", 0),
             "fallback_clips_count": job.get("fallback_clips_count", 0),
+            # Honest retry/recovery info for UI
+            "retry_info": {
+                "current_attempt": job.get("current_attempt", 0),
+                "max_attempts": job.get("max_stage_attempts", 0),
+                "total_retries": job.get("retry_count", 0),
+                "heartbeat_detail": job.get("heartbeat_detail", ""),
+                "can_retry": state in [s.value for s in PER_STAGE_FAILURE_STATES],
+                "last_error_stage": job.get("last_error_stage"),
+            },
             # Character-driven share data
             "characters": [
                 {"name": c.get("name"), "role": c.get("role"), "personality": c.get("personality_core", "")}
@@ -607,6 +623,9 @@ async def validate_video_asset(job_id: str, current_user: dict = Depends(get_cur
     if state == "FAILED" and not download_ready:
         ui_state = "FAILED"
         stage_detail = job.get("error_message", "Generation failed")
+    elif state in ("FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER") and not download_ready:
+        ui_state = "FAILED"
+        stage_detail = job.get("error_message", f"Failed at {state}")
     elif download_ready and preview_ready:
         ui_state = "READY"
         stage_detail = "Video ready — preview and download verified"
@@ -639,6 +658,104 @@ async def validate_video_asset(job_id: str, current_user: dict = Depends(get_cur
         "job_status": legacy_status,
         "title": job.get("title", ""),
     }
+
+
+
+@router.post("/retry/{job_id}")
+async def retry_failed_job(job_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Retry a failed job from its last failed stage.
+    Only works for per-stage failure states (FAILED_PLANNING, FAILED_IMAGES, etc.).
+    """
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job["user_id"] != current_user.get("id") and current_user.get("role", "").upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    state = job["state"]
+    try:
+        job_state = JobState(state)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown state: {state}")
+
+    if job_state not in PER_STAGE_FAILURE_STATES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in state '{state}' — can only retry jobs in a per-stage failure state"
+        )
+
+    # Get the retry target stage
+    retry_target = FAILURE_TO_RETRY.get(job_state)
+    if not retry_target:
+        raise HTTPException(status_code=400, detail="No retry target for this failure state")
+
+    # Transition back to the retry stage
+    now = datetime.now(timezone.utc).isoformat()
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {
+            "state": retry_target.value,
+            "last_heartbeat_at": now,
+            "updated_at": now,
+            "error_message": None,
+            "heartbeat_detail": f"Manual retry — resuming from {retry_target.value}",
+        }},
+    )
+
+    # Run pipeline in background
+    background_tasks = BackgroundTasks()
+    background_tasks.add_task(execute_pipeline, job_id)
+
+    logger.info(f"[RETRY] Job {job_id[:8]} retrying from {retry_target.value}")
+    return JSONResponse(
+        content={
+            "success": True,
+            "job_id": job_id,
+            "retrying_from": retry_target.value,
+            "message": f"Retrying from {get_label(retry_target)}",
+        },
+        background=background_tasks,
+    )
+
+
+@router.post("/cancel/{job_id}")
+async def cancel_job(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Cancel an active or failed job. Refunds credits if applicable."""
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job["user_id"] != current_user.get("id") and current_user.get("role", "").upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    state = job["state"]
+    if state in ("READY", "PARTIAL_READY"):
+        raise HTTPException(status_code=400, detail="Cannot cancel a completed job")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {
+            "state": "FAILED",
+            "error_message": "Cancelled by user",
+            "last_error_code": "CANCELLED",
+            "updated_at": now,
+        }},
+    )
+
+    # Refund credits
+    from services.story_engine.pipeline import _refund_credits
+    await _refund_credits(job_id)
+
+    logger.info(f"[CANCEL] Job {job_id[:8]} cancelled by user {current_user.get('id', '')[:12]}")
+    return {
+        "success": True,
+        "job_id": job_id,
+        "message": "Job cancelled. Credits will be refunded.",
+    }
+
 
 
 @router.get("/credit-check")

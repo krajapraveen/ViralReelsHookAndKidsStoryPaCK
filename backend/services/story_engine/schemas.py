@@ -1,6 +1,7 @@
 """
 Story Universe Engine — Pydantic schemas for the entire pipeline.
 Episode plans, scene motion plans, character continuity packages, cost estimation.
+Structured error codes and per-stage failure states.
 """
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -8,7 +9,31 @@ from enum import Enum
 
 
 # ═══════════════════════════════════════════════════════════════
-# JOB STATES — Truth-based, no fake completion
+# STRUCTURED ERROR CODES — No vague text. Every failure is classified.
+# ═══════════════════════════════════════════════════════════════
+
+class ErrorCode(str, Enum):
+    BUDGET_EXCEEDED_PRECHECK = "BUDGET_EXCEEDED_PRECHECK"
+    BUDGET_EXCEEDED_RUNTIME = "BUDGET_EXCEEDED_RUNTIME"
+    MODEL_TIMEOUT = "MODEL_TIMEOUT"
+    MODEL_INVALID_RESPONSE = "MODEL_INVALID_RESPONSE"
+    SCENE_GENERATION_FAILED = "SCENE_GENERATION_FAILED"
+    IMAGE_GENERATION_FAILED = "IMAGE_GENERATION_FAILED"
+    TTS_GENERATION_FAILED = "TTS_GENERATION_FAILED"
+    RENDER_FAILED = "RENDER_FAILED"
+    JOB_HEARTBEAT_EXPIRED = "JOB_HEARTBEAT_EXPIRED"
+    WORKER_CRASH = "WORKER_CRASH"
+    UNKNOWN_STAGE_FAILURE = "UNKNOWN_STAGE_FAILURE"
+    CONTENT_VIOLATION = "CONTENT_VIOLATION"
+    INSUFFICIENT_CREDITS = "INSUFFICIENT_CREDITS"
+    INPUT_TOO_LARGE = "INPUT_TOO_LARGE"
+    ASSET_MISSING = "ASSET_MISSING"
+    RENDER_ASSET_NOT_FOUND = "RENDER_ASSET_NOT_FOUND"
+    TIMELINE_BUILD_FAILED = "TIMELINE_BUILD_FAILED"
+
+
+# ═══════════════════════════════════════════════════════════════
+# JOB STATES — Per-stage failure states for recovery + honest UI
 # ═══════════════════════════════════════════════════════════════
 
 class JobState(str, Enum):
@@ -23,7 +48,35 @@ class JobState(str, Enum):
     VALIDATING = "VALIDATING"
     READY = "READY"
     PARTIAL_READY = "PARTIAL_READY"
+    # Per-stage terminal failure states
+    FAILED_PLANNING = "FAILED_PLANNING"
+    FAILED_IMAGES = "FAILED_IMAGES"
+    FAILED_TTS = "FAILED_TTS"
+    FAILED_RENDER = "FAILED_RENDER"
+    # Generic/legacy terminal failure
     FAILED = "FAILED"
+
+
+# Sets for quick membership checks
+TERMINAL_STATES = {
+    JobState.READY, JobState.PARTIAL_READY, JobState.FAILED,
+    JobState.FAILED_PLANNING, JobState.FAILED_IMAGES,
+    JobState.FAILED_TTS, JobState.FAILED_RENDER,
+}
+
+SUCCESS_STATES = {JobState.READY, JobState.PARTIAL_READY}
+
+ACTIVE_STATES = {
+    JobState.INIT, JobState.PLANNING, JobState.BUILDING_CHARACTER_CONTEXT,
+    JobState.PLANNING_SCENE_MOTION, JobState.GENERATING_KEYFRAMES,
+    JobState.GENERATING_SCENE_CLIPS, JobState.GENERATING_AUDIO,
+    JobState.ASSEMBLING_VIDEO, JobState.VALIDATING,
+}
+
+PER_STAGE_FAILURE_STATES = {
+    JobState.FAILED_PLANNING, JobState.FAILED_IMAGES,
+    JobState.FAILED_TTS, JobState.FAILED_RENDER,
+}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -32,42 +85,41 @@ class JobState(str, Enum):
 
 class CharacterArc(BaseModel):
     character_name: str
-    role: str  # protagonist, antagonist, supporting, narrator
-    emotional_journey: str  # e.g. "hopeful → desperate → determined"
+    role: str
+    emotional_journey: str
     key_actions: List[str]
-    appearance_description: str  # clothing, features, build — for continuity
-    voice_tone: str = "neutral"  # for TTS styling
+    appearance_description: str
+    voice_tone: str = "neutral"
 
 
 class SceneBreakdown(BaseModel):
     scene_number: int
     location: str
-    time_of_day: str  # dawn, morning, afternoon, dusk, night
+    time_of_day: str
     characters_present: List[str]
-    action_summary: str  # what happens in 1-2 sentences
+    action_summary: str
     dialogue: Optional[str] = None
-    emotional_beat: str  # e.g. "tension builds", "relief", "shock"
-    visual_style_notes: str  # e.g. "warm tones", "dutch angle", "close-up"
+    emotional_beat: str
+    visual_style_notes: str
     estimated_duration_seconds: float = 5.0
 
 
 class EpisodePlan(BaseModel):
-    """Mandatory structured episode plan. No free-form text."""
     title: str
     episode_number: int = 1
     summary: str = Field(..., max_length=300)
-    emotional_arc: str  # e.g. "curiosity → fear → hope → cliffhanger"
+    emotional_arc: str
     scene_breakdown: List[SceneBreakdown] = Field(..., min_length=1, max_length=12)
     character_arcs: List[CharacterArc] = Field(..., min_length=1)
     cliffhanger: str = Field(..., max_length=200)
-    visual_style_constraints: List[str]  # e.g. ["watercolor palette", "soft shadows"]
-    negative_constraints: List[str]  # e.g. ["no gore", "no real celebrities"]
-    narration_style: str = "dramatic"  # dramatic, calm, mysterious, playful
+    visual_style_constraints: List[str]
+    negative_constraints: List[str]
+    narration_style: str = "dramatic"
     target_total_duration_seconds: float = 30.0
 
 
 # ═══════════════════════════════════════════════════════════════
-# SCENE MOTION PLAN — Per-scene motion direction for video gen
+# SCENE MOTION PLAN
 # ═══════════════════════════════════════════════════════════════
 
 class CameraMotion(str, Enum):
@@ -95,24 +147,23 @@ class TransitionType(str, Enum):
 
 
 class MotionIntensity(str, Enum):
-    SUBTLE = "subtle"  # gentle sway, breathing
-    MODERATE = "moderate"  # walking, gestures
-    DYNAMIC = "dynamic"  # running, action
-    INTENSE = "intense"  # explosion, chase
+    SUBTLE = "subtle"
+    MODERATE = "moderate"
+    DYNAMIC = "dynamic"
+    INTENSE = "intense"
 
 
 class SceneMotionPlan(BaseModel):
-    """Mandatory per-scene motion plan for video generation."""
     scene_number: int
-    action: str  # e.g. "character walks through forest"
-    emotion: str  # e.g. "anxious", "peaceful"
+    action: str
+    emotion: str
     camera_motion: CameraMotion
     transition_type: TransitionType = TransitionType.CROSSFADE
     motion_intensity: MotionIntensity = MotionIntensity.MODERATE
     clip_duration_seconds: float = Field(5.0, ge=2.0, le=15.0)
-    movement_notes: str = ""  # e.g. "wind blows hair, leaves fall"
-    keyframe_prompt: str = ""  # exact prompt for keyframe generation
-    video_prompt: str = ""  # exact prompt for clip generation
+    movement_notes: str = ""
+    keyframe_prompt: str = ""
+    video_prompt: str = ""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -120,29 +171,27 @@ class SceneMotionPlan(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class CharacterAppearance(BaseModel):
-    """Locked visual traits for a character across episodes."""
     name: str
     gender: str
-    age_range: str  # e.g. "20s", "elderly"
-    build: str  # e.g. "slim", "athletic"
-    hair: str  # e.g. "long black hair"
-    eyes: str  # e.g. "bright green"
+    age_range: str
+    build: str
+    hair: str
+    eyes: str
     skin_tone: str
-    clothing_default: str  # e.g. "dark leather jacket, white shirt"
-    distinguishing_features: str  # e.g. "scar on left cheek"
-    reference_prompt: str  # full prompt to regenerate this character consistently
+    clothing_default: str
+    distinguishing_features: str
+    reference_prompt: str
     reference_image_url: Optional[str] = None
 
 
 class CharacterContinuityPackage(BaseModel):
-    """Full continuity package for all characters in a story universe."""
     universe_id: str
     story_chain_id: str
     characters: List[CharacterAppearance]
-    style_lock: str  # e.g. "watercolor, soft lighting, 16:9"
-    color_palette: List[str]  # e.g. ["#2A1B3D", "#44318D", "#E98074"]
-    environment_consistency: str  # e.g. "medieval village, cobblestone streets"
-    locked_at: str  # ISO timestamp when these traits were locked
+    style_lock: str
+    color_palette: List[str]
+    environment_consistency: str
+    locked_at: str
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -150,12 +199,11 @@ class CharacterContinuityPackage(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class CostEstimate(BaseModel):
-    """Pre-flight cost estimation before generation starts."""
     total_credits_required: int
-    breakdown: Dict[str, int]  # e.g. {"planning": 1, "keyframes": 5, "clips": 10, "audio": 2, "assembly": 2}
+    breakdown: Dict[str, int]
     user_current_credits: int
     sufficient: bool
-    shortfall: int = 0  # how many more credits needed
+    shortfall: int = 0
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -163,19 +211,20 @@ class CostEstimate(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class StageResult(BaseModel):
-    """Result of a single pipeline stage."""
     stage: str
-    status: str  # success, failed, skipped
+    status: str
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     duration_seconds: Optional[float] = None
     credits_consumed: int = 0
     error: Optional[str] = None
+    error_code: Optional[str] = None
+    attempt_number: int = 1
+    model_used: Optional[str] = None
     output_artifacts: Dict[str, Any] = {}
 
 
 class PipelineJob(BaseModel):
-    """Full pipeline job document."""
     job_id: str
     user_id: str
     state: JobState = JobState.INIT
@@ -206,6 +255,14 @@ class PipelineJob(BaseModel):
     credits_refunded: int = 0
     # Stage results
     stage_results: List[Dict] = []
+    # Reliability tracking
+    retry_count: int = 0
+    max_retries: int = 3
+    last_heartbeat_at: Optional[str] = None
+    last_error_code: Optional[str] = None
+    last_error_message: Optional[str] = None
+    last_error_stage: Optional[str] = None
+    stage_retry_counts: Dict[str, int] = {}
     # Meta
     is_seed_content: bool = False
     public: bool = False
@@ -214,8 +271,6 @@ class PipelineJob(BaseModel):
     updated_at: str = ""
     completed_at: Optional[str] = None
     error_message: Optional[str] = None
-    retry_count: int = 0
-    max_retries: int = 2
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -228,7 +283,7 @@ class CreateStoryRequest(BaseModel):
     style_id: str = "cartoon_2d"
     language: str = "en"
     age_group: str = "teens"
-    parent_job_id: Optional[str] = None  # for continuations
+    parent_job_id: Optional[str] = None
     story_chain_id: Optional[str] = None
 
 
@@ -249,4 +304,8 @@ class JobStatusResponse(BaseModel):
     preview_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     error_message: Optional[str] = None
+    error_code: Optional[str] = None
     credits_consumed: int = 0
+    credits_refunded: int = 0
+    retry_count: int = 0
+    can_retry: bool = False
