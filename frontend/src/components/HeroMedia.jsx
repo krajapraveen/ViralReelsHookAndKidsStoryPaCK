@@ -72,7 +72,7 @@ export default function HeroMedia({
           src={posterSrc}
           alt={effectiveAlt}
           loading={eager ? "eager" : "lazy"}
-          fetchpriority={eager ? "high" : "auto"}
+          fetchPriority={eager ? "high" : "auto"}
           decoding="async"
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
             posterLoaded ? "opacity-100" : "opacity-70"
@@ -107,7 +107,7 @@ export default function HeroMedia({
           src={fallbackImageUrl}
           alt={effectiveAlt}
           loading={eager ? "eager" : "lazy"}
-          fetchpriority={eager ? "high" : "auto"}
+          fetchPriority={eager ? "high" : "auto"}
           decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
           data-testid="hero-media-fallback"

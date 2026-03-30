@@ -77,7 +77,7 @@ export default function StoryCardMedia({
           src={resolvedImageSrc}
           alt={effectiveAlt}
           loading={eager ? "eager" : "lazy"}
-          fetchpriority={eager ? "high" : "auto"}
+          fetchPriority={eager ? "high" : "auto"}
           decoding="async"
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
             primaryLoaded ? "opacity-100" : "opacity-75"
