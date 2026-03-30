@@ -19,77 +19,74 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with 11 creato
 5. **Centralized Credits Service** — all credit ops go through CreditsService
 6. **Continue Loop** — every story must drive continuation
 7. **Track behavior, not traffic** — only loop events matter
+8. **POSTER-FIRST HOMEPAGE** — no autoplay video on homepage; video belongs on watch/result/share pages only
+
+## Homepage Media Architecture (POSTER-FIRST — Mar 2026)
+### Mandatory Rules
+- **Homepage = posters only.** No `<video>` elements on Dashboard.js.
+- **Watch/result/share pages = real video.** All video playback complexity lives deeper in the flow.
+- **Motion on homepage = CSS only.** Ken Burns zoom, light sweep shimmer, badge pulse, hover scale — no browser video dependencies.
+
+### Why
+Autoplay video on homepage causes: Safari failures, mobile failures, slow paint, black/blank states, codec/CORS issues, battery/network problems. The homepage is for attraction, speed, click-through — not video playback.
+
+### Implementation
+- **Hero**: Poster image + Ken Burns slow zoom (8s cycle) + light sweep shimmer overlay + gradient fallback
+- **Story Cards**: Poster thumbnail + badge pulse + hover scale(1.05) + card light sweep on hover + play button overlay
+- **No video, mute, autoplay, playsInline, crossOrigin on any homepage element**
+- **Click → navigate to studio** where real video plays
+
+## Media Proxy Architecture (Mar 2026)
+- All R2 CDN URLs routed through `/api/media/r2/{path}` for CORS/Safari/mobile compatibility
+- `asyncio.to_thread()` for all boto3 S3 calls — prevents event loop blocking
+- In-memory LRU cache (150 entries, 1hr TTL) for resized images
+- Auto-resize images >300KB to 800px even without `?w` parameter
+- `?w=400&q=80` for card thumbnails, `?w=800` for hero poster
+- 5 concurrent images: 0.33s (was 9.7s/each before fix)
 
 ## Addiction Loop Metrics Dashboard
-### What's implemented
 - **Endpoint**: `GET /api/growth/loop-dashboard?days=7|14|30`
 - **5 Core Metrics**: Click Rate, Completion Rate, Continue Rate (NORTH STAR), Share Rate, K-Factor
-- **7 Dashboard Sections**:
-  1. Growth Loop Health (top bar with benchmarks)
-  2. Funnel (impression > click > watch > complete > continue > share)
-  3. Drop-off Analysis (with worst drop-off highlighted)
-  4. Top Performing Stories (continue%, share%, completions)
-  5. Hook A/B Performance (CTR, continue% per variant)
-  6. Category Performance (continue%, share% per category)
-  7. Real-Time Activity Feed (last 20 events)
 - **Frontend Tracking**: `growthTracker.js` — batched event queue (3s flush / 10 events)
-- **Events Tracked**: impression (IntersectionObserver on cards), click (card click), watch_start (video play), watch_complete (video end), continue (continue CTA), share (share button)
-- **Pages Instrumented**: Dashboard.js, PublicCreation.js, StoryPreview.js
-
-## Continue Story Loop (Growth Engine)
-1. Post-Video Auto Continue Overlay (StoryPreview + PublicCreation)
-2. CTA Hierarchy — Continue is PRIMARY everywhere
-3. Studio Prefill — title, story_text, animation_style, parent_video_id, hook_text, characters
-4. Cliffhanger Enforcement (Backend) — planning_llm.py validates and rewrites weak cliffhangers
-5. Share Page = Continue Trigger
 
 ## Credits Service Architecture
 - **File**: `/app/backend/services/credits_service.py`
-- **Class**: `CreditsService` with `get_user_credit_state`, `check_credits`, `deduct_credits`, `refund_credits`, `award_credits`
 - **Phase 1 DONE**: Story Engine, video routes, bedtime builder, coloring book, + shared.py delegation
-- **Phase 2/3 PENDING**: ~35 low-risk routes
-
-## Canonical Reference Documents
-- `/app/ARCHITECTURE.md` — Technical architecture
-- `/app/DB_RELATIONSHIPS.md` — MongoDB collection relationships
-- `/app/BACKEND_SERVICE_MAP.md` — Backend service/pipeline map
+- **Phase 2/3 PENDING**: ~35 low-risk routes — **USER PAUSED**
 
 ## What's Been Implemented
 - Story Universe Engine with 11 creator tools
-- Homepage with 4 story rows + hero
+- Homepage with 4 story rows + hero (poster-first)
 - Story-to-Video pipeline
-- Media optimization (R2 CDN)
+- Media optimization (R2 CDN + async proxy + LRU cache)
 - Compatibility layer
 - Cashfree payments + Google Auth
 - Admin dashboard (truth-based)
-- Credit system centralized
+- Credit system centralized (50 credits for new users)
 - Character routes fixed to character_profiles
 - Continue Story Loop Optimization
-- **Addiction Loop Metrics Dashboard** — all 7 sections
-- **Frontend event tracking** — impression, click, watch, continue, share
-- **Netflix-style Dashboard UI** — 9 sections: Hero (72vh, auto-rotate, video/poster/gradient fallback), Metrics Strip, 4 Story Rows (Trending/Fresh/Continue/Unfinished), Creator Tools grid, Activity Bar, Footer
-- **Dashboard media resilience** — Hero never shows black void (gradient fallback on poster/video failure), SafeImage gradient fallback on card thumbnail failure, removed invalid preload warning
-- **Mobile-first Dashboard** — 60vh mobile hero with full-width CTA, 160x220 mobile cards (220x300 desktop), horizontal scroll metrics pills, 2-col feature grid (10 tools), sticky bottom nav (Home/Explore/Create/Stories/Profile)
-- **First 1-second perception optimization** — blur-to-video hero swap, shimmer loading (no spinners), progressive IntersectionObserver row reveal, requestIdleCallback thumbnail preloading, CTA glow pulse, card float micro-animations, real-time activity signals, zero dead states
-- **Addiction Triggers in Video Generation** — Episode plan extended with tension_peak, trigger_text, cut_mood. FFmpeg apply_addiction_triggers (zoom+darken+text overlay+audio swell in last 2s). Pipeline wires triggers into assembly. Frontend: synchronized video player CTA appears instantly on video end (zero delay), trigger text shown in last 2 seconds, replay option.
-- **P0 Cross-Browser Media Fix** — All R2 CDN URLs routed through backend proxy for CORS/Safari/mobile compatibility. Poster-first hero strategy (poster loads first, video only after poster succeeds). Aggressive fallback timeouts (poster 2s, video 4s). SafeImage auto-converts R2 URLs. CORS OPTIONS preflight on media proxy. crossOrigin=anonymous on img/video. No more ERR_BLOCKED_BY_ORB.
-- **P0 Media Proxy Concurrent Performance Fix (Mar 2026)** — Root cause: synchronous boto3 blocked FastAPI event loop when 17+ images loaded concurrently (9.7s per request). Fix: 1) asyncio.to_thread() for all S3 calls, 2) In-memory LRU cache (150 entries, 1hr TTL) for resized images, 3) Auto-resize images >300KB to 800px even without ?w param, 4) Hero poster uses resize=800 (2MB PNG reduced to 54KB), 5) Hero rotation increased to 8s, poster timeout to 10s. Result: 5 concurrent images in 0.16s, cached requests in 0.11s.
-
-## Deployment Status
-- Deployment health check: PASSED (Mar 2026)
+- Addiction Loop Metrics Dashboard — all 7 sections
+- Frontend event tracking — impression, click, watch, continue, share
+- Netflix-style Dashboard UI — poster-first, CSS-only motion
+- Mobile-first Dashboard — 60vh mobile hero, 160x220 mobile cards
+- 1-second perception optimization — shimmer loading, progressive IntersectionObserver
+- Addiction Triggers in Video Generation (watch/result pages)
+- Cross-Browser Media Fix (media proxy for CORS/Safari)
+- **Poster-First Homepage Architecture (Mar 30 2026)** — ZERO video on homepage, Ken Burns + light sweep + badge pulse + hover scale
+- **Media Proxy Concurrent Fix (Mar 30 2026)** — asyncio.to_thread, LRU cache, auto-resize
 
 ## Prioritized Backlog
 ### P1
 - Soft Launch monitoring using the new dashboard
 
-### P2
+### P2 (User-paused)
 - Migrate remaining ~35 routes to CreditsService
 - A/B test hook text variations
 - Character-driven auto-share prompts
 - Remix Variants on share pages
-- Self-hosted GPU models (Wan2.1, Kokoro)
 
 ### P3
+- Self-hosted GPU models (Wan2.1, Kokoro)
 - WebSockets for live admin job tracking
 
 ## Test Credentials
