@@ -265,21 +265,23 @@ def _to_r2_key(url: str) -> str | None:
         return None
 
 
-def _to_proxy(url: str) -> str | None:
-    """Convert any R2/CDN URL to same-origin proxy path for Safari safety."""
+def _to_cdn(url: str) -> str | None:
+    """Return the R2 proxy path. CDN URLs are resolved on the frontend
+    to avoid K8s ingress Cache-Control override while keeping compatibility."""
     key = _to_r2_key(url)
     return f"/api/media/r2/{key}" if key else None
 
 
 def _resolve_media(job: dict) -> tuple:
     """Resolve thumbnail_small and poster_large from the strict media schema.
-    Falls back to legacy flat fields ONLY for pre-migration jobs."""
+    Falls back to legacy flat fields ONLY for pre-migration jobs.
+    Returns DIRECT R2 CDN URLs (bypasses K8s ingress Cache-Control override)."""
     media = job.get("media") or {}
     thumb_raw = (media.get("thumbnail_small") or {}).get("url")
     poster_raw = (media.get("poster_large") or {}).get("url")
 
     if thumb_raw and poster_raw:
-        return _to_proxy(thumb_raw), _to_proxy(poster_raw)
+        return _to_cdn(thumb_raw), _to_cdn(poster_raw)
 
     thumb_raw = thumb_raw or job.get("thumbnail_small_url") or job.get("thumbnail_url")
     poster_raw = poster_raw or job.get("thumbnail_url") or job.get("thumbnail_small_url")
@@ -291,7 +293,7 @@ def _resolve_media(job: dict) -> tuple:
             if fk and isinstance(si[fk], dict):
                 thumb_raw = si[fk].get("url")
 
-    return _to_proxy(thumb_raw), _to_proxy(poster_raw or thumb_raw)
+    return _to_cdn(thumb_raw), _to_cdn(poster_raw or thumb_raw)
 
 
 def _has_displayable_media(item: dict) -> bool:
@@ -316,9 +318,10 @@ def _extract_char_summary(job: dict) -> dict | None:
 
 def _shape_item(job: dict, badge: str = "NEW") -> dict:
     """Shape a raw DB document into a standard feed item.
-    Includes hook A/B data for personalized hook serving."""
+    Includes hook A/B data for personalized hook serving.
+    URLs are DIRECT R2 CDN (bypass K8s ingress)."""
     card_thumb, poster = _resolve_media(job)
-    preview = _to_proxy(job.get("preview_url"))
+    preview = _to_cdn(job.get("preview_url"))
 
     jid = job.get("job_id")
 
@@ -347,7 +350,7 @@ def _shape_item(job: dict, badge: str = "NEW") -> dict:
             "preview_short_url": preview,
             "media_version": "v3",
         },
-        "output_url": _to_proxy(job.get("output_url")),
+        "output_url": _to_cdn(job.get("output_url")),
         "animation_style": job.get("animation_style", ""),
         "parent_video_id": job.get("parent_video_id"),
         "badge": badge,
@@ -614,6 +617,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             "stories_today": se_today + pj_today,
             "total_stories": se_total + pj_total,
         },
+        "cdn_base": os.environ.get("CLOUDFLARE_R2_PUBLIC_URL", ""),
     }
 
 

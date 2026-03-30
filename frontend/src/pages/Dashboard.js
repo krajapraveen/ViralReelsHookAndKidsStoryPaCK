@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
 import { trackLoop } from '../utils/growthTracker';
+import { setCdnBase } from '../utils/mediaUrl';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
@@ -595,6 +596,8 @@ export default function Dashboard() {
           axios.get(`${API}/api/growth/loop-dashboard?days=7`, auth()).catch(() => ({ data: { health: {}, live_feed: [], raw: {} } })),
         ]);
         setFeed(feedRes.data);
+        // Set CDN base URL for media resolution (bypasses K8s cache-control override)
+        if (feedRes.data.cdn_base) setCdnBase(feedRes.data.cdn_base);
         setMetrics({ ...metricsRes.data.health, active_users: metricsRes.data.raw?.active_users || 0 });
         setLiveFeed(metricsRes.data.live_feed || []);
       } catch (e) {
@@ -636,12 +639,12 @@ export default function Dashboard() {
   // First row's stories for preloading
   const firstRow = rows[0] || { stories: [] };
 
-  // MediaPreloader inputs
+  // MediaPreloader inputs — proxy paths passed, resolved to CDN at render time
   const heroPreloadMedia = (safeHeroPool[0])?.media ? {
-    poster_large_url: safeHeroPool[0].media.poster_large_url ? `${API}${safeHeroPool[0].media.poster_large_url}` : null,
+    poster_large_url: safeHeroPool[0].media.poster_large_url || null,
   } : null;
   const firstRowPreloadCards = (firstRow.stories || []).slice(0, 4).map(s => ({
-    thumbnail_small_url: s?.media?.thumbnail_small_url ? `${API}${s.media.thumbnail_small_url}` : null,
+    thumbnail_small_url: s?.media?.thumbnail_small_url || null,
   }));
 
   return (

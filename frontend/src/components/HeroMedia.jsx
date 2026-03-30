@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
 function getBlurSrc(thumbBlur) {
   if (!thumbBlur) return null;
@@ -20,8 +21,9 @@ export default function HeroMedia({
   onClick,
 }) {
   const blurSrc = useMemo(() => getBlurSrc(media?.thumb_blur), [media?.thumb_blur]);
-  const posterSrc = media?.poster_large_url || null;
-  const previewSrc = media?.preview_short_url || null;
+  const posterSrc = resolveMediaUrl(media?.poster_large_url);
+  const previewSrc = resolveMediaUrl(media?.preview_short_url);
+  const resolvedFallback = resolveMediaUrl(fallbackImageUrl);
   const effectiveAlt = alt || title || "Story hero image";
 
   const [posterLoaded, setPosterLoaded] = useState(false);
@@ -104,7 +106,7 @@ export default function HeroMedia({
       {/* Local designed fallback only after real media fails */}
       {showFallback ? (
         <img
-          src={fallbackImageUrl}
+          src={resolvedFallback}
           alt={effectiveAlt}
           loading={eager ? "eager" : "lazy"}
           fetchPriority={eager ? "high" : "auto"}

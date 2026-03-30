@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
 function getBlurSrc(thumbBlur) {
   if (!thumbBlur) return null;
@@ -19,9 +20,10 @@ export default function StoryCardMedia({
   onClick,
 }) {
   const blurSrc = useMemo(() => getBlurSrc(media?.thumb_blur), [media?.thumb_blur]);
-  const primarySrc = media?.thumbnail_small_url || null;
-  const posterSrc = media?.poster_large_url || null;
-  const previewSrc = media?.preview_short_url || null;
+  const primarySrc = resolveMediaUrl(media?.thumbnail_small_url);
+  const posterSrc = resolveMediaUrl(media?.poster_large_url);
+  const previewSrc = resolveMediaUrl(media?.preview_short_url);
+  const resolvedFallback = resolveMediaUrl(fallbackImageUrl);
   const effectiveAlt = alt || title || "Story card image";
 
   const [primaryLoaded, setPrimaryLoaded] = useState(false);
@@ -35,7 +37,7 @@ export default function StoryCardMedia({
     ? primarySrc
     : !posterFailed
       ? posterSrc
-      : fallbackImageUrl;
+      : resolvedFallback;
 
   const canShowPreview =
     !!previewSrc &&

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { resolveMediaUrl, getCdnBase } from "../utils/mediaUrl";
 
 function createPreloadLink(href) {
   if (!href) return null;
@@ -42,7 +43,10 @@ export default function MediaPreloader({
     const head = document.head;
     const added = [];
 
+    // Use CDN base for preconnect (bypasses K8s cache-control)
+    const cdnBase = getCdnBase();
     const resolvedOrigin =
+      cdnBase ||
       imageOrigin ||
       safeOrigin(hero?.poster_large_url) ||
       safeOrigin(firstRowCards?.[0]?.thumbnail_small_url);
@@ -60,18 +64,18 @@ export default function MediaPreloader({
       added.push(dnsPrefetch);
     }
 
-    // Preload hero poster only
+    // Preload hero poster — resolve to CDN URL
     if (hero?.poster_large_url) {
-      const heroPreload = createPreloadLink(hero.poster_large_url);
+      const heroPreload = createPreloadLink(resolveMediaUrl(hero.poster_large_url));
       if (heroPreload) {
         head.appendChild(heroPreload);
         added.push(heroPreload);
       }
     }
 
-    // Preload only first 4 visible thumbnails
+    // Preload only first 4 visible thumbnails — resolve to CDN URLs
     const topThumbs = (firstRowCards || [])
-      .map((c) => c?.thumbnail_small_url)
+      .map((c) => resolveMediaUrl(c?.thumbnail_small_url))
       .filter(Boolean)
       .slice(0, 4);
 
