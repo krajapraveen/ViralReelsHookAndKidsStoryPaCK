@@ -62,7 +62,7 @@ Autoplay → Hook → Preview → Click → Reward → Personalization → Infin
 - [x] Netflix autoplay preview (singleton, Safari-safe)
 - [x] Behavior engine (session memory, momentum, recovery, variable rewards, infinite scroll)
 - [x] Retention Analytics Dashboard (5 key metrics, trends, device segmentation)
-- [x] **Rate Limit UX Fix** (Mar 30 2026): Renamed "Rate limit" → "All rendering slots are busy", added active jobs list with View buttons, friendly messaging throughout
+- [x] **Rate Limit UX Fix** (Mar 30 2026): Root cause was a TRIPLE rate-limit message source: `story_engine_routes.py` (fixed by prev agent), `pipeline_routes.py` (old harsh messages), and `services/story_engine/safety.py` (returned `success: False` with "Rate limit:" prefix, causing a 400 instead of 429). Fixed all 3 backend files + frontend. Messages now say "All rendering slots are busy" with active jobs list, "View Progress" buttons, and contextual help tips.
 
 ## Current Phase: STABILIZATION
 - No new features
