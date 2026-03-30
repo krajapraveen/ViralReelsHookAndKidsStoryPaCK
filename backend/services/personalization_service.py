@@ -4,18 +4,17 @@ Deterministic Homepage Personalization Service
 Pure math scoring — NO ML, NO embeddings, NO LLM recommenders.
 
 STORY SCORE:
-  (0.30 × category_affinity) + (0.20 × continue_rate) + (0.15 × completion_rate)
-  + (0.10 × share_rate) + (0.10 × freshness_score) + (0.10 × momentum_score)
+  (0.25 × category_affinity) + (0.20 × hook_strength)
+  + (0.15 × completion_rate) + (0.15 × momentum_score)
+  + (0.10 × freshness_score) + (0.10 × share_rate)
   + (0.05 × global_trending_score)
 
-EVENT WEIGHTS:
-  card_click=1  watch_start=2  continue_click=5  watch_complete=8
-  share_click=10  generation_start=6  generation_complete=12
-
-FEATURE SCORE:
-  (0.50 × feature_affinity) + (0.25 × recent_usage) + (0.15 × success_rate)
-  + (0.10 × monetization_priority)
+SESSION ENGINE:
+  momentum_score tracks in-session engagement intensity
+  recovery system detects disengagement (3+ skips) and pivots content
+  variable reward spikes high-score items at random intervals
 """
+import random
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -38,7 +37,28 @@ EVENT_WEIGHTS = {
     "generate_click": 6,
     "generation_complete": 12,
     "creation_completed": 12,
+    # New behavior events
+    "preview_play": 1,
+    "hook_seen": 0.5,
+    "skip_fast": -1,
 }
+
+# Session momentum deltas
+MOMENTUM_DELTAS = {
+    "click": 1.0,
+    "card_click": 1.0,
+    "continue_click": 2.0,
+    "continue": 2.0,
+    "preview_play": 0.5,
+    "watch_complete": 1.5,
+    "hook_seen": 0.3,
+    "skip_fast": -1.0,
+    "share_click": 2.0,
+    "share": 2.0,
+}
+
+# Recovery threshold: after this many consecutive skips, inject different content
+RECOVERY_SKIP_THRESHOLD = 3
 
 # Decay multiplier — applied to all existing affinities before adding new signal
 DECAY = 0.98
@@ -63,7 +83,7 @@ FEATURE_MONETIZATION_PRIORITY = {
 
 
 def _empty_profile(user_id: str) -> dict:
-    """Create a cold-start empty profile."""
+    """Create a cold-start empty profile with session memory."""
     now = datetime.now(timezone.utc).isoformat()
     return {
         "user_id": user_id,
@@ -79,6 +99,15 @@ def _empty_profile(user_id: str) -> dict:
             "continue_rate": 0.0,
             "completion_rate": 0.0,
             "share_rate": 0.0,
+        },
+        # Session memory — tracks in-session engagement
+        "session": {
+            "momentum_score": 0.0,
+            "last_5_clicked_categories": [],
+            "last_3_hooks_clicked": [],
+            "consecutive_skips": 0,
+            "session_actions": 0,
+            "session_id": None,
         },
         "recent_activity": [],
         "counts": {
@@ -107,10 +136,12 @@ async def update_profile_on_event(db, user_id: str, event: str, meta: dict):
     1. Decay all existing affinities by 0.98
     2. Add weighted signal for category and feature
     3. Update behavior counters
-    4. Append to recent_activity (capped at 100)
+    4. Update session momentum + memory
+    5. Append to recent_activity (capped at 100)
     """
     weight = EVENT_WEIGHTS.get(event, 0)
-    if weight == 0:
+    # Allow negative-weight events (skip_fast) — still need to update session
+    if weight == 0 and event not in MOMENTUM_DELTAS:
         return
 
     profile = await get_or_create_profile(db, user_id)
@@ -126,14 +157,12 @@ async def update_profile_on_event(db, user_id: str, event: str, meta: dict):
         feat_aff[k] *= DECAY
 
     # ── 2. Add weighted signal ──
-    # Category comes from meta.category OR animation_style
     category = (meta or {}).get("category") or (meta or {}).get("animation_style")
-    if category:
+    if category and weight > 0:
         cat_aff[category] = cat_aff.get(category, 0.0) + (weight / 12.0)
 
-    # Feature affinity from tool_type or source_surface
     feature_key = (meta or {}).get("tool_type") or (meta or {}).get("source_surface")
-    if feature_key:
+    if feature_key and weight > 0:
         feat_aff[feature_key] = feat_aff.get(feature_key, 0.0) + (weight / 12.0)
 
     # Normalize affinities to [0, 1]
@@ -168,33 +197,70 @@ async def update_profile_on_event(db, user_id: str, event: str, meta: dict):
     bm["completion_rate"] = round(bm.get("total_completions", 0) / total_starts, 4)
     bm["share_rate"] = round(bm.get("total_shares", 0) / total_views, 4)
 
-    # ── 4. Append to recent_activity (last 100) ──
+    # ── 4. Update session momentum + memory ──
+    session = profile.get("session") or {
+        "momentum_score": 0.0,
+        "last_5_clicked_categories": [],
+        "last_3_hooks_clicked": [],
+        "consecutive_skips": 0,
+        "session_actions": 0,
+        "session_id": None,
+    }
+
+    # Momentum delta
+    delta = MOMENTUM_DELTAS.get(event, 0.0)
+    session["momentum_score"] = max(0.0, min(10.0, session.get("momentum_score", 0.0) + delta))
+    session["session_actions"] = session.get("session_actions", 0) + 1
+
+    # Skip tracking for recovery
+    if event == "skip_fast":
+        session["consecutive_skips"] = session.get("consecutive_skips", 0) + 1
+    elif event in ("click", "card_click", "continue_click", "continue", "preview_play"):
+        session["consecutive_skips"] = 0  # Reset on positive engagement
+
+    # Category memory
+    if category and event in ("click", "card_click", "continue_click", "continue"):
+        cats = session.get("last_5_clicked_categories", [])
+        cats.append(category)
+        session["last_5_clicked_categories"] = cats[-5:]
+
+    # Hook memory
+    hook_text = (meta or {}).get("hook_text")
+    if hook_text and event in ("click", "card_click", "continue_click"):
+        hooks = session.get("last_3_hooks_clicked", [])
+        hooks.append(hook_text)
+        session["last_3_hooks_clicked"] = hooks[-3:]
+
+    # ── 5. Append to recent_activity (last 100) ──
     recent = profile.get("recent_activity", [])
     recent.append({
         "event": event,
         "story_id": (meta or {}).get("story_id"),
         "category": category,
         "feature_key": feature_key,
-        "weight": weight,
+        "weight": max(0, weight),
         "timestamp": now,
     })
     recent = recent[-100:]
 
     total_events = profile.get("counts", {}).get("total_events", 0) + 1
 
-    # ── 5. Write back ──
+    # ── 6. Write back ──
     await db.user_homepage_profile.update_one(
         {"user_id": user_id},
         {"$set": {
             "category_affinity": cat_aff,
             "feature_affinity": feat_aff,
             "behavior_metrics": bm,
+            "session": session,
             "recent_activity": recent,
             "counts": {"total_events": total_events, "last_updated": now},
             "updated_at": now,
         }},
         upsert=True,
     )
+
+    return session
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -432,3 +498,100 @@ def profile_strength(profile: dict) -> float:
     """0.0-1.0 indicating how strong the profile is. 50 events = 1.0."""
     events = profile.get("counts", {}).get("total_events", 0)
     return min(1.0, events / 50.0)
+
+
+def needs_recovery(profile: dict) -> bool:
+    """Check if user has skipped too many items and needs content recovery."""
+    session = profile.get("session", {})
+    return session.get("consecutive_skips", 0) >= RECOVERY_SKIP_THRESHOLD
+
+
+def get_session_intensity(profile: dict) -> str:
+    """Determine content intensity based on session momentum.
+    HIGH momentum → show engaging/intense content
+    LOW momentum → show safe/easy content to re-engage"""
+    momentum = profile.get("session", {}).get("momentum_score", 0.0)
+    if momentum >= 5.0:
+        return "high"
+    elif momentum >= 2.0:
+        return "medium"
+    return "low"
+
+
+def inject_variable_rewards(stories: list, profile: dict) -> list:
+    """Inject high-score 'spike' items at RANDOM intervals (3-9 positions).
+    This creates unpredictability = dopamine = addiction.
+    Items are re-ordered so spikes land at variable positions."""
+    if len(stories) < 6:
+        return stories
+
+    result = []
+    # Separate top-scored items as spike candidates
+    scored = sorted(stories, key=lambda s: s.get("_score", 0), reverse=True)
+    spikes = scored[:max(2, len(scored) // 8)]  # Top ~12% as spike material
+    regular = [s for s in stories if s not in spikes]
+
+    # Interleave: place spikes at random intervals of 3-9
+    next_spike_at = random.randint(3, 9)
+    spike_idx = 0
+    regular_idx = 0
+
+    for i in range(len(stories)):
+        if i == next_spike_at and spike_idx < len(spikes):
+            result.append(spikes[spike_idx])
+            spike_idx += 1
+            next_spike_at = i + random.randint(3, 9)
+        elif regular_idx < len(regular):
+            result.append(regular[regular_idx])
+            regular_idx += 1
+        elif spike_idx < len(spikes):
+            result.append(spikes[spike_idx])
+            spike_idx += 1
+
+    # Append any remaining
+    while regular_idx < len(regular):
+        result.append(regular[regular_idx])
+        regular_idx += 1
+    while spike_idx < len(spikes):
+        result.append(spikes[spike_idx])
+        spike_idx += 1
+
+    return result
+
+
+def apply_recovery(stories: list, profile: dict) -> list:
+    """When user has skipped 3+ items, reset the content mix.
+    Shuffle categories to break the pattern that caused disengagement."""
+    session = profile.get("session", {})
+    recent_cats = session.get("last_5_clicked_categories", [])
+
+    if not recent_cats or len(stories) < 4:
+        # No category history → just shuffle
+        shuffled = list(stories)
+        random.shuffle(shuffled)
+        return shuffled
+
+    # De-prioritize recent categories, surface unseen ones
+    seen_styles = set(recent_cats)
+    unseen = [s for s in stories if s.get("animation_style", "") not in seen_styles]
+    seen = [s for s in stories if s.get("animation_style", "") in seen_styles]
+
+    # Lead with unseen content, then seen
+    return unseen + seen
+
+
+async def reset_session(db, user_id: str, session_id: str = None):
+    """Reset session state (call on new page load or session timeout)."""
+    await db.user_homepage_profile.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "session": {
+                "momentum_score": 0.0,
+                "last_5_clicked_categories": [],
+                "last_3_hooks_clicked": [],
+                "consecutive_skips": 0,
+                "session_actions": 0,
+                "session_id": session_id,
+            },
+        }},
+    )

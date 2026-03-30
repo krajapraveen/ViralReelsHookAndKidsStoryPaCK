@@ -4,6 +4,7 @@ import { useCredits } from '../contexts/CreditContext';
 import axios from 'axios';
 import { trackLoop } from '../utils/growthTracker';
 import { setCdnBase } from '../utils/mediaUrl';
+import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
@@ -239,6 +240,7 @@ function MetricsStrip({ metrics }) {
 function StoryCard({ story, idx, navigate, priority = false }) {
   const cardRef = useRef(null);
   const impressionFired = useRef(false);
+  const visibleSince = useRef(null);
 
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
@@ -246,16 +248,24 @@ function StoryCard({ story, idx, navigate, priority = false }) {
 
   useEffect(() => {
     const el = cardRef.current;
-    if (!el || impressionFired.current) return;
+    if (!el) return;
     const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !impressionFired.current) {
-        impressionFired.current = true;
-        trackLoop('impression', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
-        // Track hook A/B impression
-        if (story.job_id && story.hook_variant_id) {
-          axios.post(`${API}/api/engagement/hook-event`, { job_id: story.job_id, hook_variant_id: story.hook_variant_id, event_type: 'impression' }).catch(() => {});
+      if (entry.isIntersecting) {
+        visibleSince.current = Date.now();
+        if (!impressionFired.current) {
+          impressionFired.current = true;
+          trackLoop('impression', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
+          if (story.job_id && story.hook_variant_id) {
+            axios.post(`${API}/api/engagement/hook-event`, { job_id: story.job_id, hook_variant_id: story.hook_variant_id, event_type: 'impression' }).catch(() => {});
+          }
         }
-        obs.disconnect();
+      } else if (visibleSince.current) {
+        // Card left viewport — check if it was a skip
+        const visMs = Date.now() - visibleSince.current;
+        if (wasSkippedFast(visMs)) {
+          sendFeedEvent('skip_fast', { jobId: story.job_id, category: story.animation_style });
+        }
+        visibleSince.current = null;
       }
     }, { threshold: 0.5 });
     obs.observe(el);
@@ -264,6 +274,8 @@ function StoryCard({ story, idx, navigate, priority = false }) {
 
   const handleClick = () => {
     trackLoop('click', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
+    // Real-time session momentum + profile update
+    sendFeedEvent('click', { jobId: story.job_id, category: story.animation_style, hookText: story.hook_text });
     // Track hook A/B continue click
     if (story.job_id && story.hook_variant_id) {
       axios.post(`${API}/api/engagement/hook-event`, { job_id: story.job_id, hook_variant_id: story.hook_variant_id, event_type: 'continue' }).catch(() => {});
@@ -591,6 +603,14 @@ export default function Dashboard() {
   const isAdmin = isAdminUser();
   const isLoggedIn = !!localStorage.getItem('token');
 
+  // ── Infinite scroll state ──
+  const [extraStories, setExtraStories] = useState([]);
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef(null);
+  const softBreakCounter = useRef(0);
+
   useEffect(() => {
     refreshCredits();
     const load = async () => {
@@ -600,10 +620,12 @@ export default function Dashboard() {
           axios.get(`${API}/api/growth/loop-dashboard?days=7`, auth()).catch(() => ({ data: { health: {}, live_feed: [], raw: {} } })),
         ]);
         setFeed(feedRes.data);
-        // Set CDN base URL for media resolution (bypasses K8s cache-control override)
         if (feedRes.data.cdn_base) setCdnBase(feedRes.data.cdn_base);
         setMetrics({ ...metricsRes.data.health, active_users: metricsRes.data.raw?.active_users || 0 });
         setLiveFeed(metricsRes.data.live_feed || []);
+        // Set initial offset for infinite scroll
+        const initialStories = (feedRes.data.rows || []).reduce((acc, r) => acc + (r.stories?.length || 0), 0);
+        setScrollOffset(initialStories);
       } catch (e) {
         console.error('[Dashboard] Feed load failed:', e.message);
         setFeed({ hero: null, rows: [], features: [], live_stats: {} });
@@ -612,6 +634,38 @@ export default function Dashboard() {
     };
     load();
   }, []);
+
+  // ── Scroll speed tracking for dynamic hook timing ──
+  useEffect(() => {
+    const onScroll = () => updateScrollSpeed();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // ── Infinite scroll: IntersectionObserver at 70% scroll ──
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const data = await fetchMoreStories(scrollOffset, 12);
+    if (data && data.stories && data.stories.length > 0) {
+      setExtraStories(prev => [...prev, ...data.stories]);
+      setScrollOffset(data.offset || scrollOffset + data.stories.length);
+      setHasMore(data.has_more || false);
+    } else {
+      setHasMore(false);
+    }
+    setLoadingMore(false);
+  }, [scrollOffset, loadingMore, hasMore]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) loadMore();
+    }, { rootMargin: '400px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMore]);
 
   if (loading) return <DashboardSkeleton />;
 
@@ -711,6 +765,69 @@ export default function Dashboard() {
           </ScrollRow>
         );
       })}
+
+      {/* ── INFINITE SCROLL: Extra rows loaded on demand ── */}
+      {extraStories.length > 0 && (() => {
+        // Group extra stories into rows of 12, with soft breaks every 12 items
+        const chunks = [];
+        for (let i = 0; i < extraStories.length; i += 12) {
+          chunks.push(extraStories.slice(i, i + 12));
+        }
+        softBreakCounter.current = 0;
+        return chunks.map((chunk, chunkIdx) => {
+          softBreakCounter.current += chunk.length;
+          const showSoftBreak = softBreakCounter.current >= 12 && chunkIdx < chunks.length - 1;
+          return (
+            <React.Fragment key={`extra-${chunkIdx}`}>
+              <ScrollRow
+                title={chunkIdx === 0 ? "Discover More" : `More Stories`}
+                icon={Sparkles}
+                iconColor="text-purple-400"
+                testId={`infinite-row-${chunkIdx}`}
+                delay={0}
+                eager={false}
+              >
+                {chunk.map((story, idx) => (
+                  <StoryCard
+                    key={`extra-${chunkIdx}-${story.job_id || idx}`}
+                    story={story}
+                    idx={900 + chunkIdx * 20 + idx}
+                    navigate={navigate}
+                    priority={false}
+                  />
+                ))}
+              </ScrollRow>
+              {showSoftBreak && (
+                <div className="px-4 py-6 sm:px-6 lg:px-10" data-testid={`soft-break-${chunkIdx}`}>
+                  <div className="rounded-2xl border border-white/[0.06] bg-[#121218] px-6 py-5 flex items-center justify-between">
+                    <div>
+                      <p className="text-white/80 text-sm font-semibold">Try something different?</p>
+                      <p className="text-white/40 text-xs mt-1">Switch it up — explore a new style or genre</p>
+                    </div>
+                    <button
+                      onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
+                      className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold text-white border border-white/10 hover:bg-white/5 transition-colors"
+                      data-testid={`soft-break-cta-${chunkIdx}`}
+                    >
+                      Create New
+                    </button>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        });
+      })()}
+
+      {/* Infinite scroll sentinel — triggers load at 70% scroll depth */}
+      {hasMore && (
+        <div ref={sentinelRef} className="h-4" data-testid="infinite-scroll-sentinel" />
+      )}
+      {loadingMore && (
+        <div className="flex justify-center py-6" data-testid="loading-more">
+          <div className="w-6 h-6 border-2 border-white/20 border-t-white/70 rounded-full animate-spin" />
+        </div>
+      )}
 
       {/* 4. FEATURE BLOCKS — API-determined order */}
       <FeaturesGrid features={featureList} navigate={navigate} />

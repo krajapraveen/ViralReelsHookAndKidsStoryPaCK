@@ -666,6 +666,155 @@ async def track_preview_event(data: PreviewEvent, user: dict = Depends(get_optio
     return {"success": True}
 
 
+# ─── REAL-TIME FEED EVENT (SESSION MOMENTUM + PROFILE UPDATE) ───────────
+
+class FeedEvent(BaseModel):
+    event_type: str  # click, skip_fast, preview_play, hook_seen, continue_click, watch_complete
+    job_id: Optional[str] = None
+    category: Optional[str] = None
+    hook_text: Optional[str] = None
+    watch_time: Optional[float] = None
+    scroll_depth: Optional[int] = None
+
+
+@router.post("/feed-event")
+async def track_feed_event(data: FeedEvent, user: dict = Depends(get_optional_user)):
+    """Real-time feed engagement tracker. Updates session momentum + profile.
+    Returns session state so frontend knows when to request re-rank."""
+    from services.personalization_service import update_profile_on_event, needs_recovery, get_session_intensity
+
+    user_id = None
+    if user:
+        user_id = user.get("id") or str(user.get("_id", ""))
+
+    meta = {
+        "story_id": data.job_id,
+        "category": data.category or "",
+        "animation_style": data.category or "",
+        "hook_text": data.hook_text,
+    }
+
+    session = None
+    if user_id:
+        session = await update_profile_on_event(db, user_id, data.event_type, meta)
+
+    # Return session hints for frontend
+    should_rerank = False
+    recovery_needed = False
+    if session:
+        should_rerank = (session.get("session_actions", 0) % 5 == 0) and session.get("session_actions", 0) > 0
+        profile = await db.user_homepage_profile.find_one({"user_id": user_id}, {"_id": 0})
+        recovery_needed = needs_recovery(profile or {})
+
+    return {
+        "success": True,
+        "session": {
+            "momentum": session.get("momentum_score", 0.0) if session else 0.0,
+            "actions": session.get("session_actions", 0) if session else 0,
+            "consecutive_skips": session.get("consecutive_skips", 0) if session else 0,
+            "should_rerank": should_rerank,
+            "recovery_needed": recovery_needed,
+            "intensity": get_session_intensity({"session": session}) if session else "low",
+        },
+    }
+
+
+# ─── INFINITE SCROLL: MORE STORIES ──────────────────────────────────────
+
+@router.get("/story-feed/more")
+async def get_more_stories(
+    offset: int = 0,
+    limit: int = 12,
+    user: dict = Depends(get_optional_user),
+):
+    """Load more stories for infinite scroll. Session-aware ranking with
+    variable reward injection and recovery system."""
+    from services.personalization_service import (
+        get_or_create_profile, is_personalized, rank_stories,
+        inject_variable_rewards, apply_recovery, needs_recovery,
+        get_session_intensity, _empty_profile,
+    )
+
+    user_id = None
+    if user:
+        user_id = user.get("id") or str(user.get("_id", ""))
+    profile = await get_or_create_profile(db, user_id) if user_id else _empty_profile("anonymous")
+    personalized = is_personalized(profile)
+
+    PROJ = {
+        "_id": 0, "job_id": 1, "title": 1, "story_text": 1,
+        "output_url": 1, "preview_url": 1,
+        "remix_count": 1, "animation_style": 1, "created_at": 1,
+        "parent_video_id": 1, "user_id": 1,
+        "character_continuity": 1, "media": 1,
+        "thumbnail_url": 1, "thumbnail_small_url": 1, "scene_images": 1,
+        "hooks": 1, "hook_text": 1, "hook_locked": 1, "winning_hook": 1,
+    }
+
+    # Fetch more stories beyond the initial load
+    se_more = await db.story_engine_jobs.find(
+        {"state": "READY"}, PROJ,
+    ).sort("created_at", -1).skip(offset).to_list(length=limit + 10)
+
+    pj_more = await db.pipeline_jobs.find(
+        {"status": "COMPLETED"}, PROJ,
+    ).sort([("remix_count", -1), ("created_at", -1)]).skip(offset).to_list(length=limit + 10)
+
+    items = []
+    seen_ids = set()
+    for job in se_more + pj_more:
+        shaped = _shape_item(job, "DISCOVER")
+        if _has_displayable_media(shaped) and shaped.get("job_id") not in seen_ids:
+            seen_ids.add(shaped.get("job_id"))
+            items.append(shaped)
+
+    # Score and rank
+    try:
+        if personalized:
+            items = rank_stories(items, profile)
+    except Exception as e:
+        logger.error(f"[FEED-MORE] Ranking failed: {e}")
+
+    # Recovery: if user has been skipping, inject different content
+    if needs_recovery(profile):
+        items = apply_recovery(items, profile)
+    else:
+        # Variable reward injection: spike high-score items at random intervals
+        items = inject_variable_rewards(items, profile)
+
+    # Limit
+    items = items[:limit]
+
+    # Clean hook internals + serve A/B variant
+    try:
+        from services.hook_service import select_hook_for_user
+        for s in items:
+            hooks = s.pop("_hooks", [])
+            hook_locked = s.pop("_hook_locked", False)
+            winning_hook_id = s.pop("_winning_hook", None)
+            s.pop("_score", None)
+            s.pop("hook_strength", None)
+            if hooks:
+                selected = select_hook_for_user(hooks, hook_locked, winning_hook_id)
+                if selected:
+                    s["hook_text"] = selected["text"]
+                    s["hook_variant_id"] = selected["id"]
+    except Exception:
+        for s in items:
+            for k in ("_hooks", "_hook_locked", "_winning_hook", "_score", "hook_strength"):
+                s.pop(k, None)
+
+    has_more = len(se_more) + len(pj_more) > limit
+
+    return {
+        "stories": items,
+        "offset": offset + len(items),
+        "has_more": has_more,
+        "session_intensity": get_session_intensity(profile) if personalized else "low",
+        "cdn_base": os.environ.get("CLOUDFLARE_R2_PUBLIC_URL", ""),
+    }
+
+
 # ─── HOOK A/B EVENT TRACKING ────────────────────────────────────────────
 
 
