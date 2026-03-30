@@ -7,68 +7,41 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with growth en
 - **Frontend**: React (CRA + Craco) on port 3000
 - **Backend**: FastAPI on port 8001
 - **Database**: MongoDB
-- **Storage**: Cloudflare R2 (images served via R2 Public CDN)
+- **Storage**: Cloudflare R2 (images served via **same-origin backend proxy**)
 - **Payments**: Cashfree
 - **AI**: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini 3 via Emergent LLM Key
 
-## Route → Component Mapping
-| Route | Component | Media Source |
-|-------|-----------|-------------|
-| `/` | `Landing.js` | Webpack-bundled static (showcase) |
-| `/app` | `Dashboard.js` | **API-provided R2 CDN URLs** |
-| `/app/story-video-studio` | StoryVideoStudio | Dynamic R2/proxy |
-| `/share/*` | PublicCreation | Dynamic R2/proxy |
-
-## Dashboard Media Architecture (API-DRIVEN — Mar 30 2026)
+## Dashboard Media Architecture (PROXY-FIRST — Mar 30 2026)
 
 ### Hard Rule
-**Dashboard.js consumes `thumbnail_small_url` and `poster_url` from the feed API. No static banners, no fake images, no fallback mapping.**
+**ALL homepage images are served via same-origin backend proxy (`/api/media/r2/{key}`). NO direct R2 CDN URLs. This eliminates Safari/Mobile CORS/ORB blocking.**
 
-### Root Cause History
-1. Safari/Mobile showed gradient fallbacks on Dashboard
-2. Previous agents applied static banner hacks (bundled images bypassing API)
-3. **Real root cause**: DB had 0/62 `thumbnail_small_url` values populated
-4. **Fix**: Backend DB backfill + API contract enforcement + frontend consuming API directly
+### 3-Layer Fix Applied
+1. **Data Pipeline (Fixed)**: DB backfill populated `thumbnail_small_url` for all stories. Feed API enforces non-null.
+2. **Delivery Layer (Fixed)**: ALL image URLs converted to same-origin proxy paths with auto-resize params. Zero direct R2 CDN exposure.
+3. **Frontend Consumption (Fixed)**: Dashboard.js prepends `API` base URL to proxy paths. Hero uses `loading="eager"` + `fetchPriority="high"`. Cards use `loading="lazy"` + `decoding="async"`. Preload `<link>` tags injected for hero poster + first 4 thumbnails.
 
-### Data Pipeline
-- `thumbnail_small_url` is populated at story creation time via pipeline
-- DB backfill script exists at `/app/backend/scripts/backfill_thumbnails.py`
-- Feed API (`GET /api/engagement/story-feed`) guarantees non-null `thumbnail_small_url` and `poster_url`
-- Resolution chain: `thumbnail_small_url` → `thumbnail_url` → `scene_images[0]` → `stage_results.image_gen`
-
-### What's on Dashboard
-- R2 CDN public URLs (`https://pub-xxx.r2.dev/...`)
-- Loaded via `<img>` tags (no crossOrigin, no CORS issues)
+### URL Format
+- **Card thumbnails**: `/api/media/r2/{key}?w=480&q=80`
+- **Hero posters**: `/api/media/r2/{key}?w=1200&q=85`
+- **Videos**: `/api/media/r2/{key}` (Range/206 support)
 
 ### What's NOT on Dashboard
-- No static banners, No `getStaticHeroImg`/`getStaticCardImg`, No bundled assets, No `<video>`
+- No direct R2 CDN URLs (`https://pub-xxx.r2.dev/...`)
+- No static banners / bundled assets
+- No `<video>` tags in card rows
+- No gradient-only fallbacks as primary state
 
 ## What's Been Implemented
 - 11 creator tools, Story-to-Video pipeline
-- **API-driven Dashboard** with hero + 4 story rows (all R2 CDN media)
-- **Webpack-bundled Landing page** (showcase cards)
-- Cashfree payments, Google Auth, Admin dashboard
-- Addiction Loop Metrics Dashboard, Frontend event tracking
-- Media proxy (asyncio.to_thread + LRU cache) for deeper pages
+- **Same-origin proxy Dashboard** with hero + 4 story rows (all via backend proxy)
 - DB backfill script for `thumbnail_small_url`
+- Preload hints (hero + first 4 thumbnails)
+- `<link rel="preconnect">` + `<link rel="dns-prefetch">` in index.html
+- Cashfree payments, Google Auth, Admin dashboard
 - Trust-based admin metrics (real data, no mocks)
 - 50-credit allocation consistency
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-
-## Prioritized Backlog
-### P1
-- Unify Landing.js and Dashboard.js architecture
-- A/B test hook text variations
-- Character-driven auto-share prompts
-
-### P2
-- Remix Variants on share pages
-- WebSockets for admin dashboard
-- Story Chain leaderboard
-
-### P3
-- Self-hosted GPU models (Wan2.1, Kokoro)
-- *(PAUSED)* Credit Routes Migration
