@@ -407,6 +407,27 @@ const ICON_MAP = {
   Film, BookOpen, User, Play, Camera, Palette, Star, ImageIcon, Megaphone, Lightbulb,
 };
 
+// REGRESSION GUARD: Static default feature list — NEVER let features section be empty
+const DEFAULT_FEATURES = [
+  { name: 'Story Video', desc: 'Turn ideas into cinematic stories', icon: 'Film', path: '/app/story-video-studio', key: 'story-video-studio', gradient: 'from-indigo-500 to-blue-700', score: 0 },
+  { name: 'Story Series', desc: 'Multi-episode sagas with memory', icon: 'BookOpen', path: '/app/story-series', key: 'story-series', gradient: 'from-purple-500 to-fuchsia-700', score: 0 },
+  { name: 'Character Memory', desc: 'Persistent characters across stories', icon: 'User', path: '/app/characters', key: 'characters', gradient: 'from-cyan-500 to-blue-700', score: 0 },
+  { name: 'Reel Generator', desc: 'Viral short-form video reels', icon: 'Play', path: '/app/reels', key: 'reels', gradient: 'from-rose-500 to-pink-700', score: 0 },
+  { name: 'Photo to Comic', desc: 'Transform photos into comic panels', icon: 'Camera', path: '/app/photo-to-comic', key: 'photo-to-comic', gradient: 'from-amber-500 to-orange-700', score: 0 },
+  { name: 'Comic Storybook', desc: 'Panel-by-panel illustrated stories', icon: 'Palette', path: '/app/comic-storybook', key: 'comic-storybook', gradient: 'from-emerald-500 to-green-700', score: 0 },
+  { name: 'Bedtime Stories', desc: 'Narrated sleep tales with visuals', icon: 'Star', path: '/app/bedtime-stories', key: 'bedtime-stories', gradient: 'from-indigo-500 to-purple-700', score: 0 },
+  { name: 'Reaction GIF', desc: 'Photo-to-reaction GIF in seconds', icon: 'ImageIcon', path: '/app/gif-maker', key: 'gif-maker', gradient: 'from-pink-500 to-rose-700', score: 0 },
+  { name: 'Brand Story', desc: 'Cinematic brand narratives', icon: 'Megaphone', path: '/app/brand-story-builder', key: 'brand-story-builder', gradient: 'from-teal-500 to-cyan-700', score: 0 },
+  { name: 'Daily Viral Ideas', desc: 'AI-generated trending prompts', icon: 'Lightbulb', path: '/app/daily-viral-ideas', key: 'daily-viral-ideas', gradient: 'from-amber-500 to-red-700', score: 0 },
+];
+
+// REGRESSION GUARD: Default rows when API returns empty
+const DEFAULT_ROWS = [
+  { key: 'trending_now', title: 'Trending Now', icon: 'Flame', icon_color: 'text-amber-400', stories: SEED_CARDS.map(s => ({ ...s, badge: 'TRENDING' })) },
+  { key: 'fresh_stories', title: 'Fresh Stories', icon: 'Sparkles', icon_color: 'text-violet-400', stories: [...SEED_CARDS].reverse().map(s => ({ ...s, badge: 'FRESH' })) },
+  { key: 'unfinished_worlds', title: 'Unfinished Worlds', icon: 'Clock', icon_color: 'text-emerald-400', stories: SEED_CARDS.slice(0, 4) },
+];
+
 function FeaturesGrid({ features, navigate }) {
   return (
     <section className="px-4 py-8 sm:px-6 lg:px-10" data-testid="features-grid">
@@ -587,28 +608,41 @@ export default function Dashboard() {
 
   if (loading) return <DashboardSkeleton />;
 
-  const { hero, rows = [], features = [], live_stats = {} } = feed || {};
+  // ═══════════════════════════════════════════════════════════════
+  // REGRESSION GUARD: Every section has a guaranteed fallback.
+  // If API fails, page still renders full content. NEVER empty.
+  // ═══════════════════════════════════════════════════════════════
+  const rawFeed = feed || {};
+  const hero = rawFeed.hero || null;
+  const apiRows = Array.isArray(rawFeed.rows) ? rawFeed.rows.filter(r => r && r.key && Array.isArray(r.stories) && r.stories.length > 0) : [];
+  const apiFeatures = Array.isArray(rawFeed.features) ? rawFeed.features : [];
+  const live_stats = rawFeed.live_stats || {};
+
+  // FALLBACK: If API rows empty, use DEFAULT_ROWS (SEED_CARDS)
+  const rows = apiRows.length > 0 ? apiRows : DEFAULT_ROWS;
+
+  // FALLBACK: If API features empty, use DEFAULT_FEATURES
+  const featureList = apiFeatures.length > 0 ? apiFeatures : DEFAULT_FEATURES;
 
   // Hero pool: hero + first trending row stories for carousel
-  const firstTrendingRow = rows.find(r => r.key === 'trending_now') || rows.find(r => r.key === 'fresh_stories');
+  const firstTrendingRow = rows.find(r => r.key === 'trending_now') || rows.find(r => r.key === 'fresh_stories') || rows[0];
   const heroPool = [
     hero,
     ...(firstTrendingRow?.stories || []).filter(s => s?.job_id !== hero?.job_id),
   ].filter(Boolean).slice(0, 5);
+  // FALLBACK: If no hero pool at all, use seed cards
+  const safeHeroPool = heroPool.length > 0 ? heroPool : SEED_CARDS.slice(0, 3);
 
   // First row's stories for preloading
   const firstRow = rows[0] || { stories: [] };
 
   // MediaPreloader inputs
-  const heroPreloadMedia = hero?.media ? {
-    poster_large_url: hero.media.poster_large_url ? `${API}${hero.media.poster_large_url}` : null,
+  const heroPreloadMedia = (safeHeroPool[0])?.media ? {
+    poster_large_url: safeHeroPool[0].media.poster_large_url ? `${API}${safeHeroPool[0].media.poster_large_url}` : null,
   } : null;
   const firstRowPreloadCards = (firstRow.stories || []).slice(0, 4).map(s => ({
     thumbnail_small_url: s?.media?.thumbnail_small_url ? `${API}${s.media.thumbnail_small_url}` : null,
   }));
-
-  // Features: use API order, fallback to seed if empty
-  const featureList = features.length > 0 ? features : [];
 
   return (
     <div className="min-h-screen pb-16 lg:pb-0" style={{ background: BG }} data-testid="dashboard">
@@ -638,7 +672,7 @@ export default function Dashboard() {
 
       {/* 1. HERO */}
       <div className={isAdmin ? 'lg:pt-10' : ''}>
-        <HeroSection stories={heroPool} navigate={navigate} />
+        <HeroSection stories={safeHeroPool} navigate={navigate} />
       </div>
 
       {/* 2. METRICS STRIP */}

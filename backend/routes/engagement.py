@@ -480,43 +480,72 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
     unfinished_pool = [item for j in partial_pj if _has_displayable_media(item := _shape_item(j, "UNFINISHED"))]
 
     # ── RANK stories inside each pool ──
-    if personalized:
-        trending_ranked = rank_stories(trending_pool, profile)
-        fresh_ranked = rank_stories(fresh_pool, profile)
-        continue_ranked = rank_stories(continue_pool, profile) if continue_pool else []
-        unfinished_ranked = rank_stories(unfinished_pool, profile)
-    else:
-        # Cold start: use default ordering (already sorted by DB query)
+    # REGRESSION GUARD: If personalization scoring crashes, fall back to default ordering
+    try:
+        if personalized:
+            trending_ranked = rank_stories(trending_pool, profile)
+            fresh_ranked = rank_stories(fresh_pool, profile)
+            continue_ranked = rank_stories(continue_pool, profile) if continue_pool else []
+            unfinished_ranked = rank_stories(unfinished_pool, profile)
+        else:
+            trending_ranked = trending_pool
+            fresh_ranked = fresh_pool
+            continue_ranked = continue_pool
+            unfinished_ranked = unfinished_pool
+    except Exception as e:
+        logger.error(f"[FEED] Personalization ranking failed, falling back to defaults: {e}")
+        personalized = False
         trending_ranked = trending_pool
         fresh_ranked = fresh_pool
         continue_ranked = continue_pool
         unfinished_ranked = unfinished_pool
 
     # ── RANK rows ──
-    row_candidates = {
-        "continue_stories": continue_ranked,
-        "trending_stories": trending_ranked,
-        "fresh_stories": fresh_ranked,
-        "unfinished_worlds": unfinished_ranked,
-    }
-    rows = rank_rows(row_candidates, profile)
+    try:
+        row_candidates = {
+            "continue_stories": continue_ranked,
+            "trending_stories": trending_ranked,
+            "fresh_stories": fresh_ranked,
+            "unfinished_worlds": unfinished_ranked,
+        }
+        rows = rank_rows(row_candidates, profile)
+    except Exception as e:
+        logger.error(f"[FEED] Row ranking failed, building default rows: {e}")
+        rows = []
+        if continue_ranked:
+            rows.append({"key": "continue_stories", "title": "Continue Your Story", "icon": "RefreshCw", "icon_color": "text-blue-400", "stories": continue_ranked})
+        if trending_ranked:
+            rows.append({"key": "trending_now", "title": "Trending Now", "icon": "Flame", "icon_color": "text-amber-400", "stories": trending_ranked})
+        if fresh_ranked:
+            rows.append({"key": "fresh_stories", "title": "Fresh Stories", "icon": "Sparkles", "icon_color": "text-violet-400", "stories": fresh_ranked})
+        if unfinished_ranked:
+            rows.append({"key": "unfinished_worlds", "title": "Unfinished Worlds", "icon": "Clock", "icon_color": "text-emerald-400", "stories": unfinished_ranked})
 
     # Strip internal fields + serve correct hook variant per user
-    from services.hook_service import select_hook_for_user
+    # REGRESSION GUARD: If hook serving crashes, still return clean stories
+    try:
+        from services.hook_service import select_hook_for_user
 
-    def _clean_story(s):
-        """Strip internals and serve the right hook via A/B."""
-        hooks = s.pop("_hooks", [])
-        hook_locked = s.pop("_hook_locked", False)
-        winning_hook_id = s.pop("_winning_hook", None)
-        s.pop("_score", None)
-        s.pop("hook_strength", None)
-        # Serve the right hook to this user
-        if hooks:
-            selected = select_hook_for_user(hooks, hook_locked, winning_hook_id)
-            if selected:
-                s["hook_text"] = selected["text"]
-                s["hook_variant_id"] = selected["id"]
+        def _clean_story(s):
+            """Strip internals and serve the right hook via A/B."""
+            hooks = s.pop("_hooks", [])
+            hook_locked = s.pop("_hook_locked", False)
+            winning_hook_id = s.pop("_winning_hook", None)
+            s.pop("_score", None)
+            s.pop("hook_strength", None)
+            if hooks:
+                selected = select_hook_for_user(hooks, hook_locked, winning_hook_id)
+                if selected:
+                    s["hook_text"] = selected["text"]
+                    s["hook_variant_id"] = selected["id"]
+    except Exception as e:
+        logger.error(f"[FEED] Hook service import failed: {e}")
+        def _clean_story(s):
+            s.pop("_hooks", None)
+            s.pop("_hook_locked", None)
+            s.pop("_winning_hook", None)
+            s.pop("_score", None)
+            s.pop("hook_strength", None)
 
     for row in rows:
         for s in row.get("stories", []):
@@ -539,7 +568,12 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         hero["badge"] = "FEATURED"
 
     # ── RANK features ──
-    features = rank_features(profile) if personalized else rank_features(_empty_profile("anonymous"))
+    # REGRESSION GUARD: if feature ranking fails, return default-ordered features
+    try:
+        features = rank_features(profile) if personalized else rank_features(_empty_profile("anonymous"))
+    except Exception as e:
+        logger.error(f"[FEED] Feature ranking failed, using defaults: {e}")
+        features = rank_features(_empty_profile("anonymous"))
 
     # ── Characters (unchanged) ──
     char_profiles = await db.character_profiles.find(
