@@ -1,0 +1,140 @@
+{
+  "summary": "Media Proxy Streaming + Cache Headers VERIFIED - ALL 18 BACKEND TESTS PASSED. Videos now stream via StreamingResponse in 64KB chunks (never buffered). Surrogate-Control header present in ALL responses (survives ingress override). Images still buffered+cached. Dashboard renders 30 images via proxy with 0 direct R2 URLs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/media/r2/{path}",
+        "issue": "CDN-Cache-Control header is stripped by Kubernetes ingress (not visible in response). This is expected infrastructure behavior - Surrogate-Control survives and serves the same purpose."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_media_proxy_streaming_iteration375.py",
+    "/app/test_reports/pytest/pytest_media_proxy_streaming_iteration375.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "media_proxy.py uses StreamingResponse for video/audio with 64KB chunks (STREAM_CHUNK_SIZE = 65536) - VERIFIED",
+    "_safari_safe_headers() adds Surrogate-Control, CDN-Cache-Control, and Cache-Control - VERIFIED",
+    "Surrogate-Control header survives ingress override and is present in ALL response types - VERIFIED",
+    "CDN-Cache-Control is stripped by ingress (expected) - Surrogate-Control serves same purpose",
+    "Images use _image_response() with buffered Response (small files, LRU cached) - VERIFIED",
+    "Videos use StreamingResponse with async generator yielding 64KB chunks - VERIFIED",
+    "Range requests return HTTP 206 with Content-Range header - VERIFIED",
+    "HEAD requests return Content-Length and Accept-Ranges=bytes - VERIFIED"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_media_proxy_streaming_iteration375.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% (Dashboard renders 30 images via proxy, 0 direct R2 URLs)"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#"
+  },
+  "seed_data_creation": "None - used existing data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Media proxy streaming + cache headers verified. Key findings: 1) Videos use StreamingResponse (async generator yielding 64KB chunks) - never buffered in memory, 2) Surrogate-Control header survives ingress override and is present in ALL response types (image GET, video GET, video range 206, HEAD), 3) CDN-Cache-Control is stripped by ingress (expected behavior), 4) Cache-Control is overridden by ingress to 'no-store' (expected), 5) Images still buffered+LRU cached (small files), 6) Dashboard renders 30 images via proxy with 0 direct R2 URLs.",
+  "features_verified": {
+    "image_get_with_resize_returns_200_and_headers": {
+      "status": "PASS",
+      "details": "HTTP 200 with Content-Type=image/jpeg, ETag present"
+    },
+    "image_has_surrogate_control_header": {
+      "status": "PASS",
+      "details": "Surrogate-Control: public, max-age=31536000, immutable"
+    },
+    "image_cache_hit_returns_all_headers": {
+      "status": "PASS",
+      "details": "Second request (cache hit) returns ETag and Surrogate-Control"
+    },
+    "video_get_with_range_returns_206": {
+      "status": "PASS",
+      "details": "HTTP 206 with Content-Range: bytes 0-65535/8433292"
+    },
+    "video_get_without_range_returns_200_streamed": {
+      "status": "PASS",
+      "details": "HTTP 200 with video/mp4, streamed via StreamingResponse"
+    },
+    "video_has_surrogate_control_header": {
+      "status": "PASS",
+      "details": "Surrogate-Control present on video responses"
+    },
+    "video_range_content_range_format": {
+      "status": "PASS",
+      "details": "Content-Range format: bytes start-end/total"
+    },
+    "video_streaming_delivers_complete_content": {
+      "status": "PASS",
+      "details": "128KB range request delivered without truncation"
+    },
+    "head_image_returns_content_length_and_accept_ranges": {
+      "status": "PASS",
+      "details": "Content-Length present, Accept-Ranges=bytes"
+    },
+    "head_video_returns_content_length_and_accept_ranges": {
+      "status": "PASS",
+      "details": "Content-Length=8433292, Accept-Ranges=bytes"
+    },
+    "head_has_surrogate_control_header": {
+      "status": "PASS",
+      "details": "Surrogate-Control present on HEAD responses"
+    },
+    "all_response_types_have_surrogate_control": {
+      "status": "PASS",
+      "details": "Image GET, Video GET full, Video GET range, HEAD image, HEAD video - all have Surrogate-Control"
+    },
+    "dashboard_api_returns_proxy_urls": {
+      "status": "PASS",
+      "details": "All URLs in story feed use /api/media/r2/ prefix"
+    },
+    "dashboard_renders_images_via_proxy": {
+      "status": "PASS",
+      "details": "30 images rendered via proxy, 0 direct R2 URLs"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  },
+  "header_analysis": {
+    "image_get_headers": {
+      "Content-Type": "image/jpeg",
+      "Content-Disposition": "inline",
+      "ETag": "W/\"3cb380fae0d1e2a7\"",
+      "X-Content-Type-Options": "nosniff",
+      "Access-Control-Allow-Origin": "*",
+      "Surrogate-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": "no-store, no-cache, must-revalidate (overridden by ingress)",
+      "CDN-Cache-Control": "stripped by ingress"
+    },
+    "video_range_206_headers": {
+      "status": "206",
+      "Content-Range": "bytes 0-65535/8433292",
+      "Content-Type": "video/mp4",
+      "Content-Disposition": "inline",
+      "Surrogate-Control": "public, max-age=31536000, immutable",
+      "Access-Control-Allow-Origin": "*"
+    },
+    "head_request_headers": {
+      "Content-Length": "8433292 (video), varies (image)",
+      "Accept-Ranges": "bytes",
+      "Content-Disposition": "inline",
+      "Surrogate-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  "infrastructure_notes": {
+    "ingress_cache_control_override": "Kubernetes ingress overrides Cache-Control to 'no-store' - this is expected platform behavior",
+    "cdn_cache_control_stripped": "CDN-Cache-Control header is stripped by ingress - Surrogate-Control serves the same purpose and survives",
+    "surrogate_control_survives": "Surrogate-Control header survives ingress and is present in all responses - this is the key header for CDN caching",
+    "streaming_implementation": "Videos use StreamingResponse with async generator yielding 64KB chunks - never buffered in memory"
+  }
+}
