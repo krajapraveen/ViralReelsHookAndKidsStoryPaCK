@@ -1,11 +1,6 @@
 name: Playwright E2E Tests
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-  # Allow manual trigger
   workflow_dispatch:
     inputs:
       environment:
