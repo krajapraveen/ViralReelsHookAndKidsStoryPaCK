@@ -293,11 +293,18 @@ function StoryVideoPipelineInner() {
       const res = await api.get('/api/story-engine/user-jobs');
       if (res.data.success) {
         setUserJobs(res.data.jobs || []);
-        // Only auto-reconnect to active jobs on page REFRESH (no location.state)
-        // If user navigated here from Dashboard (freshSession=true), let them input first
+        // Auto-reconnect ONLY if:
+        // 1. Not a fresh session from Dashboard
+        // 2. Job is genuinely recent (<10 min old)
         const locState = location?.state || window.history?.state?.usr;
         if (!locState?.freshSession) {
-          const active = (res.data.jobs || []).find(j => ['QUEUED', 'PROCESSING'].includes(j.status));
+          const active = (res.data.jobs || []).find(j => {
+            if (!['QUEUED', 'PROCESSING'].includes(j.status)) return false;
+            // Don't auto-reconnect to stale jobs (>10 min old)
+            const createdAt = new Date(j.created_at || j.createdAt || 0).getTime();
+            const ageMs = Date.now() - createdAt;
+            return ageMs < 10 * 60 * 1000; // Only reconnect if <10 min old
+          });
           if (active) {
             setJobId(active.job_id);
             setJob(active);
@@ -828,7 +835,12 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   const styles = options?.animation_styles || [];
   const ages = options?.age_groups || [];
   const voices = options?.voice_presets || [];
-  const activeJobs = userJobs.filter(j => ['QUEUED', 'PROCESSING'].includes(j.status));
+  const activeJobs = userJobs.filter(j => {
+    if (!['QUEUED', 'PROCESSING'].includes(j.status)) return false;
+    // Don't show stale jobs (>15 min old) — they're likely stuck/crashed
+    const createdAt = new Date(j.created_at || j.createdAt || 0).getTime();
+    return (Date.now() - createdAt) < 15 * 60 * 1000;
+  });
   const recentJobs = userJobs.filter(j => ['COMPLETED', 'PARTIAL'].includes(j.status)).slice(0, 3);
   const canCreate = rateLimitStatus?.can_create !== false;
 

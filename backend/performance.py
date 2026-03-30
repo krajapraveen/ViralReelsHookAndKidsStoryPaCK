@@ -459,33 +459,39 @@ class StuckJobRecovery:
         """Find and recover jobs stuck in PROCESSING state"""
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=self.STUCK_THRESHOLD_MINUTES)).isoformat()
         
-        collections = ["storybook_jobs", "comix_jobs", "gif_jobs"]
+        collections = ["storybook_jobs", "comix_jobs", "gif_jobs", "pipeline_jobs"]
         recovered = 0
         
         for collection in collections:
             try:
+                # Pipeline jobs use different field names
+                is_pipeline = collection == "pipeline_jobs"
+                id_field = "job_id" if is_pipeline else "id"
+                created_field = "created_at" if is_pipeline else "createdAt"
+                updated_field = "updated_at" if is_pipeline else "updatedAt"
+
                 # Find stuck jobs
                 stuck_jobs = await db[collection].find({
                     "status": "PROCESSING",
                     "$or": [
-                        {"updatedAt": {"$lt": cutoff}},
-                        {"createdAt": {"$lt": cutoff}, "updatedAt": {"$exists": False}}
+                        {updated_field: {"$lt": cutoff}},
+                        {created_field: {"$lt": cutoff}, updated_field: {"$exists": False}}
                     ]
-                }, {"_id": 0, "id": 1, "userId": 1}).to_list(50)
+                }, {"_id": 0, id_field: 1, "userId": 1, "user_id": 1}).to_list(50)
                 
                 for job in stuck_jobs:
-                    # Mark for retry
+                    job_key = job.get(id_field, "unknown")
                     await db[collection].update_one(
-                        {"id": job["id"]},
+                        {id_field: job_key},
                         {"$set": {
-                            "status": "PENDING",
-                            "error": "Job stuck - auto-recovered",
+                            "status": "FAILED",
+                            "error": "Job stuck - auto-expired after timeout",
                             "recoveredAt": datetime.now(timezone.utc).isoformat()
                         },
                         "$inc": {"retryCount": 1}}
                     )
                     recovered += 1
-                    logger.warning(f"Recovered stuck job {job['id']} in {collection}")
+                    logger.warning(f"Recovered stuck job {job_key} in {collection}")
                     
             except Exception as e:
                 logger.error(f"Error recovering stuck jobs in {collection}: {e}")
