@@ -91,7 +91,6 @@ function HeroSection({ stories, navigate }) {
   const [posterFailed, setPosterFailed] = useState(false);
   const [paused, setPaused] = useState(false);
   const timerRef = useRef(null);
-  const posterTimeoutRef = useRef(null);
 
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
@@ -109,14 +108,9 @@ function HeroSection({ stories, navigate }) {
 
   useEffect(() => {
     setPosterFailed(false); setPosterLoaded(false);
-    clearTimeout(posterTimeoutRef.current);
-    posterTimeoutRef.current = setTimeout(() => {
-      setPosterFailed(prev => prev ? prev : true);
-    }, 12000);
-    return () => clearTimeout(posterTimeoutRef.current);
   }, [activeIdx]);
 
-  const handlePosterLoad = () => { clearTimeout(posterTimeoutRef.current); setPosterLoaded(true); setPosterFailed(false); };
+  const handlePosterLoad = () => { setPosterLoaded(true); setPosterFailed(false); };
   const goTo = (idx) => { clearInterval(timerRef.current); setActiveIdx(idx); startTimer(); };
   const hash = (current.title || 'story').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const fallbackGrad = GRAD_COLORS[hash % GRAD_COLORS.length];
@@ -132,23 +126,24 @@ function HeroSection({ stories, navigate }) {
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
 
       <div className="absolute inset-0 overflow-hidden" style={{ background: BG }}>
-        {/* Layer 1: Gradient fallback — always present */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-700`}
-          style={{ opacity: posterLoaded ? 0.5 : 1 }} />
+        {/* Layer 1: Gradient fallback — dims once poster loads */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGrad} transition-opacity duration-1000`}
+          style={{ opacity: posterLoaded ? 0.3 : 0.8 }} />
 
-        {/* Layer 2: Poster with Ken Burns slow zoom/pan */}
+        {/* Layer 2: Poster — ALWAYS VISIBLE. No opacity:0 gate.
+            CSS transition handles the smooth appearance. */}
         {posterSrc && !posterFailed && (
           <img src={posterSrc} alt="" loading="eager" fetchPriority="high" decoding="sync"
             key={`poster-${activeIdx}`}
             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
             style={{
-              opacity: posterLoaded ? 1 : 0,
+              opacity: posterLoaded ? 1 : 0.6,
               filter: 'brightness(0.55) saturate(1.3)',
               animation: posterLoaded ? `kenBurns ${heroStories.length > 1 ? '8s' : '20s'} ease-in-out forwards` : 'none',
               transformOrigin: `${50 + (hash % 30 - 15)}% ${50 + (hash % 20 - 10)}%`,
             }}
             onLoad={handlePosterLoad}
-            onError={() => { clearTimeout(posterTimeoutRef.current); setPosterFailed(true); }}
+            onError={() => setPosterFailed(true)}
             data-testid="hero-poster" />
         )}
 
@@ -344,12 +339,12 @@ function StoryCard({ story, idx, navigate, priority = false }) {
 /* ═══════════════════════════════════════════════════════════════════
    SCROLL ROW — horizontal, lazy loaded, progressive reveal
    ═══════════════════════════════════════════════════════════════════ */
-function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0 }) {
+function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0, eager = false }) {
   const scrollRef = useRef(null);
   const sectionRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(eager); // eager rows render immediately, no IO gate
 
   const checkScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -673,14 +668,14 @@ export default function Dashboard() {
       {/* 2. METRICS STRIP */}
       <MetricsStrip metrics={metrics} />
 
-      {/* 3. STORY ROWS — progressive reveal with staggered delays */}
-      <ScrollRow title="Trending Now" icon={Flame} iconColor="text-amber-400" testId="trending-now" delay={0}>
-        {trendingRow.map((story, idx) => <StoryCard key={story.job_id || `t-${idx}`} story={story} idx={idx} navigate={navigate} priority={idx < 4} />)}
+      {/* 3. STORY ROWS — first row eager (above-the-fold), rest lazy */}
+      <ScrollRow title="Trending Now" icon={Flame} iconColor="text-amber-400" testId="trending-now" delay={0} eager>
+        {trendingRow.map((story, idx) => <StoryCard key={story.job_id || `t-${idx}`} story={story} idx={idx} navigate={navigate} priority={idx < 6} />)}
       </ScrollRow>
 
       {/* 4. CONTINUE ROW — personal, prioritized */}
-      <ScrollRow title="Continue Your Story" icon={RefreshCw} iconColor="text-blue-400" testId="continue-stories" delay={100}>
-        {continueRow.map((story, idx) => <StoryCard key={`c-${story.job_id || idx}`} story={story} idx={idx + 40} navigate={navigate} />)}
+      <ScrollRow title="Continue Your Story" icon={RefreshCw} iconColor="text-blue-400" testId="continue-stories" delay={100} eager>
+        {continueRow.map((story, idx) => <StoryCard key={`c-${story.job_id || idx}`} story={story} idx={idx + 40} navigate={navigate} priority={idx < 4} />)}
       </ScrollRow>
 
       <ScrollRow title="Fresh Stories" icon={Sparkles} iconColor="text-violet-400" testId="fresh-stories" delay={200}>
