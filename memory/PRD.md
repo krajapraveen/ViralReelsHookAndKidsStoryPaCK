@@ -7,11 +7,11 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with growth en
 - Frontend: React (CRA + Craco) on port 3000
 - Backend: FastAPI on port 8001
 - Database: MongoDB
-- Storage: Cloudflare R2 (all media via same-origin streaming proxy)
+- Storage: Cloudflare R2 (images via CDN, videos via same-origin proxy for CORS safety)
 - Payments: Cashfree
 - AI: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini 3 via Emergent LLM Key
 
-## Homepage Regression Protection (IMPLEMENTED — Mar 30 2026)
+## Homepage Regression Protection (IMPLEMENTED)
 
 ### Backend Guards
 - Personalization scoring wrapped in try/except → falls back to DB default ordering
@@ -27,25 +27,33 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with growth en
 
 ## Updated Story Scoring Formula (with Hook System)
 ```
-story_score = (0.25 × category_affinity) + (0.20 × hook_strength)
-            + (0.15 × completion_rate) + (0.15 × momentum)
-            + (0.10 × freshness) + (0.10 × share_rate)
-            + (0.05 × global_trending)
+story_score = (0.25 x category_affinity) + (0.20 x hook_strength)
+            + (0.15 x completion_rate) + (0.15 x momentum)
+            + (0.10 x freshness) + (0.10 x share_rate)
+            + (0.05 x global_trending)
 ```
 
-## Hook System (IMPLEMENTED — Mar 30 2026)
+## Hook System (IMPLEMENTED)
 - 3 LLM-generated hook variants per story
 - A/B: 80% best / 20% exploration
-- Lock: ≥300 impressions + ≥15% margin
+- Lock: >=300 impressions + >=15% margin
 - Evolution: every 100 impressions, drop worst, rewrite from best
-- `hook_score = (0.6 × continue_rate) + (0.3 × share_rate) + (0.1 × completion_rate)`
+- `hook_score = (0.6 x continue_rate) + (0.3 x share_rate) + (0.1 x completion_rate)`
 
-## Key Files
-- `/app/backend/services/hook_service.py`
-- `/app/backend/services/personalization_service.py`
-- `/app/backend/routes/engagement.py`
-- `/app/backend/services/story_engine/pipeline.py`
-- `/app/frontend/src/pages/Dashboard.js`
+## Media Delivery Architecture
+- **Images**: CDN direct (`https://pub-...r2.dev/KEY`) — Safari-safe Cache-Control
+- **Videos**: Same-origin proxy (`/api/media/r2/videos/...`) — CORS-safe streaming
+- **resolveMediaUrl()**: Frontend utility that routes images to CDN, videos to proxy
+- **Blur Placeholders**: 32x32 base64 JPEG generated per story for zero-blank-UI
+
+## Autoplay Preview System (IMPLEMENTED — Mar 30 2026)
+- **Singleton controller**: Max 1 video at a time, max 2 per 5 seconds
+- **Desktop**: Hover → 120ms delay → play
+- **Mobile**: IntersectionObserver → 150ms debounce → play
+- **Hero**: 1000ms delay after poster loads → autoplay
+- **Safety**: muted + playsInline + loop (Safari mandatory)
+- **Fallback**: preview → blurhash + static poster
+- **Analytics**: preview_impression, preview_play, preview_watch_complete, preview_click
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
@@ -58,31 +66,29 @@ story_score = (0.25 × category_affinity) + (0.20 × hook_strength)
 - [x] Deterministic homepage personalization
 - [x] Hook generation, A/B testing, evolution
 - [x] Updated scoring formula (no continue_rate duplication)
-- [x] **Homepage regression protection** (backend + frontend fallback guards)
-- [x] Validated: Hero ✅, 4/4 rows ✅, 10/10 features ✅, Credits ✅
-- [x] **P0 CDN Bypass Fix** (Mar 30 2026): Removed `${API}` prefix from `resolveMedia()` in Dashboard.js. All media now loads directly from R2 CDN (`https://pub-...r2.dev/KEY`) instead of K8s proxy. Safari/mobile rendering fixed.
-- [x] **P0 Perceived Speed — Blurhash** (Mar 30 2026): Implemented full blur placeholder system.
-  - Pipeline: `generate_blur_placeholder()` in `media_gen.py` generates 32x32 base64 JPEG blur on every new story
-  - Backfill: `/api/admin/backfill/thumb-blur/sync` endpoint processes existing stories (181/315 backfilled, rest have no images)
-  - Feed: `_shape_item()` reads `media.thumb_blur` from DB (was hardcoded `None`)
-  - Frontend: HeroMedia + StoryCardMedia already support `inline_base64` blur — zero blank UI
-- [x] **Preload + Priority Loading verified**: Hero preloaded with `fetchPriority="high"`, first 6 cards `loading="eager"`, CDN preconnected
+- [x] Homepage regression protection (backend + frontend fallback guards)
+- [x] P0 CDN Bypass Fix: Removed ${API} prefix from resolveMedia()
+- [x] P0 Perceived Speed — Blurhash: Pipeline + backfill + feed integration
+- [x] Preload + Priority Loading: Hero fetchPriority=high, first 6 cards eager, CDN preconnected
+- [x] Netflix Autoplay Preview System: Singleton controller, hover/visible triggers, analytics, fallback chain
 
 ## Key Files
 - `/app/backend/services/hook_service.py`
 - `/app/backend/services/personalization_service.py`
+- `/app/backend/routes/engagement.py`
+- `/app/backend/routes/backfill_blur.py`
+- `/app/backend/services/story_engine/pipeline.py`
+- `/app/backend/services/story_engine/adapters/media_gen.py`
+- `/app/frontend/src/pages/Dashboard.js`
+- `/app/frontend/src/utils/mediaUrl.js`
+- `/app/frontend/src/utils/videoController.js`
+- `/app/frontend/src/components/HeroMedia.jsx`
+- `/app/frontend/src/components/StoryCardMedia.jsx`
 
 ## Upcoming Tasks
 - (P1) Backfill hooks for existing stories
-- (P1) A/B rollout flag
-- (P1) Preview video for hover autoplay (Netflix-style)
+- (P1) A/B rollout flag for hooks
 - (P2) Character-driven auto-share prompts
 - (P2) Remix Variants on share pages
 - (P2) Upgrade admin dashboard to WebSockets
 - (P2) Story Chain leaderboard
-- `/app/backend/routes/engagement.py`
-- `/app/backend/routes/backfill_blur.py` (NEW: blurhash backfill endpoints)
-- `/app/backend/services/story_engine/pipeline.py`
-- `/app/backend/services/story_engine/adapters/media_gen.py` (UPDATED: blur placeholder generation)
-- `/app/frontend/src/pages/Dashboard.js`
-- `/app/frontend/src/utils/mediaUrl.js`
