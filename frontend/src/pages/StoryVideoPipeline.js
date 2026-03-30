@@ -149,6 +149,12 @@ function StoryVideoPipelineInner() {
   const [remixSourceTitle, setRemixSourceTitle] = useState(null);
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
   const [formError, setFormError] = useState('');
+
+  const onViewJob = useCallback((job) => {
+    if (job?.job_id) {
+      navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+    }
+  }, [navigate]);
   const [showLoginGate, setShowLoginGate] = useState(false);
   const pollRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -543,7 +549,7 @@ function StoryVideoPipelineInner() {
       else if (status === 422) setFormError(detail || 'Check your input.');
       else if (status === 429) {
         const admissionMsg = rawDetail?.message || rawDetail?.reason || detail;
-        setFormError(admissionMsg || 'Rate limit reached.');
+        setFormError(admissionMsg || 'All rendering slots are busy. Please wait for your current video to finish.');
         checkRateLimit();
       } else if (status === 402) {
         // Backend credit enforcement — show credit gate modal
@@ -859,15 +865,35 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
       )}
 
       {rateLimitStatus && !rateLimitStatus.can_create && (
-        <div className="vs-panel p-4 flex items-start gap-3 border-amber-500/30" data-testid="rate-limit-warning">
-          <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-amber-200 font-medium text-sm">{rateLimitStatus.reason}</p>
-            <p className="text-amber-400/60 text-xs mt-1" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-              Videos this hour: {rateLimitStatus.recent_count}/{rateLimitStatus.max_per_hour} |
-              Active: {rateLimitStatus.concurrent}/{rateLimitStatus.max_concurrent}
-            </p>
+        <div className="vs-panel p-5 border-[var(--vs-border-glow)]" data-testid="rate-limit-warning">
+          <div className="flex items-start gap-3 mb-3">
+            <Clock className="w-5 h-5 text-[var(--vs-text-accent)] flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-white font-medium text-sm">All rendering slots are busy ({rateLimitStatus.concurrent}/{rateLimitStatus.max_concurrent})</p>
+              <p className="text-[var(--vs-text-secondary)] text-xs mt-1">Your earlier video is still processing. Wait for it to finish, or cancel it to free up a slot.</p>
+            </div>
           </div>
+          {rateLimitStatus.active_jobs?.length > 0 && (
+            <div className="space-y-2 mt-3 pt-3 border-t border-white/[0.06]">
+              <p className="text-[var(--vs-text-muted)] text-xs font-semibold uppercase tracking-wider">Active Videos</p>
+              {rateLimitStatus.active_jobs.map((job) => (
+                <div key={job.job_id} className="flex items-center justify-between gap-3 bg-white/[0.03] rounded-xl px-3 py-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Loader2 className="w-4 h-4 text-[var(--vs-text-accent)] animate-spin flex-shrink-0" />
+                    <span className="text-white text-sm truncate">{job.title || 'Untitled Video'}</span>
+                    <span className="text-[var(--vs-text-muted)] text-[10px] flex-shrink-0 uppercase">{job.state}</span>
+                  </div>
+                  <button
+                    onClick={() => onViewJob(job)}
+                    className="vs-btn-primary h-7 px-3 text-[11px] flex-shrink-0"
+                    data-testid={`view-active-job-${job.job_id}`}
+                  >
+                    <Eye className="w-3 h-3 mr-1" /> View
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1024,18 +1050,20 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           {!showLoginGate && (
             <button onClick={onGenerate} disabled={submitting}
               className={`w-full h-14 text-lg font-semibold rounded-[var(--vs-btn-radius)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                !canCreate ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'vs-btn-primary'
+                !canCreate ? 'bg-white/[0.06] hover:bg-white/[0.08] text-white/60 border border-white/[0.06]' : 'vs-btn-primary'
               }`}
               data-testid="generate-btn">
               {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating Job...</>
-                : !canCreate ? <><ShieldAlert className="w-5 h-5" /> Generation Unavailable</>
+                : !canCreate ? <><Clock className="w-5 h-5" /> Slots Busy — Wait or Cancel</>
                 : <><Wand2 className="w-5 h-5" /> Generate Video</>}
             </button>
           )}
 
-          {rateLimitStatus && (
-            <p className="text-xs text-[var(--vs-text-muted)] text-center" style={{ fontFamily: 'var(--vs-font-mono)' }}>
-              {rateLimitStatus.recent_count}/{rateLimitStatus.max_per_hour} videos this hour
+          {rateLimitStatus && !rateLimitStatus.exempt && (
+            <p className="text-xs text-[var(--vs-text-muted)] text-center">
+              {rateLimitStatus.concurrent > 0
+                ? `${rateLimitStatus.concurrent} video${rateLimitStatus.concurrent > 1 ? 's' : ''} rendering`
+                : `${rateLimitStatus.recent_count} of ${rateLimitStatus.max_per_hour} videos this hour`}
             </p>
           )}
         </div>

@@ -253,7 +253,7 @@ async def _check_rate_limit(user_id: str):
 
     total_recent = engine_recent + legacy_recent
     if total_recent >= MAX_VIDEOS_PER_HOUR:
-        raise HTTPException(status_code=429, detail=f"Rate limit: max {MAX_VIDEOS_PER_HOUR} videos per hour. Please wait.")
+        raise HTTPException(status_code=429, detail=f"You've created {total_recent} videos this hour. Please wait a bit before starting another one.")
 
     active_states = [s.value for s in JobState if s not in (JobState.READY, JobState.PARTIAL_READY, JobState.FAILED)]
     engine_concurrent = await db.story_engine_jobs.count_documents({
@@ -264,7 +264,7 @@ async def _check_rate_limit(user_id: str):
     })
     total_concurrent = engine_concurrent + legacy_concurrent
     if total_concurrent >= MAX_CONCURRENT_JOBS:
-        raise HTTPException(status_code=429, detail="You already have a video generating. Please wait for it to finish.")
+        raise HTTPException(status_code=429, detail="All rendering slots are busy. Your earlier video is still processing — wait for it to finish or cancel it to start a new one.")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -320,14 +320,27 @@ async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
     can_create = recent_count < MAX_VIDEOS_PER_HOUR and concurrent < MAX_CONCURRENT_JOBS
     reason = None
     if concurrent >= MAX_CONCURRENT_JOBS:
-        reason = "You have a video currently generating. Please wait for it to finish."
+        reason = f"All rendering slots are busy ({concurrent}/{MAX_CONCURRENT_JOBS}). Your earlier video is still processing — wait for it to finish or cancel it to start a new one."
     elif recent_count >= MAX_VIDEOS_PER_HOUR:
-        reason = f"You've reached the limit of {MAX_VIDEOS_PER_HOUR} videos per hour. Please wait."
+        reason = f"You've created {recent_count} videos this hour (limit: {MAX_VIDEOS_PER_HOUR}). Please wait a bit before starting another."
+
+    # Fetch active jobs for the user so frontend can show them
+    active_jobs_list = []
+    if concurrent > 0:
+        active_docs = await db.story_engine_jobs.find(
+            {"user_id": user_id, "state": {"$in": active_states}},
+            {"_id": 0, "job_id": 1, "title": 1, "state": 1, "created_at": 1},
+        ).sort("created_at", -1).to_list(5)
+        active_jobs_list = [
+            {"job_id": j.get("job_id"), "title": j.get("title", "Untitled"), "state": j.get("state"), "created_at": j.get("created_at")}
+            for j in active_docs
+        ]
 
     return {
         "can_create": can_create, "recent_count": recent_count,
         "max_per_hour": MAX_VIDEOS_PER_HOUR, "concurrent": concurrent,
         "max_concurrent": MAX_CONCURRENT_JOBS, "reason": reason,
+        "active_jobs": active_jobs_list,
     }
 
 

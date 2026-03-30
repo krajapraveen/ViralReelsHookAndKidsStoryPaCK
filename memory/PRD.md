@@ -27,18 +27,17 @@ Autoplay → Hook → Preview → Click → Reward → Personalization → Infin
 + (0.15 × momentum) + (0.10 × freshness) + (0.10 × share_rate) + (0.05 × trending)
 ```
 
-## Retention Analytics Dashboard (IMPLEMENTED)
+## Retention Analytics Dashboard
 **Route**: `/app/admin/retention`
-**5 Key Metrics**:
-1. Avg Session Time (target: 3min+)
-2. Hook CTR (target: 15%+)
-3. Continue Rate (target: 10%+)
-4. 10s Drop-Off Rate (target: <10%)
-5. Scroll Depth Distribution (target: 50%+ reach depth 5+)
+**5 Key Metrics**: Avg Session Time, Hook CTR, Continue Rate, 10s Drop-Off Rate, Scroll Depth
+**Additional**: Session retention curve, autoplay preview funnel, device segmentation, daily trends
 
-**Additional**: Session retention curve (7 buckets), autoplay preview funnel, device segmentation, daily trends, period selector (7d/14d/30d)
-
-**Session Tracking**: `POST /api/admin/retention/session` — start/heartbeat(30s)/end lifecycle via `sessionTracker.js`
+## Rate Limit UX (Fixed)
+- Concurrency cap: KEPT (protects cost/infra)
+- "Rate limit" → "All rendering slots are busy" (friendly messaging)
+- Shows active jobs list with "View" buttons
+- Button: "Slots Busy — Wait or Cancel" (not "Generation Unavailable")
+- Status bar: "X videos rendering" (not raw technical limits)
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
@@ -47,33 +46,27 @@ Autoplay → Hook → Preview → Click → Reward → Personalization → Infin
 ## Key Files
 - `/app/backend/routes/retention_analytics.py` — Session tracking + retention dashboard API
 - `/app/backend/routes/engagement.py` — Feed, events, infinite scroll
+- `/app/backend/routes/story_engine_routes.py` — Rate limit status with active_jobs list
 - `/app/backend/services/personalization_service.py` — Session memory, momentum, recovery
-- `/app/backend/services/hook_service.py` — Hook A/B logic
-- `/app/backend/routes/backfill_blur.py` — Blurhash backfill
 - `/app/frontend/src/pages/RetentionDashboard.js` — Analytics UI
 - `/app/frontend/src/pages/Dashboard.js` — Main feed with infinite scroll + session tracking
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Rate limit UX (fixed)
 - `/app/frontend/src/utils/sessionTracker.js` — Session lifecycle
 - `/app/frontend/src/utils/feedTracker.js` — Engagement events
 - `/app/frontend/src/utils/videoController.js` — Singleton autoplay
-- `/app/frontend/src/utils/mediaUrl.js` — CDN/proxy URL resolution
 - `/app/frontend/src/components/HeroMedia.jsx` — Hero with delayed autoplay
 - `/app/frontend/src/components/StoryCardMedia.jsx` — Card with hover/visible autoplay
 
 ## Completed
-- [x] Deterministic homepage personalization (exact math, no ML)
-- [x] Hook system (3 variants, A/B, lock, evolution)
-- [x] Homepage regression protection (backend + frontend fallbacks)
-- [x] CDN bypass fix (removed ${API} prefix from resolveMedia)
-- [x] Blurhash system (pipeline + backfill 181 stories)
-- [x] Preload + priority loading (hero eager, first 6 cards eager, CDN preconnect)
-- [x] Netflix autoplay preview (singleton, hover/visible, Safari-safe)
-- [x] Behavior engine (session memory, momentum, recovery, variable rewards, infinite scroll, soft breaks, dynamic hook timing)
-- [x] **Retention Analytics Dashboard** (Mar 30 2026): 5 key metrics, retention curve, preview funnel, device segmentation, daily trends, period selector
+- [x] CDN bypass fix + Blurhash system
+- [x] Netflix autoplay preview (singleton, Safari-safe)
+- [x] Behavior engine (session memory, momentum, recovery, variable rewards, infinite scroll)
+- [x] Retention Analytics Dashboard (5 key metrics, trends, device segmentation)
+- [x] **Rate Limit UX Fix** (Mar 30 2026): Renamed "Rate limit" → "All rendering slots are busy", added active jobs list with View buttons, friendly messaging throughout
 
 ## Current Phase: STABILIZATION
 - No new features
 - Observe real user behavior via retention dashboard
-- Identify biggest drop-off points
 - Fix only high-impact issues based on data
 
 ## Upcoming (After Data Validation)
@@ -81,5 +74,4 @@ Autoplay → Hook → Preview → Click → Reward → Personalization → Infin
 - (P1) Backfill hooks for existing stories
 - (P2) Hook + autoplay combo optimization
 - (P2) Character-driven auto-share prompts
-- (P2) Upgrade admin dashboard to WebSockets
 - (P2) Story Chain leaderboard
