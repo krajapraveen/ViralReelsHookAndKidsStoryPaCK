@@ -250,53 +250,55 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         "character_continuity": 1,
     }
 
-    R2_PUBLIC = os.environ.get("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
+    # ── ALL homepage images served via same-origin proxy — NO direct R2 CDN ──
+    # This eliminates Safari/Mobile CORS/ORB blocking completely.
+    # Proxy auto-resizes + LRU caches, so repeated loads are instant.
 
-    def _cdn_url(url: str) -> str | None:
-        """Convert stored R2 URL to direct CDN URL for images (fast, no proxy)."""
+    def _to_r2_key(url: str) -> str | None:
+        """Extract the R2 object key from any stored URL format."""
         if not url:
             return None
         try:
             base = url.split("?")[0]
             if ".r2.dev/" in base:
-                key = base.split(".r2.dev/", 1)[1]
-                return f"{R2_PUBLIC}/{key}" if R2_PUBLIC else f"/api/media/r2/{key}"
+                return base.split(".r2.dev/", 1)[1]
             if ".r2.cloudflarestorage.com/" in base:
                 parts = base.split(".r2.cloudflarestorage.com/", 1)
                 if len(parts) > 1:
                     bk = parts[1].split("/", 1)
                     if len(bk) > 1:
-                        return f"{R2_PUBLIC}/{bk[1]}" if R2_PUBLIC else f"/api/media/r2/{bk[1]}"
-            if url.startswith("/api/media/"):
-                key = url.replace("/api/media/r2/", "")
-                return f"{R2_PUBLIC}/{key}" if R2_PUBLIC else url
-            return url
+                        return bk[1]
+            if url.startswith("/api/media/r2/"):
+                return url[len("/api/media/r2/"):]
+            # Already a bare key (no domain)
+            if not url.startswith("http") and not url.startswith("/"):
+                return url
+            return None
         except Exception:
-            return url
+            return None
+
+    def _proxy_img(url: str, w: int = None, q: int = 80) -> str | None:
+        """Convert any R2 URL to same-origin proxy path with optional resize.
+        Returns: /api/media/r2/{key}?w=480&q=80 (relative, same-origin)."""
+        key = _to_r2_key(url)
+        if not key:
+            return None
+        path = f"/api/media/r2/{key}"
+        if w:
+            path += f"?w={w}&q={q}"
+        return path
 
     def _proxy_url(url: str) -> str | None:
         """Convert stored R2 URL to proxy URL for videos (Range/206 support)."""
-        if not url:
-            return None
-        try:
-            base = url.split("?")[0]
-            if ".r2.dev/" in base:
-                return f"/api/media/r2/{base.split('.r2.dev/', 1)[1]}"
-            if ".r2.cloudflarestorage.com/" in base:
-                parts = base.split(".r2.cloudflarestorage.com/", 1)
-                if len(parts) > 1:
-                    bk = parts[1].split("/", 1)
-                    if len(bk) > 1:
-                        return f"/api/media/r2/{bk[1]}"
-            return url
-        except Exception:
-            return url
+        key = _to_r2_key(url)
+        return f"/api/media/r2/{key}" if key else None
 
-    def _resolve_thumb(job: dict) -> str | None:
+    def _resolve_thumb_key(job: dict) -> str | None:
+        """Resolve the best available R2 key for a thumbnail."""
         # 1. Try dedicated thumbnail
-        thumb = _cdn_url(job.get("thumbnail_url"))
-        if thumb:
-            return thumb
+        key = _to_r2_key(job.get("thumbnail_url"))
+        if key:
+            return key
         # 2. Try scene_images dict (pipeline_jobs)
         si = job.get("scene_images", {})
         if si:
@@ -304,8 +306,11 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             if fk and isinstance(si[fk], dict):
                 r2k = si[fk].get("r2_key")
                 if r2k:
-                    return f"{R2_PUBLIC}/{r2k}" if R2_PUBLIC else f"/api/media/r2/{r2k}"
-                return _cdn_url(si[fk].get("url"))
+                    return r2k
+                url = si[fk].get("url")
+                k = _to_r2_key(url)
+                if k:
+                    return k
         # 3. Try stage_results image_gen outputs (story_engine_jobs)
         for stage in job.get("stage_results", []):
             if stage.get("stage") == "image_gen":
@@ -313,10 +318,11 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
                     if isinstance(out, dict):
                         r2k = out.get("r2_key") or out.get("image_r2_key")
                         if r2k:
-                            return f"{R2_PUBLIC}/{r2k}" if R2_PUBLIC else f"/api/media/r2/{r2k}"
+                            return r2k
                         url = out.get("url") or out.get("image_url")
-                        if url:
-                            return _cdn_url(url)
+                        k = _to_r2_key(url)
+                        if k:
+                            return k
         return None
 
     def _has_displayable_media(item: dict) -> bool:
@@ -338,16 +344,19 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
 
     def _shape_item(job: dict, badge: str = "NEW") -> dict:
         """Shape a raw DB document into a standard feed item.
-        Images → CDN direct (fast). Videos → proxy (Range/206 support).
+        ALL images → same-origin proxy (Safari-safe). Videos → proxy (Range/206).
         CONTRACT: thumbnail_small_url and poster_url are NEVER null."""
-        # Primary: use backfilled thumbnail_small_url from DB
-        card_thumb = _cdn_url(job.get("thumbnail_small_url"))
-        # Fallback chain if DB field is missing
-        if not card_thumb:
-            card_thumb = _cdn_url(job.get("thumbnail_url"))
-        if not card_thumb:
-            card_thumb = _resolve_thumb(job)
-        poster_thumb = card_thumb or _resolve_thumb(job)
+        # Resolve the R2 key for the best available thumbnail
+        thumb_key = _to_r2_key(job.get("thumbnail_small_url"))
+        if not thumb_key:
+            thumb_key = _to_r2_key(job.get("thumbnail_url"))
+        if not thumb_key:
+            thumb_key = _resolve_thumb_key(job)
+
+        # Build proxy URLs with appropriate sizing
+        card_thumb = f"/api/media/r2/{thumb_key}?w=480&q=80" if thumb_key else None
+        poster = f"/api/media/r2/{thumb_key}?w=1200&q=85" if thumb_key else None
+
         jid = job.get("job_id")
         return {
             "id": jid,
@@ -357,7 +366,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             "story_prompt": job.get("story_text", ""),
             "thumbnail_url": card_thumb,
             "thumbnail_small_url": card_thumb,
-            "poster_url": poster_thumb,
+            "poster_url": poster,
             "preview_url": _proxy_url(job.get("preview_url")),
             "output_url": _proxy_url(job.get("output_url")),
             "animation_style": job.get("animation_style", ""),

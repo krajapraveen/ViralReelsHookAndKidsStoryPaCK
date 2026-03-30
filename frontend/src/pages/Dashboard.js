@@ -95,8 +95,8 @@ function HeroSection({ stories, navigate }) {
 
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
-  // API-provided image URL — data pipeline guarantees non-null
-  const posterSrc = current.poster_url || current.thumbnail_url || current.thumbnail_small_url;
+  // Same-origin proxy image — Safari-safe, auto-resized, LRU-cached
+  const posterSrc = current.poster_url ? `${API}${current.poster_url}` : null;
   const hasHero = heroStories.length > 0;
 
   const startTimer = useCallback(() => {
@@ -258,8 +258,10 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   const hook = getHook(story, idx);
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
-  // API-provided image URL — data pipeline guarantees non-null
-  const thumbSrc = story.thumbnail_small_url || story.thumbnail_url;
+  // Same-origin proxy image — Safari-safe, auto-resized, LRU-cached
+  const thumbSrc = (story.thumbnail_small_url || story.thumbnail_url)
+    ? `${API}${story.thumbnail_small_url || story.thumbnail_url}`
+    : null;
   const isSeed = story.is_seed;
   const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
 
@@ -304,7 +306,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         boxShadow: hovered ? '0 20px 50px rgba(0,0,0,.8)' : '0 4px 12px rgba(0,0,0,.4)',
       }}>
         {thumbSrc ? (
-          <img src={thumbSrc} alt={story.title || ''} loading={priority ? 'eager' : 'lazy'}
+          <img src={thumbSrc} alt={story.title || ''} loading={priority ? 'eager' : 'lazy'} decoding={priority ? 'sync' : 'async'}
             className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ${hovered ? 'scale-110' : 'scale-100'}`} />
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${GRAD_COLORS[gradIdx]}`}>
@@ -606,6 +608,29 @@ export default function Dashboard() {
     };
     load();
   }, []);
+
+  // ── Preload hero poster + first 4 card thumbnails for instant perception ──
+  useEffect(() => {
+    if (!feed) return;
+    const hero = feed.featured_story;
+    const preloads = [];
+    if (hero?.poster_url) {
+      preloads.push(`${API}${hero.poster_url}`);
+    }
+    (feed.trending_stories || []).slice(0, 4).forEach(s => {
+      if (s?.thumbnail_small_url) preloads.push(`${API}${s.thumbnail_small_url}`);
+    });
+    const links = preloads.map((href, i) => {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = href;
+      if (i === 0) link.fetchPriority = 'high';
+      document.head.appendChild(link);
+      return link;
+    });
+    return () => links.forEach(l => l.remove());
+  }, [feed]);
 
   if (loading) return <DashboardSkeleton />;
 
