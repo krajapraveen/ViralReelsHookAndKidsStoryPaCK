@@ -601,7 +601,7 @@ async def _stage_assembly(job: dict) -> Dict:
             fallback_kf = kp
             break
 
-    thumb_url, poster_url = await generate_media_assets(
+    thumb_url, poster_url, thumb_blur = await generate_media_assets(
         video_path=final_path,
         job_id=job_id,
         fallback_image_path=fallback_kf,
@@ -640,6 +640,8 @@ async def _stage_assembly(job: dict) -> Dict:
     if poster_url:
         update_fields["media.poster_large.url"] = poster_url
         update_fields["media.poster_large.type"] = "image/jpeg"
+    if thumb_blur:
+        update_fields["media.thumb_blur"] = thumb_blur
 
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},

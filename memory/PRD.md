@@ -61,9 +61,28 @@ story_score = (0.25 × category_affinity) + (0.20 × hook_strength)
 - [x] **Homepage regression protection** (backend + frontend fallback guards)
 - [x] Validated: Hero ✅, 4/4 rows ✅, 10/10 features ✅, Credits ✅
 - [x] **P0 CDN Bypass Fix** (Mar 30 2026): Removed `${API}` prefix from `resolveMedia()` in Dashboard.js. All media now loads directly from R2 CDN (`https://pub-...r2.dev/KEY`) instead of K8s proxy. Safari/mobile rendering fixed.
+- [x] **P0 Perceived Speed — Blurhash** (Mar 30 2026): Implemented full blur placeholder system.
+  - Pipeline: `generate_blur_placeholder()` in `media_gen.py` generates 32x32 base64 JPEG blur on every new story
+  - Backfill: `/api/admin/backfill/thumb-blur/sync` endpoint processes existing stories (181/315 backfilled, rest have no images)
+  - Feed: `_shape_item()` reads `media.thumb_blur` from DB (was hardcoded `None`)
+  - Frontend: HeroMedia + StoryCardMedia already support `inline_base64` blur — zero blank UI
+- [x] **Preload + Priority Loading verified**: Hero preloaded with `fetchPriority="high"`, first 6 cards `loading="eager"`, CDN preconnected
+
+## Key Files
+- `/app/backend/services/hook_service.py`
+- `/app/backend/services/personalization_service.py`
 
 ## Upcoming Tasks
 - (P1) Backfill hooks for existing stories
 - (P1) A/B rollout flag
-- (P1) Blurhash generation
-- (P1) Preview video for hover autoplay
+- (P1) Preview video for hover autoplay (Netflix-style)
+- (P2) Character-driven auto-share prompts
+- (P2) Remix Variants on share pages
+- (P2) Upgrade admin dashboard to WebSockets
+- (P2) Story Chain leaderboard
+- `/app/backend/routes/engagement.py`
+- `/app/backend/routes/backfill_blur.py` (NEW: blurhash backfill endpoints)
+- `/app/backend/services/story_engine/pipeline.py`
+- `/app/backend/services/story_engine/adapters/media_gen.py` (UPDATED: blur placeholder generation)
+- `/app/frontend/src/pages/Dashboard.js`
+- `/app/frontend/src/utils/mediaUrl.js`

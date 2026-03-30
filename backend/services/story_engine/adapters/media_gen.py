@@ -4,11 +4,14 @@ Deterministic Media Asset Generator — Pillow + FFmpeg.
 Generates homepage-ready assets during the pipeline assembly stage:
   - thumbnail_small: 400x530 JPEG (~30KB) for feed cards
   - poster_large:   1280x720 JPEG (~100KB) for hero sections
+  - thumb_blur:     inline base64 blur placeholder for instant perceived load
 
 These are the ONLY images the Feed API and Dashboard should ever reference.
 NO runtime derivation. NO fallbacks. NO guessing.
 """
 import os
+import io
+import base64
 import subprocess
 import tempfile
 import logging
@@ -18,6 +21,24 @@ from typing import Optional, Tuple
 from PIL import Image
 
 logger = logging.getLogger("story_engine.adapters.media_gen")
+
+
+def generate_blur_placeholder(input_image: str) -> Optional[dict]:
+    """Generate a tiny base64-encoded JPEG blur placeholder from any source image.
+    Returns { type: "inline_base64", value: "data:image/jpeg;base64,..." }
+    The frontend renders this immediately with CSS blur for zero-blank-UI perceived speed."""
+    try:
+        img = Image.open(input_image).convert("RGB")
+        img = img.resize((32, 32), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=20, optimize=True)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        data_url = f"data:image/jpeg;base64,{b64}"
+        logger.info(f"[MEDIA_GEN] blur placeholder generated: {len(b64)} bytes")
+        return {"type": "inline_base64", "value": data_url}
+    except Exception as e:
+        logger.error(f"[MEDIA_GEN] blur placeholder generation failed: {e}")
+        return None
 
 
 def extract_frame(video_path: str) -> Optional[str]:
@@ -117,17 +138,18 @@ async def generate_media_assets(
     video_path: str,
     job_id: str,
     fallback_image_path: Optional[str] = None,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> Tuple[Optional[str], Optional[str], Optional[dict]]:
     """
     Generate deterministic homepage media assets from a video (or fallback image).
 
     1. Extract a frame from the video using FFmpeg
     2. Generate thumbnail_small (400x530 JPEG) using Pillow
     3. Generate poster_large (1280x720 JPEG) using Pillow
-    4. Upload both to R2 under media/{job_id}/
-    5. Return (thumbnail_small_url, poster_large_url)
+    4. Generate thumb_blur (32x32 base64 JPEG) for instant perceived load
+    5. Upload both to R2 under media/{job_id}/
+    6. Return (thumbnail_small_url, poster_large_url, thumb_blur)
 
-    Returns (None, None) if generation fails entirely.
+    Returns (None, None, None) if generation fails entirely.
     """
     # Step 1: Get source image — prefer video frame, fall back to provided image
     frame_path = None
@@ -140,14 +162,18 @@ async def generate_media_assets(
 
     if not frame_path:
         logger.error(f"[MEDIA_GEN] No source image available for job {job_id[:8]}")
-        return None, None
+        return None, None, None
 
-    # Step 2: Generate both assets
+    # Step 2: Generate all assets
     thumb_path = f"/tmp/{job_id}_thumb_small.jpg"
     poster_path = f"/tmp/{job_id}_poster_large.jpg"
 
     thumb_ok = generate_thumbnail_small(frame_path, thumb_path)
     poster_ok = generate_poster_large(frame_path, poster_path)
+
+    # Step 2.5: Generate blur placeholder from whichever image source is available
+    blur_source = thumb_path if thumb_ok and os.path.exists(thumb_path) else frame_path
+    thumb_blur = generate_blur_placeholder(blur_source)
 
     # Clean up extracted frame (only if we extracted it, not if it's the fallback)
     if frame_path != fallback_image_path:
@@ -195,5 +221,5 @@ async def generate_media_assets(
         except OSError:
             pass
 
-    logger.info(f"[MEDIA_GEN] Assets complete for job {job_id[:8]}: thumb={bool(thumb_url)}, poster={bool(poster_url)}")
-    return thumb_url, poster_url
+    logger.info(f"[MEDIA_GEN] Assets complete for job {job_id[:8]}: thumb={bool(thumb_url)}, poster={bool(poster_url)}, blur={bool(thumb_blur)}")
+    return thumb_url, poster_url, thumb_blur

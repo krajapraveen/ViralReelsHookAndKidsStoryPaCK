@@ -325,6 +325,10 @@ def _shape_item(job: dict, badge: str = "NEW") -> dict:
 
     jid = job.get("job_id")
 
+    # Resolve thumb_blur from strict media schema
+    media_obj = job.get("media") or {}
+    thumb_blur = media_obj.get("thumb_blur")
+
     # Hook system: use stored hook_text, fallback to extracted hook from story_text
     hooks = job.get("hooks") or []
     hook_text = job.get("hook_text") or _extract_hook(job.get("story_text", ""))
@@ -344,7 +348,7 @@ def _shape_item(job: dict, badge: str = "NEW") -> dict:
         "hook_text": hook_text,
         "story_prompt": job.get("story_text", ""),
         "media": {
-            "thumb_blur": None,
+            "thumb_blur": thumb_blur,
             "thumbnail_small_url": card_thumb,
             "poster_large_url": poster,
             "preview_short_url": preview,

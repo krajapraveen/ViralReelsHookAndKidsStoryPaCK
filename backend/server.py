@@ -570,6 +570,9 @@ api_router.include_router(story_engine_router)
 from routes.media_proxy import router as media_proxy_router
 api_router.include_router(media_proxy_router)
 
+from routes.backfill_blur import router as backfill_blur_router
+api_router.include_router(backfill_blur_router)
+
 
 
 # Include API router in app
