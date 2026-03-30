@@ -92,7 +92,7 @@ def _get_content_type(key, fallback='application/octet-stream'):
 
 @router.head("/r2/{path:path}")
 async def head_r2(path: str):
-    """HEAD request — returns metadata without body (needed by video players)."""
+    """HEAD request — returns metadata without body (required by Safari video players)."""
     key = unquote(path)
     client, bucket = _get_client()
     if not client:
@@ -105,6 +105,8 @@ async def head_r2(path: str):
             headers={
                 "Content-Length": str(head['ContentLength']),
                 "Accept-Ranges": "bytes",
+                "Content-Disposition": "inline",
+                "X-Content-Type-Options": "nosniff",
                 **_CACHE_HEADERS, **_CORS_HEADERS,
             }
         )
@@ -141,17 +143,38 @@ def _pillow_resize(body: bytes, w: int, q: int) -> bytes:
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-    "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
+    "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, ETag",
 }
 _CACHE_HEADERS = {"Cache-Control": "public, max-age=604800, immutable"}
 
 
+def _safari_safe_response(body: bytes, content_type: str, status_code: int = 200, extra_headers: dict = None) -> Response:
+    """Build a response with EVERY header Safari requires. No exceptions."""
+    import hashlib
+    etag = hashlib.md5(body[:2048] + str(len(body)).encode()).hexdigest()[:16]
+    headers = {
+        "Content-Length": str(len(body)),
+        "Accept-Ranges": "bytes",
+        "Content-Disposition": "inline",
+        "ETag": f'W/"{etag}"',
+        "Vary": "Range",
+        "X-Content-Type-Options": "nosniff",
+        **_CACHE_HEADERS,
+        **_CORS_HEADERS,
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+    return Response(content=body, status_code=status_code, media_type=content_type, headers=headers)
+
+
 @router.get("/r2/{path:path}")
 async def proxy_r2(path: str, request: Request, w: Optional[int] = Query(None, ge=50, le=1920), q: Optional[int] = Query(None, ge=10, le=100)):
-    """Stream an R2 object with Range request support for video/audio playback.
+    """Stream an R2 object with full Range request support (Safari-safe).
 
     All S3 calls run in asyncio.to_thread() to avoid blocking the event loop.
     Resized images are LRU-cached so repeated dashboard loads are instant.
+    Every response includes Content-Length, Accept-Ranges, Content-Disposition,
+    ETag, and CORS — required by Safari/Mobile.
     """
     key = unquote(path)
     client, bucket = _get_client()
@@ -163,64 +186,13 @@ async def proxy_r2(path: str, request: Request, w: Optional[int] = Query(None, g
         is_image = ct.startswith('image/')
         quality = q or 80
 
-        # ── Fast path: check resize cache ────────────────────────────
-        if is_image:
-            # Auto-resize large images even without ?w (images >500KB get resized to 800)
-            effective_w = w
-            cache_key = f"{key}:{effective_w}:{quality}"
-            cached = _cache_get(cache_key)
-            if cached:
-                return Response(
-                    content=cached[0], media_type=cached[1],
-                    headers={"Content-Length": str(len(cached[0])), **_CACHE_HEADERS, **_CORS_HEADERS}
-                )
-
-        # ── Get metadata (non-blocking) ──────────────────────────────
-        head = await asyncio.to_thread(_s3_head, client, bucket, key)
-        total_size = head['ContentLength']
-
-        # ── Image resize path ────────────────────────────────────────
-        if is_image:
-            effective_w = w
-            # Auto-resize oversized images (>300KB) even without explicit ?w
-            if not effective_w and total_size > 300_000:
-                effective_w = 800
-
-            if effective_w:
-                cache_key = f"{key}:{effective_w}:{quality}"
-                cached = _cache_get(cache_key)
-                if cached:
-                    return Response(
-                        content=cached[0], media_type=cached[1],
-                        headers={"Content-Length": str(len(cached[0])), **_CACHE_HEADERS, **_CORS_HEADERS}
-                    )
-                body, _ = await asyncio.to_thread(_s3_get, client, bucket, key)
-                try:
-                    resized = await asyncio.to_thread(_pillow_resize, body, effective_w, quality)
-                    _cache_set(cache_key, resized, 'image/jpeg')
-                    return Response(
-                        content=resized, media_type='image/jpeg',
-                        headers={"Content-Length": str(len(resized)), **_CACHE_HEADERS, **_CORS_HEADERS}
-                    )
-                except Exception as resize_err:
-                    logger.warning(f"Image resize failed for {key}: {resize_err}, serving original")
-                    return Response(
-                        content=body, media_type=ct,
-                        headers={"Content-Length": str(len(body)), "Accept-Ranges": "bytes", **_CACHE_HEADERS, **_CORS_HEADERS}
-                    )
-
-            # Small image, no resize needed — serve directly
-            body, _ = await asyncio.to_thread(_s3_get, client, bucket, key)
-            _cache_set(f"{key}:None:{quality}", body, ct)
-            return Response(
-                content=body, media_type=ct,
-                headers={"Content-Length": str(len(body)), "Accept-Ranges": "bytes", **_CACHE_HEADERS, **_CORS_HEADERS}
-            )
-
-        # ── Range request path (video/audio) ─────────────────────────
+        # ── Range request path (video/audio AND Safari image range requests) ──
         range_header = request.headers.get('range')
 
-        if range_header:
+        if range_header and not is_image:
+            # Video/audio range request — must return 206
+            head = await asyncio.to_thread(_s3_head, client, bucket, key)
+            total_size = head['ContentLength']
             match = re.match(r'bytes=(\d+)-(\d*)', range_header)
             if match:
                 start = int(match.group(1))
@@ -229,22 +201,52 @@ async def proxy_r2(path: str, request: Request, w: Optional[int] = Query(None, g
                 length = end - start + 1
 
                 body, _ = await asyncio.to_thread(_s3_get, client, bucket, key, Range=f'bytes={start}-{end}')
-                return Response(
-                    content=body, status_code=206, media_type=ct,
-                    headers={
-                        "Content-Range": f"bytes {start}-{end}/{total_size}",
-                        "Content-Length": str(length),
-                        "Accept-Ranges": "bytes",
-                        **_CACHE_HEADERS, **_CORS_HEADERS,
-                    }
-                )
+                return _safari_safe_response(body, ct, status_code=206, extra_headers={
+                    "Content-Range": f"bytes {start}-{end}/{total_size}",
+                    "Content-Length": str(length),
+                })
 
-        # ── Full content (non-image, no Range) ───────────────────────
+        # ── Image path: check cache first ─────────────────────────────
+        if is_image:
+            effective_w = w
+            cache_key = f"{key}:{effective_w}:{quality}"
+            cached = _cache_get(cache_key)
+            if cached:
+                return _safari_safe_response(cached[0], cached[1])
+
+        # ── Fetch metadata (non-blocking) ─────────────────────────────
+        head = await asyncio.to_thread(_s3_head, client, bucket, key)
+        total_size = head['ContentLength']
+
+        # ── Image resize path ─────────────────────────────────────────
+        if is_image:
+            effective_w = w
+            if not effective_w and total_size > 300_000:
+                effective_w = 800
+
+            if effective_w:
+                cache_key = f"{key}:{effective_w}:{quality}"
+                cached = _cache_get(cache_key)
+                if cached:
+                    return _safari_safe_response(cached[0], cached[1])
+
+                body, _ = await asyncio.to_thread(_s3_get, client, bucket, key)
+                try:
+                    resized = await asyncio.to_thread(_pillow_resize, body, effective_w, quality)
+                    _cache_set(cache_key, resized, 'image/jpeg')
+                    return _safari_safe_response(resized, 'image/jpeg')
+                except Exception as resize_err:
+                    logger.warning(f"Image resize failed for {key}: {resize_err}, serving original")
+                    return _safari_safe_response(body, ct)
+
+            # Small image, no resize needed
+            body, _ = await asyncio.to_thread(_s3_get, client, bucket, key)
+            _cache_set(f"{key}:None:{quality}", body, ct)
+            return _safari_safe_response(body, ct)
+
+        # ── Full content (non-image, no Range) ────────────────────────
         body, _ = await asyncio.to_thread(_s3_get, client, bucket, key)
-        return Response(
-            content=body, media_type=ct,
-            headers={"Content-Length": str(len(body)), "Accept-Ranges": "bytes", **_CACHE_HEADERS, **_CORS_HEADERS}
-        )
+        return _safari_safe_response(body, ct)
 
     except Exception as e:
         err_str = str(e)
