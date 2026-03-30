@@ -18,13 +18,19 @@ const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('
 const BG = '#0B0B0F';
 const CARD_BG = '#121218';
 
-function mediaUrl(path) {
+function mediaUrl(path, resize) {
   if (!path) return null;
   // Route proxy-prefixed paths through backend
-  if (path.startsWith('/api/media/') || path.startsWith('/api/generated/')) return `${API}${path}`;
+  if (path.startsWith('/api/media/') || path.startsWith('/api/generated/')) {
+    const base = `${API}${path}`;
+    return resize ? `${base}?w=${resize}&q=80` : base;
+  }
   // CRITICAL: Route direct R2 CDN URLs through backend proxy for CORS/Safari/mobile compatibility
   const r2Match = path.match(/^https?:\/\/pub-[a-f0-9]+\.r2\.dev\/(.+)$/);
-  if (r2Match) return `${API}/api/media/r2/${r2Match[1]}`;
+  if (r2Match) {
+    const base = `${API}/api/media/r2/${r2Match[1]}`;
+    return resize ? `${base}?w=${resize}&q=80` : base;
+  }
   return path;
 }
 
@@ -315,7 +321,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   const badge = story.badge || 'NEW';
   const badgeStyle = BADGE_STYLES[badge] || BADGE_STYLES.NEW;
   const videoSrc = mediaUrl(story.preview_url || story.output_url);
-  const thumbSrc = mediaUrl(story.thumbnail_small_url || story.thumbnail_url);
+  const thumbSrc = mediaUrl(story.thumbnail_small_url || story.thumbnail_url, 400);
   const isSeed = story.is_seed;
   const gradIdx = (story.title || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GRAD_COLORS.length;
 

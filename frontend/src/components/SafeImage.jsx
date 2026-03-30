@@ -9,7 +9,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 function safeMediaUrl(url) {
   if (!url) return url;
   const r2Match = url.match(/^https?:\/\/pub-[a-f0-9]+\.r2\.dev\/(.+)$/);
-  if (r2Match) return `${API}/api/media/r2/${r2Match[1]}`;
+  if (r2Match) return `${API}/api/media/r2/${r2Match[1]}?w=400&q=80`;
   return url;
 }
 

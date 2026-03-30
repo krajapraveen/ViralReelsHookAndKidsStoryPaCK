@@ -1,10 +1,12 @@
 """R2 Media Proxy — streams R2 objects with Range request support for video playback."""
 import os
 import re
+import io
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import Response
 from urllib.parse import unquote
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +91,13 @@ async def head_r2(path: str):
 
 
 @router.get("/r2/{path:path}")
-async def proxy_r2(path: str, request: Request):
-    """Stream an R2 object with Range request support for video/audio playback."""
+async def proxy_r2(path: str, request: Request, w: Optional[int] = Query(None, ge=50, le=1920), q: Optional[int] = Query(None, ge=10, le=100)):
+    """Stream an R2 object with Range request support for video/audio playback.
+    
+    Optional query params for images:
+      ?w=400  — resize width (height scales proportionally)
+      ?q=80   — JPEG quality (default 80)
+    """
     key = unquote(path)
     client, bucket = _get_client()
     if not client:
@@ -101,6 +108,55 @@ async def proxy_r2(path: str, request: Request):
         head = client.head_object(Bucket=bucket, Key=key)
         total_size = head['ContentLength']
         ct = _get_content_type(key, head.get('ContentType', 'application/octet-stream'))
+
+        # Image resize: if ?w= is present and content is an image, resize with Pillow
+        is_image = ct.startswith('image/')
+        if w and is_image:
+            resp = client.get_object(Bucket=bucket, Key=key)
+            body = resp['Body'].read()
+            try:
+                from PIL import Image as PILImage
+                img = PILImage.open(io.BytesIO(body))
+                # Resize proportionally
+                ratio = w / img.width
+                new_h = int(img.height * ratio)
+                img = img.resize((w, new_h), PILImage.LANCZOS)
+                # Convert to JPEG for smaller size
+                if img.mode in ('RGBA', 'P', 'LA'):
+                    bg = PILImage.new('RGB', img.size, (0, 0, 0))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    bg.paste(img, mask=img.split()[-1] if 'A' in img.mode else None)
+                    img = bg
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                buf = io.BytesIO()
+                img.save(buf, format='JPEG', quality=q or 80, optimize=True)
+                resized = buf.getvalue()
+                return Response(
+                    content=resized,
+                    media_type='image/jpeg',
+                    headers={
+                        "Content-Length": str(len(resized)),
+                        "Cache-Control": "public, max-age=604800, immutable",
+                        "Access-Control-Allow-Origin": "*",
+                    }
+                )
+            except Exception as resize_err:
+                logger.warning(f"Image resize failed for {key}: {resize_err}, serving original")
+                # Fall through to serve original
+                return Response(
+                    content=body,
+                    media_type=ct,
+                    headers={
+                        "Content-Length": str(len(body)),
+                        "Accept-Ranges": "bytes",
+                        "Cache-Control": "public, max-age=604800, immutable",
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                        "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
+                    }
+                )
 
         range_header = request.headers.get('range')
 

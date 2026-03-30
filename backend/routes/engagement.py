@@ -293,9 +293,11 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
             return url
 
     def _resolve_thumb(job: dict) -> str | None:
+        # 1. Try dedicated thumbnail
         thumb = _cdn_url(job.get("thumbnail_url"))
         if thumb:
             return thumb
+        # 2. Try scene_images dict (pipeline_jobs)
         si = job.get("scene_images", {})
         if si:
             fk = sorted(si.keys(), key=lambda k: int(k) if k.isdigit() else 999)[0] if si else None
@@ -304,7 +306,22 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
                 if r2k:
                     return f"{R2_PUBLIC}/{r2k}" if R2_PUBLIC else f"/api/media/r2/{r2k}"
                 return _cdn_url(si[fk].get("url"))
+        # 3. Try stage_results image_gen outputs (story_engine_jobs)
+        for stage in job.get("stage_results", []):
+            if stage.get("stage") == "image_gen":
+                for out in stage.get("outputs", []):
+                    if isinstance(out, dict):
+                        r2k = out.get("r2_key") or out.get("image_r2_key")
+                        if r2k:
+                            return f"{R2_PUBLIC}/{r2k}" if R2_PUBLIC else f"/api/media/r2/{r2k}"
+                        url = out.get("url") or out.get("image_url")
+                        if url:
+                            return _cdn_url(url)
         return None
+
+    def _has_displayable_media(item: dict) -> bool:
+        """Returns True if the feed item has at least one displayable image."""
+        return bool(item.get("thumbnail_url") or item.get("poster_url"))
 
     def _extract_hook(text: str) -> str:
         sentences = [s.strip() for s in (text or "").replace("\n", ". ").split(".") if s.strip() and len(s.strip()) > 5]
@@ -346,7 +363,7 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
     # ── Query: story_engine_jobs (PRIMARY) then pipeline_jobs (LEGACY fallback) ──
     se_all = await db.story_engine_jobs.find(
         {"state": "READY"},
-        {**PROJ, "state": 1},
+        {**PROJ, "state": 1, "stage_results": 1},
     ).sort("created_at", -1).to_list(length=30)
 
     pj_all = await db.pipeline_jobs.find(
@@ -374,20 +391,30 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
     trending_stories = []
     seen_ids = set()
     for job in se_all:
-        trending_stories.append(_shape_item(job, "NEW"))
-        seen_ids.add(job.get("job_id"))
+        item = _shape_item(job, "NEW")
+        if _has_displayable_media(item):
+            trending_stories.append(item)
+            seen_ids.add(job.get("job_id"))
     for i, job in enumerate(pj_all[:15]):
         if job.get("job_id") not in seen_ids:
             b = "TRENDING" if (job.get("remix_count") or 0) >= 5 else ("#1" if i == 0 else ("HOT" if i < 3 else "NEW"))
-            trending_stories.append(_shape_item(job, b))
+            item = _shape_item(job, b)
+            if _has_displayable_media(item):
+                trending_stories.append(item)
 
     # ── 3. Fresh stories — by created_at desc, story_engine_jobs first ──
-    fresh_stories = [_shape_item(j, "FRESH") for j in se_all[:10]]
+    fresh_stories = []
+    for j in se_all[:10]:
+        item = _shape_item(j, "FRESH")
+        if _has_displayable_media(item):
+            fresh_stories.append(item)
     fresh_seen = {j.get("job_id") for j in se_all[:10]}
     pj_fresh = sorted(pj_all, key=lambda j: j.get("created_at", ""), reverse=True)
     for j in pj_fresh[:12]:
         if j.get("job_id") not in fresh_seen:
-            fresh_stories.append(_shape_item(j, "FRESH"))
+            item = _shape_item(j, "FRESH")
+            if _has_displayable_media(item):
+                fresh_stories.append(item)
 
     # ── 4. Continue stories — user's own jobs (requires auth), story_engine_jobs first ──
     continue_stories = []
@@ -395,10 +422,12 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         uid = user.get("id")
         user_se = await db.story_engine_jobs.find(
             {"user_id": uid, "state": {"$in": ["READY", "PARTIAL_READY"]}},
-            {**PROJ, "state": 1},
+            {**PROJ, "state": 1, "stage_results": 1},
         ).sort("created_at", -1).to_list(length=10)
         for j in user_se:
-            continue_stories.append(_shape_item(j, "CONTINUE"))
+            item = _shape_item(j, "CONTINUE")
+            if _has_displayable_media(item):
+                continue_stories.append(item)
         # Legacy fallback
         user_jobs = await db.pipeline_jobs.find(
             {"user_id": uid, "status": "COMPLETED"},
@@ -407,14 +436,16 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         cont_seen = {j.get("job_id") for j in user_se}
         for j in user_jobs:
             if j.get("job_id") not in cont_seen:
-                continue_stories.append(_shape_item(j, "CONTINUE"))
+                item = _shape_item(j, "CONTINUE")
+                if _has_displayable_media(item):
+                    continue_stories.append(item)
 
     # ── 5. Unfinished worlds — partial/in-progress jobs from all users ──
     partial_pj = await db.pipeline_jobs.find(
         {"status": {"$in": ["COMPLETED"]}, "parent_video_id": {"$exists": False}},
         PROJ,
     ).sort("created_at", -1).to_list(length=12)
-    unfinished_worlds = [_shape_item(j, "UNFINISHED") for j in partial_pj[:12]]
+    unfinished_worlds = [item for j in partial_pj[:12] if _has_displayable_media(item := _shape_item(j, "UNFINISHED"))]
 
     # ── Characters — source of truth: character_profiles only (per mandated schema) ──
     char_profiles = await db.character_profiles.find(
