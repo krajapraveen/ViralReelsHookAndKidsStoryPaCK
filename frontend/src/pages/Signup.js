@@ -307,6 +307,8 @@ export default function Signup({ setAuth }) {
       localStorage.setItem('auth_return_path', from);
     }
 
+    // Minimal delay so React paints the overlay before the browser navigates.
+    // Actual auth page exposure depends on network/provider latency (outside our control).
     setTimeout(() => {
       const redirectUrl = window.location.origin + '/auth/callback';
       window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;

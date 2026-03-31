@@ -256,7 +256,10 @@ export default function Login({ setAuth }) {
       localStorage.setItem('auth_return_path', from);
     }
 
-    // Small delay to guarantee overlay paints before browser navigates away
+    // Minimal delay so React paints the overlay before the browser navigates.
+    // ~150ms is enough for the DOM paint; the actual auth.emergentagent.com page
+    // exposure duration depends on network speed and Google/Emergent latency —
+    // factors outside our control. Our goal: minimize that exposure.
     setTimeout(() => {
       const redirectUrl = window.location.origin + '/auth/callback';
       window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;

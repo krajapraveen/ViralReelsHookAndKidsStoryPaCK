@@ -14,7 +14,7 @@ import {
   CreditCard, Clock, Save, Trash2, Download, Image, Video, Mic,
   Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Play,
   FileText, RefreshCw, Folder, HardDrive, AlertTriangle, XCircle,
-  RotateCcw, Package, ExternalLink, Film, Briefcase
+  RotateCcw, Package, ExternalLink, Film, Briefcase, LogOut
 } from 'lucide-react';
 import { useAppTour } from '../components/AppTour';
 
@@ -263,6 +263,23 @@ export default function Profile() {
               <Sparkles className="w-4 h-4 text-purple-400" />
               <span className="text-purple-400 font-medium">{user?.credits || 0} Credits</span>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('user_id');
+                localStorage.removeItem('auth_return_path');
+                localStorage.removeItem('remix_return_url');
+                window.location.href = '/login';
+              }}
+              className="text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              data-testid="profile-logout-btn"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline ml-2">Sign out</span>
+            </Button>
           </div>
         </div>
       </header>

@@ -11,7 +11,7 @@ import {
   Flame, Clock, Search, Plus,
   Film, BookOpen, Star, ArrowRight, Shield, User,
   Camera, Palette, Megaphone, Lightbulb, Image as ImageIcon,
-  RefreshCw, Share2, Activity, Home, Heart,
+  RefreshCw, Share2, Activity, Home, Heart, LogOut, CreditCard,
 } from 'lucide-react';
 
 import HeroMedia from '../components/HeroMedia';
@@ -602,6 +602,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({});
   const [liveFeed, setLiveFeed] = useState([]);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const isAdmin = isAdminUser();
   const isLoggedIn = !!localStorage.getItem('token');
 
@@ -735,6 +736,75 @@ export default function Dashboard() {
                 <User className="w-3.5 h-3.5 text-indigo-400" />
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* USER BAR — top-right for all authenticated users */}
+      {isLoggedIn && (
+        <div className={`fixed ${isAdmin ? 'top-9 lg:top-9' : 'top-0'} right-0 z-40 p-3 sm:p-4`} data-testid="user-bar">
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(prev => !prev)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-black/60 backdrop-blur-xl hover:bg-white/5 transition-colors"
+              data-testid="user-menu-toggle"
+              aria-label="User menu"
+            >
+              {creditsLoaded && (
+                <span className="text-xs font-semibold text-white/60" data-testid="header-credits">
+                  <Zap className="w-3 h-3 inline-block mr-0.5 text-indigo-400" />
+                  {credits >= 999999 ? 'Unlimited' : credits}
+                </span>
+              )}
+              <div className="w-7 h-7 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                <User className="w-3.5 h-3.5 text-indigo-400" />
+              </div>
+            </button>
+
+            {/* Dropdown menu */}
+            {showUserMenu && (
+              <>
+                {/* Backdrop to close menu */}
+                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-2 w-48 z-50 rounded-xl border border-white/10 bg-[#121218]/95 backdrop-blur-xl shadow-xl overflow-hidden"
+                  data-testid="user-menu-dropdown"
+                >
+                  <button
+                    onClick={() => { setShowUserMenu(false); navigate('/app/profile'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+                    data-testid="menu-profile"
+                  >
+                    <User className="w-4 h-4" />
+                    Profile
+                  </button>
+                  <button
+                    onClick={() => { setShowUserMenu(false); navigate('/app/billing'); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+                    data-testid="menu-billing"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Billing
+                  </button>
+                  <div className="border-t border-white/5" />
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('token');
+                      localStorage.removeItem('user');
+                      localStorage.removeItem('user_id');
+                      localStorage.removeItem('auth_return_path');
+                      localStorage.removeItem('remix_return_url');
+                      window.location.href = '/login';
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+                    data-testid="menu-logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
