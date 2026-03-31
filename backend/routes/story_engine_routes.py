@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared import db, get_current_user, get_optional_user
 
 from services.story_engine.schemas import CreateStoryRequest, JobState, ErrorCode, TERMINAL_STATES, PER_STAGE_FAILURE_STATES
-from services.story_engine.pipeline import create_job, run_pipeline, get_job_status, execute_pipeline, process_next_stage
+from services.story_engine.pipeline import create_job, run_pipeline, get_job_status, execute_pipeline, process_next_stage, apply_reuse_checkpoints
 from services.story_engine.cost_guard import pre_flight_check
 from services.story_engine.safety import check_content_safety
 from services.story_engine.state_machine import get_progress, get_label, FAILURE_TO_RETRY
@@ -439,6 +439,29 @@ async def create_engine_job(
         }}
     )
 
+    # ═══ CHECKPOINT REUSE — Skip already-done stages for Continue/Remix ═══
+    reuse_analysis = None
+    if request.parent_video_id:
+        try:
+            reuse_analysis = await apply_reuse_checkpoints(
+                job_id=job_id,
+                parent_job_id=request.parent_video_id,
+                new_params={
+                    "story_text": request.story_text,
+                    "style_id": style_id,
+                    "voice_preset": request.voice_preset,
+                    "age_group": request.age_group,
+                },
+            )
+            if reuse_analysis.get("reusable_stages"):
+                logger.info(
+                    f"[REUSE] Job {job_id[:8]}: Reusing {len(reuse_analysis['reusable_stages'])} stages, "
+                    f"mode={reuse_analysis['reuse_mode']}, starting from {reuse_analysis['start_from']}"
+                )
+        except Exception as e:
+            logger.warning(f"[REUSE] Failed to apply reuse for {job_id[:8]}: {e} — falling back to full pipeline")
+            reuse_analysis = None
+
     # Run pipeline in background
     background_tasks.add_task(run_pipeline, job_id)
 
@@ -447,7 +470,14 @@ async def create_engine_job(
         await db.analytics_events.insert_one({
             "event": "video_generation_started",
             "user_id": user_id,
-            "data": {"job_id": job_id, "credits": result.get("credits_deducted", 0), "style": style_id, "is_guest": is_guest},
+            "data": {
+                "job_id": job_id,
+                "credits": result.get("credits_deducted", 0),
+                "style": style_id,
+                "is_guest": is_guest,
+                "reuse_mode": reuse_analysis.get("reuse_mode") if reuse_analysis else "fresh",
+                "stages_reused": len(reuse_analysis.get("reusable_stages", [])) if reuse_analysis else 0,
+            },
             "timestamp": datetime.now(timezone.utc),
         })
     except Exception:
@@ -459,6 +489,9 @@ async def create_engine_job(
         "credits_charged": result.get("credits_deducted", 0),
         "estimated_scenes": 5,
         "is_guest": is_guest,
+        "reuse_mode": reuse_analysis.get("reuse_mode") if reuse_analysis else "fresh",
+        "stages_reused": reuse_analysis.get("reusable_stages", []) if reuse_analysis else [],
+        "stages_to_generate": reuse_analysis.get("invalidated_stages", []) if reuse_analysis else [],
         "message": "Video generation started. Poll /status for progress.",
     }
 
@@ -588,8 +621,63 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "trigger_text": (job.get("episode_plan") or {}).get("trigger_text"),
             "tension_peak": (job.get("episode_plan") or {}).get("tension_peak"),
             "cut_mood": (job.get("episode_plan") or {}).get("cut_mood"),
+            # Reuse info — tells UI which stages were reused vs regenerated
+            "reuse_info": job.get("reuse_info"),
         },
     }
+
+
+@router.get("/analyze-reuse")
+async def analyze_reuse_preview(
+    parent_job_id: str = Query(...),
+    animation_style: str = Query(default=None),
+    voice_preset: str = Query(default=None),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Preview what stages can be reused from a parent job.
+    Called BEFORE generation to show the user what will be fast-tracked.
+    """
+    from services.story_engine.pipeline import analyze_reuse
+
+    parent = await db.story_engine_jobs.find_one({"job_id": parent_job_id}, {"_id": 0})
+    if not parent:
+        # Try legacy pipeline_jobs
+        parent = await db.pipeline_jobs.find_one({"job_id": parent_job_id}, {"_id": 0})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent job not found")
+    user_id = current_user.get("id") or str(current_user.get("_id", ""))
+    if parent.get("user_id") != user_id and current_user.get("role", "").upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    new_params = {}
+    if animation_style:
+        new_params["style_id"] = animation_style
+    if voice_preset:
+        new_params["voice_preset"] = voice_preset
+    # Story text always changes for Continue, so it'll show full rerun for those
+
+    analysis = analyze_reuse(parent, new_params)
+
+    # Human-readable stage names for UI
+    stage_labels = {
+        "PLANNING": "Scene Planning",
+        "BUILDING_CHARACTER_CONTEXT": "Character Design",
+        "PLANNING_SCENE_MOTION": "Motion Planning",
+        "GENERATING_KEYFRAMES": "Keyframe Images",
+        "GENERATING_SCENE_CLIPS": "Video Clips",
+        "GENERATING_AUDIO": "Narration Audio",
+        "ASSEMBLING_VIDEO": "Final Assembly",
+    }
+
+    return {
+        "success": True,
+        "reuse_mode": analysis["reuse_mode"],
+        "reusable_stages": [{"id": s, "label": stage_labels.get(s, s)} for s in analysis["reusable_stages"]],
+        "invalidated_stages": [{"id": s, "label": stage_labels.get(s, s)} for s in analysis["invalidated_stages"]],
+        "estimated_time_saved_percent": len(analysis["reusable_stages"]) / 7 * 100 if analysis["reusable_stages"] else 0,
+    }
+
 
 
 @router.get("/validate-asset/{job_id}")

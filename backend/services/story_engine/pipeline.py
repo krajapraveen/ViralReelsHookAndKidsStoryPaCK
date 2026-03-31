@@ -181,6 +181,178 @@ async def create_job(
 
 
 # ═══════════════════════════════════════════════════════════════
+# REUSE MODE — Continue/Remix Checkpoint Optimization
+# ═══════════════════════════════════════════════════════════════
+
+# Dependency graph: which fields each stage produces
+STAGE_OUTPUTS = {
+    "PLANNING": ["episode_plan"],
+    "BUILDING_CHARACTER_CONTEXT": ["character_continuity"],
+    "PLANNING_SCENE_MOTION": ["scene_motion_plans"],
+    "GENERATING_KEYFRAMES": ["keyframe_urls", "keyframe_local_paths"],
+    "GENERATING_SCENE_CLIPS": ["scene_clip_urls", "scene_clip_local_paths", "used_ken_burns_fallback", "sora_clips_count", "fallback_clips_count"],
+    "GENERATING_AUDIO": ["narration_url", "narration_local_path", "narration_segments", "tts_failed"],
+    "ASSEMBLING_VIDEO": ["output_url", "preview_url", "thumbnail_url", "thumbnail_small_url"],
+}
+
+# Which inputs invalidate which stages
+# If any of these fields differ from parent, all listed stages must rerun
+INVALIDATION_MAP = {
+    "story_text": ["PLANNING", "BUILDING_CHARACTER_CONTEXT", "PLANNING_SCENE_MOTION",
+                    "GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS", "GENERATING_AUDIO", "ASSEMBLING_VIDEO"],
+    "style_id": ["GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS", "ASSEMBLING_VIDEO"],
+    "voice_preset": ["GENERATING_AUDIO", "ASSEMBLING_VIDEO"],
+    "age_group": ["PLANNING", "BUILDING_CHARACTER_CONTEXT", "PLANNING_SCENE_MOTION",
+                   "GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS", "GENERATING_AUDIO", "ASSEMBLING_VIDEO"],
+}
+
+
+def analyze_reuse(parent_job: dict, new_params: dict) -> dict:
+    """
+    Analyze what can be reused from a parent job based on what changed.
+    Returns {reuse_mode, reusable_stages, invalidated_stages, start_from, reusable_data}.
+    """
+    invalidated = set()
+
+    # Check each parameter for changes
+    for field, stages in INVALIDATION_MAP.items():
+        parent_val = parent_job.get(field)
+        new_val = new_params.get(field)
+        if new_val is not None and parent_val != new_val:
+            invalidated.update(stages)
+
+    # Pipeline order for determining start point
+    stage_order = [
+        "PLANNING", "BUILDING_CHARACTER_CONTEXT", "PLANNING_SCENE_MOTION",
+        "GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS",
+        "GENERATING_AUDIO", "ASSEMBLING_VIDEO",
+    ]
+
+    reusable = [s for s in stage_order if s not in invalidated]
+    invalidated_ordered = [s for s in stage_order if s in invalidated]
+
+    # Determine reuse mode
+    if not invalidated_ordered:
+        reuse_mode = "full_reuse"  # Nothing changed — shouldn't happen normally
+    elif invalidated_ordered[0] == "PLANNING":
+        reuse_mode = "continue"  # Story changed — rerun from planning
+    elif invalidated_ordered[0] == "GENERATING_KEYFRAMES":
+        reuse_mode = "style_remix"  # Only style changed
+    elif invalidated_ordered[0] == "GENERATING_AUDIO":
+        reuse_mode = "voice_remix"  # Only voice changed
+    else:
+        reuse_mode = "partial_remix"
+
+    # Determine the first stage that needs to run
+    start_from = invalidated_ordered[0] if invalidated_ordered else "ASSEMBLING_VIDEO"
+
+    # Collect reusable data from parent
+    reusable_data = {}
+    for stage_name in reusable:
+        for field_name in STAGE_OUTPUTS.get(stage_name, []):
+            val = parent_job.get(field_name)
+            if val is not None:
+                reusable_data[field_name] = val
+
+    # For continue mode, always carry forward character_continuity as base
+    if reuse_mode == "continue" and parent_job.get("character_continuity"):
+        reusable_data["_parent_character_continuity"] = parent_job["character_continuity"]
+
+    return {
+        "reuse_mode": reuse_mode,
+        "reusable_stages": reusable,
+        "invalidated_stages": invalidated_ordered,
+        "start_from": start_from,
+        "reusable_data": reusable_data,
+    }
+
+
+# State name → JobState enum mapping
+_STATE_NAME_TO_ENUM = {
+    "PLANNING": JobState.PLANNING,
+    "BUILDING_CHARACTER_CONTEXT": JobState.BUILDING_CHARACTER_CONTEXT,
+    "PLANNING_SCENE_MOTION": JobState.PLANNING_SCENE_MOTION,
+    "GENERATING_KEYFRAMES": JobState.GENERATING_KEYFRAMES,
+    "GENERATING_SCENE_CLIPS": JobState.GENERATING_SCENE_CLIPS,
+    "GENERATING_AUDIO": JobState.GENERATING_AUDIO,
+    "ASSEMBLING_VIDEO": JobState.ASSEMBLING_VIDEO,
+}
+
+
+async def apply_reuse_checkpoints(job_id: str, parent_job_id: str, new_params: dict) -> dict:
+    """
+    Analyze parent job, copy valid checkpoints, and advance job state to skip completed stages.
+    Returns reuse analysis result.
+    """
+    parent_job = await db.story_engine_jobs.find_one({"job_id": parent_job_id}, {"_id": 0})
+    if not parent_job:
+        return {"reuse_mode": "fresh", "reusable_stages": [], "invalidated_stages": [], "start_from": "PLANNING"}
+
+    # Only reuse from completed parent jobs
+    if parent_job.get("state") not in ("READY", "PARTIAL_READY"):
+        return {"reuse_mode": "fresh", "reusable_stages": [], "invalidated_stages": [], "start_from": "PLANNING"}
+
+    analysis = analyze_reuse(parent_job, new_params)
+
+    if analysis["reuse_mode"] == "fresh" or not analysis["reusable_data"]:
+        return analysis
+
+    # Copy reusable data to new job
+    update_fields = {}
+    for field, value in analysis["reusable_data"].items():
+        if not field.startswith("_"):  # Skip internal markers
+            update_fields[field] = value
+
+    # Mark reuse metadata
+    update_fields["reuse_info"] = {
+        "parent_job_id": parent_job_id,
+        "reuse_mode": analysis["reuse_mode"],
+        "reused_stages": analysis["reusable_stages"],
+        "invalidated_stages": analysis["invalidated_stages"],
+        "start_from": analysis["start_from"],
+        "applied_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Also create synthetic stage_results for reused stages (for UI display)
+    reused_stage_results = []
+    for stage_name in analysis["reusable_stages"]:
+        # Find the parent's result for this stage
+        parent_result = None
+        for sr in parent_job.get("stage_results", []):
+            if sr.get("stage") == stage_name:
+                parent_result = sr
+                break
+
+        reused_stage_results.append({
+            "stage": stage_name,
+            "status": "reused",
+            "reused_from": parent_job_id,
+            "original_duration_seconds": parent_result.get("duration_seconds") if parent_result else None,
+            "duration_seconds": 0,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    update_fields["stage_results"] = reused_stage_results
+
+    # Advance job state to skip reused stages
+    start_state = _STATE_NAME_TO_ENUM.get(analysis["start_from"], JobState.PLANNING)
+    update_fields["state"] = start_state.value
+
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": update_fields},
+    )
+
+    logger.info(
+        f"[REUSE] Job {job_id[:8]} reusing {len(analysis['reusable_stages'])} stages from "
+        f"{parent_job_id[:8]}, starting from {analysis['start_from']} (mode={analysis['reuse_mode']})"
+    )
+
+    return analysis
+
+
+# ═══════════════════════════════════════════════════════════════
 # STAGE ORCHESTRATOR — Replaces monolithic run_pipeline()
 # ═══════════════════════════════════════════════════════════════
 
@@ -250,6 +422,22 @@ async def process_next_stage(job_id: str) -> Dict:
 
     # Update heartbeat at start of stage
     await update_heartbeat(db, job_id, f"Starting {state.value}")
+
+    # ═══ REUSE CHECK — skip stages whose outputs already exist from checkpoint copy ═══
+    reuse_info = job.get("reuse_info")
+    if reuse_info and state.value in (reuse_info.get("reused_stages") or []):
+        logger.info(f"[REUSE] Skipping {state.value} for {job_id[:8]} — outputs reused from {reuse_info['parent_job_id'][:8]}")
+        # Advance to next stage without executing
+        if state == JobState.VALIDATING:
+            return await _finalize_job(job_id)
+        next_state = get_next_stage(state)
+        if next_state:
+            try:
+                await transition_job(db, job_id, next_state)
+            except ValueError as e:
+                logger.error(f"[PIPELINE] Failed to skip-advance {job_id[:8]}: {e}")
+                return {"success": False, "terminal": True, "error": str(e)}
+        return {"success": True, "terminal": False, "state": (next_state or state).value}
 
     # Budget guard — enforce before every external call
     try:

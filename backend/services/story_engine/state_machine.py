@@ -13,7 +13,13 @@ logger = logging.getLogger("story_engine.state_machine")
 # ═══════════════════════════════════════════════════════════════
 
 VALID_TRANSITIONS: Dict[JobState, list] = {
-    JobState.INIT: [JobState.PLANNING, JobState.FAILED],
+    # INIT can jump to any active state (for checkpoint reuse — skip already-done stages)
+    JobState.INIT: [
+        JobState.PLANNING, JobState.BUILDING_CHARACTER_CONTEXT,
+        JobState.PLANNING_SCENE_MOTION, JobState.GENERATING_KEYFRAMES,
+        JobState.GENERATING_SCENE_CLIPS, JobState.GENERATING_AUDIO,
+        JobState.ASSEMBLING_VIDEO, JobState.FAILED,
+    ],
     JobState.PLANNING: [JobState.BUILDING_CHARACTER_CONTEXT, JobState.FAILED_PLANNING, JobState.FAILED],
     JobState.BUILDING_CHARACTER_CONTEXT: [JobState.PLANNING_SCENE_MOTION, JobState.FAILED_PLANNING, JobState.FAILED],
     JobState.PLANNING_SCENE_MOTION: [JobState.GENERATING_KEYFRAMES, JobState.FAILED_PLANNING, JobState.FAILED],

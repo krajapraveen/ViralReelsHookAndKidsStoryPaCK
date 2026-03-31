@@ -155,6 +155,7 @@ function StoryVideoPipelineInner() {
   const [remixSourceTitle, setRemixSourceTitle] = useState(null);
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
   const [formError, setFormError] = useState('');
+  const [reuseInfo, setReuseInfo] = useState(null);
 
   const onViewJob = useCallback((job) => {
     if (job?.job_id) {
@@ -530,13 +531,26 @@ function StoryVideoPipelineInner() {
         setFormError('');
         dispatchPostGen({ type: 'RESET' });
 
+        // Capture reuse info for status display
+        if (res.data.reuse_mode && res.data.reuse_mode !== 'fresh') {
+          setReuseInfo({
+            reuse_mode: res.data.reuse_mode,
+            reusable_stages: res.data.stages_reused || [],
+            invalidated_stages: res.data.stages_to_generate || [],
+          });
+          const reusedCount = (res.data.stages_reused || []).length;
+          toast.success(`Optimized! Reusing ${reusedCount} stage${reusedCount !== 1 ? 's' : ''} from previous video.`);
+        } else {
+          setReuseInfo(null);
+        }
+
         if (res.data.is_guest) {
           toast.success('Your free video is being created! Sign up after to save it.');
         } else if (res.data.degraded) {
           toast.info(`System is busy — your video will use ${res.data.estimated_scenes} scenes for faster delivery.`);
         } else if (res.data.queue_warning) {
           toast.info(res.data.queue_warning);
-        } else {
+        } else if (!res.data.reuse_mode || res.data.reuse_mode === 'fresh') {
           toast.success(`Video queued! ${res.data.credits_charged} credits charged.`);
         }
         startPolling(res.data.job_id);
@@ -615,6 +629,7 @@ function StoryVideoPipelineInner() {
     setStoryText('');
     setFormError('');
     setRemixData(null);
+    setReuseInfo(null);
     dispatchPostGen({ type: 'RESET' });
     checkRateLimit();
   };
@@ -811,6 +826,7 @@ function StoryVideoPipelineInner() {
             wsRef={wsRef}
             initialProgress={job?.progress || 0}
             initialStage={job?.current_stage || 'scenes'}
+            reuseInfo={reuseInfo}
             onComplete={(completedJob) => {
               setJob(completedJob);
               setPhase('postgen');

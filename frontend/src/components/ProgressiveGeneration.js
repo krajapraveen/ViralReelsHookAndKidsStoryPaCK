@@ -226,6 +226,7 @@ export default function ProgressiveGeneration({
   initialStage = 'scenes',
   onComplete,
   onExportReady,
+  reuseInfo,
 }) {
   const navigate = useNavigate();
   const [scenes, setScenes] = useState([]);
@@ -433,10 +434,10 @@ export default function ProgressiveGeneration({
   };
 
   const stageExplanations = [
-    { key: 'scenes', label: 'Planning your story', desc: 'Breaking down the narrative into scenes' },
-    { key: 'images', label: 'Generating visuals', desc: 'Creating images and video clips for each scene' },
-    { key: 'voices', label: 'Creating narration', desc: 'Generating voice audio for the story' },
-    { key: 'render', label: 'Rendering final video', desc: 'Stitching everything together into your video' },
+    { key: 'scenes', label: 'Planning your story', desc: 'Breaking down the narrative into scenes', stageIds: ['PLANNING', 'BUILDING_CHARACTER_CONTEXT', 'PLANNING_SCENE_MOTION'] },
+    { key: 'images', label: 'Generating visuals', desc: 'Creating images and video clips for each scene', stageIds: ['GENERATING_KEYFRAMES', 'GENERATING_SCENE_CLIPS'] },
+    { key: 'voices', label: 'Creating narration', desc: 'Generating voice audio for the story', stageIds: ['GENERATING_AUDIO'] },
+    { key: 'render', label: 'Rendering final video', desc: 'Stitching everything together into your video', stageIds: ['ASSEMBLING_VIDEO'] },
   ];
 
   const QUOTES = [
@@ -505,10 +506,13 @@ export default function ProgressiveGeneration({
           {['scenes', 'images', 'voices', 'render'].map((s, i) => {
             const active = s === stage;
             const done = currentStageIdx > i;
+            const reusedStages = reuseInfo?.reusable_stages || jobData?.reuse_info?.reused_stages || [];
+            const stageIdMap = { scenes: ['PLANNING', 'BUILDING_CHARACTER_CONTEXT', 'PLANNING_SCENE_MOTION'], images: ['GENERATING_KEYFRAMES', 'GENERATING_SCENE_CLIPS'], voices: ['GENERATING_AUDIO'], render: ['ASSEMBLING_VIDEO'] };
+            const isReusedStage = (stageIdMap[s] || []).every(sid => reusedStages.includes(sid));
             return (
               <div key={s} className="flex-1 flex items-center gap-1">
                 <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
-                  done ? 'bg-emerald-500' : active ? 'bg-purple-500 animate-pulse' : 'bg-slate-700'
+                  isReusedStage ? 'bg-emerald-500/60' : done ? 'bg-emerald-500' : active ? 'bg-purple-500 animate-pulse' : 'bg-slate-700'
                 }`} />
                 {i < 3 && <div className="w-0.5" />}
               </div>
@@ -516,7 +520,12 @@ export default function ProgressiveGeneration({
           })}
         </div>
         <div className="flex justify-between text-[10px] text-slate-500 mb-3">
-          <span>Scenes</span><span>Images</span><span>Audio</span><span>Export</span>
+          {['Scenes', 'Images', 'Audio', 'Export'].map((label, i) => {
+            const stages = [['PLANNING', 'BUILDING_CHARACTER_CONTEXT', 'PLANNING_SCENE_MOTION'], ['GENERATING_KEYFRAMES', 'GENERATING_SCENE_CLIPS'], ['GENERATING_AUDIO'], ['ASSEMBLING_VIDEO']];
+            const reusedStages = reuseInfo?.reusable_stages || jobData?.reuse_info?.reused_stages || [];
+            const isReused = stages[i].every(sid => reusedStages.includes(sid));
+            return <span key={label} className={isReused ? 'text-emerald-400/60' : ''}>{label}{isReused ? ' ✓' : ''}</span>;
+          })}
         </div>
 
         <Progress value={progress} className="h-2" />
@@ -568,16 +577,35 @@ export default function ProgressiveGeneration({
       {!isDone && (
         <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-4" data-testid="whats-happening">
           <h4 className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-3">What's happening now</h4>
+          {/* Reuse badge — show when stages are being fast-tracked */}
+          {(reuseInfo?.reuse_mode || jobData?.reuse_info?.reuse_mode) && (reuseInfo?.reuse_mode || jobData?.reuse_info?.reuse_mode) !== 'fresh' && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2" data-testid="reuse-badge">
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-emerald-300 text-xs font-medium">
+                {(reuseInfo?.reuse_mode || jobData?.reuse_info?.reuse_mode) === 'style_remix'
+                  ? 'Style Remix — reusing story & audio from previous video'
+                  : (reuseInfo?.reuse_mode || jobData?.reuse_info?.reuse_mode) === 'voice_remix'
+                  ? 'Voice Remix — reusing visuals from previous video'
+                  : (reuseInfo?.reuse_mode || jobData?.reuse_info?.reuse_mode) === 'continue'
+                  ? 'Continuation — inheriting character design'
+                  : 'Optimized — reusing previous checkpoints'}
+              </span>
+            </div>
+          )}
           <div className="space-y-2.5">
             {stageExplanations.map((exp, i) => {
               const isActive = exp.key === stage || (stage === 'scenes' && exp.key === 'scenes');
               const isDoneStage = currentStageIdx > i;
+              const reusedStages = reuseInfo?.reusable_stages || jobData?.reuse_info?.reused_stages || [];
+              const isReused = exp.stageIds?.some(sid => reusedStages.includes(sid));
               return (
                 <div key={exp.key} className="flex items-center gap-3">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    isDoneStage ? 'bg-emerald-500/20' : isActive ? 'bg-purple-500/20' : 'bg-slate-700/50'
+                    isReused ? 'bg-emerald-500/20' : isDoneStage ? 'bg-emerald-500/20' : isActive ? 'bg-purple-500/20' : 'bg-slate-700/50'
                   }`}>
-                    {isDoneStage ? (
+                    {isReused ? (
+                      <SkipForward className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : isDoneStage ? (
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                     ) : isActive ? (
                       <Loader2 className="w-3.5 h-3.5 text-purple-400 animate-spin" />
@@ -585,11 +613,19 @@ export default function ProgressiveGeneration({
                       <div className="w-2 h-2 rounded-full bg-slate-600" />
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <p className={`text-sm ${isDoneStage ? 'text-emerald-300' : isActive ? 'text-white font-medium' : 'text-slate-500'}`}>
-                      {exp.label}
-                    </p>
-                    {isActive && <p className="text-xs text-slate-400">{exp.desc}</p>}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className={`text-sm ${isReused ? 'text-emerald-300' : isDoneStage ? 'text-emerald-300' : isActive ? 'text-white font-medium' : 'text-slate-500'}`}>
+                        {exp.label}
+                      </p>
+                      {isReused && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium" data-testid={`stage-reused-${exp.key}`}>
+                          Reused
+                        </span>
+                      )}
+                    </div>
+                    {isActive && !isReused && <p className="text-xs text-slate-400">{exp.desc}</p>}
+                    {isReused && <p className="text-xs text-emerald-400/60">Carried from previous video</p>}
                   </div>
                 </div>
               );
