@@ -15,7 +15,7 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 
 ### Business Rules
 - **Free users**: Preview only. Cannot download. See "Upgrade to Download" CTA.
-- **Active paid subscribers** (starter/pro/premium with active subscription): Full download via short-lived presigned URLs.
+- **Active paid subscribers**: Full download via short-lived presigned URLs.
 - **Top-up credits alone** WITHOUT active subscription: Does NOT unlock download.
 - **Admin/Superadmin**: Full access override.
 
@@ -33,34 +33,52 @@ Frontend (Renders from Backend Truth):
   EntitledDownloadIcon          — Compact lock/download icon for cards
 ```
 
-### All Gated Download Surfaces
-| Surface | Component | Gated |
-|---------|-----------|-------|
-| Story Video Pipeline | EntitledDownloadButton | Yes |
-| My Space cards | EntitledDownloadIcon | Yes |
-| Story Preview | EntitledDownloadButton | Yes |
-| Browser Video Export | useMediaEntitlement | Yes |
-| Video Export Panel | useMediaEntitlement | Yes |
-| My Downloads | useMediaEntitlement | Yes |
-| Smart Download | useMediaEntitlement | Yes |
-| Social Share Download | useMediaEntitlement | Yes |
-| Protected Content | useMediaEntitlement | Yes |
-| Force Share Gate | No downloadUrl passed | Yes |
-| Share Reward Bar | No downloadUrl passed | Yes |
+### All Gated Download Surfaces (10+ surfaces)
+StoryVideoPipeline, MySpace, StoryPreview, BrowserVideoExport, VideoExportPanel,
+MyDownloads, SmartDownloadButton, SocialShareDownload, ProtectedContent,
+ForceShareGate, ShareRewardBar — ALL gated.
 
-### CTA Copy
-- Button: "Upgrade to Download"
-- Tooltip: "Downloads are available on paid plans"
+## Story Series Button Routing (FIXED Mar 31 2026)
+
+### Problem
+All 3 buttons on the Series Timeline page called the same handler with no distinction
+between resume vs create mode, dumping users into a blank Story-to-Video page.
+
+### Solution — Distinct Handlers with Explicit Intent
+
+| Button | Handler | Behavior |
+|--------|---------|----------|
+| Header "Continue Episode N" | `handleSmartContinue()` | If current episode has job_id → resume. Else → create new. |
+| Big CTA "Continue Episode N" | `handleSmartContinue()` | Same as above. |
+| Episode card "Continue →" | `handleResumeEpisode(ep)` | If ep has job_id → `/app/story-video-studio?job={job_id}`. If ep has slug → `/v/{slug}`. Else → create new. |
+| "Create Episode N" | `handleCreateNewEpisode()` | Always calls backend continue endpoint. Stores full series context in remix_data. |
+
+### Series Context Flow
+```
+SeriesTimeline → handleCreateNewEpisode() → remix_data = {
+  prompt, series_id, series_title, episode_number, mode: 'create',
+  character_ids, source_tool: 'series-continue'
+} → /app/story-video-studio
+
+StoryVideoPipeline reads remix_data → sets seriesContext state → renders:
+  - Series banner: "{series_title} — Creating Episode N"
+  - Heading: "Episode N" instead of "Create a Story Video"
+  - Passes series_id + episode_number to backend create payload
+```
+
+### Backend Support
+- `CreateEngineRequest` model accepts optional `series_id` and `episode_number`
+- `/api/story-engine/create` stores these on the job document for series linkage
 
 ## Branding Cleanup (DONE Mar 31 2026)
-- All visible "Emergent" / "Powered by Emergent" branding removed from user-facing UI
-- CSS + MutationObserver in index.html suppresses any platform-injected badges
-- PrivacyPolicy.js: "Emergent Auth" reference replaced with generic "OAuth 2.0"
-- Platform scripts (emergent-main.js) are functional infrastructure and remain for deployment
+- All visible "Emergent" / "Powered by Emergent" branding removed
+- CSS + MutationObserver suppress platform-injected badges
+- PrivacyPolicy.js: "Emergent Auth" → "OAuth 2.0"
 
 ## Navigation Structure
 ```
 /app/my-space, /app/create, /app/browse, /app/characters, /app/dashboard
+/app/story-video-studio — Unified story video pipeline
 ```
 
 ## Quality Modes
@@ -74,15 +92,26 @@ Frontend (Renders from Backend Truth):
 - Test User: test@visionary-suite.com / Test@2026# (free plan)
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026 (admin role)
 
+## Key Files
+- `/app/frontend/src/pages/SeriesTimeline.js` — Series timeline with 3 distinct handlers
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Unified pipeline with series context support
+- `/app/frontend/src/contexts/MediaEntitlementContext.js` — Entitlement provider
+- `/app/frontend/src/components/EntitledDownloadButton.js` — Download gating
+- `/app/backend/services/entitlement.py` — Entitlement resolver
+- `/app/backend/routes/media_routes.py` — Download token & entitlement API
+- `/app/backend/routes/story_engine_routes.py` — Story engine with series_id support
+- `/app/backend/routes/universe_routes.py` — Series continue endpoint
+
 ## Completed (This Session — Mar 31 2026)
-- [x] P0 Media Entitlement Gating — 16/16 backend tests, 100% frontend verification
-- [x] Branding removal — 0 Emergent/Powered by visible across all pages
+- [x] P0 Media Entitlement Gating — 16/16 tests, all download surfaces gated
+- [x] Branding removal — 0 Emergent/Powered by visible
+- [x] Story Series routing fix — 3 distinct handlers, series context banner, backend series linkage
 
 ## Upcoming
 - (P1) Anti-crop watermark improvements (dynamic per-user watermarks)
 - (P1) Telemetry pipeline for abnormal access patterns
 - (P1) Notification Center Improvements
-- (P1) A/B test hook text on public pages
+- (P1) Episode auto-registration when generation completes (series_id → story_episodes)
 
 ## Future/Backlog
 - (P2) Invisible forensic watermarking
