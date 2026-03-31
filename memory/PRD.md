@@ -11,63 +11,42 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 - Payments: Cashfree
 - AI: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini 3 via Emergent LLM Key
 
-## Gallery Discovery Engine (BUILT Mar 31 2026) — P0 COMPLETE
+## Gallery Discovery Engine (BUILT Mar 31 2026) — P0+P1 COMPLETE
 
-### Before vs After
-**BEFORE**: Empty "No videos found" page. Zero content. Zero engagement. Users leave immediately.
-**AFTER**: Netflix-style discovery engine with featured hero, 9 category rails, explore grid, search/filters/sort, preview modal, Remix on every card, seeded demo content. Gallery NEVER shows empty state.
+### P0: Netflix-style discovery
+- Featured hero, 9 category rails, explore grid, search/filters/sort, preview modal
+- Seeded demo content ("never-empty" guarantee), Remix on every card
 
-### Backend — New APIs
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/gallery/featured` | Returns 3 featured hero items |
-| `GET /api/gallery/rails` | Returns 9 categorized horizontal rails |
-| `GET /api/gallery/explore?category=X&sort=Y&cursor=Z` | Paginated explore feed with filter/sort |
-| `GET /api/gallery/categories` | Category list with counts |
+### P1: Immersive Viewer & Personalization
+- TikTok-style fullscreen vertical viewer with swipe navigation
+- Desktop hover-previews on cards
+- User-personalized feeds: Continue Watching, Your Creations, For You
 
-### Seeding System
-- `gallery_content` collection seeded on startup via `seed_gallery_if_empty()`
-- 23 demo items across 7 categories: Kids Stories, Cinematic AI, Emotional, Reels & Shorts, Business, Luxury, Educational
-- Each item: title, description, thumbnail, duration, views/likes/remixes, tags, category
-- Real `pipeline_jobs` merged with seeded content in all API responses
-- Gallery NEVER empty — seeded content fills gaps when real content is sparse
+## Reel Creation Engine (BUILT Mar 31 2026) — P0+P1 COMPLETE
 
-### Frontend Components
-| Component | Purpose |
-|-----------|---------|
-| `FeaturedHero` | Auto-cycling hero with gradient overlays, stats, Watch/Remix/Create CTAs |
-| `ContentRail` | Horizontal scroll rail with nav arrows, category icon |
-| `GalleryCard` | Thumbnail + stats overlay + duration badge + hover actions + Remix CTA |
-| `PreviewModal` | Full video/thumbnail preview with stats, Remix button |
-| `HeroSkeleton / CardSkeleton / RailSkeleton` | Instant skeleton loading |
-
-### Category Rails (9 total)
-Trending Now, Most Remixed, Kids Stories, Reels & Shorts, Emotional Stories, Cinematic AI, Business & Promo, Luxury & Lifestyle, Educational
-
-### Explore Section
-- Text search (client-side filtering)
-- Category filter tabs (All, Trending, Kids, Reels, Emotional, Cinematic, Business, Luxury, Educational)
-- Sort modes (Trending, Newest, Most Remixed)
-- 4-column desktop / 2-column mobile grid
-- Bottom CTA: "Pick a story you love. Make it yours."
-
-### Remix Flow
-1. Click Remix on any card → check auth
-2. Not logged in → redirect to /signup with remix context
-3. Logged in → store remix_data in localStorage + navigate to /app/story-video-studio
-4. Story Video Studio picks up remix_data and prefills prompt
-
-## Reel Creation Engine (BUILT Mar 31 2026) — P0 COMPLETE
+### P0: Outcome-Driven Engine
 - 12 outcome-driven input controls (Platform, Hook Style, Reel Format, CTA, Objective, Output Type + Advanced)
 - 7-tab structured output (Script, Hook Variants, Caption, Hashtags, Shot List, Visual Prompts, Voiceover)
-- Video generation config modal (style, voiceover, subtitles, aspect ratio, quality, estimated credits)
-- 8 performance variations (Stronger Hook, Higher Retention, More Emotional, More Viral, More Sales, Shorter, Better CTA, Platform Optimized)
-- AI Recommendations panel
+- 8 performance variations, AI Recommendations panel, Video generation config modal
+
+### P1: Reference-Based Generation (BUILT Mar 31 2026)
+- Two input modes: "Fresh Create" (standard) and "From Reference" (inspired generation)
+- Reference inputs: Reel URL (with auto-extraction), Pasted script/caption/transcript, Optional notes
+- Backend extracts structural DNA from reference and generates original content
+- New "Reference DNA" output tab showing: hook pattern, pacing structure, emotional arc, CTA approach, format choices, what was preserved vs made original
+- Graceful fallback: URL extraction fails → falls back to pasted text → falls back to standard generation
+- **Files**: `generation.py` (lines 37-167), `schemas.py` (reference fields), `shared.py` (REEL_REFERENCE prompts)
+
+### P1: Quick Presets (BUILT Mar 31 2026)
+- 8 one-click preset chips: Viral Hook, Luxury Reel, Product Promo, UGC Ad, Storytelling, Educational, Kids Story, Faceless Biz
+- Each preset intelligently prefills: platform, hookStyle, reelFormat, ctaType, goal, outputType, tone, duration, niche, audience
+- Presets remain editable after selection; manual changes clear the active preset indicator
+- Visually distinct colored chips with active ring states
+- **Files**: `ReelGenerator.js` (QUICK_PRESETS constant, handlePresetSelect)
 
 ## Premium Login UX (VERIFIED Mar 31 2026)
 - Branded overlay masks auth.emergentagent.com transition (150ms)
 - AuthCallback branded loading + error states
-- No Emergent text on app-controlled screens
 
 ## Logout (BUILT Mar 31 2026)
 - Dashboard user menu + Profile page Sign out button
@@ -81,38 +60,29 @@ Trending Now, Most Remixed, Kids Stories, Reels & Shorts, Emotional Stories, Cin
 | File | Purpose |
 |------|---------|
 | `backend/routes/gallery_routes.py` | Gallery APIs + seeding system |
-| `frontend/src/pages/Gallery.js` | Netflix-style gallery page |
-| `frontend/src/pages/ReelGenerator.js` | Reel Creation Engine |
-| `backend/models/schemas.py` | GenerateReelRequest with new fields |
-| `backend/shared.py` | Upgraded reel prompts |
-| `frontend/src/components/AuthLaunchOverlay.js` | Auth overlay |
-| `frontend/src/pages/AuthCallback.js` | Branded auth callback |
+| `frontend/src/pages/Gallery.js` | Netflix-style gallery page + Immersive Viewer |
+| `frontend/src/pages/ReelGenerator.js` | Reel Creation Engine + Presets + Reference Mode |
+| `backend/routes/generation.py` | Reel generation with reference analysis + URL extraction |
+| `backend/models/schemas.py` | GenerateReelRequest with reference fields |
+| `backend/shared.py` | Standard + Reference reel prompts |
 | `frontend/src/pages/Dashboard.js` | User menu with logout |
 | `frontend/src/pages/Profile.js` | Logout button in header |
 
 ## Completed (This Session — Mar 31 2026)
 - [x] Premium Login UX — 14/14 tests passed
-- [x] Logout button — Dashboard + Profile, desktop + mobile
+- [x] Logout button — Dashboard + Profile
 - [x] Reel Creation Engine P0 — 11/11 backend + all frontend verified
-- [x] Gallery Discovery Engine P0 — 18/18 backend + all frontend P0 verified (100% pass)
+- [x] Gallery Discovery Engine P0 — 18/18 tests passed
+- [x] Gallery P1: Immersive Viewer, Hover Previews, User Feeds — tested iteration_399
+- [x] Reel P1: Reference-Based Generation — tested iteration_400 (100% pass, 11/11 backend)
+- [x] Reel P1: Quick Presets (8 presets) — tested iteration_400 (100% pass)
 
 ## Upcoming (P1)
-### Gallery P1
-1. Immersive TikTok-style fullscreen viewer (swipe navigation, autoplay)
-2. Hover auto-preview on desktop cards
-3. Continue Watching / Your Creations sections for logged-in users
-4. Search improvements (server-side, tag-based)
+1. Anti-crop watermark improvements + dynamic per-user watermarks
+2. Telemetry pipeline (abnormal preview tracking, multi-IP token reuse, scraping detection)
+3. Notification Center improvements (history, read/unread states)
 
-### Reel P1
-5. Reference-Based Generation (paste URL/text)
-6. Presets (Viral Hook, Luxury, Product Promo, etc.)
-
-### Platform P1
-7. Anti-crop watermark improvements + dynamic per-user watermarks
-8. Telemetry pipeline
-9. Notification Center improvements
-
-## Future/Backlog (P2)
-- Gallery: Ranking algorithm, leaderboard, creator profiles, comments, infinite scroll
-- Reel: History + Compare, Brand Kit, Output Scoring
-- Platform: Forensic watermarking, admin leak dashboard, WebSocket admin dashboard
+## Future/Backlog (P2) — DO NOT START
+- Gallery: Leaderboards, Creator profiles, Advanced analytics
+- Reel: History + Compare Versions, Brand Kit / Creator Memory, Output Scoring
+- Platform: Invisible forensic watermarking, advanced token binding, admin leak dashboard
