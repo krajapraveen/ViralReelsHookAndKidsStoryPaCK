@@ -93,6 +93,7 @@ from routes.referral import router as referral_router
 from routes.comic_storybook_v2 import router as comic_storybook_v2_router
 from routes.reaction_gif import router as reaction_gif_router
 
+from routes.media_routes import router as media_access_router
 # OBSERVABILITY
 from routes.observability_routes import router as observability_router
 from routes.storage_routes import router as storage_router
@@ -576,6 +577,7 @@ api_router.include_router(backfill_blur_router)
 from routes.retention_analytics import router as retention_router
 api_router.include_router(retention_router)
 
+api_router.include_router(media_access_router)
 
 
 # Include API router in app

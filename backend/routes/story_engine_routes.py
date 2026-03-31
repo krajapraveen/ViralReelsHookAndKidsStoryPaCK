@@ -18,6 +18,15 @@ from shared import db, get_current_user, get_optional_user
 
 from services.story_engine.schemas import CreateStoryRequest, JobState, ErrorCode, TERMINAL_STATES, PER_STAGE_FAILURE_STATES
 from services.story_engine.pipeline import create_job, run_pipeline, get_job_status, execute_pipeline, process_next_stage, apply_reuse_checkpoints
+from services.entitlement import get_media_access as _entitlement_get_media_access
+
+
+def _get_media_access_for_user(user):
+    """Compute media entitlement for the current user (or guest)."""
+    if not user:
+        return {"can_preview": True, "can_download": False, "watermark_required": True,
+                "preview_only": True, "upgrade_required": True, "plan_type": "free"}
+    return _entitlement_get_media_access(user)
 from services.story_engine.cost_guard import pre_flight_check
 from services.story_engine.safety import check_content_safety
 from services.story_engine.state_machine import get_progress, get_label, FAILURE_TO_RETRY
@@ -762,6 +771,8 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "reuse_info": job.get("reuse_info"),
             # Action control — single source of truth for UI buttons
             **_resolve_allowed_actions(job),
+            # Media entitlement — controls download/preview UI
+            "media_access": _get_media_access_for_user(current_user),
         },
     }
 

@@ -344,7 +344,12 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "ip_address": ip_address,
             "has_delayed_credits": False,
             "credits_locked": False,
-            "verification_disabled_signup": True  # Flag to track users who signed up when verification was disabled
+            "verification_disabled_signup": True,
+            # Subscription / entitlement fields
+            "plan_type": "free",
+            "subscription_status": "inactive",
+            "subscription_expires_at": None,
+            "topup_credits": 0,
         }
         
         # Check if first user - make admin (with extra credits)
@@ -653,7 +658,12 @@ async def google_callback(request: Request, data: GoogleCallback):
                 "credits": 50,  # 50 free credits for new Google users
                 "authProvider": "google",
                 "createdAt": datetime.now(timezone.utc).isoformat(),
-                "lastLogin": datetime.now(timezone.utc).isoformat()
+                "lastLogin": datetime.now(timezone.utc).isoformat(),
+                # Subscription / entitlement fields
+                "plan_type": "free",
+                "subscription_status": "inactive",
+                "subscription_expires_at": None,
+                "topup_credits": 0,
             }
             
             await db.users.insert_one(user)
