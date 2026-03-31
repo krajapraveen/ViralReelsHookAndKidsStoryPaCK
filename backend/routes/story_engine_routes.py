@@ -515,6 +515,22 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
     thumbnail_url = _make_presigned_url(job.get("thumbnail_url"))
     preview_url = _make_presigned_url(job.get("preview_url"))
 
+    # ETA and elapsed time calculation
+    elapsed_seconds = 0
+    eta_seconds = None
+    started_at_str = job.get("created_at")
+    if started_at_str:
+        try:
+            started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            elapsed_seconds = int((datetime.now(timezone.utc) - started_at).total_seconds())
+            if progress > 0 and progress < 100 and elapsed_seconds > 0:
+                rate = progress / elapsed_seconds
+                eta_seconds = int((100 - progress) / rate) if rate > 0 else None
+        except (ValueError, AttributeError):
+            pass
+
     return {
         "success": True,
         "job": {
@@ -531,9 +547,13 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "error_code": job.get("last_error_code"),
             "stages": stages_summary,
             "scene_progress": scene_progress,
-            "timing": {},
+            "timing": {
+                "elapsed_seconds": elapsed_seconds,
+                "eta_seconds": eta_seconds,
+            },
             "credits_charged": job.get("cost_estimate", {}).get("total_credits_required", 0),
             "credits_refunded": job.get("credits_refunded", 0),
+            "notification_opt_in": job.get("notification_opt_in", False),
             "animation_style": job.get("animation_style", job.get("style_id", "cartoon_2d")),
             "age_group": job.get("age_group", "kids_5_8"),
             "voice_preset": job.get("voice_preset", "narrator_warm"),

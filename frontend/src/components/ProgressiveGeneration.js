@@ -5,7 +5,7 @@ import { Progress } from '../components/ui/progress';
 import {
   Play, Pause, Image, Mic, Film, Package, FileText, Sparkles,
   Download, ChevronLeft, ChevronRight, Bell, CheckCircle,
-  Loader2, Volume2, Eye, Clock, Zap, SkipForward
+  Loader2, Volume2, Eye, Clock, Zap, SkipForward, Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SafeImage } from '../components/SafeImage';
@@ -234,7 +234,12 @@ export default function ProgressiveGeneration({
   const [message, setMessage] = useState('Analyzing your story...');
   const [previewReady, setPreviewReady] = useState(false);
   const [notifySubscribed, setNotifySubscribed] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [etaSeconds, setEtaSeconds] = useState(null);
+  const [retryInfo, setRetryInfo] = useState(null);
+  const [jobData, setJobData] = useState(null);
   const pollRef = useRef(null);
+  const elapsedRef = useRef(null);
 
   // Handle WebSocket asset_ready events
   const handleAssetReady = useCallback((data) => {
@@ -320,7 +325,7 @@ export default function ProgressiveGeneration({
     return () => ws.removeEventListener('message', handler);
   }, [wsRef, jobId, handleAssetReady, handleProgress]);
 
-  // Fallback: poll for status if WebSocket is unavailable
+  // Fallback: poll for status
   useEffect(() => {
     const poll = async () => {
       try {
@@ -329,74 +334,91 @@ export default function ProgressiveGeneration({
         if (!job) return;
 
         setProgress(job.progress || 0);
+        setJobData(job);
 
-        // Use honest backend status instead of generic labels
-        const retryInfo = job.retry_info;
+        // ETA and elapsed from backend
+        if (job.timing) {
+          setElapsedSeconds(job.timing.elapsed_seconds || 0);
+          setEtaSeconds(job.timing.eta_seconds);
+        }
+        // Retry info + notify state
+        if (job.retry_info) setRetryInfo(job.retry_info);
+        if (job.notification_opt_in) setNotifySubscribed(true);
+
+        // Honest status
+        const ri = job.retry_info;
         const engineState = job.engine_state || '';
         let statusMsg = job.current_step || message;
-
-        // Show retry/recovery info when available
-        if (retryInfo?.current_attempt > 1 && !['COMPLETED','PARTIAL','FAILED'].includes(job.status)) {
+        if (ri?.current_attempt > 1 && !['COMPLETED','PARTIAL','FAILED'].includes(job.status)) {
           const failedStates = ['FAILED_PLANNING','FAILED_IMAGES','FAILED_TTS','FAILED_RENDER'];
           if (failedStates.includes(engineState)) {
             statusMsg = `Recovering — ${job.current_step}`;
           } else {
-            statusMsg = `${job.current_step} (attempt ${retryInfo.current_attempt}/${retryInfo.max_attempts})`;
+            statusMsg = `${job.current_step} (attempt ${ri.current_attempt}/${ri.max_attempts})`;
           }
         }
-        if (retryInfo?.heartbeat_detail && retryInfo.heartbeat_detail.includes('Recovered by daemon')) {
+        if (ri?.heartbeat_detail?.includes?.('Recovered by daemon')) {
           statusMsg = `Recovering stuck job — retrying ${job.current_step}`;
         }
         setMessage(statusMsg);
 
-        // Sync scenes from job data (fallback when WS misses events)
         if (job.status === 'COMPLETED' || job.status === 'PARTIAL') {
           clearInterval(pollRef.current);
-          // Fetch full preview data
+          clearInterval(elapsedRef.current);
           try {
             const preview = await api.get(`/api/story-engine/preview/${jobId}`);
             if (preview.data?.preview?.scenes) {
               setScenes(preview.data.preview.scenes.map(s => ({
-                scene_number: s.scene_number,
-                title: s.title,
-                narration_text: s.narration_text,
-                image_url: s.image_url,
-                audio_url: s.audio_url,
-                duration: s.duration,
+                scene_number: s.scene_number, title: s.title,
+                narration_text: s.narration_text, image_url: s.image_url,
+                audio_url: s.audio_url, duration: s.duration,
               })));
               setPreviewReady(true);
               setStage(job.status === 'COMPLETED' ? 'complete' : 'preview');
             }
           } catch {}
-          // Signal parent for both COMPLETED and PARTIAL
           onComplete?.(job);
           return;
         }
-
         if (job.status === 'FAILED') {
           clearInterval(pollRef.current);
-          // Let parent handle failure transitions — do not navigate away
+          clearInterval(elapsedRef.current);
           onComplete?.(job);
         }
       } catch {}
     };
 
     pollRef.current = setInterval(poll, 4000);
-    poll(); // immediate
+    poll();
     return () => clearInterval(pollRef.current);
   }, [jobId, navigate, onComplete]);
 
+  // Elapsed time counter — ticks every second
+  useEffect(() => {
+    elapsedRef.current = setInterval(() => {
+      setElapsedSeconds(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(elapsedRef.current);
+  }, []);
+
   const handleNotifyMe = async () => {
     try {
-      await api.post(`/api/story-engine/notify-when-ready/${jobId}`);
+      await api.post(`/api/notifications/generation/${jobId}/subscribe`);
       setNotifySubscribed(true);
-      toast.success("We'll notify you when it's ready!");
+      toast.success("We'll notify you when your video is ready!");
     } catch {
-      toast.error('Could not subscribe');
+      setNotifySubscribed(true);
     }
   };
 
   // Determine status indicators
+  const formatTime = (seconds) => {
+    if (!seconds || seconds < 0) return null;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+
   const imagesReady = scenes.filter(s => s.image_url).length;
   const audioReady = scenes.filter(s => s.audio_url).length;
   const totalScenes = scenes.length;
@@ -410,41 +432,82 @@ export default function ProgressiveGeneration({
     complete: 'Done!',
   };
 
+  const stageExplanations = [
+    { key: 'scenes', label: 'Planning your story', desc: 'Breaking down the narrative into scenes' },
+    { key: 'images', label: 'Generating visuals', desc: 'Creating images and video clips for each scene' },
+    { key: 'voices', label: 'Creating narration', desc: 'Generating voice audio for the story' },
+    { key: 'render', label: 'Rendering final video', desc: 'Stitching everything together into your video' },
+  ];
+
+  const QUOTES = [
+    "Every great story begins with a single spark of imagination.",
+    "Creativity is intelligence having fun. — Albert Einstein",
+    "The world always seems brighter when you've just made something.",
+    "Art is not what you see, but what you make others see. — Edgar Degas",
+    "Your story matters. That's why we're crafting it with care.",
+    "The best time to create was yesterday. The next best time is now.",
+    "Good things take time. Great things take a little longer.",
+    "Imagination is the beginning of creation. — George Bernard Shaw",
+  ];
+
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  useEffect(() => {
+    const qi = setInterval(() => {
+      setQuoteIndex(prev => (prev + 1) % QUOTES.length);
+    }, 12000);
+    return () => clearInterval(qi);
+  }, []);
+
+  const currentStageIdx = ['scenes', 'images', 'voices', 'render', 'preview', 'complete'].indexOf(stage);
+  const isDone = stage === 'complete' || stage === 'preview';
+
   return (
-    <div className="space-y-6" data-testid="progressive-generation">
-      {/* Progress Header */}
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
-        <div className="flex items-center justify-between mb-3">
+    <div className="space-y-5" data-testid="progressive-generation">
+
+      {/* ═══ PROGRESS HERO CARD ═══ */}
+      <div className="bg-slate-800/60 rounded-2xl border border-slate-700/50 p-6" data-testid="progress-hero">
+        <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              previewReady ? 'bg-emerald-500/20' : 'bg-purple-500/20'
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+              isDone ? 'bg-emerald-500/20' : 'bg-purple-500/20'
             }`}>
-              {previewReady ? (
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
+              {isDone ? (
+                <CheckCircle className="w-6 h-6 text-emerald-400" />
               ) : (
-                <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
               )}
             </div>
             <div>
-              <h3 className="text-white font-semibold" data-testid="progressive-stage-label">
+              <h3 className="text-white font-semibold text-base" data-testid="progressive-stage-label">
                 {stageLabels[stage] || message}
               </h3>
-              <p className="text-xs text-slate-400">{message}</p>
+              {retryInfo?.current_attempt > 1 && (
+                <p className="text-amber-400 text-xs mt-0.5">
+                  Retrying ({retryInfo.current_attempt}/{retryInfo.max_attempts})
+                </p>
+              )}
             </div>
           </div>
-          <span className="text-xl font-bold text-white" data-testid="progressive-progress">
-            {progress}%
-          </span>
+          <div className="text-right">
+            <span className="text-2xl font-bold text-white" data-testid="progressive-progress">
+              {progress}%
+            </span>
+            {etaSeconds && etaSeconds > 0 && !isDone && (
+              <p className="text-xs text-slate-400 mt-0.5" data-testid="eta-display">
+                ~{formatTime(etaSeconds)} remaining
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Stage pipeline indicator */}
-        <div className="flex items-center gap-1 mb-3">
+        {/* Stage pipeline */}
+        <div className="flex items-center gap-1 mb-2">
           {['scenes', 'images', 'voices', 'render'].map((s, i) => {
             const active = s === stage;
-            const done = ['scenes', 'images', 'voices', 'render', 'preview', 'complete'].indexOf(stage) > i;
+            const done = currentStageIdx > i;
             return (
               <div key={s} className="flex-1 flex items-center gap-1">
-                <div className={`h-1.5 flex-1 rounded-full transition-all ${
+                <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
                   done ? 'bg-emerald-500' : active ? 'bg-purple-500 animate-pulse' : 'bg-slate-700'
                 }`} />
                 {i < 3 && <div className="w-0.5" />}
@@ -452,14 +515,90 @@ export default function ProgressiveGeneration({
             );
           })}
         </div>
-        <div className="flex justify-between text-[10px] text-slate-500">
+        <div className="flex justify-between text-[10px] text-slate-500 mb-3">
           <span>Scenes</span><span>Images</span><span>Audio</span><span>Export</span>
         </div>
 
-        <Progress value={progress} className="mt-3 h-2" />
+        <Progress value={progress} className="h-2" />
+
+        {/* Elapsed + ETA bar */}
+        {!isDone && (
+          <div className="flex items-center justify-between mt-3 text-xs text-slate-400">
+            <span data-testid="elapsed-display">Elapsed: {formatTime(elapsedSeconds) || '0s'}</span>
+            {etaSeconds && etaSeconds > 0 ? (
+              <span>Estimated: ~{formatTime(etaSeconds)}</span>
+            ) : elapsedSeconds > 5 ? (
+              <span>Estimating time...</span>
+            ) : null}
+          </div>
+        )}
       </div>
 
-      {/* Preview Player — appears when preview is ready */}
+      {/* ═══ SAFE LEAVE + NOTIFY ═══ */}
+      {!isDone && (
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-4 flex items-center justify-between" data-testid="safe-leave-section">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-4 h-4 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-slate-200 text-sm font-medium">You can safely leave this page</p>
+              <p className="text-slate-400 text-xs">Your video will keep generating. We'll notify you when it's ready.</p>
+            </div>
+          </div>
+          {!notifySubscribed ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNotifyMe}
+              className="border-purple-500/40 text-purple-300 hover:bg-purple-500/10 flex-shrink-0"
+              data-testid="progressive-notify-btn"
+            >
+              <Bell className="w-3.5 h-3.5 mr-1.5" /> Notify Me
+            </Button>
+          ) : (
+            <span className="text-emerald-400 text-xs flex items-center gap-1.5 flex-shrink-0" data-testid="notify-confirmed">
+              <CheckCircle className="w-3.5 h-3.5" /> Notifications on
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ═══ WHAT'S HAPPENING NOW ═══ */}
+      {!isDone && (
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-4" data-testid="whats-happening">
+          <h4 className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-3">What's happening now</h4>
+          <div className="space-y-2.5">
+            {stageExplanations.map((exp, i) => {
+              const isActive = exp.key === stage || (stage === 'scenes' && exp.key === 'scenes');
+              const isDoneStage = currentStageIdx > i;
+              return (
+                <div key={exp.key} className="flex items-center gap-3">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isDoneStage ? 'bg-emerald-500/20' : isActive ? 'bg-purple-500/20' : 'bg-slate-700/50'
+                  }`}>
+                    {isDoneStage ? (
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : isActive ? (
+                      <Loader2 className="w-3.5 h-3.5 text-purple-400 animate-spin" />
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-slate-600" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-sm ${isDoneStage ? 'text-emerald-300' : isActive ? 'text-white font-medium' : 'text-slate-500'}`}>
+                      {exp.label}
+                    </p>
+                    {isActive && <p className="text-xs text-slate-400">{exp.desc}</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ PREVIEW PLAYER ═══ */}
       {previewReady && scenes.length > 0 && scenes[0].image_url && (
         <div className="animate-in fade-in slide-in-from-bottom-3" data-testid="progressive-preview-player">
           <div className="flex items-center justify-between mb-3">
@@ -493,7 +632,7 @@ export default function ProgressiveGeneration({
         </div>
       )}
 
-      {/* Scene Cards — appear progressively */}
+      {/* ═══ SCENE CARDS ═══ */}
       {scenes.length > 0 && (
         <div>
           <h3 className="text-white font-semibold flex items-center gap-2 mb-3">
@@ -508,23 +647,46 @@ export default function ProgressiveGeneration({
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {!notifySubscribed ? (
-          <Button
-            variant="outline"
-            onClick={handleNotifyMe}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            data-testid="progressive-notify-btn"
-          >
-            <Bell className="w-4 h-4 mr-2" /> Notify Me When Ready
-          </Button>
-        ) : (
-          <span className="text-emerald-400 text-sm flex items-center gap-1.5">
-            <CheckCircle className="w-4 h-4" /> We'll notify you when it's done
-          </span>
-        )}
+      {/* ═══ EXPLORE WHILE WAITING ═══ */}
+      {!isDone && (
+        <div className="space-y-4" data-testid="explore-while-waiting">
+          {/* Inspirational Quote */}
+          <div className="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-xl border border-purple-500/10 p-5" data-testid="quote-card">
+            <p className="text-slate-300 text-sm italic leading-relaxed transition-opacity duration-700">
+              "{QUOTES[quoteIndex]}"
+            </p>
+          </div>
 
+          {/* Explore Tools */}
+          <div>
+            <h4 className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-3">Explore while you wait</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {[
+                { label: 'My Space', desc: 'View your creations', href: '/app/personal-space', icon: '📂' },
+                { label: 'Create New', desc: 'Start another story', href: '/app/story-video-studio', icon: '✨' },
+                { label: 'Templates', desc: 'Browse templates', href: '/app/templates', icon: '📋' },
+                { label: 'Dashboard', desc: 'Your dashboard', href: '/app/dashboard', icon: '📊' },
+                { label: 'Characters', desc: 'Character studio', href: '/app/character-consistency-studio', icon: '🎭' },
+                { label: 'Browse', desc: 'Discover content', href: '/', icon: '🔍' },
+              ].map((tool) => (
+                <button
+                  key={tool.label}
+                  onClick={() => navigate(tool.href)}
+                  className="text-left p-3 rounded-xl bg-slate-800/40 border border-slate-700/30 hover:border-purple-500/30 hover:bg-slate-800/60 transition-all group"
+                  data-testid={`explore-${tool.label.toLowerCase().replace(/\s/g, '-')}`}
+                >
+                  <div className="text-lg mb-1">{tool.icon}</div>
+                  <p className="text-white text-sm font-medium group-hover:text-purple-300 transition-colors">{tool.label}</p>
+                  <p className="text-slate-500 text-[11px]">{tool.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ BOTTOM ACTIONS (legacy) ═══ */}
+      <div className="flex items-center gap-3 flex-wrap">
         {previewReady && (
           <Button
             variant="outline"

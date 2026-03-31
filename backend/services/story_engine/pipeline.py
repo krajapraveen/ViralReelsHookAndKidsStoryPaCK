@@ -397,7 +397,7 @@ async def _execute_stage_with_retry(job_id: str, stage: JobState, stage_fn, job:
 
 
 async def _finalize_job(job_id: str) -> Dict:
-    """Final validation — determine READY or PARTIAL_READY."""
+    """Final validation — determine READY or PARTIAL_READY. Create notification."""
     job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
     if not job:
         return {"success": False, "terminal": True, "error": "Job not found"}
@@ -418,6 +418,9 @@ async def _finalize_job(job_id: str) -> Dict:
         {"job_id": job_id},
         {"$set": {"validation_result": validation.to_dict()}},
     )
+
+    # Create notification if user opted in
+    await _send_completion_notification(job_id, target)
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} finalized: {final_state}")
     return {"success": target in SUCCESS_STATES, "terminal": True, "state": final_state}
@@ -879,7 +882,7 @@ async def _refund_credits(job_id: str) -> None:
 
 
 async def _fail_job_terminal(job_id: str, error_code: ErrorCode, error_msg: str) -> None:
-    """Force a job into terminal FAILED state and refund."""
+    """Force a job into terminal FAILED state, refund, and notify."""
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
         {"$set": {
@@ -890,6 +893,42 @@ async def _fail_job_terminal(job_id: str, error_code: ErrorCode, error_msg: str)
         }},
     )
     await _refund_credits(job_id)
+    await _send_completion_notification(job_id, JobState.FAILED)
+
+
+async def _send_completion_notification(job_id: str, final_state: JobState) -> None:
+    """Send in-app notification on job terminal state."""
+    try:
+        job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+        if not job:
+            return
+
+        user_id = job.get("user_id", "")
+        is_failure = final_state in (JobState.FAILED, JobState.FAILED_PLANNING, JobState.FAILED_IMAGES, JobState.FAILED_TTS, JobState.FAILED_RENDER)
+        opted_in = job.get("notification_opt_in", False)
+
+        # Always notify on failure, otherwise only if opted in
+        if not opted_in and not is_failure:
+            return
+
+        from services.notification_service import get_notification_service
+        svc = get_notification_service(db)
+
+        if is_failure:
+            await svc.notify_generation_failed(
+                user_id=user_id,
+                job_id=job_id,
+                title=job.get("title", "Untitled"),
+                error=job.get("error_message", "Generation failed"),
+            )
+        else:
+            await svc.notify_generation_complete(
+                user_id=user_id,
+                job_id=job_id,
+                title=job.get("title", "Untitled"),
+            )
+    except Exception as e:
+        logger.warning(f"[NOTIFY] Failed to send notification for job {job_id[:8]}: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -103,6 +103,23 @@ async def delete_all_notifications(user: dict = Depends(get_current_user)):
     return {"success": True, "deleted_count": count}
 
 
+@router.post("/generation/{job_id}/subscribe")
+async def subscribe_generation_notification(
+    job_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Subscribe to completion notification for a specific generation job."""
+    result = await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"notification_opt_in": True}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"success": True, "subscribed": True, "message": "You'll be notified when it's ready."}
+
+
+
+
 # Poll endpoint for real-time updates (client-side polling)
 @router.get("/poll")
 async def poll_notifications(
