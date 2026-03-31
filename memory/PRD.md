@@ -36,18 +36,16 @@ Level 3: Deterministic text splitter (no LLM)
 
 ### Recovery Daemon
 - Runs every 2 minutes
-- Detects stale heartbeats per stage
+- Detects stale heartbeats per stage thresholds
 - Requeues or marks terminal failure + credit refund
 
 ### Runtime Budget Guard
 - `enforce_runtime_budget()` called before every external API call
 - Raises `BudgetExceededError` if projected cost exceeds 130% of estimate
-- Hard stop prevents cost explosion
 
 ### Credit Refund
 - Idempotent: checks `credits_refunded > 0` before processing
 - Atomic: sets flag BEFORE refunding to prevent double-refund
-- Triggered on any terminal failure
 
 ### Structured Error Codes
 ```
@@ -57,44 +55,59 @@ TTS_GENERATION_FAILED | RENDER_FAILED | JOB_HEARTBEAT_EXPIRED
 WORKER_CRASH | UNKNOWN_STAGE_FAILURE | INSUFFICIENT_CREDITS
 ```
 
-### User Controls (Retry/Cancel)
+### User Controls
 - `POST /api/story-engine/retry/{job_id}` — Retry from failed stage
 - `POST /api/story-engine/cancel/{job_id}` — Cancel + refund
 
-### Honest UI Status
-- Shows real stage: "Generating scenes", "Retrying (2/3)", "Recovering stuck job"
-- Shows retry/cancel buttons when job is in per-stage failure state
-- Shows credit refund confirmation when applicable
+## Universal Generation Status Page (BUILT Mar 31 2026)
 
-## Behavior Engine (THE ADDICTION LOOP)
-```
-Autoplay → Hook → Preview → Click → Reward → Personalization → Infinite Scroll → Variable Reward → Repeat
-```
+### ETA + Elapsed Time
+- Backend computes elapsed_seconds from created_at
+- ETA derived from progress rate (progress / elapsed_seconds)
+- Updates every 4 seconds via polling
 
-### Session Memory
-- `momentum_score`: 0.0-10.0
-- `last_5_clicked_categories`, `last_3_hooks_clicked`, `consecutive_skips`
-- Recovery at 3+ skips, variable reward spikes at random 3-9 intervals
+### Safe-to-Leave Messaging
+- "You can safely leave this page — we'll notify you when it's ready"
+- Shield icon, blue accent, positioned below progress hero
 
-## Rate Limit UX (Fixed)
-- Concurrency cap enforced, friendly messaging
-- "All rendering slots are busy" with active jobs list + "View Progress"
-- Contextual help tips in error messages
+### Wired Notify System
+- `POST /api/notifications/generation/{job_id}/subscribe` — stores preference
+- Pipeline calls `_send_completion_notification()` on finalize/fail
+- Uses existing NotificationService for in-app notifications
+- Always notifies on failure, only on success if user opted in
+
+### What's Happening Now
+- Stage-by-stage explanation with checkmarks for completed stages
+- Active stage highlighted with spinner
+- Descriptions: "Breaking down the narrative into scenes", etc.
+
+### Explore While Waiting
+- Rotating inspirational quotes (12s rotation, 8 quotes)
+- Tool cards: My Space, Create New, Templates, Dashboard, Characters, Browse
+- Clean grid layout, hover effects
+
+### Completion Experience
+- Full Preview button with Eye icon
+- Export Video button with Film icon
+- Scene cards with progressive disclosure
+- Credits refunded confirmation for failed jobs
+- Retry/Cancel buttons for per-stage failures
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
 ## Key Files
-- `/app/backend/services/story_engine/pipeline.py` — Stage orchestrator, process_next_stage, refund
-- `/app/backend/services/story_engine/state_machine.py` — State transitions, heartbeat, progress
-- `/app/backend/services/story_engine/schemas.py` — JobState, ErrorCode, PER_STAGE_FAILURE_STATES
+- `/app/backend/services/story_engine/pipeline.py` — Stage orchestrator
+- `/app/backend/services/story_engine/state_machine.py` — State transitions, heartbeat
+- `/app/backend/services/story_engine/schemas.py` — JobState, ErrorCode enums
 - `/app/backend/services/story_engine/cost_guard.py` — Budget enforcement
-- `/app/backend/services/story_engine/recovery_daemon.py` — Watchdog for stuck jobs
+- `/app/backend/services/story_engine/recovery_daemon.py` — Watchdog
 - `/app/backend/services/story_engine/adapters/planning_llm.py` — Multi-level fallback
-- `/app/backend/routes/story_engine_routes.py` — Retry, cancel, status endpoints
-- `/app/frontend/src/pages/StoryVideoPipeline.js` — Honest UI, retry/cancel controls
-- `/app/frontend/src/components/ProgressiveGeneration.js` — Real-time retry/recovery display
+- `/app/backend/routes/story_engine_routes.py` — Retry, cancel, status APIs
+- `/app/backend/routes/notification_routes.py` — Notify subscribe endpoint
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Retry/Cancel UI, PostGenPhase
+- `/app/frontend/src/components/ProgressiveGeneration.js` — Rich status page
 
 ## Completed
 - [x] CDN bypass fix + Blurhash system
@@ -102,18 +115,21 @@ Autoplay → Hook → Preview → Click → Reward → Personalization → Infin
 - [x] Behavior engine (session memory, momentum, recovery, variable rewards, infinite scroll)
 - [x] Retention Analytics Dashboard (5 key metrics, trends, device segmentation)
 - [x] Rate Limit UX Fix (Mar 30 2026)
-- [x] **Pipeline Architecture Overhaul** (Mar 30 2026): Replaced monolithic run_pipeline() with independently retryable stage orchestrator. Added heartbeat + recovery daemon, runtime budget guard, multi-level scene fallback (primary → retry → fallback model → deterministic splitter), structured error codes, per-stage failure states, idempotent credit refund, honest UI status with retry/cancel controls. 30/30 tests passed.
+- [x] Pipeline Architecture Overhaul (Mar 30 2026) — Stage orchestrator, heartbeat, recovery daemon, budget guard, multi-level fallback, structured error codes, per-stage failure states, idempotent refund. 30/30 tests passed.
+- [x] Universal Generation Status Page (Mar 31 2026) — ETA + elapsed time, safe-to-leave, wired notify system, What's Happening section, Explore While Waiting (quotes + tool cards), completion routing with Watch/Remix/Share/Download, retry/cancel controls. 13/13 backend + frontend verified.
 
-## Current Phase: RELIABILITY VALIDATED
+## Current Phase: STATUS PAGE COMPLETE
 - Pipeline architecture rebuilt for fault tolerance
-- Recovery daemon active
-- Observe real user pipeline completion rates
+- Rich generation status page eliminates dead spinner UX
+- Notify system wired end-to-end
 
-## Upcoming (After Reliability Validation)
-- (P0) Monitor real pipeline runs — verify recovery daemon catches stale jobs
-- (P1) Cost ledger per stage (track actual vs estimated costs)
-- (P1) Admin job monitoring dashboard (failure rates, stuck jobs, costs)
-- (P1) Backfill hooks for existing stories
+## Upcoming (Next Session Priority)
+- (P0) Continue/Remix optimization — reuse prior artifacts for faster generation
+- (P1) Cost ledger per stage — track actual vs estimated costs
+- (P1) Admin job monitoring dashboard — failure rates, stuck jobs, costs
+- (P1) Notification center/history — list, mark-read, deep links
+- (P1) Quality mode toggle (Fast/Balanced/High Quality)
+- (P2) Mini-games/puzzles/trivia for waiting page
 - (P2) Hook + autoplay combo optimization
 - (P2) Character-driven auto-share prompts
 - (P2) Story Chain leaderboard
