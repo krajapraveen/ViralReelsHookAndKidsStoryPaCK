@@ -11,98 +11,117 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 - Payments: Cashfree
 - AI: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini 3 via Emergent LLM Key
 
-## Entitlement-Based Media Access (BUILT Mar 31 2026)
-- Free users: Preview only, "Upgrade to Download" CTA
-- Paid subscribers: Short-lived presigned URLs via `/api/media/download-token/`
-- Backend scrubs output_url for free users in all API responses
-- 10+ download surfaces gated via MediaEntitlementContext + EntitledDownloadButton
+## Reel Creation Engine (BUILT Mar 31 2026) — P0 COMPLETE
 
-## Story Series Button Routing (FIXED Mar 31 2026)
-| Button | Handler | Behavior |
-|--------|---------|----------|
-| Header "Continue Episode N" | `handleSmartContinue()` | Resume by job_id if exists, else create |
-| Big CTA "Continue Episode N" | `handleSmartContinue()` | Same |
-| Episode card "Continue →" | `handleResumeEpisode(ep)` | Resume specific episode's job |
-| "Create Episode N" | `handleCreateNewEpisode()` | Create new with full series context |
+### Before vs After
 
-## Series Episode Auto-Registration (BUILT Mar 31 2026)
-### Write Point
-`pipeline.py → _stage_validation()` — when job completes in SUCCESS_STATES AND `job.series_id` exists:
-- Calls `_register_series_episode(job)`, upserts on `(series_id, episode_number)`
-- Updates `story_series.episode_count`
+**BEFORE**: Simple "Generate Reel Script" page with 6 basic inputs (Topic, Niche, Tone, Duration, Language, Goal). Output was a single scrollable list of hooks, script, captions, hashtags. Generic results with no platform optimization. "Quick Variations" were weak text rewrites. "Generate Video" was a vague black-box button.
 
-### Read Point
-`universe_routes.py → get_series_episodes()` — reads from `story_episodes` with orphan job fallback
+**AFTER**: Full "Reel Engine" with 12 outcome-driven controls, structured 7-tab output, video generation configurator, 8 performance-focused variations, and AI recommendations.
 
-## Branding Cleanup (DONE Mar 31 2026)
-- All visible "Emergent" branding removed from UI
-- CSS + MutationObserver suppress platform-injected badges
+### New Input Controls
+| Control | Options | Why It Matters |
+|---------|---------|----------------|
+| Platform | Instagram, YouTube Shorts, TikTok, Facebook | Platform-native optimization |
+| Hook Style | Curiosity, Shock, Emotional, Luxury, Educational, Story, FOMO, Problem-Solution | Controls psychological trigger |
+| Reel Format | Talking Head, Faceless, Voiceover, Cinematic, Slideshow, UGC Ad, Meme, Story | Matches creator's production style |
+| CTA Type | Follow, Save, Comment, Buy, DM, Share | Aligns output with desired action |
+| Objective | Followers, Engagement, Sales, Leads, Education, Retention | Outcome-driven generation |
+| Output Type | Script Only, Script+Caption, Script+Visual Prompts, Full Video Plan | Controls output depth |
+| Advanced: Niche, Tone, Duration, Language, Audience | Collapsible section | Reduces friction for quick starts |
+
+### Structured Output Tabs
+| Tab | Content | User Outcome |
+|-----|---------|-------------|
+| Script | Scene-by-scene with on-screen text, voiceover, visual direction, b-roll, retention notes | Complete filming guide |
+| Hook Variants | 5 hooks with different triggers + "Top Performer" highlight, copy buttons | A/B testing hooks |
+| Caption | Short + Long captions, platform-optimized | Ready-to-post copy |
+| Hashtags | 20 trending hashtags, clickable chips, "Copy All" | Discovery optimization |
+| Shot List | Numbered shots with type, duration, notes | Production checklist |
+| Visual Prompts | Scene-by-scene AI image/video generation prompts | Direct input for AI tools |
+| Voiceover | Full flowing voiceover script | Voice recording guide |
+
+### Video Generation Config
+Before generating video, user sees modal with:
+- Video Style (AI / Stock / Mixed / Avatar)
+- Voiceover ON/OFF toggle
+- Subtitles ON/OFF toggle
+- Aspect Ratio (9:16 / 16:9 / 1:1)
+- Quality Mode (Fast / High Quality)
+- Estimated Credits display
+Note: Video generation shows "coming soon" toast — actual video pipeline uses Story Video Studio.
+
+### Performance Variations (replaces old "Quick Variations")
+| Variation | What It Does |
+|-----------|-------------|
+| Stronger Hook | Rewrites with more scroll-stopping hook |
+| Higher Retention | Adds pattern interrupts, cliffhangers |
+| More Emotional | Injects storytelling, vulnerability |
+| More Viral | Optimizes for shareability, trending formats |
+| More Sales-focused | Sharpens CTA and value proposition |
+| Shorter & Punchier | Cuts filler, compresses script |
+| Better CTA | Rewrites CTA with urgency and natural feel |
+| Platform Optimized | Tailors to selected platform's best practices |
+
+### AI Recommendations Panel
+Shows after generation:
+- Best hook type for topic
+- Recommended duration
+- Suggested posting time
+- Emotional trigger
+- Retention strategy
+
+### Backend Changes
+- `GenerateReelRequest` schema: Added `platform`, `hookStyle`, `reelFormat`, `ctaType`, `outputType`, `audience`
+- `REEL_USER_PROMPT_TEMPLATE`: Completely rewritten for outcome-driven, platform-specific generation
+- `REEL_SYSTEM_PROMPT`: Upgraded to "content strategist" role
+- Output JSON: Now includes `shot_list[]`, `visual_prompts[]`, `voiceover_full`, `ai_recommendations{}`
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `frontend/src/pages/ReelGenerator.js` | Complete rewrite — new controls, tabbed output, video config modal, performance variations, AI recommendations |
+| `backend/models/schemas.py` | Added 6 new fields to GenerateReelRequest |
+| `backend/shared.py` | Upgraded REEL_SYSTEM_PROMPT and REEL_USER_PROMPT_TEMPLATE |
+| `backend/routes/generation.py` | Updated prompt template call to pass new fields |
 
 ## Premium Login UX (VERIFIED Mar 31 2026)
-### What We Control
-- Full-screen branded overlay (AuthLaunchOverlay) renders IMMEDIATELY on Google sign-in click
-- Overlay masks the transition before the browser navigates to auth.emergentagent.com
-- 150ms delay ensures overlay paints before redirect fires
-- Button enters disabled state, preventing double-click
-- Overlay shows rotating messages: "Signing you in…", "Preparing your creative workspace…", etc.
-- AuthCallback shows branded loading screen ("Syncing your studio…") while processing auth
-- AuthCallback error state is branded with "Try Again" and "Back to Login" CTAs
-- Return-path preserved via `localStorage.auth_return_path`
-- No blank white intermediate screen from our app side
-- No "Emergent" text on any app-controlled screen
-
-### What Remains (Outside Our Control)
-- `auth.emergentagent.com` URL visible in browser address bar during Google OAuth
-- The hosted auth page's own branding (Google + Emergent logo) is displayed while user is on that page
-- Exact exposure duration depends on network speed and Google/Emergent provider latency
-- We minimize exposure but cannot guarantee exact timing
+- Full-screen branded overlay masks auth.emergentagent.com transition
+- 150ms delay for overlay paint before redirect
+- AuthCallback branded loading + error states
+- No Emergent text on app-controlled screens
+- Remaining: auth.emergentagent.com URL in browser bar (outside our control)
 
 ## Logout (BUILT Mar 31 2026)
-### Locations
-- **Dashboard**: User menu toggle (top-right) → dropdown with Profile, Billing, Sign out
-- **Profile page**: Sign out button in header next to credits display
-- **Mobile**: Same user menu accessible on mobile viewport + Profile via bottom nav
+- Dashboard: User menu dropdown with Profile, Billing, Sign out
+- Profile page: Sign out button in header
+- Mobile: Same user menu on mobile viewport
+- Clears all auth tokens, forces full page reload to /login
 
-### Behavior
-1. Clears `token`, `user`, `user_id`, `auth_return_path`, `remix_return_url` from localStorage
-2. Forces full page reload to `/login` via `window.location.href` (resets React auth state)
-3. Protected routes enforce login requirement — navigating to `/app` after logout redirects to `/login`
-4. No stale authenticated UI remains
-
-### Note on Provider Session
-JWT-based auth — no backend logout endpoint. Token is client-side only. The Emergent-managed Google Auth session may persist on `auth.emergentagent.com`; this is by design for the hosted auth provider.
+## Entitlement-Based Media Access (BUILT Mar 31 2026)
+- Free users: Preview only, "Upgrade to Download" CTA
+- Paid: Presigned URLs via `/api/media/download-token/`
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026# (free plan)
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026 (admin role)
 
-## Key Files
-- `/app/frontend/src/components/AuthLaunchOverlay.js` — Premium login overlay
-- `/app/frontend/src/pages/AuthCallback.js` — Branded bootstrap + error states
-- `/app/frontend/src/pages/Login.js` — Google sign-in with overlay + return-path
-- `/app/frontend/src/pages/Signup.js` — Google sign-up with overlay + return-path
-- `/app/frontend/src/pages/Dashboard.js` — User menu with logout dropdown
-- `/app/frontend/src/pages/Profile.js` — Logout button in header
-- `/app/backend/services/story_engine/pipeline.py` — Episode auto-registration
-- `/app/backend/routes/universe_routes.py` — Episode queries with fallback
-- `/app/frontend/src/contexts/MediaEntitlementContext.js` — Entitlement provider
-- `/app/frontend/src/components/EntitledDownloadButton.js` — Download gating
-- `/app/frontend/public/index.html` — MutationObserver for Emergent badge suppression
-
 ## Completed (This Session — Mar 31 2026)
-- [x] P0 Media Entitlement Gating — 16/16 tests passed
-- [x] Branding removal — 0 Emergent/Powered by visible
-- [x] Story Series routing fix — 3 distinct handlers, series context banner
-- [x] Series Episode Auto-Registration — 17/17 tests passed
-- [x] Premium Login UX — 14/14 tests passed, overlay + callback branded, no Emergent text
-- [x] Logout button — Dashboard + Profile, desktop + mobile, protected routes enforced
+- [x] Premium Login UX — 14/14 tests passed
+- [x] Logout button — Dashboard + Profile, desktop + mobile
+- [x] Reel Creation Engine P0 — 11/11 backend + all frontend P0 features verified
 
-## Upcoming (P1)
-1. Anti-crop watermark improvements (dynamic per-user watermarks)
-2. Telemetry pipeline for abnormal access patterns
-3. Notification Center improvements (history, read/unread)
+## Upcoming (P1 — Reel Engine Differentiation)
+1. Reference-Based Generation (paste reel URL or text for inspired/improved/viral versions)
+2. Presets (Viral Hook, Luxury, Product Promo, Storytelling, Kids Story, UGC Ad, Educational, Faceless Business)
+3. Anti-crop watermark improvements + dynamic per-user watermarks
+4. Telemetry pipeline for abnormal access patterns
+5. Notification Center improvements (history, read/unread)
 
 ## Future/Backlog (P2)
+- History + Compare Versions (save, compare side-by-side, restore)
+- Brand Kit / Creator Memory (save tone, audience, CTA prefs)
+- Output Scoring (Hook Strength, Retention Score, Conversion Potential)
 - Invisible forensic watermarking
 - Admin leak dashboard
 - Remix Variants, Story Chain leaderboard
