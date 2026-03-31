@@ -1,0 +1,167 @@
+{
+  "summary": "Universal Generation Status Page Verification COMPLETE - 15/15 backend tests passed, frontend UI verified. All key features working: status endpoint returns timing (elapsed_seconds, eta_seconds), retry_info, notification_opt_in; notification subscribe endpoint works; validate-asset returns correct ui_state; input phase has all form fields; postgen phase shows action buttons; mobile responsive.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_generation_status_page_iteration389.py",
+    "/app/test_reports/pytest/pytest_generation_status_page_iteration389.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "story_engine_routes.py: GET /api/story-engine/status/{job_id} returns timing.elapsed_seconds and timing.eta_seconds - VERIFIED (lines 519-530)",
+    "story_engine_routes.py: GET /api/story-engine/status/{job_id} returns retry_info object with can_retry, current_attempt, max_attempts - VERIFIED (lines 573-581)",
+    "story_engine_routes.py: GET /api/story-engine/status/{job_id} returns notification_opt_in field - VERIFIED (line 556)",
+    "story_engine_routes.py: GET /api/story-engine/status/{job_id} returns progress and current_step - VERIFIED (lines 538-540)",
+    "story_engine_routes.py: GET /api/story-engine/validate-asset/{job_id} returns ui_state (READY/PARTIAL_READY/FAILED) - VERIFIED (lines 596-680)",
+    "notification_routes.py: POST /api/notifications/generation/{job_id}/subscribe works and returns 404 for nonexistent jobs - VERIFIED (lines 106-118)",
+    "ProgressiveGeneration.js: data-testid='progressive-generation' - VERIFIED (line 465)",
+    "ProgressiveGeneration.js: data-testid='progress-hero' - VERIFIED (line 468)",
+    "ProgressiveGeneration.js: data-testid='safe-leave-section' - VERIFIED (line 539)",
+    "ProgressiveGeneration.js: data-testid='whats-happening' - VERIFIED (line 569)",
+    "ProgressiveGeneration.js: data-testid='explore-while-waiting' - VERIFIED (line 652)",
+    "ProgressiveGeneration.js: data-testid='quote-card' - VERIFIED (line 654)",
+    "ProgressiveGeneration.js: data-testid='progressive-notify-btn' - VERIFIED (line 555)",
+    "ProgressiveGeneration.js: data-testid='elapsed-display' - VERIFIED (line 527)",
+    "ProgressiveGeneration.js: data-testid='eta-display' - VERIFIED (line 496)",
+    "StoryVideoPipeline.js: Input phase has title-input, story-textarea, style-grid, generate-btn - VERIFIED",
+    "StoryVideoPipeline.js: Postgen phase shows Download, Share, Continue, Remix, Watch/Preview buttons - VERIFIED",
+    "StoryVideoPipeline.js: ForceShareGate modal appears for completed jobs - VERIFIED"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_generation_status_page_iteration389.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "None - used existing test users and story_engine jobs",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Universal Generation Status Page features fully verified in iteration 389. Key findings: 1) Backend status endpoint returns timing.elapsed_seconds and timing.eta_seconds (eta_seconds is null for completed jobs), 2) notification_opt_in field tracks whether user subscribed to completion notifications, 3) retry_info object contains can_retry, current_attempt, max_attempts, heartbeat_detail, last_error_stage, 4) POST /api/notifications/generation/{job_id}/subscribe returns 404 for nonexistent jobs and 200 for existing jobs, 5) All ProgressiveGeneration.js data-testid attributes verified in source code, 6) Input phase has all form fields (title, story, animation styles, age groups, voice presets), 7) Postgen phase shows action buttons (Download, Share, Continue, Remix, Watch/Preview), 8) ForceShareGate modal appears when viewing completed jobs, 9) Mobile responsiveness verified - page scales properly on 390x844 viewport, 10) Recent jobs sidebar shows user's completed jobs.",
+  "features_verified": {
+    "status_timing_elapsed_seconds": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns timing.elapsed_seconds"
+    },
+    "status_timing_eta_seconds": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns timing.eta_seconds (null for completed jobs)"
+    },
+    "status_retry_info": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns retry_info with can_retry, current_attempt, max_attempts"
+    },
+    "status_notification_opt_in": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns notification_opt_in field"
+    },
+    "status_progress_current_step": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns progress and current_step"
+    },
+    "status_404_nonexistent": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{fake_id} returns 404"
+    },
+    "notification_subscribe_200": {
+      "status": "PASS",
+      "details": "POST /api/notifications/generation/{job_id}/subscribe returns 200 for existing jobs"
+    },
+    "notification_subscribe_404": {
+      "status": "PASS",
+      "details": "POST /api/notifications/generation/{fake_id}/subscribe returns 404"
+    },
+    "validate_asset_ui_state": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/validate-asset/{job_id} returns ui_state (READY/PARTIAL_READY/FAILED)"
+    },
+    "validate_asset_404": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/validate-asset/{fake_id} returns 404"
+    },
+    "user_jobs_endpoint": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/user-jobs returns jobs list"
+    },
+    "options_endpoint": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/options returns animation_styles, age_groups, voice_presets"
+    },
+    "rate_limit_status": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/rate-limit-status returns can_create, concurrent, max_concurrent"
+    },
+    "preview_endpoint": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/preview/{job_id} returns preview data"
+    },
+    "completed_job_output_url": {
+      "status": "PASS",
+      "details": "Completed jobs have output_url for Watch/Download"
+    },
+    "input_phase_form_fields": {
+      "status": "PASS",
+      "details": "Input phase has title-input, story-textarea, style-grid (6 styles), age options (5), voice options (5), generate-btn"
+    },
+    "postgen_phase_actions": {
+      "status": "PASS",
+      "details": "Postgen phase shows Download, Share, Continue, Remix, Watch/Preview buttons"
+    },
+    "force_share_gate_modal": {
+      "status": "PASS",
+      "details": "ForceShareGate modal appears when viewing completed jobs with share options"
+    },
+    "mobile_responsiveness": {
+      "status": "PASS",
+      "details": "Page scales properly on mobile viewport (390x844), all form elements visible"
+    },
+    "recent_jobs_sidebar": {
+      "status": "PASS",
+      "details": "Recent jobs sidebar shows user's completed jobs with click-to-view functionality"
+    },
+    "progressive_generation_testids": {
+      "status": "PASS",
+      "details": "All 12 required data-testid attributes present in ProgressiveGeneration.js"
+    }
+  },
+  "api_response_examples": {
+    "status_timing": {
+      "elapsed_seconds": 41304,
+      "eta_seconds": null
+    },
+    "status_retry_info": {
+      "current_attempt": 0,
+      "max_attempts": 0,
+      "total_retries": 0,
+      "heartbeat_detail": "",
+      "can_retry": false,
+      "last_error_stage": null
+    },
+    "validate_asset_ready": {
+      "ui_state": "READY",
+      "preview_ready": true,
+      "download_ready": true,
+      "share_ready": true
+    },
+    "notification_subscribe_success": {
+      "success": true,
+      "subscribed": true,
+      "message": "You'll be notified when it's ready."
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}
