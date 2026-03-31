@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, ArrowRight, Wand2, BookOpen, Loader2, Download, 
   Check, CheckCircle, AlertTriangle, Shield, Sparkles, Crown, Eye,
-  Palette, FileText, Star, Zap, Heart, Ghost, Rocket, Search, Smile
+  Palette, FileText, Star, Zap, Heart, Ghost, Rocket, Search, Smile,
+  Globe, Users, BookMarked, Image, Package, Printer, FileArchive,
+  Lightbulb, Save, RotateCcw, Layers, Clock,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -65,6 +67,52 @@ const checkBlockedContent = (text) => {
 // ============================================
 // STORY GENRES
 // ============================================
+const QUICK_PRESETS = [
+  { id: 'kids_adventure_preset', label: 'Kids Adventure', genre: 'kids_adventure', language: 'English', ageGroup: '4-7', readingLevel: 'beginner', icon: Smile, color: 'emerald' },
+  { id: 'bedtime_story', label: 'Bedtime Story', genre: 'kids_adventure', language: 'English', ageGroup: '3-6', readingLevel: 'beginner', icon: Star, color: 'indigo' },
+  { id: 'superhero_origin', label: 'Superhero Origin', genre: 'superhero', language: 'English', ageGroup: '6-10', readingLevel: 'intermediate', icon: Zap, color: 'rose' },
+  { id: 'fantasy_quest', label: 'Fantasy Quest', genre: 'fantasy', language: 'English', ageGroup: '8-12', readingLevel: 'intermediate', icon: Sparkles, color: 'violet' },
+  { id: 'school_story', label: 'School Story', genre: 'comedy', language: 'English', ageGroup: '6-10', readingLevel: 'intermediate', icon: BookOpen, color: 'amber' },
+  { id: 'animal_friendship', label: 'Animal Friendship', genre: 'kids_adventure', language: 'English', ageGroup: '3-6', readingLevel: 'beginner', icon: Heart, color: 'pink' },
+  { id: 'mystery_puzzle', label: 'Mystery Puzzle', genre: 'mystery', language: 'English', ageGroup: '8-12', readingLevel: 'advanced', icon: Search, color: 'slate' },
+  { id: 'funny_comic', label: 'Funny Comic', genre: 'comedy', language: 'English', ageGroup: '6-10', readingLevel: 'intermediate', icon: Smile, color: 'yellow' },
+  { id: 'educational_comic', label: 'Educational Comic', genre: 'scifi', language: 'English', ageGroup: '8-12', readingLevel: 'advanced', icon: Lightbulb, color: 'cyan' },
+  { id: 'bilingual_kids', label: 'Bilingual Kids', genre: 'kids_adventure', language: 'English', ageGroup: '4-7', readingLevel: 'beginner', icon: Globe, color: 'teal', bilingual: true },
+];
+
+const LANGUAGES = ['English', 'Hindi', 'Telugu', 'Spanish', 'French', 'Arabic', 'German', 'Portuguese', 'Japanese', 'Korean', 'Chinese', 'Italian'];
+const AGE_GROUPS = [
+  { value: '3-6', label: '3-6 years', desc: 'Pre-school' },
+  { value: '4-7', label: '4-7 years', desc: 'Early readers' },
+  { value: '6-10', label: '6-10 years', desc: 'Kids' },
+  { value: '8-12', label: '8-12 years', desc: 'Tweens' },
+  { value: '12+', label: '12+ years', desc: 'Young adults' },
+];
+const READING_LEVELS = [
+  { value: 'beginner', label: 'Beginner', desc: 'Simple words, short sentences' },
+  { value: 'intermediate', label: 'Intermediate', desc: 'Full sentences, some complexity' },
+  { value: 'advanced', label: 'Advanced', desc: 'Rich vocabulary, complex plots' },
+];
+
+const GENERATION_STAGES = [
+  { key: 'planning', label: 'Planning Story', icon: Lightbulb, range: [0, 10] },
+  { key: 'cover', label: 'Generating Cover', icon: Image, range: [10, 25] },
+  { key: 'pages', label: 'Creating Pages', icon: Layers, range: [25, 70] },
+  { key: 'layout', label: 'Layout & Design', icon: Palette, range: [70, 85] },
+  { key: 'packaging', label: 'Packaging Files', icon: Package, range: [85, 95] },
+  { key: 'ready', label: 'Ready!', icon: CheckCircle, range: [95, 100] },
+];
+
+const STORY_HELPER_CHIPS = [
+  { category: 'Hero', options: ['Brave child', 'Talking animal', 'Robot friend', 'Magic creature', 'Shy teenager'] },
+  { category: 'Setting', options: ['Enchanted forest', 'Outer space', 'Underwater city', 'School', 'Ancient kingdom'] },
+  { category: 'Conflict', options: ['Lost item quest', 'Save a friend', 'Overcome fear', 'Stop a villain', 'Win a contest'] },
+  { category: 'Style', options: ['Funny', 'Heartwarming', 'Adventurous', 'Mysterious', 'Educational'] },
+  { category: 'Moral', options: ['Courage', 'Friendship', 'Honesty', 'Kindness', 'Teamwork'] },
+];
+
+const AUTOSAVE_KEY = 'comic_builder_autosave';
+
 const STORY_GENRES = [
   {
     id: 'kids_adventure',
@@ -429,15 +477,73 @@ export default function ComicStorybookBuilder() {
   const [job, setJob] = useState(null);
   const [generationStartTime, setGenerationStartTime] = useState(null);
   const pollingRef = useRef(null);
+
+  // Localization & targeting
+  const [language, setLanguage] = useState('English');
+  const [ageGroup, setAgeGroup] = useState('6-10');
+  const [readingLevel, setReadingLevel] = useState('intermediate');
+  const [bilingual, setBilingual] = useState(false);
+  const [bilingualLang, setBilingualLang] = useState('Spanish');
+
+  // Quick presets
+  const [activePreset, setActivePreset] = useState(null);
+
+  // AI helper
+  const [improvingIdea, setImprovingIdea] = useState(false);
   
   // Modals
   const [showRating, setShowRating] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
   const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('comic-storybook-builder');
 
+  // ── Auto-save logic ──
+  const saveProgress = useCallback(() => {
+    const state = {
+      step, selectedGenre, storyIdea, bookTitle, authorName, selectedPages,
+      selectedAddOns, dedicationText, language, ageGroup, readingLevel,
+      bilingual, bilingualLang, activePreset, timestamp: Date.now(),
+    };
+    try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(state)); } catch {}
+  }, [step, selectedGenre, storyIdea, bookTitle, authorName, selectedPages, selectedAddOns, dedicationText, language, ageGroup, readingLevel, bilingual, bilingualLang, activePreset]);
+
+  const restoreProgress = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(AUTOSAVE_KEY);
+      if (!saved) return false;
+      const state = JSON.parse(saved);
+      // Only restore if saved within last 24 hours
+      if (Date.now() - state.timestamp > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(AUTOSAVE_KEY);
+        return false;
+      }
+      if (state.selectedGenre) setSelectedGenre(state.selectedGenre);
+      if (state.storyIdea) setStoryIdea(state.storyIdea);
+      if (state.bookTitle) setBookTitle(state.bookTitle);
+      if (state.authorName) setAuthorName(state.authorName);
+      if (state.selectedPages) setSelectedPages(state.selectedPages);
+      if (state.selectedAddOns) setSelectedAddOns(state.selectedAddOns);
+      if (state.dedicationText) setDedicationText(state.dedicationText);
+      if (state.language) setLanguage(state.language);
+      if (state.ageGroup) setAgeGroup(state.ageGroup);
+      if (state.readingLevel) setReadingLevel(state.readingLevel);
+      if (state.bilingual !== undefined) setBilingual(state.bilingual);
+      if (state.bilingualLang) setBilingualLang(state.bilingualLang);
+      if (state.activePreset) setActivePreset(state.activePreset);
+      if (state.step > 1 && state.selectedGenre) setStep(state.step);
+      return true;
+    } catch { return false; }
+  }, []);
+
+  // Auto-save on every meaningful state change
+  useEffect(() => {
+    if (selectedGenre || storyIdea) saveProgress();
+  }, [step, selectedGenre, storyIdea, bookTitle, authorName, selectedPages, selectedAddOns, dedicationText, language, ageGroup, readingLevel, bilingual, bilingualLang, saveProgress]);
+
   useEffect(() => {
     fetchCredits();
     fetchUserPlan();
+    const restored = restoreProgress();
+    if (restored) toast.info('Previous progress restored', { duration: 2000 });
     // Cross-tool auto-prefill
     if (hasRemix && incomingRemix) {
       const fields = mapRemixToFields(incomingRemix, 'comic-storybook-builder');
@@ -496,6 +602,54 @@ export default function ComicStorybookBuilder() {
     else if (userPlan === 'studio') total = Math.floor(total * 0.6);
     
     return total;
+  };
+
+  // Improve story idea using AI
+  const improveStoryIdea = async () => {
+    if (!storyIdea.trim() || storyIdea.length < 5) {
+      toast.error('Please write at least a short idea first');
+      return;
+    }
+    setImprovingIdea(true);
+    try {
+      const res = await api.post('/api/comic-storybook-v2/improve-idea', {
+        storyIdea,
+        genre: selectedGenre,
+        ageGroup,
+        language,
+        readingLevel,
+      });
+      if (res.data.success && res.data.improved) {
+        setStoryIdea(res.data.improved);
+        if (res.data.suggestedTitle && !bookTitle) setBookTitle(res.data.suggestedTitle);
+        toast.success('Story idea improved!');
+      } else {
+        toast.info('Could not improve — your idea is already strong!');
+      }
+    } catch {
+      toast.error('Improvement unavailable right now');
+    }
+    setImprovingIdea(false);
+  };
+
+  // Handle quick preset selection
+  const handlePresetSelect = (preset) => {
+    if (activePreset === preset.id) { setActivePreset(null); return; }
+    setActivePreset(preset.id);
+    setSelectedGenre(preset.genre);
+    setLanguage(preset.language);
+    setAgeGroup(preset.ageGroup);
+    setReadingLevel(preset.readingLevel);
+    if (preset.bilingual) { setBilingual(true); }
+    toast.success(`${preset.label} preset applied`);
+  };
+
+  // Get current generation stage from progress %
+  const getCurrentStage = (progress) => {
+    for (let i = GENERATION_STAGES.length - 1; i >= 0; i--) {
+      if (progress >= GENERATION_STAGES[i].range[0]) return GENERATION_STAGES[i];
+    }
+    return GENERATION_STAGES[0];
   };
 
   // Generate preview pages
@@ -586,7 +740,11 @@ export default function ComicStorybookBuilder() {
         author: authorName || 'Anonymous',
         pageCount: selectedPages,
         addOns: selectedAddOns,
-        dedicationText: selectedAddOns.dedication_page ? dedicationText : null
+        dedicationText: selectedAddOns.dedication_page ? dedicationText : null,
+        language,
+        ageGroup,
+        readingLevel,
+        bilingual: bilingual ? bilingualLang : null,
       });
       
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
@@ -682,6 +840,12 @@ export default function ComicStorybookBuilder() {
     setJob(null);
     setPreviewPages([]);
     setContentError(null);
+    setLanguage('English');
+    setAgeGroup('6-10');
+    setReadingLevel('intermediate');
+    setBilingual(false);
+    setActivePreset(null);
+    localStorage.removeItem(AUTOSAVE_KEY);
   };
 
   // Can proceed to next step?
@@ -701,12 +865,32 @@ export default function ComicStorybookBuilder() {
   // ============================================
   const renderStep1 = () => (
     <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full mb-4">
           <span className="text-purple-400 font-medium">Step 1 of 5</span>
         </div>
         <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Choose Your Story Type</h3>
-        <p className="text-slate-400">What kind of comic book do you want to create?</p>
+        <p className="text-slate-400">Pick a genre or start with a quick preset</p>
+      </div>
+
+      {/* Quick Presets */}
+      <div className="mb-6" data-testid="comic-presets">
+        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2">Quick Presets</p>
+        <div className="flex flex-wrap gap-1.5">
+          {QUICK_PRESETS.map(preset => {
+            const Icon = preset.icon;
+            const isActive = activePreset === preset.id;
+            return (
+              <button key={preset.id} type="button" onClick={() => handlePresetSelect(preset)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                  isActive ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 ring-1 ring-purple-500/30' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:text-white hover:border-slate-600'
+                }`}
+                data-testid={`comic-preset-${preset.id}`}>
+                <Icon className="w-3 h-3" /> {preset.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -715,7 +899,7 @@ export default function ComicStorybookBuilder() {
           return (
             <div
               key={genre.id}
-              onClick={() => setSelectedGenre(genre.id)}
+              onClick={() => { setSelectedGenre(genre.id); setActivePreset(null); }}
               className={`relative p-5 rounded-2xl border-2 cursor-pointer transition-all hover:scale-[1.02] ${
                 selectedGenre === genre.id
                   ? 'border-purple-500 bg-purple-500/20 shadow-lg shadow-purple-500/20'
@@ -771,7 +955,7 @@ export default function ComicStorybookBuilder() {
     
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full mb-4">
             <span className="text-purple-400 font-medium">Step 2 of 5</span>
           </div>
@@ -788,7 +972,7 @@ export default function ComicStorybookBuilder() {
                 showTemplates ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              📚 Template Library
+              <BookMarked className="w-3.5 h-3.5 inline mr-1.5" /> Template Library
             </button>
             <button
               onClick={() => setShowTemplates(false)}
@@ -796,7 +980,7 @@ export default function ComicStorybookBuilder() {
                 !showTemplates ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              ✏️ Write My Own
+              <FileText className="w-3.5 h-3.5 inline mr-1.5" /> Write My Own
             </button>
           </div>
         </div>
@@ -840,7 +1024,33 @@ export default function ComicStorybookBuilder() {
           </div>
         ) : (
           /* Write Your Own Form */
-          <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6 space-y-6">
+          <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6 space-y-5">
+            {/* AI Helper Chips */}
+            <div data-testid="story-helper-chips">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Story Builder Assist</label>
+              <div className="space-y-2">
+                {STORY_HELPER_CHIPS.map(group => (
+                  <div key={group.category} className="flex items-start gap-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider w-14 pt-1.5 flex-shrink-0">{group.category}</span>
+                    <div className="flex flex-wrap gap-1">
+                      {group.options.map(opt => (
+                        <button key={opt} type="button"
+                          onClick={() => {
+                            const prefix = storyIdea ? storyIdea.trimEnd() + '. ' : '';
+                            setStoryIdea(prefix + opt);
+                            setSelectedTemplate(null);
+                          }}
+                          className="px-2 py-1 rounded-md text-[11px] bg-slate-700/50 text-slate-300 border border-slate-600/50 hover:bg-purple-500/20 hover:text-purple-300 hover:border-purple-500/30 transition-all"
+                          data-testid={`chip-${opt.replace(/\s/g, '-').toLowerCase()}`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Story Idea */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -857,9 +1067,23 @@ export default function ComicStorybookBuilder() {
                 className="bg-slate-700 border-slate-600 text-white min-h-32 text-lg"
                 data-testid="story-idea-input"
               />
-              <p className="text-xs text-slate-500 mt-2">
-                Example: "{genre?.placeholder}"
-              </p>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-slate-500">
+                  Example: "{genre?.placeholder}"
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={improveStoryIdea}
+                  disabled={improvingIdea || !storyIdea.trim()}
+                  className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs"
+                  data-testid="improve-idea-btn"
+                >
+                  {improvingIdea ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Wand2 className="w-3 h-3 mr-1" />}
+                  Improve My Idea
+                </Button>
+              </div>
               
               {contentError && (
                 <div className="mt-3 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-start gap-2">
@@ -900,6 +1124,56 @@ export default function ComicStorybookBuilder() {
                 onChange={(e) => setAuthorName(e.target.value)}
                 className="bg-slate-700 border-slate-600 text-white"
               />
+            </div>
+
+            {/* Language & Localization Controls */}
+            <div className="border-t border-slate-700 pt-5" data-testid="localization-controls">
+              <p className="text-sm font-medium text-slate-300 mb-3 flex items-center gap-1.5"><Globe className="w-4 h-4 text-purple-400" /> Language & Audience</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {/* Language */}
+                <div>
+                  <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1 block">Language</label>
+                  <select value={language} onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500 outline-none"
+                    data-testid="language-select">
+                    {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                {/* Age Group */}
+                <div>
+                  <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1 block">Age Group</label>
+                  <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500 outline-none"
+                    data-testid="age-group-select">
+                    {AGE_GROUPS.map(a => <option key={a.value} value={a.value}>{a.label} ({a.desc})</option>)}
+                  </select>
+                </div>
+                {/* Reading Level */}
+                <div>
+                  <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1 block">Reading Level</label>
+                  <select value={readingLevel} onChange={(e) => setReadingLevel(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500 outline-none"
+                    data-testid="reading-level-select">
+                    {READING_LEVELS.map(r => <option key={r.value} value={r.value}>{r.label} — {r.desc}</option>)}
+                  </select>
+                </div>
+              </div>
+              {/* Bilingual toggle */}
+              <div className="mt-3 flex items-center gap-3">
+                <button type="button" onClick={() => setBilingual(!bilingual)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    bilingual ? 'bg-teal-500/20 text-teal-300 border-teal-500/30' : 'bg-slate-800 text-slate-500 border-slate-700 hover:text-slate-300'
+                  }`} data-testid="bilingual-toggle">
+                  <Globe className="w-3 h-3" /> Bilingual Book
+                </button>
+                {bilingual && (
+                  <select value={bilingualLang} onChange={(e) => setBilingualLang(e.target.value)}
+                    className="bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:border-teal-500 outline-none"
+                    data-testid="bilingual-lang-select">
+                    {LANGUAGES.filter(l => l !== language).map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1104,10 +1378,12 @@ export default function ComicStorybookBuilder() {
   const renderStep5 = () => {
     const genre = STORY_GENRES.find(g => g.id === selectedGenre);
     const pageOption = PAGE_OPTIONS.find(p => p.pages === selectedPages);
+    const activeAddOns = ADD_ONS.filter(a => selectedAddOns[a.id]);
+    const currentStage = job ? getCurrentStage(job.progress || 0) : null;
     
     return (
       <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-full mb-4">
             <span className="text-purple-400 font-medium">Step 5 of 5</span>
           </div>
@@ -1116,74 +1392,97 @@ export default function ComicStorybookBuilder() {
         </div>
         
         <div className="grid md:grid-cols-2 gap-8">
-          {/* Summary */}
-          <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6">
-            <h4 className="font-bold text-white text-lg mb-4">Book Summary</h4>
-            
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Genre:</span>
-                <span className="text-white font-medium">{genre?.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Title:</span>
-                <span className="text-white font-medium">{bookTitle || 'My Comic Story'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Author:</span>
-                <span className="text-white font-medium">{authorName || 'Anonymous'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Pages:</span>
-                <span className="text-white font-medium">{selectedPages} pages</span>
-              </div>
-              
-              {/* Story Preview */}
-              <div className="pt-4 border-t border-slate-700">
-                <p className="text-slate-400 text-sm mb-2">Story Idea:</p>
-                <p className="text-white text-sm bg-slate-700/50 p-3 rounded-lg">
-                  {storyIdea.slice(0, 150)}...
-                </p>
-              </div>
-              
-              {/* Add-ons */}
-              {Object.entries(selectedAddOns).some(([_, v]) => v) && (
-                <div className="pt-4 border-t border-slate-700">
-                  <p className="text-slate-400 text-sm mb-2">Add-ons:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {ADD_ONS.filter(a => selectedAddOns[a.id]).map(addon => (
-                      <span key={addon.id} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
-                        {addon.name}
-                      </span>
-                    ))}
-                  </div>
+          {/* LEFT: Summary + Generate */}
+          <div className="space-y-4">
+            {/* Book Summary Card */}
+            <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-5" data-testid="book-summary">
+              <h4 className="font-bold text-white text-lg mb-4 flex items-center gap-2"><BookOpen className="w-5 h-5 text-purple-400" /> Book Summary</h4>
+              <div className="space-y-3">
+                <div className="flex justify-between"><span className="text-slate-400 text-sm">Genre:</span><span className="text-white font-medium text-sm">{genre?.name}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400 text-sm">Title:</span><span className="text-white font-medium text-sm">{bookTitle || 'My Comic Story'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400 text-sm">Author:</span><span className="text-white font-medium text-sm">{authorName || 'Anonymous'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400 text-sm">Pages:</span><span className="text-white font-medium text-sm">{selectedPages} pages ({pageOption?.label})</span></div>
+                <div className="flex justify-between"><span className="text-slate-400 text-sm">Language:</span><span className="text-white font-medium text-sm">{language}{bilingual ? ` + ${bilingualLang}` : ''}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400 text-sm">Audience:</span><span className="text-white font-medium text-sm">{ageGroup} years ({readingLevel})</span></div>
+                <div className="pt-3 border-t border-slate-700">
+                  <p className="text-slate-400 text-xs mb-1.5 font-medium">Story Idea:</p>
+                  <p className="text-white text-xs bg-slate-700/50 p-2.5 rounded-lg leading-relaxed">{storyIdea.slice(0, 150)}{storyIdea.length > 150 ? '...' : ''}</p>
                 </div>
-              )}
+                {activeAddOns.length > 0 && (
+                  <div className="pt-3 border-t border-slate-700">
+                    <p className="text-slate-400 text-xs mb-1.5 font-medium">Add-ons:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeAddOns.map(addon => (
+                        <span key={addon.id} className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">{addon.name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            
-            {/* Final Cost */}
-            <div className="mt-6 pt-4 border-t border-slate-700">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-white">Total:</span>
-                <span className="text-2xl font-bold text-purple-400">{calculateCost()} credits</span>
+
+            {/* What You'll Receive — Deliverables Summary */}
+            <div className="bg-gradient-to-br from-emerald-500/5 to-teal-500/5 rounded-2xl border border-emerald-500/15 p-5" data-testid="deliverables-summary">
+              <h4 className="font-bold text-white text-sm mb-3 flex items-center gap-2"><Package className="w-4 h-4 text-emerald-400" /> What You'll Receive</h4>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5"><div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><FileText className="w-3.5 h-3.5 text-emerald-400" /></div><div><p className="text-xs text-white font-medium">Comic Book PDF</p><p className="text-[10px] text-slate-500">{selectedPages}-page full-color digital comic</p></div></div>
+                <div className="flex items-center gap-2.5"><div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><Image className="w-3.5 h-3.5 text-emerald-400" /></div><div><p className="text-xs text-white font-medium">Cover Image</p><p className="text-[10px] text-slate-500">High-quality standalone cover (PNG)</p></div></div>
+                <div className="flex items-center gap-2.5"><div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><FileArchive className="w-3.5 h-3.5 text-emerald-400" /></div><div><p className="text-xs text-white font-medium">Page Images</p><p className="text-[10px] text-slate-500">{selectedPages} individual page images</p></div></div>
+                {selectedAddOns.hd_print && (
+                  <div className="flex items-center gap-2.5"><div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center flex-shrink-0"><Printer className="w-3.5 h-3.5 text-amber-400" /></div><div><p className="text-xs text-white font-medium">Print-Ready PDF</p><p className="text-[10px] text-slate-500">300 DPI for professional printing</p></div></div>
+                )}
+                {selectedAddOns.activity_pages && (
+                  <div className="flex items-center gap-2.5"><div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center flex-shrink-0"><Palette className="w-3.5 h-3.5 text-amber-400" /></div><div><p className="text-xs text-white font-medium">Activity Pages</p><p className="text-[10px] text-slate-500">Puzzle & coloring pages included</p></div></div>
+                )}
+                {selectedAddOns.dedication_page && (
+                  <div className="flex items-center gap-2.5"><div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center flex-shrink-0"><Heart className="w-3.5 h-3.5 text-amber-400" /></div><div><p className="text-xs text-white font-medium">Dedication Page</p><p className="text-[10px] text-slate-500">Personal message page</p></div></div>
+                )}
+                {selectedAddOns.commercial_license && (
+                  <div className="flex items-center gap-2.5"><div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center flex-shrink-0"><Crown className="w-3.5 h-3.5 text-amber-400" /></div><div><p className="text-xs text-white font-medium">Commercial License</p><p className="text-[10px] text-slate-500">Rights to sell or distribute</p></div></div>
+                )}
               </div>
             </div>
             
-            <Button 
-              onClick={generateComicBook}
-              disabled={loading || credits < calculateCost()}
-              className="w-full mt-6 py-6 text-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-              data-testid="generate-btn"
-            >
-              {loading ? (
-                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Generating Your Comic Book...</>
-              ) : (
-                <><Wand2 className="w-5 h-5 mr-2" /> Generate Full Comic Book</>
+            {/* Final Cost + Generate */}
+            <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-5">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <p className="text-slate-400 text-xs">Total Cost</p>
+                  <p className="text-2xl font-bold text-white">{calculateCost()} credits</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-400 text-xs">Your Balance</p>
+                  <p className={`text-lg font-bold ${(credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`} data-testid="storybook-balance-display">
+                    {credits === null ? <span className="inline-block w-16 h-6 bg-slate-700 rounded animate-pulse" /> : credits >= 999999 ? 'Unlimited' : `${credits.toLocaleString()} credits`}
+                  </p>
+                </div>
+              </div>
+              {userPlan !== 'free' && (
+                <p className="text-xs text-green-400 mb-3">
+                  {userPlan === 'creator' ? '20%' : userPlan === 'pro' ? '30%' : '40%'} subscriber discount applied!
+                </p>
               )}
-            </Button>
+              {/* Estimated time */}
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mb-4">
+                <Clock className="w-3 h-3" />
+                <span>Estimated generation time: {selectedPages <= 10 ? '2-4' : selectedPages <= 20 ? '4-7' : '6-10'} minutes</span>
+              </div>
+              <Button 
+                onClick={generateComicBook}
+                disabled={loading || credits < calculateCost()}
+                className="w-full py-5 text-base bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                data-testid="generate-btn"
+              >
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Generating...</>
+                ) : (
+                  <><Wand2 className="w-5 h-5 mr-2" /> Generate Full Comic Book</>
+                )}
+              </Button>
+            </div>
           </div>
           
-          {/* Preview / Result */}
+          {/* RIGHT: Preview / Generation Progress / Result */}
           <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6">
             <h4 className="font-bold text-white text-lg mb-4">
               {job ? 'Generation Progress' : 'Preview'}
@@ -1193,16 +1492,40 @@ export default function ComicStorybookBuilder() {
               <div className="space-y-4">
                 {/* Show WaitingWithGames during processing */}
                 {(job.status === 'PROCESSING' || job.status === 'QUEUED') ? (
-                  <WaitingWithGames 
-                    progress={job.progress || 0}
-                    status={job.progressMessage || (job.status === 'QUEUED' ? 'In queue...' : 'Creating your comic book...')}
-                    estimatedTime="4-7 minutes"
-                    onCancel={() => {
-                      toast.info('Generation in progress - please wait');
-                    }}
-                    currentFeature="/app/comic-storybook"
-                    showExploreFeatures={true}
-                  />
+                  <>
+                    {/* Generation Stage Indicators */}
+                    <div className="space-y-1.5 mb-4" data-testid="generation-stages">
+                      {GENERATION_STAGES.map((stage, idx) => {
+                        const StageIcon = stage.icon;
+                        const progress = job.progress || 0;
+                        const isActive = progress >= stage.range[0] && progress < stage.range[1];
+                        const isComplete = progress >= stage.range[1];
+                        const isPending = progress < stage.range[0];
+                        return (
+                          <div key={stage.key} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all ${
+                            isActive ? 'bg-purple-500/15 border border-purple-500/30' : isComplete ? 'bg-emerald-500/5' : 'opacity-40'
+                          }`} data-testid={`stage-${stage.key}`}>
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              isComplete ? 'bg-emerald-500/20' : isActive ? 'bg-purple-500/20' : 'bg-slate-700/50'
+                            }`}>
+                              {isComplete ? <Check className="w-3 h-3 text-emerald-400" /> : isActive ? <Loader2 className="w-3 h-3 text-purple-400 animate-spin" /> : <StageIcon className="w-3 h-3 text-slate-500" />}
+                            </div>
+                            <span className={`text-xs font-medium ${isComplete ? 'text-emerald-400' : isActive ? 'text-purple-300' : 'text-slate-600'}`}>{stage.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <WaitingWithGames 
+                      progress={job.progress || 0}
+                      status={currentStage?.label || job.progressMessage || (job.status === 'QUEUED' ? 'In queue...' : 'Creating your comic book...')}
+                      estimatedTime={selectedPages <= 10 ? '2-4 minutes' : selectedPages <= 20 ? '4-7 minutes' : '6-10 minutes'}
+                      onCancel={() => {
+                        toast.info('Generation in progress - please wait');
+                      }}
+                      currentFeature="/app/comic-storybook"
+                      showExploreFeatures={true}
+                    />
+                  </>
                 ) : (
                   <>
                     {/* Status Badge + Generation Time */}
@@ -1260,7 +1583,7 @@ export default function ComicStorybookBuilder() {
                         </div>
                       </div>
                     )}
-                    {/* PDF Download — permanent CDN-backed asset */}
+                    {/* PDF Download */}
                     {job.pdfUrl && (
                       <DownloadWithExpiry
                         downloadUrl={job.pdfUrl}
@@ -1299,7 +1622,7 @@ export default function ComicStorybookBuilder() {
                       </Button>
                     )}
 
-                    {/* Print Version (if HD print add-on selected) */}
+                    {/* Print Version */}
                     {selectedAddOns.hd_print && (
                       <Button 
                         onClick={() => handleDownload('pdf')}
@@ -1315,7 +1638,6 @@ export default function ComicStorybookBuilder() {
                       contentId={job.id}
                     />
 
-                    {/* Next Action Hooks — PRIMARY ACTION ZONE */}
                     <NextActionHooks
                       toolType="comic-storybook"
                       prompt={storyIdea || `${selectedGenre || ''} comic story`}
@@ -1356,12 +1678,20 @@ export default function ComicStorybookBuilder() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 border border-dashed border-slate-700 rounded-xl bg-slate-800/30" data-testid="preview-unavailable">
-                    <BookOpen className="w-10 h-10 mx-auto text-slate-600 mb-3" />
-                    <p className="text-sm text-slate-300 font-medium mb-1">Preview not available</p>
-                    <p className="text-xs text-slate-500 max-w-xs mx-auto mb-4">
-                      Your {selectedPages}-page {selectedGenre?.replace(/_/g, ' ')} comic book will be generated when you click the button below.
-                    </p>
+                  /* Enhanced Preview Unavailable State */
+                  <div className="space-y-4" data-testid="preview-unavailable">
+                    {/* Visual placeholder */}
+                    <div className="relative aspect-[3/4] bg-gradient-to-br from-purple-500/5 via-slate-800 to-pink-500/5 rounded-xl border border-slate-700 overflow-hidden flex items-center justify-center">
+                      <div className="text-center p-6">
+                        <BookOpen className="w-12 h-12 mx-auto text-purple-500/30 mb-3" />
+                        <p className="text-white font-bold text-sm mb-0.5">{bookTitle || 'My Comic Story'}</p>
+                        <p className="text-slate-500 text-xs mb-1">by {authorName || 'Anonymous'}</p>
+                        <p className="text-[10px] text-slate-600 mt-2">{genre?.name} &middot; {selectedPages} pages &middot; {language}</p>
+                      </div>
+                      <div className="absolute top-2 right-2">
+                        <span className="text-[9px] text-white/40 bg-black/30 px-1.5 py-0.5 rounded">Cover Preview</span>
+                      </div>
+                    </div>
                     <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
                       <CheckCircle className="w-3 h-3 text-emerald-500" />
                       <span>All settings confirmed — ready to generate</span>

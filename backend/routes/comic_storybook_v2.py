@@ -197,6 +197,59 @@ async def generate_preview(request: PreviewComicRequest, user: dict = Depends(ge
     return {"success": True, "previewPages": preview_pages}
 
 
+class ImproveIdeaRequest(BaseModel):
+    storyIdea: str
+    genre: Optional[str] = None
+    ageGroup: Optional[str] = None
+    language: Optional[str] = "English"
+    readingLevel: Optional[str] = "intermediate"
+
+
+@router.post("/improve-idea")
+async def improve_story_idea(request: ImproveIdeaRequest, user: dict = Depends(get_current_user)):
+    """Use AI to expand and improve a short/weak story idea."""
+    if not LLM_AVAILABLE or not EMERGENT_LLM_KEY:
+        return {"success": False, "improved": None, "message": "AI improvement unavailable"}
+
+    if len(request.storyIdea.strip()) < 5:
+        raise HTTPException(status_code=400, detail="Please provide a longer story idea")
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        genre_info = STORY_GENRES.get(request.genre, {})
+        genre_name = genre_info.get("name", "General")
+
+        prompt = f"""Improve this children's story idea. Make it more vivid, specific, and compelling.
+Keep it under 150 words. Target audience: {request.ageGroup or '6-10'} year olds. Reading level: {request.readingLevel or 'intermediate'}. Genre: {genre_name}. Language: {request.language or 'English'}.
+
+Original idea: {request.storyIdea}
+
+Return ONLY a JSON object: {{"improved": "the improved story idea", "suggestedTitle": "a catchy title suggestion"}}"""
+
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"improve-{uuid.uuid4().hex[:8]}",
+            system_message="You are a children's book story consultant. Return only valid JSON."
+        ).with_model("gemini", "gemini-3-flash-preview")
+
+        response = await chat.send_message(UserMessage(text=prompt))
+        text = response.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        result = json.loads(text.strip())
+
+        return {
+            "success": True,
+            "improved": result.get("improved", request.storyIdea),
+            "suggestedTitle": result.get("suggestedTitle", ""),
+        }
+    except Exception as e:
+        logger.error(f"Improve idea error: {e}")
+        return {"success": False, "improved": None, "message": "Could not improve idea"}
+
+
 class GenerateComicRequest(BaseModel):
     genre: str
     storyIdea: str
@@ -205,6 +258,10 @@ class GenerateComicRequest(BaseModel):
     pageCount: int = 20
     addOns: Optional[Dict] = None
     dedicationText: Optional[str] = None
+    language: Optional[str] = "English"
+    ageGroup: Optional[str] = "6-10"
+    readingLevel: Optional[str] = "intermediate"
+    bilingual: Optional[str] = None
 
 
 @router.post("/generate")
@@ -314,6 +371,10 @@ async def generate_comic_book(
             "requestedPageCount": request.pageCount,
             "addOns": add_ons,
             "dedicationText": request.dedicationText,
+            "language": request.language or "English",
+            "ageGroup": request.ageGroup or "6-10",
+            "readingLevel": request.readingLevel or "intermediate",
+            "bilingual": request.bilingual,
             "cost": cost,
             "progress": 0,
             "current_stage": "queued",
@@ -375,16 +436,20 @@ async def run_pipeline_from_job(job: dict):
         job.get("addOns", {}), job.get("dedicationText"),
         job["userId"], job["cost"], job.get("tier", "free"),
         max_retries=job.get("max_retries", 2),
+        language=job.get("language", "English"),
+        age_group=job.get("ageGroup", "6-10"),
+        reading_level=job.get("readingLevel", "intermediate"),
+        bilingual=job.get("bilingual"),
     )
 
 
-async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add_ons, dedication, user_id, cost, user_plan, max_retries=2):
+async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add_ons, dedication, user_id, cost, user_plan, max_retries=2, language="English", age_group="6-10", reading_level="intermediate", bilingual=None):
     """Execute all pipeline stages with partial success support."""
     try:
         await db.comic_storybook_v2_jobs.update_one({"id": job_id}, {"$set": {"status": "PROCESSING"}})
 
         # Stage 1: Story outline
-        story_pages = await stage_story_outline(job_id, story_idea, genre, page_count)
+        story_pages = await stage_story_outline(job_id, story_idea, genre, page_count, language=language, age_group=age_group, reading_level=reading_level, bilingual=bilingual)
         if not story_pages:
             raise RuntimeError("Story outline generation failed")
 
@@ -565,11 +630,12 @@ async def run_panel_regeneration(job: dict):
 
 # ── STAGE 1: STORY OUTLINE ───────────────────────────────────────────────
 
-async def stage_story_outline(job_id, story_idea, genre, page_count):
+async def stage_story_outline(job_id, story_idea, genre, page_count, language="English", age_group="6-10", reading_level="intermediate", bilingual=None):
     stage = "story_outline"
     await update_stage(job_id, stage, "running")
     genre_info = STORY_GENRES.get(genre, STORY_GENRES["kids_adventure"])
 
+    bilingual_note = f"\nAlso provide a {bilingual} translation for each dialogue line as 'dialogue_alt'." if bilingual else ""
     pages = []
     for attempt in range(2):
         try:
@@ -581,9 +647,12 @@ async def stage_story_outline(job_id, story_idea, genre, page_count):
                 prompt = f"""Expand this story into {page_count} comic book pages.
 Story: {story_idea}
 Genre: {genre_info['name']}
+Language: {language}
+Target age: {age_group} years
+Reading level: {reading_level}{bilingual_note}
 
 For each page: scene description, short dialogue (1-2 sentences), emotional tone.
-RULES: Original characters only, no copyrighted content, age-appropriate.
+RULES: Original characters only, no copyrighted content, age-appropriate for {age_group} year olds.
 Return JSON array: [{{"page":1,"scene":"...","dialogue":"...","tone":"..."}}]"""
 
                 response = await chat.send_message(UserMessage(text=prompt))
