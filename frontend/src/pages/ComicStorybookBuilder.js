@@ -490,6 +490,8 @@ export default function ComicStorybookBuilder() {
 
   // AI helper
   const [improvingIdea, setImprovingIdea] = useState(false);
+  const [storyScore, setStoryScore] = useState(null);
+  const [analyzingStory, setAnalyzingStory] = useState(false);
   
   // Modals
   const [showRating, setShowRating] = useState(false);
@@ -628,6 +630,57 @@ export default function ComicStorybookBuilder() {
       }
     } catch {
       toast.error('Improvement unavailable right now');
+    }
+    setImprovingIdea(false);
+  };
+
+  // Analyze story quality
+  const analyzeStory = async () => {
+    if (!storyIdea.trim() || storyIdea.length < 10) {
+      toast.error('Write at least a short idea before analyzing');
+      return;
+    }
+    setAnalyzingStory(true);
+    try {
+      const res = await api.post('/api/comic-storybook-v2/analyze-story', {
+        storyIdea,
+        genre: selectedGenre,
+        ageGroup,
+        readingLevel,
+      });
+      if (res.data.success) {
+        setStoryScore(res.data);
+      } else {
+        toast.info(res.data.message || 'Analysis unavailable right now');
+      }
+    } catch {
+      toast.error('Story analysis unavailable');
+    }
+    setAnalyzingStory(false);
+  };
+
+  // Apply a quick fix suggestion
+  const applyQuickFix = async (fix) => {
+    if (improvingIdea) return;
+    setImprovingIdea(true);
+    try {
+      const res = await api.post('/api/comic-storybook-v2/improve-idea', {
+        storyIdea: storyIdea + '. ' + fix.instruction,
+        genre: selectedGenre,
+        ageGroup,
+        language,
+        readingLevel,
+      });
+      if (res.data.success && res.data.improved) {
+        setStoryIdea(res.data.improved);
+        if (res.data.suggestedTitle && !bookTitle) setBookTitle(res.data.suggestedTitle);
+        setStoryScore(null); // Clear score so user can re-analyze
+        toast.success(`Applied: ${fix.label}`);
+      } else {
+        toast.info('Could not apply fix — try Improve My Idea instead');
+      }
+    } catch {
+      toast.error('Fix unavailable');
     }
     setImprovingIdea(false);
   };
@@ -1062,6 +1115,7 @@ export default function ComicStorybookBuilder() {
                 onChange={(e) => {
                   setStoryIdea(e.target.value);
                   setSelectedTemplate(null);
+                  setStoryScore(null);
                   validateContent(e.target.value);
                 }}
                 className="bg-slate-700 border-slate-600 text-white min-h-32 text-lg"
@@ -1092,6 +1146,128 @@ export default function ComicStorybookBuilder() {
                     <p className="text-red-400 text-sm font-medium">Content issue detected</p>
                     <p className="text-red-300/80 text-xs mt-1">{contentError.message}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Story Quality Score — Analyze button + Score Card */}
+              {storyIdea.length >= 10 && (
+                <div className="mt-3" data-testid="story-quality-section">
+                  {!storyScore && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={analyzeStory}
+                      disabled={analyzingStory}
+                      className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 text-xs"
+                      data-testid="analyze-story-btn"
+                    >
+                      {analyzingStory ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Search className="w-3 h-3 mr-1.5" />}
+                      {analyzingStory ? 'Analyzing...' : 'Analyze Story Quality'}
+                    </Button>
+                  )}
+
+                  {storyScore && (
+                    <div className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden" data-testid="story-score-card">
+                      {/* Score Header */}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                            storyScore.overall_score >= 85 ? 'bg-emerald-500/20 text-emerald-400' :
+                            storyScore.overall_score >= 70 ? 'bg-sky-500/20 text-sky-400' :
+                            storyScore.overall_score >= 50 ? 'bg-amber-500/20 text-amber-400' :
+                            'bg-orange-500/20 text-orange-400'
+                          }`} data-testid="story-score-value">
+                            {storyScore.overall_score}
+                          </div>
+                          <div>
+                            <p className="text-white text-xs font-bold">Story Quality Score</p>
+                            <p className={`text-[10px] font-medium ${
+                              storyScore.overall_score >= 85 ? 'text-emerald-400' :
+                              storyScore.overall_score >= 70 ? 'text-sky-400' :
+                              storyScore.overall_score >= 50 ? 'text-amber-400' :
+                              'text-orange-400'
+                            }`}>
+                              {storyScore.overall_score >= 85 ? 'Strong story foundation' :
+                               storyScore.overall_score >= 70 ? 'Good, could be stronger' :
+                               storyScore.overall_score >= 50 ? 'Usable, needs improvement' :
+                               'Too vague for best results'}
+                            </p>
+                          </div>
+                        </div>
+                        <button onClick={() => setStoryScore(null)} className="text-slate-500 hover:text-white text-xs">Dismiss</button>
+                      </div>
+
+                      {/* Dimension Bars */}
+                      <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2" data-testid="score-dimensions">
+                        {storyScore.dimensions && Object.entries(storyScore.dimensions).map(([key, val]) => (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-500 w-20 capitalize flex-shrink-0">{key.replace(/_/g, ' ')}</span>
+                            <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all duration-500 ${
+                                val >= 80 ? 'bg-emerald-500' : val >= 60 ? 'bg-sky-500' : val >= 40 ? 'bg-amber-500' : 'bg-orange-500'
+                              }`} style={{ width: `${val}%` }} />
+                            </div>
+                            <span className="text-[10px] text-slate-400 w-6 text-right">{val}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Strengths + Opportunities */}
+                      <div className="px-4 py-3 border-t border-slate-700/50 grid sm:grid-cols-2 gap-3">
+                        {storyScore.strengths?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-1.5">Strengths</p>
+                            {storyScore.strengths.map((s, i) => (
+                              <p key={i} className="text-[11px] text-slate-300 leading-relaxed flex items-start gap-1 mb-1">
+                                <CheckCircle className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> {s}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        {storyScore.opportunities?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1.5">Opportunities</p>
+                            {storyScore.opportunities.map((o, i) => (
+                              <p key={i} className="text-[11px] text-slate-300 leading-relaxed flex items-start gap-1 mb-1">
+                                <Lightbulb className="w-3 h-3 text-amber-500 flex-shrink-0 mt-0.5" /> {o}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick Fix Chips */}
+                      {storyScore.quick_fixes?.length > 0 && (
+                        <div className="px-4 py-3 border-t border-slate-700/50" data-testid="quick-fix-chips">
+                          <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2">One-Click Improvements</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {storyScore.quick_fixes.map((fix, i) => (
+                              <button
+                                key={i}
+                                onClick={() => applyQuickFix(fix)}
+                                disabled={improvingIdea}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-purple-500/10 text-purple-300 border border-purple-500/25 hover:bg-purple-500/20 transition-all disabled:opacity-50"
+                                data-testid={`quick-fix-${i}`}
+                              >
+                                {improvingIdea ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                                {fix.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Re-analyze button */}
+                      <div className="px-4 py-2.5 border-t border-slate-700/50 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-600">Score updates after edits — re-analyze anytime</span>
+                        <Button type="button" variant="ghost" size="sm" onClick={analyzeStory} disabled={analyzingStory} className="text-xs text-cyan-400 hover:text-cyan-300 h-7" data-testid="re-analyze-btn">
+                          {analyzingStory ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RotateCcw className="w-3 h-3 mr-1" />}
+                          Re-analyze
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

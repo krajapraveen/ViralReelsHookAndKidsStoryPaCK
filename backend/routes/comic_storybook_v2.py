@@ -205,6 +205,108 @@ class ImproveIdeaRequest(BaseModel):
     readingLevel: Optional[str] = "intermediate"
 
 
+class AnalyzeStoryRequest(BaseModel):
+    storyIdea: str
+    genre: Optional[str] = None
+    ageGroup: Optional[str] = "6-10"
+    readingLevel: Optional[str] = "intermediate"
+
+
+@router.post("/analyze-story")
+async def analyze_story(request: AnalyzeStoryRequest, user: dict = Depends(get_current_user)):
+    """Analyze a story idea and return a quality score with actionable suggestions."""
+    idea = request.storyIdea.strip()
+    if len(idea) < 10:
+        return {"success": False, "message": "Write a bit more before analyzing"}
+
+    if not LLM_AVAILABLE or not EMERGENT_LLM_KEY:
+        return {"success": False, "message": "Analysis unavailable"}
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        genre_info = STORY_GENRES.get(request.genre, {})
+        genre_name = genre_info.get("name", "General")
+
+        prompt = f"""Analyze this children's story idea for a {genre_name} comic book.
+Target audience: {request.ageGroup} year olds. Reading level: {request.readingLevel}.
+
+Story idea: "{idea}"
+
+Score it on these 8 dimensions (each 0-100):
+1. clarity — Is the story idea clear and understandable?
+2. protagonist — Is the main character defined (who they are, what they want)?
+3. setting — Is the world/setting described or implied?
+4. conflict — Are stakes/challenges/problems present?
+5. emotional_appeal — Does it evoke curiosity, wonder, humor, or feeling?
+6. age_appropriateness — Is it right for {request.ageGroup} year olds?
+7. visual_richness — Would this translate well into comic panels?
+8. lesson_potential — Does it have room for a moral, lesson, or growth?
+
+Return ONLY this JSON:
+{{
+  "overall_score": <weighted average 0-100>,
+  "dimensions": {{
+    "clarity": <0-100>,
+    "protagonist": <0-100>,
+    "setting": <0-100>,
+    "conflict": <0-100>,
+    "emotional_appeal": <0-100>,
+    "age_appropriateness": <0-100>,
+    "visual_richness": <0-100>,
+    "lesson_potential": <0-100>
+  }},
+  "strengths": ["strength 1", "strength 2"],
+  "opportunities": ["specific improvement 1", "specific improvement 2", "specific improvement 3"],
+  "quick_fixes": [
+    {{"label": "Add stronger conflict", "instruction": "a 1-sentence instruction to add conflict"}},
+    {{"label": "Define the hero", "instruction": "a 1-sentence instruction to define protagonist"}},
+    {{"label": "Add a magical element", "instruction": "a 1-sentence instruction to add magic"}},
+    {{"label": "Add a lesson", "instruction": "a 1-sentence instruction to add a moral"}}
+  ]
+}}
+
+RULES:
+- Be encouraging, not harsh.
+- Suggestions must be SPECIFIC to this exact story idea, not generic.
+- Quick fixes should be directly applicable — user will click to apply them.
+- Short prompts should score lower on clarity/protagonist/setting, but don't give 0.
+- A 3-word prompt can still score 20-40 if it implies good structure."""
+
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"analyze-{uuid.uuid4().hex[:8]}",
+            system_message="You are a children's book story analyst. Score fairly. Return only valid JSON."
+        ).with_model("gemini", "gemini-3-flash-preview")
+
+        response = await chat.send_message(UserMessage(text=prompt))
+        text = response.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        elif text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        result = json.loads(text.strip())
+
+        # Validate and cap scores
+        score = max(0, min(100, int(result.get("overall_score", 50))))
+        dims = result.get("dimensions", {})
+        for k in dims:
+            dims[k] = max(0, min(100, int(dims[k])))
+
+        return {
+            "success": True,
+            "overall_score": score,
+            "dimensions": dims,
+            "strengths": result.get("strengths", [])[:3],
+            "opportunities": result.get("opportunities", [])[:5],
+            "quick_fixes": result.get("quick_fixes", [])[:5],
+        }
+    except Exception as e:
+        logger.error(f"Story analysis error: {e}")
+        return {"success": False, "message": "Analysis could not be completed"}
+
+
 @router.post("/improve-idea")
 async def improve_story_idea(request: ImproveIdeaRequest, user: dict = Depends(get_current_user)):
     """Use AI to expand and improve a short/weak story idea."""
