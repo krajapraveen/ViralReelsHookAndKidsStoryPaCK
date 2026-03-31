@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import AdminLayout from './components/AdminLayout';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { CreditProvider } from './contexts/CreditContext';
@@ -154,6 +154,19 @@ import CharacterDetail from './pages/CharacterDetail';
 import PublicCharacterPage from './pages/PublicCharacterPage';
 import './App.css';
 
+/** Protected route wrapper — preserves intended destination for return-path after auth. */
+function ProtectedRoute({ auth, children }) {
+  const loc = useLocation();
+  if (!auth) {
+    // Store the intended destination so AuthCallback can return the user there
+    if (loc.pathname && loc.pathname !== '/login' && loc.pathname !== '/signup') {
+      localStorage.setItem('auth_return_path', loc.pathname);
+    }
+    return <Navigate to="/login" state={{ from: loc }} replace />;
+  }
+  return children;
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -167,7 +180,17 @@ function App() {
   }, []);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen" style={{ background: 'linear-gradient(135deg, #0a0e1a 0%, #111827 40%, #0f172a 100%)' }}>
+        <div className="text-center">
+          <div className="relative w-10 h-10 mx-auto mb-4">
+            <div className="absolute inset-0 rounded-full border-2 border-slate-700/50" />
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-indigo-500 animate-spin" />
+          </div>
+          <p className="text-slate-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
