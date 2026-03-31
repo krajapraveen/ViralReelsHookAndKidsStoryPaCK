@@ -47,7 +47,33 @@ export default function SeriesTimeline() {
     }
   };
 
-  const handleContinueEpisode = async () => {
+  // ─── EPISODE ACTION HANDLERS ────────────────────────────────────
+  // Find the current episode (is_current=true)
+  const currentEpisode = data?.episodes?.find(ep => ep.is_current);
+
+  /**
+   * Resume an existing episode that already has a job/draft.
+   * Navigates to the pipeline with the job_id, loading the existing work.
+   */
+  const handleResumeEpisode = (ep) => {
+    if (!ep) return;
+    if (ep.slug) {
+      // Completed episode with a public page — watch it
+      navigate(`/v/${ep.slug}`);
+    } else if (ep.job_id) {
+      // Episode has an existing generation job — resume it in the pipeline
+      navigate(`/app/story-video-studio?job=${ep.job_id}`);
+    } else {
+      // No existing job — fall through to create mode
+      handleCreateNewEpisode();
+    }
+  };
+
+  /**
+   * Create a new episode with full series context.
+   * Called by "Create Episode N" and as fallback when no existing draft exists.
+   */
+  const handleCreateNewEpisode = async () => {
     try {
       const res = await api.post(`/api/universe/series/${seriesId}/continue`);
       if (res.data.success) {
@@ -55,12 +81,19 @@ export default function SeriesTimeline() {
           prompt: res.data.prompt,
           timestamp: Date.now(),
           source_tool: 'series-continue',
+          mode: 'create',
+          series_id: seriesId,
+          series_title: res.data.series_title,
+          episode_number: res.data.next_episode_number,
+          character_ids: res.data.character_ids || [],
           remixFrom: {
             tool: 'story-video-studio',
             prompt: res.data.prompt,
             title: `Episode ${res.data.next_episode_number}: ${res.data.series_title}`,
             settings: {},
             parentId: null,
+            series_id: seriesId,
+            episode_number: res.data.next_episode_number,
           },
         }));
         navigate('/app/story-video-studio');
@@ -71,12 +104,27 @@ export default function SeriesTimeline() {
     }
   };
 
+  /**
+   * Smart continue — checks if the current episode has an existing draft/job.
+   * If yes → resume that job. If no → create a new episode.
+   */
+  const handleSmartContinue = () => {
+    if (currentEpisode && currentEpisode.job_id) {
+      handleResumeEpisode(currentEpisode);
+    } else {
+      handleCreateNewEpisode();
+    }
+  };
+
   const watchEpisode = (ep) => {
     if (ep.locked) {
       toast.error('Complete the previous episode to unlock this one!');
       return;
     }
-    if (ep.slug) {
+    if (ep.is_current && ep.job_id) {
+      // Current episode with existing work — resume it
+      handleResumeEpisode(ep);
+    } else if (ep.slug) {
       navigate(`/v/${ep.slug}`);
     } else if (ep.job_id) {
       navigate(`/app/story-video-studio?job=${ep.job_id}`);
@@ -118,7 +166,7 @@ export default function SeriesTimeline() {
               <Command className="w-3 h-3 text-white" />
             </div>
           </Link>
-          <button onClick={handleContinueEpisode} className="px-4 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-violet-600 to-rose-600 hover:opacity-90 rounded-lg flex items-center gap-1.5" data-testid="header-continue-btn">
+          <button onClick={handleSmartContinue} className="px-4 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-violet-600 to-rose-600 hover:opacity-90 rounded-lg flex items-center gap-1.5" data-testid="header-continue-btn">
             <Play className="w-3 h-3" /> Continue Episode {next_episode_number}
           </button>
         </div>
@@ -160,7 +208,7 @@ export default function SeriesTimeline() {
 
           {/* BIG Continue CTA */}
           <button
-            onClick={handleContinueEpisode}
+            onClick={handleSmartContinue}
             className="group inline-flex items-center gap-3 h-13 px-8 rounded-2xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base shadow-[0_0_50px_-10px_rgba(139,92,246,0.5)] hover:shadow-[0_0_70px_-10px_rgba(139,92,246,0.7)] hover:scale-[1.03] active:scale-[0.98] transition-all"
             style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
             data-testid="big-continue-btn"
@@ -248,7 +296,7 @@ export default function SeriesTimeline() {
                         {!isLocked && (
                           <div className="flex-shrink-0">
                             {isCurrent ? (
-                              <button onClick={(e) => { e.stopPropagation(); handleContinueEpisode(); }} className="h-9 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90 shadow-lg shadow-violet-500/20" data-testid={`continue-ep-${idx}`}>
+                              <button onClick={(e) => { e.stopPropagation(); handleResumeEpisode(ep); }} className="h-9 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90 shadow-lg shadow-violet-500/20" data-testid={`continue-ep-${idx}`}>
                                 <Play className="w-3.5 h-3.5" /> Continue <ArrowRight className="w-3 h-3" />
                               </button>
                             ) : isCompleted ? (
@@ -274,7 +322,7 @@ export default function SeriesTimeline() {
                 <div className="flex-1 rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.03] p-5">
                   <p className="text-xs text-slate-500 mb-1">What happens next is up to you</p>
                   <h3 className="text-base font-bold text-white mb-3">Episode {next_episode_number}</h3>
-                  <button onClick={handleContinueEpisode} className="h-11 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center gap-2 hover:opacity-90 shadow-lg shadow-violet-500/20" data-testid="create-next-episode">
+                  <button onClick={handleCreateNewEpisode} className="h-11 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center gap-2 hover:opacity-90 shadow-lg shadow-violet-500/20" data-testid="create-next-episode">
                     <Play className="w-4 h-4" /> Create Episode {next_episode_number}
                   </button>
                 </div>

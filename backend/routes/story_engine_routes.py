@@ -464,6 +464,8 @@ class CreateEngineRequest(BaseModel):
     voice_preset: str = Field(default="narrator_warm")
     parent_video_id: Optional[str] = Field(default=None)
     quality_mode: str = Field(default="balanced")  # fast, balanced, high_quality
+    series_id: Optional[str] = Field(default=None)  # Story Series context
+    episode_number: Optional[int] = Field(default=None)  # Episode number within the series
 
 
 # ═══ QUALITY MODE STRATEGY ═══
@@ -572,14 +574,20 @@ async def create_engine_job(
 
     # Store voice preset, animation style, and quality mode on the job for pipeline and UI
     quality_config = QUALITY_MODES.get(request.quality_mode, QUALITY_MODES["balanced"])
+    update_fields = {
+        "animation_style": request.animation_style,
+        "voice_preset": request.voice_preset,
+        "quality_mode": request.quality_mode,
+        "quality_config": quality_config,
+    }
+    # Link to series if this is a series-driven creation
+    if request.series_id:
+        update_fields["series_id"] = request.series_id
+    if request.episode_number is not None:
+        update_fields["episode_number"] = request.episode_number
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
-        {"$set": {
-            "animation_style": request.animation_style,
-            "voice_preset": request.voice_preset,
-            "quality_mode": request.quality_mode,
-            "quality_config": quality_config,
-        }}
+        {"$set": update_fields}
     )
 
     # ═══ CHECKPOINT REUSE — Skip already-done stages for Continue/Remix ═══

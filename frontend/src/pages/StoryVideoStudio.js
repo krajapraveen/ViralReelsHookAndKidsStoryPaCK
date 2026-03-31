@@ -125,6 +125,9 @@ export default function StoryVideoStudio() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareLinks, setShareLinks] = useState({});
   
+  // Series context — when creating from a Story Series flow
+  const [seriesContext, setSeriesContext] = useState(null);
+  
   // Error recovery state — prevents blank page on any unhandled error
   const [componentError, setComponentError] = useState(null);
   
@@ -231,6 +234,16 @@ export default function StoryVideoStudio() {
     
     if (remixData?.prompt) {
       setStoryText(remixData.prompt);
+    }
+    // Capture series context from series-continue flow
+    if (remixData?.source_tool === 'series-continue' && remixData?.series_id) {
+      setSeriesContext({
+        series_id: remixData.series_id,
+        series_title: remixData.series_title,
+        episode_number: remixData.episode_number,
+        mode: remixData.mode || 'create',
+        character_ids: remixData.character_ids || [],
+      });
     }
     if (remixData?.remixFrom) {
       setRemixSource(remixData.remixFrom);
@@ -557,7 +570,12 @@ export default function StoryVideoStudio() {
         title: title || 'Untitled Story',
         language,
         age_group: ageGroup,
-        style_id: styleId
+        style_id: styleId,
+        // Attach series context if creating from a Story Series flow
+        ...(seriesContext ? {
+          series_id: seriesContext.series_id,
+          episode_number: seriesContext.episode_number,
+        } : {}),
       });
       
       console.log('Create project response:', res.data);
@@ -1288,6 +1306,19 @@ export default function StoryVideoStudio() {
                 </h2>
                 
                 <div className="space-y-4">
+                  {/* Series Context Banner */}
+                  {seriesContext && (
+                    <div className="mb-4 p-3 rounded-xl bg-violet-500/10 border border-violet-500/30" data-testid="series-context-banner">
+                      <div className="flex items-center gap-2 mb-1">
+                        <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        <span className="text-violet-300 text-sm font-semibold">{seriesContext.series_title}</span>
+                      </div>
+                      <p className="text-violet-400/70 text-xs ml-6">
+                        Creating Episode {seriesContext.episode_number} — Story context has been pre-loaded from your series
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">Title (Optional)</label>
                     <Input

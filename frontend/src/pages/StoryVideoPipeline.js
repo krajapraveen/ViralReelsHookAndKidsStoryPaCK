@@ -160,6 +160,8 @@ function StoryVideoPipelineInner() {
   const [formError, setFormError] = useState('');
   const [reuseInfo, setReuseInfo] = useState(null);
   const [qualityMode, setQualityMode] = useState('balanced');
+  // Series context — when generating from a Story Series flow
+  const [seriesContext, setSeriesContext] = useState(null);
 
   const onViewJob = useCallback((job) => {
     if (job?.job_id) {
@@ -265,6 +267,16 @@ function StoryVideoPipelineInner() {
           localStorage.removeItem('remix_data');
         } else {
           if (rd.prompt) setStoryText(rd.prompt);
+          // Capture series context if coming from Story Series flow
+          if (rd.source_tool === 'series-continue' && rd.series_id) {
+            setSeriesContext({
+              series_id: rd.series_id,
+              series_title: rd.series_title,
+              episode_number: rd.episode_number,
+              mode: rd.mode || 'create',
+              character_ids: rd.character_ids || [],
+            });
+          }
           if (rd.remixFrom) {
             setRemixData(rd.remixFrom);
             if (rd.remixFrom.title) setTitle(rd.remixFrom.title.startsWith('From:') ? rd.remixFrom.title : `From: ${rd.remixFrom.title}`);
@@ -539,6 +551,11 @@ function StoryVideoPipelineInner() {
         quality_mode: qualityMode,
       };
       if (remixData?.parent_video_id) payload.parent_video_id = remixData.parent_video_id;
+      // Attach series context so the backend can link the episode to the series
+      if (seriesContext?.series_id) {
+        payload.series_id = seriesContext.series_id;
+        payload.episode_number = seriesContext.episode_number;
+      }
 
       const res = await api.post('/api/story-engine/create', payload);
       if (res.data.success) {
@@ -836,6 +853,7 @@ function StoryVideoPipelineInner() {
           remixSourceTitle={remixSourceTitle} onDismissRemix={() => setShowRemixBanner(false)}
           userCredits={userCredits}
           showLoginGate={showLoginGate}
+          seriesContext={seriesContext}
         />}
 
         {phase === 'processing' && (
@@ -884,7 +902,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   qualityMode, setQualityMode,
   onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError,
   showRemixBanner, remixSourceTool, remixSourceTitle, onDismissRemix, userCredits,
-  showLoginGate }) {
+  showLoginGate, seriesContext }) {
 
   const styles = options?.animation_styles || [];
   const ages = options?.age_groups || [];
@@ -979,11 +997,31 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
       {showRemixBanner && <RemixBanner sourceTool={remixSourceTool} sourceTitle={remixSourceTitle} onDismiss={onDismissRemix} />}
 
+      {/* Series Context Banner */}
+      {seriesContext && (
+        <div className="vs-panel p-4 border-violet-500/30 bg-violet-500/5" data-testid="series-context-banner">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-violet-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-white text-sm font-semibold truncate">{seriesContext.series_title}</p>
+              <p className="text-violet-400/70 text-xs">Creating Episode {seriesContext.episode_number} — story context pre-loaded from your series</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div>
-            <h1 className="vs-h1 mb-2">Create a Story Video</h1>
-            <p className="text-[var(--vs-text-secondary)]" style={{ fontFamily: 'var(--vs-font-body)' }}>Enter your story and we'll create an animated video with AI-generated images and voiceover.</p>
+            <h1 className="vs-h1 mb-2">{seriesContext ? `Episode ${seriesContext.episode_number}` : 'Create a Story Video'}</h1>
+            <p className="text-[var(--vs-text-secondary)]" style={{ fontFamily: 'var(--vs-font-body)' }}>
+              {seriesContext
+                ? `Continue your "${seriesContext.series_title}" series. The story prompt has been pre-loaded — customize it or generate directly.`
+                : 'Enter your story and we\'ll create an animated video with AI-generated images and voiceover.'
+              }
+            </p>
           </div>
 
           <div className="space-y-4">
