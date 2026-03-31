@@ -4,6 +4,9 @@ Provides featured content, category rails, explore feed, and seeded demo content
 """
 import uuid
 from datetime import datetime, timezone, timedelta
+from fastapi import Header
+import jwt
+import os
 from fastapi import APIRouter, Depends, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -295,3 +298,160 @@ async def get_gallery_categories():
     categories = [{"id": r["_id"], "name": r["_id"], "count": r["count"]} for r in rows if r["_id"]]
     total = sum(c["count"] for c in categories)
     return {"categories": [{"id": "all", "name": "All", "count": total}] + categories}
+
+
+
+def _get_user_id_from_token(authorization: str = None):
+    """Extract user_id from JWT token, return None if invalid/missing."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        token = authorization.split(" ")[1]
+        secret = os.environ.get("JWT_SECRET", "your-secret-key")
+        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        return payload.get("user_id") or payload.get("sub")
+    except Exception:
+        return None
+
+
+@router.get("/feed")
+async def get_immersive_feed(
+    seed_item_id: str = Query(None),
+    limit: int = Query(20),
+):
+    """Return ordered items for TikTok-style immersive viewing.
+    Starts from seed_item_id if provided, else top-ranked items."""
+    all_items = await _get_merged_content(sort_field="ranking_score", limit=100)
+    if not all_items:
+        return {"items": [], "seed_index": 0}
+
+    seed_index = 0
+    if seed_item_id:
+        for i, item in enumerate(all_items):
+            if item.get("item_id") == seed_item_id:
+                seed_index = i
+                break
+
+    start = max(0, seed_index - 2)
+    end = min(len(all_items), start + limit)
+    feed = all_items[start:end]
+    relative_seed = seed_index - start
+
+    return {"items": feed, "seed_index": relative_seed, "total": len(all_items)}
+
+
+@router.get("/user-feed")
+async def get_user_feed(authorization: str = Header(None)):
+    """Return personalized sections for logged-in users:
+    your_creations, continue_watching, for_you."""
+    user_id = _get_user_id_from_token(authorization)
+    if not user_id:
+        return {"your_creations": [], "continue_watching": [], "for_you": []}
+
+    # Your Creations — user's completed pipeline jobs
+    your_jobs = await db.pipeline_jobs.find(
+        {"user_id": user_id, "status": "COMPLETED", "thumbnail_url": {"$exists": True, "$nin": [None, ""]}},
+        {"title": 1, "thumbnail_url": 1, "job_id": 1, "story_text": 1, "animation_style": 1,
+         "remix_count": 1, "views": 1, "completed_at": 1, "scene_images": 1, "_id": 0}
+    ).sort("completed_at", -1).to_list(length=12)
+
+    your_creations = []
+    for job in your_jobs:
+        thumb = job.get("thumbnail_url")
+        if not thumb:
+            si = job.get("scene_images", {})
+            if si:
+                first_key = sorted(si.keys())[0]
+                thumb = si[first_key].get("url", "")
+        your_creations.append({
+            "item_id": job.get("job_id", ""),
+            "type": "story_video",
+            "title": job.get("title", "My Story"),
+            "description": (job.get("story_text", "") or "")[:150],
+            "thumbnail_url": thumb or "",
+            "duration_seconds": 30,
+            "views_count": job.get("views", 0),
+            "likes_count": 0,
+            "remixes_count": job.get("remix_count", 0),
+            "is_seeded": False,
+            "category": job.get("animation_style", ""),
+            "tags": [],
+            "ranking_score": 0,
+            "story_text": job.get("story_text", ""),
+        })
+
+    # Continue Watching — recently viewed gallery items
+    recent_views = await db.gallery_views.find(
+        {"user_id": user_id},
+        {"item_id": 1, "_id": 0}
+    ).sort("viewed_at", -1).to_list(length=12)
+
+    continue_ids = [v["item_id"] for v in recent_views]
+    continue_watching = []
+    if continue_ids:
+        for cid in continue_ids:
+            doc = await db.gallery_content.find_one({"item_id": cid}, {"_id": 0})
+            if doc:
+                continue_watching.append(doc)
+            else:
+                job = await db.pipeline_jobs.find_one(
+                    {"job_id": cid, "status": "COMPLETED"},
+                    {"title": 1, "thumbnail_url": 1, "job_id": 1, "story_text": 1,
+                     "animation_style": 1, "remix_count": 1, "views": 1, "_id": 0}
+                )
+                if job:
+                    continue_watching.append({
+                        "item_id": job.get("job_id", ""),
+                        "title": job.get("title", "AI Story"),
+                        "thumbnail_url": job.get("thumbnail_url", ""),
+                        "duration_seconds": 30,
+                        "views_count": job.get("views", 0),
+                        "remixes_count": job.get("remix_count", 0),
+                        "is_seeded": False,
+                        "category": job.get("animation_style", ""),
+                    })
+
+    # For You — based on user's creation categories + top content
+    user_categories = [j.get("animation_style", "") for j in your_jobs if j.get("animation_style")]
+    for_you = []
+    if user_categories:
+        top_cat = max(set(user_categories), key=user_categories.count)
+        for_you = await db.gallery_content.find(
+            {"category": {"$regex": top_cat, "$options": "i"}, "status": "ready"},
+            {"_id": 0}
+        ).sort("ranking_score", -1).to_list(length=12)
+    if len(for_you) < 6:
+        fill = await db.gallery_content.find(
+            {"status": "ready"}, {"_id": 0}
+        ).sort("ranking_score", -1).to_list(length=12)
+        existing_ids = {i.get("item_id") for i in for_you}
+        for f in fill:
+            if f.get("item_id") not in existing_ids:
+                for_you.append(f)
+            if len(for_you) >= 12:
+                break
+
+    return {
+        "your_creations": your_creations,
+        "continue_watching": continue_watching,
+        "for_you": for_you,
+    }
+
+
+@router.post("/view")
+async def track_gallery_view(
+    data: dict,
+    authorization: str = Header(None),
+):
+    """Track that a user viewed a gallery item (for Continue Watching)."""
+    user_id = _get_user_id_from_token(authorization)
+    item_id = data.get("item_id")
+    if not user_id or not item_id:
+        return {"ok": True}
+
+    await db.gallery_views.update_one(
+        {"user_id": user_id, "item_id": item_id},
+        {"$set": {"user_id": user_id, "item_id": item_id, "viewed_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"ok": True}
