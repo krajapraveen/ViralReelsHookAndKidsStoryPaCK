@@ -487,6 +487,11 @@ export default function ProgressiveGeneration({
                   Retrying ({retryInfo.current_attempt}/{retryInfo.max_attempts})
                 </p>
               )}
+              {jobData?.quality_mode && jobData.quality_mode !== 'balanced' && (
+                <p className="text-xs text-slate-400 mt-0.5" data-testid="quality-mode-label">
+                  {jobData.quality_mode === 'fast' ? 'Fast mode' : 'High Quality mode'}
+                </p>
+              )}
             </div>
           </div>
           <div className="text-right">

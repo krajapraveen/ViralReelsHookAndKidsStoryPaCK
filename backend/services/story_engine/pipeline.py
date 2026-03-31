@@ -633,12 +633,16 @@ async def _stage_planning(job: dict) -> Dict:
     retry_count = get_stage_retry_count(job, "PLANNING")
 
     # Multi-level fallback: attempt level increases with retries
+    quality_config = job.get("quality_config") or {}
+    max_scenes = quality_config.get("max_scenes", 5)
+
     plan, model_used = await planning_llm.generate_episode_plan_with_fallback(
         story_text=job["story_text"],
         style_id=job.get("style_id", "cartoon_2d"),
         episode_number=job.get("episode_number", 1),
         previous_plan=previous_plan,
         attempt_level=retry_count,
+        max_scenes=max_scenes,
     )
 
     if not plan:

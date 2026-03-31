@@ -156,6 +156,7 @@ function StoryVideoPipelineInner() {
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
   const [formError, setFormError] = useState('');
   const [reuseInfo, setReuseInfo] = useState(null);
+  const [qualityMode, setQualityMode] = useState('balanced');
 
   const onViewJob = useCallback((job) => {
     if (job?.job_id) {
@@ -521,6 +522,7 @@ function StoryVideoPipelineInner() {
         animation_style: animStyle,
         age_group: ageGroup,
         voice_preset: voicePreset,
+        quality_mode: qualityMode,
       };
       if (remixData?.parent_video_id) payload.parent_video_id = remixData.parent_video_id;
 
@@ -811,6 +813,7 @@ function StoryVideoPipelineInner() {
           animStyle={animStyle} setAnimStyle={setAnimStyle}
           ageGroup={ageGroup} setAgeGroup={setAgeGroup}
           voicePreset={voicePreset} setVoicePreset={setVoicePreset}
+          qualityMode={qualityMode} setQualityMode={setQualityMode}
           onGenerate={handleGenerate} submitting={submitting}
           userJobs={userJobs} onViewJob={viewJob}
           rateLimitStatus={rateLimitStatus} formError={formError}
@@ -863,6 +866,7 @@ export default function StoryVideoPipeline() {
 // ─── INPUT PHASE ──────────────────────────────────────────────────────────────
 function InputPhase({ options, title, setTitle, storyText, setStoryText,
   animStyle, setAnimStyle, ageGroup, setAgeGroup, voicePreset, setVoicePreset,
+  qualityMode, setQualityMode,
   onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError,
   showRemixBanner, remixSourceTool, remixSourceTitle, onDismissRemix, userCredits,
   showLoginGate }) {
@@ -1049,6 +1053,35 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                     data-testid={`voice-${v.id}`}>{v.name}</button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* ─── QUALITY MODE ─── */}
+          <div data-testid="quality-mode-section">
+            <label className="text-sm font-medium text-slate-200 mb-2 block">Generation Quality</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'fast', label: 'Fast', desc: '~1-2 min', icon: '⚡' },
+                { id: 'balanced', label: 'Balanced', desc: '~2-4 min', icon: '⚖️' },
+                { id: 'high_quality', label: 'High Quality', desc: '~4-8 min', icon: '✨' },
+              ].map(mode => (
+                <button
+                  key={mode.id}
+                  onClick={() => setQualityMode(mode.id)}
+                  className={`p-3 rounded-xl border text-center transition-all ${
+                    qualityMode === mode.id
+                      ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
+                      : 'border-slate-700/50 bg-slate-800/30 hover:border-slate-600'
+                  }`}
+                  data-testid={`quality-mode-${mode.id}`}
+                >
+                  <span className="text-lg block mb-1">{mode.icon}</span>
+                  <span className={`text-xs font-semibold block ${qualityMode === mode.id ? 'text-purple-300' : 'text-slate-300'}`}>
+                    {mode.label}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">{mode.desc}</span>
+                </button>
+              ))}
             </div>
           </div>
 

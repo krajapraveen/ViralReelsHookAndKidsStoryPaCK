@@ -1,0 +1,200 @@
+{
+  "summary": "P1.2 Quality Mode Strategy and P1.3 Analytics & Observability — ALL VERIFIED. 21/21 backend tests passed. Frontend quality mode selector UI verified with all 3 buttons (Fast, Balanced, High Quality) present and clickable.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Story Video Studio",
+        "issues": ["Cookie consent banner overlays quality mode section - requires force=True click or dismissal first"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_quality_modes_analytics_iteration391.py",
+    "/app/test_reports/pytest/pytest_quality_modes_analytics_iteration391.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "story_engine_routes.py: QUALITY_MODES dict at lines 363-391 correctly defines fast, balanced, high_quality with label, description, max_scenes, image_quality, use_sora, eta_multiplier, estimated_time_range",
+    "story_engine_routes.py: GET /quality-modes endpoint at lines 721-728 returns all modes with default='balanced'",
+    "story_engine_routes.py: POST /create at lines 466-476 stores quality_mode and quality_config on job document",
+    "story_engine_routes.py: GET /status returns quality_mode and quality_config at lines 652-653",
+    "story_engine_routes.py: GET /admin/generation-analytics at lines 1323-1423 returns totals, retries, reuse, quality_modes, timing sections",
+    "story_engine_routes.py: Admin auth check via _get_admin dependency at lines 69-72",
+    "pipeline.py: _stage_planning uses quality_config.max_scenes at lines 636-645",
+    "pipeline.py: process_next_stage checks reuse_info and skips reused stages at lines 427-440",
+    "StoryVideoPipeline.js: qualityMode state at line 159, quality mode selector UI at lines 1060-1089",
+    "ProgressiveGeneration.js: quality-mode-label display at lines 489-494 for non-balanced modes"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_quality_modes_analytics_iteration391.py"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 tests passed)",
+    "frontend": "100% (all quality mode UI elements verified)"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026",
+    "known_job_id": "99f9cd11-a1d8-4909-9ed7-04a0320a2820"
+  },
+  "seed_data_creation": "None - used existing test users and known story_engine job",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "P1.2 Quality Mode Strategy and P1.3 Analytics & Observability fully verified in iteration 391. Key findings: 1) GET /api/story-engine/quality-modes returns 3 modes (fast, balanced, high_quality) with label, description, max_scenes, estimated_time_range; 2) Default mode is 'balanced'; 3) Scene limits: fast=3, balanced=5, high_quality=7; 4) POST /api/story-engine/create accepts quality_mode parameter and stores it on job; 5) GET /api/story-engine/status/{job_id} returns quality_mode and quality_config fields; 6) GET /api/story-engine/admin/generation-analytics returns totals (total_jobs, completed, failed, completion_rate, failure_rate), retries (total_retries, jobs_with_retries, retry_rate), reuse (total_reuse_jobs, fresh_jobs, style_remixes, voice_remixes, continues), quality_modes (fast, balanced, high_quality counts), timing (avg_fresh_completion_seconds, avg_reuse_completion_seconds, speedup_percent); 7) Analytics endpoint requires admin auth (returns 403 for normal user); 8) Frontend has quality mode selector with data-testid='quality-mode-fast', 'quality-mode-balanced', 'quality-mode-high_quality'; 9) ProgressiveGeneration shows quality-mode-label for non-balanced modes; 10) P1.1 analyze-reuse regression tests pass (style_remix, voice_remix modes work correctly).",
+  "features_verified": {
+    "quality_modes_endpoint_exists": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/quality-modes returns 200"
+    },
+    "quality_modes_returns_three_modes": {
+      "status": "PASS",
+      "details": "Returns fast, balanced, high_quality modes"
+    },
+    "quality_modes_have_required_properties": {
+      "status": "PASS",
+      "details": "Each mode has label, description, max_scenes, estimated_time_range"
+    },
+    "quality_modes_default_is_balanced": {
+      "status": "PASS",
+      "details": "default='balanced'"
+    },
+    "fast_mode_has_lower_max_scenes": {
+      "status": "PASS",
+      "details": "fast=3 < balanced=5 < high_quality=7"
+    },
+    "job_status_returns_quality_mode": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns quality_mode field"
+    },
+    "job_status_returns_quality_config": {
+      "status": "PASS",
+      "details": "GET /api/story-engine/status/{job_id} returns quality_config field"
+    },
+    "analytics_requires_admin_auth": {
+      "status": "PASS",
+      "details": "Returns 403 for non-admin user"
+    },
+    "analytics_returns_200_for_admin": {
+      "status": "PASS",
+      "details": "Returns 200 for admin user"
+    },
+    "analytics_returns_totals_section": {
+      "status": "PASS",
+      "details": "Has total_jobs, completed, failed, completion_rate, failure_rate"
+    },
+    "analytics_returns_retries_section": {
+      "status": "PASS",
+      "details": "Has total_retries, jobs_with_retries, retry_rate"
+    },
+    "analytics_returns_reuse_section": {
+      "status": "PASS",
+      "details": "Has total_reuse_jobs, fresh_jobs, style_remixes, voice_remixes, continues"
+    },
+    "analytics_returns_quality_modes_section": {
+      "status": "PASS",
+      "details": "Has fast, balanced, high_quality counts"
+    },
+    "analytics_returns_timing_section": {
+      "status": "PASS",
+      "details": "Has avg_fresh_completion_seconds, avg_reuse_completion_seconds"
+    },
+    "analytics_accepts_days_parameter": {
+      "status": "PASS",
+      "details": "Accepts days=7 (default) and days=30"
+    },
+    "frontend_quality_mode_fast_button": {
+      "status": "PASS",
+      "details": "data-testid='quality-mode-fast' present and clickable"
+    },
+    "frontend_quality_mode_balanced_button": {
+      "status": "PASS",
+      "details": "data-testid='quality-mode-balanced' present and clickable"
+    },
+    "frontend_quality_mode_high_quality_button": {
+      "status": "PASS",
+      "details": "data-testid='quality-mode-high_quality' present and clickable"
+    },
+    "frontend_progressive_generation_quality_label": {
+      "status": "PASS",
+      "details": "data-testid='quality-mode-label' present in ProgressiveGeneration.js at line 491"
+    },
+    "p11_regression_analyze_reuse": {
+      "status": "PASS",
+      "details": "analyze-reuse endpoint still works for style_remix and voice_remix modes"
+    },
+    "pipeline_reuse_skip_logic": {
+      "status": "PASS",
+      "details": "process_next_stage checks reuse_info and skips reused stages (lines 427-440)"
+    }
+  },
+  "api_response_examples": {
+    "quality_modes": {
+      "success": true,
+      "modes": {
+        "fast": {
+          "label": "Fast",
+          "description": "Quick generation with optimized settings",
+          "max_scenes": 3,
+          "estimated_time_range": "1–2 minutes"
+        },
+        "balanced": {
+          "label": "Balanced",
+          "description": "Good quality with reasonable speed",
+          "max_scenes": 5,
+          "estimated_time_range": "2–4 minutes"
+        },
+        "high_quality": {
+          "label": "High Quality",
+          "description": "Best visuals and narration, takes longer",
+          "max_scenes": 7,
+          "estimated_time_range": "4–8 minutes"
+        }
+      },
+      "default": "balanced"
+    },
+    "admin_analytics": {
+      "success": true,
+      "period_days": 7,
+      "totals": {
+        "total_jobs": 19,
+        "completed": 5,
+        "partial_ready": 0,
+        "failed": 4,
+        "completion_rate": 26.3,
+        "failure_rate": 21.1
+      },
+      "retries": {
+        "total_retries": 0,
+        "jobs_with_retries": 0,
+        "retry_rate": 0.0
+      },
+      "reuse": {
+        "total_reuse_jobs": 0,
+        "fresh_jobs": 19,
+        "style_remixes": 0,
+        "voice_remixes": 0,
+        "continues": 0
+      },
+      "quality_modes": {
+        "fast": 0,
+        "balanced": 19,
+        "high_quality": 0
+      },
+      "timing": {
+        "avg_fresh_completion_seconds": null,
+        "avg_reuse_completion_seconds": null,
+        "speedup_percent": null
+      }
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

@@ -59,7 +59,7 @@ Output ONLY valid JSON matching this exact schema:
 }}
 
 CRITICAL RULES:
-- 3-5 scenes, each 4-6 seconds (total 12-18 seconds of content)
+- {min_scenes}-{max_scenes} scenes, each 4-6 seconds (total 12-18 seconds of content)
 - Build tension: calm → curious → tense → PEAK → CUT
 - Story MUST be interrupted at 70-85% — NEVER show resolution
 - Last scene MUST end mid-action
@@ -103,7 +103,7 @@ Output ONLY valid JSON:
   "target_total_duration_seconds": 25.0
 }}
 
-Rules: 3-4 scenes max. Keep it simple. End mid-action."""
+Rules: {min_scenes}-{max_scenes} scenes max. Keep it simple. End mid-action."""
 
 CHARACTER_CONTINUITY_PROMPT = """Given this episode plan and any previous character data, produce a CHARACTER CONTINUITY PACKAGE as strict JSON.
 
@@ -162,6 +162,7 @@ async def generate_episode_plan_with_fallback(
     episode_number: int = 1,
     previous_plan: Optional[Dict] = None,
     attempt_level: int = 0,
+    max_scenes: int = 5,
 ) -> Tuple[Optional[Dict], str]:
     """
     Multi-level fallback chain for episode plan generation.
@@ -192,7 +193,7 @@ async def generate_episode_plan_with_fallback(
 
         try:
             if strategy["model_provider"] == "deterministic":
-                plan = _deterministic_scene_splitter(story_text, episode_number, style_id)
+                plan = _deterministic_scene_splitter(story_text, episode_number, style_id, max_scenes)
                 if plan:
                     logger.info(f"[PLANNING] Deterministic fallback produced {len(plan.get('scene_breakdown', []))} scenes")
                     return plan, "deterministic/text-splitter"
@@ -208,6 +209,7 @@ async def generate_episode_plan_with_fallback(
                 prompt_mode=strategy["prompt"],
                 temperature=strategy["temp"],
                 max_tokens=strategy["max_tokens"],
+                max_scenes=max_scenes,
             )
 
             if plan and _validate_plan(plan):
@@ -235,6 +237,7 @@ async def _call_llm_for_plan(
     prompt_mode: str,
     temperature: float,
     max_tokens: int,
+    max_scenes: int = 5,
 ) -> Optional[Dict]:
     """Call LLM with specified model and prompt configuration."""
     if not EMERGENT_KEY:
@@ -244,11 +247,12 @@ async def _call_llm_for_plan(
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     prompt_template = EPISODE_PLAN_PROMPT if prompt_mode == "full" else REDUCED_PLAN_PROMPT
+    min_scenes = max(2, max_scenes - 2)
 
     llm = LlmChat(
         api_key=EMERGENT_KEY,
         session_id=f"plan_{episode_number}_{model_provider}",
-        system_message=prompt_template.format(episode_number=episode_number),
+        system_message=prompt_template.format(episode_number=episode_number, min_scenes=min_scenes, max_scenes=max_scenes),
     )
     llm = llm.with_model(model_provider, model_name)
     llm = llm.with_params(temperature=temperature, max_tokens=max_tokens)
@@ -324,7 +328,7 @@ def _enforce_plan_constraints(plan: dict, story_text: str, episode_number: int) 
     return plan
 
 
-def _deterministic_scene_splitter(story_text: str, episode_number: int = 1, style_id: str = "cartoon_2d") -> Optional[Dict]:
+def _deterministic_scene_splitter(story_text: str, episode_number: int = 1, style_id: str = "cartoon_2d", max_scenes: int = 5) -> Optional[Dict]:
     """
     Emergency fallback: deterministic scene generation from text.
     No LLM needed. Splits story into chunks and creates structured scenes.
@@ -339,8 +343,9 @@ def _deterministic_scene_splitter(story_text: str, episode_number: int = 1, styl
     if not sentences:
         return None
 
-    # Group into 3-5 scene chunks
-    target_scenes = min(5, max(3, len(sentences) // 3))
+    # Group into scene chunks (respecting quality mode limit)
+    min_scenes = max(2, max_scenes - 2)
+    target_scenes = min(max_scenes, max(min_scenes, len(sentences) // 3))
     chunk_size = max(1, len(sentences) // target_scenes)
 
     scenes = []

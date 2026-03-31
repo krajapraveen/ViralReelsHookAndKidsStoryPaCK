@@ -356,6 +356,39 @@ class CreateEngineRequest(BaseModel):
     age_group: str = Field(default="kids_5_8")
     voice_preset: str = Field(default="narrator_warm")
     parent_video_id: Optional[str] = Field(default=None)
+    quality_mode: str = Field(default="balanced")  # fast, balanced, high_quality
+
+
+# ═══ QUALITY MODE STRATEGY ═══
+QUALITY_MODES = {
+    "fast": {
+        "label": "Fast",
+        "description": "Quick generation with optimized settings",
+        "max_scenes": 3,
+        "image_quality": "standard",
+        "use_sora": False,
+        "eta_multiplier": 0.6,
+        "estimated_time_range": "1–2 minutes",
+    },
+    "balanced": {
+        "label": "Balanced",
+        "description": "Good quality with reasonable speed",
+        "max_scenes": 5,
+        "image_quality": "standard",
+        "use_sora": True,
+        "eta_multiplier": 1.0,
+        "estimated_time_range": "2–4 minutes",
+    },
+    "high_quality": {
+        "label": "High Quality",
+        "description": "Best visuals and narration, takes longer",
+        "max_scenes": 7,
+        "image_quality": "hd",
+        "use_sora": True,
+        "eta_multiplier": 1.5,
+        "estimated_time_range": "4–8 minutes",
+    },
+}
 
 
 @router.post("/create")
@@ -430,12 +463,15 @@ async def create_engine_job(
             {"$set": {"is_guest": True, "guest_ip": guest_ip}}
         )
 
-    # Store voice preset and animation style on the job for UI display
+    # Store voice preset, animation style, and quality mode on the job for pipeline and UI
+    quality_config = QUALITY_MODES.get(request.quality_mode, QUALITY_MODES["balanced"])
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
         {"$set": {
             "animation_style": request.animation_style,
             "voice_preset": request.voice_preset,
+            "quality_mode": request.quality_mode,
+            "quality_config": quality_config,
         }}
     )
 
@@ -612,6 +648,9 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
                 "can_retry": state in [s.value for s in PER_STAGE_FAILURE_STATES],
                 "last_error_stage": job.get("last_error_stage"),
             },
+            # Quality mode
+            "quality_mode": job.get("quality_mode", "balanced"),
+            "quality_config": job.get("quality_config"),
             # Character-driven share data
             "characters": [
                 {"name": c.get("name"), "role": c.get("role"), "personality": c.get("personality_core", "")}
@@ -677,6 +716,17 @@ async def analyze_reuse_preview(
         "invalidated_stages": [{"id": s, "label": stage_labels.get(s, s)} for s in analysis["invalidated_stages"]],
         "estimated_time_saved_percent": len(analysis["reusable_stages"]) / 7 * 100 if analysis["reusable_stages"] else 0,
     }
+
+
+@router.get("/quality-modes")
+async def get_quality_modes():
+    """Return available quality modes with their descriptions and estimated times."""
+    return {
+        "success": True,
+        "modes": QUALITY_MODES,
+        "default": "balanced",
+    }
+
 
 
 
@@ -1267,4 +1317,107 @@ async def admin_pipeline_health(admin: dict = Depends(_get_admin)):
         "ready_jobs": ready,
         "failed_jobs": failed,
         "success_rate": round(ready / max(total_jobs, 1) * 100, 1),
+    }
+
+
+@router.get("/admin/generation-analytics")
+async def admin_generation_analytics(
+    days: int = Query(default=7, ge=1, le=90),
+    admin: dict = Depends(_get_admin),
+):
+    """
+    Admin: Generation analytics — completion rate, stall rate, retry rate,
+    recovery success rate, ETA accuracy, time to first status, and
+    fresh vs continue vs remix completion times.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff_str = cutoff.isoformat()
+
+    # created_at may be stored as either datetime or ISO string — match both
+    date_filter = {"$or": [
+        {"created_at": {"$gte": cutoff}},
+        {"created_at": {"$gte": cutoff_str}},
+    ]}
+
+    pipeline = [
+        {"$match": date_filter},
+        {"$group": {
+            "_id": None,
+            "total": {"$sum": 1},
+            "completed": {"$sum": {"$cond": [{"$eq": ["$state", "READY"]}, 1, 0]}},
+            "partial": {"$sum": {"$cond": [{"$eq": ["$state", "PARTIAL_READY"]}, 1, 0]}},
+            "failed": {"$sum": {"$cond": [{"$in": ["$state", ["FAILED", "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER"]]}, 1, 0]}},
+            "total_retries": {"$sum": {"$ifNull": ["$retry_count", 0]}},
+            "jobs_with_retries": {"$sum": {"$cond": [{"$gt": [{"$ifNull": ["$retry_count", 0]}, 0]}, 1, 0]}},
+            "reuse_jobs": {"$sum": {"$cond": [{"$ne": [{"$ifNull": ["$reuse_info.reuse_mode", "fresh"]}, "fresh"]}, 1, 0]}},
+            "fresh_jobs": {"$sum": {"$cond": [{"$eq": [{"$ifNull": ["$reuse_info.reuse_mode", "fresh"]}, "fresh"]}, 1, 0]}},
+            "style_remixes": {"$sum": {"$cond": [{"$eq": ["$reuse_info.reuse_mode", "style_remix"]}, 1, 0]}},
+            "voice_remixes": {"$sum": {"$cond": [{"$eq": ["$reuse_info.reuse_mode", "voice_remix"]}, 1, 0]}},
+            "continues": {"$sum": {"$cond": [{"$eq": ["$reuse_info.reuse_mode", "continue"]}, 1, 0]}},
+            "fast_mode": {"$sum": {"$cond": [{"$eq": ["$quality_mode", "fast"]}, 1, 0]}},
+            "balanced_mode": {"$sum": {"$cond": [{"$eq": [{"$ifNull": ["$quality_mode", "balanced"]}, "balanced"]}, 1, 0]}},
+            "high_quality_mode": {"$sum": {"$cond": [{"$eq": ["$quality_mode", "high_quality"]}, 1, 0]}},
+        }},
+    ]
+
+    results = await db.story_engine_jobs.aggregate(pipeline).to_list(1)
+    stats = results[0] if results else {}
+
+    total = stats.get("total", 0)
+    completed = stats.get("completed", 0)
+    failed = stats.get("failed", 0)
+
+    # Compute timing stats from stage_results
+    timing_pipeline = [
+        {"$match": {"$and": [date_filter, {"state": "READY"}]}},
+        {"$project": {
+            "_id": 0,
+            "reuse_mode": {"$ifNull": ["$reuse_info.reuse_mode", "fresh"]},
+            "quality_mode": {"$ifNull": ["$quality_mode", "balanced"]},
+            "timing": 1,
+        }},
+    ]
+    timing_docs = await db.story_engine_jobs.aggregate(timing_pipeline).to_list(500)
+
+    fresh_times = [d["timing"]["total_ms"] / 1000 for d in timing_docs if d.get("timing", {}).get("total_ms") and d.get("reuse_mode") == "fresh"]
+    reuse_times = [d["timing"]["total_ms"] / 1000 for d in timing_docs if d.get("timing", {}).get("total_ms") and d.get("reuse_mode") != "fresh"]
+
+    avg_fresh = round(sum(fresh_times) / len(fresh_times), 1) if fresh_times else None
+    avg_reuse = round(sum(reuse_times) / len(reuse_times), 1) if reuse_times else None
+
+    return {
+        "success": True,
+        "period_days": days,
+        "totals": {
+            "total_jobs": total,
+            "completed": completed,
+            "partial_ready": stats.get("partial", 0),
+            "failed": failed,
+            "completion_rate": round(completed / max(total, 1) * 100, 1),
+            "failure_rate": round(failed / max(total, 1) * 100, 1),
+        },
+        "retries": {
+            "total_retries": stats.get("total_retries", 0),
+            "jobs_with_retries": stats.get("jobs_with_retries", 0),
+            "retry_rate": round(stats.get("jobs_with_retries", 0) / max(total, 1) * 100, 1),
+        },
+        "reuse": {
+            "total_reuse_jobs": stats.get("reuse_jobs", 0),
+            "fresh_jobs": stats.get("fresh_jobs", 0),
+            "style_remixes": stats.get("style_remixes", 0),
+            "voice_remixes": stats.get("voice_remixes", 0),
+            "continues": stats.get("continues", 0),
+        },
+        "quality_modes": {
+            "fast": stats.get("fast_mode", 0),
+            "balanced": stats.get("balanced_mode", 0),
+            "high_quality": stats.get("high_quality_mode", 0),
+        },
+        "timing": {
+            "avg_fresh_completion_seconds": avg_fresh,
+            "avg_reuse_completion_seconds": avg_reuse,
+            "speedup_percent": round((1 - avg_reuse / avg_fresh) * 100, 1) if avg_fresh and avg_reuse and avg_fresh > 0 else None,
+            "sample_size_fresh": len(fresh_times),
+            "sample_size_reuse": len(reuse_times),
+        },
     }
