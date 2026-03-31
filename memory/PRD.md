@@ -82,6 +82,18 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
    - Bilingual toggle with secondary language selector
    - All fields passed to backend pipeline and used in story outline generation
 
+7. **Story Quality Score** (BUILT Mar 31 2026)
+   - AI-powered analysis of story ideas across 8 dimensions: clarity, protagonist, setting, conflict, emotional appeal, age appropriateness, visual richness, lesson potential
+   - Overall score 0-100 with 4 scoring bands (Strong 85+ / Good 70-84 / Usable 50-69 / Too vague <50)
+   - Strengths section with prompt-specific feedback
+   - Opportunities section with actionable suggestions
+   - One-Click Improvement chips that apply fixes via the Improve My Idea API
+   - Score auto-clears when user edits story (stale prevention)
+   - Re-analyze and Dismiss buttons
+   - Non-blocking, encouraging tone
+   - **Backend**: `/api/comic-storybook-v2/analyze-story` endpoint using Gemini
+   - **Files**: `comic_storybook_v2.py` (analyze-story endpoint), `ComicStorybookBuilder.js` (StoryQualityScore UI)
+
 **Files changed**: `ComicStorybookBuilder.js`, `comic_storybook_v2.py`
 
 ## Premium Login UX (VERIFIED)
@@ -104,6 +116,7 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 - [x] P0-B: Generation Stages Pipeline — iteration_401 (100%)
 - [x] P0-B: Quick Presets (10 presets) — iteration_401 (100%)
 - [x] P0-B: Language / Localization Controls — iteration_401 (100%)
+- [x] P1: Story Quality Score (8-dimension AI analysis + one-click fixes) — iteration_402 (100%, 8/8 backend)
 
 ## Upcoming (P1) — Not Started
 1. Anti-crop watermark improvements + dynamic per-user watermarks
