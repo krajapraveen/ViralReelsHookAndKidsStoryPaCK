@@ -11,118 +11,108 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 - Payments: Cashfree
 - AI: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini 3 via Emergent LLM Key
 
-## Reel Creation Engine (BUILT Mar 31 2026) — P0 COMPLETE
+## Gallery Discovery Engine (BUILT Mar 31 2026) — P0 COMPLETE
 
 ### Before vs After
+**BEFORE**: Empty "No videos found" page. Zero content. Zero engagement. Users leave immediately.
+**AFTER**: Netflix-style discovery engine with featured hero, 9 category rails, explore grid, search/filters/sort, preview modal, Remix on every card, seeded demo content. Gallery NEVER shows empty state.
 
-**BEFORE**: Simple "Generate Reel Script" page with 6 basic inputs (Topic, Niche, Tone, Duration, Language, Goal). Output was a single scrollable list of hooks, script, captions, hashtags. Generic results with no platform optimization. "Quick Variations" were weak text rewrites. "Generate Video" was a vague black-box button.
+### Backend — New APIs
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/gallery/featured` | Returns 3 featured hero items |
+| `GET /api/gallery/rails` | Returns 9 categorized horizontal rails |
+| `GET /api/gallery/explore?category=X&sort=Y&cursor=Z` | Paginated explore feed with filter/sort |
+| `GET /api/gallery/categories` | Category list with counts |
 
-**AFTER**: Full "Reel Engine" with 12 outcome-driven controls, structured 7-tab output, video generation configurator, 8 performance-focused variations, and AI recommendations.
+### Seeding System
+- `gallery_content` collection seeded on startup via `seed_gallery_if_empty()`
+- 23 demo items across 7 categories: Kids Stories, Cinematic AI, Emotional, Reels & Shorts, Business, Luxury, Educational
+- Each item: title, description, thumbnail, duration, views/likes/remixes, tags, category
+- Real `pipeline_jobs` merged with seeded content in all API responses
+- Gallery NEVER empty — seeded content fills gaps when real content is sparse
 
-### New Input Controls
-| Control | Options | Why It Matters |
-|---------|---------|----------------|
-| Platform | Instagram, YouTube Shorts, TikTok, Facebook | Platform-native optimization |
-| Hook Style | Curiosity, Shock, Emotional, Luxury, Educational, Story, FOMO, Problem-Solution | Controls psychological trigger |
-| Reel Format | Talking Head, Faceless, Voiceover, Cinematic, Slideshow, UGC Ad, Meme, Story | Matches creator's production style |
-| CTA Type | Follow, Save, Comment, Buy, DM, Share | Aligns output with desired action |
-| Objective | Followers, Engagement, Sales, Leads, Education, Retention | Outcome-driven generation |
-| Output Type | Script Only, Script+Caption, Script+Visual Prompts, Full Video Plan | Controls output depth |
-| Advanced: Niche, Tone, Duration, Language, Audience | Collapsible section | Reduces friction for quick starts |
+### Frontend Components
+| Component | Purpose |
+|-----------|---------|
+| `FeaturedHero` | Auto-cycling hero with gradient overlays, stats, Watch/Remix/Create CTAs |
+| `ContentRail` | Horizontal scroll rail with nav arrows, category icon |
+| `GalleryCard` | Thumbnail + stats overlay + duration badge + hover actions + Remix CTA |
+| `PreviewModal` | Full video/thumbnail preview with stats, Remix button |
+| `HeroSkeleton / CardSkeleton / RailSkeleton` | Instant skeleton loading |
 
-### Structured Output Tabs
-| Tab | Content | User Outcome |
-|-----|---------|-------------|
-| Script | Scene-by-scene with on-screen text, voiceover, visual direction, b-roll, retention notes | Complete filming guide |
-| Hook Variants | 5 hooks with different triggers + "Top Performer" highlight, copy buttons | A/B testing hooks |
-| Caption | Short + Long captions, platform-optimized | Ready-to-post copy |
-| Hashtags | 20 trending hashtags, clickable chips, "Copy All" | Discovery optimization |
-| Shot List | Numbered shots with type, duration, notes | Production checklist |
-| Visual Prompts | Scene-by-scene AI image/video generation prompts | Direct input for AI tools |
-| Voiceover | Full flowing voiceover script | Voice recording guide |
+### Category Rails (9 total)
+Trending Now, Most Remixed, Kids Stories, Reels & Shorts, Emotional Stories, Cinematic AI, Business & Promo, Luxury & Lifestyle, Educational
 
-### Video Generation Config
-Before generating video, user sees modal with:
-- Video Style (AI / Stock / Mixed / Avatar)
-- Voiceover ON/OFF toggle
-- Subtitles ON/OFF toggle
-- Aspect Ratio (9:16 / 16:9 / 1:1)
-- Quality Mode (Fast / High Quality)
-- Estimated Credits display
-Note: Video generation shows "coming soon" toast — actual video pipeline uses Story Video Studio.
+### Explore Section
+- Text search (client-side filtering)
+- Category filter tabs (All, Trending, Kids, Reels, Emotional, Cinematic, Business, Luxury, Educational)
+- Sort modes (Trending, Newest, Most Remixed)
+- 4-column desktop / 2-column mobile grid
+- Bottom CTA: "Pick a story you love. Make it yours."
 
-### Performance Variations (replaces old "Quick Variations")
-| Variation | What It Does |
-|-----------|-------------|
-| Stronger Hook | Rewrites with more scroll-stopping hook |
-| Higher Retention | Adds pattern interrupts, cliffhangers |
-| More Emotional | Injects storytelling, vulnerability |
-| More Viral | Optimizes for shareability, trending formats |
-| More Sales-focused | Sharpens CTA and value proposition |
-| Shorter & Punchier | Cuts filler, compresses script |
-| Better CTA | Rewrites CTA with urgency and natural feel |
-| Platform Optimized | Tailors to selected platform's best practices |
+### Remix Flow
+1. Click Remix on any card → check auth
+2. Not logged in → redirect to /signup with remix context
+3. Logged in → store remix_data in localStorage + navigate to /app/story-video-studio
+4. Story Video Studio picks up remix_data and prefills prompt
 
-### AI Recommendations Panel
-Shows after generation:
-- Best hook type for topic
-- Recommended duration
-- Suggested posting time
-- Emotional trigger
-- Retention strategy
-
-### Backend Changes
-- `GenerateReelRequest` schema: Added `platform`, `hookStyle`, `reelFormat`, `ctaType`, `outputType`, `audience`
-- `REEL_USER_PROMPT_TEMPLATE`: Completely rewritten for outcome-driven, platform-specific generation
-- `REEL_SYSTEM_PROMPT`: Upgraded to "content strategist" role
-- Output JSON: Now includes `shot_list[]`, `visual_prompts[]`, `voiceover_full`, `ai_recommendations{}`
-
-### Files Changed
-| File | Change |
-|------|--------|
-| `frontend/src/pages/ReelGenerator.js` | Complete rewrite — new controls, tabbed output, video config modal, performance variations, AI recommendations |
-| `backend/models/schemas.py` | Added 6 new fields to GenerateReelRequest |
-| `backend/shared.py` | Upgraded REEL_SYSTEM_PROMPT and REEL_USER_PROMPT_TEMPLATE |
-| `backend/routes/generation.py` | Updated prompt template call to pass new fields |
+## Reel Creation Engine (BUILT Mar 31 2026) — P0 COMPLETE
+- 12 outcome-driven input controls (Platform, Hook Style, Reel Format, CTA, Objective, Output Type + Advanced)
+- 7-tab structured output (Script, Hook Variants, Caption, Hashtags, Shot List, Visual Prompts, Voiceover)
+- Video generation config modal (style, voiceover, subtitles, aspect ratio, quality, estimated credits)
+- 8 performance variations (Stronger Hook, Higher Retention, More Emotional, More Viral, More Sales, Shorter, Better CTA, Platform Optimized)
+- AI Recommendations panel
 
 ## Premium Login UX (VERIFIED Mar 31 2026)
-- Full-screen branded overlay masks auth.emergentagent.com transition
-- 150ms delay for overlay paint before redirect
+- Branded overlay masks auth.emergentagent.com transition (150ms)
 - AuthCallback branded loading + error states
 - No Emergent text on app-controlled screens
-- Remaining: auth.emergentagent.com URL in browser bar (outside our control)
 
 ## Logout (BUILT Mar 31 2026)
-- Dashboard: User menu dropdown with Profile, Billing, Sign out
-- Profile page: Sign out button in header
-- Mobile: Same user menu on mobile viewport
-- Clears all auth tokens, forces full page reload to /login
-
-## Entitlement-Based Media Access (BUILT Mar 31 2026)
-- Free users: Preview only, "Upgrade to Download" CTA
-- Paid: Presigned URLs via `/api/media/download-token/`
+- Dashboard user menu + Profile page Sign out button
+- Clears all auth tokens, forces full page reload
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026# (free plan)
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026 (admin role)
 
+## Key Files
+| File | Purpose |
+|------|---------|
+| `backend/routes/gallery_routes.py` | Gallery APIs + seeding system |
+| `frontend/src/pages/Gallery.js` | Netflix-style gallery page |
+| `frontend/src/pages/ReelGenerator.js` | Reel Creation Engine |
+| `backend/models/schemas.py` | GenerateReelRequest with new fields |
+| `backend/shared.py` | Upgraded reel prompts |
+| `frontend/src/components/AuthLaunchOverlay.js` | Auth overlay |
+| `frontend/src/pages/AuthCallback.js` | Branded auth callback |
+| `frontend/src/pages/Dashboard.js` | User menu with logout |
+| `frontend/src/pages/Profile.js` | Logout button in header |
+
 ## Completed (This Session — Mar 31 2026)
 - [x] Premium Login UX — 14/14 tests passed
 - [x] Logout button — Dashboard + Profile, desktop + mobile
-- [x] Reel Creation Engine P0 — 11/11 backend + all frontend P0 features verified
+- [x] Reel Creation Engine P0 — 11/11 backend + all frontend verified
+- [x] Gallery Discovery Engine P0 — 18/18 backend + all frontend P0 verified (100% pass)
 
-## Upcoming (P1 — Reel Engine Differentiation)
-1. Reference-Based Generation (paste reel URL or text for inspired/improved/viral versions)
-2. Presets (Viral Hook, Luxury, Product Promo, Storytelling, Kids Story, UGC Ad, Educational, Faceless Business)
-3. Anti-crop watermark improvements + dynamic per-user watermarks
-4. Telemetry pipeline for abnormal access patterns
-5. Notification Center improvements (history, read/unread)
+## Upcoming (P1)
+### Gallery P1
+1. Immersive TikTok-style fullscreen viewer (swipe navigation, autoplay)
+2. Hover auto-preview on desktop cards
+3. Continue Watching / Your Creations sections for logged-in users
+4. Search improvements (server-side, tag-based)
+
+### Reel P1
+5. Reference-Based Generation (paste URL/text)
+6. Presets (Viral Hook, Luxury, Product Promo, etc.)
+
+### Platform P1
+7. Anti-crop watermark improvements + dynamic per-user watermarks
+8. Telemetry pipeline
+9. Notification Center improvements
 
 ## Future/Backlog (P2)
-- History + Compare Versions (save, compare side-by-side, restore)
-- Brand Kit / Creator Memory (save tone, audience, CTA prefs)
-- Output Scoring (Hook Strength, Retention Score, Conversion Potential)
-- Invisible forensic watermarking
-- Admin leak dashboard
-- Remix Variants, Story Chain leaderboard
-- Admin dashboard WebSocket upgrade
+- Gallery: Ranking algorithm, leaderboard, creator profiles, comments, infinite scroll
+- Reel: History + Compare, Brand Kit, Output Scoring
+- Platform: Forensic watermarking, admin leak dashboard, WebSocket admin dashboard
