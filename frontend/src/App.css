@@ -22,15 +22,29 @@
   background: linear-gradient(to bottom, var(--app-gradient-from), var(--app-gradient-via), var(--app-gradient-to));
 }
 
-/* Hide Emergent badge */
+/* Hide Emergent badge — comprehensive selectors for platform-injected branding */
 #emergent-badge,
 [id*="emergent"],
+[id*="Emergent"],
 a[href*="emergent.sh"],
-[class*="emergent"] {
+a[href*="emergent.com"],
+[class*="emergent"],
+[class*="Emergent"],
+div[data-emergent],
+[data-testid*="emergent"],
+iframe[src*="emergent"],
+/* Catch "Powered by" overlay elements injected by platform scripts */
+div[style*="z-index"][style*="position: fixed"] > a[href*="emergent"],
+div[style*="z-index: 99"] > a[href*="emergent"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  clip: rect(0, 0, 0, 0) !important;
 }
 
 /* Ensure all page containers scroll */

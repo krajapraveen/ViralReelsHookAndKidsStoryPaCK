@@ -157,7 +157,7 @@ export default function PrivacyPolicy() {
                   <p>We use the following third-party services:</p>
                   <ul className="list-disc list-inside space-y-1 ml-4">
                     <li><strong>Cashfree:</strong> Payment processing (PCI-DSS compliant)</li>
-                    <li><strong>Google OAuth:</strong> Optional social login (via Emergent Auth)</li>
+                    <li><strong>Google OAuth:</strong> Optional social login via secure OAuth 2.0</li>
                     <li><strong>SendGrid:</strong> Transactional emails</li>
                     <li><strong>AI Services:</strong> Content generation (Gemini, OpenAI)</li>
                   </ul>

@@ -71,6 +71,44 @@
         <title>Visionary Suite | Generate viral reels + kids story videos</title>
         <!-- Razorpay removed - using Cashfree for production payments -->
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+        <script>
+            // Remove any platform-injected branding elements as soon as they appear
+            (function() {
+                function removeBranding() {
+                    document.querySelectorAll(
+                        '[id*="emergent"], [class*="emergent"], [class*="Emergent"], a[href*="emergent.sh"], a[href*="emergent.com"], [data-emergent]'
+                    ).forEach(function(el) {
+                        el.style.display = 'none';
+                        el.style.visibility = 'hidden';
+                        el.style.opacity = '0';
+                        el.style.width = '0';
+                        el.style.height = '0';
+                        el.style.overflow = 'hidden';
+                        el.style.position = 'absolute';
+                    });
+                    // Also catch elements containing "Powered by Emergent" text
+                    document.querySelectorAll('div, span, p, a').forEach(function(el) {
+                        if (el.children.length <= 2 && el.textContent && /powered\s+by\s+emergent/i.test(el.textContent.trim())) {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                        }
+                    });
+                }
+                // Run immediately
+                removeBranding();
+                // Run on DOM ready
+                document.addEventListener('DOMContentLoaded', removeBranding);
+                // Observe for dynamically injected elements
+                var observer = new MutationObserver(function(mutations) {
+                    var shouldRun = false;
+                    for (var i = 0; i < mutations.length; i++) {
+                        if (mutations[i].addedNodes.length > 0) { shouldRun = true; break; }
+                    }
+                    if (shouldRun) removeBranding();
+                });
+                observer.observe(document.documentElement, { childList: true, subtree: true });
+            })();
+        </script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
         <!--
         These two scripts have been added for the Visual Edits, please do not edit or remove them
