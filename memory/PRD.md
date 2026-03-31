@@ -11,7 +11,7 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 - Payments: Cashfree
 - AI: OpenAI GPT-4o-mini, Sora 2, TTS + Gemini 3 via Emergent LLM Key
 
-## Gallery Discovery Engine (BUILT Mar 31 2026) — P0+P1 COMPLETE
+## Gallery Discovery Engine (COMPLETE)
 
 ### P0: Netflix-style discovery
 - Featured hero, 9 category rails, explore grid, search/filters/sort, preview modal
@@ -22,67 +22,97 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 - Desktop hover-previews on cards
 - User-personalized feeds: Continue Watching, Your Creations, For You
 
-## Reel Creation Engine (BUILT Mar 31 2026) — P0+P1 COMPLETE
+### P0-A: Story Preview Fallback (BUILT Mar 31 2026)
+- Items WITHOUT video show rich preview modal: thumbnail, title, description, stats, story excerpt
+- "Video preview not available" badge with amber styling
+- Dual CTA: "Remix This" + "Create Similar" — never a dead-end
+- Items WITH video still play normally with all controls
+- Mute/Volume button only shown for video items
+- **Root cause**: ImmersiveViewer previously showed only a static SafeImage for non-video items with no actionable UI
+- **Files**: `Gallery.js` lines 365-440
+
+## Reel Creation Engine (COMPLETE)
 
 ### P0: Outcome-Driven Engine
-- 12 outcome-driven input controls (Platform, Hook Style, Reel Format, CTA, Objective, Output Type + Advanced)
-- 7-tab structured output (Script, Hook Variants, Caption, Hashtags, Shot List, Visual Prompts, Voiceover)
-- 8 performance variations, AI Recommendations panel, Video generation config modal
+- 12 outcome-driven input controls + 7-tab structured output
+- 8 performance variations, AI Recommendations, Video generation config
 
 ### P1: Reference-Based Generation (BUILT Mar 31 2026)
-- Two input modes: "Fresh Create" (standard) and "From Reference" (inspired generation)
-- Reference inputs: Reel URL (with auto-extraction), Pasted script/caption/transcript, Optional notes
-- Backend extracts structural DNA from reference and generates original content
-- New "Reference DNA" output tab showing: hook pattern, pacing structure, emotional arc, CTA approach, format choices, what was preserved vs made original
-- Graceful fallback: URL extraction fails → falls back to pasted text → falls back to standard generation
-- **Files**: `generation.py` (lines 37-167), `schemas.py` (reference fields), `shared.py` (REEL_REFERENCE prompts)
+- Two modes: "Fresh Create" / "From Reference"
+- Reference inputs: Reel URL (auto-extraction), pasted text, optional notes
+- "Reference DNA" output tab with structural analysis
+- **Files**: `generation.py`, `schemas.py`, `shared.py`
 
 ### P1: Quick Presets (BUILT Mar 31 2026)
-- 8 one-click preset chips: Viral Hook, Luxury Reel, Product Promo, UGC Ad, Storytelling, Educational, Kids Story, Faceless Biz
-- Each preset intelligently prefills: platform, hookStyle, reelFormat, ctaType, goal, outputType, tone, duration, niche, audience
-- Presets remain editable after selection; manual changes clear the active preset indicator
-- Visually distinct colored chips with active ring states
-- **Files**: `ReelGenerator.js` (QUICK_PRESETS constant, handlePresetSelect)
+- 8 reel presets: Viral Hook, Luxury Reel, Product Promo, UGC Ad, Storytelling, Educational, Kids Story, Faceless Biz
+- **Files**: `ReelGenerator.js`
 
-## Premium Login UX (VERIFIED Mar 31 2026)
+## Comic Story Builder (UPGRADED Mar 31 2026)
+
+### P0-B: Full Builder Upgrade
+1. **Step 5 Improvements** (DONE)
+   - Deliverables summary: Comic PDF, Cover Image, Page Images ZIP
+   - Dynamic add-on items: Print-Ready PDF, Activity Pages, Dedication Page, Commercial License
+   - Book summary with language, audience, age group display
+   - Estimated generation time based on page count
+   - Generation stage indicators: Planning → Cover → Pages → Layout → Packaging → Ready
+
+2. **Auto-save / Restore Progress** (DONE)
+   - Persists to localStorage: genre, story, title, author, pages, add-ons, language, age group, reading level, bilingual
+   - Restores on page load (within 24 hours) with toast notification
+   - Clears on successful generation or wizard reset
+
+3. **Step 2 Improvements** (DONE)
+   - Story Builder Assist: 5 chip categories (Hero, Setting, Conflict, Style, Moral) × 5 options each
+   - "Improve My Idea" button → calls `/api/comic-storybook-v2/improve-idea` → AI expands weak prompts
+   - Also returns suggested title if none set
+
+4. **Generation Stages** (DONE)
+   - 6 visual stage indicators during generation with active/complete/pending states
+   - Replaces generic spinner with meaningful progress
+
+5. **Quick Presets** (DONE)
+   - 10 presets: Kids Adventure, Bedtime Story, Superhero Origin, Fantasy Quest, School Story, Animal Friendship, Mystery Puzzle, Funny Comic, Educational Comic, Bilingual Kids Book
+   - Each sets genre + language + age group + reading level
+
+6. **Language / Localization Controls** (DONE)
+   - Language selector: English, Hindi, Telugu, Spanish, French, Arabic, German, Portuguese, Japanese, Korean, Chinese, Italian
+   - Age Group: 3-6, 4-7, 6-10, 8-12, 12+
+   - Reading Level: Beginner, Intermediate, Advanced
+   - Bilingual toggle with secondary language selector
+   - All fields passed to backend pipeline and used in story outline generation
+
+**Files changed**: `ComicStorybookBuilder.js`, `comic_storybook_v2.py`
+
+## Premium Login UX (VERIFIED)
 - Branded overlay masks auth.emergentagent.com transition (150ms)
-- AuthCallback branded loading + error states
 
-## Logout (BUILT Mar 31 2026)
+## Logout (BUILT)
 - Dashboard user menu + Profile page Sign out button
-- Clears all auth tokens, forces full page reload
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026# (free plan)
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026 (admin role)
 
-## Key Files
-| File | Purpose |
-|------|---------|
-| `backend/routes/gallery_routes.py` | Gallery APIs + seeding system |
-| `frontend/src/pages/Gallery.js` | Netflix-style gallery page + Immersive Viewer |
-| `frontend/src/pages/ReelGenerator.js` | Reel Creation Engine + Presets + Reference Mode |
-| `backend/routes/generation.py` | Reel generation with reference analysis + URL extraction |
-| `backend/models/schemas.py` | GenerateReelRequest with reference fields |
-| `backend/shared.py` | Standard + Reference reel prompts |
-| `frontend/src/pages/Dashboard.js` | User menu with logout |
-| `frontend/src/pages/Profile.js` | Logout button in header |
-
 ## Completed (This Session — Mar 31 2026)
-- [x] Premium Login UX — 14/14 tests passed
-- [x] Logout button — Dashboard + Profile
-- [x] Reel Creation Engine P0 — 11/11 backend + all frontend verified
-- [x] Gallery Discovery Engine P0 — 18/18 tests passed
-- [x] Gallery P1: Immersive Viewer, Hover Previews, User Feeds — tested iteration_399
-- [x] Reel P1: Reference-Based Generation — tested iteration_400 (100% pass, 11/11 backend)
-- [x] Reel P1: Quick Presets (8 presets) — tested iteration_400 (100% pass)
+- [x] Reel P1: Reference-Based Generation — iteration_400 (100%)
+- [x] Reel P1: Quick Presets (8 presets) — iteration_400 (100%)
+- [x] P0-A: Gallery Story Preview Fallback — iteration_401 (100%)
+- [x] P0-B: Comic Builder Step 5 Deliverables Summary — iteration_401 (100%)
+- [x] P0-B: Auto-save / Restore Progress — iteration_401 (100%)
+- [x] P0-B: Step 2 AI Helper Chips + Improve My Idea — iteration_401 (100%)
+- [x] P0-B: Generation Stages Pipeline — iteration_401 (100%)
+- [x] P0-B: Quick Presets (10 presets) — iteration_401 (100%)
+- [x] P0-B: Language / Localization Controls — iteration_401 (100%)
 
-## Upcoming (P1)
+## Upcoming (P1) — Not Started
 1. Anti-crop watermark improvements + dynamic per-user watermarks
 2. Telemetry pipeline (abnormal preview tracking, multi-IP token reuse, scraping detection)
 3. Notification Center improvements (history, read/unread states)
 
 ## Future/Backlog (P2) — DO NOT START
 - Gallery: Leaderboards, Creator profiles, Advanced analytics
-- Reel: History + Compare Versions, Brand Kit / Creator Memory, Output Scoring
-- Platform: Invisible forensic watermarking, advanced token binding, admin leak dashboard
+- Reel: History + Compare Versions, Brand Kit, Output Scoring
+- Comic: Comic-to-video teaser, narrator voice, character consistency, KDP-ready pack
+- Platform: Invisible forensic watermarking, token binding, admin leak dashboard
+- Refactor: App.js route protection abstraction
