@@ -23,6 +23,8 @@ import RemixBanner from '../components/RemixBanner';
 import SharePromptModal from '../components/SharePromptModal';
 import { ForceShareGate, ShareRewardBar } from '../components/ForceShareGate';
 import { LiveViewerBadge } from '../components/AnimatedSocialProof';
+import EntitledDownloadButton from '../components/EntitledDownloadButton';
+import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const STAGE_ORDER = ['scenes', 'images', 'voices'];
@@ -1270,13 +1272,13 @@ function CancelButton({ jobId, onCancelled }) {
 // Renders based on postGen.uiState ONLY. No contradictory states possible.
 function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation, storyText, animStyle }) {
   const [copied, setCopied] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [customDirection, setCustomDirection] = useState('');
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [showForceShare, setShowForceShare] = useState(false);
   const [showAutoNext, setShowAutoNext] = useState(false);
   const navigate = useNavigate();
+  const { canDownload, upgradeRequired } = useMediaEntitlement();
   const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
   const displayTitle = jobTitle || job?.title || 'Your Video';
   const timing = job?.timing || {};
@@ -1336,7 +1338,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
   const handleCopyLink = () => {
-    const url = shareUrl || downloadUrl;
+    const url = shareUrl;
     if (url) {
       navigator.clipboard.writeText(url).then(() => {
         setCopied(true);
@@ -1346,21 +1348,8 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     }
   };
 
-  const handleDownload = async () => {
-    if (!downloadReady || !downloadUrl) return;
-    setDownloading(true);
-    try {
-      window.open(downloadUrl, '_blank');
-      toast.success('Download started!');
-    } catch {
-      toast.error('Download failed');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   const handleShare = (platform) => {
-    const url = encodeURIComponent(shareUrl || downloadUrl || '');
+    const url = encodeURIComponent(shareUrl || '');
     const text = encodeURIComponent(`Check out this AI-generated story video: "${displayTitle}" — Made with Visionary Suite`);
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
@@ -1432,7 +1421,6 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           title={displayTitle}
           slug={job?.slug || jobId}
           shareUrl={shareUrl}
-          downloadUrl={downloadUrl}
           characterName={characterName}
           cliffhanger={cliffhanger}
           characters={job?.characters}
@@ -1494,14 +1482,14 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center" data-testid="video-ready-no-preview">
               <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Your video is ready!</h3>
-              <p className="text-slate-400 text-sm mb-6">Click below to view or download your creation.</p>
+              <p className="text-slate-400 text-sm mb-6">{canDownload ? 'Click below to download your creation.' : 'Upgrade your plan to download this creation.'}</p>
               <div className="flex gap-3 justify-center">
-                <Button onClick={() => window.open(downloadUrl, '_blank')} className="bg-emerald-600 hover:bg-emerald-700" data-testid="view-video-btn">
-                  <Play className="w-4 h-4 mr-2" /> View Video
-                </Button>
-                <Button onClick={handleDownload} variant="outline" className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10" data-testid="download-video-inline-btn">
-                  <Download className="w-4 h-4 mr-2" /> Download
-                </Button>
+                <EntitledDownloadButton
+                  assetId={jobId}
+                  label="Download Video"
+                  upgradeLabel="Upgrade to Download"
+                  data-testid="download-video-inline-btn"
+                />
               </div>
             </div>
           ) : uiState === 'FAILED' ? (
@@ -1593,35 +1581,36 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               title={displayTitle}
               slug={job?.slug || jobId}
               shareUrl={shareUrl}
-              downloadUrl={downloadUrl}
               characterName={characterName}
               cliffhanger={cliffhanger}
             />
           )}
 
-          {/* Download — only when downloadReady is true */}
-          <Button
-            onClick={handleDownload}
-            disabled={!downloadReady || downloading || uiState === 'VALIDATING'}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          {/* Download — entitlement-gated, no raw URLs */}
+          <EntitledDownloadButton
+            assetId={jobId}
+            label="Download Video"
+            upgradeLabel="Upgrade to Download"
+            disabled={!downloadReady || uiState === 'VALIDATING'}
+            className="w-full"
             data-testid="download-btn"
-          >
-            {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-            {downloading ? 'Downloading...' : !downloadReady ? (uiState === 'VALIDATING' ? 'Verifying...' : 'Unavailable') : 'Download Video'}
-          </Button>
+          />
 
-          {/* Story Pack */}
+          {/* Story Pack — also gated */}
           {storyPackUrl && downloadReady && (
-            <a href={storyPackUrl} target="_blank" rel="noopener noreferrer" className="block">
-              <Button variant="outline" className="w-full border-teal-500/50 text-teal-400 hover:bg-teal-500/10" data-testid="download-pack-btn">
-                <Package className="w-4 h-4 mr-2" /> Download Story Pack
-              </Button>
-            </a>
+            <EntitledDownloadButton
+              assetId={jobId}
+              label="Download Story Pack"
+              upgradeLabel="Upgrade to Download"
+              className="w-full"
+              variant="outline"
+              data-testid="download-pack-btn"
+            />
           )}
 
           {/* Share — only when shareReady is true */}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopyLink} disabled={!shareReady && !downloadReady} className="flex-1 border-slate-700 text-slate-300 hover:text-white text-xs disabled:opacity-40" data-testid="share-copy-btn">
+            <Button variant="outline" size="sm" onClick={handleCopyLink} disabled={!shareReady} className="flex-1 border-slate-700 text-slate-300 hover:text-white text-xs disabled:opacity-40" data-testid="share-copy-btn">
               {copied ? <Check className="w-3.5 h-3.5 mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
               {copied ? 'Copied' : 'Copy Link'}
             </Button>

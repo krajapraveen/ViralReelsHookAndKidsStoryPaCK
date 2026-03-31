@@ -5,8 +5,9 @@ import { Switch } from '../components/ui/switch';
 import { Label } from '../components/ui/label';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
-import { Video, Volume2, Music, Image, Subtitles, Download, Loader2, Check, X } from 'lucide-react';
+import { Video, Volume2, Music, Image, Subtitles, Download, Loader2, Check, X, Lock } from 'lucide-react';
 import api from '../utils/api';
+import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
 
 const videoAPI = {
   getVoices: () => api.get('/api/video/voices'),
@@ -25,6 +26,7 @@ export default function VideoExportPanel({ storyId, storyTitle, onClose }) {
   const [voices, setVoices] = useState([]);
   const [musicOptions, setMusicOptions] = useState([]);
   const [pricing, setPricing] = useState(null);
+  const { canDownload } = useMediaEntitlement();
   
   // Video settings
   const [settings, setSettings] = useState({
@@ -108,6 +110,12 @@ export default function VideoExportPanel({ storyId, storyTitle, onClose }) {
   };
 
   const handleDownload = async () => {
+    if (!canDownload) {
+      toast.error('Downloads are available on paid plans', {
+        action: { label: 'Upgrade', onClick: () => window.location.href = '/app/billing' },
+      });
+      return;
+    }
     try {
       const response = await videoAPI.downloadVideo(exportId);
       const blob = new Blob([response.data], { type: 'video/mp4' });
@@ -303,8 +311,9 @@ export default function VideoExportPanel({ storyId, storyTitle, onClose }) {
             </div>
             <span className="font-semibold text-green-800">Video Ready!</span>
           </div>
-          <Button onClick={handleDownload} className="w-full bg-green-600 hover:bg-green-700">
-            <Download className="w-4 h-4 mr-2" /> Download Video
+          <Button onClick={handleDownload} className={`w-full ${canDownload ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
+            {canDownload ? <Download className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+            {canDownload ? 'Download Video' : 'Upgrade to Download'}
           </Button>
         </div>
       )}

@@ -7,6 +7,7 @@ import {
   watermarkOverlayStyles,
   generateWatermarkPattern 
 } from '../utils/contentProtection';
+import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -26,6 +27,7 @@ export const ProtectedImage = ({
   const containerRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [watermarkRemoved, setWatermarkRemoved] = useState(false);
+  const { canDownload: entitled } = useMediaEntitlement();
 
   useEffect(() => {
     if (containerRef.current) {
@@ -34,6 +36,12 @@ export const ProtectedImage = ({
   }, []);
 
   const handleSecureDownload = async () => {
+    if (!entitled) {
+      toast.error('Downloads are available on paid plans', {
+        action: { label: 'Upgrade', onClick: () => window.location.href = '/app/billing' },
+      });
+      return;
+    }
     if (!fileId) {
       toast.error('Download not available');
       return;
@@ -165,14 +173,16 @@ export const ProtectedImage = ({
           <button
             onClick={handleSecureDownload}
             disabled={downloading}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg disabled:opacity-50"
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 ${entitled ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'} text-white text-sm rounded-lg disabled:opacity-50`}
           >
             {downloading ? (
               <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-            ) : (
+            ) : entitled ? (
               <Download className="w-4 h-4" />
+            ) : (
+              <Lock className="w-4 h-4" />
             )}
-            {watermarkRemoved ? 'Download HD' : 'Download (Watermarked)'}
+            {entitled ? 'Download' : 'Upgrade to Download'}
           </button>
 
           {showWatermark && !watermarkRemoved && (

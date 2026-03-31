@@ -6,11 +6,13 @@ import BrowserVideoExport from '../components/BrowserVideoExport';
 import {
   ArrowLeft, Download, Play, Pause, Image, Mic, FileText,
   Film, Package, Eye, AlertCircle, ChevronRight, ChevronLeft,
-  Volume2, VolumeX, Loader2, CheckCircle, ExternalLink, ArrowRight, Zap
+  Volume2, VolumeX, Loader2, CheckCircle, ExternalLink, ArrowRight, Zap, Lock
 } from 'lucide-react';
 import { SafeImage } from '../components/SafeImage';
 import { trackLoop } from '../utils/growthTracker';
 import api from '../utils/api';
+import EntitledDownloadButton from '../components/EntitledDownloadButton';
+import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
 
 export default function StoryPreview() {
   const { jobId } = useParams();
@@ -513,38 +515,19 @@ export default function StoryPreview() {
               </button>
             </div>
 
-            {/* Downloads (secondary) */}
+            {/* Downloads (entitlement-gated) */}
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 space-y-3">
               <h4 className="text-slate-400 font-medium text-sm">Downloads</h4>
-              {preview.final_video_url && (
-                <a href={preview.final_video_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300">
-                  <Film className="w-4 h-4" /> Final Video (MP4)
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
-              )}
-              {preview.fallback_video_url && (
-                <a href={preview.fallback_video_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300">
-                  <Film className="w-4 h-4" /> Slideshow Video (MP4)
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
-              )}
-              {preview.story_pack_url && (
-                <a href={preview.story_pack_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300">
-                  <Package className="w-4 h-4" /> Story Pack (ZIP)
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
-              )}
-              {currentScene?.image_url && (
-                <a href={currentScene.image_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300">
-                  <Image className="w-4 h-4" /> Scene {activeScene + 1} Image
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
-              )}
-              {currentScene?.audio_url && (
-                <a href={currentScene.audio_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300">
-                  <Mic className="w-4 h-4" /> Scene {activeScene + 1} Audio
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
+              {(preview.final_video_url || preview.fallback_video_url || preview.story_pack_url) ? (
+                <EntitledDownloadButton
+                  assetId={jobId}
+                  label="Download Assets"
+                  upgradeLabel="Upgrade to Download"
+                  className="w-full"
+                  data-testid="preview-download-btn"
+                />
+              ) : (
+                <p className="text-slate-500 text-xs">No downloadable assets yet.</p>
               )}
             </div>
           </div>

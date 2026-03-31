@@ -11,7 +11,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * Triggers after video completes, capturing excitement/curiosity/ownership.
  */
 export function ForceShareGate({
-  jobId, title, slug, shareUrl, downloadUrl,
+  jobId, title, slug, shareUrl,
   onContinue, onDismiss,
   characterName, cliffhanger, characters,
 }) {
@@ -25,7 +25,7 @@ export function ForceShareGate({
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const shareUrl_ = shareUrl || downloadUrl || `${window.location.origin}/v/${slug || jobId}`;
+  const shareUrl_ = shareUrl || `${window.location.origin}/v/${slug || jobId}`;
   const charName = characterName || characters?.[0]?.name || '';
   const hookText = cliffhanger || '';
 
@@ -231,9 +231,9 @@ export function ForceShareGate({
  * ShareRewardBar — Inline share section for post-gen result page.
  * Character-driven: personalizes the share text.
  */
-export function ShareRewardBar({ jobId, title, slug, shareUrl, downloadUrl, characterName, cliffhanger }) {
+export function ShareRewardBar({ jobId, title, slug, shareUrl, characterName, cliffhanger }) {
   const [copiedLink, setCopiedLink] = useState(false);
-  const shareUrl_ = shareUrl || downloadUrl || `${window.location.origin}/v/${slug || jobId}`;
+  const shareUrl_ = shareUrl || `${window.location.origin}/v/${slug || jobId}`;
   const charName = characterName || '';
 
   const handleShare = async (platform) => {

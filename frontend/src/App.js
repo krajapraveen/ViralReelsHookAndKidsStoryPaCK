@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminLayout from './components/AdminLayout';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { CreditProvider } from './contexts/CreditContext';
+import { MediaEntitlementProvider } from './contexts/MediaEntitlementContext';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -172,6 +173,7 @@ function App() {
   return (
     <NotificationProvider>
     <CreditProvider>
+    <MediaEntitlementProvider>
     <TourProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -348,6 +350,7 @@ function App() {
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />
     </TourProvider>
+    </MediaEntitlementProvider>
     </CreditProvider>
     </NotificationProvider>
   );

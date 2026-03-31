@@ -3,9 +3,10 @@ import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import {
   Film, Download, Loader2, AlertCircle, CheckCircle,
-  Monitor, Smartphone, X
+  Monitor, Smartphone, X, Lock
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -96,6 +97,7 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
   const [renderTime, setRenderTime] = useState(0);
   const [exportMode, setExportMode] = useState(null);
   const [debugLog, setDebugLog] = useState([]);
+  const { canDownload } = useMediaEntitlement();
   const ffmpegRef = useRef(null);
   const abortRef = useRef(false);
 
@@ -492,6 +494,12 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
   }, [exportMode, exportWithFFmpeg, exportWithMediaRecorder]);
 
   const downloadVideo = () => {
+    if (!canDownload) {
+      toast.error('Downloads are available on paid plans', {
+        action: { label: 'Upgrade', onClick: () => window.location.href = '/app/billing' },
+      });
+      return;
+    }
     if (!videoUrl || !videoBlob) return;
     const ext = videoBlob.type.includes('webm') ? 'webm' : 'mp4';
     const a = document.createElement('a');
@@ -592,8 +600,9 @@ export default function BrowserVideoExport({ scenes, title, jobId, onClose }) {
           <div className="space-y-4">
             <video src={videoUrl} controls className="w-full rounded-lg bg-black aspect-video" data-testid="exported-video-player" />
             <div className="flex items-center gap-3">
-              <Button onClick={downloadVideo} className="bg-emerald-600 hover:bg-emerald-700 flex-1" data-testid="download-exported-video">
-                <Download className="w-4 h-4 mr-2" /> Download {formatLabel} ({doneSize}MB)
+              <Button onClick={downloadVideo} className={`${canDownload ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'} flex-1`} data-testid="download-exported-video">
+                {canDownload ? <Download className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+                {canDownload ? `Download ${formatLabel} (${doneSize}MB)` : 'Upgrade to Download'}
               </Button>
               <Button onClick={() => { setPhase('ready'); setVideoUrl(null); setVideoBlob(null); setDebugLog([]); }} variant="outline" className="border-slate-700 text-slate-300">
                 Re-export

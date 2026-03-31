@@ -707,6 +707,10 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
         except (ValueError, AttributeError):
             pass
 
+    # Compute media access for this user
+    media_access = _get_media_access_for_user(current_user)
+    can_dl = media_access.get("can_download", False)
+
     return {
         "success": True,
         "job": {
@@ -716,7 +720,7 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "progress": progress,
             "current_stage": legacy_stage,
             "current_step": get_label(JobState(state)),
-            "output_url": output_url,
+            "output_url": output_url if can_dl else None,
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,
             "error": job.get("error_message"),
@@ -772,7 +776,7 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             # Action control — single source of truth for UI buttons
             **_resolve_allowed_actions(job),
             # Media entitlement — controls download/preview UI
-            "media_access": _get_media_access_for_user(current_user),
+            "media_access": media_access,
         },
     }
 
@@ -845,8 +849,10 @@ async def get_quality_modes():
 async def validate_video_asset(job_id: str, current_user: dict = Depends(get_current_user)):
     """
     Validate Story Video assets. Returns frontend-compatible validation state.
-    Falls back to legacy pipeline_jobs if not found in story_engine_jobs.
+    Download URLs are scrubbed for free users — backend is source of truth.
     """
+    media_access = _get_media_access_for_user(current_user)
+
     job = await db.story_engine_jobs.find_one(
         {"job_id": job_id},
         {"_id": 0, "state": 1, "output_url": 1, "preview_url": 1, "thumbnail_url": 1,
@@ -914,18 +920,22 @@ async def validate_video_asset(job_id: str, current_user: dict = Depends(get_cur
         ui_state = "FAILED"
         stage_detail = job.get("error_message", "Unknown status")
 
+    # Scrub download URLs for free users — backend is source of truth
+    can_dl = media_access.get("can_download", False)
+
     return {
         "preview_ready": preview_ready,
-        "download_ready": download_ready,
+        "download_ready": download_ready and can_dl,
         "share_ready": share_ready,
         "poster_url": poster_url,
-        "download_url": output_url,
-        "share_url": output_url,
+        "download_url": output_url if can_dl else None,
+        "share_url": None,  # Share uses slug-based public URLs, not raw asset URLs
         "story_pack_url": None,
         "ui_state": ui_state,
         "stage_detail": stage_detail,
         "job_status": legacy_status,
         "title": job.get("title", ""),
+        "media_access": media_access,
     }
 
 
@@ -1047,6 +1057,8 @@ async def credit_check(user: dict = Depends(get_current_user)):
 async def list_user_jobs(current_user: dict = Depends(get_current_user)):
     """Get ALL jobs for the current user — merges story_engine_jobs and legacy pipeline_jobs."""
     user_id = current_user.get("id") or str(current_user.get("_id"))
+    media_access = _get_media_access_for_user(current_user)
+    can_dl = media_access.get("can_download", False)
     jobs = []
 
     # 1. Story Engine jobs (new engine)
@@ -1064,8 +1076,9 @@ async def list_user_jobs(current_user: dict = Depends(get_current_user)):
             "status": _map_state_to_legacy_status(state),
             "progress": _state_to_progress(state),
             "current_stage": _map_state_to_legacy_stage(state),
-            "output_url": _make_presigned_url(doc.get("output_url")),
+            "output_url": _make_presigned_url(doc.get("output_url")) if can_dl else None,
             "thumbnail_url": _make_presigned_url(doc.get("thumbnail_url")),
+            "thumbnail_small_url": _make_presigned_url(doc.get("thumbnail_url")),
             "animation_style": doc.get("animation_style", doc.get("style_id", "cartoon_2d")),
             "age_group": doc.get("age_group"),
             "voice_preset": doc.get("voice_preset"),
@@ -1099,7 +1112,7 @@ async def list_user_jobs(current_user: dict = Depends(get_current_user)):
             "status": doc.get("status", "FAILED"),
             "progress": doc.get("progress", 0),
             "current_stage": doc.get("current_stage"),
-            "output_url": _make_presigned_url(doc.get("output_url")),
+            "output_url": _make_presigned_url(doc.get("output_url")) if can_dl else None,
             "thumbnail_url": _make_presigned_url(doc.get("thumbnail_url")),
             "animation_style": doc.get("animation_style", "cartoon_2d"),
             "age_group": doc.get("age_group"),

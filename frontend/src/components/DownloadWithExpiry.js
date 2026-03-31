@@ -1,30 +1,82 @@
 import React, { useState } from 'react';
-import { Download, CheckCircle, Crown, Shield, Loader2, FileText, Image } from 'lucide-react';
+import { Download, CheckCircle, Crown, Shield, Loader2, FileText, Image, Lock } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
+import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
+import { useNavigate } from 'react-router-dom';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 /**
- * PermanentDownload — replaces DownloadWithExpiry.
- * Downloads are permanent CDN-backed assets. No expiry. No countdown.
+ * PermanentDownload — entitlement-gated download component.
+ * Paid users get secure download via token endpoint.
+ * Free users see "Upgrade to Download" CTA.
  */
 export default function PermanentDownload({
   downloadUrl,
+  assetId,
   filename,
   fileType = 'file',
-  isPremium = false,
   contentType = 'COMIC',
 }) {
   const [downloaded, setDownloaded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const { canDownload, loading: entLoading } = useMediaEntitlement();
+  const navigate = useNavigate();
 
   const handleDownload = async () => {
+    if (!canDownload) {
+      toast.error('Downloads are available on paid plans', {
+        action: { label: 'Upgrade', onClick: () => navigate('/app/billing') },
+      });
+      return;
+    }
+
+    // Use secure token endpoint if assetId is available
+    if (assetId) {
+      setIsDownloading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/api/media/download-token/${assetId}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+        if (res.status === 403) {
+          toast.error('Downloads are available on paid plans');
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to get download link');
+        const data = await res.json();
+        if (data.success && data.download_url) {
+          const dlRes = await fetch(data.download_url);
+          if (!dlRes.ok) throw new Error('Download failed');
+          const blob = await dlRes.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = filename || 'download';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+          setDownloaded(true);
+          toast.success('Download started!');
+        }
+      } catch {
+        toast.error('Download failed. Please try again.');
+      } finally {
+        setIsDownloading(false);
+      }
+      return;
+    }
+
+    // Fallback for legacy usage without assetId (still gated by canDownload)
     if (!downloadUrl) {
       toast.error('Download not available');
       return;
     }
     setIsDownloading(true);
     try {
-      // Fetch as blob for cross-origin downloads (R2 presigned URLs)
       const response = await fetch(downloadUrl);
       if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();
@@ -39,25 +91,11 @@ export default function PermanentDownload({
       setDownloaded(true);
       toast.success('Download started!');
     } catch {
-      // Fallback: open URL directly (still better than blank page)
-      try {
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = filename || 'download';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setDownloaded(true);
-        toast.success('Download started!');
-      } catch {
-        toast.error('Download failed. Please try again.');
-      }
+      toast.error('Download failed. Please try again.');
     } finally {
       setIsDownloading(false);
     }
   };
-
-  const icon = fileType?.includes('pdf') ? <FileText className="w-5 h-5 text-red-400" /> : <Image className="w-5 h-5 text-purple-400" />;
 
   return (
     <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-xl" data-testid="permanent-download">
@@ -85,19 +123,19 @@ export default function PermanentDownload({
       <div className="flex gap-2">
         <Button
           onClick={handleDownload}
-          disabled={isDownloading || !downloadUrl}
-          className={`flex-1 ${isPremium
-            ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
-            : 'bg-purple-600 hover:bg-purple-700'
+          disabled={isDownloading || entLoading}
+          className={`flex-1 ${canDownload
+            ? 'bg-emerald-600 hover:bg-emerald-700'
+            : 'bg-amber-600 hover:bg-amber-700'
           }`}
           data-testid="download-btn"
         >
           {isDownloading ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing...</>
-          ) : isPremium ? (
-            <><Crown className="w-4 h-4 mr-2" />{downloaded ? 'Download Again' : 'Download (No Watermark)'}</>
-          ) : (
+          ) : canDownload ? (
             <><Download className="w-4 h-4 mr-2" />{downloaded ? 'Download Again' : 'Download'}</>
+          ) : (
+            <><Lock className="w-4 h-4 mr-2" />Upgrade to Download</>
           )}
         </Button>
       </div>
@@ -105,5 +143,5 @@ export default function PermanentDownload({
   );
 }
 
-// Backwards compatibility: any code importing DownloadWithExpiry gets PermanentDownload
+// Backwards compatibility
 export { PermanentDownload as DownloadWithExpiry };

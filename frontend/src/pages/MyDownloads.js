@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { 
+import {
   ArrowLeft, Download, Trash2, CheckCircle,
   Image, FileText, Video, Music, Loader2, RefreshCw, FolderOpen,
-  Calendar, Search, Shield
+  Calendar, Search, Shield, Lock
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
 
 const TYPE_LABELS = {
   COMIC_AVATAR: 'Comic Avatar',
@@ -30,6 +31,7 @@ export default function MyDownloads() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const { canDownload } = useMediaEntitlement();
 
   const fetchDownloads = useCallback(async () => {
     try {
@@ -52,6 +54,12 @@ export default function MyDownloads() {
   };
 
   const handleDownload = async (item) => {
+    if (!canDownload) {
+      toast.error('Downloads are available on paid plans', {
+        action: { label: 'Upgrade', onClick: () => window.location.href = '/app/billing' },
+      });
+      return;
+    }
     try {
       const res = await api.get(`/api/downloads/${item.id}/url`);
       if (res.data.url) {
@@ -187,9 +195,9 @@ export default function MyDownloads() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={() => handleDownload(item)} className="bg-purple-600 hover:bg-purple-700" data-testid={`download-btn-${item.id}`}>
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
+                      <Button size="sm" onClick={() => handleDownload(item)} className={canDownload ? "bg-purple-600 hover:bg-purple-700" : "bg-amber-600 hover:bg-amber-700"} data-testid={`download-btn-${item.id}`}>
+                        {canDownload ? <Download className="w-4 h-4 mr-1" /> : <Lock className="w-4 h-4 mr-1" />}
+                        {canDownload ? 'Download' : 'Upgrade to Download'}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-red-400" data-testid={`delete-btn-${item.id}`}>
                         <Trash2 className="w-4 h-4" />

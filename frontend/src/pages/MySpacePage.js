@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Film, Image, BookOpen, Clock, CheckCircle, AlertCircle, Loader2, Download, Share2, RotateCcw, Play, Search, Filter, Grid3X3, List, Sparkles, RefreshCw } from 'lucide-react';
+import { Film, Image, BookOpen, Clock, CheckCircle, AlertCircle, Loader2, Download, Share2, RotateCcw, Play, Search, Filter, Grid3X3, List, Sparkles, RefreshCw, Lock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
+import { EntitledDownloadIcon } from '../components/EntitledDownloadButton';
 
 const api = {
   get: async (url) => {
@@ -94,11 +95,7 @@ function CreationCard({ item, onView }) {
             <Button size="sm" className="flex-1 h-7 text-[11px] bg-purple-600 hover:bg-purple-700" onClick={(e) => { e.stopPropagation(); onView(item); }}>
               <Play className="w-3 h-3 mr-1" /> Watch
             </Button>
-            {item.download_url && (
-              <Button size="sm" variant="outline" className="h-7 px-2 border-slate-600 text-slate-400" onClick={(e) => { e.stopPropagation(); window.open(item.download_url, '_blank'); }}>
-                <Download className="w-3 h-3" />
-              </Button>
-            )}
+            <EntitledDownloadIcon assetId={item.id} />
           </div>
         )}
         {item.status === 'FAILED' && (
