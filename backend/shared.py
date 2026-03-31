@@ -416,6 +416,95 @@ Rules:
 
 Return ONLY valid JSON, no markdown or explanation."""
 
+REEL_REFERENCE_SYSTEM_PROMPT = """You are an elite social media content strategist who reverse-engineers viral content structures. You analyze reference content to extract its structural DNA — hook patterns, pacing, emotional arcs, CTA placement, and format choices — then use that structural blueprint to generate completely ORIGINAL content on a new topic. You never copy or lazily rewrite. You extract the architecture and build something new on top of it. Output must be structured JSON only."""
+
+REEL_REFERENCE_USER_PROMPT_TEMPLATE = """You have been given REFERENCE CONTENT from an existing reel/video. Your job is to:
+1. Analyze its structural DNA (hook style, pacing, emotional arc, CTA pattern, format)
+2. Generate a COMPLETELY ORIGINAL content pack inspired by that structure — NOT a rewrite
+
+**REFERENCE CONTENT:**
+{reference_content}
+
+**CREATOR NOTES ON REFERENCE:**
+{reference_notes}
+
+**NEW CREATION BRIEF:**
+- Platform: {platform}
+- Topic: {topic}
+- Niche: {niche}
+- Hook Style: {hookStyle}
+- Reel Format: {reelFormat}
+- Tone: {tone}
+- Duration: {duration}
+- Content Objective: {goal}
+- CTA Type: {ctaType}
+- Target Audience: {audience}
+- Language: {language}
+- Output Scope: {outputType}
+- Unique Request ID: {uniqueId}
+
+**CRITICAL RULES:**
+- Extract the STRUCTURE, not the words. What made the reference work? Apply that architecture to the new topic.
+- The output must be meaningfully original — not a find-and-replace of the reference.
+- Hooks must stop the scroll in under 1.5 seconds.
+- Each hook variant should use a different psychological trigger.
+- Include a "reference_analysis" section explaining what structural elements were adapted.
+
+Output ONLY this JSON format:
+{{
+  "hooks": ["5 unique scroll-stopping hooks using different psychological triggers, under 12 words each"],
+  "best_hook": "The highest-performing hook from above",
+  "script": {{
+    "scenes": [
+      {{
+        "time": "0-3s",
+        "on_screen_text": "Bold text overlay for this segment",
+        "voiceover": "Spoken narration for this segment",
+        "visual_direction": "Camera angle, movement, and visual style direction",
+        "broll": ["specific visual/footage suggestions"],
+        "retention_note": "Why this segment keeps viewers watching"
+      }}
+    ],
+    "cta": "Natural, compelling call to action matching the CTA type"
+  }},
+  "voiceover_full": "Complete voiceover script as a single flowing text, optimized for {duration} at natural speaking pace",
+  "caption_short": "Short engaging caption optimized for {platform}",
+  "caption_long": "Detailed value-driven caption with hooks and line breaks",
+  "hashtags": ["20 relevant trending hashtags for {platform}"],
+  "shot_list": [
+    {{
+      "shot_number": 1,
+      "description": "What to film/show",
+      "type": "close-up / wide / medium / overhead / POV",
+      "duration": "Xs",
+      "notes": "Lighting, props, or movement notes"
+    }}
+  ],
+  "visual_prompts": [
+    "Detailed AI image/video generation prompt for scene 1",
+    "Detailed AI image/video generation prompt for scene 2"
+  ],
+  "posting_tips": ["5 specific tips for maximizing performance on {platform}"],
+  "ai_recommendations": {{
+    "best_hook_type": "Why this hook style works best for this topic",
+    "recommended_duration": "Optimal duration with reasoning",
+    "suggested_posting_time": "Best time to post on {platform}",
+    "emotional_trigger": "Primary emotion this content should evoke",
+    "retention_strategy": "Key strategy for maintaining watch time"
+  }},
+  "reference_analysis": {{
+    "hook_pattern": "What hook pattern was extracted from the reference and how it was adapted",
+    "pacing_structure": "How the reference's pacing/timing was adapted to the new content",
+    "emotional_arc": "The emotional journey pattern borrowed from the reference",
+    "cta_approach": "How the reference's CTA strategy was reimagined",
+    "format_choices": "Structural format decisions inspired by the reference",
+    "what_was_kept": "Summary of structural elements preserved from the reference",
+    "what_was_changed": "Summary of what was deliberately changed to make it original"
+  }}
+}}
+
+Return ONLY valid JSON, no markdown or explanation."""
+
 STORY_SYSTEM_PROMPT = """You are a creative children's story writer. Each story you create must be COMPLETELY UNIQUE and DIFFERENT from any previous stories. 
 
 CRITICAL RULES:
@@ -502,5 +591,6 @@ __all__ = [
     'VIDEO_STORAGE_DIR',
     # Prompts
     'REEL_SYSTEM_PROMPT', 'REEL_USER_PROMPT_TEMPLATE',
+    'REEL_REFERENCE_SYSTEM_PROMPT', 'REEL_REFERENCE_USER_PROMPT_TEMPLATE',
     'STORY_SYSTEM_PROMPT', 'STORY_USER_PROMPT_TEMPLATE',
 ]

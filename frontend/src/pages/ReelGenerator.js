@@ -10,6 +10,7 @@ import {
   Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle,
   ChevronDown, ChevronUp, Zap, Target, Eye, Video, Hash,
   Camera, Mic, FileText, Lightbulb, Settings, Play, Check,
+  Link2, FileCode, MessageSquare, Layers,
 } from 'lucide-react';
 
 import ShareButton from '../components/ShareButton';
@@ -45,6 +46,63 @@ const DURATIONS = [
   { value: '60s', label: '60 seconds' },
   { value: '90s', label: '90 seconds' },
 ];
+
+const QUICK_PRESETS = [
+  {
+    id: 'viral_hook', label: 'Viral Hook', icon: Zap, color: 'rose',
+    config: { platform: 'Instagram', hookStyle: 'Shock', reelFormat: 'Talking Head', ctaType: 'Share', goal: 'Engagement', outputType: 'full_plan', tone: 'Bold', duration: '15s', niche: 'Entertainment', audience: 'Gen Z (13-24)' },
+  },
+  {
+    id: 'luxury_reel', label: 'Luxury Reel', icon: Sparkles, color: 'amber',
+    config: { platform: 'Instagram', hookStyle: 'Luxury', reelFormat: 'Cinematic', ctaType: 'Follow', goal: 'Followers', outputType: 'full_plan', tone: 'Luxury', duration: '30s', niche: 'Luxury', audience: 'Luxury Consumers' },
+  },
+  {
+    id: 'product_promo', label: 'Product Promo', icon: Target, color: 'emerald',
+    config: { platform: 'Instagram', hookStyle: 'Problem-Solution', reelFormat: 'UGC Ad', ctaType: 'Buy', goal: 'Sales', outputType: 'full_plan', tone: 'Conversational', duration: '30s', niche: 'Finance', audience: 'Young Professionals' },
+  },
+  {
+    id: 'ugc_ad', label: 'UGC Ad', icon: Camera, color: 'sky',
+    config: { platform: 'TikTok', hookStyle: 'Story', reelFormat: 'UGC Ad', ctaType: 'Buy', goal: 'Sales', outputType: 'full_plan', tone: 'Conversational', duration: '30s', niche: 'General', audience: 'Millennials (25-40)' },
+  },
+  {
+    id: 'storytelling', label: 'Storytelling', icon: FileText, color: 'violet',
+    config: { platform: 'Instagram', hookStyle: 'Emotional', reelFormat: 'Story', ctaType: 'Save', goal: 'Retention', outputType: 'full_plan', tone: 'Emotional', duration: '60s', niche: 'Relationships', audience: 'General' },
+  },
+  {
+    id: 'educational', label: 'Educational', icon: Lightbulb, color: 'indigo',
+    config: { platform: 'YouTube Shorts', hookStyle: 'Educational', reelFormat: 'Talking Head', ctaType: 'Save', goal: 'Education', outputType: 'full_plan', tone: 'Authority', duration: '60s', niche: 'Education', audience: 'College Students' },
+  },
+  {
+    id: 'kids_story', label: 'Kids Story', icon: Play, color: 'pink',
+    config: { platform: 'YouTube Shorts', hookStyle: 'Story', reelFormat: 'Story', ctaType: 'Follow', goal: 'Retention', outputType: 'full_plan', tone: 'Funny', duration: '60s', niche: 'Education', audience: 'Parents' },
+  },
+  {
+    id: 'faceless_biz', label: 'Faceless Biz', icon: Eye, color: 'teal',
+    config: { platform: 'TikTok', hookStyle: 'Curiosity', reelFormat: 'Faceless', ctaType: 'DM', goal: 'Leads', outputType: 'full_plan', tone: 'Authority', duration: '30s', niche: 'Finance', audience: 'Entrepreneurs' },
+  },
+];
+
+const PRESET_COLORS = {
+  rose: 'bg-rose-500/10 text-rose-300 border-rose-500/25 hover:bg-rose-500/20',
+  amber: 'bg-amber-500/10 text-amber-300 border-amber-500/25 hover:bg-amber-500/20',
+  emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20',
+  sky: 'bg-sky-500/10 text-sky-300 border-sky-500/25 hover:bg-sky-500/20',
+  violet: 'bg-violet-500/10 text-violet-300 border-violet-500/25 hover:bg-violet-500/20',
+  indigo: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/25 hover:bg-indigo-500/20',
+  pink: 'bg-pink-500/10 text-pink-300 border-pink-500/25 hover:bg-pink-500/20',
+  teal: 'bg-teal-500/10 text-teal-300 border-teal-500/25 hover:bg-teal-500/20',
+};
+
+const PRESET_ACTIVE_COLORS = {
+  rose: 'bg-rose-500/25 text-rose-200 border-rose-500/50 ring-1 ring-rose-500/30',
+  amber: 'bg-amber-500/25 text-amber-200 border-amber-500/50 ring-1 ring-amber-500/30',
+  emerald: 'bg-emerald-500/25 text-emerald-200 border-emerald-500/50 ring-1 ring-emerald-500/30',
+  sky: 'bg-sky-500/25 text-sky-200 border-sky-500/50 ring-1 ring-sky-500/30',
+  violet: 'bg-violet-500/25 text-violet-200 border-violet-500/50 ring-1 ring-violet-500/30',
+  indigo: 'bg-indigo-500/25 text-indigo-200 border-indigo-500/50 ring-1 ring-indigo-500/30',
+  pink: 'bg-pink-500/25 text-pink-200 border-pink-500/50 ring-1 ring-pink-500/30',
+  teal: 'bg-teal-500/25 text-teal-200 border-teal-500/50 ring-1 ring-teal-500/30',
+};
 const PERFORMANCE_VARIATIONS = [
   { id: 'stronger_hook', label: 'Stronger Hook', icon: Target },
   { id: 'higher_retention', label: 'Higher Retention', icon: Eye },
@@ -64,6 +122,7 @@ const OUTPUT_TABS = [
   { id: 'shot_list', label: 'Shot List', icon: Camera },
   { id: 'visual_prompts', label: 'Visual Prompts', icon: Eye },
   { id: 'voiceover', label: 'Voiceover', icon: Mic },
+  { id: 'reference_analysis', label: 'Reference DNA', icon: Layers },
 ];
 
 // Blocked words for content filtering
@@ -292,6 +351,58 @@ function VoiceoverTab({ result }) {
   );
 }
 
+function ReferenceAnalysisTab({ result }) {
+  const analysis = result?.reference_analysis;
+  if (!analysis || !result?.is_reference_based) return <EmptyTab message="No reference analysis — this was a standard generation." />;
+  const items = [
+    { label: 'Hook Pattern', value: analysis.hook_pattern, icon: Target },
+    { label: 'Pacing Structure', value: analysis.pacing_structure, icon: Play },
+    { label: 'Emotional Arc', value: analysis.emotional_arc, icon: Sparkles },
+    { label: 'CTA Approach', value: analysis.cta_approach, icon: Zap },
+    { label: 'Format Choices', value: analysis.format_choices, icon: Settings },
+  ].filter(i => i.value);
+  return (
+    <div className="space-y-4" data-testid="output-tab-reference-analysis">
+      <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Layers className="w-4 h-4 text-amber-400" />
+          <span className="text-sm font-bold text-white">Structural DNA Extracted</span>
+          <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-medium">
+            {result.reference_source === 'url' ? 'From URL' : 'From Text'}
+          </span>
+        </div>
+        <div className="space-y-3">
+          {items.map((item, idx) => (
+            <div key={idx} className="flex items-start gap-2.5">
+              <item.icon className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{item.label}</span>
+                <p className="text-xs text-slate-300 leading-relaxed">{item.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {(analysis.what_was_kept || analysis.what_was_changed) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {analysis.what_was_kept && (
+            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Preserved from Reference</span>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">{analysis.what_was_kept}</p>
+            </div>
+          )}
+          {analysis.what_was_changed && (
+            <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-3">
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Made Original</span>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">{analysis.what_was_changed}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EmptyTab({ message }) {
   return (
     <div className="text-center py-8 text-slate-500">
@@ -409,6 +520,11 @@ export default function ReelGenerator() {
   const [lastGenerationId, setLastGenerationId] = useState(null);
   const [activeTab, setActiveTab] = useState('script');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [referenceMode, setReferenceMode] = useState(false);
+  const [referenceUrl, setReferenceUrl] = useState('');
+  const [referenceText, setReferenceText] = useState('');
+  const [referenceNotes, setReferenceNotes] = useState('');
+  const [activePreset, setActivePreset] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('reels');
@@ -463,10 +579,20 @@ export default function ReelGenerator() {
     setLoading(true);
     setActiveTab('script');
     try {
-      const response = await generationAPI.generateReel(formData);
+      const payload = { ...formData };
+      if (referenceMode) {
+        if (referenceUrl) payload.reference_url = referenceUrl;
+        if (referenceText) payload.reference_text = referenceText;
+        if (referenceNotes) payload.reference_notes = referenceNotes;
+      }
+      const response = await generationAPI.generateReel(payload);
       setResult(response.data.result);
       setCredits(response.data.remainingCredits || credits - 1);
       setLastGenerationId(response.data.generationId || null);
+      // Auto-switch to Reference DNA tab if reference mode
+      if (referenceMode && response.data.result?.is_reference_based) {
+        setActiveTab('reference_analysis');
+      }
       toast.success('Reel content pack generated!');
       analytics.trackGeneration('reel_generator', 10);
       setTimeout(() => setShowRatingModal(true), 2000);
@@ -533,7 +659,20 @@ export default function ReelGenerator() {
     toast.info(`Video generation with ${config.quality} quality coming soon!`);
   };
 
-  const set = (key) => (value) => setFormData(prev => ({ ...prev, [key]: value }));
+  const set = (key) => (value) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+    setActivePreset(null); // Clear preset indicator when user customizes
+  };
+
+  const handlePresetSelect = (preset) => {
+    if (activePreset === preset.id) {
+      setActivePreset(null);
+      return;
+    }
+    setActivePreset(preset.id);
+    setFormData(prev => ({ ...prev, ...preset.config }));
+    toast.success(`${preset.label} preset applied`);
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -544,6 +683,7 @@ export default function ReelGenerator() {
       case 'shot_list': return <ShotListTab result={result} />;
       case 'visual_prompts': return <VisualPromptsTab result={result} />;
       case 'voiceover': return <VoiceoverTab result={result} />;
+      case 'reference_analysis': return <ReferenceAnalysisTab result={result} />;
       default: return <ScriptTab result={result} />;
     }
   };
@@ -588,8 +728,113 @@ export default function ReelGenerator() {
           {/* ──────────── INPUT PANEL (2 cols) ──────────── */}
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 shadow-xl">
-              <h2 className="text-lg font-bold text-white mb-4">Create Reel</h2>
+              <h2 className="text-lg font-bold text-white mb-3">Create Reel</h2>
+
+              {/* Quick Presets */}
+              <div className="mb-3" data-testid="quick-presets">
+                <Label className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider mb-2 block">Quick Presets</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_PRESETS.map(preset => {
+                    const Icon = preset.icon;
+                    const isActive = activePreset === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handlePresetSelect(preset)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                          isActive ? PRESET_ACTIVE_COLORS[preset.color] : PRESET_COLORS[preset.color]
+                        }`}
+                        data-testid={`preset-${preset.id}`}
+                      >
+                        <Icon className="w-3 h-3" />
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {hasRemix && <RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} />}
+
+              {/* Reference Mode Toggle */}
+              <div className="flex items-center gap-2 mb-1" data-testid="reference-mode-section">
+                <button
+                  type="button"
+                  onClick={() => setReferenceMode(false)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    !referenceMode
+                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                      : 'text-slate-500 hover:text-slate-300 border border-transparent'
+                  }`}
+                  data-testid="mode-fresh"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Fresh Create
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReferenceMode(true)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    referenceMode
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'text-slate-500 hover:text-slate-300 border border-transparent'
+                  }`}
+                  data-testid="mode-reference"
+                >
+                  <Link2 className="w-3 h-3" />
+                  From Reference
+                </button>
+              </div>
+
+              {/* Reference Inputs (visible in reference mode) */}
+              {referenceMode && (
+                <div className="space-y-3 bg-amber-500/5 border border-amber-500/15 rounded-xl p-3.5 mb-1" data-testid="reference-inputs">
+                  <div>
+                    <Label className="text-amber-400/80 text-xs font-medium mb-1.5 block flex items-center gap-1.5">
+                      <Link2 className="w-3 h-3" />
+                      Reel URL (optional)
+                    </Label>
+                    <input
+                      type="url"
+                      value={referenceUrl}
+                      onChange={(e) => setReferenceUrl(e.target.value)}
+                      placeholder="https://instagram.com/reel/... or any video URL"
+                      className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 outline-none"
+                      data-testid="reference-url-input"
+                    />
+                    <p className="text-[10px] text-slate-600 mt-1">We'll extract structure from the page. If extraction fails, paste text below.</p>
+                  </div>
+                  <div>
+                    <Label className="text-amber-400/80 text-xs font-medium mb-1.5 block flex items-center gap-1.5">
+                      <FileCode className="w-3 h-3" />
+                      Paste Script / Caption / Transcript
+                    </Label>
+                    <Textarea
+                      value={referenceText}
+                      onChange={(e) => setReferenceText(e.target.value)}
+                      placeholder="Paste the reel's script, caption, or transcript here..."
+                      rows={3}
+                      className="bg-slate-900/60 border-slate-700/50 text-white placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-amber-500/20 resize-none text-sm"
+                      data-testid="reference-text-input"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-amber-400/80 text-xs font-medium mb-1.5 block flex items-center gap-1.5">
+                      <MessageSquare className="w-3 h-3" />
+                      Notes (optional)
+                    </Label>
+                    <input
+                      type="text"
+                      value={referenceNotes}
+                      onChange={(e) => setReferenceNotes(e.target.value)}
+                      placeholder="e.g., Keep the hook style but make it more luxury"
+                      className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 outline-none"
+                      data-testid="reference-notes-input"
+                    />
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-4" data-testid="reel-form">
                 {/* Topic */}
@@ -739,7 +984,11 @@ export default function ReelGenerator() {
 
                   {/* Tab Navigation */}
                   <div className="flex overflow-x-auto gap-1 mb-4 pb-1 -mx-1 px-1 scrollbar-hide" data-testid="output-tabs">
-                    {OUTPUT_TABS.map(tab => {
+                    {OUTPUT_TABS.filter(tab => {
+                      // Only show Reference DNA tab when result has reference data
+                      if (tab.id === 'reference_analysis') return result?.is_reference_based;
+                      return true;
+                    }).map(tab => {
                       const Icon = tab.icon;
                       const isActive = activeTab === tab.id;
                       return (

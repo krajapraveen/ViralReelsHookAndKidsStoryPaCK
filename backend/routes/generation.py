@@ -20,6 +20,7 @@ from shared import (
     db, logger, get_current_user, check_credits, deduct_credits, log_exception,
     LLM_AVAILABLE, EMERGENT_LLM_KEY, WORKER_URL,
     REEL_SYSTEM_PROMPT, REEL_USER_PROMPT_TEMPLATE,
+    REEL_REFERENCE_SYSTEM_PROMPT, REEL_REFERENCE_USER_PROMPT_TEMPLATE,
     STORY_SYSTEM_PROMPT, STORY_USER_PROMPT_TEMPLATE
 )
 from models.schemas import GenerateReelRequest, GenerateStoryRequest
@@ -44,32 +45,77 @@ async def generate_reel_content_inline(data: dict) -> dict:
     attempt = 0
     last_error = None
     
+    # Check if this is a reference-based generation
+    ref_url = data.get("reference_url")
+    ref_text = data.get("reference_text")
+    is_reference_mode = bool(ref_url or ref_text)
+    
+    # If reference URL provided, try to extract content
+    reference_content = ""
+    if ref_url:
+        extracted = await extract_url_content(ref_url)
+        if extracted:
+            reference_content = extracted
+        elif ref_text:
+            # URL failed but we have fallback text
+            reference_content = ref_text
+            logger.info("URL extraction failed, falling back to provided text")
+        else:
+            # URL failed and no text fallback — still proceed with topic only
+            is_reference_mode = False
+            logger.warning(f"URL extraction failed for {ref_url}, falling back to standard generation")
+    elif ref_text:
+        reference_content = ref_text
+    
     while attempt <= max_retries:
         try:
             if attempt > 0:
                 logger.info(f"Retrying reel generation, attempt {attempt + 1}")
                 await asyncio.sleep(min(3 * (2 ** attempt), 30))
             
-            prompt = REEL_USER_PROMPT_TEMPLATE.format(
-                language=data.get("language", "English"),
-                niche=data.get("niche", "General"),
-                tone=data.get("tone", "Bold"),
-                duration=data.get("duration", "30s"),
-                goal=data.get("goal", "Engagement"),
-                topic=data.get("topic", ""),
-                platform=data.get("platform", "Instagram"),
-                hookStyle=data.get("hookStyle", "Curiosity"),
-                reelFormat=data.get("reelFormat", "Talking Head"),
-                ctaType=data.get("ctaType", "Follow"),
-                audience=data.get("audience", "General"),
-                outputType=data.get("outputType", "full_plan"),
-                uniqueId=unique_id
-            )
+            if is_reference_mode and reference_content:
+                # Reference-based generation
+                prompt = REEL_REFERENCE_USER_PROMPT_TEMPLATE.format(
+                    reference_content=reference_content[:3000],
+                    reference_notes=data.get("reference_notes", "No specific notes provided"),
+                    language=data.get("language", "English"),
+                    niche=data.get("niche", "General"),
+                    tone=data.get("tone", "Bold"),
+                    duration=data.get("duration", "30s"),
+                    goal=data.get("goal", "Engagement"),
+                    topic=data.get("topic", ""),
+                    platform=data.get("platform", "Instagram"),
+                    hookStyle=data.get("hookStyle", "Curiosity"),
+                    reelFormat=data.get("reelFormat", "Talking Head"),
+                    ctaType=data.get("ctaType", "Follow"),
+                    audience=data.get("audience", "General"),
+                    outputType=data.get("outputType", "full_plan"),
+                    uniqueId=unique_id
+                )
+                system_prompt = REEL_REFERENCE_SYSTEM_PROMPT
+            else:
+                # Standard generation
+                prompt = REEL_USER_PROMPT_TEMPLATE.format(
+                    language=data.get("language", "English"),
+                    niche=data.get("niche", "General"),
+                    tone=data.get("tone", "Bold"),
+                    duration=data.get("duration", "30s"),
+                    goal=data.get("goal", "Engagement"),
+                    topic=data.get("topic", ""),
+                    platform=data.get("platform", "Instagram"),
+                    hookStyle=data.get("hookStyle", "Curiosity"),
+                    reelFormat=data.get("reelFormat", "Talking Head"),
+                    ctaType=data.get("ctaType", "Follow"),
+                    audience=data.get("audience", "General"),
+                    outputType=data.get("outputType", "full_plan"),
+                    uniqueId=unique_id
+                )
+                system_prompt = REEL_SYSTEM_PROMPT
             
             chat = LlmChat(
                 api_key=EMERGENT_LLM_KEY,
                 session_id=f"reel-{unique_id}-{attempt}",
-                system_message=REEL_SYSTEM_PROMPT
+                system_message=system_prompt
             ).with_model("gemini", "gemini-3-flash-preview")
             
             response = await chat.send_message(UserMessage(text=prompt))
@@ -85,6 +131,11 @@ async def generate_reel_content_inline(data: dict) -> dict:
             
             result = json.loads(response_text.strip())
             
+            # Mark if this was reference-based
+            if is_reference_mode:
+                result["is_reference_based"] = True
+                result["reference_source"] = "url" if ref_url and reference_content != ref_text else "text"
+            
             if attempt > 0:
                 logger.info(f"Reel generation succeeded after {attempt + 1} attempts")
             
@@ -98,6 +149,87 @@ async def generate_reel_content_inline(data: dict) -> dict:
     # All retries exhausted
     logger.error(f"Reel generation failed after {max_retries + 1} attempts: {last_error}")
     raise last_error
+
+
+async def extract_url_content(url: str) -> str:
+    """Extract text content from a URL for reference analysis.
+    Returns extracted text or empty string on failure."""
+    import re
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client_http:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; CreatorStudioBot/1.0)",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            }
+            response = await client_http.get(url, headers=headers)
+            
+            if response.status_code != 200:
+                logger.warning(f"URL fetch returned status {response.status_code} for {url}")
+                return ""
+            
+            content_type = response.headers.get("content-type", "")
+            
+            # Only process text/html content
+            if "text/html" not in content_type and "text/plain" not in content_type:
+                logger.warning(f"Non-text content type {content_type} for {url}")
+                return ""
+            
+            html_content = response.text
+            
+            # Strip HTML tags to get raw text
+            # Remove script/style blocks first
+            html_content = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+            html_content = re.sub(r'<style[^>]*>.*?</style>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+            html_content = re.sub(r'<nav[^>]*>.*?</nav>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+            html_content = re.sub(r'<footer[^>]*>.*?</footer>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+            html_content = re.sub(r'<header[^>]*>.*?</header>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+            
+            # Extract meta description and og:description
+            meta_desc = ""
+            meta_match = re.search(r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\']', html_content, re.IGNORECASE)
+            if meta_match:
+                meta_desc = meta_match.group(1)
+            og_match = re.search(r'<meta[^>]*property=["\']og:description["\'][^>]*content=["\']([^"\']*)["\']', html_content, re.IGNORECASE)
+            if og_match:
+                meta_desc = og_match.group(1) or meta_desc
+            
+            # Extract title
+            title = ""
+            title_match = re.search(r'<title[^>]*>([^<]*)</title>', html_content, re.IGNORECASE)
+            if title_match:
+                title = title_match.group(1).strip()
+            
+            # Strip remaining HTML tags
+            text = re.sub(r'<[^>]+>', ' ', html_content)
+            # Collapse whitespace
+            text = re.sub(r'\s+', ' ', text).strip()
+            
+            # Build reference content
+            parts = []
+            if title:
+                parts.append(f"Title: {title}")
+            if meta_desc:
+                parts.append(f"Description: {meta_desc}")
+            if text:
+                # Take first 2500 chars of body text
+                parts.append(f"Content: {text[:2500]}")
+            
+            extracted = "\n".join(parts)
+            
+            if len(extracted) < 20:
+                logger.warning(f"Extracted content too short from {url}")
+                return ""
+            
+            logger.info(f"Extracted {len(extracted)} chars from URL {url}")
+            return extracted
+            
+    except httpx.TimeoutException:
+        logger.warning(f"Timeout fetching URL {url}")
+        return ""
+    except Exception as e:
+        logger.warning(f"URL extraction error for {url}: {e}")
+        return ""
 
 
 async def generate_story_image(prompt: str, story_id: str, scene_index: int, user_plan: str = "free") -> str:

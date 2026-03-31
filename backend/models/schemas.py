@@ -59,6 +59,10 @@ class GenerateReelRequest(BaseModel):
     ctaType: str = Field(default="Follow", max_length=50)
     outputType: str = Field(default="full_plan", max_length=50)
     audience: str = Field(default="General", max_length=100)
+    # Reference-Based Generation fields
+    reference_url: Optional[str] = Field(default=None, max_length=2000, description="URL of a reel to use as structural reference")
+    reference_text: Optional[str] = Field(default=None, max_length=5000, description="Pasted script/caption/transcript as reference")
+    reference_notes: Optional[str] = Field(default=None, max_length=1000, description="Optional notes about what to adapt from reference")
 
 
 class GenerateStoryRequest(BaseModel):
