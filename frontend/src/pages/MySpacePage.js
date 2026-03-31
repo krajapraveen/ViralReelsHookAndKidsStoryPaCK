@@ -128,7 +128,7 @@ export default function MySpacePage() {
       // Fetch from multiple sources
       const [storyRes, reelRes] = await Promise.allSettled([
         api.get('/api/story-engine/user-jobs?limit=100'),
-        api.get('/api/reels/my-reels?limit=50'),
+        api.get('/api/convert/user-reels?limit=50'),
       ]);
 
       const allItems = [];
