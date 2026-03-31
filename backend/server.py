@@ -577,6 +577,10 @@ api_router.include_router(backfill_blur_router)
 from routes.retention_analytics import router as retention_router
 api_router.include_router(retention_router)
 
+from routes.gallery_routes import router as gallery_router, set_db as set_gallery_db, seed_gallery_if_empty
+set_gallery_db(db)
+api_router.include_router(gallery_router)
+
 api_router.include_router(media_access_router)
 
 
@@ -752,6 +756,12 @@ async def startup():
     """Application startup - create indexes, seed data, start background tasks"""
     logger.info("CreatorStudio API starting...")
     
+    # Seed gallery content if empty
+    try:
+        await seed_gallery_if_empty()
+    except Exception as e:
+        logger.warning(f"Gallery seed warning: {e}")
+
     # Create database indexes
     try:
         await db.users.create_index("email", unique=True)
