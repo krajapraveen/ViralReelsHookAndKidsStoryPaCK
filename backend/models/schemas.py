@@ -53,6 +53,12 @@ class GenerateReelRequest(BaseModel):
     tone: str = Field(default="Bold", max_length=50)
     duration: str = Field(default="30s", max_length=20)
     goal: str = Field(default="Followers", max_length=50)
+    platform: str = Field(default="Instagram", max_length=50)
+    hookStyle: str = Field(default="Curiosity", max_length=50)
+    reelFormat: str = Field(default="Talking Head", max_length=50)
+    ctaType: str = Field(default="Follow", max_length=50)
+    outputType: str = Field(default="full_plan", max_length=50)
+    audience: str = Field(default="General", max_length=100)
 
 
 class GenerateStoryRequest(BaseModel):

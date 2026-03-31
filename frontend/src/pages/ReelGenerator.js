@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { generationAPI, creditAPI } from '../utils/api';
 import { toast } from 'sonner';
-import { Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle, LogOut } from 'lucide-react';
+import {
+  Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle,
+  ChevronDown, ChevronUp, Zap, Target, Eye, Video, Hash,
+  Camera, Mic, FileText, Lightbulb, Settings, Play, Check,
+} from 'lucide-react';
 
 import ShareButton from '../components/ShareButton';
-import ShareCreation from '../components/ShareCreation';
 import CreationActionsBar from '../components/CreationActionsBar';
 import NextActionHooks from '../components/NextActionHooks';
 import RemixBanner from '../components/RemixBanner';
@@ -24,6 +26,376 @@ import RatingModal from '../components/RatingModal';
 import WaitingWithGames from '../components/WaitingWithGames';
 import analytics from '../utils/analytics';
 
+// ── Constants ──────────────────────────────────────────────
+const PLATFORMS = ['Instagram', 'YouTube Shorts', 'TikTok', 'Facebook'];
+const HOOK_STYLES = ['Curiosity', 'Shock', 'Emotional', 'Luxury', 'Educational', 'Story', 'FOMO', 'Problem-Solution'];
+const REEL_FORMATS = ['Talking Head', 'Faceless', 'Voiceover', 'Cinematic', 'Slideshow', 'UGC Ad', 'Meme', 'Story'];
+const CTA_TYPES = ['Follow', 'Save', 'Comment', 'Buy', 'DM', 'Share'];
+const CONTENT_OBJECTIVES = ['Followers', 'Engagement', 'Sales', 'Leads', 'Education', 'Retention'];
+const OUTPUT_TYPES = [
+  { value: 'script_only', label: 'Script Only' },
+  { value: 'script_caption', label: 'Script + Caption' },
+  { value: 'script_visuals', label: 'Script + Visual Prompts' },
+  { value: 'full_plan', label: 'Full Video Plan' },
+];
+const TONES = ['Bold', 'Calm', 'Funny', 'Emotional', 'Authority', 'Luxury', 'Conversational', 'Urgent'];
+const DURATIONS = [
+  { value: '15s', label: '15 seconds' },
+  { value: '30s', label: '30 seconds' },
+  { value: '60s', label: '60 seconds' },
+  { value: '90s', label: '90 seconds' },
+];
+const PERFORMANCE_VARIATIONS = [
+  { id: 'stronger_hook', label: 'Stronger Hook', icon: Target },
+  { id: 'higher_retention', label: 'Higher Retention', icon: Eye },
+  { id: 'more_emotional', label: 'More Emotional', icon: Sparkles },
+  { id: 'more_viral', label: 'More Viral', icon: Zap },
+  { id: 'more_sales', label: 'More Sales-focused', icon: Coins },
+  { id: 'shorter_punchier', label: 'Shorter & Punchier', icon: Target },
+  { id: 'better_cta', label: 'Better CTA', icon: Play },
+  { id: 'platform_optimized', label: 'Platform Optimized', icon: Settings },
+];
+
+const OUTPUT_TABS = [
+  { id: 'script', label: 'Script', icon: FileText },
+  { id: 'hooks', label: 'Hook Variants', icon: Target },
+  { id: 'caption', label: 'Caption', icon: FileText },
+  { id: 'hashtags', label: 'Hashtags', icon: Hash },
+  { id: 'shot_list', label: 'Shot List', icon: Camera },
+  { id: 'visual_prompts', label: 'Visual Prompts', icon: Eye },
+  { id: 'voiceover', label: 'Voiceover', icon: Mic },
+];
+
+// Blocked words for content filtering
+const blockedWords = [
+  'sex', 'porn', 'xxx', 'nude', 'naked', 'erotic', 'adult', 'nsfw', 'explicit',
+  'orgasm', 'masturbat', 'penis', 'vagina', 'boob', 'breast', 'nipple', 'genital',
+  'prostitut', 'escort', 'stripper', 'onlyfans', 'fetish', 'bdsm', 'kinky',
+  'kill', 'murder', 'blood', 'gore', 'violent', 'torture', 'abuse', 'assault',
+  'rape', 'molest', 'stab', 'shoot', 'bomb', 'terrorist', 'massacre', 'genocide',
+  'decapitat', 'dismember', 'mutilat', 'brutal',
+  'racist', 'racism', 'nazi', 'hitler', 'hate', 'discriminat', 'slur', 'bigot',
+  'homophob', 'transphob', 'sexist', 'supremac', 'extremist',
+  'cocaine', 'heroin', 'meth', 'crack', 'ecstasy', 'lsd', 'overdose', 'drug deal',
+  'suicide', 'self-harm', 'cutting', 'anorex', 'bulimi',
+  'pedophil', 'incest', 'bestiality', 'necrophil', 'cannibal',
+  'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'cock', 'whore'
+];
+
+function validateContent(text) {
+  if (!text || text.trim() === '') return { valid: false, message: 'Please enter a topic' };
+  const lower = text.toLowerCase();
+  for (const w of blockedWords) {
+    if (lower.includes(w)) return { valid: false, message: 'Your topic contains inappropriate content. Please use family-friendly language.' };
+  }
+  return { valid: true };
+}
+
+// ── Inline Select for compact controls ──────────────────
+function CompactSelect({ label, value, onChange, options, testId }) {
+  return (
+    <div>
+      <Label className="text-slate-400 text-xs font-medium mb-1.5 block">{label}</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="bg-slate-900/60 border-slate-700/50 text-white text-sm h-9 focus:ring-indigo-500/20" data-testid={testId}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="bg-slate-800 border-slate-700 max-h-[280px]">
+          {options.map(opt => {
+            const val = typeof opt === 'string' ? opt : opt.value;
+            const lab = typeof opt === 'string' ? opt : opt.label;
+            return <SelectItem key={val} value={val} className="text-white focus:bg-indigo-600 text-sm">{lab}</SelectItem>;
+          })}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+// ── Output Tab Content Components ───────────────────────
+function ScriptTab({ result }) {
+  if (!result?.script?.scenes) return <EmptyTab message="No script data available" />;
+  return (
+    <div className="space-y-3" data-testid="output-tab-script">
+      {result.script.scenes.map((scene, idx) => (
+        <div key={idx} className="border border-slate-700/50 bg-slate-900/40 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Scene {idx + 1}</span>
+            <span className="text-xs text-slate-500 font-mono">{scene.time}</span>
+          </div>
+          {scene.on_screen_text && (
+            <div className="mb-2">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">On-Screen Text</span>
+              <p className="text-sm text-white font-medium mt-0.5">{scene.on_screen_text}</p>
+            </div>
+          )}
+          {scene.voiceover && (
+            <div className="mb-2">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Voiceover</span>
+              <p className="text-sm text-slate-300 mt-0.5">{scene.voiceover}</p>
+            </div>
+          )}
+          {scene.visual_direction && (
+            <div className="mb-2">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Visual Direction</span>
+              <p className="text-sm text-slate-400 mt-0.5 italic">{scene.visual_direction}</p>
+            </div>
+          )}
+          {scene.broll?.length > 0 && (
+            <div>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">B-Roll</span>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {scene.broll.map((b, i) => (
+                  <span key={i} className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700/50">{b}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {scene.retention_note && (
+            <div className="mt-2 pt-2 border-t border-slate-800">
+              <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wide">Retention</span>
+              <p className="text-xs text-emerald-400/80 mt-0.5">{scene.retention_note}</p>
+            </div>
+          )}
+        </div>
+      ))}
+      {result.script?.cta && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Call to Action</span>
+          <p className="text-sm text-emerald-200 mt-1 font-medium">{result.script.cta}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HooksTab({ result }) {
+  if (!result?.hooks?.length) return <EmptyTab message="No hook variants available" />;
+  return (
+    <div className="space-y-2" data-testid="output-tab-hooks">
+      {result.best_hook && (
+        <div className="bg-gradient-to-r from-indigo-500/15 to-purple-500/15 border border-indigo-500/30 rounded-xl p-4 mb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Zap className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Top Performer</span>
+          </div>
+          <p className="text-white font-semibold">{result.best_hook}</p>
+        </div>
+      )}
+      {result.hooks.map((hook, idx) => (
+        <div key={idx} className="bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl flex items-start gap-3 group hover:border-indigo-500/30 transition-colors">
+          <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">{idx + 1}</span>
+          <p className="text-sm text-slate-200 flex-1">{hook}</p>
+          <button onClick={() => { navigator.clipboard.writeText(hook); toast.success('Hook copied!'); }} className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <Copy className="w-3.5 h-3.5 text-slate-500 hover:text-white" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CaptionTab({ result }) {
+  if (!result?.caption_short && !result?.caption_long) return <EmptyTab message="No caption data available" />;
+  return (
+    <div className="space-y-4" data-testid="output-tab-caption">
+      {result.caption_short && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Short Caption</span>
+            <button onClick={() => { navigator.clipboard.writeText(result.caption_short); toast.success('Copied!'); }} className="text-slate-500 hover:text-white"><Copy className="w-3.5 h-3.5" /></button>
+          </div>
+          <p className="text-sm bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl text-slate-200">{result.caption_short}</p>
+        </div>
+      )}
+      {result.caption_long && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Long Caption</span>
+            <button onClick={() => { navigator.clipboard.writeText(result.caption_long); toast.success('Copied!'); }} className="text-slate-500 hover:text-white"><Copy className="w-3.5 h-3.5" /></button>
+          </div>
+          <p className="text-sm bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl text-slate-200 whitespace-pre-wrap">{result.caption_long}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HashtagsTab({ result }) {
+  if (!result?.hashtags?.length) return <EmptyTab message="No hashtags available" />;
+  return (
+    <div data-testid="output-tab-hashtags">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{result.hashtags.length} Hashtags</span>
+        <button onClick={() => { navigator.clipboard.writeText(result.hashtags.join(' ')); toast.success('All hashtags copied!'); }} className="text-xs text-indigo-400 hover:text-indigo-300 font-medium">Copy All</button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {result.hashtags.map((tag, idx) => (
+          <span key={idx} onClick={() => { navigator.clipboard.writeText(tag); toast.success('Copied!'); }} className="bg-blue-500/10 text-blue-300 border border-blue-500/20 px-3 py-1.5 rounded-full text-sm cursor-pointer hover:bg-blue-500/20 transition-colors">{tag}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ShotListTab({ result }) {
+  if (!result?.shot_list?.length) return <EmptyTab message="No shot list available. Try 'Full Video Plan' output type." />;
+  return (
+    <div className="space-y-2" data-testid="output-tab-shot-list">
+      {result.shot_list.map((shot, idx) => (
+        <div key={idx} className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-purple-400 bg-purple-500/10 w-6 h-6 rounded-full flex items-center justify-center">{shot.shot_number || idx + 1}</span>
+              <span className="text-xs text-slate-500 uppercase font-mono">{shot.type}</span>
+            </div>
+            <span className="text-xs text-slate-500">{shot.duration}</span>
+          </div>
+          <p className="text-sm text-slate-200">{shot.description}</p>
+          {shot.notes && <p className="text-xs text-slate-500 mt-1 italic">{shot.notes}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VisualPromptsTab({ result }) {
+  if (!result?.visual_prompts?.length) return <EmptyTab message="No visual prompts available. Try 'Script + Visual Prompts' or 'Full Video Plan'." />;
+  return (
+    <div className="space-y-3" data-testid="output-tab-visual-prompts">
+      {result.visual_prompts.map((prompt, idx) => (
+        <div key={idx} className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-4 group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Scene {idx + 1} Prompt</span>
+            <button onClick={() => { navigator.clipboard.writeText(prompt); toast.success('Visual prompt copied!'); }} className="opacity-0 group-hover:opacity-100 transition-opacity"><Copy className="w-3.5 h-3.5 text-slate-500 hover:text-white" /></button>
+          </div>
+          <p className="text-sm text-slate-300 leading-relaxed">{prompt}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VoiceoverTab({ result }) {
+  const voText = result?.voiceover_full;
+  if (!voText) return <EmptyTab message="No voiceover script available" />;
+  return (
+    <div data-testid="output-tab-voiceover">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Full Voiceover Script</span>
+        <button onClick={() => { navigator.clipboard.writeText(voText); toast.success('Voiceover copied!'); }} className="text-xs text-indigo-400 hover:text-indigo-300 font-medium">Copy</button>
+      </div>
+      <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4">
+        <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{voText}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyTab({ message }) {
+  return (
+    <div className="text-center py-8 text-slate-500">
+      <p className="text-sm">{message}</p>
+    </div>
+  );
+}
+
+// ── AI Recommendations Panel ────────────────────────────
+function AIRecommendations({ result }) {
+  const rec = result?.ai_recommendations;
+  if (!rec) return null;
+  const items = [
+    { label: 'Best Hook Type', value: rec.best_hook_type, icon: Target },
+    { label: 'Recommended Duration', value: rec.recommended_duration, icon: Settings },
+    { label: 'Best Posting Time', value: rec.suggested_posting_time, icon: Lightbulb },
+    { label: 'Emotional Trigger', value: rec.emotional_trigger, icon: Sparkles },
+    { label: 'Retention Strategy', value: rec.retention_strategy, icon: Eye },
+  ].filter(i => i.value);
+  if (!items.length) return null;
+  return (
+    <div className="bg-gradient-to-br from-indigo-500/5 to-purple-500/5 border border-indigo-500/20 rounded-xl p-4" data-testid="ai-recommendations">
+      <div className="flex items-center gap-2 mb-3">
+        <Lightbulb className="w-4 h-4 text-indigo-400" />
+        <span className="text-sm font-bold text-white">AI Recommendations</span>
+      </div>
+      <div className="grid gap-2">
+        {items.map((item, idx) => (
+          <div key={idx} className="flex items-start gap-2.5">
+            <item.icon className="w-3.5 h-3.5 text-indigo-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{item.label}</span>
+              <p className="text-xs text-slate-300">{item.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Video Config Modal ──────────────────────────────────
+function VideoConfigModal({ isOpen, onClose, onGenerate }) {
+  const [config, setConfig] = useState({
+    videoStyle: 'ai',
+    voiceover: true,
+    subtitles: true,
+    aspectRatio: '9:16',
+    quality: 'fast',
+  });
+  if (!isOpen) return null;
+  const estimatedCredits = config.quality === 'high' ? 50 : 25;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" data-testid="video-config-modal">
+      <div className="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+        <h3 className="text-lg font-bold text-white mb-4">Video Generation Settings</h3>
+        <div className="space-y-4">
+          <CompactSelect label="Video Style" value={config.videoStyle} onChange={v => setConfig(p => ({...p, videoStyle: v}))} options={[
+            { value: 'ai', label: 'AI Generated' },
+            { value: 'stock', label: 'Stock Footage' },
+            { value: 'mixed', label: 'Mixed' },
+            { value: 'avatar', label: 'AI Avatar' },
+          ]} testId="video-style-select" />
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 cursor-pointer bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+              <input type="checkbox" checked={config.voiceover} onChange={e => setConfig(p => ({...p, voiceover: e.target.checked}))} className="rounded border-slate-600 bg-slate-900 text-indigo-500" />
+              <span className="text-sm text-slate-300">Voiceover</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+              <input type="checkbox" checked={config.subtitles} onChange={e => setConfig(p => ({...p, subtitles: e.target.checked}))} className="rounded border-slate-600 bg-slate-900 text-indigo-500" />
+              <span className="text-sm text-slate-300">Subtitles</span>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <CompactSelect label="Aspect Ratio" value={config.aspectRatio} onChange={v => setConfig(p => ({...p, aspectRatio: v}))} options={[
+              { value: '9:16', label: '9:16 (Vertical)' },
+              { value: '16:9', label: '16:9 (Landscape)' },
+              { value: '1:1', label: '1:1 (Square)' },
+            ]} testId="aspect-ratio-select" />
+            <CompactSelect label="Quality Mode" value={config.quality} onChange={v => setConfig(p => ({...p, quality: v}))} options={[
+              { value: 'fast', label: 'Fast' },
+              { value: 'high', label: 'High Quality' },
+            ]} testId="quality-mode-select" />
+          </div>
+          <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 flex items-center justify-between">
+            <span className="text-sm text-indigo-300 font-medium">Estimated Cost</span>
+            <span className="text-sm text-white font-bold">{estimatedCredits} credits</span>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-5">
+          <Button variant="outline" onClick={onClose} className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800">Cancel</Button>
+          <Button onClick={() => { onGenerate(config); onClose(); }} className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white" data-testid="video-generate-confirm">
+            <Video className="w-4 h-4 mr-2" />
+            Generate Video
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// ── Main Component ────────────────────────────────────
+// ═══════════════════════════════════════════════════════
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(null);
   const [creditsLoaded, setCreditsLoaded] = useState(false);
@@ -33,67 +405,31 @@ export default function ReelGenerator() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
+  const [showVideoConfig, setShowVideoConfig] = useState(false);
   const [lastGenerationId, setLastGenerationId] = useState(null);
+  const [activeTab, setActiveTab] = useState('script');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('reels');
 
   const [formData, setFormData] = useState({
     topic: '',
+    platform: 'Instagram',
+    hookStyle: 'Curiosity',
+    reelFormat: 'Talking Head',
+    ctaType: 'Follow',
+    goal: 'Followers',
+    outputType: 'full_plan',
     niche: 'Luxury',
     tone: 'Bold',
     duration: '30s',
     language: 'English',
-    goal: 'Followers',
-    audience: 'General'
+    audience: 'General',
   });
-
-  // Blocked words for content filtering
-  const blockedWords = [
-    // Adult/Sexual content
-    'sex', 'porn', 'xxx', 'nude', 'naked', 'erotic', 'adult', 'nsfw', 'explicit',
-    'orgasm', 'masturbat', 'penis', 'vagina', 'boob', 'breast', 'nipple', 'genital',
-    'prostitut', 'escort', 'stripper', 'onlyfans', 'fetish', 'bdsm', 'kinky',
-    // Violence
-    'kill', 'murder', 'blood', 'gore', 'violent', 'torture', 'abuse', 'assault',
-    'rape', 'molest', 'stab', 'shoot', 'bomb', 'terrorist', 'massacre', 'genocide',
-    'decapitat', 'dismember', 'mutilat', 'brutal',
-    // Hate/Discrimination
-    'racist', 'racism', 'nazi', 'hitler', 'hate', 'discriminat', 'slur', 'bigot',
-    'homophob', 'transphob', 'sexist', 'supremac', 'extremist',
-    // Drugs/Illegal
-    'cocaine', 'heroin', 'meth', 'crack', 'ecstasy', 'lsd', 'overdose', 'drug deal',
-    // Self-harm
-    'suicide', 'self-harm', 'cutting', 'anorex', 'bulimi',
-    // Disturbing
-    'pedophil', 'incest', 'bestiality', 'necrophil', 'cannibal',
-    // Profanity (common)
-    'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'cock', 'whore'
-  ];
-
-  // Validate content for inappropriate words
-  const validateContent = (text) => {
-    if (!text || text.trim() === '') {
-      return { valid: false, message: 'Please enter a topic' };
-    }
-    
-    const lowerText = text.toLowerCase();
-    
-    for (const word of blockedWords) {
-      if (lowerText.includes(word)) {
-        return { 
-          valid: false, 
-          message: 'Your topic contains inappropriate content. Please use family-friendly language.' 
-        };
-      }
-    }
-    
-    return { valid: true, message: '' };
-  };
 
   useEffect(() => {
     fetchCredits();
-    // Cross-tool auto-prefill
     if (hasRemix && incomingRemix) {
       const fields = mapRemixToFields(incomingRemix, 'reels');
       if (fields.topic) setFormData(prev => ({ ...prev, topic: fields.topic }));
@@ -119,44 +455,22 @@ export default function ReelGenerator() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate topic content
     const validation = validateContent(formData.topic);
-    if (!validation.valid) {
-      toast.error(validation.message);
-      return;
-    }
-    
-    if ((credits ?? 0) < 1) {
-      toast.error('Insufficient credits! Please buy more.');
-      navigate('/pricing');
-      return;
-    }
+    if (!validation.valid) { toast.error(validation.message); return; }
+    if ((credits ?? 0) < 1) { toast.error('Insufficient credits! Please buy more.'); navigate('/pricing'); return; }
 
-    // Reset state for new generation
     setResult(null);
     setLoading(true);
-    
+    setActiveTab('script');
     try {
       const response = await generationAPI.generateReel(formData);
-      // Backend returns result, not output
       setResult(response.data.result);
       setCredits(response.data.remainingCredits || credits - 1);
       setLastGenerationId(response.data.generationId || null);
-      toast.success('Reel script generated successfully!');
-      
-      // Track reel generation in Google Analytics
+      toast.success('Reel content pack generated!');
       analytics.trackGeneration('reel_generator', 10);
-      
-      // Show rating modal after successful generation (with delay)
-      setTimeout(() => {
-        setShowRatingModal(true);
-      }, 2000);
-      
-      // Show upsell modal after rating
-      setTimeout(() => {
-        setShowUpsellModal(true);
-      }, 4000);
+      setTimeout(() => setShowRatingModal(true), 2000);
+      setTimeout(() => setShowUpsellModal(true), 4000);
     } catch (error) {
       toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
     } finally {
@@ -164,51 +478,85 @@ export default function ReelGenerator() {
     }
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard!');
+  const handlePerformanceVariation = async (variationType) => {
+    if (!result || loading) return;
+    const variationMap = {
+      stronger_hook: 'Rewrite with a much stronger, more scroll-stopping hook using shock or curiosity. Make the first 2 seconds irresistible.',
+      higher_retention: 'Optimize for maximum watch time. Add pattern interrupts, cliffhangers, and keep viewers watching until the end.',
+      more_emotional: 'Make the content deeply emotional. Use storytelling, vulnerability, or aspirational emotions to create a strong connection.',
+      more_viral: 'Optimize for shareability and virality. Make people want to tag friends, save, and share. Use trending formats.',
+      more_sales: 'Shift focus to drive sales or conversions. Make the CTA more compelling and the value proposition crystal clear.',
+      shorter_punchier: 'Cut all filler. Make every word count. Compress the script to be shorter, faster-paced, and more impactful.',
+      better_cta: 'Rewrite with a much stronger call-to-action that feels natural but creates urgency to act immediately.',
+      platform_optimized: `Optimize specifically for ${formData.platform}. Use platform-native language, trends, and formatting.`,
+    };
+    const instruction = variationMap[variationType];
+    if (!instruction) return;
+
+    setLoading(true);
+    try {
+      const variationData = {
+        ...formData,
+        topic: `[VARIATION: ${instruction}] Original topic: ${formData.topic}. Previous best hook: ${result.best_hook || ''}. Previous CTA: ${result.script?.cta || ''}.`,
+      };
+      const response = await generationAPI.generateReel(variationData);
+      setResult(response.data.result);
+      setCredits(response.data.remainingCredits || credits - 1);
+      setLastGenerationId(response.data.generationId || null);
+      toast.success('Performance variation generated!');
+    } catch (error) {
+      toast.error('Variation failed. Try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDownloadClick = () => {
-    if (isFreeTier) {
-      setShowUpgradeModal(true);
-    } else {
-      downloadJSON(false);
-    }
+    if (isFreeTier) { setShowUpgradeModal(true); } else { downloadJSON(false); }
   };
 
   const downloadJSON = (withWatermark = true) => {
     setShowUpgradeModal(false);
-    // Add watermark for free-tier users
-    const downloadContent = (isFreeTier && withWatermark) 
-      ? { 
-          ...result, 
-          watermark: '⚡ Made with Visionary Suite - Upgrade to remove watermark',
-          free_tier: true 
-        }
+    const downloadContent = (isFreeTier && withWatermark)
+      ? { ...result, watermark: 'Made with Visionary Suite - Upgrade to remove watermark', free_tier: true }
       : result;
-    
     const blob = new Blob([JSON.stringify(downloadContent, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `reel-script-${Date.now()}.json`;
+    a.download = `reel-content-pack-${Date.now()}.json`;
     a.click();
     toast.success('Downloaded!');
   };
 
+  const handleGenerateVideo = (config) => {
+    toast.info(`Video generation with ${config.quality} quality coming soon!`);
+  };
+
+  const set = (key) => (value) => setFormData(prev => ({ ...prev, [key]: value }));
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'script': return <ScriptTab result={result} />;
+      case 'hooks': return <HooksTab result={result} />;
+      case 'caption': return <CaptionTab result={result} />;
+      case 'hashtags': return <HashtagsTab result={result} />;
+      case 'shot_list': return <ShotListTab result={result} />;
+      case 'visual_prompts': return <VisualPromptsTab result={result} />;
+      case 'voiceover': return <VoiceoverTab result={result} />;
+      default: return <ScriptTab result={result} />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
-      {/* Upgrade Modal */}
-      <UpgradeModal 
-        isOpen={showUpgradeModal} 
-        onClose={() => setShowUpgradeModal(false)}
-        onDownloadWithWatermark={() => downloadJSON(true)}
-      />
+      <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onDownloadWithWatermark={() => downloadJSON(true)} />
+      <VideoConfigModal isOpen={showVideoConfig} onClose={() => setShowVideoConfig(false)} onGenerate={handleGenerateVideo} />
 
+      {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Link to="/app">
               <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800">
                 <ArrowLeft className="w-4 h-4 mr-1 sm:mr-2" />
@@ -216,466 +564,292 @@ export default function ReelGenerator() {
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400" />
-              <span className="text-lg sm:text-xl font-bold text-white">Reel Generator</span>
+              <Sparkles className="w-5 h-5 text-indigo-400" />
+              <span className="text-lg font-bold text-white">Reel Engine</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 sm:px-4 py-2">
-              <Coins className="w-4 h-4 text-indigo-400" />
-              <span className="font-semibold text-indigo-300 text-sm sm:text-base" data-testid="reel-credits-display">{credits === null ? <span className="inline-block w-8 h-4 bg-indigo-500/20 rounded animate-pulse" /> : credits >= 999999 ? '∞' : credits.toLocaleString()}</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-3 py-1.5">
+              <Coins className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="font-semibold text-indigo-300 text-sm" data-testid="reel-credits-display">
+                {credits === null ? <span className="inline-block w-8 h-4 bg-indigo-500/20 rounded animate-pulse" /> : credits >= 999999 ? 'Unlimited' : credits.toLocaleString()}
+              </span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('token'); navigate('/login'); }} className="text-slate-400 hover:text-white hover:bg-slate-800" data-testid="reel-logout-btn">
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline ml-2">Logout</span>
-            </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Upgrade Banners - only show after credits have loaded to prevent flash */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {creditsLoaded && credits === 0 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="exhausted" />}
         {creditsLoaded && credits > 0 && credits <= 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="low" />}
         {creditsLoaded && isFreeTier && credits > 10 && <UpgradeBanner credits={credits} isFreeTier={isFreeTier} type="watermark" />}
 
-        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
-          {/* Input Form */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 sm:p-6 shadow-xl">
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-5 sm:mb-6">Generate Reel Script</h2>
-            {hasRemix && <RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} />}
-            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6" data-testid="reel-form">
-              <div>
-                <Label htmlFor="topic" className="text-slate-300 font-medium text-sm mb-2 block">Topic *</Label>
-                <Textarea
-                  id="topic"
-                  value={formData.topic}
-                  onChange={(e) => setFormData({...formData, topic: e.target.value})}
-                  placeholder="E.g., Morning routines of successful entrepreneurs"
-                  required
-                  rows={3}
-                  className="bg-slate-900/60 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500/20 resize-none"
-                  data-testid="reel-topic-input"
-                  data-tour="reel-topic-input"
-                />
-              </div>
+        <div className="grid lg:grid-cols-5 gap-6">
+          {/* ──────────── INPUT PANEL (2 cols) ──────────── */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 shadow-xl">
+              <h2 className="text-lg font-bold text-white mb-4">Create Reel</h2>
+              {hasRemix && <RemixBanner sourceTool={remixSource} sourceTitle={remixTitle} onDismiss={dismissRemix} />}
 
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <form onSubmit={handleSubmit} className="space-y-4" data-testid="reel-form">
+                {/* Topic */}
                 <div>
-                  <Label htmlFor="niche" className="text-slate-300 font-medium text-sm mb-2 block">Niche</Label>
-                  <Select value={formData.niche} onValueChange={(value) => setFormData({...formData, niche: value})}>
-                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20" data-testid="reel-niche-select" data-tour="reel-niche-select">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="Luxury" className="text-white focus:bg-indigo-600">Luxury</SelectItem>
-                      <SelectItem value="Relationships" className="text-white focus:bg-indigo-600">Relationships</SelectItem>
-                      <SelectItem value="Health" className="text-white focus:bg-indigo-600">Health & Fitness</SelectItem>
-                      <SelectItem value="Finance" className="text-white focus:bg-indigo-600">Finance</SelectItem>
-                      <SelectItem value="Tech" className="text-white focus:bg-indigo-600">Technology</SelectItem>
-                      <SelectItem value="Custom" className="text-white focus:bg-indigo-600">Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-slate-400 text-xs font-medium mb-1.5 block">Topic / Idea *</Label>
+                  <Textarea
+                    value={formData.topic}
+                    onChange={(e) => set('topic')(e.target.value)}
+                    placeholder="E.g., Morning routines of millionaires, 5 fashion hacks for winter"
+                    required rows={3}
+                    className="bg-slate-900/60 border-slate-700/50 text-white placeholder:text-slate-600 focus:border-indigo-500 focus:ring-indigo-500/20 resize-none text-sm"
+                    data-testid="reel-topic-input"
+                  />
                 </div>
 
-                <div>
-                  <Label htmlFor="tone" className="text-slate-300 font-medium text-sm mb-2 block">Tone</Label>
-                  <Select value={formData.tone} onValueChange={(value) => setFormData({...formData, tone: value})}>
-                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="Bold" className="text-white focus:bg-indigo-600">Bold</SelectItem>
-                      <SelectItem value="Calm" className="text-white focus:bg-indigo-600">Calm</SelectItem>
-                      <SelectItem value="Funny" className="text-white focus:bg-indigo-600">Funny</SelectItem>
-                      <SelectItem value="Emotional" className="text-white focus:bg-indigo-600">Emotional</SelectItem>
-                      <SelectItem value="Authority" className="text-white focus:bg-indigo-600">Authority</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <Label htmlFor="duration" className="text-slate-300 font-medium text-sm mb-2 block">Duration</Label>
-                  <Select value={formData.duration} onValueChange={(value) => setFormData({...formData, duration: value})}>
-                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="15s" className="text-white focus:bg-indigo-600">15 seconds</SelectItem>
-                      <SelectItem value="30s" className="text-white focus:bg-indigo-600">30 seconds</SelectItem>
-                      <SelectItem value="60s" className="text-white focus:bg-indigo-600">60 seconds</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Primary Controls Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <CompactSelect label="Platform" value={formData.platform} onChange={set('platform')} options={PLATFORMS} testId="reel-platform-select" />
+                  <CompactSelect label="Hook Style" value={formData.hookStyle} onChange={set('hookStyle')} options={HOOK_STYLES} testId="reel-hook-style-select" />
                 </div>
 
-                <div>
-                  <Label htmlFor="language" className="text-slate-300 font-medium text-sm mb-2 block">Language</Label>
-                  <Select value={formData.language} onValueChange={(value) => setFormData({...formData, language: value})}>
-                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700 max-h-[300px]">
-                      {/* Major World Languages */}
-                      <SelectItem value="English" className="text-white focus:bg-indigo-600">English</SelectItem>
-                      <SelectItem value="Spanish" className="text-white focus:bg-indigo-600">Spanish (Español)</SelectItem>
-                      <SelectItem value="French" className="text-white focus:bg-indigo-600">French (Français)</SelectItem>
-                      <SelectItem value="German" className="text-white focus:bg-indigo-600">German (Deutsch)</SelectItem>
-                      <SelectItem value="Italian" className="text-white focus:bg-indigo-600">Italian (Italiano)</SelectItem>
-                      <SelectItem value="Portuguese" className="text-white focus:bg-indigo-600">Portuguese (Português)</SelectItem>
-                      <SelectItem value="Russian" className="text-white focus:bg-indigo-600">Russian (Русский)</SelectItem>
-                      <SelectItem value="Japanese" className="text-white focus:bg-indigo-600">Japanese (日本語)</SelectItem>
-                      <SelectItem value="Korean" className="text-white focus:bg-indigo-600">Korean (한국어)</SelectItem>
-                      <SelectItem value="Chinese" className="text-white focus:bg-indigo-600">Chinese (中文)</SelectItem>
-                      <SelectItem value="Arabic" className="text-white focus:bg-indigo-600">Arabic (العربية)</SelectItem>
-                      <SelectItem value="Hindi" className="text-white focus:bg-indigo-600">Hindi (हिंदी)</SelectItem>
-                      <SelectItem value="Hinglish" className="text-white focus:bg-indigo-600">Hinglish</SelectItem>
-                      {/* Indian Languages */}
-                      <SelectItem value="Telugu" className="text-white focus:bg-indigo-600">Telugu (తెలుగు)</SelectItem>
-                      <SelectItem value="Tamil" className="text-white focus:bg-indigo-600">Tamil (தமிழ்)</SelectItem>
-                      <SelectItem value="Kannada" className="text-white focus:bg-indigo-600">Kannada (ಕನ್ನಡ)</SelectItem>
-                      <SelectItem value="Malayalam" className="text-white focus:bg-indigo-600">Malayalam (മലയാളം)</SelectItem>
-                      <SelectItem value="Marathi" className="text-white focus:bg-indigo-600">Marathi (मराठी)</SelectItem>
-                      <SelectItem value="Bengali" className="text-white focus:bg-indigo-600">Bengali (বাংলা)</SelectItem>
-                      <SelectItem value="Gujarati" className="text-white focus:bg-indigo-600">Gujarati (ગુજરાતી)</SelectItem>
-                      <SelectItem value="Punjabi" className="text-white focus:bg-indigo-600">Punjabi (ਪੰਜਾਬੀ)</SelectItem>
-                      {/* European Languages */}
-                      <SelectItem value="Dutch" className="text-white focus:bg-indigo-600">Dutch (Nederlands)</SelectItem>
-                      <SelectItem value="Polish" className="text-white focus:bg-indigo-600">Polish (Polski)</SelectItem>
-                      <SelectItem value="Swedish" className="text-white focus:bg-indigo-600">Swedish (Svenska)</SelectItem>
-                      <SelectItem value="Norwegian" className="text-white focus:bg-indigo-600">Norwegian (Norsk)</SelectItem>
-                      <SelectItem value="Danish" className="text-white focus:bg-indigo-600">Danish (Dansk)</SelectItem>
-                      <SelectItem value="Finnish" className="text-white focus:bg-indigo-600">Finnish (Suomi)</SelectItem>
-                      <SelectItem value="Greek" className="text-white focus:bg-indigo-600">Greek (Ελληνικά)</SelectItem>
-                      <SelectItem value="Turkish" className="text-white focus:bg-indigo-600">Turkish (Türkçe)</SelectItem>
-                      <SelectItem value="Czech" className="text-white focus:bg-indigo-600">Czech (Čeština)</SelectItem>
-                      <SelectItem value="Hungarian" className="text-white focus:bg-indigo-600">Hungarian (Magyar)</SelectItem>
-                      <SelectItem value="Romanian" className="text-white focus:bg-indigo-600">Romanian (Română)</SelectItem>
-                      <SelectItem value="Ukrainian" className="text-white focus:bg-indigo-600">Ukrainian (Українська)</SelectItem>
-                      {/* Asian Languages */}
-                      <SelectItem value="Thai" className="text-white focus:bg-indigo-600">Thai (ไทย)</SelectItem>
-                      <SelectItem value="Vietnamese" className="text-white focus:bg-indigo-600">Vietnamese (Tiếng Việt)</SelectItem>
-                      <SelectItem value="Indonesian" className="text-white focus:bg-indigo-600">Indonesian (Bahasa)</SelectItem>
-                      <SelectItem value="Malay" className="text-white focus:bg-indigo-600">Malay (Bahasa Melayu)</SelectItem>
-                      <SelectItem value="Filipino" className="text-white focus:bg-indigo-600">Filipino (Tagalog)</SelectItem>
-                      {/* Middle Eastern */}
-                      <SelectItem value="Persian" className="text-white focus:bg-indigo-600">Persian (فارسی)</SelectItem>
-                      <SelectItem value="Hebrew" className="text-white focus:bg-indigo-600">Hebrew (עברית)</SelectItem>
-                      <SelectItem value="Urdu" className="text-white focus:bg-indigo-600">Urdu (اردو)</SelectItem>
-                      {/* African */}
-                      <SelectItem value="Swahili" className="text-white focus:bg-indigo-600">Swahili (Kiswahili)</SelectItem>
-                      <SelectItem value="Afrikaans" className="text-white focus:bg-indigo-600">Afrikaans</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <Label htmlFor="goal" className="text-slate-300 font-medium text-sm mb-2 block">Goal</Label>
-                  <Select value={formData.goal} onValueChange={(value) => setFormData({...formData, goal: value})}>
-                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="Followers" className="text-white focus:bg-indigo-600">Gain Followers</SelectItem>
-                      <SelectItem value="Leads" className="text-white focus:bg-indigo-600">Generate Leads</SelectItem>
-                      <SelectItem value="Sales" className="text-white focus:bg-indigo-600">Drive Sales</SelectItem>
-                      <SelectItem value="Awareness" className="text-white focus:bg-indigo-600">Brand Awareness</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <CompactSelect label="Reel Format" value={formData.reelFormat} onChange={set('reelFormat')} options={REEL_FORMATS} testId="reel-format-select" />
+                  <CompactSelect label="CTA Type" value={formData.ctaType} onChange={set('ctaType')} options={CTA_TYPES} testId="reel-cta-select" />
                 </div>
 
-                <div>
-                  <Label htmlFor="audience" className="text-slate-300 font-medium text-sm mb-2 block">Audience</Label>
-                  <Select value={formData.audience} onValueChange={(value) => setFormData({...formData, audience: value})}>
-                    <SelectTrigger className="bg-slate-900/60 border-slate-600 text-white focus:ring-indigo-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700 max-h-[300px]">
-                      {/* General */}
-                      <SelectItem value="General" className="text-white focus:bg-indigo-600">General Audience</SelectItem>
-                      {/* Age Groups */}
-                      <SelectItem value="Gen Z (13-24)" className="text-white focus:bg-indigo-600">Gen Z (13-24)</SelectItem>
-                      <SelectItem value="Millennials (25-40)" className="text-white focus:bg-indigo-600">Millennials (25-40)</SelectItem>
-                      <SelectItem value="Gen X (41-56)" className="text-white focus:bg-indigo-600">Gen X (41-56)</SelectItem>
-                      <SelectItem value="Baby Boomers (57-75)" className="text-white focus:bg-indigo-600">Baby Boomers (57-75)</SelectItem>
-                      {/* Professional */}
-                      <SelectItem value="Young Professionals" className="text-white focus:bg-indigo-600">Young Professionals</SelectItem>
-                      <SelectItem value="Entrepreneurs" className="text-white focus:bg-indigo-600">Entrepreneurs</SelectItem>
-                      <SelectItem value="Business Executives" className="text-white focus:bg-indigo-600">Business Executives</SelectItem>
-                      <SelectItem value="Freelancers" className="text-white focus:bg-indigo-600">Freelancers</SelectItem>
-                      <SelectItem value="Remote Workers" className="text-white focus:bg-indigo-600">Remote Workers</SelectItem>
-                      <SelectItem value="Small Business Owners" className="text-white focus:bg-indigo-600">Small Business Owners</SelectItem>
-                      {/* Students */}
-                      <SelectItem value="College Students" className="text-white focus:bg-indigo-600">College Students</SelectItem>
-                      <SelectItem value="High School Students" className="text-white focus:bg-indigo-600">High School Students</SelectItem>
-                      <SelectItem value="Graduate Students" className="text-white focus:bg-indigo-600">Graduate Students</SelectItem>
-                      {/* Lifestyle */}
-                      <SelectItem value="Parents" className="text-white focus:bg-indigo-600">Parents</SelectItem>
-                      <SelectItem value="New Parents" className="text-white focus:bg-indigo-600">New Parents</SelectItem>
-                      <SelectItem value="Stay-at-Home Parents" className="text-white focus:bg-indigo-600">Stay-at-Home Parents</SelectItem>
-                      <SelectItem value="Fitness Enthusiasts" className="text-white focus:bg-indigo-600">Fitness Enthusiasts</SelectItem>
-                      <SelectItem value="Health Conscious" className="text-white focus:bg-indigo-600">Health Conscious</SelectItem>
-                      <SelectItem value="Travelers" className="text-white focus:bg-indigo-600">Travelers</SelectItem>
-                      <SelectItem value="Foodies" className="text-white focus:bg-indigo-600">Foodies</SelectItem>
-                      <SelectItem value="Gamers" className="text-white focus:bg-indigo-600">Gamers</SelectItem>
-                      {/* Interest-Based */}
-                      <SelectItem value="Tech Enthusiasts" className="text-white focus:bg-indigo-600">Tech Enthusiasts</SelectItem>
-                      <SelectItem value="Fashion Lovers" className="text-white focus:bg-indigo-600">Fashion Lovers</SelectItem>
-                      <SelectItem value="Beauty Enthusiasts" className="text-white focus:bg-indigo-600">Beauty Enthusiasts</SelectItem>
-                      <SelectItem value="Music Fans" className="text-white focus:bg-indigo-600">Music Fans</SelectItem>
-                      <SelectItem value="Sports Fans" className="text-white focus:bg-indigo-600">Sports Fans</SelectItem>
-                      <SelectItem value="Book Lovers" className="text-white focus:bg-indigo-600">Book Lovers</SelectItem>
-                      <SelectItem value="DIY Enthusiasts" className="text-white focus:bg-indigo-600">DIY Enthusiasts</SelectItem>
-                      <SelectItem value="Pet Owners" className="text-white focus:bg-indigo-600">Pet Owners</SelectItem>
-                      {/* Financial */}
-                      <SelectItem value="Investors" className="text-white focus:bg-indigo-600">Investors</SelectItem>
-                      <SelectItem value="Crypto Enthusiasts" className="text-white focus:bg-indigo-600">Crypto Enthusiasts</SelectItem>
-                      <SelectItem value="Budget Conscious" className="text-white focus:bg-indigo-600">Budget Conscious</SelectItem>
-                      <SelectItem value="Luxury Consumers" className="text-white focus:bg-indigo-600">Luxury Consumers</SelectItem>
-                      {/* Regional */}
-                      <SelectItem value="Urban Dwellers" className="text-white focus:bg-indigo-600">Urban Dwellers</SelectItem>
-                      <SelectItem value="Suburban Families" className="text-white focus:bg-indigo-600">Suburban Families</SelectItem>
-                      <SelectItem value="Rural Communities" className="text-white focus:bg-indigo-600">Rural Communities</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <CompactSelect label="Objective" value={formData.goal} onChange={set('goal')} options={CONTENT_OBJECTIVES} testId="reel-objective-select" />
+                  <CompactSelect label="Output Type" value={formData.outputType} onChange={set('outputType')} options={OUTPUT_TYPES} testId="reel-output-type-select" />
                 </div>
-              </div>
 
-              <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-indigo-300">
-                  <Coins className="w-4 h-4" />
-                  <span className="font-medium">Cost: 10 credits per reel</span>
-                </div>
-              </div>
+                {/* Advanced Controls (Collapsible) */}
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-slate-300 transition-colors py-1"
+                  data-testid="advanced-controls-toggle"
+                >
+                  <span className="font-medium">Advanced Controls</span>
+                  {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-500/25"
-                data-testid="reel-generate-btn"
-                data-tour="reel-generate-btn"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Reel Script
-                  </>
+                {showAdvanced && (
+                  <div className="space-y-3 pt-1 border-t border-slate-700/30">
+                    <div className="grid grid-cols-2 gap-3">
+                      <CompactSelect label="Niche" value={formData.niche} onChange={set('niche')} options={['Luxury', 'Relationships', 'Health', 'Finance', 'Tech', 'Fashion', 'Food', 'Travel', 'Education', 'Entertainment', 'Custom']} testId="reel-niche-select" />
+                      <CompactSelect label="Tone" value={formData.tone} onChange={set('tone')} options={TONES} testId="reel-tone-select" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <CompactSelect label="Duration" value={formData.duration} onChange={set('duration')} options={DURATIONS} testId="reel-duration-select" />
+                      <CompactSelect label="Language" value={formData.language} onChange={set('language')} options={[
+                        'English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Russian',
+                        'Japanese', 'Korean', 'Chinese', 'Arabic', 'Hindi', 'Hinglish',
+                        'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Marathi', 'Bengali', 'Gujarati', 'Punjabi',
+                        'Dutch', 'Polish', 'Swedish', 'Norwegian', 'Turkish', 'Thai', 'Vietnamese', 'Indonesian',
+                      ]} testId="reel-language-select" />
+                    </div>
+                    <CompactSelect label="Audience" value={formData.audience} onChange={set('audience')} options={[
+                      'General', 'Gen Z (13-24)', 'Millennials (25-40)', 'Gen X (41-56)',
+                      'Young Professionals', 'Entrepreneurs', 'Business Executives', 'Freelancers',
+                      'College Students', 'Parents', 'Fitness Enthusiasts', 'Travelers', 'Foodies',
+                      'Tech Enthusiasts', 'Fashion Lovers', 'Investors', 'Crypto Enthusiasts', 'Luxury Consumers',
+                    ]} testId="reel-audience-select" />
+                  </div>
                 )}
-              </Button>
-            </form>
+
+                {/* Cost + Generate */}
+                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-indigo-300 text-sm">
+                    <Coins className="w-3.5 h-3.5" />
+                    <span className="font-medium">10 credits</span>
+                  </div>
+                  <span className="text-xs text-slate-500">per generation</span>
+                </div>
+
+                <Button
+                  type="submit" disabled={loading}
+                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+                  data-testid="reel-generate-btn"
+                >
+                  {loading ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 mr-2" />Generate Content Pack</>
+                  )}
+                </Button>
+              </form>
+            </div>
           </div>
 
-          {/* Result Display */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 sm:p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-5 sm:mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-white">Generated Script</h2>
-              {result && result.hooks && (
-                <div className="flex gap-2">
-                  <ShareButton type="REEL" title={result.best_hook || ''} preview={result.caption_short || ''} />
-                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(JSON.stringify(result, null, 2))} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="copy-result-btn">
-                    <Copy className="w-4 h-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">Copy</span>
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownloadClick} className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white" data-testid="download-result-btn">
-                    <Download className="w-4 h-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">Download</span>
-                  </Button>
+          {/* ──────────── OUTPUT PANEL (3 cols) ──────────── */}
+          <div className="lg:col-span-3 space-y-4">
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 shadow-xl">
+              {/* Output Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-white">
+                  {result ? 'Content Pack' : 'Generated Output'}
+                </h2>
+                {result && (
+                  <div className="flex gap-2">
+                    <ShareButton type="REEL" title={result.best_hook || ''} preview={result.caption_short || ''} />
+                    <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(JSON.stringify(result, null, 2)); toast.success('Copied!'); }} className="border-slate-700 text-slate-300 hover:bg-slate-700 h-8 text-xs" data-testid="copy-result-btn">
+                      <Copy className="w-3.5 h-3.5 mr-1" />Copy
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleDownloadClick} className="border-slate-700 text-slate-300 hover:bg-slate-700 h-8 text-xs" data-testid="download-result-btn">
+                      <Download className="w-3.5 h-3.5 mr-1" />Export
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress */}
+              <ReelProgressBar isGenerating={loading} />
+
+              {/* Empty State */}
+              {!result && !loading && (
+                <div className="text-center py-16 text-slate-500">
+                  <Sparkles className="w-10 h-10 mx-auto mb-3 text-slate-700" />
+                  <p className="text-sm">Your content pack will appear here</p>
+                  <p className="text-xs text-slate-600 mt-1">Configure your reel settings and hit Generate</p>
                 </div>
               )}
-            </div>
 
-            {/* Progress Bar */}
-            <ReelProgressBar isGenerating={loading} />
+              {/* Loading */}
+              {loading && !result && (
+                <WaitingWithGames
+                  progress={50} status="Generating your content pack..."
+                  estimatedTime="10-30 seconds"
+                  onCancel={() => toast.info('Generation in progress - please wait')}
+                  currentFeature="/app/reel" showExploreFeatures={true}
+                />
+              )}
 
-            {!result && !loading && (
-              <div className="text-center py-12 text-slate-400">
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-600" />
-                <p>Your generated reel script will appear here</p>
-              </div>
-            )}
-            
-            {loading && !result && (
-              <WaitingWithGames 
-                progress={50}
-                status="Generating your reel script..."
-                estimatedTime="10-30 seconds"
-                onCancel={() => toast.info('Generation in progress - please wait')}
-                currentFeature="/app/reel"
-                showExploreFeatures={true}
-              />
-            )}
-            
-            {result && result.hooks && (
-              <div className="space-y-5 sm:space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar" data-testid="reel-result">
-                {/* Free Tier Watermark Banner */}
-                {isFreeTier && (
-                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-purple-300 font-medium text-sm">⚡ Made with Visionary Suite</p>
-                      <p className="text-purple-400 text-xs mt-1">
-                        Free tier content includes watermark. <Link to="/pricing" className="underline font-medium hover:text-purple-300">Upgrade</Link> to remove watermarks.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Hooks */}
-                <div>
-                  <h3 className="font-bold text-lg text-white mb-3">🎯 5 Hooks</h3>
-                  <div className="space-y-2">
-                    {result.hooks?.map((hook, idx) => (
-                      <div key={idx} className="bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl flex items-start gap-2">
-                        <span className="font-bold text-indigo-400 min-w-[20px]">{idx + 1}.</span>
-                        <span className="text-slate-200">{hook}</span>
+              {/* Result Tabs */}
+              {result && (
+                <>
+                  {/* Free Tier Banner */}
+                  {isFreeTier && (
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 flex items-start gap-2.5 mb-4">
+                      <AlertCircle className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-purple-300 font-medium text-xs">Free tier content includes watermark</p>
+                        <p className="text-purple-400/70 text-[11px] mt-0.5"><Link to="/pricing" className="underline font-medium hover:text-purple-300">Upgrade</Link> to remove watermarks.</p>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Best Hook */}
-                {result.best_hook && (
-                  <div className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 rounded-xl p-4">
-                    <h3 className="font-bold text-lg text-white mb-2">⭐ Best Hook</h3>
-                    <p className="text-indigo-200">{result.best_hook}</p>
-                  </div>
-                )}
-
-                {/* Script Scenes */}
-                {result.script?.scenes && (
-                  <div>
-                    <h3 className="font-bold text-lg text-white mb-3">🎬 Script</h3>
-                    <div className="space-y-3">
-                      {result.script.scenes.map((scene, idx) => (
-                        <div key={idx} className="border border-slate-700/50 bg-slate-900/30 rounded-xl p-4">
-                          <div className="font-semibold text-purple-400 mb-2">{scene.time}</div>
-                          <div className="space-y-2">
-                            {scene.on_screen_text && (
-                              <div>
-                                <span className="text-xs font-semibold text-slate-500 uppercase">On-Screen:</span>
-                                <p className="text-sm text-slate-200">{scene.on_screen_text}</p>
-                              </div>
-                            )}
-                            {scene.voiceover && (
-                              <div>
-                                <span className="text-xs font-semibold text-slate-500 uppercase">Voiceover:</span>
-                                <p className="text-sm text-slate-200">{scene.voiceover}</p>
-                              </div>
-                            )}
-                            {scene.broll && scene.broll.length > 0 && (
-                              <div>
-                                <span className="text-xs font-semibold text-slate-500 uppercase">B-Roll:</span>
-                                <p className="text-sm text-slate-400">{scene.broll.join(', ')}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* CTA */}
-                {result.script?.cta && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
-                    <h3 className="font-bold text-white mb-2">📢 Call to Action</h3>
-                    <p className="text-emerald-200">{result.script.cta}</p>
-                  </div>
-                )}
-
-                {/* Captions */}
-                <div className="space-y-3">
-                  {result.caption_short && (
-                    <div>
-                      <h3 className="font-bold text-white mb-2">📝 Short Caption</h3>
-                      <p className="text-sm bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl text-slate-200">{result.caption_short}</p>
                     </div>
                   )}
-                  {result.caption_long && (
-                    <div>
-                      <h3 className="font-bold text-white mb-2">📄 Long Caption</h3>
-                      <p className="text-sm bg-slate-900/50 border border-slate-700/50 p-3 rounded-xl text-slate-200 whitespace-pre-wrap">{result.caption_long}</p>
+
+                  {/* Tab Navigation */}
+                  <div className="flex overflow-x-auto gap-1 mb-4 pb-1 -mx-1 px-1 scrollbar-hide" data-testid="output-tabs">
+                    {OUTPUT_TABS.map(tab => {
+                      const Icon = tab.icon;
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${
+                            isActive
+                              ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 border border-transparent'
+                          }`}
+                          data-testid={`tab-${tab.id}`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+                    {renderTabContent()}
+                  </div>
+
+                  {/* AI Recommendations */}
+                  <div className="mt-4">
+                    <AIRecommendations result={result} />
+                  </div>
+
+                  {/* Generate Video CTA */}
+                  <div className="mt-4">
+                    <Button
+                      onClick={() => setShowVideoConfig(true)}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 rounded-xl"
+                      data-testid="generate-video-btn"
+                    >
+                      <Video className="w-4 h-4 mr-2" />
+                      Generate Video from Script
+                    </Button>
+                  </div>
+
+                  {/* Performance Variations */}
+                  <div className="mt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span className="text-sm font-bold text-white">Performance Variations</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="performance-variations">
+                      {PERFORMANCE_VARIATIONS.map(v => {
+                        const Icon = v.icon;
+                        return (
+                          <button
+                            key={v.id}
+                            onClick={() => handlePerformanceVariation(v.id)}
+                            disabled={loading}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900/50 border border-slate-700/50 text-xs text-slate-400 hover:text-white hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all disabled:opacity-40"
+                            data-testid={`variation-${v.id}`}
+                          >
+                            <Icon className="w-3 h-3" />
+                            {v.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Posting Tips */}
+                  {result.posting_tips?.length > 0 && (
+                    <div className="mt-4 bg-slate-900/30 border border-slate-700/30 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">Posting Tips</span>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {result.posting_tips.map((tip, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-xs text-slate-400">
+                            <Check className="w-3 h-3 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
-                </div>
 
-                {/* Hashtags */}
-                {result.hashtags && (
-                  <div>
-                    <h3 className="font-bold text-white mb-2">#️⃣ Hashtags</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {result.hashtags.map((tag, idx) => (
-                        <span key={idx} className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-full text-sm">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                  {/* Cross-tool actions */}
+                  <div className="mt-4">
+                    <NextActionHooks
+                      toolType="reels" prompt={formData.topic}
+                      settings={{ niche: formData.niche, tone: formData.tone, duration: formData.duration }}
+                      generationId={lastGenerationId} title={result.best_hook}
+                    />
                   </div>
-                )}
-
-                {/* Posting Tips */}
-                {result.posting_tips && (
-                  <div>
-                    <h3 className="font-bold text-white mb-2">💡 Posting Tips</h3>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-300">
-                      {result.posting_tips.map((tip, idx) => (
-                        <li key={idx}>{tip}</li>
-                      ))}
-                    </ul>
+                  <div className="mt-4">
+                    <CreationActionsBar
+                      toolType="reels" originalPrompt={formData.topic}
+                      originalSettings={{ niche: formData.niche, tone: formData.tone, duration: formData.duration }}
+                      parentGenerationId={lastGenerationId} remixSourceTitle={result.best_hook}
+                    />
                   </div>
-                )}
-
-                {/* Next Action Hooks — PRIMARY ACTION ZONE */}
-                <NextActionHooks
-                  toolType="reels"
-                  prompt={formData.topic}
-                  settings={{ niche: formData.niche, tone: formData.tone, duration: formData.duration }}
-                  generationId={lastGenerationId}
-                  title={result.best_hook}
-                />
-
-                {/* Remix & Variations Engine */}
-                <CreationActionsBar
-                  toolType="reels"
-                  originalPrompt={formData.topic}
-                  originalSettings={{ niche: formData.niche, tone: formData.tone, duration: formData.duration }}
-                  parentGenerationId={lastGenerationId}
-                  remixSourceTitle={result.best_hook}
-                />
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
-      
-      {/* Help Guide */}
+
       <HelpGuide pageId="reel-generator" />
-      
-      {/* Rating Modal */}
-      <RatingModal 
-        isOpen={showRatingModal}
-        onClose={() => setShowRatingModal(false)}
-        featureKey="reel_generator"
-        relatedRequestId={lastGenerationId}
-        onSubmitSuccess={() => setShowRatingModal(false)}
-      />
-      
-      {/* Upsell Modal - Shows after generation */}
-      {showUpsellModal && (
-        <UpsellModal
-          isOpen={showUpsellModal}
-          credits={credits}
-          onClose={() => setShowUpsellModal(false)}
-        />
-      )}
+      <RatingModal isOpen={showRatingModal} onClose={() => setShowRatingModal(false)} featureKey="reel_generator" relatedRequestId={lastGenerationId} onSubmitSuccess={() => setShowRatingModal(false)} />
+      {showUpsellModal && <UpsellModal isOpen={showUpsellModal} credits={credits} onClose={() => setShowUpsellModal(false)} />}
     </div>
   );
 }

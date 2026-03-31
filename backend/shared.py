@@ -334,46 +334,85 @@ async def process_refund(order_id: str, payment_id: str, reason: str) -> dict:
 # =============================================================================
 # AI GENERATION PROMPTS
 # =============================================================================
-REEL_SYSTEM_PROMPT = """You are an elite social media scriptwriter. Output must be structured JSON only."""
+REEL_SYSTEM_PROMPT = """You are an elite social media content strategist and scriptwriter who specializes in creating viral, high-retention short-form video content. You optimize for real outcomes: engagement, followers, conversions, and watch time. Output must be structured JSON only."""
 
-REEL_USER_PROMPT_TEMPLATE = """Generate a UNIQUE and ORIGINAL high-retention Instagram Reel package. This content must be COMPLETELY DIFFERENT from anything generated before.
+REEL_USER_PROMPT_TEMPLATE = """Generate a UNIQUE, outcome-driven short-form video content pack optimized for real performance.
 
-**Input Parameters:**
-- Language: {language}
+**Creator Brief:**
+- Platform: {platform}
+- Topic: {topic}
 - Niche: {niche}
+- Hook Style: {hookStyle}
+- Reel Format: {reelFormat}
 - Tone: {tone}
 - Duration: {duration}
-- Goal: {goal}
-- Topic: {topic}
+- Content Objective: {goal}
+- CTA Type: {ctaType}
+- Target Audience: {audience}
+- Language: {language}
+- Output Scope: {outputType}
 - Unique Request ID: {uniqueId}
 
-**CREATIVITY REQUIREMENTS:**
-- Create FRESH hooks that haven't been used before
-- Make the script UNIQUE and engaging
-- Use creative, unexpected angles on the topic
-- Don't use generic or overused phrases
+**PERFORMANCE REQUIREMENTS:**
+- Hooks must stop the scroll in under 1.5 seconds
+- Script must maintain retention throughout with pattern interrupts
+- CTA must feel natural, not forced
+- Content must be platform-native (not generic across platforms)
+- Each hook variant should use a different psychological trigger
 
 Output ONLY this JSON format:
 {{
-  "hooks": ["5 unique, attention-grabbing hooks under 12 words each"],
-  "best_hook": "The most powerful hook from above",
+  "hooks": ["5 unique scroll-stopping hooks using different psychological triggers, under 12 words each"],
+  "best_hook": "The highest-performing hook from above",
   "script": {{
     "scenes": [
-      {{"time": "0-2s", "on_screen_text": "...", "voiceover": "...", "broll": ["visual suggestions"]}}
+      {{
+        "time": "0-3s",
+        "on_screen_text": "Bold text overlay for this segment",
+        "voiceover": "Spoken narration for this segment",
+        "visual_direction": "Camera angle, movement, and visual style direction",
+        "broll": ["specific visual/footage suggestions"],
+        "retention_note": "Why this segment keeps viewers watching"
+      }}
     ],
-    "cta": "Compelling call to action"
+    "cta": "Natural, compelling call to action matching the CTA type"
   }},
-  "caption_short": "Short engaging caption",
-  "caption_long": "Detailed caption with value",
-  "hashtags": ["20 relevant trending hashtags"],
-  "posting_tips": ["5 specific tips for this content"]
+  "voiceover_full": "Complete voiceover script as a single flowing text, optimized for {duration} at natural speaking pace",
+  "caption_short": "Short engaging caption optimized for {platform}",
+  "caption_long": "Detailed value-driven caption with hooks and line breaks",
+  "hashtags": ["20 relevant trending hashtags for {platform}"],
+  "shot_list": [
+    {{
+      "shot_number": 1,
+      "description": "What to film/show",
+      "type": "close-up / wide / medium / overhead / POV",
+      "duration": "Xs",
+      "notes": "Lighting, props, or movement notes"
+    }}
+  ],
+  "visual_prompts": [
+    "Detailed AI image/video generation prompt for scene 1 - include style, mood, colors, composition",
+    "Detailed AI image/video generation prompt for scene 2"
+  ],
+  "posting_tips": ["5 specific tips for maximizing performance on {platform}"],
+  "ai_recommendations": {{
+    "best_hook_type": "Why this hook style works best for this topic",
+    "recommended_duration": "Optimal duration with reasoning",
+    "suggested_posting_time": "Best time to post on {platform}",
+    "emotional_trigger": "Primary emotion this content should evoke",
+    "retention_strategy": "Key strategy for maintaining watch time"
+  }}
 }}
 
 Rules:
-• Hooks MUST be under 12 words and attention-grabbing
-• Script must be punchy and scroll-stopping
-• Make it UNIQUE - don't repeat common patterns
-• No unsafe/illegal content
+- Hooks MUST use the specified hook style ({hookStyle}) as the primary approach
+- Script format MUST match the reel format ({reelFormat})
+- CTA MUST align with the specified CTA type ({ctaType})
+- Content MUST be optimized for {platform} specifically
+- Visual prompts must be detailed enough for AI image generation
+- Shot list must be practical and actionable
+- Voiceover must match the specified tone ({tone})
+- No unsafe/illegal content
 
 Return ONLY valid JSON, no markdown or explanation."""
 

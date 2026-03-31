@@ -57,6 +57,12 @@ async def generate_reel_content_inline(data: dict) -> dict:
                 duration=data.get("duration", "30s"),
                 goal=data.get("goal", "Engagement"),
                 topic=data.get("topic", ""),
+                platform=data.get("platform", "Instagram"),
+                hookStyle=data.get("hookStyle", "Curiosity"),
+                reelFormat=data.get("reelFormat", "Talking Head"),
+                ctaType=data.get("ctaType", "Follow"),
+                audience=data.get("audience", "General"),
+                outputType=data.get("outputType", "full_plan"),
                 uniqueId=unique_id
             )
             
