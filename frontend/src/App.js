@@ -140,6 +140,12 @@ import MyStories from './pages/MyStories';
 // ADMIN GROWTH DASHBOARD
 import GrowthDashboard from './pages/Admin/GrowthDashboard';
 import ContentEngine from './pages/ContentEngine';
+// NAVIGATION PAGES
+import MySpacePage from './pages/MySpacePage';
+import CreatePage from './pages/CreatePage';
+import BrowsePage from './pages/BrowsePage';
+import CharactersPage from './pages/CharactersPage';
+import UserDashboardPage from './pages/UserDashboardPage';
 // AI CHARACTER MEMORY
 import CharacterCreator from './pages/CharacterCreator';
 import CharacterLibrary from './pages/CharacterLibrary';
@@ -193,6 +199,13 @@ function App() {
         
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
+        {/* ═══ NAVIGATION PAGES ═══ */}
+        <Route path="/app/my-space" element={isAuthenticated ? <MySpacePage /> : <Navigate to="/login" />} />
+        <Route path="/app/my-space/:assetId" element={isAuthenticated ? <MySpacePage /> : <Navigate to="/login" />} />
+        <Route path="/app/create" element={isAuthenticated ? <CreatePage /> : <Navigate to="/login" />} />
+        <Route path="/app/browse" element={isAuthenticated ? <BrowsePage /> : <Navigate to="/login" />} />
+        <Route path="/app/characters" element={isAuthenticated ? <CharactersPage /> : <Navigate to="/login" />} />
+        <Route path="/app/dashboard" element={isAuthenticated ? <UserDashboardPage /> : <Navigate to="/login" />} />
         <Route path="/app/reels" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
         <Route path="/app/reel-generator" element={isAuthenticated ? <ReelGenerator /> : <Navigate to="/login" />} />
         <Route path="/app/reel" element={isAuthenticated ? <Navigate to="/app/reel-generator" /> : <Navigate to="/login" />} />

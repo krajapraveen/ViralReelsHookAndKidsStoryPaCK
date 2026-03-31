@@ -142,6 +142,10 @@ async def create_job(
         "last_error_message": None,
         "last_error_stage": None,
         "stage_retry_counts": {},
+        # Worker priority + recovery
+        "worker_class": "critical_story_video",
+        "recovery_state": "NONE",
+        "fallback_in_use": False,
         "created_at": now,
         "updated_at": now,
         "completed_at": None,
@@ -607,6 +611,12 @@ async def _finalize_job(job_id: str) -> Dict:
         {"$set": {"validation_result": validation.to_dict()}},
     )
 
+    # Clear recovery state on completion
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"recovery_state": "NONE", "fallback_in_use": False}},
+    )
+
     # Create notification if user opted in
     await _send_completion_notification(job_id, target)
 
@@ -890,7 +900,8 @@ async def _stage_audio(job: dict) -> Dict:
 
 
 async def _stage_assembly(job: dict) -> Dict:
-    """FFmpeg assembly — stitch clips, mix audio, generate preview/thumbnail."""
+    """FFmpeg assembly — stitch clips, mix audio, generate preview/thumbnail.
+    Includes fallback rendering for resilience."""
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     job_id = job["job_id"]
     clip_paths = [p for p in job.get("scene_clip_local_paths", []) if p and os.path.exists(p)]
@@ -899,19 +910,40 @@ async def _stage_assembly(job: dict) -> Dict:
     if not clip_paths:
         return {"status": "success", "output": {"note": "No local clips available for assembly yet"}}
 
+    # Mark recovery state for UI truthfulness
+    is_retry = job.get("retry_count", 0) > 0
+    if is_retry:
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"recovery_state": "AUTO_RECOVERING"}}
+        )
+
     await update_heartbeat(db, job_id, "Stitching video clips")
 
     output_dir = Path("/app/backend/static/generated")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Stitch clips
+    # Stitch clips — with fallback to simple concat if transitions fail
     stitched_path = str(output_dir / f"se_{job_id[:8]}_stitched.mp4")
     plans = job.get("scene_motion_plans", [])
     transitions = [p.get("transition_type", "crossfade") for p in plans[1:]] if plans else []
 
     stitch_ok = await ffmpeg_assembly.stitch_clips(clip_paths, stitched_path, transitions=transitions)
     if not stitch_ok:
-        return {"status": "failed", "error": "FFmpeg stitch failed", "error_code": ErrorCode.RENDER_FAILED.value}
+        # FALLBACK: Try simple concatenation without transitions
+        logger.warning(f"[ASSEMBLY FALLBACK] Fancy stitch failed for {job_id[:8]}, trying simple concat")
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"fallback_in_use": True, "recovery_state": "AUTO_RECOVERING"}}
+        )
+        await update_heartbeat(db, job_id, "Using fallback rendering")
+        stitch_ok = await ffmpeg_assembly.stitch_clips(clip_paths, stitched_path, transitions=[])
+        if not stitch_ok:
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"recovery_state": "NONE"}}
+            )
+            return {"status": "failed", "error": "FFmpeg stitch failed", "error_code": ErrorCode.RENDER_FAILED.value}
 
     await update_heartbeat(db, job_id, "Mixing audio")
 

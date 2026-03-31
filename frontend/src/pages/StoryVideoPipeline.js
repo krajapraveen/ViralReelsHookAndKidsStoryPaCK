@@ -29,8 +29,9 @@ const STAGE_ORDER = ['scenes', 'images', 'voices'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic };
 const STAGE_LABELS = { scenes: 'Scenes', images: 'Images', voices: 'Voices' };
 
-// Hard timeout: 5 minutes max for any generation
-const HARD_TIMEOUT_MS = 5 * 60 * 1000;
+// Timeout thresholds
+const SOFT_TIMEOUT_MS = 5 * 60 * 1000;   // 5 min → show "taking longer" message
+const HARD_TIMEOUT_MS = 15 * 60 * 1000;  // 15 min → background + notify
 // Stale detection: 90 seconds with no progress change
 const STALE_THRESHOLD_MS = 90 * 1000;
 
@@ -173,11 +174,13 @@ function StoryVideoPipelineInner() {
   // Post-generation state machine
   const [postGen, dispatchPostGen] = useReducer(postGenReducer, INITIAL_POST_GEN_STATE);
 
-  // Hard timeout tracking
+  // Timeout tracking (soft + hard)
   const hardTimeoutRef = useRef(null);
+  const softTimeoutRef = useRef(null);
   const staleTimeoutRef = useRef(null);
   const lastProgressRef = useRef(0);
   const lastProgressTimeRef = useRef(Date.now());
+  const [softTimeoutReached, setSoftTimeoutReached] = useState(false);
 
   // WebSocket
   const token = localStorage.getItem('token');
@@ -349,6 +352,7 @@ function StoryVideoPipelineInner() {
   const clearAllTimeouts = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     if (hardTimeoutRef.current) { clearTimeout(hardTimeoutRef.current); hardTimeoutRef.current = null; }
+    if (softTimeoutRef.current) { clearTimeout(softTimeoutRef.current); softTimeoutRef.current = null; }
     if (staleTimeoutRef.current) { clearTimeout(staleTimeoutRef.current); staleTimeoutRef.current = null; }
   }, []);
 
@@ -415,15 +419,23 @@ function StoryVideoPipelineInner() {
     lastProgressRef.current = 0;
     lastProgressTimeRef.current = Date.now();
 
-    // Hard timeout
+    // Soft timeout — show "taking longer" message, don't kill the job
+    softTimeoutRef.current = setTimeout(() => {
+      setSoftTimeoutReached(true);
+      toast.info('Taking longer than usual — your video is still being generated.', { duration: 5000 });
+    }, SOFT_TIMEOUT_MS);
+
+    // Hard timeout — switch to background mode, don't force-fail
     hardTimeoutRef.current = setTimeout(() => {
       clearAllTimeouts();
-      setPhase('postgen');
+      toast.info('We will continue generating in the background. You will be notified when ready.', { duration: 8000 });
+      // Enable notify and show graceful message instead of killing the page
       dispatchPostGen({
         type: 'SET_FAILED',
-        reason: 'Generation timed out after 5 minutes. Your credits have been preserved.',
-        stageDetail: 'Hard timeout — generation took too long',
+        reason: 'Generation is taking longer than expected. Your video is still being processed in the background.',
+        stageDetail: 'Extended generation — processing continues safely',
       });
+      setPhase('postgen');
     }, HARD_TIMEOUT_MS);
 
     const poll = async () => {
@@ -632,6 +644,7 @@ function StoryVideoPipelineInner() {
     setFormError('');
     setRemixData(null);
     setReuseInfo(null);
+    setSoftTimeoutReached(false);
     dispatchPostGen({ type: 'RESET' });
     checkRateLimit();
   };
@@ -1492,7 +1505,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               </div>
             </div>
           ) : uiState === 'FAILED' ? (
-            /* Generation failed — honest status with retry/cancel controls */
+            /* Generation failed — single source of truth from backend */
             <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-8" data-testid="generation-failed-panel">
               <div className="text-center">
                 <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
@@ -1508,14 +1521,21 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                   </div>
                 )}
               </div>
-              <div className="flex gap-3 justify-center mt-4">
-                {postGen.canRetry && (
+              {/* Actions strictly from backend allowed_actions */}
+              <div className="flex gap-3 justify-center mt-4" data-testid="failure-actions">
+                {(job?.allowed_actions || []).includes('retry') && (
                   <RetryButton jobId={jobId} onRetryStarted={(j) => { onResume?.(j); }} />
                 )}
-                <CancelButton jobId={jobId} onCancelled={() => { onNew?.(); }} />
-                <Button onClick={onNew} variant="outline" className="border-slate-600 text-slate-300" data-testid="start-fresh-btn">
-                  Start Fresh
-                </Button>
+                {(job?.allowed_actions || []).includes('start_over') && (
+                  <Button onClick={onNew} variant="outline" className="border-slate-600 text-slate-300" data-testid="start-over-btn">
+                    Start Fresh
+                  </Button>
+                )}
+                {!(job?.allowed_actions || []).includes('retry') && !(job?.allowed_actions || []).includes('start_over') && (
+                  <Button onClick={onNew} variant="outline" className="border-slate-600 text-slate-300" data-testid="start-fresh-btn">
+                    Start Fresh
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
@@ -1613,20 +1633,16 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             </Button>
           </div>
 
-          {/* FAILED state: show reason + retry/resume */}
-          {uiState === 'FAILED' && (
-            <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 space-y-3" data-testid="fail-details">
-              <p className="text-red-300 text-sm">{failReason}</p>
-              <div className="flex gap-2">
-                <Button onClick={onResume} size="sm" className="bg-purple-600 hover:bg-purple-700 flex-1" data-testid="resume-btn">
-                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Resume
-                </Button>
-                <Button onClick={onNew} size="sm" variant="outline" className="border-slate-700 text-slate-300 flex-1" data-testid="start-over-btn">
-                  Start Over
-                </Button>
-              </div>
-              <p className="text-xs text-slate-500">Credits have been preserved for retry.</p>
+          {/* FAILED state: single source of truth — backend-driven actions only */}
+          {uiState === 'FAILED' && job?.recovery_state !== 'NONE' && (
+            <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4" data-testid="recovery-status">
+              <p className="text-amber-300 text-sm">
+                {job.recovery_state === 'AUTO_RECOVERING' ? 'Recovery in progress...' : 'Waiting for your action.'}
+              </p>
             </div>
+          )}
+          {uiState === 'FAILED' && (
+            <p className="text-xs text-slate-500">Credits have been preserved for retry.</p>
           )}
 
           {/* PARTIAL_READY: explain and offer retry */}

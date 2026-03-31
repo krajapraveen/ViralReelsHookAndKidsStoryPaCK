@@ -89,6 +89,104 @@ def _map_state_to_legacy_status(state: str) -> str:
     return "PROCESSING"
 
 
+# ═══ ACTION RESOLVER — Single source of truth for UI buttons ═══
+RESUMABLE_STATES = {JobState.FAILED.value, JobState.PARTIAL_READY.value,
+                    "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER"}
+RECOVERING_STATES = {"ASSEMBLY_RETRYING", "FALLBACK_RENDERING"}
+
+
+def _resolve_allowed_actions(job: dict) -> dict:
+    """
+    Determine exactly what actions the UI can show for this job.
+    The frontend must ONLY render buttons from allowed_actions.
+    """
+    state = job.get("state", "")
+    recovery = job.get("recovery_state", "NONE")
+
+    # COMPLETED or READY — no recovery actions needed
+    if state in (JobState.READY.value, "COMPLETED"):
+        return {
+            "allowed_actions": ["watch", "download", "share", "remix", "continue"],
+            "resume_supported": False,
+            "recovery_state": "NONE",
+            "next_best_action": "watch",
+            "fallback_in_use": False,
+        }
+
+    # PARTIAL_READY — has some output
+    if state == JobState.PARTIAL_READY.value:
+        has_output = bool(job.get("output_url"))
+        actions = []
+        if has_output:
+            actions.extend(["watch", "download"])
+        actions.extend(["retry", "start_over"])
+        return {
+            "allowed_actions": actions,
+            "resume_supported": True,
+            "recovery_state": "WAITING_FOR_USER",
+            "next_best_action": "watch" if has_output else "retry",
+            "fallback_in_use": job.get("fallback_in_use", False),
+        }
+
+    # AUTO-RECOVERING — system is trying to fix itself
+    if recovery == "AUTO_RECOVERING":
+        return {
+            "allowed_actions": ["notify", "leave_safely"],
+            "resume_supported": False,
+            "recovery_state": "AUTO_RECOVERING",
+            "next_best_action": "notify",
+            "fallback_in_use": job.get("fallback_in_use", False),
+        }
+
+    # FAILED states — check if resume is valid
+    if state in RESUMABLE_STATES:
+        has_checkpoints = bool(job.get("keyframe_urls") or job.get("scene_motion_plans"))
+        actions = []
+        if has_checkpoints and state != "FAILED_RENDER":
+            actions.append("retry")
+        actions.append("start_over")
+        return {
+            "allowed_actions": actions,
+            "resume_supported": has_checkpoints and state != "FAILED_RENDER",
+            "recovery_state": "WAITING_FOR_USER",
+            "next_best_action": "retry" if has_checkpoints else "start_over",
+            "fallback_in_use": False,
+        }
+
+    # ASSEMBLING_VIDEO or other active states — job is still running
+    if state in (JobState.ASSEMBLING_VIDEO.value, *RECOVERING_STATES):
+        return {
+            "allowed_actions": ["notify", "leave_safely", "cancel"],
+            "resume_supported": False,
+            "recovery_state": "AUTO_RECOVERING" if state in RECOVERING_STATES else "NONE",
+            "next_best_action": "notify",
+            "fallback_in_use": state in RECOVERING_STATES,
+        }
+
+    # Active processing states — still working
+    if state in (JobState.PLANNING.value, JobState.BUILDING_CHARACTER_CONTEXT.value,
+                 JobState.PLANNING_SCENE_MOTION.value, JobState.GENERATING_KEYFRAMES.value,
+                 JobState.GENERATING_SCENE_CLIPS.value, JobState.GENERATING_AUDIO.value,
+                 JobState.VALIDATING.value):
+        return {
+            "allowed_actions": ["notify", "leave_safely", "cancel"],
+            "resume_supported": False,
+            "recovery_state": "NONE",
+            "next_best_action": "notify",
+            "fallback_in_use": False,
+        }
+
+    # INIT or unknown — minimal
+    return {
+        "allowed_actions": ["cancel"],
+        "resume_supported": False,
+        "recovery_state": "NONE",
+        "next_best_action": "cancel",
+        "fallback_in_use": False,
+    }
+
+
+
 def _map_state_to_legacy_stage(state: str) -> str:
     """Map new engine states to old pipeline stage names for frontend progress display."""
     mapping = {
@@ -662,6 +760,8 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "cut_mood": (job.get("episode_plan") or {}).get("cut_mood"),
             # Reuse info — tells UI which stages were reused vs regenerated
             "reuse_info": job.get("reuse_info"),
+            # Action control — single source of truth for UI buttons
+            **_resolve_allowed_actions(job),
         },
     }
 
@@ -1036,13 +1136,23 @@ async def resume_job(
         # Story Engine job
         if job.get("user_id") != user_id and current_user.get("role", "").upper() != "ADMIN":
             raise HTTPException(status_code=403, detail="Not your job")
-        if job["state"] not in (JobState.FAILED.value, JobState.PARTIAL_READY.value):
-            if job["state"] == JobState.READY.value:
-                raise HTTPException(status_code=400, detail="Job already completed")
-            raise HTTPException(status_code=400, detail=f"Cannot resume job in state: {job['state']}")
+
+        state = job.get("state", "")
+        actions = _resolve_allowed_actions(job)
+
+        if state == JobState.READY.value:
+            raise HTTPException(status_code=400, detail="Job already completed")
+
+        # Only allow retry/resume if the action resolver says so
+        if "retry" not in actions["allowed_actions"] and "start_over" not in actions["allowed_actions"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Job is currently {state.replace('_', ' ').lower()}. Cannot resume right now."
+            )
+
         await db.story_engine_jobs.update_one(
             {"job_id": job_id},
-            {"$set": {"state": JobState.INIT.value, "error_message": None}, "$inc": {"retry_count": 1}},
+            {"$set": {"state": JobState.INIT.value, "error_message": None, "recovery_state": "NONE"}, "$inc": {"retry_count": 1}},
         )
         background_tasks.add_task(run_pipeline, job_id)
         return {"success": True, "message": "Pipeline resumed from beginning."}

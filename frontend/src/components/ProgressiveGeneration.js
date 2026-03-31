@@ -703,12 +703,11 @@ export default function ProgressiveGeneration({
             <h4 className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-3">Explore while you wait</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {[
-                { label: 'My Space', desc: 'View your creations', href: '/app/personal-space', icon: '📂' },
-                { label: 'Create New', desc: 'Start another story', href: '/app/story-video-studio', icon: '✨' },
-                { label: 'Templates', desc: 'Browse templates', href: '/app/templates', icon: '📋' },
-                { label: 'Dashboard', desc: 'Your dashboard', href: '/app/dashboard', icon: '📊' },
-                { label: 'Characters', desc: 'Character studio', href: '/app/character-consistency-studio', icon: '🎭' },
-                { label: 'Browse', desc: 'Discover content', href: '/', icon: '🔍' },
+                { label: 'My Space', desc: 'View your creations', href: '/app/my-space', icon: '📂' },
+                { label: 'Create New', desc: 'Start a new creation', href: '/app/create', icon: '✨' },
+                { label: 'Dashboard', desc: 'Your stats & activity', href: '/app/dashboard', icon: '📊' },
+                { label: 'Characters', desc: 'Character studio', href: '/app/characters', icon: '🎭' },
+                { label: 'Browse', desc: 'Discover content', href: '/app/browse', icon: '🔍' },
               ].map((tool) => (
                 <button
                   key={tool.label}
