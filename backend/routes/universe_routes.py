@@ -314,19 +314,56 @@ async def get_rankings():
 
 @router.get("/series/{series_id}/episodes")
 async def get_series_episodes(series_id: str):
-    """Public: Get series info + episodes with lock status."""
+    """Public: Get series info + episodes with lock status.
+    
+    Primary source: story_episodes collection (canonical).
+    Fallback: story_engine_jobs with matching series_id (for unregistered episodes).
+    """
     series = await db.story_series.find_one(
         {"$or": [{"series_id": series_id}, {"id": series_id}]}, {"_id": 0}
     )
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
+    # Primary: canonical episode records
     episodes = await db.story_episodes.find(
         {"$or": [{"series_id": series_id}, {"series_id": series.get("id", series_id)}]},
         {"_id": 0, "episode_id": 1, "episode_number": 1, "title": 1,
          "cliffhanger_text": 1, "status": 1, "job_id": 1, "thumbnail_url": 1,
          "narration_preview": 1, "created_at": 1}
     ).sort("episode_number", 1).to_list(50)
+
+    # Fallback: find any story_engine_jobs linked to this series that aren't
+    # already represented in story_episodes (e.g., completed but not yet registered)
+    known_job_ids = {ep.get("job_id") for ep in episodes if ep.get("job_id")}
+    known_ep_nums = {ep.get("episode_number") for ep in episodes}
+
+    orphan_jobs = await db.story_engine_jobs.find(
+        {
+            "series_id": series_id,
+            "state": {"$in": ["READY", "PARTIAL_READY"]},
+            "job_id": {"$nin": list(known_job_ids)} if known_job_ids else {"$exists": True},
+        },
+        {"_id": 0, "job_id": 1, "episode_number": 1, "title": 1,
+         "thumbnail_url": 1, "state": 1, "created_at": 1}
+    ).sort("episode_number", 1).to_list(50)
+
+    for oj in orphan_jobs:
+        ep_num = oj.get("episode_number")
+        if ep_num and ep_num not in known_ep_nums:
+            episodes.append({
+                "episode_id": f"job-{oj['job_id']}",
+                "episode_number": ep_num,
+                "title": oj.get("title", f"Episode {ep_num}"),
+                "status": "ready" if oj.get("state") in ("READY", "PARTIAL_READY") else "in_progress",
+                "job_id": oj["job_id"],
+                "thumbnail_url": oj.get("thumbnail_url"),
+                "created_at": oj.get("created_at"),
+            })
+            known_ep_nums.add(ep_num)
+
+    # Re-sort by episode number after merging
+    episodes.sort(key=lambda e: e.get("episode_number", 0))
 
     # Determine lock status: episodes after the last COMPLETED one are locked
     last_completed_num = 0

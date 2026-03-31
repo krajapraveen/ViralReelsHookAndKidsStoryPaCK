@@ -753,6 +753,7 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "slug": job.get("slug"),
             "story_chain_id": job.get("story_chain_id"),
             "episode_number": job.get("episode_number"),
+            "series_id": job.get("series_id"),
             # Engine-specific fields
             "engine_state": state,
             "used_ken_burns_fallback": job.get("used_ken_burns_fallback", False),

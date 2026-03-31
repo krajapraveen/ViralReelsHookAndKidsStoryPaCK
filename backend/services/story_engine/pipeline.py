@@ -617,11 +617,99 @@ async def _finalize_job(job_id: str) -> Dict:
         {"$set": {"recovery_state": "NONE", "fallback_in_use": False}},
     )
 
+    # Register completed episode into story_episodes if this is a series-linked job
+    if target in SUCCESS_STATES and job.get("series_id"):
+        await _register_series_episode(job)
+
     # Create notification if user opted in
     await _send_completion_notification(job_id, target)
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} finalized: {final_state}")
     return {"success": target in SUCCESS_STATES, "terminal": True, "state": final_state}
+
+
+async def _register_series_episode(job: dict):
+    """
+    Register or update a story_episodes record when a series-linked job completes.
+
+    - Upserts on (series_id, episode_number) to avoid duplicates.
+    - Only called for successful jobs (READY / PARTIAL_READY).
+    - Persists enough metadata for SeriesTimeline to recover episode state
+      without relying on temporary navigation state.
+    """
+    series_id = job.get("series_id")
+    episode_number = job.get("episode_number")
+    job_id = job.get("job_id")
+
+    if not series_id or episode_number is None:
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Build the episode record from the completed job
+    episode_data = {
+        "job_id": job_id,
+        "status": "ready",
+        "title": job.get("title", f"Episode {episode_number}"),
+        "output_asset_url": job.get("output_url"),
+        "thumbnail_url": job.get("thumbnail_url"),
+        "output_type": "video",
+        "tool_used": "story_video",
+        "scene_count": len(job.get("keyframe_urls", [])),
+        "user_id": job.get("user_id"),
+        "character_ids": job.get("character_ids", []),
+        "cliffhanger": job.get("cliffhanger", ""),
+        "cliffhanger_text": job.get("cliffhanger", ""),
+        "summary": job.get("story_text", "")[:500] if job.get("story_text") else "",
+        "updated_at": now,
+    }
+
+    # Try to find existing episode for this series + episode number
+    existing = await db.story_episodes.find_one(
+        {"series_id": series_id, "episode_number": episode_number},
+        {"_id": 0, "episode_id": 1},
+    )
+
+    if existing:
+        # Update the existing record (e.g., re-generation of same episode)
+        await db.story_episodes.update_one(
+            {"series_id": series_id, "episode_number": episode_number},
+            {"$set": episode_data},
+        )
+        logger.info(
+            f"[SERIES] Updated episode {episode_number} for series {series_id[:8]} "
+            f"with job {job_id[:8]}"
+        )
+    else:
+        # Create a new episode record
+        episode_id = str(uuid.uuid4())
+        new_episode = {
+            "episode_id": episode_id,
+            "series_id": series_id,
+            "parent_episode_id": None,
+            "branch_type": "mainline",
+            "episode_number": episode_number,
+            "story_prompt": job.get("story_text", ""),
+            "episode_goal": "",
+            "plan": {},
+            "view_count": 0,
+            "remix_count": 0,
+            "share_count": 0,
+            "created_at": now,
+            **episode_data,
+        }
+        await db.story_episodes.insert_one(new_episode)
+        logger.info(
+            f"[SERIES] Registered new episode {episode_number} (id={episode_id[:8]}) "
+            f"for series {series_id[:8]} with job {job_id[:8]}"
+        )
+
+    # Update the series episode_count
+    total = await db.story_episodes.count_documents({"series_id": series_id})
+    await db.story_series.update_one(
+        {"series_id": series_id},
+        {"$set": {"episode_count": total, "updated_at": now}},
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
