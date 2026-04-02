@@ -131,6 +131,7 @@ class PanelOrchestrator:
             attempt_number=1,
             stage="PRIMARY",
             attempt_type="primary",
+            approved_panel_bytes=approved_panel_bytes,
         )
         total_attempts += 1
 
@@ -204,6 +205,7 @@ class PanelOrchestrator:
                     attempt_number=2,
                     stage=f"REPAIR_{repair_strategy.repair_mode.value}",
                     attempt_type="repair",
+                    approved_panel_bytes=approved_panel_bytes,
                 )
                 total_attempts += 1
 
@@ -323,6 +325,7 @@ class PanelOrchestrator:
                 attempt_number=3,
                 stage="FALLBACK",
                 attempt_type="fallback",
+                approved_panel_bytes=approved_panel_bytes,
             )
             total_attempts += 1
 
@@ -419,6 +422,7 @@ class PanelOrchestrator:
         attempt_number: int,
         stage: str,
         attempt_type: str,
+        approved_panel_bytes: Optional[List[bytes]] = None,
     ) -> dict:
         """
         Execute a single generation call. Returns result dict with:
@@ -436,19 +440,39 @@ class PanelOrchestrator:
             from emergentintegrations.llm.chat import LlmChat
             from emergentintegrations.llm.chat_message import UserMessage, ImageContent
 
+            # Build system message — enhanced when reference panels exist
+            has_refs = approved_panel_bytes and any(b for b in approved_panel_bytes if b)
+            system_msg = (
+                "You are a comic artist. Create original characters. Maintain character consistency across panels."
+                if not has_refs else
+                "You are a comic artist. Create original characters. "
+                "CRITICAL: Reference images of previously approved panels are provided alongside the source photo. "
+                "You MUST match the exact character appearance, art style, line quality, color palette, "
+                "and rendering technique shown in those reference panels. The source photo (first image) "
+                "defines the character's real face. The reference panels define the established comic style."
+            )
+
             img_chat = LlmChat(
                 api_key=self.llm_key,
                 session_id=f"smart-comic-{job_id}-p{panel_index}-a{attempt_number}",
-                system_message="You are a comic artist. Create original characters. Maintain character consistency across panels.",
+                system_message=system_msg,
             )
             img_chat.with_model(
                 provider_config["provider"],
                 provider_config["model"]
             ).with_params(modalities=["image", "text"])
 
+            # Build image list: source photo first, then approved panel references
+            image_contents = [ImageContent(photo_b64)]
+            if has_refs:
+                for ref_bytes in approved_panel_bytes:
+                    if ref_bytes and len(ref_bytes) > 100:
+                        ref_b64 = base64.b64encode(ref_bytes).decode("utf-8")
+                        image_contents.append(ImageContent(ref_b64))
+
             msg = UserMessage(
                 text=prompt,
-                file_contents=[ImageContent(photo_b64)]
+                file_contents=image_contents
             )
 
             text_response, images = await asyncio.wait_for(

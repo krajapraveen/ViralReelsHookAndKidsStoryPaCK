@@ -101,17 +101,14 @@ Replaced blind retries with: Diagnose → Smart Repair → Reroute → Validate 
 - [x] Job-level policy engine (job_orchestrator.py)
 - [x] Curated continuity pack (continuity_pack.py)
 - [x] Wired into photo_to_comic.py
+- [x] **Real approved panel bytes wired for live cross-panel continuity** — `_generate_panel` now feeds curated prior panel images directly to the LLM as visual references alongside the source photo. System message dynamically enhanced when references exist. All 3 stages (PRIMARY, REPAIR, FALLBACK) pass references.
 - [x] P0 deterministic policy correctness tests (52 tests)
 - [x] P0.5 adversarial smoke pack (31 tests)
 - [x] P1 chaos matrix kill tests (43 tests)
 - [x] Full regression pass (167/167)
 
-### Phase 2 Remaining (Next Session)
-- [ ] Admin routing config editor (versioned, with rollback) — DO NOT BUILD YET
-- [ ] Admin job diagnostics drill-down page
-- [ ] Regression alerts
-- [ ] Wire approved panel bytes for real cross-panel continuity
-- [ ] Smart Repair self-tuning router (wait for production metrics)
+### DEVELOPMENT FROZEN
+No further feature work. Deploy, observe real traffic, fix only critical production bugs.
 
 ---
 
