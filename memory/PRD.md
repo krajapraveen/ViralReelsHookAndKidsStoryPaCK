@@ -165,6 +165,19 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 ## Completed (This Session — Apr 2 2026)
 - [x] Bedtime Experience Engine P0 — iteration_403 (100%, 29/29 tests)
 
+## Photo to Comic P0 Upgrades (BUILT Apr 2 2026)
+
+### 5 Production Improvements:
+1. **Parallel Panel Generation** (DONE) — `asyncio.gather` for all panels simultaneously, 3-5x speed boost, per-panel retry (2 attempts, 120s timeout)
+2. **Real Backend-Driven Progress Stages** (DONE) — `stages` array in job document, tracked per-stage (face_analysis → story_generation → panel_generation → composition)
+3. **Smart Story Presets** (DONE) — 8 presets: Hero Journey, Comedy Gold, Love Story, Mystery Case, Rise Up, Epic Adventure, Spooky Tale, Future World
+4. **Output Bundle** (DONE) — PNG download + Story Script (TXT) via `/api/photo-to-comic/script/{job_id}`
+5. **Dynamic Time Estimation** (DONE) — Queue-aware estimate via `/api/photo-to-comic/estimate` + "Guaranteed output or credits refunded" badge
+
+**New Endpoints**: `GET /presets`, `GET /estimate`, `GET /script/{job_id}`
+**Testing**: iteration_405 — 100% (20/20 backend, 12/12 frontend)
+**Files**: `photo_to_comic.py`, `PhotoToComic.js`
+
 ## Bug Fix: False "Generation Failed" Toast (FIXED Apr 2 2026)
 
 ### Root Causes Found & Fixed:
