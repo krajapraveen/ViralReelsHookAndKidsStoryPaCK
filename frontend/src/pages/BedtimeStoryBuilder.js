@@ -14,6 +14,12 @@ import { useCredits } from '../contexts/CreditContext';
 const BEDTIME_API = {
   config: '/api/bedtime-story-builder/config',
   generate: '/api/bedtime-story-builder/generate',
+  track: '/api/bedtime-story-builder/track',
+};
+
+// ── Lightweight event tracker (fire-and-forget) ──
+const track = (eventType) => {
+  api.post(BEDTIME_API.track, { event_type: eventType }).catch(() => {});
 };
 
 // ── Constants ──
@@ -205,6 +211,14 @@ export default function BedtimeStoryBuilder() {
   useEffect(() => {
     fetchConfig();
     setStreak(getStreak());
+    // Track session_started + check for next-day return
+    track('session_started');
+    const lastVisit = localStorage.getItem('bedtime_last_visit');
+    if (lastVisit) {
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      if (lastVisit === yesterday) track('session_returned');
+    }
+    localStorage.setItem('bedtime_last_visit', new Date().toDateString());
   }, []);
 
   // Auto-scroll to current scene
@@ -252,6 +266,7 @@ export default function BedtimeStoryBuilder() {
         setCredits(res.data.remaining_credits);
         const newStreak = bumpStreak();
         setStreak(newStreak);
+        track(remixType ? 'remix_clicked' : 'story_generated');
         toast.success(`Story created!${newStreak > 1 ? ` ${newStreak}-day streak!` : ''}`);
         setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
       }
@@ -264,6 +279,7 @@ export default function BedtimeStoryBuilder() {
   const handlePlay = () => {
     if (playing && !paused) { pause(); return; }
     if (paused) { resume(); return; }
+    track('play_clicked');
     if (story?.scenes?.length) {
       playScenes(story.scenes);
     } else if (story?.script) {
@@ -522,7 +538,7 @@ export default function BedtimeStoryBuilder() {
                 </Button>
               )}
               {/* Bedtime Mode */}
-              <Button variant="outline" onClick={() => setBedtimeMode(!bedtimeMode)}
+              <Button variant="outline" onClick={() => { if (!bedtimeMode) track('bedtime_mode_enabled'); setBedtimeMode(!bedtimeMode); }}
                 className={`rounded-full px-4 py-2.5 text-sm font-medium ${
                   bedtimeMode ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'border-slate-700 text-slate-400 hover:text-white'
                 }`} data-testid="bedtime-mode-btn">

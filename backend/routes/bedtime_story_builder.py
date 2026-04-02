@@ -864,3 +864,62 @@ async def get_admin_stats(admin: dict = Depends(get_admin_user)):
             "series_pack": SERIES_PACK_COST
         }
     }
+
+
+# =============================================================================
+# MINIMAL EVENT TRACKING (Validation instrumentation only)
+# =============================================================================
+
+VALID_EVENTS = {"story_generated", "play_clicked", "bedtime_mode_enabled", "remix_clicked", "session_started", "session_returned"}
+
+
+class TrackEventRequest(BaseModel):
+    event_type: str
+
+
+@router.post("/track")
+async def track_event(request: Request, data: TrackEventRequest, user: dict = Depends(get_current_user)):
+    """Track a bedtime story event. 6 event types only."""
+    if data.event_type not in VALID_EVENTS:
+        raise HTTPException(status_code=400, detail="Invalid event type")
+    user_id = user.get("id", user.get("_id", ""))
+    await db.bedtime_events.insert_one({
+        "user_id": str(user_id),
+        "event_type": data.event_type,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    return {"ok": True}
+
+
+@router.get("/admin/metrics")
+async def get_bedtime_metrics(admin: dict = Depends(get_admin_user)):
+    """Return aggregated bedtime metrics for validation."""
+    pipeline_counts = await db.bedtime_events.aggregate([
+        {"$group": {"_id": "$event_type", "count": {"$sum": 1}}}
+    ]).to_list(length=20)
+    counts = {doc["_id"]: doc["count"] for doc in pipeline_counts}
+
+    unique_users = await db.bedtime_events.distinct("user_id")
+
+    # Next-day retention: users who have both session_started AND session_returned
+    started_users = set(await db.bedtime_events.distinct("user_id", {"event_type": "session_started"}))
+    returned_users = set(await db.bedtime_events.distinct("user_id", {"event_type": "session_returned"}))
+    retained = started_users & returned_users
+    retention_pct = round((len(retained) / len(started_users) * 100), 1) if started_users else 0
+
+    return {
+        "total_unique_users": len(unique_users),
+        "events": {
+            "story_generated": counts.get("story_generated", 0),
+            "play_clicked": counts.get("play_clicked", 0),
+            "bedtime_mode_enabled": counts.get("bedtime_mode_enabled", 0),
+            "remix_clicked": counts.get("remix_clicked", 0),
+            "session_started": counts.get("session_started", 0),
+            "session_returned": counts.get("session_returned", 0),
+        },
+        "retention": {
+            "started_users": len(started_users),
+            "returned_users": len(retained),
+            "next_day_retention_pct": retention_pct,
+        }
+    }

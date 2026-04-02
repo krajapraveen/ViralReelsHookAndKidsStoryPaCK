@@ -165,6 +165,17 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 ## Completed (This Session — Apr 2 2026)
 - [x] Bedtime Experience Engine P0 — iteration_403 (100%, 29/29 tests)
 
+## Bedtime Metrics Instrumentation (BUILT Apr 2 2026)
+
+### Validation Tracking Layer (NOT a feature)
+- 6 events tracked: `story_generated`, `play_clicked`, `bedtime_mode_enabled`, `remix_clicked`, `session_started`, `session_returned`
+- MongoDB collection: `bedtime_events`
+- `POST /api/bedtime-story-builder/track` — fire-and-forget from frontend
+- `GET /api/bedtime-story-builder/admin/metrics` — admin-only aggregated metrics
+- Returns: total unique users, event counts, next-day retention %
+- **No UI, no dashboard** — CLI/curl only
+- **Files**: `bedtime_story_builder.py` (track + metrics endpoints), `BedtimeStoryBuilder.js` (5 track() calls)
+
 ## Upcoming (P1) — Not Started
 1. Anti-crop watermark improvements + dynamic per-user watermarks
 2. Telemetry pipeline (abnormal preview tracking, multi-IP token reuse, scraping detection)
