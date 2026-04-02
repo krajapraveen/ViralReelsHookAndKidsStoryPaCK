@@ -6,6 +6,8 @@ No AI, no external APIs - pure template assembly.
 
 import random
 import logging
+import json
+import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -56,6 +58,8 @@ class GenerateStoryRequest(BaseModel):
     length: str = Field(..., description="3, 5, or 8 minutes")
     voice_style: str
     child_name: Optional[str] = None
+    mood: Optional[str] = None
+    remix_type: Optional[str] = None
 
 
 # =============================================================================
@@ -361,12 +365,114 @@ async def seed_bedtime_story_data():
 # STORY GENERATION ENGINE
 # =============================================================================
 
-def fill_placeholders(text: str, context: Dict[str, str]) -> str:
-    """Fill template placeholders with context values"""
-    result = text
-    for key, value in context.items():
-        result = result.replace("{" + key + "}", value)
-    return result
+async def generate_story_ai(
+    age_group: str, theme: str, moral: str, length: str,
+    voice_style: str, child_name: Optional[str] = None,
+    mood: Optional[str] = None, remix_type: Optional[str] = None
+) -> Dict[str, Any]:
+    """Generate story using AI with structured scene output, fallback to templates."""
+    from shared import LLM_AVAILABLE, EMERGENT_LLM_KEY
+
+    scene_count = {"3": 4, "5": 6, "8": 9}.get(length, 6)
+    name = child_name or "little one"
+    mood_text = mood or "calm"
+    remix_note = f"\nIMPORTANT: This is a '{remix_type}' remix. Transform the story accordingly — if animal version, make characters animals; if space version, set in space; if funny, make it comedic; if sleep, make it extra calming." if remix_type else ""
+
+    if LLM_AVAILABLE and EMERGENT_LLM_KEY:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            prompt = f"""Create a bedtime story for a {age_group} year old child.
+
+Child name: {name}
+Theme: {theme}
+Moral: {moral}
+Mood: {mood_text}
+Voice style: {voice_style}
+Target duration: {length} minutes ({scene_count} scenes){remix_note}
+
+Return ONLY this JSON:
+{{
+  "title": "story title",
+  "scenes": [
+    {{
+      "scene_type": "opening|adventure|challenge|resolution|calm_end",
+      "text": "narration text with [PAUSE 1s] and [SLOW] and [WHISPER] markers for voice pacing",
+      "emotion": "calm|happy|curious|gentle_tension|peaceful|sleepy",
+      "sfx": "sound effect suggestion (e.g. soft wind chimes, gentle footsteps)",
+      "voice_hint": "how to speak this scene (e.g. whisper softly, speak with wonder)"
+    }}
+  ],
+  "character": "main character name used in story",
+  "setting": "where the story takes place"
+}}
+
+RULES:
+- Create exactly {scene_count} scenes
+- Use {name} as the child's name woven naturally into the story
+- Age-appropriate for {age_group} year olds
+- End with a calming sleep-inducing scene
+- NO copyrighted characters or brands
+- Include [PAUSE Xs], [SLOW], [WHISPER], [EMPHASIZE] voice markers in text
+- Make it genuinely creative and heartwarming, not generic"""
+
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"bedtime-{uuid.uuid4().hex[:8]}",
+                system_message="You are a world-class children's bedtime story writer. Create magical, calming, age-appropriate stories. Return only valid JSON."
+            ).with_model("gemini", "gemini-3-flash-preview")
+
+            response = await chat.send_message(UserMessage(text=prompt))
+            text = response.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            elif text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+
+            result = json.loads(text.strip())
+            scenes = result.get("scenes", [])
+
+            # Build voice notes and SFX from scenes
+            voice_notes = []
+            sfx_cues = []
+            script_lines = []
+            for s in scenes:
+                script_lines.append(s.get("text", ""))
+                if s.get("voice_hint"):
+                    voice_notes.append({
+                        "scene": s.get("scene_type", "scene").replace("_", " ").title(),
+                        "note": s["voice_hint"],
+                        "pacing": "slow" if s.get("emotion") in ("calm", "sleepy", "peaceful") else "normal"
+                    })
+                if s.get("sfx"):
+                    sfx_cues.append({
+                        "scene": s.get("scene_type", "scene").replace("_", " ").title(),
+                        "cue": f"[SFX: {s['sfx']}]"
+                    })
+
+            word_count = sum(len(s.get("text", "").split()) for s in scenes)
+
+            return {
+                "title": result.get("title", f"{name}'s Bedtime Story"),
+                "script": "\n\n".join(script_lines),
+                "scenes": scenes,
+                "voice_notes": voice_notes,
+                "sfx_cues": sfx_cues,
+                "metadata": {
+                    "character": result.get("character", name),
+                    "place": result.get("setting", "a magical land"),
+                    "word_count": word_count,
+                    "estimated_duration": f"{max(1, word_count // 130)} min",
+                    "target_duration": f"{length} min",
+                    "ai_generated": True
+                }
+            }
+        except Exception as e:
+            logger.warning(f"AI story generation failed, falling back to templates: {e}")
+
+    # Fallback to template-based generation
+    return generate_story_script(age_group, theme, moral, length, voice_style, child_name)
 
 
 def generate_story_script(
@@ -539,14 +645,16 @@ async def generate_story(
         raise HTTPException(status_code=402, detail=str(e))
     
     try:
-        # Generate story
-        result = generate_story_script(
+        # Generate story (AI with template fallback)
+        result = await generate_story_ai(
             age_group=data.age_group,
             theme=data.theme,
             moral=data.moral,
             length=data.length,
             voice_style=data.voice_style,
-            child_name=data.child_name
+            child_name=data.child_name,
+            mood=data.mood,
+            remix_type=data.remix_type,
         )
         
         # Get updated balance
