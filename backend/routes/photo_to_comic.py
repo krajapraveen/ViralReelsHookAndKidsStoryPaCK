@@ -1062,146 +1062,83 @@ Format as JSON array:
                     for i, line in enumerate(dialogue_lines[:len(story_scenes)]):
                         story_scenes[i]["dialogue"] = line.strip()
                 
-                # Step 2: PARALLEL panel generation
-                await update_stage(job_id, "panel_generation", "in_progress", 20, f"Creating {panel_count} panels in parallel...")
+                # Step 2: SMART PANEL GENERATION (via Panel Orchestrator)
+                await update_stage(job_id, "panel_generation", "in_progress", 20, f"Creating {panel_count} panels...")
                 
                 photo_b64 = base64.b64encode(photo_content).decode('utf-8')
 
-                async def generate_single_panel(i: int, scene: dict, force_fail: bool = False) -> dict:
-                    """Generate a single panel with retry, fallback model, and calm messaging"""
-                    panel_start = time.time()
-                    panel_data = {
-                        "panelNumber": i + 1,
-                        "scene": scene.get("scene", f"Panel {i+1}"),
-                        "dialogue": scene.get("dialogue") if include_dialogue else None
-                    }
-                    
-                    # Controlled failure injection for validation testing
-                    if force_fail:
-                        logger.info(f"[VALIDATION] Forced failure for panel {i+1}, job {job_id}")
-                        panel_data["imageUrl"] = None
-                        panel_data["status"] = "FAILED"
-                        panel_data["fail_reason"] = "validation_forced_failure"
-                        panel_data["timing_ms"] = round((time.time() - panel_start) * 1000)
-                        return panel_data
+                # ── Input Risk Classification ──
+                from services.comic_pipeline.panel_orchestrator import PanelOrchestrator
+                from services.comic_pipeline.character_lock_service import CharacterLockService
+                from enums.pipeline_enums import RiskBucket, PipelineState, PIPELINE_STATE_MESSAGES
 
-                    # Retry strategy: primary model → retry primary → fallback model
-                    attempts = [
-                        ("gemini", "gemini-3-pro-image-preview", "Creating panels..."),
-                        ("gemini", "gemini-3-pro-image-preview", "Optimizing panel..."),
-                        ("gemini", "gemini-2.0-flash-preview-image-generation", "Finalizing panel..."),
-                    ]
-                    
-                    for attempt_idx, (provider, model_name, calm_msg) in enumerate(attempts):
-                        try:
-                            await db.photo_to_comic_jobs.update_one(
-                                {"id": job_id},
-                                {"$set": {"progressMessage": calm_msg}}
-                            )
-                            
-                            img_chat = LlmChat(
-                                api_key=EMERGENT_LLM_KEY,
-                                session_id=f"comic-strip-panel-{job_id}-{i}-{attempt_idx}",
-                                system_message="You are a comic artist. Create original characters. Maintain character consistency."
-                            )
-                            img_chat.with_model(provider, model_name).with_params(modalities=["image", "text"])
-                            
-                            panel_prompt = f"""Create comic panel {i+1} of {panel_count}.
+                # Classify input risk from existing quality check
+                risk_bucket = RiskBucket.MEDIUM
+                try:
+                    from services.photo_quality import PhotoQualityChecker
+                    quality_checker = PhotoQualityChecker()
+                    qr = quality_checker.check_quality(photo_content)
+                    if qr.get("overall") == "good" and qr.get("face", {}).get("status") == "good":
+                        risk_bucket = RiskBucket.LOW
+                    elif qr.get("overall") == "fail" or qr.get("face", {}).get("status") == "fail":
+                        risk_bucket = RiskBucket.HIGH
+                    elif qr.get("face", {}).get("count", 0) > 1:
+                        risk_bucket = RiskBucket.HIGH
+                    elif qr.get("face", {}).get("count", 0) == 0:
+                        risk_bucket = RiskBucket.EXTREME
+                except Exception as risk_err:
+                    logger.warning(f"Risk classification failed: {risk_err}")
 
-Scene: {scene.get('scene', '')}
-Style: {SAFE_STYLES[style]['prompt']}
-Genre: {genre}
+                # Initialize character lock
+                char_lock_svc = CharacterLockService(db)
+                character_lock = char_lock_svc.initialize_from_source(photo_content, style)
 
-IMPORTANT:
-- The main character should look like a stylized comic version of the person in the reference photo
-- Keep the character consistent across all panels
-- Create ORIGINAL art, no copyrighted characters
-- Panel {i+1} of {panel_count} in the story sequence
+                # Store risk profile and pipeline state
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "input_risk_bucket": risk_bucket.value,
+                        "character_lock": character_lock.model_dump(),
+                        "pipeline_state": PipelineState.GENERATING.value,
+                        "progressMessage": PIPELINE_STATE_MESSAGES[PipelineState.GENERATING],
+                    }}
+                )
 
-AVOID: {negative_prompt}"""
-                            
-                            msg = UserMessage(
-                                text=panel_prompt,
-                                file_contents=[ImageContent(photo_b64)]
-                            )
-                            
-                            import asyncio as aio
-                            text_response, images = await aio.wait_for(
-                                img_chat.send_message_multimodal_response(msg),
-                                timeout=120
-                            )
-                            
-                            if images and len(images) > 0:
-                                img_data = images[0]
-                                if isinstance(img_data, dict):
-                                    raw_data = img_data.get('data') or img_data.get('b64_json') or img_data.get('image') or ''
-                                    image_bytes = base64.b64decode(raw_data) if raw_data else b''
-                                elif isinstance(img_data, str):
-                                    image_bytes = base64.b64decode(img_data)
-                                else:
-                                    image_bytes = img_data if isinstance(img_data, bytes) else b''
-                                
-                                if not image_bytes:
-                                    continue
-                                
-                                # Watermark
-                                try:
-                                    user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
-                                    user_plan = user_data.get("plan", "free") if user_data and isinstance(user_data, dict) else "free"
-                                except Exception:
-                                    user_plan = "free"
-                                
-                                if should_apply_watermark({"plan": user_plan}):
-                                    config = get_watermark_config("COMIC")
-                                    image_bytes = add_diagonal_watermark(
-                                        image_bytes,
-                                        text=config["text"],
-                                        opacity=config["opacity"],
-                                        font_size=config["font_size"],
-                                        spacing=config["spacing"]
-                                    )
-                                
-                                # Upload to R2
-                                try:
-                                    from services.cloudflare_r2_storage import upload_image_bytes
-                                    fname = f"comic_strip_{job_id[:8]}_panel{i+1}.png"
-                                    success, cdn_url = await upload_image_bytes(image_bytes, fname, f"comic/{user_id[:8]}")
-                                    if success and cdn_url:
-                                        panel_data["imageUrl"] = cdn_url
-                                    else:
-                                        image_b64_str = base64.b64encode(image_bytes).decode('utf-8')
-                                        panel_data["imageUrl"] = f"data:image/png;base64,{image_b64_str}"
-                                except Exception:
-                                    image_b64_str = base64.b64encode(image_bytes).decode('utf-8')
-                                    panel_data["imageUrl"] = f"data:image/png;base64,{image_b64_str}"
-                                
-                                panel_data["status"] = "READY"
-                                panel_data["retries"] = attempt_idx
-                                panel_data["timing_ms"] = round((time.time() - panel_start) * 1000)
-                                logger.info(f"Panel {i+1} generated for job {job_id} (attempt {attempt_idx+1}, {panel_data['timing_ms']}ms)")
-                                
-                                # Update progress per panel
-                                progress = 20 + int(((i + 1) / panel_count) * 65)
-                                await db.photo_to_comic_jobs.update_one(
-                                    {"id": job_id},
-                                    {"$set": {"progress": progress, "progressMessage": f"Panel {i+1}/{panel_count} ready"}}
-                                )
-                                return panel_data
-                            
-                        except Exception as e:
-                            logger.warning(f"Panel {i+1} attempt {attempt_idx+1} failed for job {job_id}: {type(e).__name__}: {e}")
-                    
-                    # All attempts exhausted — mark as failed with reason
-                    panel_data["imageUrl"] = None
-                    panel_data["status"] = "FAILED"
-                    panel_data["fail_reason"] = "all_models_failed"
-                    panel_data["timing_ms"] = round((time.time() - panel_start) * 1000)
-                    return panel_data
-
-                # Fan-out: generate ALL panels in parallel
+                # ── Fan-out: generate ALL panels via Panel Orchestrator ──
+                orchestrator = PanelOrchestrator(db, EMERGENT_LLM_KEY)
                 import asyncio
+
+                async def orchestrate_panel(i):
+                    """Wrapper that updates progress per panel."""
+                    result = await orchestrator.process_panel(
+                        job_id=job_id,
+                        panel_index=i,
+                        scene=story_scenes[i],
+                        style_name=style,
+                        style_prompt=SAFE_STYLES[style]['prompt'],
+                        genre=genre,
+                        photo_b64=photo_b64,
+                        negative_prompt=negative_prompt,
+                        panel_count=panel_count,
+                        risk_bucket=risk_bucket,
+                        character_lock=character_lock,
+                        source_image_bytes=photo_content,
+                        approved_panel_bytes=None,  # Phase 2: wire approved panel bytes
+                        user_id=user_id,
+                    )
+                    # Update progress per panel
+                    progress = 20 + int(((i + 1) / panel_count) * 65)
+                    progress_text = f"Panel {i+1}/{panel_count} ready"
+                    if result.get("pipeline_status") in ("PASSED_REPAIRED", "REPAIRING"):
+                        progress_text = PIPELINE_STATE_MESSAGES.get(PipelineState.REPAIRING, "Enhancing panels...")
+                    await db.photo_to_comic_jobs.update_one(
+                        {"id": job_id},
+                        {"$set": {"progress": progress, "progressMessage": progress_text}}
+                    )
+                    return result
+
                 tasks = [
-                    generate_single_panel(i, story_scenes[i])
+                    orchestrate_panel(i)
                     for i in range(min(panel_count, len(story_scenes)))
                 ]
                 panels = await asyncio.gather(*tasks, return_exceptions=False)
@@ -1209,68 +1146,47 @@ AVOID: {negative_prompt}"""
 
                 await update_stage(job_id, "panel_generation", "done", 88, "All panels created")
 
-                # ── JOB-LEVEL FALLBACK ──
-                # If >50% panels failed, try a simplified batch approach
+                # ── JOB-LEVEL FALLBACK (only if >50% panels failed AFTER smart repair) ──
                 failed_count = sum(1 for p in panels if p.get("status") == "FAILED")
                 if failed_count > len(panels) / 2 and LLM_AVAILABLE and EMERGENT_LLM_KEY:
-                    logger.warning(f"Job {job_id}: {failed_count}/{len(panels)} panels failed. Triggering job-level fallback.")
+                    logger.warning(f"Job {job_id}: {failed_count}/{len(panels)} still failed after smart repair. Job-level fallback.")
+                    await db.photo_to_comic_jobs.update_one(
+                        {"id": job_id},
+                        {"$set": {
+                            "pipeline_state": PipelineState.JOB_FALLBACK.value,
+                            "progressMessage": PIPELINE_STATE_MESSAGES[PipelineState.JOB_FALLBACK],
+                        }}
+                    )
                     await update_stage(job_id, "composition", "in_progress", 89, "Optimizing your comic...")
                     
-                    # Fallback: try each failed panel sequentially with longer timeout + text-only model as last resort
+                    # Job fallback: try each failed panel with degraded tier
                     for pi, panel in enumerate(panels):
                         if panel.get("status") != "FAILED":
                             continue
                         scene = story_scenes[pi] if pi < len(story_scenes) else {"scene": f"Scene {pi+1}"}
                         
-                        # Last-resort attempt with simplified prompt + longer timeout
                         try:
-                            fallback_chat = LlmChat(
-                                api_key=EMERGENT_LLM_KEY,
-                                session_id=f"comic-fallback-{job_id}-{pi}",
-                                system_message="Create a simple comic panel illustration."
+                            fb_result = await orchestrator.process_panel(
+                                job_id=job_id,
+                                panel_index=pi,
+                                scene=scene,
+                                style_name=style,
+                                style_prompt=SAFE_STYLES[style]['prompt'],
+                                genre=genre,
+                                photo_b64=photo_b64,
+                                negative_prompt=negative_prompt,
+                                panel_count=panel_count,
+                                risk_bucket=RiskBucket.EXTREME,  # Force extreme for fallback
+                                character_lock=character_lock,
+                                source_image_bytes=photo_content,
+                                user_id=user_id,
                             )
-                            fallback_chat.with_model("gemini", "gemini-2.0-flash-preview-image-generation").with_params(modalities=["image", "text"])
-                            
-                            simple_prompt = f"""Draw a simple comic panel in {SAFE_STYLES[style]['prompt']} style.
-Scene: {scene.get('scene', 'A character in an adventure')}
-Keep it simple and colorful. Single scene, clear composition."""
-                            
-                            fallback_msg = UserMessage(text=simple_prompt)
-                            
-                            import asyncio as aio
-                            fb_text, fb_images = await aio.wait_for(
-                                fallback_chat.send_message_multimodal_response(fallback_msg),
-                                timeout=90
-                            )
-                            
-                            if fb_images and len(fb_images) > 0:
-                                fb_img = fb_images[0]
-                                if isinstance(fb_img, dict):
-                                    fb_raw = fb_img.get('data') or fb_img.get('b64_json') or fb_img.get('image') or ''
-                                    fb_bytes = base64.b64decode(fb_raw) if fb_raw else b''
-                                elif isinstance(fb_img, str):
-                                    fb_bytes = base64.b64decode(fb_img)
-                                else:
-                                    fb_bytes = fb_img if isinstance(fb_img, bytes) else b''
-                                
-                                if fb_bytes:
-                                    try:
-                                        from services.cloudflare_r2_storage import upload_image_bytes
-                                        fname = f"comic_strip_{job_id[:8]}_panel{pi+1}_fb.png"
-                                        success, cdn_url = await upload_image_bytes(fb_bytes, fname, f"comic/{user_id[:8]}")
-                                        if success and cdn_url:
-                                            panels[pi]["imageUrl"] = cdn_url
-                                        else:
-                                            panels[pi]["imageUrl"] = f"data:image/png;base64,{base64.b64encode(fb_bytes).decode()}"
-                                    except Exception:
-                                        panels[pi]["imageUrl"] = f"data:image/png;base64,{base64.b64encode(fb_bytes).decode()}"
-                                    
-                                    panels[pi]["status"] = "READY"
-                                    panels[pi]["retries"] = 4  # Mark as fallback-generated
-                                    panels[pi]["fallback"] = True
-                                    logger.info(f"Fallback succeeded for panel {pi+1}, job {job_id}")
+                            if fb_result.get("status") == "READY":
+                                panels[pi] = fb_result
+                                panels[pi]["fallback"] = True
+                                logger.info(f"Job fallback succeeded for panel {pi+1}, job {job_id}")
                         except Exception as fb_err:
-                            logger.warning(f"Fallback failed for panel {pi+1}: {fb_err}")
+                            logger.warning(f"Job fallback failed for panel {pi+1}: {fb_err}")
 
             except Exception as e:
                 logger.error(f"Comic strip generation error: {e}")
@@ -1301,7 +1217,14 @@ Keep it simple and colorful. Single scene, clear composition."""
                 idx = fp["panelNumber"] - 1
                 scene = story_scenes[idx] if idx < len(story_scenes) else {"scene": fp.get("scene", "")}
                 try:
-                    repaired = await generate_single_panel(idx, scene)
+                    repaired = await orchestrator.process_panel(
+                        job_id=job_id, panel_index=idx, scene=scene,
+                        style_name=style, style_prompt=SAFE_STYLES[style]['prompt'],
+                        genre=genre, photo_b64=photo_b64, negative_prompt=negative_prompt,
+                        panel_count=panel_count, risk_bucket=risk_bucket,
+                        character_lock=character_lock, source_image_bytes=photo_content,
+                        user_id=user_id,
+                    )
                     if repaired.get("status") == "READY":
                         panels[idx] = repaired
                         logger.info(f"Repaired panel {idx+1} for job {job_id}")
@@ -1341,7 +1264,14 @@ Keep it simple and colorful. Single scene, clear composition."""
                                 {"id": job_id},
                                 {"$set": {"progressMessage": "Optimizing character details..."}}
                             )
-                            repaired = await generate_single_panel(idx, scene)
+                            repaired = await orchestrator.process_panel(
+                                job_id=job_id, panel_index=idx, scene=scene,
+                                style_name=style, style_prompt=SAFE_STYLES[style]['prompt'],
+                                genre=genre, photo_b64=photo_b64, negative_prompt=negative_prompt,
+                                panel_count=panel_count, risk_bucket=risk_bucket,
+                                character_lock=character_lock, source_image_bytes=photo_content,
+                                user_id=user_id,
+                            )
                             if repaired.get("status") == "READY":
                                 repaired["consistency_retried"] = True
                                 panels[idx] = repaired
@@ -1564,6 +1494,20 @@ Keep it simple and colorful. Single scene, clear composition."""
             "ui_emotional_safety": ui_emotional_safety,
         }
 
+        # ── Build routing_summary from panel data ──
+        primary_pass = sum(1 for p in panels if isinstance(p, dict) and p.get("pipeline_status") == "PASSED")
+        repaired = sum(1 for p in panels if isinstance(p, dict) and p.get("pipeline_status") == "PASSED_REPAIRED")
+        degraded = sum(1 for p in panels if isinstance(p, dict) and p.get("pipeline_status") == "PASSED_DEGRADED")
+        panel_failed = sum(1 for p in panels if isinstance(p, dict) and p.get("pipeline_status") == "FAILED")
+
+        routing_summary = {
+            "primary_pass_panels": primary_pass,
+            "repaired_panels": repaired,
+            "degraded_panels": degraded,
+            "failed_panels": panel_failed,
+            "job_level_fallback_triggered": failed_count > len(panels) / 2 if panels else False,
+        }
+
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -1584,6 +1528,8 @@ Keep it simple and colorful. Single scene, clear composition."""
                 "fallback_panel_count": sum(1 for p in panels if isinstance(p, dict) and p.get("fallback")),
                 "stage_timing": stage_timing,
                 "validation_quality": validation_quality,
+                "routing_summary": routing_summary,
+                "pipeline_state": "FINALIZED",
                 **consistency_meta,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}

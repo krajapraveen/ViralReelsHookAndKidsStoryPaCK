@@ -980,6 +980,69 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
     if full_failure_rate is not None and full_failure_rate > 15:
         alerts.append({"level": "critical", "message": f"Full failure rate is {full_failure_rate}% (above 15% threshold)"})
 
+    # ── Smart Repair Metrics (from comic_panel_attempts) ──
+    smart_repair_metrics = None
+    attempt_docs = await db.comic_panel_attempts.find(
+        {"created_at": {"$gte": cutoff}},
+        {"_id": 0, "stage": 1, "accepted": 1, "diagnostics": 1,
+         "result.latency_ms": 1, "input_context.model_tier": 1}
+    ).limit(1000).to_list(1000)
+
+    if attempt_docs:
+        primary_attempts = [a for a in attempt_docs if a.get("stage") == "PRIMARY"]
+        repair_attempts = [a for a in attempt_docs if "REPAIR" in (a.get("stage") or "")]
+        fallback_attempts = [a for a in attempt_docs if a.get("stage") == "FALLBACK"]
+
+        primary_pass = sum(1 for a in primary_attempts if a.get("accepted"))
+        repair_pass = sum(1 for a in repair_attempts if a.get("accepted"))
+        fallback_pass = sum(1 for a in fallback_attempts if a.get("accepted"))
+
+        # Failure type frequency
+        failure_freq = {}
+        for a in attempt_docs:
+            for ft in a.get("diagnostics", {}).get("failure_types_in", []):
+                failure_freq[ft] = failure_freq.get(ft, 0) + 1
+
+        # Risk bucket breakdown from routing_summary in jobs
+        risk_pipeline = [
+            {"$match": {"createdAt": {"$gte": cutoff}, "input_risk_bucket": {"$exists": True}}},
+            {"$group": {
+                "_id": "$input_risk_bucket",
+                "count": {"$sum": 1},
+                "avg_pqs": {"$avg": "$validation_quality.perceived_quality_score"},
+            }}
+        ]
+        risk_breakdown = {}
+        try:
+            risk_docs = await db.photo_to_comic_jobs.aggregate(risk_pipeline).to_list(10)
+            for r in risk_docs:
+                risk_breakdown[r["_id"]] = {
+                    "jobs": r["count"],
+                    "avg_pqs": round(r["avg_pqs"], 1) if r.get("avg_pqs") else None,
+                }
+        except Exception:
+            pass
+
+        smart_repair_metrics = {
+            "total_attempts": len(attempt_docs),
+            "primary": {"attempts": len(primary_attempts), "accepted": primary_pass,
+                       "pass_rate": _safe_rate(primary_pass, len(primary_attempts))},
+            "repair": {"attempts": len(repair_attempts), "accepted": repair_pass,
+                      "pass_rate": _safe_rate(repair_pass, len(repair_attempts))},
+            "fallback": {"attempts": len(fallback_attempts), "accepted": fallback_pass,
+                        "pass_rate": _safe_rate(fallback_pass, len(fallback_attempts))},
+            "failure_type_frequency": dict(sorted(failure_freq.items(), key=lambda x: x[1], reverse=True)),
+            "risk_bucket_breakdown": risk_breakdown,
+        }
+
+        # Smart repair specific alerts
+        if primary_attempts and _safe_rate(primary_pass, len(primary_attempts)) < 60:
+            alerts.append({"level": "warning",
+                          "message": f"Primary pass rate is {_safe_rate(primary_pass, len(primary_attempts))}% (below 60%)"})
+        if repair_attempts and _safe_rate(repair_pass, len(repair_attempts)) < 50:
+            alerts.append({"level": "warning",
+                          "message": f"Repair success rate is {_safe_rate(repair_pass, len(repair_attempts))}% (below 50%)"})
+
     # ── Validation Quality Aggregates (5 Dimensions) ──
     vq_pipeline = [
         {"$match": {"createdAt": {"$gte": cutoff}, "validation_quality": {"$exists": True}}},
@@ -1070,6 +1133,7 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
             "drift_by_style": drift_by_style,
         },
         "validation_quality": validation_quality_agg,
+        "smart_repair": smart_repair_metrics,
         "recent_validations": recent_validations,
         "quality_check": {
             "total_checks": quality_total,

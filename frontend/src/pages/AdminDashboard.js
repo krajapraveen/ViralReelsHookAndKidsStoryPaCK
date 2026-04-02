@@ -1444,6 +1444,71 @@ export default function AdminDashboard() {
                   {/* ═══ FALLBACK VALIDATION TESTS ═══ */}
                   <FallbackValidationRunner validations={ch?.recent_validations} />
 
+                  {/* ═══ SMART REPAIR OVERVIEW ═══ */}
+                  {ch?.smart_repair && (
+                    <div data-testid="smart-repair-overview">
+                      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-cyan-400" /> Smart Repair Pipeline
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <MetricCard icon={Target} label="Primary Pass Rate"
+                          value={ch.smart_repair.primary?.pass_rate != null ? `${ch.smart_repair.primary.pass_rate}%` : '—'}
+                          sub={`${ch.smart_repair.primary?.accepted || 0}/${ch.smart_repair.primary?.attempts || 0}`}
+                          color={ch.smart_repair.primary?.pass_rate >= 70 ? 'emerald' : ch.smart_repair.primary?.pass_rate >= 50 ? 'amber' : 'red'}
+                          testId="sr-primary-pass" />
+                        <MetricCard icon={RefreshCw} label="Repair Success"
+                          value={ch.smart_repair.repair?.pass_rate != null ? `${ch.smart_repair.repair.pass_rate}%` : '—'}
+                          sub={`${ch.smart_repair.repair?.accepted || 0}/${ch.smart_repair.repair?.attempts || 0}`}
+                          color={ch.smart_repair.repair?.pass_rate >= 50 ? 'emerald' : 'amber'}
+                          testId="sr-repair-success" />
+                        <MetricCard icon={Shield} label="Fallback Accept"
+                          value={ch.smart_repair.fallback?.pass_rate != null ? `${ch.smart_repair.fallback.pass_rate}%` : '—'}
+                          sub={`${ch.smart_repair.fallback?.accepted || 0}/${ch.smart_repair.fallback?.attempts || 0}`}
+                          color="cyan" testId="sr-fallback-accept" />
+                        <MetricCard icon={BarChart3} label="Total Attempts"
+                          value={ch.smart_repair.total_attempts || 0}
+                          color="blue" testId="sr-total-attempts" />
+                      </div>
+
+                      {/* Failure Type Frequency */}
+                      {ch.smart_repair.failure_type_frequency && Object.keys(ch.smart_repair.failure_type_frequency).length > 0 && (
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 mb-3">
+                          <p className="text-[10px] text-slate-500 font-bold uppercase mb-2">Failure Type Breakdown</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {Object.entries(ch.smart_repair.failure_type_frequency).map(([ft, count]) => (
+                              <div key={ft} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2">
+                                <span className="text-[11px] text-slate-300 capitalize">{ft.replace(/_/g, ' ')}</span>
+                                <span className="text-[11px] font-bold text-amber-400">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Risk Bucket Quality */}
+                      {ch.smart_repair.risk_bucket_breakdown && Object.keys(ch.smart_repair.risk_bucket_breakdown).length > 0 && (
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                          <p className="text-[10px] text-slate-500 font-bold uppercase mb-2">Quality by Input Risk</p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {Object.entries(ch.smart_repair.risk_bucket_breakdown).map(([bucket, data]) => (
+                              <div key={bucket} className="bg-slate-800/50 rounded-lg p-2 text-center">
+                                <p className={`text-[10px] font-bold uppercase ${
+                                  bucket === 'LOW' ? 'text-emerald-400' :
+                                  bucket === 'MEDIUM' ? 'text-amber-400' :
+                                  bucket === 'HIGH' ? 'text-orange-400' : 'text-red-400'
+                                }`}>{bucket}</p>
+                                <p className="text-lg font-bold text-white">{data.jobs}</p>
+                                <p className="text-[9px] text-slate-500">
+                                  {data.avg_pqs != null ? `PQS ${data.avg_pqs}/5` : 'No PQS'}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Character Consistency */}
                   <div>
                     <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
