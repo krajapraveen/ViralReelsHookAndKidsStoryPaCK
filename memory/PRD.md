@@ -165,6 +165,19 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 ## Completed (This Session — Apr 2 2026)
 - [x] Bedtime Experience Engine P0 — iteration_403 (100%, 29/29 tests)
 
+## Bug Fix: False "Generation Failed" Toast (FIXED Apr 2 2026)
+
+### Root Causes Found & Fixed:
+1. `setCredits` was destructured from `useCredits()` but CreditContext only exports `refreshCredits` — calling it crashed
+2. `credits` starts as `null`, and `(null ?? 0) < 10 = true` silently blocked generation 
+3. `try/catch` was too broad — tracking/streak failures inside same block as generation poisoned the success path
+
+### Fixes Applied:
+- Replaced `setCredits` with `refreshCredits`
+- Fixed credit null check: only blocks when `creditsLoaded === true && credits !== null && credits < 10`
+- Split try/catch: main generation has isolated catch ("Generation failed"), post-success side effects (streak, tracking, credit refresh) each have their own isolated error handling
+- **Testing**: iteration_404 — 100% (30/30 backend, 16/16 frontend)
+
 ## Bedtime Metrics Instrumentation (BUILT Apr 2 2026)
 
 ### Validation Tracking Layer (NOT a feature)
