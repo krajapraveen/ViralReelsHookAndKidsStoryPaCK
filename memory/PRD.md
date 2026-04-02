@@ -21,7 +21,7 @@ AI Creator Suite ("Growth Engine") with Photo to Comic as the primary conversion
 
 ## What's Been Implemented
 
-### P0.5 Smart Repair Pipeline (Apr 2, 2026) ✅
+### Phase 1 Smart Repair Pipeline (Apr 2, 2026) ✅
 **Complete architectural overhaul of the comic generation pipeline.**
 Replaced blind retries with: Diagnose → Smart Repair → Reroute → Validate → Escalate
 
@@ -34,32 +34,45 @@ Replaced blind retries with: Diagnose → Smart Repair → Reroute → Validate 
 6. `/app/backend/services/comic_pipeline/character_lock_service.py` — Character identity lock
 7. `/app/backend/services/comic_pipeline/panel_orchestrator.py` — Heart of the pipeline: Primary → Validate → Repair → Fallback
 
-**Pipeline Constraints:**
+### Phase 2A Job-Level Policy Engine (Apr 2, 2026) ✅
+- `job_orchestrator.py`: 3-part architecture (Signals → Policy → Execution)
+- 6 decision outcomes: ACCEPT_FULL, ACCEPT_WITH_DEGRADATION, TARGETED_PANEL_RERUN, STYLE_DOWNGRADE_RERUN, PARTIAL_USABLE_OUTPUT, FAIL_TERMINAL
+- Full audit trail with rejected alternatives and threshold crossings
+- Decision logging to `comic_job_decisions` collection
+
+### Phase 2B Curated Continuity Pack (Apr 2, 2026) ✅
+- `continuity_pack.py`: Curated panel reference selection (not raw history spam)
+- Generation context: max 3 refs (anchor + best face + previous)
+- Validation context: max 4 refs (broader relevance-sorted set)
+- Prevents context bloat for large panel counts
+
+### Phase 2 Testing — COMPLETE (Apr 3, 2026) ✅
+**167 tests, 100% pass rate across 6 test suites:**
+
+| Suite | Tests | Focus |
+|-------|-------|-------|
+| `test_job_signals.py` | 22 | Signal extraction (borderline, contradictory, cost/latency) |
+| `test_job_policy.py` | 30 | Policy decisions (all 6 branches, tie-breaking, worst-signal-wins) |
+| `test_continuity_pack.py` | 22 | Reference selection (anchor, confidence ranking, bounded) |
+| `test_job_orchestrator_integration.py` | 19 | Full signal→policy→execution (reruns, downgrades, invariants) |
+| `test_adversarial_smoke.py` | 31 | Threshold edges, validator disagreement, cost breach, corruption |
+| `test_chaos_matrix.py` | 43 | Kill tests: input, economic, state machine, cross-panel, validator, router |
+
+**Evidence produced:**
+- Each policy branch executed at least once
+- Each terminal path verified
+- Each degradation path verified
+- Each hard cap proven non-bypassable
+- Continuity pack proven bounded and curated
+
+**Policy Edge Case Found:**
+- 50% fallback contamination at exact ceiling triggers PARTIAL_USABLE_OUTPUT (not ACCEPT_WITH_DEGRADATION). This is correct behavior — strict `<` boundary.
+
+### Pipeline Constraints:
 - Max 1 primary attempt, 1 repair attempt, 1 fallback attempt (3 total per panel)
 - Zero blind retries — every retry has explicit failure classification + repair mode + tier
 - All routing decisions are config-driven and explainable
-
-**Failure Taxonomy:**
-- Hard: hard_fail, empty_output, corrupt_asset, provider_timeout, safety_block
-- Soft: face_drift, style_drift, low_source_similarity, composition_clutter
-- Structural: story_mismatch, continuity_break, character_count_mismatch
-
-**Model Tiers (logical abstractions, swappable):**
-- Tier 1: Quality (gemini-3-pro) — clean inputs
-- Tier 2: Stable Character (gemini-3-pro + face anchors) — identity preservation
-- Tier 3: Deterministic (gemini-2.0-flash) — stronger instruction following
-- Tier 4: Safe Degraded (gemini-2.0-flash + simplified) — last resort
-
-**Admin Metrics Added:**
-- Primary pass rate, repair success rate, fallback acceptance rate
-- Failure type frequency breakdown
-- Risk bucket quality breakdown (LOW/MEDIUM/HIGH/EXTREME)
-- Per-attempt audit trail in `comic_panel_attempts` collection
-
-### P0 Fallback Quality Validation (Apr 2, 2026) ✅
-- 5 Validation Dimensions baked into pipeline
-- Admin controlled failure injection tests
-- UI Safety Audit endpoint (20/20 texts pass, 0 scary words)
+- Job-level: targeted rerun max 2 panels, style downgrade uses EXTREME risk
 
 ### Earlier Work (Previous Sessions) ✅
 - Interactive StylePreviewStrip, ComicDownloads
@@ -84,13 +97,21 @@ Replaced blind retries with: Diagnose → Smart Repair → Reroute → Validate 
 - [x] Admin metrics (smart repair overview)
 - [x] Frontend admin dashboard updates
 
-### Phase 2 (Next Session)
-- [ ] Job-level fallback orchestrator (mixed mode, simplified rerun, emergency)
-- [ ] Admin routing config editor (versioned, with rollback)
+### Phase 2 Complete ✅
+- [x] Job-level policy engine (job_orchestrator.py)
+- [x] Curated continuity pack (continuity_pack.py)
+- [x] Wired into photo_to_comic.py
+- [x] P0 deterministic policy correctness tests (52 tests)
+- [x] P0.5 adversarial smoke pack (31 tests)
+- [x] P1 chaos matrix kill tests (43 tests)
+- [x] Full regression pass (167/167)
+
+### Phase 2 Remaining (Next Session)
+- [ ] Admin routing config editor (versioned, with rollback) — DO NOT BUILD YET
 - [ ] Admin job diagnostics drill-down page
 - [ ] Regression alerts
-- [ ] Edge Chaos Matrix testing (dark+sunglasses, group+side face, etc.)
 - [ ] Wire approved panel bytes for real cross-panel continuity
+- [ ] Smart Repair self-tuning router (wait for production metrics)
 
 ---
 
@@ -109,3 +130,4 @@ Replaced blind retries with: Diagnose → Smart Repair → Reroute → Validate 
 ## Known Issues
 - photo_to_comic.py still large (~3100 lines) — further splitting recommended
 - Smart repair metrics will be null until real jobs go through the new pipeline
+- Policy edge case: 50% fallback contamination = PARTIAL_USABLE_OUTPUT (by design, document for future tuning)
