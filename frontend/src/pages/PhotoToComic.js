@@ -5,7 +5,7 @@ import {
   Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
   Grid3X3, User, Palette, RefreshCw, BookOpen, Share2,
   Copy, Twitter, MessageCircle, ExternalLink, ChevronRight,
-  GitBranch, TrendingUp
+  GitBranch, TrendingUp, FileText
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { SafeImage } from '../components/SafeImage';
@@ -34,6 +34,17 @@ const GENRES = [
   { id: 'romance', name: 'Romance' }, { id: 'adventure', name: 'Adventure' },
   { id: 'fantasy', name: 'Fantasy' }, { id: 'scifi', name: 'Sci-Fi' },
   { id: 'kids_friendly', name: 'Kids' },
+];
+
+const STORY_PRESETS = [
+  { id: 'hero', name: 'Hero Journey', icon: 'Zap', desc: 'Rise from ordinary to extraordinary', genre: 'action' },
+  { id: 'comedy', name: 'Comedy Gold', icon: 'Smile', desc: 'Hilarious chain of misunderstandings', genre: 'comedy' },
+  { id: 'romance', name: 'Love Story', icon: 'Heart', desc: 'Unexpected meeting, magical moment', genre: 'romance' },
+  { id: 'mystery', name: 'Mystery Case', icon: 'Search', desc: 'Strange clues lead to a revelation', genre: 'mystery' },
+  { id: 'motivational', name: 'Rise Up', icon: 'TrendingUp', desc: 'Overcome the impossible challenge', genre: 'action' },
+  { id: 'adventure', name: 'Epic Adventure', icon: 'Compass', desc: 'Discover a hidden world of wonders', genre: 'adventure' },
+  { id: 'horror', name: 'Spooky Tale', icon: 'Ghost', desc: 'Suspense builds to a spine-tingling reveal', genre: 'mystery' },
+  { id: 'scifi', name: 'Future World', icon: 'Cpu', desc: 'High-tech hero saves the future', genre: 'scifi' },
 ];
 
 const BLOCKED = [
@@ -71,6 +82,9 @@ export default function PhotoToComic() {
   const [downloading, setDownloading] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [continuing, setContinuing] = useState(false);
+  const [storyPreset, setStoryPreset] = useState(null);
+  const [estimatedTime, setEstimatedTime] = useState(null);
+  const [stages, setStages] = useState([]);
 
   // ─── Strict UI State Machine ─────────────────────────────────────
   // Single source of truth. No contradictory states possible.
@@ -206,6 +220,13 @@ export default function PhotoToComic() {
     setPreviewReady(false);
     setDownloadReady(false);
     setFailReason('');
+    setStages([]);
+
+    // Fetch dynamic time estimate
+    try {
+      const estRes = await api.get(`/api/photo-to-comic/estimate?mode=${mode}&panel_count=${panelCount}`);
+      setEstimatedTime(estRes.data);
+    } catch { setEstimatedTime(null); }
 
     try {
       const formData = new FormData();
@@ -222,6 +243,9 @@ export default function PhotoToComic() {
       formData.append('include_dialogue', 'true');
       if (mode === 'strip' && storyPrompt) {
         formData.append('story_prompt', storyPrompt);
+      }
+      if (storyPreset) {
+        formData.append('story_preset', storyPreset);
       }
 
       const res = await api.post('/api/photo-to-comic/generate', formData, {
@@ -255,6 +279,7 @@ export default function PhotoToComic() {
 
         setProgress(currentProgress);
         setProgressMsg(job.progressMessage || 'Processing...');
+        if (job.stages) setStages(job.stages);
 
         // Track real progress changes
         if (currentProgress !== lastProgress) {
@@ -378,6 +403,21 @@ export default function PhotoToComic() {
       }
     } catch { toast.error('Download failed'); }
     setDownloading(false);
+  };
+
+  const handleDownloadScript = async () => {
+    if (!jobId) return;
+    try {
+      const res = await api.get(`/api/photo-to-comic/script/${jobId}`);
+      if (res.data.script) {
+        const blob = new Blob([res.data.script], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `comic_script_${jobId.slice(0, 8)}.txt`;
+        a.click();
+        toast.success('Script downloaded!');
+      }
+    } catch { toast.error('Script not available'); }
   };
 
   // ─── Continue Story ──────────────────────────────────────────────
@@ -599,6 +639,18 @@ export default function PhotoToComic() {
                   {downloading ? 'Downloading...' : !downloadReady ? (uiState === 'VALIDATING' ? 'Verifying...' : 'Unavailable') : 'Download PNG'}
                 </Button>
 
+                {/* Script / Output Bundle */}
+                {downloadReady && result?.panels?.length > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={handleDownloadScript}
+                    className="w-full border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 text-sm"
+                    data-testid="download-script-btn"
+                  >
+                    <FileText className="w-3.5 h-3.5 mr-1.5" /> Download Story Script
+                  </Button>
+                )}
+
                 {/* Share row — only enabled when truly READY */}
                 <div className="flex gap-2" data-testid="share-actions">
                   <Button variant="outline" size="sm" onClick={() => handleShare('copy')} disabled={uiState !== 'READY'} className="flex-1 border-slate-700 text-slate-300 hover:text-white text-xs disabled:opacity-40" data-testid="share-copy-btn">
@@ -776,16 +828,49 @@ export default function PhotoToComic() {
     return (
       <div className="min-h-screen bg-slate-950">
         <Header credits={credits} isUnlimited={isUnlimited} />
-        <main className="max-w-lg mx-auto px-4 py-20 text-center space-y-6" data-testid="generating-view">
+        <main className="max-w-lg mx-auto px-4 py-16 text-center space-y-6" data-testid="generating-view">
           <div className="w-20 h-20 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto">
             <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
           </div>
           <h2 className="text-2xl font-bold text-white">Creating Your Comic</h2>
           <p className="text-slate-400">{progressMsg}</p>
+
+          {/* Real Progress Stages */}
+          {stages.length > 0 && (
+            <div className="text-left bg-slate-900/70 border border-slate-800 rounded-xl p-4 space-y-2.5">
+              {stages.map((stage, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  {stage.status === 'done' ? (
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : stage.status === 'in_progress' ? (
+                    <Loader2 className="w-4 h-4 text-purple-400 animate-spin shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border border-slate-700 shrink-0" />
+                  )}
+                  <span className={`text-sm ${
+                    stage.status === 'done' ? 'text-emerald-400' :
+                    stage.status === 'in_progress' ? 'text-white font-medium' :
+                    'text-slate-600'
+                  }`}>{stage.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Progress Bar */}
           <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
             <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.max(progress, 5)}%` }} />
           </div>
-          <p className="text-xs text-slate-500">{progress}%</p>
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>{progress}%</span>
+            {estimatedTime && <span>Est. {estimatedTime.estimated_seconds_low}-{estimatedTime.estimated_seconds_high}s</span>}
+          </div>
+
+          {/* Guarantee badge */}
+          <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-400/70">
+            <Shield className="w-3.5 h-3.5" />
+            <span>Guaranteed output or credits refunded</span>
+          </div>
         </main>
       </div>
     );
@@ -924,7 +1009,25 @@ export default function PhotoToComic() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-slate-400 mb-1.5 block">Story Prompt (optional)</label>
-                    <textarea value={storyPrompt} onChange={e => setStoryPrompt(e.target.value.slice(0, 300))} placeholder="Describe the story..." rows={2} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none resize-none" data-testid="story-prompt-input" />
+                    {/* Smart Story Presets */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
+                      {STORY_PRESETS.map(p => (
+                        <button key={p.id} onClick={() => {
+                          if (storyPreset === p.id) { setStoryPreset(null); }
+                          else { setStoryPreset(p.id); if (!storyPrompt) setStoryPrompt(STORY_PRESETS.find(x => x.id === p.id)?.desc || ''); setGenre(p.genre); }
+                        }}
+                          className={`text-left px-2.5 py-2 rounded-lg transition-all ${
+                            storyPreset === p.id
+                              ? 'bg-purple-500/20 border border-purple-500/50 text-white'
+                              : 'bg-slate-800/70 border border-transparent text-slate-400 hover:border-slate-600 hover:text-white'
+                          }`}
+                          data-testid={`preset-${p.id}`}>
+                          <div className="text-[11px] font-bold truncate">{p.name}</div>
+                          <div className="text-[9px] text-slate-500 truncate">{p.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <textarea value={storyPrompt} onChange={e => { setStoryPrompt(e.target.value.slice(0, 300)); if (e.target.value) setStoryPreset(null); }} placeholder="Or write your own story idea..." rows={2} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none resize-none" data-testid="story-prompt-input" />
                     <p className="text-[10px] text-slate-600 mt-0.5">{storyPrompt.length}/300</p>
                   </div>
                 </div>
@@ -969,6 +1072,22 @@ export default function PhotoToComic() {
                     <Coins className="w-3.5 h-3.5 mr-1" /> Get Credits
                   </Button>
                 )}
+                {/* What You'll Get */}
+                <div className="border-t border-slate-700/50 pt-3 space-y-1.5">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">What you'll get</p>
+                  <div className="space-y-1">
+                    {[
+                      mode === 'avatar' ? 'Comic avatar image (PNG)' : `${panelCount}-panel comic strip (PNG)`,
+                      'Story script (TXT)',
+                      'Guaranteed output or refund',
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <Check className="w-3 h-3 text-emerald-400/70 shrink-0" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="text-[10px] text-slate-600 text-center flex items-center justify-center gap-1">
                 <Shield className="w-3 h-3" /> 100% original art, no copyrighted characters

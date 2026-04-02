@@ -245,6 +245,77 @@ PRICING = {
     }
 }
 
+# ============================================
+# SMART STORY PRESETS (AI-driven prompts)
+# ============================================
+STORY_PRESETS = {
+    "hero": {
+        "name": "Hero Journey",
+        "prompt": "An ordinary person discovers a hidden power and transforms into a hero to save the day.",
+        "panel_beats": ["Normal everyday life", "A mysterious event changes everything", "The transformation begins", "Epic heroic victory moment"],
+        "genre": "action",
+        "icon": "zap"
+    },
+    "comedy": {
+        "name": "Comedy Gold",
+        "prompt": "A hilarious chain of misunderstandings leads to the funniest day ever.",
+        "panel_beats": ["An innocent mistake happens", "Things spiral hilariously out of control", "The most awkward moment possible", "Unexpected laugh-out-loud resolution"],
+        "genre": "comedy",
+        "icon": "laugh"
+    },
+    "romance": {
+        "name": "Love Story",
+        "prompt": "Two people meet in an unexpected way and share a magical moment together.",
+        "panel_beats": ["A chance encounter", "Sparks fly between them", "A heartfelt confession", "A beautiful happily-ever-after moment"],
+        "genre": "romance",
+        "icon": "heart"
+    },
+    "mystery": {
+        "name": "Mystery Case",
+        "prompt": "A detective discovers a strange clue that leads to an unexpected revelation.",
+        "panel_beats": ["A mysterious clue is found", "Following the trail deeper", "The shocking discovery", "The brilliant deduction reveals the truth"],
+        "genre": "mystery",
+        "icon": "search"
+    },
+    "motivational": {
+        "name": "Rise Up",
+        "prompt": "Someone faces their biggest challenge and finds the strength to overcome it.",
+        "panel_beats": ["Facing a seemingly impossible challenge", "The moment of doubt and struggle", "Finding inner strength and determination", "Triumphant victory and celebration"],
+        "genre": "motivational",
+        "icon": "trending-up"
+    },
+    "adventure": {
+        "name": "Epic Adventure",
+        "prompt": "An explorer discovers a hidden world full of wonders and dangers.",
+        "panel_beats": ["Setting out on the journey", "Discovering a hidden magical world", "Facing a dangerous obstacle", "Emerging victorious with treasure"],
+        "genre": "adventure",
+        "icon": "compass"
+    },
+    "horror": {
+        "name": "Spooky Tale",
+        "prompt": "Something strange lurks in the shadows, building suspense until the spine-tingling reveal.",
+        "panel_beats": ["An eerie atmosphere builds", "Strange things start happening", "The terrifying reveal", "A clever escape or twist ending"],
+        "genre": "mystery",
+        "icon": "ghost"
+    },
+    "scifi": {
+        "name": "Future World",
+        "prompt": "In a high-tech future, a hero uses advanced technology to solve an impossible problem.",
+        "panel_beats": ["A futuristic world with amazing technology", "A critical system failure threatens everything", "Using tech genius to find a solution", "Saving the future with innovation"],
+        "genre": "scifi",
+        "icon": "cpu"
+    },
+}
+
+# Average generation times (seconds) for estimation
+AVG_TIMES = {
+    "face_analysis": 2,
+    "story_generation": 4,
+    "panel_generation": 12,
+    "composition": 2,
+    "avatar_generation": 15,
+}
+
 
 def check_blocked_keywords(text: str) -> tuple:
     """
@@ -323,6 +394,36 @@ async def get_available_styles(user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/presets")
+async def get_story_presets(user: dict = Depends(get_current_user)):
+    """Get smart story presets with structured panel beats"""
+    return {
+        "presets": {k: {"name": v["name"], "prompt": v["prompt"], "panel_beats": v["panel_beats"], "genre": v["genre"], "icon": v["icon"]} for k, v in STORY_PRESETS.items()}
+    }
+
+
+@router.get("/estimate")
+async def get_time_estimate(mode: str = "avatar", panel_count: int = 4, user: dict = Depends(get_current_user)):
+    """Dynamic time estimation based on mode and queue"""
+    pending_jobs = await db.photo_to_comic_jobs.count_documents({"status": {"$in": ["QUEUED", "PROCESSING"]}})
+    queue_wait = min(pending_jobs * 3, 30)
+
+    if mode == "avatar":
+        gen_time = AVG_TIMES["face_analysis"] + AVG_TIMES["avatar_generation"]
+    else:
+        gen_time = AVG_TIMES["face_analysis"] + AVG_TIMES["story_generation"] + AVG_TIMES["panel_generation"] + AVG_TIMES["composition"]
+
+    total_low = max(8, gen_time + queue_wait - 4)
+    total_high = gen_time + queue_wait + 8
+
+    return {
+        "estimated_seconds_low": int(total_low),
+        "estimated_seconds_high": int(total_high),
+        "queue_depth": pending_jobs,
+        "guarantee": "Output guaranteed or credits refunded"
+    }
+
+
 @router.get("/pricing")
 async def get_pricing(user: dict = Depends(get_current_user)):
     """Get pricing configuration"""
@@ -345,6 +446,7 @@ async def generate_comic(
     # Strip-specific
     panel_count: int = Form(4),
     story_prompt: Optional[str] = Form(None),
+    story_preset: Optional[str] = Form(None),
     dialogue: Optional[str] = Form(None),
     include_dialogue: bool = Form(True),
     character_id: Optional[str] = Form(None),
@@ -471,6 +573,7 @@ async def generate_comic(
         "cost": cost,
         "panelCount": panel_count if mode == "strip" else 1,
         "storyPrompt": story_prompt if mode == "strip" else None,
+        "storyPreset": story_preset,
         "includeDialogue": include_dialogue,
         "addOns": {
             "transparent_bg": transparent_bg,
@@ -480,6 +583,15 @@ async def generate_comic(
         "progress": 0,
         "downloaded": False,
         "source_storage_key": storage_key,
+        "stages": [
+            {"name": "face_analysis", "label": "Analyzing face", "status": "pending"},
+            {"name": "story_generation", "label": "Generating story", "status": "pending"},
+            {"name": "panel_generation", "label": "Creating panels", "status": "pending"},
+            {"name": "composition", "label": "Final composition", "status": "pending"},
+        ] if mode == "strip" else [
+            {"name": "face_analysis", "label": "Analyzing face", "status": "pending"},
+            {"name": "avatar_generation", "label": "Creating avatar", "status": "pending"},
+        ],
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     
@@ -506,10 +618,20 @@ async def generate_comic(
             user["id"], cost, transparent_bg, multiple_poses, hd_export, char_context
         )
     else:
+        # Apply preset if specified
+        effective_prompt = story_prompt
+        effective_genre = genre
+        if story_preset and story_preset in STORY_PRESETS:
+            preset = STORY_PRESETS[story_preset]
+            if not effective_prompt:
+                effective_prompt = preset["prompt"]
+            effective_genre = preset.get("genre", genre) or genre
+
         background_tasks.add_task(
             process_comic_strip,
-            job_id, photo_content, style, genre, story_prompt, dialogue,
-            panel_count, include_dialogue, user["id"], cost, hd_export, char_context
+            job_id, photo_content, style, effective_genre, effective_prompt, dialogue,
+            panel_count, include_dialogue, user["id"], cost, hd_export, char_context,
+            story_preset
         )
     
     return {
@@ -521,6 +643,20 @@ async def generate_comic(
     }
 
 
+async def update_stage(job_id: str, stage_name: str, status: str, progress: int = None, message: str = None):
+    """Update a specific stage in the job's stages array"""
+    update = {"$set": {"stages.$[elem].status": status}}
+    if progress is not None:
+        update["$set"]["progress"] = progress
+    if message:
+        update["$set"]["progressMessage"] = message
+    await db.photo_to_comic_jobs.update_one(
+        {"id": job_id},
+        update,
+        array_filters=[{"elem.name": stage_name}]
+    )
+
+
 async def process_comic_avatar(
     job_id: str, photo_content: bytes, style: str, genre: str,
     custom_details: str, user_id: str, cost: int,
@@ -529,15 +665,18 @@ async def process_comic_avatar(
 ):
     """Background task to generate comic avatar"""
     try:
+        await update_stage(job_id, "face_analysis", "in_progress", 10, "Analyzing your photo...")
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "PROCESSING", "progress": 10, "progressMessage": "Analyzing photo..."}}
+            {"$set": {"status": "PROCESSING"}}
         )
         
         result_urls = []
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
+                await update_stage(job_id, "face_analysis", "done", 15, "Face analyzed")
+                await update_stage(job_id, "avatar_generation", "in_progress", 20, "Generating comic avatar...")
                 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
                 
                 # Build safe prompt
@@ -784,14 +923,15 @@ async def process_comic_strip(
     job_id: str, photo_content: bytes, style: str, genre: str,
     story_prompt: str, dialogue: str, panel_count: int,
     include_dialogue: bool, user_id: str, cost: int, hd_export: bool,
-    char_context: dict = None
+    char_context: dict = None, story_preset: str = None
 ):
-    """Background task to generate comic strip"""
+    """Background task to generate comic strip — PARALLEL panel generation"""
     try:
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "PROCESSING", "progress": 5, "progressMessage": "Planning story..."}}
+            {"$set": {"status": "PROCESSING"}}
         )
+        await update_stage(job_id, "face_analysis", "in_progress", 5, "Analyzing your photo...")
         
         panels = []
         negative_prompt = get_negative_prompt()
@@ -800,6 +940,14 @@ async def process_comic_strip(
             try:
                 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
                 
+                await update_stage(job_id, "face_analysis", "done", 10, "Face analyzed")
+                await update_stage(job_id, "story_generation", "in_progress", 12, "Creating story outline...")
+
+                # Use preset panel beats if available
+                preset_beats = None
+                if story_preset and story_preset in STORY_PRESETS:
+                    preset_beats = STORY_PRESETS[story_preset]["panel_beats"]
+
                 # Step 1: Generate story outline
                 story_chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -808,12 +956,17 @@ async def process_comic_strip(
                 )
                 story_chat.with_model("gemini", "gemini-2.0-flash")
                 
+                preset_hint = ""
+                if preset_beats:
+                    preset_hint = "\nStory structure (follow these beats):\n" + "\n".join(f"Panel {i+1}: {b}" for i, b in enumerate(preset_beats[:panel_count]))
+
                 outline_prompt = f"""Create a {panel_count}-panel comic story outline.
 
-Story idea: {story_prompt}
+Story idea: {story_prompt or (STORY_PRESETS.get(story_preset, {}).get('prompt', 'An exciting adventure') if story_preset else 'An exciting adventure')}
 Genre: {genre}
 Style: {SAFE_STYLES[style]['name']}
 {f"CHARACTER: {char_context['character_name']} - {char_context['visual_injection']}" if char_context else ""}
+{preset_hint}
 IMPORTANT RULES:
 - Create ORIGINAL characters and stories only
 - NO references to copyrighted characters, brands, or celebrities
@@ -837,19 +990,19 @@ Format as JSON array:
                     except Exception:
                         pass
                 
-                await db.photo_to_comic_jobs.update_one(
-                    {"id": job_id},
-                    {"$set": {"progress": 15, "progressMessage": "Story outline created..."}}
-                )
+                await update_stage(job_id, "story_generation", "done", 18, "Story outline ready")
                 
                 # Fallback scenes
                 if not story_scenes:
-                    story_scenes = [
-                        {"scene": "Opening scene", "dialogue": "Here we go!"},
-                        {"scene": "Adventure begins", "dialogue": "This is exciting!"},
-                        {"scene": "Challenge appears", "dialogue": "Hmm, what now?"},
-                        {"scene": "Resolution", "dialogue": "We did it!"}
-                    ][:panel_count]
+                    if preset_beats:
+                        story_scenes = [{"scene": beat, "dialogue": None} for beat in preset_beats[:panel_count]]
+                    else:
+                        story_scenes = [
+                            {"scene": "Opening scene", "dialogue": "Here we go!"},
+                            {"scene": "Adventure begins", "dialogue": "This is exciting!"},
+                            {"scene": "Challenge appears", "dialogue": "Hmm, what now?"},
+                            {"scene": "Resolution", "dialogue": "We did it!"}
+                        ][:panel_count]
                 
                 # User-provided dialogue override
                 if dialogue and include_dialogue:
@@ -857,37 +1010,25 @@ Format as JSON array:
                     for i, line in enumerate(dialogue_lines[:len(story_scenes)]):
                         story_scenes[i]["dialogue"] = line.strip()
                 
-                # Step 2: Generate each panel
-                photo_b64 = base64.b64encode(photo_content).decode('utf-8')
+                # Step 2: PARALLEL panel generation
+                await update_stage(job_id, "panel_generation", "in_progress", 20, f"Creating {panel_count} panels in parallel...")
                 
-                for i in range(min(panel_count, len(story_scenes))):
-                    scene = story_scenes[i]
-                    
-                    progress = 15 + int(((i + 1) / panel_count) * 75)
-                    await db.photo_to_comic_jobs.update_one(
-                        {"id": job_id},
-                        {"$set": {
-                            "progress": progress,
-                            "progressMessage": f"Creating panel {i+1} of {panel_count}..."
-                        }}
-                    )
-                    
+                photo_b64 = base64.b64encode(photo_content).decode('utf-8')
+
+                async def generate_single_panel(i: int, scene: dict) -> dict:
+                    """Generate a single panel with retry and fallback"""
                     panel_data = {
                         "panelNumber": i + 1,
                         "scene": scene.get("scene", f"Panel {i+1}"),
                         "dialogue": scene.get("dialogue") if include_dialogue else None
                     }
                     
-                    # Try image generation with timeout and retry
-                    image_generated = False
-                    retry_count = 0
                     max_retries = 2
-                    
-                    while not image_generated and retry_count < max_retries:
+                    for retry in range(max_retries):
                         try:
                             img_chat = LlmChat(
                                 api_key=EMERGENT_LLM_KEY,
-                                session_id=f"comic-strip-panel-{job_id}-{i}-{retry_count}",
+                                session_id=f"comic-strip-panel-{job_id}-{i}-{retry}",
                                 system_message="You are a comic artist. Create original characters. Maintain character consistency."
                             )
                             img_chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
@@ -911,21 +1052,14 @@ AVOID: {negative_prompt}"""
                                 file_contents=[ImageContent(photo_b64)]
                             )
                             
-                            # Add timeout for image generation
-                            import asyncio
-                            try:
-                                text_response, images = await asyncio.wait_for(
-                                    img_chat.send_message_multimodal_response(msg),
-                                    timeout=120  # 2 minute timeout per panel
-                                )
-                            except asyncio.TimeoutError:
-                                logger.warning(f"Panel {i+1} generation timed out, retry {retry_count+1}")
-                                retry_count += 1
-                                continue
+                            import asyncio as aio
+                            text_response, images = await aio.wait_for(
+                                img_chat.send_message_multimodal_response(msg),
+                                timeout=120
+                            )
                             
                             if images and len(images) > 0:
                                 img_data = images[0]
-                                # Handle both dict format and raw base64 string
                                 if isinstance(img_data, dict):
                                     raw_data = img_data.get('data') or img_data.get('b64_json') or img_data.get('image') or ''
                                     image_bytes = base64.b64decode(raw_data) if raw_data else b''
@@ -937,13 +1071,10 @@ AVOID: {negative_prompt}"""
                                 if not image_bytes:
                                     continue
                                 
-                                # Apply watermark for free users
+                                # Watermark
                                 try:
                                     user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "plan": 1})
-                                    if user_data and isinstance(user_data, dict):
-                                        user_plan = user_data.get("plan", "free")
-                                    else:
-                                        user_plan = "free"
+                                    user_plan = user_data.get("plan", "free") if user_data and isinstance(user_data, dict) else "free"
                                 except Exception:
                                     user_plan = "free"
                                 
@@ -957,41 +1088,50 @@ AVOID: {negative_prompt}"""
                                         spacing=config["spacing"]
                                     )
                                 
-                                # Upload panel to R2 for permanent storage
+                                # Upload to R2
                                 try:
                                     from services.cloudflare_r2_storage import upload_image_bytes
                                     fname = f"comic_strip_{job_id[:8]}_panel{i+1}.png"
                                     success, cdn_url = await upload_image_bytes(image_bytes, fname, f"comic/{user_id[:8]}")
                                     if success and cdn_url:
                                         panel_data["imageUrl"] = cdn_url
-                                        logger.info(f"Panel {i+1} uploaded to R2: {cdn_url[:80]}")
                                     else:
-                                        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-                                        panel_data["imageUrl"] = f"data:image/png;base64,{image_b64}"
-                                except Exception as up_err:
-                                    logger.warning(f"R2 upload failed for panel {i+1}: {up_err}")
-                                    image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-                                    panel_data["imageUrl"] = f"data:image/png;base64,{image_b64}"
-                                image_generated = True
-                                logger.info(f"Panel {i+1} generated successfully for job {job_id}")
-                            else:
-                                logger.warning(f"No images returned for panel {i+1}, retry {retry_count+1}")
-                                retry_count += 1
+                                        image_b64_str = base64.b64encode(image_bytes).decode('utf-8')
+                                        panel_data["imageUrl"] = f"data:image/png;base64,{image_b64_str}"
+                                except Exception:
+                                    image_b64_str = base64.b64encode(image_bytes).decode('utf-8')
+                                    panel_data["imageUrl"] = f"data:image/png;base64,{image_b64_str}"
                                 
-                        except Exception as panel_error:
-                            logger.error(f"Panel {i+1} generation error (retry {retry_count}): {panel_error}")
-                            retry_count += 1
+                                panel_data["status"] = "READY"
+                                logger.info(f"Panel {i+1} generated for job {job_id}")
+                                
+                                # Update progress per panel
+                                progress = 20 + int(((i + 1) / panel_count) * 65)
+                                await db.photo_to_comic_jobs.update_one(
+                                    {"id": job_id},
+                                    {"$set": {"progress": progress, "progressMessage": f"Panel {i+1}/{panel_count} ready"}}
+                                )
+                                return panel_data
+                            
+                        except Exception as e:
+                            logger.warning(f"Panel {i+1} attempt {retry+1} failed: {e}")
                     
-                    # Mark panel as FAILED if all retries exhausted
-                    if not image_generated:
-                        logger.warning(f"Panel {i+1} FAILED after {max_retries} retries")
-                        panel_data["imageUrl"] = None
-                        panel_data["status"] = "FAILED"
-                    else:
-                        panel_data["status"] = "READY"
-                    
-                    panels.append(panel_data)
-                    
+                    # All retries failed
+                    panel_data["imageUrl"] = None
+                    panel_data["status"] = "FAILED"
+                    return panel_data
+
+                # Fan-out: generate ALL panels in parallel
+                import asyncio
+                tasks = [
+                    generate_single_panel(i, story_scenes[i])
+                    for i in range(min(panel_count, len(story_scenes)))
+                ]
+                panels = await asyncio.gather(*tasks, return_exceptions=False)
+                panels = list(panels)
+
+                await update_stage(job_id, "panel_generation", "done", 88, "All panels created")
+
             except Exception as e:
                 logger.error(f"Comic strip generation error: {e}")
         
@@ -1005,6 +1145,8 @@ AVOID: {negative_prompt}"""
                     "imageUrl": None,
                     "status": "FAILED"
                 })
+
+        await update_stage(job_id, "composition", "in_progress", 90, "Composing final comic...")
         
         # Count actual vs failed panels
         ready_panels = [p for p in panels if p.get("status") == "READY"]
@@ -1061,10 +1203,21 @@ AVOID: {negative_prompt}"""
         # Compute status message
         if job_status == "COMPLETED":
             progress_msg = "Complete!"
+            await update_stage(job_id, "composition", "done", 100, "Comic ready!")
         elif job_status == "PARTIAL_READY":
             progress_msg = f"{len(ready_panels)} of {panel_count} panels ready. {len(failed_panels)} failed."
+            await update_stage(job_id, "composition", "done", 95, progress_msg)
         else:
             progress_msg = "Generation failed. No credits were charged."
+
+        # Generate text script for the output bundle
+        script_text = "# Comic Script\n\n"
+        for p in panels:
+            script_text += f"## Panel {p.get('panelNumber', '?')}\n"
+            script_text += f"Scene: {p.get('scene', '')}\n"
+            if p.get('dialogue'):
+                script_text += f"Dialogue: \"{p['dialogue']}\"\n"
+            script_text += "\n"
 
         # Update job with final state
         await db.photo_to_comic_jobs.update_one(
@@ -1074,6 +1227,7 @@ AVOID: {negative_prompt}"""
                 "progress": 100,
                 "progressMessage": progress_msg,
                 "panels": panels,
+                "scriptText": script_text,
                 "assetId": asset_id if panel_urls else None,
                 "permanent": bool(panel_urls),
                 "readyPanels": len(ready_panels),
@@ -2003,3 +2157,30 @@ async def get_user_chains(user: dict = Depends(get_current_user)):
         })
 
     return {"chains": result, "total": len(result)}
+
+
+@router.get("/script/{job_id}")
+async def get_comic_script(job_id: str, user: dict = Depends(get_current_user)):
+    """Download the story script as text"""
+    job = await db.photo_to_comic_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0, "scriptText": 1, "panels": 1, "status": 1, "style": 1, "genre": 1}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    script = job.get("scriptText")
+    if not script and job.get("panels"):
+        script = "# Comic Script\n\n"
+        for p in job["panels"]:
+            script += f"## Panel {p.get('panelNumber', '?')}\n"
+            script += f"Scene: {p.get('scene', '')}\n"
+            if p.get('dialogue'):
+                script += f'Dialogue: "{p["dialogue"]}"\n'
+            script += "\n"
+
+    return {
+        "script": script or "No script available",
+        "style": job.get("style"),
+        "genre": job.get("genre")
+    }
