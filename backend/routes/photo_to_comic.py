@@ -1104,12 +1104,20 @@ Format as JSON array:
                     }}
                 )
 
-                # ── Fan-out: generate ALL panels via Panel Orchestrator ──
+                # ── Fan-out: generate ALL panels via Panel Orchestrator with Continuity Pack ──
                 orchestrator = PanelOrchestrator(db, EMERGENT_LLM_KEY)
+                from services.comic_pipeline.continuity_pack import ContinuityPack
+                from services.comic_pipeline.job_orchestrator import JobOrchestrator
                 import asyncio
 
-                async def orchestrate_panel(i):
-                    """Wrapper that updates progress per panel."""
+                continuity_pack = ContinuityPack()
+
+                # Sequential generation for continuity (each panel feeds the next)
+                panels = []
+                for i in range(min(panel_count, len(story_scenes))):
+                    # Get curated continuity context (NOT all previous — the RIGHT previous)
+                    gen_context = continuity_pack.get_generation_context(i)
+
                     result = await orchestrator.process_panel(
                         job_id=job_id,
                         panel_index=i,
@@ -1123,33 +1131,71 @@ Format as JSON array:
                         risk_bucket=risk_bucket,
                         character_lock=character_lock,
                         source_image_bytes=photo_content,
-                        approved_panel_bytes=None,  # Phase 2: wire approved panel bytes
+                        approved_panel_bytes=gen_context,
                         user_id=user_id,
                     )
-                    # Update progress per panel
+
+                    # Register approved panels in continuity pack
+                    if result.get("status") == "READY" and result.get("_image_bytes"):
+                        continuity_pack.register_approved_panel(
+                            panel_index=i,
+                            image_bytes=result["_image_bytes"],
+                            validation_scores=result.get("validation_scores"),
+                            pipeline_status=result.get("pipeline_status", "PASSED"),
+                        )
+                        # Remove internal bytes from response (not needed downstream)
+                        del result["_image_bytes"]
+                    elif result.get("status") == "READY":
+                        # Panel passed but no bytes available — still register
+                        continuity_pack.register_approved_panel(
+                            panel_index=i, image_bytes=b"",
+                            validation_scores=result.get("validation_scores"),
+                            pipeline_status=result.get("pipeline_status", "PASSED"),
+                        )
+
+                    panels.append(result)
+
+                    # Update progress
                     progress = 20 + int(((i + 1) / panel_count) * 65)
                     progress_text = f"Panel {i+1}/{panel_count} ready"
-                    if result.get("pipeline_status") in ("PASSED_REPAIRED", "REPAIRING"):
+                    if result.get("pipeline_status") in ("PASSED_REPAIRED",):
                         progress_text = PIPELINE_STATE_MESSAGES.get(PipelineState.REPAIRING, "Enhancing panels...")
                     await db.photo_to_comic_jobs.update_one(
                         {"id": job_id},
                         {"$set": {"progress": progress, "progressMessage": progress_text}}
                     )
-                    return result
-
-                tasks = [
-                    orchestrate_panel(i)
-                    for i in range(min(panel_count, len(story_scenes)))
-                ]
-                panels = await asyncio.gather(*tasks, return_exceptions=False)
-                panels = list(panels)
 
                 await update_stage(job_id, "panel_generation", "done", 88, "All panels created")
 
-                # ── JOB-LEVEL FALLBACK (only if >50% panels failed AFTER smart repair) ──
-                failed_count = sum(1 for p in panels if p.get("status") == "FAILED")
-                if failed_count > len(panels) / 2 and LLM_AVAILABLE and EMERGENT_LLM_KEY:
-                    logger.warning(f"Job {job_id}: {failed_count}/{len(panels)} still failed after smart repair. Job-level fallback.")
+                # ── JOB-LEVEL POLICY ENGINE ──
+                job_orch = JobOrchestrator(db)
+                rerun_context = {
+                    "story_scenes": story_scenes,
+                    "style": style,
+                    "style_prompt": SAFE_STYLES[style]['prompt'],
+                    "genre": genre,
+                    "photo_b64": photo_b64,
+                    "negative_prompt": negative_prompt,
+                    "panel_count": panel_count,
+                    "character_lock": character_lock,
+                    "source_image_bytes": photo_content,
+                    "continuity_pack": continuity_pack.get_generation_context(panel_count),
+                    "user_id": user_id,
+                }
+
+                job_result = await job_orch.evaluate_and_execute(
+                    job_id=job_id,
+                    panels=panels,
+                    panel_count=panel_count,
+                    orchestrator=orchestrator if LLM_AVAILABLE and EMERGENT_LLM_KEY else None,
+                    rerun_context=rerun_context if LLM_AVAILABLE and EMERGENT_LLM_KEY else None,
+                )
+
+                # Apply job-level decision
+                panels = job_result["panels"]
+                job_decision = job_result["decision"]
+                
+                if job_decision in ("TARGETED_PANEL_RERUN", "STYLE_DOWNGRADE_RERUN"):
                     await db.photo_to_comic_jobs.update_one(
                         {"id": job_id},
                         {"$set": {
@@ -1157,36 +1203,16 @@ Format as JSON array:
                             "progressMessage": PIPELINE_STATE_MESSAGES[PipelineState.JOB_FALLBACK],
                         }}
                     )
-                    await update_stage(job_id, "composition", "in_progress", 89, "Optimizing your comic...")
-                    
-                    # Job fallback: try each failed panel with degraded tier
-                    for pi, panel in enumerate(panels):
-                        if panel.get("status") != "FAILED":
-                            continue
-                        scene = story_scenes[pi] if pi < len(story_scenes) else {"scene": f"Scene {pi+1}"}
-                        
-                        try:
-                            fb_result = await orchestrator.process_panel(
-                                job_id=job_id,
-                                panel_index=pi,
-                                scene=scene,
-                                style_name=style,
-                                style_prompt=SAFE_STYLES[style]['prompt'],
-                                genre=genre,
-                                photo_b64=photo_b64,
-                                negative_prompt=negative_prompt,
-                                panel_count=panel_count,
-                                risk_bucket=RiskBucket.EXTREME,  # Force extreme for fallback
-                                character_lock=character_lock,
-                                source_image_bytes=photo_content,
-                                user_id=user_id,
-                            )
-                            if fb_result.get("status") == "READY":
-                                panels[pi] = fb_result
-                                panels[pi]["fallback"] = True
-                                logger.info(f"Job fallback succeeded for panel {pi+1}, job {job_id}")
-                        except Exception as fb_err:
-                            logger.warning(f"Job fallback failed for panel {pi+1}: {fb_err}")
+
+                # Store continuity pack summary
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "continuity_summary": continuity_pack.get_summary(),
+                        "job_decision": job_decision,
+                        "job_decision_reason": job_result.get("decision_log", {}).get("reason", ""),
+                    }}
+                )
 
             except Exception as e:
                 logger.error(f"Comic strip generation error: {e}")
@@ -1207,7 +1233,6 @@ Format as JSON array:
         # Count actual vs failed panels
         ready_panels = [p for p in panels if p.get("status") == "READY"]
         failed_panels = [p for p in panels if p.get("status") == "FAILED"]
-        retried_panels = [p for p in panels if p.get("retries", 0) > 0]
         
         # ── Post-generation single-panel repair ──
         # If some panels failed but others succeeded, try to repair just the failed ones
@@ -1294,15 +1319,24 @@ Format as JSON array:
             except Exception as consistency_err:
                 logger.warning(f"Consistency validation failed (non-blocking): {consistency_err}")
         
-        # Determine job status — calm mapping
-        if len(ready_panels) == 0:
-            job_status = "FAILED"
-        elif len(failed_panels) > 0:
-            job_status = "PARTIAL_READY"
-        elif len(retried_panels) > 0:
-            job_status = "READY_WITH_WARNINGS"
-        else:
-            job_status = "COMPLETED"
+        # Determine job status — use job orchestrator's policy engine
+        # Re-evaluate after all consistency fixes
+        final_job_result = await job_orch.evaluate_and_execute(
+            job_id=job_id,
+            panels=panels,
+            panel_count=panel_count,
+        )
+        job_status = final_job_result.get("job_status", "COMPLETED")
+        job_decision = final_job_result.get("decision", "ACCEPT_FULL")
+
+        # Store final decision
+        await db.photo_to_comic_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "job_decision": job_decision,
+                "job_decision_reason": final_job_result.get("decision_log", {}).get("reason", ""),
+            }}
+        )
         
         # Only deduct credits if at least one panel was generated
         if len(ready_panels) > 0:
@@ -1358,6 +1392,10 @@ Format as JSON array:
             progress_msg = "We couldn't create your comic this time. No credits were charged."
 
         # Generate text script for the output bundle
+        # Clean internal-only fields from panels before persistence
+        for p in panels:
+            p.pop("_image_bytes", None)
+
         script_text = "# Comic Script\n\n"
         for p in panels:
             script_text += f"## Panel {p.get('panelNumber', '?')}\n"
@@ -1505,7 +1543,7 @@ Format as JSON array:
             "repaired_panels": repaired,
             "degraded_panels": degraded,
             "failed_panels": panel_failed,
-            "job_level_fallback_triggered": failed_count > len(panels) / 2 if panels else False,
+            "job_level_fallback_triggered": job_decision in ("TARGETED_PANEL_RERUN", "STYLE_DOWNGRADE_RERUN"),
         }
 
         await db.photo_to_comic_jobs.update_one(

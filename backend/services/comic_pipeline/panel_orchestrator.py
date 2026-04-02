@@ -173,6 +173,7 @@ class PanelOrchestrator:
                     "attempts": total_attempts,
                     "model_tier_used": initial_tier.value,
                     "validation_scores": validation.scores.model_dump(),
+                    "_image_bytes": primary_result.get("image_bytes"),
                     "routing_explanation": self.model_router.explain_routing_decision(
                         initial_tier, "Primary pass", risk_bucket=risk_bucket
                     ),
@@ -248,6 +249,7 @@ class PanelOrchestrator:
                             "model_tier_used": repair_strategy.model_tier.value,
                             "repair_mode": repair_strategy.repair_mode.value,
                             "validation_scores": repair_validation.scores.model_dump(),
+                            "_image_bytes": repair_result.get("image_bytes"),
                             "routing_explanation": self.model_router.explain_routing_decision(
                                 repair_strategy.model_tier,
                                 f"Repair after {[ft.value for ft in validation.failure_types]}",
@@ -366,6 +368,7 @@ class PanelOrchestrator:
                         "attempts": total_attempts,
                         "model_tier_used": ModelTier.TIER4_SAFE_DEGRADED.value,
                         "validation_scores": fb_validation.scores.model_dump(),
+                        "_image_bytes": fallback_result.get("image_bytes"),
                         "routing_explanation": self.model_router.explain_routing_decision(
                             ModelTier.TIER4_SAFE_DEGRADED,
                             f"Degraded fallback after {total_attempts - 1} failed attempts",
