@@ -180,7 +180,7 @@ function useSpeech() {
 
 // ── Main Component ──
 export default function BedtimeStoryBuilder() {
-  const { credits, setCredits } = useCredits();
+  const { credits, creditsLoaded, refreshCredits } = useCredits();
 
   // Input state
   const [childName, setChildName] = useState('');
@@ -245,9 +245,15 @@ export default function BedtimeStoryBuilder() {
   };
 
   const handleGenerate = async (remixType = null) => {
-    if ((credits ?? 0) < 10) { toast.error('Need 10 credits. Buy more to continue.'); return; }
+    if (creditsLoaded && credits !== null && credits < 10) {
+      toast.error('Need 10 credits. Buy more to continue.');
+      return;
+    }
     setGenerating(true);
-    if (!remixType) setStory(null); // Remix: keep old story visible while loading
+    if (!remixType) setStory(null);
+
+    // Step 1: Primary generation — ONLY this can show "Generation failed"
+    let result = null;
     try {
       const res = await api.post(BEDTIME_API.generate, {
         age_group: ageGroup,
@@ -259,20 +265,31 @@ export default function BedtimeStoryBuilder() {
         mood,
         remix_type: remixType,
       });
-      if (res.data.success) {
-        stop(); // Stop any playing audio
-        setStory(res.data.story);
-        setCreditsUsed(res.data.credits_used);
-        setCredits(res.data.remaining_credits);
-        const newStreak = bumpStreak();
-        setStreak(newStreak);
-        track(remixType ? 'remix_clicked' : 'story_generated');
-        toast.success(`Story created!${newStreak > 1 ? ` ${newStreak}-day streak!` : ''}`);
-        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
+      if (res.data?.success && res.data?.story) {
+        result = res.data;
+      } else {
+        toast.error('Story generation returned empty result');
+        setGenerating(false);
+        return;
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Generation failed');
+      setGenerating(false);
+      return;
     }
+
+    // Step 2: Post-success side effects — NEVER show "Generation failed"
+    try { stop(); } catch (e) { console.warn('Speech stop error:', e); }
+    setStory(result.story);
+    setCreditsUsed(result.credits_used ?? 0);
+    try { refreshCredits(); } catch (e) { console.warn('Credit refresh error:', e); }
+    try {
+      const newStreak = bumpStreak();
+      setStreak(newStreak);
+      toast.success(`Story created!${newStreak > 1 ? ` ${newStreak}-day streak!` : ''}`);
+    } catch (e) { console.warn('Streak error:', e); toast.success('Story created!'); }
+    track(remixType ? 'remix_clicked' : 'story_generated');
+    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
     setGenerating(false);
   };
 
@@ -492,7 +509,7 @@ export default function BedtimeStoryBuilder() {
               )}
             </button>
             <p className="text-center text-[11px] text-slate-600">
-              10 credits &middot; AI-powered &middot; {credits !== null ? `${credits >= 999999 ? 'Unlimited' : credits} credits available` : ''}
+              10 credits &middot; AI-powered &middot; {creditsLoaded ? `${credits >= 999999 ? 'Unlimited' : credits} credits available` : 'Loading credits...'}
             </p>
           </div>
         )}
