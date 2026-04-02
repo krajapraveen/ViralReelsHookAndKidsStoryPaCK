@@ -1,24 +1,27 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import {
-  Moon, Sparkles, Heart, BookOpen, Volume2, Clock, ChevronRight,
-  Download, Check, AlertCircle, Play, Pause, Star, Zap,
-  Smile, CloudMoon, Rocket, Dog, Laugh, Music, Eye, EyeOff,
-  Loader2, Copy, RotateCcw, ChevronLeft,
+  Moon, Sparkles, Volume2, Clock, ChevronRight,
+  Download, Check, AlertCircle, Play, Pause, Star,
+  Smile, CloudMoon, Rocket, Dog, Laugh, Music,
+  Loader2, Copy, RotateCcw, Eye, EyeOff,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { useCredits } from '../contexts/CreditContext';
-import HelpGuide from '../components/HelpGuide';
-import NextActionHooks from '../components/NextActionHooks';
+
+// ── Centralized API endpoints ──
+const BEDTIME_API = {
+  config: '/api/bedtime-story-builder/config',
+  generate: '/api/bedtime-story-builder/generate',
+};
 
 // ── Constants ──
 const MOODS = [
-  { id: 'calm', label: 'Calm', icon: CloudMoon, color: 'indigo' },
-  { id: 'funny', label: 'Funny', icon: Smile, color: 'amber' },
-  { id: 'adventure', label: 'Adventure', icon: Rocket, color: 'emerald' },
-  { id: 'sleepy', label: 'Sleepy', icon: Moon, color: 'purple' },
+  { id: 'calm', label: 'Calm', icon: CloudMoon },
+  { id: 'funny', label: 'Funny', icon: Smile },
+  { id: 'adventure', label: 'Adventure', icon: Rocket },
+  { id: 'sleepy', label: 'Sleepy', icon: Moon },
 ];
 
 const AGES = [
@@ -40,10 +43,10 @@ const DURATIONS = [
 ];
 
 const REMIX_VARIANTS = [
-  { id: 'animal', label: 'Animal Version', icon: Dog, color: 'from-amber-500 to-orange-500' },
-  { id: 'space', label: 'Space Version', icon: Rocket, color: 'from-indigo-500 to-purple-500' },
-  { id: 'funny', label: 'Funny Version', icon: Laugh, color: 'from-yellow-500 to-amber-500' },
-  { id: 'sleep', label: 'Extra Sleepy', icon: CloudMoon, color: 'from-violet-500 to-indigo-500' },
+  { id: 'animal', label: 'Animal Version', icon: Dog },
+  { id: 'space', label: 'Space Version', icon: Rocket },
+  { id: 'funny', label: 'Funny Version', icon: Laugh },
+  { id: 'sleep', label: 'Extra Sleepy', icon: CloudMoon },
 ];
 
 const THEMES = [
@@ -55,96 +58,123 @@ const MORALS = [
   'Be kind', 'Be brave', 'Try again', 'Tell truth', 'Help friends', 'Be thankful',
 ];
 
-const STREAK_KEY = 'bedtime_streak';
-const STREAK_DATE_KEY = 'bedtime_streak_date';
-
-// ── Streak Logic ──
+// ── Streak Logic (localStorage) ──
 function getStreak() {
   try {
-    const streak = parseInt(localStorage.getItem(STREAK_KEY) || '0', 10);
-    const lastDate = localStorage.getItem(STREAK_DATE_KEY);
+    const streak = parseInt(localStorage.getItem('bedtime_streak') || '0', 10);
+    const lastDate = localStorage.getItem('bedtime_streak_date');
     if (!lastDate) return 0;
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
-    if (lastDate === today) return streak;
-    if (lastDate === yesterday) return streak; // Still valid, will increment on play
-    return 0; // Streak broken
+    if (lastDate === today || lastDate === yesterday) return streak;
+    return 0;
   } catch { return 0; }
 }
 
-function updateStreak() {
+function bumpStreak() {
   try {
     const today = new Date().toDateString();
-    const lastDate = localStorage.getItem(STREAK_DATE_KEY);
-    let streak = parseInt(localStorage.getItem(STREAK_KEY) || '0', 10);
-    if (lastDate === today) return streak; // Already counted today
+    const lastDate = localStorage.getItem('bedtime_streak_date');
+    let streak = parseInt(localStorage.getItem('bedtime_streak') || '0', 10);
+    if (lastDate === today) return streak;
     const yesterday = new Date(Date.now() - 86400000).toDateString();
-    if (lastDate === yesterday) {
-      streak += 1;
-    } else {
-      streak = 1;
-    }
-    localStorage.setItem(STREAK_KEY, String(streak));
-    localStorage.setItem(STREAK_DATE_KEY, today);
+    streak = lastDate === yesterday ? streak + 1 : 1;
+    localStorage.setItem('bedtime_streak', String(streak));
+    localStorage.setItem('bedtime_streak_date', today);
     return streak;
   } catch { return 1; }
 }
 
-// ── Web Speech Playback ──
+// ── Web Speech Hook ──
 function useSpeech() {
   const [playing, setPlaying] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [currentScene, setCurrentScene] = useState(-1);
-  const synthRef = useRef(null);
+  const voicesReady = useRef(false);
+  const cancelledRef = useRef(false);
 
-  const speak = useCallback((text, onEnd) => {
-    if (!window.speechSynthesis) { toast.error('Speech not supported in this browser'); return; }
-    window.speechSynthesis.cancel();
-    // Strip markers
-    const clean = text
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const loadVoices = () => { synth.getVoices(); voicesReady.current = true; };
+    loadVoices();
+    synth.addEventListener('voiceschanged', loadVoices);
+    return () => synth.removeEventListener('voiceschanged', loadVoices);
+  }, []);
+
+  const pickVoice = useCallback(() => {
+    const voices = window.speechSynthesis?.getVoices() || [];
+    return voices.find(v =>
+      v.name.includes('Samantha') || v.name.includes('Google UK English Female') || v.lang.startsWith('en')
+    ) || voices[0] || null;
+  }, []);
+
+  const cleanText = useCallback((text) => {
+    return (text || '')
       .replace(/\[PAUSE \d+\.?\d*s\]/g, '. ')
       .replace(/\[(SLOW|WHISPER|EMPHASIZE)\]/g, '')
       .replace(/\[SFX:[^\]]*\]/g, '')
       .trim();
-    const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.rate = 0.85;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    // Try to get a gentle voice
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.name.includes('Samantha') || v.name.includes('Google UK English Female') || v.name.includes('Female'));
-    if (preferred) utterance.voice = preferred;
-    utterance.onend = () => { if (onEnd) onEnd(); };
-    window.speechSynthesis.speak(utterance);
-    synthRef.current = utterance;
   }, []);
 
   const playScenes = useCallback((scenes) => {
+    const synth = window.speechSynthesis;
+    if (!synth) { toast.error('Speech not supported in this browser'); return; }
+    synth.cancel();
+    cancelledRef.current = false;
     setPlaying(true);
+    setPaused(false);
     setCurrentScene(0);
+
     let idx = 0;
+    const voice = pickVoice();
     const playNext = () => {
-      if (idx >= scenes.length) { setPlaying(false); setCurrentScene(-1); return; }
+      if (cancelledRef.current || idx >= scenes.length) {
+        setPlaying(false);
+        setCurrentScene(-1);
+        return;
+      }
       setCurrentScene(idx);
-      const text = scenes[idx].text || scenes[idx];
+      const raw = scenes[idx]?.text || (typeof scenes[idx] === 'string' ? scenes[idx] : '');
+      const text = cleanText(raw);
       idx++;
-      speak(text, playNext);
+      if (!text) { playNext(); return; }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.85;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      if (voice) utterance.voice = voice;
+      utterance.onend = playNext;
+      utterance.onerror = playNext;
+      synth.speak(utterance);
     };
     playNext();
-  }, [speak]);
+  }, [pickVoice, cleanText]);
+
+  const pause = useCallback(() => {
+    window.speechSynthesis?.pause();
+    setPaused(true);
+  }, []);
+
+  const resume = useCallback(() => {
+    window.speechSynthesis?.resume();
+    setPaused(false);
+  }, []);
 
   const stop = useCallback(() => {
+    cancelledRef.current = true;
     window.speechSynthesis?.cancel();
     setPlaying(false);
+    setPaused(false);
     setCurrentScene(-1);
   }, []);
 
-  return { playing, currentScene, playScenes, stop };
+  return { playing, paused, currentScene, playScenes, pause, resume, stop };
 }
 
 // ── Main Component ──
 export default function BedtimeStoryBuilder() {
   const { credits, setCredits } = useCredits();
-  const [config, setConfig] = useState(null);
 
   // Input state
   const [childName, setChildName] = useState('');
@@ -166,39 +196,46 @@ export default function BedtimeStoryBuilder() {
   const [copiedSection, setCopiedSection] = useState(null);
 
   // Speech
-  const { playing, currentScene, playScenes, stop } = useSpeech();
+  const { playing, paused, currentScene, playScenes, pause, resume, stop } = useSpeech();
 
-  // Scene ref for auto-scroll
+  // Refs
   const sceneRefs = useRef([]);
   const resultRef = useRef(null);
 
   useEffect(() => {
     fetchConfig();
     setStreak(getStreak());
-    // Load voices
-    if (window.speechSynthesis) window.speechSynthesis.getVoices();
   }, []);
 
-  // Auto-scroll to current scene in bedtime mode
+  // Auto-scroll to current scene
   useEffect(() => {
-    if (bedtimeMode && currentScene >= 0 && sceneRefs.current[currentScene]) {
+    if (currentScene >= 0 && sceneRefs.current[currentScene]) {
       sceneRefs.current[currentScene].scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [currentScene, bedtimeMode]);
+  }, [currentScene]);
+
+  // Bedtime mode: add/remove class on body
+  useEffect(() => {
+    if (bedtimeMode) {
+      document.body.classList.add('bedtime-mode');
+    } else {
+      document.body.classList.remove('bedtime-mode');
+    }
+    return () => document.body.classList.remove('bedtime-mode');
+  }, [bedtimeMode]);
 
   const fetchConfig = async () => {
     try {
-      const res = await api.get('/api/bedtime-story/config');
-      setConfig(res.data);
+      await api.get(BEDTIME_API.config);
     } catch { /* defaults work fine */ }
   };
 
   const handleGenerate = async (remixType = null) => {
     if ((credits ?? 0) < 10) { toast.error('Need 10 credits. Buy more to continue.'); return; }
     setGenerating(true);
-    setStory(null);
+    if (!remixType) setStory(null); // Remix: keep old story visible while loading
     try {
-      const res = await api.post('/api/bedtime-story/generate', {
+      const res = await api.post(BEDTIME_API.generate, {
         age_group: ageGroup,
         theme,
         moral,
@@ -209,12 +246,13 @@ export default function BedtimeStoryBuilder() {
         remix_type: remixType,
       });
       if (res.data.success) {
+        stop(); // Stop any playing audio
         setStory(res.data.story);
         setCreditsUsed(res.data.credits_used);
         setCredits(res.data.remaining_credits);
-        const newStreak = updateStreak();
+        const newStreak = bumpStreak();
         setStreak(newStreak);
-        toast.success(`Story created! ${newStreak > 1 ? `${newStreak}-day streak!` : ''}`);
+        toast.success(`Story created!${newStreak > 1 ? ` ${newStreak}-day streak!` : ''}`);
         setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
       }
     } catch (err) {
@@ -223,19 +261,18 @@ export default function BedtimeStoryBuilder() {
     setGenerating(false);
   };
 
-  const handleRemix = (variant) => {
-    handleGenerate(variant.id);
-  };
-
   const handlePlay = () => {
-    if (playing) { stop(); return; }
-    if (story?.scenes) {
+    if (playing && !paused) { pause(); return; }
+    if (paused) { resume(); return; }
+    if (story?.scenes?.length) {
       playScenes(story.scenes);
     } else if (story?.script) {
       const chunks = story.script.split('\n\n').filter(Boolean);
       playScenes(chunks.map(t => ({ text: t })));
     }
   };
+
+  const handleStop = () => stop();
 
   const copySection = (text, section) => {
     navigator.clipboard?.writeText(text);
@@ -248,10 +285,10 @@ export default function BedtimeStoryBuilder() {
     if (!story) return;
     const content = [
       `# ${story.title || 'Bedtime Story'}`,
-      `Character: ${story.metadata?.character}`,
-      `Setting: ${story.metadata?.place}`,
+      `Character: ${story.metadata?.character || ''}`,
+      `Setting: ${story.metadata?.place || ''}`,
       '',
-      story.script || story.scenes?.map(s => s.text).join('\n\n'),
+      story.script || story.scenes?.map(s => s.text).join('\n\n') || '',
       '',
       '## Voice Notes',
       ...(story.voice_notes || []).map(v => `[${v.scene}] ${v.note}`),
@@ -266,21 +303,32 @@ export default function BedtimeStoryBuilder() {
     a.click();
   };
 
+  const stripMarkers = (text) =>
+    (text || '').replace(/\[(PAUSE \d+\.?\d*s|SLOW|WHISPER|EMPHASIZE)\]/g, '').replace(/\[SFX:[^\]]*\]/g, '').trim();
+
   // ── Render ──
   const bgClass = bedtimeMode
-    ? 'bg-[#0B0F1A] min-h-screen transition-colors duration-1000'
-    : 'bg-gradient-to-b from-slate-900 via-indigo-950/30 to-slate-900 min-h-screen';
+    ? 'min-h-screen transition-all duration-1000 bg-[#060A14]'
+    : 'min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/20 to-slate-950';
 
   return (
     <div className={bgClass}>
+      {/* Bedtime Mode overlay filter */}
+      {bedtimeMode && (
+        <style>{`
+          body.bedtime-mode { background: #060A14 !important; }
+          body.bedtime-mode .navbar, body.bedtime-mode .sidebar, body.bedtime-mode footer { opacity: 0.15; pointer-events: none; }
+        `}</style>
+      )}
+
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
 
-        {/* ── Hero Section ── */}
+        {/* ── Hero Section (only when no story) ── */}
         {!story && (
-          <div className="text-center mb-8" data-testid="hero-section">
+          <div className="text-center mb-8" data-testid="bedtime-hero">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-4">
               <Moon className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="text-xs text-indigo-300 font-medium">Bedtime Story Engine</span>
+              <span className="text-xs text-indigo-300 font-medium">Bedtime Experience Engine</span>
               {streak > 0 && (
                 <span className="text-xs text-amber-400 font-bold ml-1" data-testid="streak-badge">
                   {streak}-day streak
@@ -288,12 +336,12 @@ export default function BedtimeStoryBuilder() {
               )}
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">
-              A magical bedtime story for your child
+              A magical bedtime story
               <br />
               <span className="text-indigo-400">— ready in seconds</span>
             </h1>
-            <p className="text-slate-400 text-sm sm:text-base max-w-lg mx-auto">
-              AI creates personalized stories with voice pacing, sound effects & calming endings. One tap.
+            <p className="text-slate-400 text-sm max-w-lg mx-auto">
+              AI creates personalized stories with voice playback, sound effects & calming endings.
             </p>
           </div>
         )}
@@ -354,7 +402,7 @@ export default function BedtimeStoryBuilder() {
               </div>
             </div>
 
-            {/* Voice + Duration row */}
+            {/* Voice + Duration */}
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1.5 block">Voice</label>
@@ -394,7 +442,7 @@ export default function BedtimeStoryBuilder() {
               </div>
             </div>
 
-            {/* Theme + Moral row */}
+            {/* Theme + Moral */}
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1.5 block">Theme</label>
@@ -427,22 +475,24 @@ export default function BedtimeStoryBuilder() {
                 <><Moon className="w-5 h-5" /> Create Magic Story</>
               )}
             </button>
-            <p className="text-center text-[11px] text-slate-600">10 credits &middot; AI-powered &middot; {credits !== null ? `${credits >= 999999 ? 'Unlimited' : credits} credits available` : ''}</p>
+            <p className="text-center text-[11px] text-slate-600">
+              10 credits &middot; AI-powered &middot; {credits !== null ? `${credits >= 999999 ? 'Unlimited' : credits} credits available` : ''}
+            </p>
           </div>
         )}
 
         {/* ── Story Result ── */}
         {story && (
           <div ref={resultRef} data-testid="story-result">
-            {/* Title + Controls */}
+            {/* Title */}
             <div className="text-center mb-6">
-              <h2 className={`font-bold text-white mb-1 ${bedtimeMode ? 'text-2xl' : 'text-xl sm:text-2xl'}`} data-testid="story-title">
+              <h2 className={`font-bold text-white mb-1 ${bedtimeMode ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'}`} data-testid="story-title">
                 {story.title || 'Your Bedtime Story'}
               </h2>
               <p className="text-slate-500 text-xs">
                 {story.metadata?.character && `Starring ${story.metadata.character}`}
                 {story.metadata?.place && ` in ${story.metadata.place}`}
-                {creditsUsed > 0 && ` &middot; ${creditsUsed} credits used`}
+                {creditsUsed > 0 && ` · ${creditsUsed} credits used`}
               </p>
               {streak > 0 && (
                 <div className="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20" data-testid="streak-result">
@@ -454,40 +504,56 @@ export default function BedtimeStoryBuilder() {
 
             {/* Action Bar */}
             <div className="flex items-center justify-center gap-2 mb-5 flex-wrap">
+              {/* Play / Pause */}
               <Button onClick={handlePlay}
                 className={`rounded-full px-5 py-2.5 font-bold text-sm ${
-                  playing ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-90'
+                  playing && !paused
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
+                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-90'
                 }`} data-testid="play-btn">
-                {playing ? <><Pause className="w-4 h-4 mr-1.5" /> Stop</> : <><Play className="w-4 h-4 mr-1.5" /> Play Story</>}
+                {playing && !paused ? <><Pause className="w-4 h-4 mr-1.5" /> Pause</> : <><Play className="w-4 h-4 mr-1.5" /> {paused ? 'Resume' : 'Play Story'}</>}
               </Button>
+              {/* Stop (only if playing) */}
+              {playing && (
+                <Button onClick={handleStop}
+                  className="rounded-full px-4 py-2.5 text-sm bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30"
+                  data-testid="stop-btn">
+                  Stop
+                </Button>
+              )}
+              {/* Bedtime Mode */}
               <Button variant="outline" onClick={() => setBedtimeMode(!bedtimeMode)}
                 className={`rounded-full px-4 py-2.5 text-sm font-medium ${
                   bedtimeMode ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'border-slate-700 text-slate-400 hover:text-white'
                 }`} data-testid="bedtime-mode-btn">
                 {bedtimeMode ? <><EyeOff className="w-3.5 h-3.5 mr-1.5" /> Bedtime On</> : <><Moon className="w-3.5 h-3.5 mr-1.5" /> Bedtime Mode</>}
               </Button>
+              {/* Download */}
               <Button variant="outline" onClick={downloadStory} className="rounded-full px-4 py-2.5 text-sm border-slate-700 text-slate-400 hover:text-white" data-testid="download-btn">
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Download
               </Button>
+              {/* Copy */}
               <Button variant="outline" onClick={() => copySection(story.script || story.scenes?.map(s => s.text).join('\n\n'), 'full')}
-                className={`rounded-full px-4 py-2.5 text-sm ${copiedSection === 'full' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'border-slate-700 text-slate-400 hover:text-white'}`}>
-                {copiedSection === 'full' ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
-                {copiedSection === 'full' ? 'Copied' : 'Copy'}
+                className={`rounded-full px-4 py-2.5 text-sm ${copiedSection === 'full' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'border-slate-700 text-slate-400 hover:text-white'}`}
+                data-testid="copy-btn">
+                {copiedSection === 'full' ? <><Check className="w-3.5 h-3.5 mr-1.5" />Copied</> : <><Copy className="w-3.5 h-3.5 mr-1.5" />Copy</>}
               </Button>
             </div>
 
             {/* Story Content — Scene by Scene */}
             <div className={`rounded-2xl border overflow-hidden ${
-              bedtimeMode ? 'bg-[#0D1117] border-slate-800' : 'bg-slate-800/40 border-slate-700/50'
-            }`}>
-              {story.scenes ? (
+              bedtimeMode ? 'bg-[#0D1117] border-slate-800/50' : 'bg-slate-800/40 border-slate-700/50'
+            }`} data-testid="story-scenes">
+              {story.scenes?.length > 0 ? (
                 <div className="divide-y divide-slate-800/50">
                   {story.scenes.map((scene, idx) => (
                     <div
                       key={idx}
                       ref={el => sceneRefs.current[idx] = el}
                       className={`p-4 sm:p-5 transition-all duration-700 ${
-                        currentScene === idx ? (bedtimeMode ? 'bg-indigo-500/5' : 'bg-indigo-500/10') : ''
+                        currentScene === idx
+                          ? (bedtimeMode ? 'bg-indigo-500/5 border-l-2 border-l-indigo-400' : 'bg-indigo-500/10 border-l-2 border-l-indigo-500')
+                          : 'border-l-2 border-l-transparent'
                       }`}
                       data-testid={`scene-${idx}`}
                     >
@@ -501,13 +567,15 @@ export default function BedtimeStoryBuilder() {
                           <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">{scene.emotion}</span>
                         )}
                         {currentScene === idx && playing && (
-                          <span className="text-[10px] text-indigo-400 animate-pulse ml-auto">Speaking...</span>
+                          <span className="text-[10px] text-indigo-400 animate-pulse ml-auto flex items-center gap-1">
+                            <Volume2 className="w-2.5 h-2.5" /> Speaking...
+                          </span>
                         )}
                       </div>
                       <p className={`leading-relaxed ${
-                        bedtimeMode ? 'text-slate-200 text-lg sm:text-xl' : 'text-slate-300 text-sm sm:text-base'
+                        bedtimeMode ? 'text-slate-200 text-lg sm:text-xl font-light' : 'text-slate-300 text-sm sm:text-base'
                       }`}>
-                        {scene.text?.replace(/\[(PAUSE \d+\.?\d*s|SLOW|WHISPER|EMPHASIZE)\]/g, '').replace(/\[SFX:[^\]]*\]/g, '').trim()}
+                        {stripMarkers(scene.text)}
                       </p>
                       {scene.sfx && !bedtimeMode && (
                         <div className="flex items-center gap-1 mt-2 text-[10px] text-pink-400/60">
@@ -522,8 +590,7 @@ export default function BedtimeStoryBuilder() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                /* Fallback: raw script display */
+              ) : story.script ? (
                 <div className="p-5">
                   <pre className={`whitespace-pre-wrap font-sans leading-relaxed ${
                     bedtimeMode ? 'text-slate-200 text-lg' : 'text-slate-300 text-sm'
@@ -531,14 +598,14 @@ export default function BedtimeStoryBuilder() {
                     {story.script}
                   </pre>
                 </div>
-              )}
+              ) : null}
             </div>
 
-            {/* Voice Notes + SFX (collapsed in bedtime mode) */}
+            {/* Voice Notes + SFX (hidden in bedtime mode) */}
             {!bedtimeMode && (story.voice_notes?.length > 0 || story.sfx_cues?.length > 0) && (
               <div className="grid sm:grid-cols-2 gap-4 mt-4">
                 {story.voice_notes?.length > 0 && (
-                  <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4">
+                  <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4" data-testid="voice-notes">
                     <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Voice Pacing Notes</p>
                     <div className="space-y-2">
                       {story.voice_notes.map((v, i) => (
@@ -551,7 +618,7 @@ export default function BedtimeStoryBuilder() {
                   </div>
                 )}
                 {story.sfx_cues?.length > 0 && (
-                  <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4">
+                  <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4" data-testid="sfx-cues">
                     <p className="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2">Sound Effects</p>
                     <div className="space-y-2">
                       {story.sfx_cues.map((s, i) => (
@@ -566,17 +633,17 @@ export default function BedtimeStoryBuilder() {
               </div>
             )}
 
-            {/* ── Remix Variants ── */}
+            {/* ── Remix Variants (instant, no page reload) ── */}
             <div className="mt-5" data-testid="remix-variants">
               <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2 text-center">Instant Remix</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {REMIX_VARIANTS.map(v => {
                   const Icon = v.icon;
                   return (
-                    <button key={v.id} onClick={() => handleRemix(v)} disabled={generating}
+                    <button key={v.id} onClick={() => handleGenerate(v.id)} disabled={generating}
                       className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50 text-slate-300 hover:text-white hover:border-slate-600 transition-all disabled:opacity-50 text-xs font-medium"
                       data-testid={`remix-${v.id}`}>
-                      <Icon className="w-3.5 h-3.5" /> {v.label}
+                      {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />} {v.label}
                     </button>
                   );
                 })}
@@ -595,20 +662,12 @@ export default function BedtimeStoryBuilder() {
             </div>
 
             {/* New Story button */}
-            <div className="flex justify-center mt-5 gap-3">
-              <Button variant="outline" onClick={() => { setStory(null); stop(); }}
+            <div className="flex justify-center mt-5">
+              <Button variant="outline" onClick={() => { setStory(null); stop(); setBedtimeMode(false); }}
                 className="rounded-full border-slate-700 text-slate-400 hover:text-white" data-testid="new-story-btn">
                 <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> New Story
               </Button>
             </div>
-
-            {/* NextActionHooks */}
-            <NextActionHooks
-              toolType="bedtime-story-builder"
-              prompt={`${theme} bedtime story about ${story?.metadata?.character || 'a character'}`}
-              settings={{ ageGroup, theme, moral }}
-              title={story?.title || 'Bedtime Story'}
-            />
           </div>
         )}
 
@@ -623,8 +682,6 @@ export default function BedtimeStoryBuilder() {
             </div>
           </div>
         )}
-
-        <HelpGuide pageId="bedtime-story-builder" />
       </div>
     </div>
   );

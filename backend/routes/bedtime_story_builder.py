@@ -47,6 +47,35 @@ def check_blocked_content(text: str) -> bool:
     return True
 
 
+def fill_placeholders(template: str, data: dict) -> str:
+    """Safely fill {placeholder} tokens in a template string."""
+    if not template:
+        return ""
+    try:
+        return template.format(**{k: (v or "") for k, v in data.items()})
+    except KeyError:
+        out = template
+        for k, v in data.items():
+            out = out.replace("{" + k + "}", str(v or ""))
+        return out
+
+
+def normalize_story(result: dict) -> dict:
+    """Ensure every response has a structured 'scenes' list for the frontend."""
+    if isinstance(result, dict) and result.get("scenes"):
+        return result
+    # Fallback: split script text into scene objects
+    text = result.get("script", "") if isinstance(result, dict) else str(result)
+    chunks = [c.strip() for c in text.split("\n\n") if c.strip()]
+    scenes = [{"text": c, "scene_type": "scene", "emotion": "calm", "sfx": "", "voice_hint": ""} for c in chunks[:12]]
+    if isinstance(result, dict):
+        result["scenes"] = scenes
+        if not result.get("title"):
+            result["title"] = "Bedtime Story"
+        return result
+    return {"title": "Bedtime Story", "script": text, "scenes": scenes, "voice_notes": [], "sfx_cues": [], "metadata": {}}
+
+
 # =============================================================================
 # MODELS
 # =============================================================================
@@ -562,9 +591,26 @@ def generate_story_script(
     # Calculate approximate duration
     word_count = len(" ".join(script_lines).split())
     reading_time_mins = word_count / 130  # Average reading speed for children's stories
-    
+
+    # Build structured scenes from template output
+    template_scenes = []
+    scene_idx = 0
+    for scene_def in skeleton["scenes"]:
+        beats = scene_def["beats"]
+        scene_lines = script_lines[scene_idx:scene_idx + beats]
+        scene_idx += beats + 1  # +1 for the pacing pause line
+        template_scenes.append({
+            "scene_type": scene_def["scene_type"],
+            "text": " ".join(scene_lines),
+            "emotion": "calm" if scene_def["pacing"] in ("slow", "very_slow") else "happy",
+            "sfx": "",
+            "voice_hint": ""
+        })
+
     return {
+        "title": f"{child_name or character}'s Bedtime Story",
         "script": "\n\n".join(script_lines),
+        "scenes": template_scenes,
         "voice_notes": voice_notes,
         "sfx_cues": sfx_cues,
         "metadata": {
@@ -657,6 +703,9 @@ async def generate_story(
             remix_type=data.remix_type,
         )
         
+        # Normalize to guarantee structured scenes
+        result = normalize_story(result)
+
         # Get updated balance
         updated_user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
         remaining = updated_user.get("credits", 0) if updated_user else 0
