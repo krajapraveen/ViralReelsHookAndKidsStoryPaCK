@@ -941,7 +941,7 @@ AVOID: {char_context['negative_prompt'] if char_context else negative_prompt}"""
         logger.error(f"Comic avatar processing error: {e}")
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "FAILED", "error": str(e)}}
+            {"$set": {"status": "FAILED", "error": str(e), "progressMessage": "Your comic needs a different approach. No credits were charged."}}
         )
         
         # Auto-refund on generation failure
@@ -1176,11 +1176,12 @@ AVOID: {negative_prompt}"""
                                 return panel_data
                             
                         except Exception as e:
-                            logger.warning(f"Panel {i+1} attempt {attempt_idx+1} failed: {e}")
+                            logger.warning(f"Panel {i+1} attempt {attempt_idx+1} failed for job {job_id}: {type(e).__name__}: {e}")
                     
-                    # All attempts exhausted — mark as failed (backend truth, UI will mask)
+                    # All attempts exhausted — mark as failed with reason
                     panel_data["imageUrl"] = None
                     panel_data["status"] = "FAILED"
+                    panel_data["fail_reason"] = "all_models_failed"
                     return panel_data
 
                 # Fan-out: generate ALL panels in parallel
@@ -1193,6 +1194,69 @@ AVOID: {negative_prompt}"""
                 panels = list(panels)
 
                 await update_stage(job_id, "panel_generation", "done", 88, "All panels created")
+
+                # ── JOB-LEVEL FALLBACK ──
+                # If >50% panels failed, try a simplified batch approach
+                failed_count = sum(1 for p in panels if p.get("status") == "FAILED")
+                if failed_count > len(panels) / 2 and LLM_AVAILABLE and EMERGENT_LLM_KEY:
+                    logger.warning(f"Job {job_id}: {failed_count}/{len(panels)} panels failed. Triggering job-level fallback.")
+                    await update_stage(job_id, "composition", "in_progress", 89, "Optimizing your comic...")
+                    
+                    # Fallback: try each failed panel sequentially with longer timeout + text-only model as last resort
+                    for pi, panel in enumerate(panels):
+                        if panel.get("status") != "FAILED":
+                            continue
+                        scene = story_scenes[pi] if pi < len(story_scenes) else {"scene": f"Scene {pi+1}"}
+                        
+                        # Last-resort attempt with simplified prompt + longer timeout
+                        try:
+                            fallback_chat = LlmChat(
+                                api_key=EMERGENT_LLM_KEY,
+                                session_id=f"comic-fallback-{job_id}-{pi}",
+                                system_message="Create a simple comic panel illustration."
+                            )
+                            fallback_chat.with_model("gemini", "gemini-2.0-flash-preview-image-generation").with_params(modalities=["image", "text"])
+                            
+                            simple_prompt = f"""Draw a simple comic panel in {SAFE_STYLES[style]['prompt']} style.
+Scene: {scene.get('scene', 'A character in an adventure')}
+Keep it simple and colorful. Single scene, clear composition."""
+                            
+                            fallback_msg = UserMessage(text=simple_prompt)
+                            
+                            import asyncio as aio
+                            fb_text, fb_images = await aio.wait_for(
+                                fallback_chat.send_message_multimodal_response(fallback_msg),
+                                timeout=90
+                            )
+                            
+                            if fb_images and len(fb_images) > 0:
+                                fb_img = fb_images[0]
+                                if isinstance(fb_img, dict):
+                                    fb_raw = fb_img.get('data') or fb_img.get('b64_json') or fb_img.get('image') or ''
+                                    fb_bytes = base64.b64decode(fb_raw) if fb_raw else b''
+                                elif isinstance(fb_img, str):
+                                    fb_bytes = base64.b64decode(fb_img)
+                                else:
+                                    fb_bytes = fb_img if isinstance(fb_img, bytes) else b''
+                                
+                                if fb_bytes:
+                                    try:
+                                        from services.cloudflare_r2_storage import upload_image_bytes
+                                        fname = f"comic_strip_{job_id[:8]}_panel{pi+1}_fb.png"
+                                        success, cdn_url = await upload_image_bytes(fb_bytes, fname, f"comic/{user_id[:8]}")
+                                        if success and cdn_url:
+                                            panels[pi]["imageUrl"] = cdn_url
+                                        else:
+                                            panels[pi]["imageUrl"] = f"data:image/png;base64,{base64.b64encode(fb_bytes).decode()}"
+                                    except Exception:
+                                        panels[pi]["imageUrl"] = f"data:image/png;base64,{base64.b64encode(fb_bytes).decode()}"
+                                    
+                                    panels[pi]["status"] = "READY"
+                                    panels[pi]["retries"] = 4  # Mark as fallback-generated
+                                    panels[pi]["fallback"] = True
+                                    logger.info(f"Fallback succeeded for panel {pi+1}, job {job_id}")
+                        except Exception as fb_err:
+                            logger.warning(f"Fallback failed for panel {pi+1}: {fb_err}")
 
             except Exception as e:
                 logger.error(f"Comic strip generation error: {e}")

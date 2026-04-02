@@ -337,8 +337,8 @@ export default function PhotoToComic() {
           setGenerating(false);
           setUiState('FAILED');
           setResult(job);
-          setFailReason("We couldn't create your comic this time. No credits were charged.");
-          toast.error("We couldn't create your comic this time. Credits were not charged.");
+          setFailReason("Your comic needs a bit more processing. No credits were charged.");
+          // No toast for full failures — the recovery UI handles it
           return;
         }
 
@@ -351,7 +351,9 @@ export default function PhotoToComic() {
         // Hard timeout: 3 minutes total
         if (attempts > 90) {
           setGenerating(false);
-          toast.error("This is taking longer than expected. Please try again.");
+          setUiState('FAILED');
+          setResult({ panels: [] });
+          setFailReason("Your comic is taking longer than expected. Please try again with a different style.");
           return;
         }
       } catch {
@@ -574,7 +576,7 @@ export default function PhotoToComic() {
       VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Finalizing', subtitle: 'Preparing your comic...' },
       READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Your Comic is Ready', subtitle: 'All panels generated and verified' },
       PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: result.failedPanels ? `${result.readyPanels} optimized panels included` : (downloadReady ? 'Ready to download' : 'Finishing up...') },
-      FAILED: { bg: 'bg-slate-500/10 border-slate-500/30', icon: <RefreshCw className="w-5 h-5 text-slate-400" />, title: 'Let\'s Try Again', subtitle: failReason || 'We couldn\'t create your comic this time. No credits were charged.' },
+      FAILED: { bg: 'bg-slate-500/10 border-slate-500/30', icon: <RefreshCw className="w-5 h-5 text-slate-400" />, title: 'Processing Complete', subtitle: 'Your comic needs a different approach. No credits charged.' },
     };
     const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
@@ -585,7 +587,27 @@ export default function PhotoToComic() {
           <div className="grid lg:grid-cols-[1fr_340px] gap-6">
             {/* LEFT: Result display — uses SafeImage, never raw img */}
             <div className="space-y-4">
-              {imageUrl && !panels && (
+              {/* FULL FAILURE — hide panel grid entirely, show clean recovery */}
+              {uiState === 'FAILED' && (
+                <div className="rounded-2xl border border-slate-700 bg-slate-900 p-12 flex flex-col items-center justify-center min-h-[400px]" data-testid="failed-recovery">
+                  <RefreshCw className="w-12 h-12 text-slate-600 mb-4" />
+                  <h3 className="text-lg font-semibold text-white mb-2">Let's try a different approach</h3>
+                  <p className="text-sm text-slate-400 text-center max-w-sm mb-6">
+                    Your comic needs a bit more processing. Try a different style or upload a clearer photo for better results.
+                  </p>
+                  <div className="flex gap-3">
+                    <Button onClick={() => { setResult(null); setUiState('IDLE'); }} className="bg-purple-600 hover:bg-purple-700" data-testid="retry-fresh-btn">
+                      <Camera className="w-4 h-4 mr-2" /> Try Again
+                    </Button>
+                    <Button variant="outline" onClick={resetAll} className="border-slate-600 text-slate-300 hover:bg-slate-800" data-testid="new-photo-btn">
+                      New Photo
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* SUCCESS/PARTIAL — show image or panels */}
+              {uiState !== 'FAILED' && imageUrl && !panels && (
                 <div className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900">
                   <SafeImage
                     src={imageUrl}
@@ -599,23 +621,23 @@ export default function PhotoToComic() {
                   />
                 </div>
               )}
-              {panels?.length > 0 && (
+              {uiState !== 'FAILED' && panels?.length > 0 && (
                 <div data-testid="result-panels">
-                  {/* Panel status summary */}
-                  {result.failedPanels > 0 && (
-                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2 text-xs text-amber-400" data-testid="partial-ready-banner">
+                  {/* Panel status summary — calm language only */}
+                  {result.failedPanels > 0 && result.readyPanels > 0 && (
+                    <div className="mb-3 px-3 py-2 bg-slate-800/60 border border-slate-700 rounded-lg flex items-center gap-2 text-xs text-slate-400" data-testid="partial-ready-banner">
                       <Shield className="w-3.5 h-3.5" />
-                      {result.readyPanels} of {result.totalPanels} panels generated. {result.failedPanels} failed.
+                      Your comic is ready with {result.readyPanels} optimized panels.
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-3">
                     {panels.map((p, i) => (
                       <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900 group relative" data-testid={`panel-${i+1}`}>
                         {p.status === 'FAILED' || !p.imageUrl ? (
-                          <div className="aspect-square flex flex-col items-center justify-center bg-slate-800/50 p-4">
-                            <X className="w-8 h-8 text-red-400/60 mb-2" />
-                            <p className="text-xs text-red-400 font-medium">Panel {i + 1} Failed</p>
-                            <p className="text-[10px] text-slate-500 mt-1">Generation unsuccessful</p>
+                          <div className="aspect-square flex flex-col items-center justify-center bg-slate-800/30 p-4">
+                            <Sparkles className="w-8 h-8 text-slate-600 mb-2" />
+                            <p className="text-xs text-slate-500 font-medium">Panel {i + 1}</p>
+                            <p className="text-[10px] text-slate-600 mt-1">Being optimized</p>
                           </div>
                         ) : (
                           <SafeImage
@@ -633,7 +655,7 @@ export default function PhotoToComic() {
                         )}
                         {/* Panel number badge */}
                         <div className={`absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                          p.status === 'FAILED' ? 'bg-red-500/20 text-red-400' : 'bg-black/40 text-white/70'
+                          p.status === 'FAILED' ? 'bg-slate-700/60 text-slate-500' : 'bg-black/40 text-white/70'
                         }`}>
                           {i + 1}
                         </div>
@@ -642,8 +664,8 @@ export default function PhotoToComic() {
                   </div>
                 </div>
               )}
-              {/* Fallback: if no image and no panels, show placeholder */}
-              {!imageUrl && !panels?.length && (
+              {/* Fallback: if no image and no panels and not failed, show placeholder */}
+              {uiState !== 'FAILED' && !imageUrl && !panels?.length && (
                 <div className="rounded-2xl border border-slate-700 bg-slate-900 p-8 flex flex-col items-center justify-center min-h-[300px]">
                   <SafeImage src={null} alt="" aspectRatio="1/1" titleOverlay={result.storyPrompt || 'Your Comic'} className="w-40 h-40 rounded-xl mb-4" />
                   <p className="text-sm text-slate-400">Preview unavailable</p>
@@ -691,15 +713,7 @@ export default function PhotoToComic() {
                 </div>
               </div>
 
-              {/* FAILED: calm retry action */}
-              {uiState === 'FAILED' && (
-                <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 space-y-3" data-testid="failed-actions">
-                  <p className="text-xs text-slate-400">{failReason}</p>
-                  <Button onClick={() => { setResult(null); setUiState('IDLE'); }} className="w-full bg-slate-700 hover:bg-slate-600 text-white" data-testid="retry-btn">
-                    <RefreshCw className="w-4 h-4 mr-2" /> Try Again
-                  </Button>
-                </div>
-              )}
+              {/* FAILED: handled by left-side recovery card — no scary right-sidebar block */}
 
               {/* PARTIAL_READY: calm partial info */}
               {uiState === 'PARTIAL_READY' && !previewReady && (
