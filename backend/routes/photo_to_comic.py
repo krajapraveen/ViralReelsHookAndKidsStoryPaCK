@@ -1234,6 +1234,58 @@ AVOID: {negative_prompt}"""
             ready_panels = [p for p in panels if p.get("status") == "READY"]
             failed_panels = [p for p in panels if p.get("status") == "FAILED"]
         
+        # ── P1.5-C: Character Consistency Validation ──
+        # Run face embedding comparison on ready panels against source photo
+        consistency_results = []
+        consistency_retried = []
+        if len(ready_panels) > 0:
+            try:
+                await update_stage(job_id, "composition", "in_progress", 92, "Verifying character consistency...")
+                from services.consistency_validator import run_consistency_validation
+                
+                consistency_results = await run_consistency_validation(
+                    db, job_id, photo_content, panels, style, 
+                    model_used="gemini-3-pro-image-preview"
+                )
+                
+                # Auto-retry panels with "retry" verdict (max 1 per panel)
+                for cr in consistency_results:
+                    if cr["verdict"] == "retry" and cr["panel_number"] <= len(panels):
+                        idx = cr["panel_number"] - 1
+                        panel = panels[idx]
+                        # Only retry if not already retried for consistency
+                        if panel.get("consistency_retried"):
+                            continue
+                        
+                        scene = story_scenes[idx] if idx < len(story_scenes) else {"scene": panel.get("scene", "")}
+                        try:
+                            await db.photo_to_comic_jobs.update_one(
+                                {"id": job_id},
+                                {"$set": {"progressMessage": "Optimizing character details..."}}
+                            )
+                            repaired = await generate_single_panel(idx, scene)
+                            if repaired.get("status") == "READY":
+                                repaired["consistency_retried"] = True
+                                panels[idx] = repaired
+                                consistency_retried.append(idx + 1)
+                                logger.info(f"Consistency retry succeeded for panel {idx+1}, job {job_id}")
+                        except Exception as retry_err:
+                            logger.warning(f"Consistency retry failed for panel {idx+1}: {retry_err}")
+                
+                # Re-validate after retries if any were done
+                if consistency_retried:
+                    consistency_results = await run_consistency_validation(
+                        db, f"{job_id}_post_retry", photo_content, panels, style,
+                        model_used="gemini-3-pro-image-preview"
+                    )
+                    
+                # Recount after consistency retries
+                ready_panels = [p for p in panels if p.get("status") == "READY"]
+                failed_panels = [p for p in panels if p.get("status") == "FAILED"]
+                
+            except Exception as consistency_err:
+                logger.warning(f"Consistency validation failed (non-blocking): {consistency_err}")
+        
         # Determine job status — calm mapping
         if len(ready_panels) == 0:
             job_status = "FAILED"
@@ -1307,6 +1359,17 @@ AVOID: {negative_prompt}"""
             script_text += "\n"
 
         # Update job with final state
+        consistency_meta = {}
+        if consistency_results:
+            sims = [r["source_similarity"] for r in consistency_results if r["source_similarity"] > 0]
+            consistency_meta = {
+                "consistency_checked": True,
+                "consistency_retried_panels": consistency_retried,
+                "avg_similarity": round(sum(sims) / len(sims), 4) if sims else 0,
+                "min_similarity": round(min(sims), 4) if sims else 0,
+                "panels_with_no_face": sum(1 for r in consistency_results if r["verdict"] == "no_face"),
+            }
+        
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -1320,6 +1383,7 @@ AVOID: {negative_prompt}"""
                 "readyPanels": len(ready_panels),
                 "failedPanels": len(failed_panels),
                 "totalPanels": panel_count,
+                **consistency_meta,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}
         )

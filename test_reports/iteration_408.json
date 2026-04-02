@@ -1,0 +1,92 @@
+{
+  "iteration": 408,
+  "date": "2026-04-02",
+  "feature": "Photo to Comic P1.5-C: Character Consistency Validator",
+  "test_type": "backend + frontend",
+  "summary": "All P1.5-C consistency validator features verified working: OpenCV FaceDetectorYN (YuNet) + FaceRecognizerSF (SFace) integration, face embedding extraction from real photos, no-face detection for non-face images, self-comparison returns ~1.0, validate_panel_consistency returns correct verdicts (accept/no_face/skip), run_consistency_validation logs to consistency_logs collection. Backend server running with consistency validator integrated. All regression tests pass (quality check, events, PDF, job status endpoints).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "backend": {
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "tests": [
+        {"name": "ONNX models exist (YuNet 232KB, SFace 38MB)", "status": "PASS"},
+        {"name": "extract_face_embedding detects faces in real photos", "status": "PASS"},
+        {"name": "extract_face_embedding returns no face for non-face images", "status": "PASS"},
+        {"name": "extract_face_embedding handles base64 input", "status": "PASS"},
+        {"name": "extract_face_embedding handles data URI input", "status": "PASS"},
+        {"name": "compute_similarity returns ~1.0 for self-comparison", "status": "PASS"},
+        {"name": "compute_similarity handles None inputs gracefully", "status": "PASS"},
+        {"name": "validate_panel_consistency returns 'accept' for high-similarity panels", "status": "PASS"},
+        {"name": "validate_panel_consistency returns 'no_face' for panels without faces", "status": "PASS"},
+        {"name": "validate_panel_consistency returns 'skip' when source has no face", "status": "PASS"},
+        {"name": "validate_panel_consistency computes panel1_similarity for panels > 1", "status": "PASS"},
+        {"name": "Backend server running with consistency validator integrated", "status": "PASS"},
+        {"name": "Quality check endpoint regression test", "status": "PASS"},
+        {"name": "Events endpoint regression test", "status": "PASS"},
+        {"name": "PDF endpoint regression test", "status": "PASS"},
+        {"name": "Job status endpoint regression test", "status": "PASS"},
+        {"name": "run_consistency_validation logs to consistency_logs collection", "status": "PASS"},
+        {"name": "run_consistency_validation handles no-face source correctly", "status": "PASS"}
+      ]
+    },
+    "frontend": {
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {"name": "Photo to Comic page loads at /app/photo-to-comic", "status": "PASS"},
+        {"name": "Login flow works", "status": "PASS"},
+        {"name": "Upload zone visible", "status": "PASS"},
+        {"name": "File input found for photo upload", "status": "PASS"},
+        {"name": "Style preview strip visible", "status": "PASS"},
+        {"name": "Quality check UI shows after photo upload", "status": "PASS"},
+        {"name": "Quality indicators displayed (Face, Clarity, Lighting, Framing)", "status": "PASS"},
+        {"name": "Generate button enabled when face detected", "status": "PASS"}
+      ]
+    },
+    "overall_pass_rate": "100%"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_consistency_validator_p15c.py",
+    "/app/test_reports/pytest/pytest_consistency_validator_p15c.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_consistency_validator_p15c.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "test@visionary-suite.com / Test@2026#",
+  "seed_data_creation": "Used test images at /tmp/test_no_face.jpg (solid color) and /tmp/test_real_face.jpg (real face from Unsplash)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "P1.5-C consistency validator fully tested. ONNX models at /app/backend/models/ (YuNet for face detection, SFace for embeddings). Consistency validator at /app/backend/services/consistency_validator.py. Integration in photo_to_comic.py at line 1237-1287 (after panel repair, before final status). Logs to consistency_logs collection. Thresholds: HIGH_PASS=0.45, BORDERLINE=0.30. Self-similarity returns ~0.9999999 (floating point). Cross-domain (photo vs comic) similarity typically 0.2-0.6.",
+  "verified_features": {
+    "face_detection": "YuNet model detects faces with confidence score > 0.5",
+    "face_embedding": "SFace model produces 128-dim embeddings",
+    "self_similarity": "compute_similarity returns ~1.0 (0.9999999) for identical embeddings",
+    "no_face_handling": "extract_face_embedding returns (None, False, 0) for non-face images",
+    "panel_verdicts": {
+      "accept": "source_similarity >= 0.45",
+      "borderline": "source_similarity 0.30-0.45",
+      "retry": "source_similarity < 0.30",
+      "no_face": "panel has no detectable face",
+      "skip": "source has no face"
+    },
+    "consistency_logging": "Logs to consistency_logs collection with job_id, style, model_used, panel_details, avg/min/max similarity",
+    "auto_retry": "Panels with 'retry' verdict get max 1 auto-retry in pipeline"
+  }
+}
