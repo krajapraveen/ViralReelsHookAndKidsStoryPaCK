@@ -12,6 +12,9 @@ import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
+import { StylePreviewStrip } from '../components/photo-to-comic/StylePreviewStrip';
+import { ComicDownloads } from '../components/photo-to-comic/ComicDownloads';
+import { trackEvent } from '../utils/analytics';
 
 // ─── Constants ─────────────────────────────────────────────────────────
 const STYLES = [
@@ -58,6 +61,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export default function PhotoToComic() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const generatorRef = useRef(null);
 
   // State
   const [credits, setCredits] = useState(null); // null = loading, not 0
@@ -222,6 +226,10 @@ export default function PhotoToComic() {
     setFailReason('');
     setStages([]);
 
+    // Track generation event
+    trackEvent('comic_generate_click', { mode, style, genre, panel_count: panelCount, preset: storyPreset });
+    try { api.post('/api/photo-to-comic/events', { event_type: 'generate_after_preview', metadata: { style, mode, preset: storyPreset } }); } catch {}
+
     // Fetch dynamic time estimate
     try {
       const estRes = await api.get(`/api/photo-to-comic/estimate?mode=${mode}&panel_count=${panelCount}`);
@@ -337,6 +345,10 @@ export default function PhotoToComic() {
   // Determines final UI state from asset truth. Only transitions to READY
   // when preview is actually renderable.
   const resolveAssetState = async (id, job) => {
+    // Track result page view
+    trackEvent('comic_result_page_view', { job_id: id, status: job.status });
+    try { api.post('/api/photo-to-comic/events', { event_type: 'result_page_view', metadata: { job_id: id } }); } catch {}
+
     let previewOk = false;
     let downloadOk = false;
 
@@ -468,7 +480,7 @@ export default function PhotoToComic() {
     if (newStyle) setStyle(newStyle);
     setResult(null);
     setJobId(null);
-    setValidated(false);
+    setUiState('IDLE');
     // Keep photo + storage key, go back to builder with new style
   };
 
@@ -519,7 +531,7 @@ export default function PhotoToComic() {
     setJobId(null);
     setProgress(0);
     setGenerating(false);
-    setValidated(false);
+    setUiState('IDLE');
   };
 
   // ─── RENDER ──────────────────────────────────────────────────────
@@ -627,29 +639,17 @@ export default function PhotoToComic() {
                 </div>
               </div>
 
-              {/* Primary actions — only when assets are real */}
+              {/* Primary actions — ComicDownloads component */}
               <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
-                <Button
-                  onClick={handleDownload}
-                  disabled={downloading || !downloadReady}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 py-4"
-                  data-testid="download-btn"
-                >
-                  {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                  {downloading ? 'Downloading...' : !downloadReady ? (uiState === 'VALIDATING' ? 'Verifying...' : 'Unavailable') : 'Download PNG'}
-                </Button>
-
-                {/* Script / Output Bundle */}
-                {downloadReady && result?.panels?.length > 0 && (
-                  <Button
-                    variant="outline"
-                    onClick={handleDownloadScript}
-                    className="w-full border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 text-sm"
-                    data-testid="download-script-btn"
-                  >
-                    <FileText className="w-3.5 h-3.5 mr-1.5" /> Download Story Script
-                  </Button>
-                )}
+                <ComicDownloads
+                  jobId={jobId}
+                  uiState={uiState}
+                  downloadReady={downloadReady}
+                  hasPanels={panels?.length > 0}
+                  onDownloadPng={handleDownload}
+                  onDownloadScript={handleDownloadScript}
+                  downloading={downloading}
+                />
 
                 {/* Share row — only enabled when truly READY */}
                 <div className="flex gap-2" data-testid="share-actions">
@@ -881,6 +881,15 @@ export default function PhotoToComic() {
     <div className="min-h-screen bg-slate-950">
       <Header credits={credits} />
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        {/* ── Style Preview Strip — conversion tool ───────────── */}
+        {!photoPreview && (
+          <StylePreviewStrip
+            selectedStyle={style}
+            onStyleSelect={setStyle}
+            generatorRef={generatorRef}
+          />
+        )}
+
         {/* ── Hero Upload Zone ─────────────────────────────────── */}
         {!photoPreview ? (
           <div
@@ -1035,7 +1044,7 @@ export default function PhotoToComic() {
             </div>
 
             {/* RIGHT: Cost sidebar */}
-            <div className="lg:sticky lg:top-20 space-y-4 self-start">
+            <div className="lg:sticky lg:top-20 space-y-4 self-start" ref={generatorRef}>
               <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4" data-testid="cost-summary">
                 <h3 className="font-semibold text-white flex items-center gap-2">
                   <Coins className="w-4 h-4 text-yellow-400" /> Summary
@@ -1079,6 +1088,7 @@ export default function PhotoToComic() {
                     {[
                       mode === 'avatar' ? 'Comic avatar image (PNG)' : `${panelCount}-panel comic strip (PNG)`,
                       'Story script (TXT)',
+                      'Professional PDF export',
                       'Guaranteed output or refund',
                     ].map((item, i) => (
                       <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-400">

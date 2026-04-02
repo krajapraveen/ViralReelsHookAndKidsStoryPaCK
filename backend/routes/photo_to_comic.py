@@ -1456,6 +1456,34 @@ async def delete_job(job_id: str, user: dict = Depends(get_current_user)):
 
 
 # ============================================
+# EVENT TRACKING (P1 Analytics)
+# ============================================
+
+class ComicEventRequest(BaseModel):
+    event_type: str
+    metadata: Optional[dict] = None
+
+@router.post("/events")
+async def track_comic_event(request: ComicEventRequest, user: dict = Depends(get_current_user)):
+    """Track Photo-to-Comic feature events for analytics"""
+    allowed = {
+        "preview_strip_style_click", "pdf_download_click", "pdf_download_success",
+        "pdf_download_fail", "png_download_click", "script_download_click",
+        "result_page_view", "generate_after_preview"
+    }
+    if request.event_type not in allowed:
+        raise HTTPException(status_code=400, detail="Unknown event type")
+
+    await db.comic_events.insert_one({
+        "user_id": user["id"],
+        "event_type": request.event_type,
+        "metadata": request.metadata or {},
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    return {"ok": True}
+
+
+# ============================================
 # ADMIN ENDPOINTS
 # ============================================
 
