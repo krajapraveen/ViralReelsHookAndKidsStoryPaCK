@@ -432,6 +432,54 @@ async def get_pricing(user: dict = Depends(get_current_user)):
     return {"pricing": PRICING}
 
 
+# ============================================
+# PHOTO QUALITY CHECK (P1.5-B)
+# ============================================
+
+@router.post("/quality-check")
+async def check_photo_quality(
+    photo: UploadFile = File(None),
+    storage_key: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user)
+):
+    """Fast photo quality scoring before generation. Returns quality assessment."""
+    if not photo and not storage_key:
+        raise HTTPException(status_code=400, detail="Either photo or storage_key required")
+
+    # Get image bytes
+    if storage_key:
+        try:
+            from services.cloudflare_r2_storage import CloudflareR2Storage
+            r2 = CloudflareR2Storage()
+            image_bytes = await r2.download_file(storage_key)
+            if not image_bytes:
+                raise HTTPException(status_code=400, detail="Could not retrieve file from storage")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to retrieve file from storage")
+    else:
+        image_bytes = await photo.read()
+
+    # Check cache
+    from services.photo_quality import compute_image_hash, score_photo_quality
+    img_hash = compute_image_hash(image_bytes)
+    cached = await db.quality_cache.find_one({"hash": img_hash}, {"_id": 0, "result": 1})
+    if cached:
+        return cached["result"]
+
+    # Score
+    result = score_photo_quality(image_bytes)
+
+    # Cache for 24h
+    await db.quality_cache.update_one(
+        {"hash": img_hash},
+        {"$set": {"hash": img_hash, "result": result, "ts": datetime.now(timezone.utc)}},
+        upsert=True
+    )
+    return result
+
+
 @router.post("/generate")
 async def generate_comic(
     background_tasks: BackgroundTasks,
@@ -1018,22 +1066,33 @@ Format as JSON array:
                 photo_b64 = base64.b64encode(photo_content).decode('utf-8')
 
                 async def generate_single_panel(i: int, scene: dict) -> dict:
-                    """Generate a single panel with retry and fallback"""
+                    """Generate a single panel with retry, fallback model, and calm messaging"""
                     panel_data = {
                         "panelNumber": i + 1,
                         "scene": scene.get("scene", f"Panel {i+1}"),
                         "dialogue": scene.get("dialogue") if include_dialogue else None
                     }
                     
-                    max_retries = 2
-                    for retry in range(max_retries):
+                    # Retry strategy: primary model → retry primary → fallback model
+                    attempts = [
+                        ("gemini", "gemini-3-pro-image-preview", "Creating panels..."),
+                        ("gemini", "gemini-3-pro-image-preview", "Optimizing panel..."),
+                        ("gemini", "gemini-2.0-flash-preview-image-generation", "Finalizing panel..."),
+                    ]
+                    
+                    for attempt_idx, (provider, model_name, calm_msg) in enumerate(attempts):
                         try:
+                            await db.photo_to_comic_jobs.update_one(
+                                {"id": job_id},
+                                {"$set": {"progressMessage": calm_msg}}
+                            )
+                            
                             img_chat = LlmChat(
                                 api_key=EMERGENT_LLM_KEY,
-                                session_id=f"comic-strip-panel-{job_id}-{i}-{retry}",
+                                session_id=f"comic-strip-panel-{job_id}-{i}-{attempt_idx}",
                                 system_message="You are a comic artist. Create original characters. Maintain character consistency."
                             )
-                            img_chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                            img_chat.with_model(provider, model_name).with_params(modalities=["image", "text"])
                             
                             panel_prompt = f"""Create comic panel {i+1} of {panel_count}.
 
@@ -1105,7 +1164,8 @@ AVOID: {negative_prompt}"""
                                     panel_data["imageUrl"] = f"data:image/png;base64,{image_b64_str}"
                                 
                                 panel_data["status"] = "READY"
-                                logger.info(f"Panel {i+1} generated for job {job_id}")
+                                panel_data["retries"] = attempt_idx
+                                logger.info(f"Panel {i+1} generated for job {job_id} (attempt {attempt_idx+1})")
                                 
                                 # Update progress per panel
                                 progress = 20 + int(((i + 1) / panel_count) * 65)
@@ -1116,9 +1176,9 @@ AVOID: {negative_prompt}"""
                                 return panel_data
                             
                         except Exception as e:
-                            logger.warning(f"Panel {i+1} attempt {retry+1} failed: {e}")
+                            logger.warning(f"Panel {i+1} attempt {attempt_idx+1} failed: {e}")
                     
-                    # All retries failed
+                    # All attempts exhausted — mark as failed (backend truth, UI will mask)
                     panel_data["imageUrl"] = None
                     panel_data["status"] = "FAILED"
                     return panel_data
@@ -1153,12 +1213,34 @@ AVOID: {negative_prompt}"""
         # Count actual vs failed panels
         ready_panels = [p for p in panels if p.get("status") == "READY"]
         failed_panels = [p for p in panels if p.get("status") == "FAILED"]
+        retried_panels = [p for p in panels if p.get("retries", 0) > 0]
         
-        # Determine job status based on panel results
+        # ── Post-generation single-panel repair ──
+        # If some panels failed but others succeeded, try to repair just the failed ones
+        if 0 < len(failed_panels) < len(panels) and LLM_AVAILABLE and EMERGENT_LLM_KEY:
+            await update_stage(job_id, "composition", "in_progress", 90, "Optimizing final panels...")
+            for fp in failed_panels[:2]:  # max 2 repair attempts
+                idx = fp["panelNumber"] - 1
+                scene = story_scenes[idx] if idx < len(story_scenes) else {"scene": fp.get("scene", "")}
+                try:
+                    repaired = await generate_single_panel(idx, scene)
+                    if repaired.get("status") == "READY":
+                        panels[idx] = repaired
+                        logger.info(f"Repaired panel {idx+1} for job {job_id}")
+                except Exception as repair_err:
+                    logger.warning(f"Panel {idx+1} repair failed: {repair_err}")
+            
+            # Recount
+            ready_panels = [p for p in panels if p.get("status") == "READY"]
+            failed_panels = [p for p in panels if p.get("status") == "FAILED"]
+        
+        # Determine job status — calm mapping
         if len(ready_panels) == 0:
             job_status = "FAILED"
         elif len(failed_panels) > 0:
             job_status = "PARTIAL_READY"
+        elif len(retried_panels) > 0:
+            job_status = "READY_WITH_WARNINGS"
         else:
             job_status = "COMPLETED"
         
@@ -1202,15 +1284,18 @@ AVOID: {negative_prompt}"""
             except Exception as asset_err:
                 logger.warning(f"Failed to register strip asset: {asset_err}")
 
-        # Compute status message
+        # Compute status message — CALM copy, never scary
         if job_status == "COMPLETED":
-            progress_msg = "Complete!"
-            await update_stage(job_id, "composition", "done", 100, "Comic ready!")
+            progress_msg = "Your comic is ready!"
+            await update_stage(job_id, "composition", "done", 100, "Your comic is ready!")
+        elif job_status == "READY_WITH_WARNINGS":
+            progress_msg = "Your comic is ready!"
+            await update_stage(job_id, "composition", "done", 100, "Your comic is ready!")
         elif job_status == "PARTIAL_READY":
-            progress_msg = f"{len(ready_panels)} of {panel_count} panels ready. {len(failed_panels)} failed."
+            progress_msg = f"Your comic is ready with {len(ready_panels)} optimized panels."
             await update_stage(job_id, "composition", "done", 95, progress_msg)
         else:
-            progress_msg = "Generation failed. No credits were charged."
+            progress_msg = "We couldn't create your comic this time. No credits were charged."
 
         # Generate text script for the output bundle
         script_text = "# Comic Script\n\n"
@@ -1309,8 +1394,8 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Presign R2 URLs if job is completed
-    if job.get("status") == "COMPLETED":
+    # Presign R2 URLs if job is completed or ready with warnings
+    if job.get("status") in ("COMPLETED", "READY_WITH_WARNINGS", "PARTIAL_READY"):
         from utils.r2_presign import presign_url
         if job.get("resultUrl") and ".r2.dev/" in job["resultUrl"]:
             job["resultUrl"] = presign_url(job["resultUrl"])

@@ -98,6 +98,10 @@ export default function PhotoToComic() {
   const [downloadReady, setDownloadReady] = useState(false);
   const [failReason, setFailReason] = useState('');
 
+  // ─── Photo Quality Check ──────────────────────────────────────
+  const [qualityResult, setQualityResult] = useState(null);
+  const [qualityChecking, setQualityChecking] = useState(false);
+
   useEffect(() => {
     (async () => {
       // Attempt 1: credits/balance API
@@ -175,9 +179,29 @@ export default function PhotoToComic() {
     setPhotoPreview(URL.createObjectURL(file));
     setResult(null);
     setJobId(null);
+    setQualityResult(null);
 
     // Upload to R2 in background
-    uploadToR2(file);
+    const key = await uploadToR2(file);
+
+    // Run quality check in background
+    setQualityChecking(true);
+    try {
+      const formData = new FormData();
+      if (key) {
+        formData.append('storage_key', key);
+      } else {
+        formData.append('photo', file);
+      }
+      const qr = await api.post('/api/photo-to-comic/quality-check', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setQualityResult(qr.data);
+    } catch {
+      // Quality check is non-blocking — proceed without it
+      setQualityResult(null);
+    }
+    setQualityChecking(false);
   }, [uploadToR2]);
 
   const onDrop = useCallback((e) => {
@@ -267,7 +291,7 @@ export default function PhotoToComic() {
         pollJob(res.data.jobId);
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Generation failed');
+      toast.error(err.response?.data?.detail || 'Could not start your comic. Please try again.');
       setGenerating(false);
     }
   };
@@ -295,15 +319,15 @@ export default function PhotoToComic() {
           lastProgressAt = Date.now();
         }
 
-        if (job.status === 'COMPLETED' || job.status === 'PARTIAL_READY') {
+        if (job.status === 'COMPLETED' || job.status === 'PARTIAL_READY' || job.status === 'READY_WITH_WARNINGS') {
           setGenerating(false);
           setResult(job);
           if (job.status === 'PARTIAL_READY') {
-            // Backend already determined partial — skip asset validation
             setUiState('PARTIAL_READY');
             setDownloadReady(job.readyPanels > 0);
             setPreviewReady(job.readyPanels > 0);
           } else {
+            // COMPLETED and READY_WITH_WARNINGS both go through asset validation
             setUiState('VALIDATING');
             resolveAssetState(id, job);
           }
@@ -313,27 +337,27 @@ export default function PhotoToComic() {
           setGenerating(false);
           setUiState('FAILED');
           setResult(job);
-          setFailReason(job.progressMessage || job.error || 'Generation failed. No credits were charged.');
-          toast.error(job.progressMessage || job.error || 'Generation failed. Credits were not charged.');
+          setFailReason("We couldn't create your comic this time. No credits were charged.");
+          toast.error("We couldn't create your comic this time. Credits were not charged.");
           return;
         }
 
         // Check for stale job — no progress update for 60s
         const staleMs = Date.now() - lastProgressAt;
         if (staleMs > STAGE_TIMEOUT && currentProgress < 90) {
-          setProgressMsg('Taking longer than usual — hang tight or retry');
+          setProgressMsg('Optimizing your comic — almost there...');
         }
 
         // Hard timeout: 3 minutes total
         if (attempts > 90) {
           setGenerating(false);
-          toast.error('Generation timed out. Please try again.');
+          toast.error("This is taking longer than expected. Please try again.");
           return;
         }
       } catch {
-        // Network error — keep trying
+        // Network error — keep trying silently
         if (attempts > 5) {
-          setProgressMsg('Connection issue — retrying...');
+          setProgressMsg('Finalizing your comic...');
         }
       }
       setTimeout(poll, 2000);
@@ -532,6 +556,8 @@ export default function PhotoToComic() {
     setProgress(0);
     setGenerating(false);
     setUiState('IDLE');
+    setQualityResult(null);
+    setQualityChecking(false);
   };
 
   // ─── RENDER ──────────────────────────────────────────────────────
@@ -545,10 +571,10 @@ export default function PhotoToComic() {
 
     // Status badge — single truth from uiState
     const STATUS_CONFIG = {
-      VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Validating Assets', subtitle: 'Checking preview and download...' },
-      READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Comic Ready', subtitle: 'All panels generated and verified' },
-      PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Partial Result', subtitle: result.failedPanels ? `${result.readyPanels}/${result.totalPanels} panels ready` : (downloadReady ? 'Download available — preview limited' : 'Processing assets...') },
-      FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <X className="w-5 h-5 text-red-400" />, title: 'Generation Failed', subtitle: failReason || 'No panels could be generated. Credits were not charged.' },
+      VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Finalizing', subtitle: 'Preparing your comic...' },
+      READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Your Comic is Ready', subtitle: 'All panels generated and verified' },
+      PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: result.failedPanels ? `${result.readyPanels} optimized panels included` : (downloadReady ? 'Ready to download' : 'Finishing up...') },
+      FAILED: { bg: 'bg-slate-500/10 border-slate-500/30', icon: <RefreshCw className="w-5 h-5 text-slate-400" />, title: 'Let\'s Try Again', subtitle: failReason || 'We couldn\'t create your comic this time. No credits were charged.' },
     };
     const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
@@ -665,22 +691,22 @@ export default function PhotoToComic() {
                 </div>
               </div>
 
-              {/* FAILED: retry action */}
+              {/* FAILED: calm retry action */}
               {uiState === 'FAILED' && (
-                <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 space-y-3" data-testid="failed-actions">
-                  <p className="text-xs text-red-400">{failReason}</p>
-                  <Button onClick={() => { setResult(null); setUiState('IDLE'); }} className="w-full bg-red-600 hover:bg-red-700" data-testid="retry-btn">
+                <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 space-y-3" data-testid="failed-actions">
+                  <p className="text-xs text-slate-400">{failReason}</p>
+                  <Button onClick={() => { setResult(null); setUiState('IDLE'); }} className="w-full bg-slate-700 hover:bg-slate-600 text-white" data-testid="retry-btn">
                     <RefreshCw className="w-4 h-4 mr-2" /> Try Again
                   </Button>
                 </div>
               )}
 
-              {/* PARTIAL_READY: retry preview */}
+              {/* PARTIAL_READY: calm partial info */}
               {uiState === 'PARTIAL_READY' && !previewReady && (
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 space-y-2" data-testid="partial-ready-info">
-                  <p className="text-xs text-amber-400">Preview couldn't load. Download may still work.</p>
-                  <Button variant="outline" size="sm" onClick={() => resolveAssetState(jobId, result)} className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs" data-testid="retry-preview-btn">
-                    <RefreshCw className="w-3 h-3 mr-1" /> Retry Preview
+                <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 space-y-2" data-testid="partial-ready-info">
+                  <p className="text-xs text-slate-400">Your comic is ready to download.</p>
+                  <Button variant="outline" size="sm" onClick={() => resolveAssetState(jobId, result)} className="border-slate-600 text-slate-300 hover:bg-slate-700 text-xs" data-testid="retry-preview-btn">
+                    <RefreshCw className="w-3 h-3 mr-1" /> Refresh Preview
                   </Button>
                 </div>
               )}
@@ -946,6 +972,59 @@ export default function PhotoToComic() {
                 )}
               </div>
 
+              {/* Photo Quality Check */}
+              {(qualityChecking || qualityResult) && (
+                <div className={`rounded-xl border p-3 space-y-2 ${
+                  qualityChecking ? 'border-slate-700 bg-slate-900/60' :
+                  qualityResult?.overall === 'good' ? 'border-emerald-500/30 bg-emerald-500/5' :
+                  qualityResult?.overall === 'acceptable' ? 'border-amber-500/30 bg-amber-500/5' :
+                  'border-red-500/30 bg-red-500/5'
+                }`} data-testid="quality-check">
+                  {qualityChecking ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
+                      <span className="text-xs text-slate-400">Analyzing photo quality...</span>
+                    </div>
+                  ) : qualityResult && (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Shield className="w-3.5 h-3.5 text-slate-300" />
+                        <span className="text-xs font-semibold text-white">Photo Quality</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                          qualityResult.overall === 'good' ? 'bg-emerald-500/20 text-emerald-400' :
+                          qualityResult.overall === 'acceptable' ? 'bg-amber-500/20 text-amber-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>
+                          {qualityResult.overall === 'good' ? 'Good' : qualityResult.overall === 'acceptable' ? 'Acceptable' : 'Low'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {Object.entries(qualityResult.checks || {}).map(([key, val]) => (
+                          <div key={key} className="flex items-center gap-1.5">
+                            {val === 'pass' ? <Check className="w-3 h-3 text-emerald-400" /> :
+                             val === 'warn' ? <Shield className="w-3 h-3 text-amber-400" /> :
+                             <X className="w-3 h-3 text-red-400" />}
+                            <span className="text-[11px] text-slate-400 capitalize">{key}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {qualityResult.warnings?.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          {qualityResult.warnings.map((w, i) => (
+                            <p key={i} className="text-[10px] text-slate-500">{w}</p>
+                          ))}
+                        </div>
+                      )}
+                      {!qualityResult.can_proceed && (
+                        <p className="text-[11px] text-red-400 font-medium pt-1">
+                          For best results, use a front-facing photo with clear lighting.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Mode toggle */}
               <div className="flex gap-2" data-testid="mode-toggle">
                 {[
@@ -1073,9 +1152,12 @@ export default function PhotoToComic() {
                   </span>
                   <span className="text-purple-400 text-xs font-medium">+2 cr</span>
                 </button>
-                <Button onClick={handleGenerate} disabled={!canAfford || credits === null} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
+                <Button onClick={handleGenerate} disabled={!canAfford || credits === null || (qualityResult && !qualityResult.can_proceed)} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
                   <Wand2 className="w-5 h-5 mr-2" /> Create My Comic
                 </Button>
+                {qualityResult && !qualityResult.can_proceed && (
+                  <p className="text-[10px] text-red-400 text-center">Upload a photo with a visible face to continue</p>
+                )}
                 {!canAfford && credits !== null && (
                   <Button variant="outline" onClick={() => navigate('/app/billing')} className="w-full border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/10 text-xs">
                     <Coins className="w-3.5 h-3.5 mr-1" /> Get Credits
