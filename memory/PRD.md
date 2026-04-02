@@ -118,12 +118,60 @@ Build a "Story Universe Engine" — a full-stack AI creator suite with a behavio
 - [x] P0-B: Language / Localization Controls — iteration_401 (100%)
 - [x] P1: Story Quality Score (8-dimension AI analysis + one-click fixes) — iteration_402 (100%, 8/8 backend)
 
+## Bedtime Experience Engine (BUILT Apr 2 2026)
+
+### P0: Complete Rewrite — Bedtime Story Builder → Experience Engine
+1. **Backend AI Generation** (DONE)
+   - Replaced template-only logic with AI structured JSON scenes via Gemini LLM
+   - Template fallback with `fill_placeholders` for reliability
+   - `normalize_story` guarantees every response has structured `scenes` array
+   - **Endpoints**: `GET /api/bedtime-story-builder/config`, `POST /api/bedtime-story-builder/generate`
+   - **Files**: `bedtime_story_builder.py`
+
+2. **1-Screen Smart Input** (DONE)
+   - Child name (optional), age group, mood, voice style, duration, theme, moral
+   - Single "Create Magic Story" CTA — no wizard, no multi-step
+   - Dark immersive background
+
+3. **Web Speech API Playback** (DONE — MOCKED audio via browser SpeechSynthesis)
+   - Play/Pause/Resume/Stop controls
+   - Auto-scroll to current scene during playback
+   - `voiceschanged` event handling for reliable voice loading
+   - Marker stripping ([PAUSE], [SLOW], [WHISPER], [SFX]) before speech
+
+4. **Bedtime Mode** (DONE)
+   - Toggleable dark immersive mode (#060A14 background)
+   - Body class `bedtime-mode` hides navbar/sidebar
+   - Larger scene text (text-lg/xl), hidden SFX/voice notes
+   - Active scene border highlight during playback
+
+5. **Local Streak System** (DONE)
+   - localStorage-driven daily streak counter
+   - Auto-increment on story creation (once per day)
+   - Yesterday check for streak continuation, reset on gap
+   - Badge in hero section and story result
+
+6. **Remix Variants** (DONE)
+   - Animal, Space, Funny, Extra Sleepy — instant remix without page reload
+   - Sends `remix_type` to backend, re-generates with variant instruction
+
+7. **Download/Copy** (DONE)
+   - .txt download with story + voice notes + SFX
+   - Copy to clipboard with confirmation
+
+**Testing**: iteration_403 — 100% backend (17/17), 100% frontend (12/12)
+**Files**: `BedtimeStoryBuilder.js`, `bedtime_story_builder.py`
+
+## Completed (This Session — Apr 2 2026)
+- [x] Bedtime Experience Engine P0 — iteration_403 (100%, 29/29 tests)
+
 ## Upcoming (P1) — Not Started
 1. Anti-crop watermark improvements + dynamic per-user watermarks
 2. Telemetry pipeline (abnormal preview tracking, multi-IP token reuse, scraping detection)
 3. Notification Center improvements (history, read/unread states)
 
 ## Future/Backlog (P2) — DO NOT START
+- Bedtime: Real TTS, Image gen, Video pipeline (replacing Web Speech API mock)
 - Gallery: Leaderboards, Creator profiles, Advanced analytics
 - Reel: History + Compare Versions, Brand Kit, Output Scoring
 - Comic: Comic-to-video teaser, narrator voice, character consistency, KDP-ready pack
