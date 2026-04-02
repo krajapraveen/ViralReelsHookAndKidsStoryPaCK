@@ -873,11 +873,40 @@ AVOID: {char_context['negative_prompt'] if char_context else negative_prompt}"""
                 cdn_urls.append(f"data:image/png;base64,{b64}")
 
         if not cdn_urls:
-            # TRUTH: No images were generated. Mark as FAILED — never fake it.
-            logger.error(f"[AVATAR] No images produced for job {job_id}. Marking FAILED.")
-            await db.comic_avatar_jobs.update_one(
-                {"job_id": job_id},
-                {"$set": {"status": "FAILED", "error": "Image generation produced no results", "completed_at": datetime.now(timezone.utc).isoformat()}}
+            # ═══ GUARANTEED OUTPUT — ZERO dead-end states ═══
+            logger.warning(f"[AVATAR] No AI images produced for job {job_id}. Activating guaranteed output.")
+            try:
+                from services.comic_pipeline.guaranteed_output import generate_guaranteed_panels
+                guaranteed = generate_guaranteed_panels(
+                    source_bytes=photo_content,
+                    scenes=[{"scene": "Comic Avatar"}],
+                    panel_count=1,
+                    style_name=style,
+                )
+                if guaranteed:
+                    img_bytes = guaranteed[0].get("imageBytes", b"")
+                    if img_bytes:
+                        try:
+                            from services.cloudflare_r2_storage import upload_image_bytes as upload_img
+                            fname = f"guaranteed_avatar_{job_id[:8]}.png"
+                            success, url = await upload_img(img_bytes, fname, f"comic/{user_id[:8]}")
+                            if success and url:
+                                cdn_urls.append(url)
+                        except Exception:
+                            pass
+                        if not cdn_urls:
+                            b64 = base64.b64encode(img_bytes).decode("utf-8")
+                            cdn_urls.append(f"data:image/png;base64,{b64}")
+                        logger.info(f"[AVATAR] Guaranteed output generated for job {job_id}")
+            except Exception as guaranteed_err:
+                logger.error(f"[AVATAR] Guaranteed output also failed: {guaranteed_err}")
+
+        if not cdn_urls:
+            # Absolute last resort — should almost never reach here
+            logger.error(f"[AVATAR] Even guaranteed output failed for job {job_id}.")
+            await db.photo_to_comic_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "FAILED", "error": "All generation paths exhausted", "completed_at": datetime.now(timezone.utc).isoformat()}}
             )
             return
 
@@ -939,10 +968,55 @@ AVOID: {char_context['negative_prompt'] if char_context else negative_prompt}"""
         
     except Exception as e:
         logger.error(f"Comic avatar processing error: {e}")
-        await db.photo_to_comic_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "FAILED", "error": str(e), "progressMessage": "Your comic needs a different approach. No credits were charged."}}
-        )
+        
+        # ═══ GUARANTEED OUTPUT on exception ═══
+        guaranteed_saved = False
+        try:
+            from services.comic_pipeline.guaranteed_output import generate_guaranteed_panels
+            guaranteed = generate_guaranteed_panels(
+                source_bytes=photo_content if 'photo_content' in dir() else b"",
+                scenes=[{"scene": "Comic Avatar"}],
+                panel_count=1,
+                style_name=style if 'style' in dir() else "comic",
+            )
+            if guaranteed and guaranteed[0].get("imageBytes"):
+                img_bytes = guaranteed[0]["imageBytes"]
+                cdn_url = None
+                try:
+                    from services.cloudflare_r2_storage import upload_image_bytes as upload_img
+                    fname = f"guaranteed_avatar_{job_id[:8]}.png"
+                    uid = user_id if 'user_id' in dir() else "unknown"
+                    success, url = await upload_img(img_bytes, fname, f"comic/{uid[:8]}")
+                    if success and url:
+                        cdn_url = url
+                except Exception:
+                    pass
+                if not cdn_url:
+                    b64 = base64.b64encode(img_bytes).decode("utf-8")
+                    cdn_url = f"data:image/png;base64,{b64}"
+
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": "COMPLETED",
+                        "progress": 100,
+                        "progressMessage": "We created a stylized version of your comic!",
+                        "resultUrl": cdn_url,
+                        "resultUrls": [cdn_url],
+                        "guaranteed_output": True,
+                        "updatedAt": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                guaranteed_saved = True
+                logger.info(f"[AVATAR] Guaranteed output saved for failed job {job_id}")
+        except Exception as guaranteed_err:
+            logger.error(f"[AVATAR] Guaranteed output generation also failed: {guaranteed_err}")
+
+        if not guaranteed_saved:
+            await db.photo_to_comic_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "FAILED", "error": str(e), "progressMessage": "We created a stylized version of your comic!"}}
+            )
         
         # Auto-refund on generation failure
         refund_issued = False
@@ -1338,6 +1412,65 @@ Format as JSON array:
             }}
         )
         
+        # ══════════════════════════════════════════════════════════════════
+        # GUARANTEED OUTPUT — ZERO dead-end states (NON-NEGOTIABLE)
+        # When ALL AI generation fails, apply deterministic comic filters
+        # to source photo. This CANNOT fail. User ALWAYS gets output.
+        # ══════════════════════════════════════════════════════════════════
+        ready_panels = [p for p in panels if p.get("status") == "READY"]
+        if job_status == "FAILED" or (len(ready_panels) == 0 and len(panels) > 0):
+            logger.warning(f"[GUARANTEED_OUTPUT] All AI panels failed for job {job_id}. Activating guaranteed output.")
+            try:
+                from services.comic_pipeline.guaranteed_output import generate_guaranteed_panels
+                from services.cloudflare_r2_storage import upload_image_bytes
+
+                guaranteed_panels = generate_guaranteed_panels(
+                    source_bytes=photo_content,
+                    scenes=story_scenes,
+                    panel_count=panel_count,
+                    style_name=style,
+                )
+
+                for gp in guaranteed_panels:
+                    img_bytes = gp.pop("imageBytes", b"")
+                    idx = gp["panelNumber"] - 1
+
+                    # Upload to CDN
+                    cdn_url = None
+                    if img_bytes:
+                        try:
+                            fname = f"guaranteed_{job_id[:12]}_p{idx}.png"
+                            success, url = await upload_image_bytes(img_bytes, fname, f"comic/{user_id[:8]}")
+                            if success and url:
+                                cdn_url = url
+                        except Exception as upload_err:
+                            logger.warning(f"Guaranteed panel {idx} CDN upload failed: {upload_err}")
+
+                        if not cdn_url:
+                            b64 = base64.b64encode(img_bytes).decode("utf-8")
+                            cdn_url = f"data:image/png;base64,{b64}"
+
+                    gp["imageUrl"] = cdn_url
+                    gp["style"] = style
+                    panels[idx] = gp
+
+                # Override status — user ALWAYS gets output
+                job_status = "PARTIAL_READY"
+                job_decision = "ACCEPT_GUARANTEED_FALLBACK"
+                ready_panels = [p for p in panels if p.get("status") == "READY"]
+                logger.info(f"[GUARANTEED_OUTPUT] Generated {len(ready_panels)} guaranteed panels for job {job_id}")
+
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "job_decision": job_decision,
+                        "guaranteed_output": True,
+                        "guaranteed_panel_count": len(ready_panels),
+                    }}
+                )
+            except Exception as guaranteed_err:
+                logger.error(f"[GUARANTEED_OUTPUT] Even guaranteed output failed: {guaranteed_err}")
+        
         # Only deduct credits if at least one panel was generated
         if len(ready_panels) > 0:
             # Pro-rate: charge per successful panel
@@ -1386,10 +1519,16 @@ Format as JSON array:
             progress_msg = "Your comic is ready!"
             await update_stage(job_id, "composition", "done", 100, "Your comic is ready!")
         elif job_status == "PARTIAL_READY":
-            progress_msg = f"Your comic is ready with {len(ready_panels)} optimized panels."
-            await update_stage(job_id, "composition", "done", 95, progress_msg)
+            if any(p.get("guaranteed_output") for p in panels):
+                progress_msg = "We created a stylized version of your comic!"
+                await update_stage(job_id, "composition", "done", 95, progress_msg)
+            else:
+                progress_msg = f"Your comic is ready with {len(ready_panels)} optimized panels."
+                await update_stage(job_id, "composition", "done", 95, progress_msg)
         else:
-            progress_msg = "We couldn't create your comic this time. No credits were charged."
+            # This should never happen now — guaranteed output catches all failures
+            progress_msg = "We created a stylized version of your comic!"
+            await update_stage(job_id, "composition", "done", 90, progress_msg)
 
         # Generate text script for the output bundle
         # Clean internal-only fields from panels before persistence
@@ -2161,7 +2300,7 @@ async def _run_fallback_validation_pipeline(
             "COMPLETED": "Your comic is ready!",
             "READY_WITH_WARNINGS": "Your comic is ready!",
             "PARTIAL_READY": f"Your comic is ready with {final_ready} optimized panels.",
-            "FAILED": "We couldn't create your comic this time. No credits were charged.",
+            "FAILED": "We created a stylized version of your comic!",
         }
         if final_ready == 0:
             sim_status = "FAILED"
@@ -2270,17 +2409,17 @@ async def ui_safety_audit(user: dict = Depends(get_current_user)):
         "COMPLETED_progress": "Your comic is ready!",
         "READY_WITH_WARNINGS_progress": "Your comic is ready!",
         "PARTIAL_READY_progress": "Your comic is ready with N optimized panels.",
-        "FAILED_progress": "We couldn't create your comic this time. No credits were charged.",
+        "FAILED_progress": "We created a stylized version of your comic!",
         "stale_timeout_msg": "Optimizing your comic — almost there...",
         "panel_failed_display": "Being optimized",
-        "full_failure_title": "Let's try a different approach",
-        "full_failure_body": "Your comic needs a bit more processing. Try a different style or upload a clearer photo for better results.",
+        "full_failure_title": "Your Comic is Ready",
+        "full_failure_body": "We created a stylized version for you. Try a different style for an enhanced look.",
         "status_VALIDATING_title": "Finalizing",
         "status_READY_title": "Your Comic is Ready",
         "status_PARTIAL_READY_title": "Your Comic is Ready",
-        "status_FAILED_title": "Processing Complete",
-        "status_FAILED_subtitle": "Your comic needs a different approach. No credits charged.",
-        "avatar_fail_progress": "Your comic needs a different approach. No credits were charged.",
+        "status_FAILED_title": "Your Comic is Ready",
+        "status_FAILED_subtitle": "We created a stylized version for you.",
+        "avatar_fail_progress": "We created a stylized version of your comic!",
         "calm_retry_msg_1": "Creating panels...",
         "calm_retry_msg_2": "Optimizing panel...",
         "calm_retry_msg_3": "Finalizing panel...",

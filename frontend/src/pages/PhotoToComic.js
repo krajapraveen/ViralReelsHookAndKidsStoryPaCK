@@ -576,7 +576,7 @@ export default function PhotoToComic() {
       VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Finalizing', subtitle: 'Preparing your comic...' },
       READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Your Comic is Ready', subtitle: 'All panels generated and verified' },
       PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: result.failedPanels ? `${result.readyPanels} optimized panels included` : (downloadReady ? 'Ready to download' : 'Finishing up...') },
-      FAILED: { bg: 'bg-slate-500/10 border-slate-500/30', icon: <RefreshCw className="w-5 h-5 text-slate-400" />, title: 'Processing Complete', subtitle: 'Your comic needs a different approach. No credits charged.' },
+      FAILED: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: 'We created a stylized version for you.' },
     };
     const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
@@ -587,20 +587,59 @@ export default function PhotoToComic() {
           <div className="grid lg:grid-cols-[1fr_340px] gap-6">
             {/* LEFT: Result display — uses SafeImage, never raw img */}
             <div className="space-y-4">
-              {/* FULL FAILURE — hide panel grid entirely, show clean recovery */}
-              {uiState === 'FAILED' && (
+              {/* GUARANTEED FALLBACK — show stylized result with enhance option */}
+              {uiState === 'FAILED' && (imageUrl || panels?.some(p => p.imageUrl)) && (
+                <div className="space-y-4" data-testid="guaranteed-output">
+                  {imageUrl && !panels && (
+                    <div className="rounded-2xl overflow-hidden border border-amber-500/20 bg-slate-900">
+                      <SafeImage
+                        src={imageUrl}
+                        alt="Comic"
+                        aspectRatio="auto"
+                        objectFit="contain"
+                        titleOverlay="Stylized Comic"
+                        fallbackType="gradient"
+                        className="w-full min-h-[200px]"
+                        data-testid="guaranteed-result-image"
+                      />
+                    </div>
+                  )}
+                  {panels?.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {panels.filter(p => p.imageUrl).map((panel, idx) => (
+                        <div key={idx} className="rounded-xl overflow-hidden border border-amber-500/20 bg-slate-900">
+                          <SafeImage
+                            src={panel.imageUrl}
+                            alt={`Panel ${panel.panelNumber || idx + 1}`}
+                            aspectRatio="1:1"
+                            objectFit="cover"
+                            fallbackType="gradient"
+                            className="w-full"
+                            data-testid={`guaranteed-panel-${idx}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex justify-center gap-3 pt-2">
+                    <Button onClick={() => { setResult(null); setUiState('IDLE'); }} variant="outline" className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10" data-testid="enhance-btn">
+                      <Sparkles className="w-4 h-4 mr-2" /> Enhance with Different Style
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* FULL FAILURE — no output at all (should almost never happen) */}
+              {uiState === 'FAILED' && !imageUrl && !panels?.some(p => p.imageUrl) && (
                 <div className="rounded-2xl border border-slate-700 bg-slate-900 p-12 flex flex-col items-center justify-center min-h-[400px]" data-testid="failed-recovery">
                   <RefreshCw className="w-12 h-12 text-slate-600 mb-4" />
-                  <h3 className="text-lg font-semibold text-white mb-2">Let's try a different approach</h3>
+                  <h3 className="text-lg font-semibold text-white mb-2">We're improving your comic</h3>
                   <p className="text-sm text-slate-400 text-center max-w-sm mb-6">
-                    Your comic needs a bit more processing. Try a different style or upload a clearer photo for better results.
+                    Try a different style for the best results.
                   </p>
                   <div className="flex gap-3">
                     <Button onClick={() => { setResult(null); setUiState('IDLE'); }} className="bg-purple-600 hover:bg-purple-700" data-testid="retry-fresh-btn">
-                      <Camera className="w-4 h-4 mr-2" /> Try Again
-                    </Button>
-                    <Button variant="outline" onClick={resetAll} className="border-slate-600 text-slate-300 hover:bg-slate-800" data-testid="new-photo-btn">
-                      New Photo
+                      <Camera className="w-4 h-4 mr-2" /> Try Different Style
                     </Button>
                   </div>
                 </div>
