@@ -806,3 +806,167 @@ async def admin_share_rewards(user: dict = Depends(get_admin_user)):
             "signups": signup_7d,
         },
     }
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHOTO TO COMIC HEALTH — P1.5-D Observability
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/comic-health")
+async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depends(get_admin_user)):
+    """
+    Photo to Comic production health metrics.
+    Computed from real data: photo_to_comic_jobs, consistency_logs, quality_cache, comic_events.
+    """
+    cutoff = _ago(days=days).isoformat()
+
+    # ── Job Success Rate ──
+    total_jobs = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}})
+    completed = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}, "status": {"$in": ["COMPLETED", "READY_WITH_WARNINGS"]}})
+    partial = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}, "status": "PARTIAL_READY"})
+    failed = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}, "status": "FAILED"})
+    success_rate = _safe_rate(completed + partial, total_jobs)
+
+    # ── Retry Rate ──
+    # Jobs where at least one panel was retried (retries > 0)
+    retry_pipeline = [
+        {"$match": {"createdAt": {"$gte": cutoff}, "panels": {"$exists": True}}},
+        {"$project": {"had_retry": {"$gt": [{"$size": {"$filter": {"input": {"$ifNull": ["$panels", []]}, "as": "p", "cond": {"$gt": [{"$ifNull": ["$$p.retries", 0]}, 0]}}}}, 0]}}},
+        {"$group": {"_id": None, "total": {"$sum": 1}, "retried": {"$sum": {"$cond": ["$had_retry", 1, 0]}}}}
+    ]
+    retry_res = await db.photo_to_comic_jobs.aggregate(retry_pipeline).to_list(1)
+    retry_total = retry_res[0]["total"] if retry_res else 0
+    retry_count = retry_res[0]["retried"] if retry_res else 0
+    retry_rate = _safe_rate(retry_count, retry_total)
+
+    # ── Average Generation Time ──
+    # Approximate from createdAt to updatedAt difference
+    time_jobs = await db.photo_to_comic_jobs.find(
+        {"createdAt": {"$gte": cutoff}, "status": {"$in": ["COMPLETED", "READY_WITH_WARNINGS", "PARTIAL_READY"]}, "updatedAt": {"$exists": True}},
+        {"_id": 0, "createdAt": 1, "updatedAt": 1}
+    ).limit(100).to_list(100)
+
+    avg_time = None
+    if time_jobs:
+        durations = []
+        for j in time_jobs:
+            try:
+                start = datetime.fromisoformat(j["createdAt"].replace("Z", "+00:00")) if isinstance(j["createdAt"], str) else j["createdAt"]
+                end = datetime.fromisoformat(j["updatedAt"].replace("Z", "+00:00")) if isinstance(j["updatedAt"], str) else j["updatedAt"]
+                d = (end - start).total_seconds()
+                if 0 < d < 600:
+                    durations.append(d)
+            except Exception:
+                pass
+        if durations:
+            avg_time = round(sum(durations) / len(durations), 1)
+
+    # ── Consistency Drift ──
+    consistency_logs = await db.consistency_logs.find(
+        {"created_at": {"$gte": cutoff}},
+        {"_id": 0, "avg_similarity": 1, "retry_needed": 1, "no_face_panels": 1, "accepted": 1, "borderline": 1, "total_panels": 1, "style": 1}
+    ).limit(200).to_list(200)
+
+    avg_similarity = None
+    consistency_retry_rate = None
+    no_face_rate = None
+    drift_by_style = {}
+
+    if consistency_logs:
+        sims = [entry["avg_similarity"] for entry in consistency_logs if entry.get("avg_similarity", 0) > 0]
+        if sims:
+            avg_similarity = round(sum(sims) / len(sims), 4)
+
+        total_panels_checked = sum(entry.get("total_panels", 0) for entry in consistency_logs)
+        total_retries = sum(entry.get("retry_needed", 0) for entry in consistency_logs)
+        total_no_face = sum(entry.get("no_face_panels", 0) for entry in consistency_logs)
+
+        consistency_retry_rate = _safe_rate(total_retries, total_panels_checked)
+        no_face_rate = _safe_rate(total_no_face, total_panels_checked)
+
+        # Drift by style
+        for entry in consistency_logs:
+            s = entry.get("style", "unknown")
+            if s not in drift_by_style:
+                drift_by_style[s] = {"count": 0, "total_sim": 0, "retries": 0}
+            drift_by_style[s]["count"] += 1
+            drift_by_style[s]["total_sim"] += entry.get("avg_similarity", 0)
+            drift_by_style[s]["retries"] += entry.get("retry_needed", 0)
+
+        for s in drift_by_style:
+            c = drift_by_style[s]["count"]
+            drift_by_style[s]["avg_similarity"] = round(drift_by_style[s]["total_sim"] / c, 4) if c else 0
+            del drift_by_style[s]["total_sim"]
+
+    # ── Quality Check Stats ──
+    quality_total = await db.quality_cache.count_documents({})
+    quality_pipeline = [
+        {"$group": {"_id": "$result.overall", "count": {"$sum": 1}}}
+    ]
+    quality_res = await db.quality_cache.aggregate(quality_pipeline).to_list(10)
+    quality_breakdown = {r["_id"]: r["count"] for r in quality_res if r["_id"]}
+
+    # ── PDF Export Stats ──
+    pdf_downloads = await db.comic_events.count_documents({"event_type": "pdf_download_click", "created_at": {"$gte": cutoff}})
+    pdf_success = await db.comic_events.count_documents({"event_type": "pdf_download_success", "created_at": {"$gte": cutoff}})
+    pdf_fail = await db.comic_events.count_documents({"event_type": "pdf_download_fail", "created_at": {"$gte": cutoff}})
+    pdf_success_rate = _safe_rate(pdf_success, pdf_downloads) if pdf_downloads else None
+
+    # ── Event Counts ──
+    style_clicks = await db.comic_events.count_documents({"event_type": "preview_strip_style_click", "created_at": {"$gte": cutoff}})
+    generate_after_preview = await db.comic_events.count_documents({"event_type": "generate_after_preview", "created_at": {"$gte": cutoff}})
+    result_views = await db.comic_events.count_documents({"event_type": "result_page_view", "created_at": {"$gte": cutoff}})
+    png_downloads = await db.comic_events.count_documents({"event_type": "png_download_click", "created_at": {"$gte": cutoff}})
+    script_downloads = await db.comic_events.count_documents({"event_type": "script_download_click", "created_at": {"$gte": cutoff}})
+
+    # ── Alerts ──
+    alerts = []
+    if success_rate is not None and success_rate < 80:
+        alerts.append({"level": "critical", "message": f"Job success rate is {success_rate}% (below 80% threshold)"})
+    if retry_rate is not None and retry_rate > 30:
+        alerts.append({"level": "warning", "message": f"Panel retry rate is {retry_rate}% (above 30% threshold)"})
+    if avg_time is not None and avg_time > 120:
+        alerts.append({"level": "warning", "message": f"Average generation time is {avg_time}s (above 120s threshold)"})
+
+    return {
+        "period_days": days,
+        "jobs": {
+            "total": total_jobs,
+            "completed": completed,
+            "partial": partial,
+            "failed": failed,
+            "success_rate": success_rate,
+        },
+        "performance": {
+            "avg_generation_time_seconds": avg_time,
+            "retry_rate": retry_rate,
+            "retried_jobs": retry_count,
+        },
+        "consistency": {
+            "avg_similarity": avg_similarity,
+            "consistency_retry_rate": consistency_retry_rate,
+            "no_face_panel_rate": no_face_rate,
+            "drift_by_style": drift_by_style,
+        },
+        "quality_check": {
+            "total_checks": quality_total,
+            "breakdown": quality_breakdown,
+        },
+        "downloads": {
+            "pdf_attempts": pdf_downloads,
+            "pdf_success": pdf_success,
+            "pdf_fail": pdf_fail,
+            "pdf_success_rate": pdf_success_rate,
+            "png_downloads": png_downloads,
+            "script_downloads": script_downloads,
+        },
+        "conversion": {
+            "style_clicks": style_clicks,
+            "generate_after_preview": generate_after_preview,
+            "result_views": result_views,
+        },
+        "alerts": alerts,
+        "empty_state": total_jobs == 0,
+        "empty_message": "No Photo to Comic jobs in this period" if total_jobs == 0 else None,
+    }

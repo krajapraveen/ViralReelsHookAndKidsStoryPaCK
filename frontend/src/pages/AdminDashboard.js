@@ -7,7 +7,7 @@ import {
   Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw,
   AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
   Film, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2
+  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera
 } from 'lucide-react';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
@@ -224,6 +224,7 @@ export default function AdminDashboard() {
   const [kFactor, setKFactor] = useState({ data: null, state: 'loading', ts: null });
   const [shareRewards, setShareRewards] = useState({ data: null, state: 'loading', ts: null });
   const [hookAnalytics, setHookAnalytics] = useState({ data: null, state: 'loading', ts: null });
+  const [comicHealth, setComicHealth] = useState({ data: null, state: 'loading', ts: null });
 
   const fetchSection = useCallback(async (name, setter, url) => {
     try {
@@ -277,6 +278,15 @@ export default function AdminDashboard() {
     })();
     // Hook A/B analytics
     fetchSection('hookAnalytics', setHookAnalytics, '/api/ab/hook-analytics');
+    // Comic Health (P1.5-D)
+    (async () => {
+      try {
+        const res = await api.get(`/api/admin/metrics/comic-health?days=${days}`);
+        setComicHealth({ data: res.data, state: 'ready', ts: new Date().toISOString() });
+      } catch {
+        setComicHealth(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
+      }
+    })();
   }, [days, fetchSection]);
 
   // WebSocket for live updates
@@ -328,6 +338,7 @@ export default function AdminDashboard() {
   const lb = leaderboard.data;
   const kf = kFactor.data;
   const ha = hookAnalytics.data;
+  const ch = comicHealth.data;
 
   const sections = [
     { id: 'executive', label: 'Executive', icon: BarChart3 },
@@ -342,6 +353,7 @@ export default function AdminDashboard() {
     { id: 'retention', label: 'Retention', icon: Activity },
     { id: 'credits', label: 'Credits', icon: Zap },
     { id: 'conversion', label: 'Conversion', icon: TrendingUp },
+    { id: 'comic_health', label: 'Comic Health', icon: Camera },
   ];
 
   return (
@@ -1104,6 +1116,121 @@ export default function AdminDashboard() {
                 <MetricCard icon={Film} label="Stories Continued" value={lb?.stories_with_continuations} color="amber" testId="metric-stories-cont" />
                 <MetricCard icon={TrendingUp} label="Avg Chain Length" value={lb?.avg_chain_length} color="emerald" testId="metric-avg-chain" />
               </div>
+            </div>
+          </WidgetState>
+        )}
+
+        {/* ═══ COMIC HEALTH (P1.5-D) ═══ */}
+        {section === 'comic_health' && (
+          <WidgetState state={comicHealth.state} lastUpdated={comicHealth.ts}>
+            <div className="space-y-6" data-testid="comic-health-section">
+              {/* Alerts */}
+              {ch?.alerts?.length > 0 && (
+                <div className="space-y-2">
+                  {ch.alerts.map((a, i) => (
+                    <div key={i} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border ${a.level === 'critical' ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'}`} data-testid={`alert-${i}`}>
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span className="text-xs font-medium">{a.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {ch?.empty_state ? (
+                <p className="text-sm text-slate-500 text-center py-8">{ch.empty_message}</p>
+              ) : (
+                <>
+                  {/* Job Success */}
+                  <div>
+                    <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-400" /> Job Success ({days}d)
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <MetricCard icon={Activity} label="Total Jobs" value={ch?.jobs?.total} color="blue" testId="comic-total-jobs" />
+                      <MetricCard icon={CheckCircle} label="Completed" value={ch?.jobs?.completed} color="emerald" testId="comic-completed" />
+                      <MetricCard icon={Shield} label="Partial" value={ch?.jobs?.partial} color="amber" testId="comic-partial" />
+                      <MetricCard icon={XCircle} label="Failed" value={ch?.jobs?.failed} color="red" testId="comic-failed" />
+                      <MetricCard icon={TrendingUp} label="Success Rate" value={ch?.jobs?.success_rate != null ? `${ch.jobs.success_rate}%` : '—'} color={ch?.jobs?.success_rate >= 80 ? 'emerald' : 'red'} testId="comic-success-rate" />
+                    </div>
+                  </div>
+
+                  {/* Performance */}
+                  <div>
+                    <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-cyan-400" /> Performance
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <MetricCard icon={Clock} label="Avg Gen Time" value={ch?.performance?.avg_generation_time_seconds != null ? `${ch.performance.avg_generation_time_seconds}s` : '—'} color="cyan" testId="comic-avg-time" />
+                      <MetricCard icon={RefreshCw} label="Retry Rate" value={ch?.performance?.retry_rate != null ? `${ch.performance.retry_rate}%` : '—'} color={ch?.performance?.retry_rate > 30 ? 'red' : 'blue'} testId="comic-retry-rate" />
+                      <MetricCard icon={Activity} label="Retried Jobs" value={ch?.performance?.retried_jobs} color="amber" testId="comic-retried-jobs" />
+                    </div>
+                  </div>
+
+                  {/* Character Consistency */}
+                  <div>
+                    <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-violet-400" /> Character Consistency
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <MetricCard icon={Eye} label="Avg Similarity" value={ch?.consistency?.avg_similarity != null ? ch.consistency.avg_similarity.toFixed(3) : '—'} color="violet" testId="comic-avg-similarity" />
+                      <MetricCard icon={RefreshCw} label="Consistency Retry Rate" value={ch?.consistency?.consistency_retry_rate != null ? `${ch.consistency.consistency_retry_rate}%` : '—'} color="blue" testId="comic-consistency-retry" />
+                      <MetricCard icon={Users} label="No-Face Panel Rate" value={ch?.consistency?.no_face_panel_rate != null ? `${ch.consistency.no_face_panel_rate}%` : '—'} color="amber" testId="comic-noface-rate" />
+                    </div>
+                    {ch?.consistency?.drift_by_style && Object.keys(ch.consistency.drift_by_style).length > 0 && (
+                      <div className="mt-3 bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                        <p className="text-[10px] text-slate-500 font-bold uppercase mb-2">Drift by Style</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {Object.entries(ch.consistency.drift_by_style).map(([style, data]) => (
+                            <div key={style} className="bg-slate-800/50 rounded-lg px-3 py-2" data-testid={`drift-${style}`}>
+                              <p className="text-[11px] text-white font-medium capitalize">{style.replace(/_/g, ' ')}</p>
+                              <p className="text-[10px] text-slate-400">Similarity: {data.avg_similarity?.toFixed(3) ?? '—'}</p>
+                              <p className="text-[10px] text-slate-500">{data.count} jobs, {data.retries} retries</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quality Checks + Downloads */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-emerald-400" /> Quality Checks
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <MetricCard icon={Shield} label="Total Checks" value={ch?.quality_check?.total_checks} color="emerald" testId="comic-quality-total" />
+                        <MetricCard icon={CheckCircle} label="Good" value={ch?.quality_check?.breakdown?.good} color="emerald" testId="comic-quality-good" />
+                        <MetricCard icon={MinusCircle} label="Acceptable" value={ch?.quality_check?.breakdown?.acceptable} color="amber" testId="comic-quality-acceptable" />
+                        <MetricCard icon={XCircle} label="Poor" value={ch?.quality_check?.breakdown?.poor} color="red" testId="comic-quality-poor" />
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-blue-400" /> Downloads ({days}d)
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <MetricCard icon={FileText} label="PDF Attempts" value={ch?.downloads?.pdf_attempts} color="blue" testId="comic-pdf-attempts" />
+                        <MetricCard icon={CheckCircle} label="PDF Success Rate" value={ch?.downloads?.pdf_success_rate != null ? `${ch.downloads.pdf_success_rate}%` : '—'} color="emerald" testId="comic-pdf-success" />
+                        <MetricCard icon={Camera} label="PNG Downloads" value={ch?.downloads?.png_downloads} color="violet" testId="comic-png-downloads" />
+                        <MetricCard icon={FileText} label="Script Downloads" value={ch?.downloads?.script_downloads} color="cyan" testId="comic-script-downloads" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conversion Funnel */}
+                  <div>
+                    <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-pink-400" /> Conversion ({days}d)
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <MetricCard icon={Eye} label="Style Clicks" value={ch?.conversion?.style_clicks} color="pink" testId="comic-style-clicks" />
+                      <MetricCard icon={Zap} label="Generate After Preview" value={ch?.conversion?.generate_after_preview} color="violet" testId="comic-gen-after-preview" />
+                      <MetricCard icon={Activity} label="Result Views" value={ch?.conversion?.result_views} color="cyan" testId="comic-result-views" />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </WidgetState>
         )}
