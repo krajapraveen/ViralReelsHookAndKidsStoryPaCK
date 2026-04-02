@@ -980,6 +980,64 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
     if full_failure_rate is not None and full_failure_rate > 15:
         alerts.append({"level": "critical", "message": f"Full failure rate is {full_failure_rate}% (above 15% threshold)"})
 
+    # ── Validation Quality Aggregates (5 Dimensions) ──
+    vq_pipeline = [
+        {"$match": {"createdAt": {"$gte": cutoff}, "validation_quality": {"$exists": True}}},
+        {"$project": {
+            "pqs": "$validation_quality.perceived_quality_score",
+            "nc": "$validation_quality.narrative_coherence.score",
+            "sc": "$validation_quality.style_consistency_score",
+            "flp": "$validation_quality.fallback_latency_penalty_ms",
+            "uis_pass": "$validation_quality.ui_emotional_safety.passed",
+        }}
+    ]
+    vq_jobs = await db.photo_to_comic_jobs.aggregate(vq_pipeline).to_list(500)
+
+    validation_quality_agg = None
+    if vq_jobs:
+        pqs_vals = [j["pqs"] for j in vq_jobs if j.get("pqs") is not None]
+        nc_vals = [j["nc"] for j in vq_jobs if j.get("nc") is not None]
+        sc_vals = [j["sc"] for j in vq_jobs if j.get("sc") is not None and j["sc"] is not None]
+        flp_vals = [j["flp"] for j in vq_jobs if j.get("flp") is not None and j["flp"] != 0]
+        uis_vals = [j["uis_pass"] for j in vq_jobs if j.get("uis_pass") is not None]
+
+        validation_quality_agg = {
+            "jobs_with_scores": len(vq_jobs),
+            "perceived_quality": {
+                "avg": round(sum(pqs_vals) / len(pqs_vals), 2) if pqs_vals else None,
+                "min": min(pqs_vals) if pqs_vals else None,
+                "max": max(pqs_vals) if pqs_vals else None,
+                "distribution": {str(i): pqs_vals.count(i) for i in range(1, 6)},
+            },
+            "narrative_coherence": {
+                "avg": round(sum(nc_vals) / len(nc_vals), 2) if nc_vals else None,
+            },
+            "style_consistency": {
+                "avg": round(sum(sc_vals) / len(sc_vals), 4) if sc_vals else None,
+            },
+            "fallback_latency": {
+                "avg_penalty_ms": round(sum(flp_vals) / len(flp_vals)) if flp_vals else None,
+                "max_penalty_ms": max(flp_vals) if flp_vals else None,
+            },
+            "ui_emotional_safety": {
+                "pass_rate": _safe_rate(sum(1 for v in uis_vals if v), len(uis_vals)),
+                "violations": sum(1 for v in uis_vals if not v),
+            },
+        }
+
+        # Add validation quality alerts
+        if pqs_vals and (sum(pqs_vals) / len(pqs_vals)) < 3:
+            alerts.append({"level": "warning", "message": f"Average perceived quality score is {sum(pqs_vals)/len(pqs_vals):.1f}/5 (below 3.0 threshold)"})
+        if flp_vals and (sum(flp_vals) / len(flp_vals)) > 15000:
+            alerts.append({"level": "warning", "message": f"Average fallback latency penalty is {sum(flp_vals)/len(flp_vals):.0f}ms (above 15s threshold)"})
+
+    # ── Recent Fallback Validations ──
+    recent_validations = await db.fallback_validations.find(
+        {"status": "COMPLETED"},
+        {"_id": 0, "validation_id": 1, "mode": 1, "overall_verdict": 1, "started_at": 1,
+         "validation_quality": 1,
+         "summary": 1, "repair_triggered": 1, "fallback_triggered": 1}
+    ).sort("started_at", -1).limit(5).to_list(5)
     return {
         "period_days": days,
         "jobs": {
@@ -1011,6 +1069,8 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
             "no_face_source_rate": no_face_source_rate,
             "drift_by_style": drift_by_style,
         },
+        "validation_quality": validation_quality_agg,
+        "recent_validations": recent_validations,
         "quality_check": {
             "total_checks": quality_total,
             "breakdown": quality_breakdown,

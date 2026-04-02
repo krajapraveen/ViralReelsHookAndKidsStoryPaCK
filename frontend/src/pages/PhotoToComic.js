@@ -291,7 +291,7 @@ export default function PhotoToComic() {
         pollJob(res.data.jobId);
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Could not start your comic. Please try again.');
+      toast.error(err.response?.data?.detail || 'Something went wrong — let\'s try again!');
       setGenerating(false);
     }
   };
@@ -417,7 +417,7 @@ export default function PhotoToComic() {
       setUiState('PARTIAL_READY');
     } else if (!downloadOk && !previewOk) {
       setUiState('FAILED');
-      setFailReason('Assets could not be validated. You can retry or create a new comic.');
+      setFailReason('Your comic needs a bit more time. You can try again or create a new one.');
     } else {
       setUiState('PARTIAL_READY');
     }
@@ -484,7 +484,7 @@ export default function PhotoToComic() {
         pollJob(res.data.jobId);
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Continue failed');
+      toast.error(err.response?.data?.detail || 'Something went wrong — please try again in a moment');
       setGenerating(false);
     }
     setContinuing(false);

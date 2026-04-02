@@ -200,6 +200,161 @@ function EmailNudgeStatus() {
 }
 
 
+// Fallback Validation Runner — Run & view controlled failure tests
+function FallbackValidationRunner({ validations }) {
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+
+  const runValidation = async (mode) => {
+    setRunning(true);
+    try {
+      const res = await api.post('/api/photo-to-comic/admin/fallback-validation', { mode });
+      const vid = res.data.validation_id;
+      toast.success(`${mode} validation started`);
+      // Poll for completion
+      let attempts = 0;
+      const poll = async () => {
+        attempts++;
+        try {
+          const r = await api.get(`/api/photo-to-comic/admin/fallback-validation/${vid}`);
+          if (r.data.status === 'COMPLETED' || r.data.status === 'ERROR') {
+            setLastResult(r.data);
+            setRunning(false);
+            return;
+          }
+        } catch {}
+        if (attempts < 30) setTimeout(poll, 1000);
+        else setRunning(false);
+      };
+      setTimeout(poll, 500);
+    } catch {
+      toast.error('Validation failed to start');
+      setRunning(false);
+    }
+  };
+
+  const displayResult = lastResult || (validations?.[0]);
+  const vq = displayResult?.validation_quality;
+
+  return (
+    <div data-testid="fallback-validation-runner">
+      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+        <Zap className="w-4 h-4 text-amber-400" /> Fallback Validation Tests
+      </h3>
+      <div className="flex gap-2 mb-4">
+        <Button
+          size="sm"
+          disabled={running}
+          onClick={() => runValidation('single_panel')}
+          className="text-xs bg-amber-600 hover:bg-amber-500 disabled:opacity-50"
+          data-testid="run-single-panel-test"
+        >
+          {running ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <Zap className="w-3 h-3 mr-1" />}
+          Single Panel Failure
+        </Button>
+        <Button
+          size="sm"
+          disabled={running}
+          onClick={() => runValidation('majority_failure')}
+          className="text-xs bg-red-600 hover:bg-red-500 disabled:opacity-50"
+          data-testid="run-majority-test"
+        >
+          {running ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <AlertTriangle className="w-3 h-3 mr-1" />}
+          Majority Failure (&gt;50%)
+        </Button>
+      </div>
+
+      {displayResult && (
+        <div className={`rounded-xl border p-4 space-y-3 ${
+          displayResult.overall_verdict === 'PASS' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'
+        }`} data-testid="validation-result">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {displayResult.overall_verdict === 'PASS'
+                ? <CheckCircle className="w-5 h-5 text-emerald-400" />
+                : <XCircle className="w-5 h-5 text-red-400" />
+              }
+              <span className={`text-sm font-bold ${displayResult.overall_verdict === 'PASS' ? 'text-emerald-400' : 'text-red-400'}`}>
+                {displayResult.overall_verdict}
+              </span>
+              <span className="text-[10px] text-slate-500 capitalize">{displayResult.mode?.replace('_', ' ')}</span>
+            </div>
+            {displayResult.summary && (
+              <span className="text-[10px] text-slate-500">
+                {displayResult.summary.panels_recovered}/{displayResult.summary.forced_failures} recovered
+              </span>
+            )}
+          </div>
+
+          {vq && (
+            <div className="grid grid-cols-5 gap-2">
+              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-[9px] text-slate-500 uppercase">Perceived</p>
+                <p className={`text-lg font-bold ${vq.perceived_quality_score >= 4 ? 'text-emerald-400' : vq.perceived_quality_score >= 3 ? 'text-amber-400' : 'text-red-400'}`}>
+                  {vq.perceived_quality_score}/5
+                </p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-[9px] text-slate-500 uppercase">Narrative</p>
+                <p className={`text-lg font-bold ${vq.narrative_coherence?.score >= 4 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {vq.narrative_coherence?.score}/5
+                </p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-[9px] text-slate-500 uppercase">Style</p>
+                <p className={`text-lg font-bold ${vq.style_consistency_score >= 0.45 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {vq.style_consistency_score?.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-[9px] text-slate-500 uppercase">Latency</p>
+                <p className={`text-lg font-bold ${vq.fallback_latency_penalty_ms > 15000 ? 'text-red-400' : 'text-cyan-400'}`}>
+                  +{Math.round((vq.fallback_latency_penalty_ms || 0) / 1000)}s
+                </p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-[9px] text-slate-500 uppercase">UI Safe</p>
+                <p className={`text-lg font-bold ${vq.ui_emotional_safety?.passed ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {vq.ui_emotional_safety?.passed ? 'PASS' : 'FAIL'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Narrative details */}
+          {vq?.narrative_coherence?.gaps?.length > 0 && (
+            <p className="text-[10px] text-amber-400">Story gaps at panels: {vq.narrative_coherence.gaps.join(', ')}</p>
+          )}
+          {vq?.ui_emotional_safety?.scary_words_found?.length > 0 && (
+            <p className="text-[10px] text-red-400">Scary words found: {vq.ui_emotional_safety.scary_words_found.join(', ')}</p>
+          )}
+        </div>
+      )}
+
+      {/* Recent validations history */}
+      {validations?.length > 1 && (
+        <div className="mt-3 space-y-1">
+          <p className="text-[10px] text-slate-500 font-bold uppercase">Recent Tests</p>
+          {validations.slice(0, 5).map((v, i) => (
+            <div key={i} className="flex items-center gap-2 text-[10px] text-slate-400">
+              {v.overall_verdict === 'PASS'
+                ? <CheckCircle className="w-3 h-3 text-emerald-400" />
+                : <XCircle className="w-3 h-3 text-red-400" />
+              }
+              <span className="capitalize">{v.mode?.replace('_', ' ')}</span>
+              <span className="text-slate-600">|</span>
+              <span>PQS: {v.validation_quality?.perceived_quality_score}/5</span>
+              <span className="text-slate-600">|</span>
+              <span>{v.summary?.final_ready}/{(v.summary?.final_ready || 0) + (v.summary?.final_failed || 0)} panels</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1210,6 +1365,84 @@ export default function AdminDashboard() {
                       <MetricCard icon={Clock} label="Avg Gen Time" value={ch?.performance?.avg_generation_time_seconds != null ? `${ch.performance.avg_generation_time_seconds}s` : '—'} color="cyan" testId="comic-avg-time" />
                     </div>
                   </div>
+
+                  {/* ═══ VALIDATION QUALITY (5 Dimensions) ═══ */}
+                  <div>
+                    <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-emerald-400" /> Validation Quality (5 Dimensions)
+                    </h3>
+                    {ch?.validation_quality ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                          <MetricCard
+                            icon={Star} label="Perceived Quality"
+                            value={ch.validation_quality.perceived_quality?.avg != null ? `${ch.validation_quality.perceived_quality.avg}/5` : '—'}
+                            sub={ch.validation_quality.perceived_quality?.avg >= 4 ? 'Users say: Cool comic!' : ch.validation_quality.perceived_quality?.avg >= 3 ? 'Acceptable' : 'Needs improvement'}
+                            color={ch.validation_quality.perceived_quality?.avg >= 4 ? 'emerald' : ch.validation_quality.perceived_quality?.avg >= 3 ? 'amber' : 'red'}
+                            testId="vq-perceived"
+                          />
+                          <MetricCard
+                            icon={BookOpen} label="Narrative Coherence"
+                            value={ch.validation_quality.narrative_coherence?.avg != null ? `${ch.validation_quality.narrative_coherence.avg}/5` : '—'}
+                            sub="Story flow intact?"
+                            color={ch.validation_quality.narrative_coherence?.avg >= 4 ? 'emerald' : 'amber'}
+                            testId="vq-narrative"
+                          />
+                          <MetricCard
+                            icon={Palette} label="Style Consistency"
+                            value={ch.validation_quality.style_consistency?.avg != null ? ch.validation_quality.style_consistency.avg.toFixed(3) : '—'}
+                            sub="Panel-to-panel match"
+                            color={ch.validation_quality.style_consistency?.avg >= 0.45 ? 'emerald' : ch.validation_quality.style_consistency?.avg >= 0.3 ? 'amber' : 'red'}
+                            testId="vq-style"
+                          />
+                          <MetricCard
+                            icon={Clock} label="Fallback Latency"
+                            value={ch.validation_quality.fallback_latency?.avg_penalty_ms != null ? `+${ch.validation_quality.fallback_latency.avg_penalty_ms}ms` : '—'}
+                            sub={ch.validation_quality.fallback_latency?.avg_penalty_ms > 15000 ? 'UX may feel slow' : 'Acceptable'}
+                            color={ch.validation_quality.fallback_latency?.avg_penalty_ms > 15000 ? 'red' : 'cyan'}
+                            testId="vq-latency"
+                          />
+                          <MetricCard
+                            icon={Shield} label="UI Safety"
+                            value={ch.validation_quality.ui_emotional_safety?.pass_rate != null ? `${ch.validation_quality.ui_emotional_safety.pass_rate}%` : '—'}
+                            sub={ch.validation_quality.ui_emotional_safety?.violations > 0 ? `${ch.validation_quality.ui_emotional_safety.violations} violations` : 'No scary words'}
+                            color={ch.validation_quality.ui_emotional_safety?.pass_rate === 100 ? 'emerald' : 'red'}
+                            testId="vq-ui-safety"
+                          />
+                        </div>
+                        {/* Perceived Quality Distribution */}
+                        {ch.validation_quality.perceived_quality?.distribution && (
+                          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-2">Quality Score Distribution</p>
+                            <div className="flex gap-2">
+                              {[5, 4, 3, 2, 1].map(score => {
+                                const count = ch.validation_quality.perceived_quality.distribution[String(score)] || 0;
+                                const total = ch.validation_quality.jobs_with_scores || 1;
+                                const pct = Math.round((count / total) * 100);
+                                return (
+                                  <div key={score} className="flex-1 text-center">
+                                    <div className="h-16 bg-slate-800 rounded-t relative overflow-hidden">
+                                      <div
+                                        className={`absolute bottom-0 w-full rounded-t transition-all ${score >= 4 ? 'bg-emerald-500/60' : score >= 3 ? 'bg-amber-500/60' : 'bg-red-500/60'}`}
+                                        style={{ height: `${Math.max(pct, 4)}%` }}
+                                      />
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 mt-1">{score}/5</div>
+                                    <div className="text-[9px] text-slate-600">{count}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 py-4">No validation quality data yet. Run generations to collect scores.</p>
+                    )}
+                  </div>
+
+                  {/* ═══ FALLBACK VALIDATION TESTS ═══ */}
+                  <FallbackValidationRunner validations={ch?.recent_validations} />
 
                   {/* Character Consistency */}
                   <div>
