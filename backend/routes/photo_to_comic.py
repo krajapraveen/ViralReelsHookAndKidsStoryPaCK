@@ -21,6 +21,8 @@ import base64
 import asyncio
 import json
 import re
+import hashlib
+import io
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -2184,3 +2186,279 @@ async def get_comic_script(job_id: str, user: dict = Depends(get_current_user)):
         "style": job.get("style"),
         "genre": job.get("genre")
     }
+
+
+# =============================================================================
+# PDF COMIC EXPORT (P1.1)
+# =============================================================================
+
+@router.get("/pdf/{job_id}")
+async def download_comic_pdf(job_id: str, user: dict = Depends(get_current_user)):
+    """Generate and download a comic PDF with cover, panels, and script"""
+    from fpdf import FPDF
+    from PIL import Image as PILImage
+    import requests as http_requests
+
+    job = await db.photo_to_comic_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    panels = job.get("panels", [])
+    ready_panels = [p for p in panels if p.get("imageUrl") and p.get("status") == "READY"]
+    if not ready_panels and not job.get("resultUrl"):
+        raise HTTPException(status_code=400, detail="No comic panels ready for export")
+
+    # Download panel images
+    panel_images = []
+    for p in ready_panels:
+        url = p.get("imageUrl", "")
+        if url.startswith("data:image"):
+            b64_data = url.split(",", 1)[1] if "," in url else ""
+            img_bytes = base64.b64decode(b64_data)
+        else:
+            try:
+                resp = http_requests.get(url, timeout=30)
+                resp.raise_for_status()
+                img_bytes = resp.content
+            except Exception:
+                continue
+        try:
+            img = PILImage.open(io.BytesIO(img_bytes)).convert("RGB")
+            panel_images.append((img, p))
+        except Exception:
+            continue
+
+    # For avatar mode, use resultUrl
+    if not panel_images and job.get("resultUrl"):
+        try:
+            url = job["resultUrl"]
+            if url.startswith("data:image"):
+                b64_data = url.split(",", 1)[1]
+                img_bytes = base64.b64decode(b64_data)
+            else:
+                resp = http_requests.get(url, timeout=30)
+                resp.raise_for_status()
+                img_bytes = resp.content
+            img = PILImage.open(io.BytesIO(img_bytes)).convert("RGB")
+            panel_images.append((img, {"panelNumber": 1, "scene": "Comic Avatar"}))
+        except Exception:
+            raise HTTPException(status_code=500, detail="Failed to fetch comic image")
+
+    if not panel_images:
+        raise HTTPException(status_code=400, detail="No images available for PDF")
+
+    # Build PDF
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=False)
+
+    # Cover page
+    pdf.add_page()
+    pdf.set_fill_color(15, 15, 25)
+    pdf.rect(0, 0, 210, 297, "F")
+
+    title = job.get("customDetails", "My Comic") or "My Comic"
+    style_name = SAFE_STYLES.get(job.get("style", ""), {}).get("name", job.get("style", "Comic"))
+
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 28)
+    pdf.set_xy(15, 30)
+    pdf.cell(180, 15, title[:50], align="C")
+
+    pdf.set_font("Helvetica", "", 14)
+    pdf.set_text_color(180, 180, 200)
+    pdf.set_xy(15, 50)
+    pdf.cell(180, 10, f"Style: {style_name} | Genre: {job.get('genre', 'adventure').title()}", align="C")
+
+    # First panel as cover image
+    if panel_images:
+        img, _ = panel_images[0]
+        with io.BytesIO() as buf:
+            img.save(buf, format="JPEG", quality=85)
+            buf.seek(0)
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                tmp.write(buf.read())
+                tmp_path = tmp.name
+        try:
+            iw, ih = img.size
+            aspect = iw / ih
+            max_w, max_h = 170, 170
+            if aspect > max_w / max_h:
+                w = max_w
+                h = max_w / aspect
+            else:
+                h = max_h
+                w = max_h * aspect
+            x = (210 - w) / 2
+            pdf.image(tmp_path, x=x, y=70, w=w, h=h)
+        finally:
+            os.unlink(tmp_path)
+
+    pdf.set_text_color(120, 120, 150)
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.set_xy(15, 275)
+    pdf.cell(180, 8, "Created with Visionary Suite", align="C")
+
+    # Panel pages (2x2 grid)
+    margin = 10
+    gutter = 5
+    page_w = 210 - 2 * margin
+    page_h = 260 - 2 * margin
+    box_w = (page_w - gutter) / 2
+    box_h = (page_h - gutter) / 2
+
+    for page_start in range(0, len(panel_images), 4):
+        pdf.add_page()
+        pdf.set_fill_color(15, 15, 25)
+        pdf.rect(0, 0, 210, 297, "F")
+
+        batch = panel_images[page_start:page_start + 4]
+        for idx, (img, panel_data) in enumerate(batch):
+            row, col = divmod(idx, 2)
+            x = margin + col * (box_w + gutter)
+            y = margin + row * (box_h + gutter) + 10
+
+            # Panel border
+            pdf.set_draw_color(60, 60, 80)
+            pdf.set_line_width(0.5)
+            pdf.rect(x, y, box_w, box_h)
+
+            # Panel image
+            with io.BytesIO() as buf:
+                img.save(buf, format="JPEG", quality=80)
+                buf.seek(0)
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                    tmp.write(buf.read())
+                    tmp_path = tmp.name
+            try:
+                iw, ih = img.size
+                aspect = iw / ih
+                img_area_w = box_w - 4
+                img_area_h = box_h - 16
+                if aspect > img_area_w / img_area_h:
+                    w = img_area_w
+                    h = img_area_w / aspect
+                else:
+                    h = img_area_h
+                    w = img_area_h * aspect
+                ix = x + (box_w - w) / 2
+                iy = y + 2 + (img_area_h - h) / 2
+                pdf.image(tmp_path, x=ix, y=iy, w=w, h=h)
+            finally:
+                os.unlink(tmp_path)
+
+            # Panel label
+            pdf.set_text_color(200, 200, 220)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_xy(x + 2, y + box_h - 14)
+            label = f"Panel {panel_data.get('panelNumber', idx + 1)}"
+            scene = panel_data.get("scene", "")
+            if scene:
+                label += f": {scene[:40]}"
+            pdf.cell(box_w - 4, 6, label)
+
+            # Dialogue
+            dialogue = panel_data.get("dialogue")
+            if dialogue:
+                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_text_color(160, 160, 180)
+                pdf.set_xy(x + 2, y + box_h - 8)
+                pdf.cell(box_w - 4, 5, f'"{dialogue[:50]}"')
+
+    # Script page
+    script = job.get("scriptText", "")
+    if not script and panels:
+        script = "# Comic Script\n\n"
+        for p in panels:
+            script += f"Panel {p.get('panelNumber', '?')}: {p.get('scene', '')}\n"
+            if p.get("dialogue"):
+                script += f'  Dialogue: "{p["dialogue"]}"\n'
+            script += "\n"
+
+    if script:
+        pdf.add_page()
+        pdf.set_fill_color(15, 15, 25)
+        pdf.rect(0, 0, 210, 297, "F")
+
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 18)
+        pdf.set_xy(15, 20)
+        pdf.cell(180, 12, "Story Script")
+
+        pdf.set_text_color(200, 200, 220)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.set_xy(15, 38)
+        pdf.multi_cell(180, 6, script[:3000])
+
+    # Branding footer on last page
+    pdf.set_text_color(100, 100, 130)
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.set_xy(15, 280)
+    pdf.cell(180, 8, "Created with Visionary Suite | visionary-suite.com", align="C")
+
+    # Output
+    pdf_bytes = pdf.output()
+    from fastapi.responses import Response
+    return Response(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="comic_{job_id[:8]}.pdf"'}
+    )
+
+
+# =============================================================================
+# CHARACTER CONSISTENCY ENGINE (P1.2)
+# =============================================================================
+
+def build_character_profile(image_bytes: bytes, user_id: str, style: str) -> dict:
+    """Build a stable character identity from the uploaded photo"""
+    # Stable seed from image + user + style
+    digest = hashlib.sha256(image_bytes + user_id.encode() + style.encode()).hexdigest()
+    seed = int(digest[:8], 16)
+
+    # Identity hash for consistency tracking
+    identity_hash = digest[:32]
+
+    # Style-anchored consistency prompt
+    style_name = SAFE_STYLES.get(style, {}).get("name", style)
+    anchor_prompt = (
+        f"CRITICAL: Maintain the EXACT SAME main character across every panel. "
+        f"The character must have identical face shape, hairstyle, skin tone, eye shape, "
+        f"and body proportions in ALL panels. The character is a {style_name}-style comic version "
+        f"of the person in the reference photo. Do NOT change the character's appearance between panels."
+    )
+
+    return {
+        "seed": seed,
+        "identity_hash": identity_hash,
+        "anchor_prompt": anchor_prompt,
+        "style": style_name
+    }
+
+
+def panel_seed(base_seed: int, panel_number: int) -> int:
+    """Stable-but-varied seed per panel for consistent character"""
+    return (base_seed + (panel_number * 7919)) % (2**31 - 1)
+
+
+# =============================================================================
+# BEFORE & AFTER PREVIEW DATA (P1.3)
+# =============================================================================
+
+@router.get("/style-previews")
+async def get_style_previews(user: dict = Depends(get_current_user)):
+    """Return style preview data for the Before/After strip"""
+    previews = [
+        {"id": "cartoon", "name": "Cartoon", "badge": "Most Popular", "desc": "Bright, friendly, universal appeal"},
+        {"id": "manga", "name": "Manga", "badge": "Trending", "desc": "Sharp lines, action-focused style"},
+        {"id": "chibi", "name": "Chibi", "badge": "Best for Kids", "desc": "Cute, playful, highly shareable"},
+        {"id": "storybook", "name": "Storybook", "badge": "Warm & Magical", "desc": "Soft illustrated fairy-tale look"},
+        {"id": "bold_hero", "name": "Bold Hero", "badge": "Best for Action", "desc": "High-energy superhero aesthetic"},
+        {"id": "retro_pop", "name": "Retro Pop", "badge": "Classic Vibe", "desc": "Vintage pop-art comic panels"},
+        {"id": "noir", "name": "Noir", "badge": "Dramatic", "desc": "Dark shadows, cinematic mood"},
+        {"id": "cyberpunk", "name": "Cyberpunk", "badge": "Futuristic", "desc": "Neon-lit sci-fi world"},
+    ]
+    return {"previews": previews}
