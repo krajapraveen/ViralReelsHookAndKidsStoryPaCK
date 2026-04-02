@@ -827,50 +827,96 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
     partial = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}, "status": "PARTIAL_READY"})
     failed = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}, "status": "FAILED"})
     success_rate = _safe_rate(completed + partial, total_jobs)
+    full_failure_rate = _safe_rate(failed, total_jobs)
 
-    # ── Retry Rate ──
-    # Jobs where at least one panel was retried (retries > 0)
+    # ── Fallback & Retry Rates ──
+    fallback_jobs = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}, "has_fallback": True})
+    retry_jobs = await db.photo_to_comic_jobs.count_documents({"createdAt": {"$gte": cutoff}, "has_retries": True})
+    fallback_trigger_rate = _safe_rate(fallback_jobs, total_jobs)
+
+    # Panel-level retry rate via aggregation
     retry_pipeline = [
         {"$match": {"createdAt": {"$gte": cutoff}, "panels": {"$exists": True}}},
-        {"$project": {"had_retry": {"$gt": [{"$size": {"$filter": {"input": {"$ifNull": ["$panels", []]}, "as": "p", "cond": {"$gt": [{"$ifNull": ["$$p.retries", 0]}, 0]}}}}, 0]}}},
-        {"$group": {"_id": None, "total": {"$sum": 1}, "retried": {"$sum": {"$cond": ["$had_retry", 1, 0]}}}}
+        {"$project": {
+            "total_panels": {"$size": {"$ifNull": ["$panels", []]}},
+            "retried_panels": {"$size": {"$filter": {"input": {"$ifNull": ["$panels", []]}, "as": "p", "cond": {"$gt": [{"$ifNull": ["$$p.retries", 0]}, 0]}}}},
+            "fallback_panels": {"$size": {"$filter": {"input": {"$ifNull": ["$panels", []]}, "as": "p", "cond": {"$eq": [{"$ifNull": ["$$p.fallback", False]}, True]}}}},
+        }},
+        {"$group": {"_id": None, "total_p": {"$sum": "$total_panels"}, "retried_p": {"$sum": "$retried_panels"}, "fallback_p": {"$sum": "$fallback_panels"}}}
     ]
-    retry_res = await db.photo_to_comic_jobs.aggregate(retry_pipeline).to_list(1)
-    retry_total = retry_res[0]["total"] if retry_res else 0
-    retry_count = retry_res[0]["retried"] if retry_res else 0
-    retry_rate = _safe_rate(retry_count, retry_total)
+    panel_stats = await db.photo_to_comic_jobs.aggregate(retry_pipeline).to_list(1)
+    total_panels_all = panel_stats[0]["total_p"] if panel_stats else 0
+    retried_panels_all = panel_stats[0]["retried_p"] if panel_stats else 0
+    fallback_panels_all = panel_stats[0]["fallback_p"] if panel_stats else 0
+    panel_retry_rate = _safe_rate(retried_panels_all, total_panels_all)
+
+    # ── Job Quality Distribution ──
+    quality_pipeline = [
+        {"$match": {"createdAt": {"$gte": cutoff}, "job_quality": {"$exists": True}}},
+        {"$group": {"_id": "$job_quality", "count": {"$sum": 1}}}
+    ]
+    quality_res = await db.photo_to_comic_jobs.aggregate(quality_pipeline).to_list(10)
+    quality_dist = {r["_id"]: r["count"] for r in quality_res if r["_id"]}
+
+    # ── Style Failure Rate ──
+    style_pipeline = [
+        {"$match": {"createdAt": {"$gte": cutoff}, "style": {"$exists": True}}},
+        {"$group": {
+            "_id": "$style",
+            "total": {"$sum": 1},
+            "failed": {"$sum": {"$cond": [{"$eq": ["$status", "FAILED"]}, 1, 0]}},
+            "completed": {"$sum": {"$cond": [{"$in": ["$status", ["COMPLETED", "READY_WITH_WARNINGS"]]}, 1, 0]}},
+            "with_fallback": {"$sum": {"$cond": [{"$eq": [{"$ifNull": ["$has_fallback", False]}, True]}, 1, 0]}},
+        }}
+    ]
+    style_res = await db.photo_to_comic_jobs.aggregate(style_pipeline).to_list(20)
+    style_breakdown = {}
+    for s in style_res:
+        sid = s["_id"] or "unknown"
+        style_breakdown[sid] = {
+            "total": s["total"],
+            "failed": s["failed"],
+            "completed": s["completed"],
+            "with_fallback": s["with_fallback"],
+            "failure_rate": _safe_rate(s["failed"], s["total"]),
+        }
 
     # ── Average Generation Time ──
-    # Approximate from createdAt to updatedAt difference
     time_jobs = await db.photo_to_comic_jobs.find(
         {"createdAt": {"$gte": cutoff}, "status": {"$in": ["COMPLETED", "READY_WITH_WARNINGS", "PARTIAL_READY"]}, "updatedAt": {"$exists": True}},
-        {"_id": 0, "createdAt": 1, "updatedAt": 1}
+        {"_id": 0, "createdAt": 1, "updatedAt": 1, "stage_timing": 1}
     ).limit(100).to_list(100)
 
     avg_time = None
     if time_jobs:
         durations = []
         for j in time_jobs:
-            try:
-                start = datetime.fromisoformat(j["createdAt"].replace("Z", "+00:00")) if isinstance(j["createdAt"], str) else j["createdAt"]
-                end = datetime.fromisoformat(j["updatedAt"].replace("Z", "+00:00")) if isinstance(j["updatedAt"], str) else j["updatedAt"]
-                d = (end - start).total_seconds()
-                if 0 < d < 600:
-                    durations.append(d)
-            except Exception:
-                pass
+            # Prefer stage_timing.total_seconds if available
+            st = j.get("stage_timing", {})
+            if isinstance(st, dict) and st.get("total_seconds"):
+                durations.append(st["total_seconds"])
+            else:
+                try:
+                    start = datetime.fromisoformat(j["createdAt"].replace("Z", "+00:00")) if isinstance(j["createdAt"], str) else j["createdAt"]
+                    end = datetime.fromisoformat(j["updatedAt"].replace("Z", "+00:00")) if isinstance(j["updatedAt"], str) else j["updatedAt"]
+                    d = (end - start).total_seconds()
+                    if 0 < d < 600:
+                        durations.append(d)
+                except Exception:
+                    pass
         if durations:
             avg_time = round(sum(durations) / len(durations), 1)
 
     # ── Consistency Drift ──
     consistency_logs = await db.consistency_logs.find(
         {"created_at": {"$gte": cutoff}},
-        {"_id": 0, "avg_similarity": 1, "retry_needed": 1, "no_face_panels": 1, "accepted": 1, "borderline": 1, "total_panels": 1, "style": 1}
+        {"_id": 0, "avg_similarity": 1, "retry_needed": 1, "no_face_panels": 1, "accepted": 1, "borderline": 1, "total_panels": 1, "style": 1, "source_face_detected": 1}
     ).limit(200).to_list(200)
 
     avg_similarity = None
     consistency_retry_rate = None
-    no_face_rate = None
+    no_face_panel_rate = None
+    no_face_source_rate = None
     drift_by_style = {}
 
     if consistency_logs:
@@ -881,18 +927,19 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
         total_panels_checked = sum(entry.get("total_panels", 0) for entry in consistency_logs)
         total_retries = sum(entry.get("retry_needed", 0) for entry in consistency_logs)
         total_no_face = sum(entry.get("no_face_panels", 0) for entry in consistency_logs)
+        total_source_no_face = sum(1 for entry in consistency_logs if not entry.get("source_face_detected", True))
 
         consistency_retry_rate = _safe_rate(total_retries, total_panels_checked)
-        no_face_rate = _safe_rate(total_no_face, total_panels_checked)
-
-        # Drift by style
+        no_face_panel_rate = _safe_rate(total_no_face, total_panels_checked)
+        no_face_source_rate = _safe_rate(total_source_no_face, len(consistency_logs))
         for entry in consistency_logs:
             s = entry.get("style", "unknown")
             if s not in drift_by_style:
-                drift_by_style[s] = {"count": 0, "total_sim": 0, "retries": 0}
+                drift_by_style[s] = {"count": 0, "total_sim": 0, "retries": 0, "no_face": 0}
             drift_by_style[s]["count"] += 1
             drift_by_style[s]["total_sim"] += entry.get("avg_similarity", 0)
             drift_by_style[s]["retries"] += entry.get("retry_needed", 0)
+            drift_by_style[s]["no_face"] += entry.get("no_face_panels", 0)
 
         for s in drift_by_style:
             c = drift_by_style[s]["count"]
@@ -901,11 +948,11 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
 
     # ── Quality Check Stats ──
     quality_total = await db.quality_cache.count_documents({})
-    quality_pipeline = [
+    quality_agg = [
         {"$group": {"_id": "$result.overall", "count": {"$sum": 1}}}
     ]
-    quality_res = await db.quality_cache.aggregate(quality_pipeline).to_list(10)
-    quality_breakdown = {r["_id"]: r["count"] for r in quality_res if r["_id"]}
+    quality_qres = await db.quality_cache.aggregate(quality_agg).to_list(10)
+    quality_breakdown = {r["_id"]: r["count"] for r in quality_qres if r["_id"]}
 
     # ── PDF Export Stats ──
     pdf_downloads = await db.comic_events.count_documents({"event_type": "pdf_download_click", "created_at": {"$gte": cutoff}})
@@ -924,10 +971,14 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
     alerts = []
     if success_rate is not None and success_rate < 80:
         alerts.append({"level": "critical", "message": f"Job success rate is {success_rate}% (below 80% threshold)"})
-    if retry_rate is not None and retry_rate > 30:
-        alerts.append({"level": "warning", "message": f"Panel retry rate is {retry_rate}% (above 30% threshold)"})
+    if fallback_trigger_rate is not None and fallback_trigger_rate > 25:
+        alerts.append({"level": "warning", "message": f"Fallback trigger rate is {fallback_trigger_rate}% (above 25% threshold)"})
+    if panel_retry_rate is not None and panel_retry_rate > 30:
+        alerts.append({"level": "warning", "message": f"Panel retry rate is {panel_retry_rate}% (above 30% threshold)"})
     if avg_time is not None and avg_time > 120:
         alerts.append({"level": "warning", "message": f"Average generation time is {avg_time}s (above 120s threshold)"})
+    if full_failure_rate is not None and full_failure_rate > 15:
+        alerts.append({"level": "critical", "message": f"Full failure rate is {full_failure_rate}% (above 15% threshold)"})
 
     return {
         "period_days": days,
@@ -937,16 +988,27 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
             "partial": partial,
             "failed": failed,
             "success_rate": success_rate,
+            "full_failure_rate": full_failure_rate,
         },
+        "reliability": {
+            "fallback_trigger_rate": fallback_trigger_rate,
+            "fallback_jobs": fallback_jobs,
+            "retry_jobs": retry_jobs,
+            "panel_retry_rate": panel_retry_rate,
+            "retried_panels": retried_panels_all,
+            "fallback_panels": fallback_panels_all,
+            "total_panels": total_panels_all,
+        },
+        "job_quality": quality_dist,
+        "style_breakdown": style_breakdown,
         "performance": {
             "avg_generation_time_seconds": avg_time,
-            "retry_rate": retry_rate,
-            "retried_jobs": retry_count,
         },
         "consistency": {
             "avg_similarity": avg_similarity,
             "consistency_retry_rate": consistency_retry_rate,
-            "no_face_panel_rate": no_face_rate,
+            "no_face_panel_rate": no_face_panel_rate,
+            "no_face_source_rate": no_face_source_rate,
             "drift_by_style": drift_by_style,
         },
         "quality_check": {

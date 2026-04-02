@@ -985,6 +985,8 @@ async def process_comic_strip(
         
         panels = []
         negative_prompt = get_negative_prompt()
+        import time
+        gen_start_time = time.time()
         
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
@@ -1422,18 +1424,41 @@ Keep it simple and colorful. Single scene, clear composition."""
                 script_text += f"Dialogue: \"{p['dialogue']}\"\n"
             script_text += "\n"
 
-        # Update job with final state
+        # Build consistency metadata
         consistency_meta = {}
         if consistency_results:
-            sims = [r["source_similarity"] for r in consistency_results if r["source_similarity"] > 0]
+            c_sims = [r["source_similarity"] for r in consistency_results if r["source_similarity"] > 0]
             consistency_meta = {
                 "consistency_checked": True,
                 "consistency_retried_panels": consistency_retried,
-                "avg_similarity": round(sum(sims) / len(sims), 4) if sims else 0,
-                "min_similarity": round(min(sims), 4) if sims else 0,
+                "avg_similarity": round(sum(c_sims) / len(c_sims), 4) if c_sims else 0,
+                "min_similarity": round(min(c_sims), 4) if c_sims else 0,
                 "panels_with_no_face": sum(1 for r in consistency_results if r["verdict"] == "no_face"),
             }
+
+        # ── Compute Job Quality Score (internal, NOT user-facing) ──
+        has_retries = any(p.get("retries", 0) > 0 for p in panels if isinstance(p, dict))
+        has_fallback = any(p.get("fallback") for p in panels if isinstance(p, dict))
+        avg_sim = consistency_meta.get("avg_similarity", 0)
         
+        if job_status == "FAILED":
+            job_quality = "FAILED"
+        elif has_fallback or (avg_sim > 0 and avg_sim < 0.30):
+            job_quality = "LOW"
+        elif has_retries or len(failed_panels) > 0 or (avg_sim > 0 and avg_sim < 0.45):
+            job_quality = "MEDIUM"
+        else:
+            job_quality = "HIGH"
+        
+        # ── Build stage timing log ──
+        try:
+            total_gen_time = round(time.time() - gen_start_time, 1)
+        except Exception:
+            total_gen_time = None
+        stage_timing = {
+            "total_seconds": total_gen_time,
+        }
+
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -1447,6 +1472,12 @@ Keep it simple and colorful. Single scene, clear composition."""
                 "readyPanels": len(ready_panels),
                 "failedPanels": len(failed_panels),
                 "totalPanels": panel_count,
+                "job_quality": job_quality,
+                "has_fallback": has_fallback,
+                "has_retries": has_retries,
+                "panel_retry_count": sum(1 for p in panels if isinstance(p, dict) and p.get("retries", 0) > 0),
+                "fallback_panel_count": sum(1 for p in panels if isinstance(p, dict) and p.get("fallback")),
+                "stage_timing": stage_timing,
                 **consistency_meta,
                 "updatedAt": datetime.now(timezone.utc).isoformat()
             }}

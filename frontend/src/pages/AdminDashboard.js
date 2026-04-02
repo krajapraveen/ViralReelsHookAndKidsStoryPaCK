@@ -7,7 +7,7 @@ import {
   Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw,
   AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
   Film, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera
+  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera, Palette
 } from 'lucide-react';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
@@ -1154,6 +1154,53 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  {/* Reliability — NEW */}
+                  <div>
+                    <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-orange-400" /> Reliability
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <MetricCard icon={RefreshCw} label="Fallback Rate" value={ch?.reliability?.fallback_trigger_rate != null ? `${ch.reliability.fallback_trigger_rate}%` : '—'} color={ch?.reliability?.fallback_trigger_rate > 25 ? 'red' : 'blue'} testId="comic-fallback-rate" />
+                      <MetricCard icon={RefreshCw} label="Panel Retry Rate" value={ch?.reliability?.panel_retry_rate != null ? `${ch.reliability.panel_retry_rate}%` : '—'} color={ch?.reliability?.panel_retry_rate > 30 ? 'red' : 'blue'} testId="comic-panel-retry-rate" />
+                      <MetricCard icon={XCircle} label="Full Failure Rate" value={ch?.jobs?.full_failure_rate != null ? `${ch.jobs.full_failure_rate}%` : '—'} color={ch?.jobs?.full_failure_rate > 15 ? 'red' : 'emerald'} testId="comic-full-failure-rate" />
+                      <MetricCard icon={Activity} label="Fallback Panels" value={ch?.reliability?.fallback_panels} color="amber" testId="comic-fallback-panels" />
+                      <MetricCard icon={Activity} label="Retried Panels" value={ch?.reliability?.retried_panels} color="amber" testId="comic-retried-panels" />
+                    </div>
+                  </div>
+
+                  {/* Job Quality Distribution — NEW */}
+                  {ch?.job_quality && Object.keys(ch.job_quality).length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <Star className="w-4 h-4 text-yellow-400" /> Job Quality Distribution
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <MetricCard icon={CheckCircle} label="HIGH" value={ch.job_quality.HIGH || 0} color="emerald" testId="quality-high" />
+                        <MetricCard icon={Shield} label="MEDIUM" value={ch.job_quality.MEDIUM || 0} color="amber" testId="quality-medium" />
+                        <MetricCard icon={AlertTriangle} label="LOW" value={ch.job_quality.LOW || 0} color="red" testId="quality-low" />
+                        <MetricCard icon={XCircle} label="FAILED" value={ch.job_quality.FAILED || 0} color="red" testId="quality-failed" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Style Breakdown — NEW */}
+                  {ch?.style_breakdown && Object.keys(ch.style_breakdown).length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <Palette className="w-4 h-4 text-pink-400" /> Style Failure Rates
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {Object.entries(ch.style_breakdown).map(([style, data]) => (
+                          <div key={style} className={`rounded-lg px-3 py-2 border ${data.failure_rate > 30 ? 'border-red-500/30 bg-red-500/5' : 'border-slate-700 bg-slate-800/50'}`} data-testid={`style-${style}`}>
+                            <p className="text-[11px] text-white font-medium capitalize">{style.replace(/_/g, ' ')}</p>
+                            <p className={`text-lg font-bold ${data.failure_rate > 30 ? 'text-red-400' : 'text-emerald-400'}`}>{data.failure_rate ?? 0}%</p>
+                            <p className="text-[10px] text-slate-500">{data.total} jobs, {data.failed} failed, {data.with_fallback} fallback</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Performance */}
                   <div>
                     <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
@@ -1161,8 +1208,6 @@ export default function AdminDashboard() {
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       <MetricCard icon={Clock} label="Avg Gen Time" value={ch?.performance?.avg_generation_time_seconds != null ? `${ch.performance.avg_generation_time_seconds}s` : '—'} color="cyan" testId="comic-avg-time" />
-                      <MetricCard icon={RefreshCw} label="Retry Rate" value={ch?.performance?.retry_rate != null ? `${ch.performance.retry_rate}%` : '—'} color={ch?.performance?.retry_rate > 30 ? 'red' : 'blue'} testId="comic-retry-rate" />
-                      <MetricCard icon={Activity} label="Retried Jobs" value={ch?.performance?.retried_jobs} color="amber" testId="comic-retried-jobs" />
                     </div>
                   </div>
 
@@ -1171,10 +1216,11 @@ export default function AdminDashboard() {
                     <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                       <Eye className="w-4 h-4 text-violet-400" /> Character Consistency
                     </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <MetricCard icon={Eye} label="Avg Similarity" value={ch?.consistency?.avg_similarity != null ? ch.consistency.avg_similarity.toFixed(3) : '—'} color="violet" testId="comic-avg-similarity" />
                       <MetricCard icon={RefreshCw} label="Consistency Retry Rate" value={ch?.consistency?.consistency_retry_rate != null ? `${ch.consistency.consistency_retry_rate}%` : '—'} color="blue" testId="comic-consistency-retry" />
                       <MetricCard icon={Users} label="No-Face Panel Rate" value={ch?.consistency?.no_face_panel_rate != null ? `${ch.consistency.no_face_panel_rate}%` : '—'} color="amber" testId="comic-noface-rate" />
+                      <MetricCard icon={Users} label="No-Face Source Rate" value={ch?.consistency?.no_face_source_rate != null ? `${ch.consistency.no_face_source_rate}%` : '—'} color="amber" testId="comic-noface-source-rate" />
                     </div>
                     {ch?.consistency?.drift_by_style && Object.keys(ch.consistency.drift_by_style).length > 0 && (
                       <div className="mt-3 bg-slate-900/60 border border-slate-800 rounded-xl p-3">
