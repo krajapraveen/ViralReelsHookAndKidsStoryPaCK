@@ -4,17 +4,17 @@
 Build a "Smart Repair Pipeline" for an AI creator suite (Photo to Comic). Highest priority: Failure Masking — users must NEVER see raw failures. If generation fails completely, deterministic fallback filter (Guaranteed Output) ensures the user always gets a comic.
 
 ## Current Status: PRODUCTION OBSERVATION PHASE
-- Development is STRICTLY FROZEN
-- No new features, no polish, no refactoring
-- Only critical production-breaking bugs allowed
-- Awaiting real production traffic data
+- Development is STRICTLY FROZEN (only critical bugs allowed)
+- Awaiting real production traffic data (target: 100-200 jobs)
+- Last P0 fix: Style-distinctness bug in guaranteed_output.py
 
 ## What's Been Implemented
 - Phase 1 & 2 Pipelines fully tested (190+ pytest tests)
 - Real cross-panel continuity wired (approved panels fed to LLM as context)
 - Multi-tier fallback system ending in deterministic guaranteed_output.py (Pillow-based)
 - Frontend scrubbed of all failure dead-end UI states
-- Guaranteed Output fix: IMPLEMENTED, PENDING PRODUCTION VERIFICATION (zero real traffic so far)
+- Guaranteed Output fix: IMPLEMENTED, PENDING PRODUCTION VERIFICATION
+- **P0 Style-Distinctness Fix (Apr 2026):** guaranteed_output now style-aware with distinct filters per style, all 3 filter types used, per-panel variation, stronger AI prompts, one-click remix, null dialogue fixed
 
 ## Production Observation Metrics (To Monitor When Traffic Arrives)
 1. Guaranteed output rate
@@ -61,14 +61,14 @@ Build a "Smart Repair Pipeline" for an AI creator suite (Photo to Comic). Highes
 - Test User: test@visionary-suite.com / Test@2026#
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
 
-## Current Phase: DISTRIBUTION (Feb 2026)
+## Current Phase: DISTRIBUTION (Apr 2026)
 - Development: FROZEN
-- Code changes: NONE ALLOWED
+- Code changes: NONE ALLOWED (except critical bugs)
 - User mandate: Drive 100-200 real jobs via Instagram reels, WhatsApp blasts, direct 1:1 asks
 - Target: Real users, real photos, diverse conditions (lighting, faces, styles)
 - Next agent action: Pull production metrics report ONLY when traffic arrives
 
-## Last Data Report: Feb 2026
+## Last Data Report: Apr 2026
 - Total jobs: 0 (no production traffic yet)
-- No P0 issues — no data to reveal them
+- No P0 issues from traffic — no data to reveal them
 - Phase: Deploy, drive traffic, watch — NOT build
