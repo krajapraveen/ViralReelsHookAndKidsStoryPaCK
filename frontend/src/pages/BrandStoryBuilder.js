@@ -104,42 +104,73 @@ export default function BrandStoryBuilder() {
   };
 
   const handleGenerate = async () => {
+    // Fix 5: Frontend validation (BLOCK BAD REQUESTS)
     if (!businessName.trim()) { toast.error('Business name is required'); return; }
+    if (!mode) { toast.error('Please select a generation mode (Fast or Pro)'); return; }
+
     setPhase('generating');
     try {
       const token = localStorage.getItem('token');
+      if (!token) { toast.error('Please log in first'); setPhase('input'); return; }
+
       const res = await fetch(`${API_URL}/api/brand-story-builder/generate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          business_name: businessName, mission, founder_story: founderStory,
-          industry, tone, audience, personality, competitors, market,
-          problem_solved: problemSolved, mode,
+          business_name: businessName.trim(),
+          mission: mission || '',
+          founder_story: founderStory || '',
+          industry: industry || 'Technology',
+          tone: tone || 'professional',
+          audience: audience || '',
+          personality: personality || '',
+          competitors: competitors || '',
+          market: market || 'Global',
+          problem_solved: problemSolved || '',
+          mode: mode.toLowerCase(),
         }),
       });
+
+      // Fix 4: Return REAL error (not generic)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData.detail || errData.error || `Server error (${res.status})`;
+        console.error('[BrandKit] Generate failed:', res.status, errMsg);
+        toast.error(errMsg);
+        setPhase('input');
+        return;
+      }
+
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (data.success) {
         setJobId(data.jobId);
         toast.success('Generation started!');
         startPolling(data.jobId);
       } else {
-        toast.error(data.detail || 'Generation failed');
+        toast.error(data.detail || data.message || 'Generation failed — unknown error');
         setPhase('input');
       }
-    } catch (e) { toast.error('Failed to start generation'); setPhase('input'); }
+    } catch (e) {
+      console.error('[BrandKit] Network error:', e);
+      toast.error(`Connection error: ${e.message || 'Could not reach server'}`);
+      setPhase('input');
+    }
   };
 
   const startPolling = useCallback((id) => {
+    let stopped = false;
     const poll = async () => {
+      if (stopped) return;
       try {
         const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/api/brand-story-builder/job/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
-        if (res.ok) {
+        if (res.ok && !stopped) {
           const data = await res.json();
           setJobStatus(data);
           if (data.status === 'READY' || data.status === 'PARTIAL_READY' || data.status === 'FAILED') {
+            stopped = true;
             clearInterval(pollRef.current);
             // Fetch full results
             const resResult = await fetch(`${API_URL}/api/brand-story-builder/job/${id}/result`, {

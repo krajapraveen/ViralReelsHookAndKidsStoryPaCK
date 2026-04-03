@@ -81,41 +81,62 @@ async def get_config():
 
 @router.post("/generate")
 async def generate_brand_kit(request: BrandKitRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    # Fix 3: Request logging (MANDATORY)
+    logger.info(f"[BRAND_KIT] Generate request from user={user.get('id')} role={user.get('role')} payload={request.dict()}")
+
     # Copyright check
     all_text = f"{request.business_name} {request.mission} {request.founder_story} {request.competitors}"
     if check_copyright(all_text):
+        logger.warning(f"[BRAND_KIT] Copyright blocked for user={user.get('id')} text={all_text[:100]}")
         raise HTTPException(status_code=400, detail="Input contains blocked content. Please avoid copyrighted or trademarked terms.")
 
-    mode = request.mode if request.mode in ("fast", "pro") else "pro"
+    # Fix 2: Mode normalization (CRITICAL)
+    mode = request.mode.lower().strip() if request.mode else "pro"
+    if mode not in ("fast", "pro"):
+        logger.warning(f"[BRAND_KIT] Invalid mode '{request.mode}' from user={user.get('id')}, defaulting to 'pro'")
+        mode = "pro"
+
     cost = CREDIT_COSTS.get(mode, 25)
 
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=402, detail=f"Insufficient credits. {cost} credits required for {mode} mode.")
+    # Fix 7: Credits guard — admin bypass
+    is_admin = user.get("role", "").upper() in ("ADMIN", "SUPERADMIN")
+    if not is_admin and user.get("credits", 0) < cost:
+        logger.warning(f"[BRAND_KIT] Insufficient credits: user={user.get('id')} has={user.get('credits')} needs={cost}")
+        raise HTTPException(status_code=402, detail=f"Insufficient credits. You have {user.get('credits', 0)} credits but need {cost} for {mode} mode.")
 
-    # Deduct credits
-    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -cost}})
+    # Deduct credits (skip for admin with unlimited)
+    if not is_admin:
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -cost}})
 
     brief = {
         "business_name": request.business_name,
-        "mission": request.mission,
-        "founder_story": request.founder_story,
-        "industry": request.industry,
-        "tone": request.tone,
-        "audience": request.audience,
-        "personality": request.personality,
-        "competitors": request.competitors,
-        "market": request.market,
-        "problem_solved": request.problem_solved,
+        "mission": request.mission or "",
+        "founder_story": request.founder_story or "",
+        "industry": request.industry or "Technology",
+        "tone": request.tone or "professional",
+        "audience": request.audience or "",
+        "personality": request.personality or "",
+        "competitors": request.competitors or "",
+        "market": request.market or "Global",
+        "problem_solved": request.problem_solved or "",
     }
 
     llm_key = os.environ.get("EMERGENT_LLM_KEY", "")
+    if not llm_key:
+        logger.error("[BRAND_KIT] EMERGENT_LLM_KEY not set!")
+
     orchestrator = BrandKitOrchestrator(db, llm_key)
 
     try:
         job_id = await orchestrator.create_job(user["id"], brief, mode)
+        logger.info(f"[BRAND_KIT] Job created: {job_id} mode={mode} user={user.get('id')}")
     except Exception as e:
-        await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": cost}})
-        raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
+        logger.error(f"[BRAND_KIT] Job creation failed: {e}", exc_info=True)
+        # Refund credits if not admin
+        if not is_admin:
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": cost}})
+        # Fix 4: Return REAL error (not generic)
+        raise HTTPException(status_code=500, detail=f"Job creation failed: {str(e)}")
 
     # Run generation in background
     background_tasks.add_task(orchestrator.run_generation, job_id)
@@ -124,7 +145,7 @@ async def generate_brand_kit(request: BrandKitRequest, background_tasks: Backgro
         "success": True,
         "jobId": job_id,
         "mode": mode,
-        "credits_charged": cost,
+        "credits_charged": cost if not is_admin else 0,
         "message": f"Building your brand kit ({mode} mode)...",
     }
 
