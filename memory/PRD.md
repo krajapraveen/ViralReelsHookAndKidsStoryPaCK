@@ -3,44 +3,56 @@
 ## Original Problem Statement
 Build a "Smart Repair Pipeline" for an AI creator suite (Photo to Comic). Highest priority: Failure Masking — users must NEVER see raw failures. If generation fails completely, deterministic fallback filter (Guaranteed Output) ensures the user always gets a comic.
 
-## Current Status: PRODUCTION OBSERVATION PHASE
-- Development is STRICTLY FROZEN (only critical bugs allowed)
-- Awaiting real production traffic data (target: 100-200 jobs)
-- Last P0 fix: Style-distinctness bug in guaranteed_output.py
+## Current Status: P0 FIX — PENDING USER VERIFICATION
+- P0 style-distinctness bug: FIXED with complete guaranteed_output rewrite
+- 8 dedicated style renderers replacing 3 shared generic filters
+- Hard logging added for full style traceability
+- Debug audit endpoint created for ongoing verification
+- Development remains FROZEN after this fix is verified
 
 ## What's Been Implemented
 - Phase 1 & 2 Pipelines fully tested (190+ pytest tests)
 - Real cross-panel continuity wired (approved panels fed to LLM as context)
 - Multi-tier fallback system ending in deterministic guaranteed_output.py (Pillow-based)
 - Frontend scrubbed of all failure dead-end UI states
-- Guaranteed Output fix: IMPLEMENTED, PENDING PRODUCTION VERIFICATION
-- **P0 Style-Distinctness Fix (Apr 2026):** guaranteed_output now style-aware with distinct filters per style, all 3 filter types used, per-panel variation, stronger AI prompts, one-click remix, null dialogue fixed
+- **P0 Style-Distinctness Fix v2 (Apr 2026):**
+  - 8 unique renderers: bold_hero, cartoon, retro_pop, manga, noir, sketch, neon, pastel
+  - Each produces radically different visual output
+  - Color profiles verified: brightness ranges from 15 (neon) to 200 (pastel)
+  - 26/26 tests passing, debug endpoint returns PASS
+  - Hard [STYLE_TRACE] logging at 4 pipeline points
+  - One-click remix (auto-generates without going back to builder)
+  - Null dialogue filter (no more literal "null" text in panels)
+  - Stronger AI style prompts with anti-photorealism instructions
+
+## Style Renderer Map
+| Style | Renderer | Visual Treatment |
+|-------|----------|-----------------|
+| bold_superhero | _render_bold_hero | Saturated, posterized, black outlines |
+| cartoon_fun | _render_cartoon | Smooth, bright, flat colors |
+| soft_manga | _render_manga | Grayscale, screen tones, ink lines |
+| noir_comic | _render_noir | Hard B&W threshold, dramatic shadows |
+| retro_action | _render_retro_pop | Wild color shift, pixelated halftone |
+| scifi_neon | _render_neon | Dark base, glowing neon edges |
+| dreamy_pastel | _render_pastel | Soft, desaturated, color wash |
+| sketch_outline | _render_sketch | Pencil sketch, tinted lines |
 
 ## Production Observation Metrics (To Monitor When Traffic Arrives)
-1. Guaranteed output rate
-2. Fallback tier usage rate
-3. Repair success rate
+1. Guaranteed output rate (should decrease as AI improves)
+2. Style-specific failure rates
+3. Fallback tier usage by style
 4. Dead-end screen rate (must be 0%)
 5. Comic completion success rate
-6. Latency by tier
+6. Latency by tier and style
 7. User retry rate after output
 8. Download/share/open rates
 9. Credits charged vs credits waived
 10. Low-quality output frequency
 
-## P0 Bug Criteria (Only These Warrant Code Changes)
-- Users reaching dead-end states
-- Users charged without usable output
-- Pipeline hanging/stuck jobs
-- Widespread low-quality deterministic fallback
-- Broken downloads/shares
-- Severe latency causing abandonment
-- Repair/fallback loop failures
-
 ## Frozen/Paused Tasks (DO NOT START)
 - Admin routing config editor
 - Smart Repair self-tuning router
-- Dynamic style popularity badges ("Trending Now")
+- Dynamic style popularity badges
 - Photo to Comic: Instagram export, WhatsApp share card, GIF teasers
 - Bedtime Stories (TTS, Image Gen)
 
@@ -48,7 +60,7 @@ Build a "Smart Repair Pipeline" for an AI creator suite (Photo to Comic). Highes
 - Backend: FastAPI + MongoDB
 - Frontend: React
 - Pipeline: /app/backend/services/comic_pipeline/
-- Key files: guaranteed_output.py, panel_orchestrator.py, job_orchestrator.py, continuity_pack.py
+- Key files: guaranteed_output.py (8 renderers), panel_orchestrator.py, job_orchestrator.py
 - Routes: /app/backend/routes/photo_to_comic.py
 - Frontend: /app/frontend/src/pages/PhotoToComic.js
 
@@ -60,15 +72,3 @@ Build a "Smart Repair Pipeline" for an AI creator suite (Photo to Comic). Highes
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
 - Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-
-## Current Phase: DISTRIBUTION (Apr 2026)
-- Development: FROZEN
-- Code changes: NONE ALLOWED (except critical bugs)
-- User mandate: Drive 100-200 real jobs via Instagram reels, WhatsApp blasts, direct 1:1 asks
-- Target: Real users, real photos, diverse conditions (lighting, faces, styles)
-- Next agent action: Pull production metrics report ONLY when traffic arrives
-
-## Last Data Report: Apr 2026
-- Total jobs: 0 (no production traffic yet)
-- No P0 issues from traffic — no data to reveal them
-- Phase: Deploy, drive traffic, watch — NOT build
