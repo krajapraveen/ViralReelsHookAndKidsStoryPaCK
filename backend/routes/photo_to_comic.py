@@ -575,6 +575,21 @@ async def generate_comic(
         photo_content = await photo.read()
         if len(photo_content) > 10 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="Image too large. Max 10MB.")
+        
+        # Store uploaded photo in R2 for later use (continue story, remix)
+        if not storage_key:
+            try:
+                from services.cloudflare_r2_storage import CloudflareR2Storage
+                r2_upload = CloudflareR2Storage()
+                ext = (photo.filename or "upload.png").rsplit(".", 1)[-1] if photo and photo.filename else "png"
+                upload_filename = f"{uuid.uuid4()}.{ext}"
+                success, upload_url, upload_key = await r2_upload.upload_bytes(photo_content, "images", upload_filename, user["id"])
+                if success and upload_key:
+                    storage_key = upload_key
+                    logger.info(f"[UPLOAD] Photo stored to R2: key={storage_key}")
+            except Exception as upload_err:
+                logger.warning(f"Failed to store photo in R2 for future use: {upload_err}")
+                # Continue without storage — generation still works, continue story won't
     
     # ============================================
     # CALCULATE COST
@@ -1763,6 +1778,31 @@ Format as JSON array:
             "job_level_fallback_triggered": job_decision in ("TARGETED_PANEL_RERUN", "STYLE_DOWNGRADE_RERUN"),
         }
 
+        # ── OUTPUT VALIDATION LOG — comprehensive deliverable audit ──
+        null_dialogues = [p.get("panelNumber") for p in panels if isinstance(p, dict) and (
+            not p.get("dialogue") or str(p.get("dialogue", "")).strip().lower() in ('null', 'none', '...', '')
+        )]
+        panel_urls_exist = [bool(p.get("imageUrl")) for p in panels if isinstance(p, dict)]
+
+        # Sanitize dialogues before final persistence
+        for p in panels:
+            if isinstance(p, dict):
+                d = p.get("dialogue")
+                if d and str(d).strip().lower() in ('null', 'none', '...', ''):
+                    p["dialogue"] = None
+
+        logger.info(
+            f"[OUTPUT_VALIDATION] job={job_id} status={job_status} mode=strip "
+            f"style={style} expected_panels={panel_count} actual_panels={len(panels)} "
+            f"ready={len(ready_panels)} failed={len(failed_panels)} "
+            f"png_urls={sum(panel_urls_exist)}/{len(panels)} "
+            f"script_created={bool(script_text)} "
+            f"null_dialogue_panels={null_dialogues} "
+            f"has_fallback={has_fallback} "
+            f"continue_context_saved={bool(panels)} "
+            f"quality={job_quality}"
+        )
+
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -1974,7 +2014,9 @@ async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if job.get("status") != "COMPLETED":
+    # Allow download for any terminal state that has panels
+    valid_statuses = {"COMPLETED", "PARTIAL_READY", "READY_WITH_WARNINGS", "FAILED"}
+    if job.get("status") not in valid_statuses:
         raise HTTPException(status_code=400, detail="Content not ready")
 
     # Collect all download URLs (CDN-backed)
@@ -1983,12 +2025,15 @@ async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
         download_urls = [u for u in job["resultUrls"] if u]
     elif job.get("resultUrl"):
         download_urls = [job["resultUrl"]]
-    elif job.get("panels"):
+    if not download_urls and job.get("panels"):
         download_urls = [p.get("imageUrl") for p in job["panels"] if p.get("imageUrl")]
+
+    if not download_urls:
+        raise HTTPException(status_code=400, detail="No downloadable assets found")
 
     # Presign R2 URLs for download access
     from utils.r2_presign import presign_url
-    presigned_urls = [presign_url(u) if ".r2.dev/" in (u or "") else u for u in download_urls]
+    presigned_urls = [presign_url(u) if ".r2.dev/" in (u or "") or "r2.cloudflarestorage.com" in (u or "") else u for u in download_urls]
 
     # Mark as downloaded
     if not job.get("downloaded"):
@@ -1996,6 +2041,8 @@ async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
             {"id": job_id},
             {"$set": {"downloaded": True, "downloadedAt": datetime.now(timezone.utc).isoformat()}}
         )
+
+    logger.info(f"[DOWNLOAD] job={job_id} urls={len(presigned_urls)} status={job.get('status')}")
 
     return {
         "success": True,
@@ -2014,7 +2061,7 @@ async def validate_asset(job_id: str, user: dict = Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if job.get("status") != "COMPLETED":
+    if job.get("status") not in ("COMPLETED", "PARTIAL_READY", "READY_WITH_WARNINGS"):
         return {"valid": False, "download_ready": False, "preview_ready": False, "reason": "not_completed"}
 
     # Collect all asset URLs
@@ -2729,8 +2776,10 @@ async def continue_story(
     )
     if not parent:
         raise HTTPException(status_code=404, detail="Parent job not found")
-    if parent.get("status") != "COMPLETED":
-        raise HTTPException(status_code=400, detail="Parent job must be completed")
+    # Allow continuation from any completed-like state that has panels
+    valid_continue_statuses = {"COMPLETED", "PARTIAL_READY", "READY_WITH_WARNINGS"}
+    if parent.get("status") not in valid_continue_statuses:
+        raise HTTPException(status_code=400, detail="Parent job must be completed before continuing")
     if parent.get("mode") != "strip":
         raise HTTPException(status_code=400, detail="Continue story only works with comic strips")
 
@@ -3227,9 +3276,10 @@ async def get_comic_script(job_id: str, user: dict = Depends(get_current_user)):
         script = "# Comic Script\n\n"
         for p in job["panels"]:
             script += f"## Panel {p.get('panelNumber', '?')}\n"
-            script += f"Scene: {p.get('scene', '')}\n"
-            if p.get('dialogue'):
-                script += f'Dialogue: "{p["dialogue"]}"\n'
+            script += f"Scene: {p.get('scene', 'N/A')}\n"
+            dialogue = p.get('dialogue', '')
+            if dialogue and str(dialogue).strip().lower() not in ('null', 'none', '...', ''):
+                script += f'Dialogue: "{str(dialogue).strip()}"\n'
             script += "\n"
 
     return {
@@ -3264,6 +3314,7 @@ async def download_comic_pdf(job_id: str, user: dict = Depends(get_current_user)
 
     # Download panel images
     panel_images = []
+    from utils.r2_presign import presign_url as pdf_presign
     for p in ready_panels:
         url = p.get("imageUrl", "")
         if url.startswith("data:image"):
@@ -3271,10 +3322,13 @@ async def download_comic_pdf(job_id: str, user: dict = Depends(get_current_user)
             img_bytes = base64.b64decode(b64_data)
         else:
             try:
-                resp = http_requests.get(url, timeout=30)
+                # Presign R2 URLs before downloading
+                fetch_url = pdf_presign(url) if (".r2.dev/" in url or "r2.cloudflarestorage.com" in url) else url
+                resp = http_requests.get(fetch_url, timeout=30)
                 resp.raise_for_status()
                 img_bytes = resp.content
-            except Exception:
+            except Exception as dl_err:
+                logger.warning(f"PDF panel download failed: {dl_err}")
                 continue
         try:
             img = PILImage.open(io.BytesIO(img_bytes)).convert("RGB")
@@ -3290,7 +3344,8 @@ async def download_comic_pdf(job_id: str, user: dict = Depends(get_current_user)
                 b64_data = url.split(",", 1)[1]
                 img_bytes = base64.b64decode(b64_data)
             else:
-                resp = http_requests.get(url, timeout=30)
+                fetch_url = pdf_presign(url) if (".r2.dev/" in url or "r2.cloudflarestorage.com" in url) else url
+                resp = http_requests.get(fetch_url, timeout=30)
                 resp.raise_for_status()
                 img_bytes = resp.content
             img = PILImage.open(io.BytesIO(img_bytes)).convert("RGB")
@@ -3413,11 +3468,11 @@ async def download_comic_pdf(job_id: str, user: dict = Depends(get_current_user)
 
             # Dialogue
             dialogue = panel_data.get("dialogue")
-            if dialogue:
+            if dialogue and str(dialogue).strip().lower() not in ('null', 'none', '...', ''):
                 pdf.set_font("Helvetica", "I", 8)
                 pdf.set_text_color(160, 160, 180)
                 pdf.set_xy(x + 2, y + box_h - 8)
-                pdf.cell(box_w - 4, 5, f'"{dialogue[:50]}"')
+                pdf.cell(box_w - 4, 5, f'"{str(dialogue).strip()[:50]}"')
 
     # Script page
     script = job.get("scriptText", "")
@@ -3459,6 +3514,254 @@ async def download_comic_pdf(job_id: str, user: dict = Depends(get_current_user)
         headers={"Content-Disposition": f'attachment; filename="comic_{job_id[:8]}.pdf"'}
     )
 
+
+
+# =============================================================================
+# COMIC BOOK EXPORT — Full comic book with cover, panels (1 per page), script
+# =============================================================================
+
+@router.get("/comic-book/{job_id}")
+async def download_comic_book(job_id: str, user: dict = Depends(get_current_user)):
+    """Generate a full comic book PDF — one panel per page with dialogue, plus cover and script pages."""
+    from fpdf import FPDF
+    from PIL import Image as PILImage
+    import requests as http_requests
+    from utils.r2_presign import presign_url as book_presign
+
+    job = await db.photo_to_comic_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    panels = job.get("panels", [])
+    ready_panels = [p for p in panels if p.get("imageUrl") and p.get("status") in ("READY", "COMPLETED")]
+    if not ready_panels:
+        raise HTTPException(status_code=400, detail="No comic panels ready for comic book export")
+
+    # Download panel images
+    panel_images = []
+    for p in ready_panels:
+        url = p.get("imageUrl", "")
+        if url.startswith("data:image"):
+            b64_data = url.split(",", 1)[1] if "," in url else ""
+            img_bytes = base64.b64decode(b64_data)
+        else:
+            try:
+                fetch_url = book_presign(url) if (".r2.dev/" in url or "r2.cloudflarestorage.com" in url) else url
+                resp = http_requests.get(fetch_url, timeout=30)
+                resp.raise_for_status()
+                img_bytes = resp.content
+            except Exception as dl_err:
+                logger.warning(f"Comic book panel download failed: {dl_err}")
+                continue
+        try:
+            img = PILImage.open(io.BytesIO(img_bytes)).convert("RGB")
+            panel_images.append((img, p))
+        except Exception:
+            continue
+
+    if not panel_images:
+        raise HTTPException(status_code=400, detail="Could not load any panel images for comic book")
+
+    # Build Comic Book PDF
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=False)
+
+    title = job.get("customDetails", "My Comic Book") or "My Comic Book"
+    style_name = SAFE_STYLES.get(job.get("style", ""), {}).get("name", job.get("style", "Comic"))
+    genre = job.get("genre", "adventure").title()
+
+    def sanitize_text(t):
+        if not t or str(t).strip().lower() in ('null', 'none', '...', ''):
+            return None
+        return str(t).strip()
+
+    # ── COVER PAGE ──
+    pdf.add_page()
+    pdf.set_fill_color(10, 10, 20)
+    pdf.rect(0, 0, 210, 297, "F")
+
+    # Decorative border
+    pdf.set_draw_color(80, 80, 120)
+    pdf.set_line_width(1.5)
+    pdf.rect(8, 8, 194, 281)
+    pdf.set_draw_color(50, 50, 80)
+    pdf.set_line_width(0.3)
+    pdf.rect(12, 12, 186, 273)
+
+    # Title
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 32)
+    pdf.set_xy(15, 25)
+    pdf.cell(180, 18, title[:40], align="C")
+
+    # Subtitle
+    pdf.set_font("Helvetica", "", 14)
+    pdf.set_text_color(160, 160, 200)
+    pdf.set_xy(15, 48)
+    pdf.cell(180, 10, f"A {style_name} {genre} Comic", align="C")
+
+    # Cover image — first panel large
+    if panel_images:
+        img, _ = panel_images[0]
+        with io.BytesIO() as buf:
+            img.save(buf, format="JPEG", quality=90)
+            buf.seek(0)
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                tmp.write(buf.read())
+                tmp_path = tmp.name
+        try:
+            iw, ih = img.size
+            aspect = iw / ih
+            max_w, max_h = 160, 180
+            if aspect > max_w / max_h:
+                w = max_w
+                h = max_w / aspect
+            else:
+                h = max_h
+                w = max_h * aspect
+            x = (210 - w) / 2
+            pdf.image(tmp_path, x=x, y=68, w=w, h=h)
+        finally:
+            os.unlink(tmp_path)
+
+    # Panel count badge
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(120, 120, 160)
+    pdf.set_xy(15, 258)
+    pdf.cell(180, 8, f"{len(panel_images)} Panels | {style_name} Style", align="C")
+
+    # Branding
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.set_text_color(80, 80, 110)
+    pdf.set_xy(15, 270)
+    pdf.cell(180, 8, "Created with Visionary Suite", align="C")
+
+    # ── PANEL PAGES — one panel per page ──
+    for idx, (img, panel_data) in enumerate(panel_images):
+        pdf.add_page()
+        pdf.set_fill_color(10, 10, 20)
+        pdf.rect(0, 0, 210, 297, "F")
+
+        # Page border
+        pdf.set_draw_color(60, 60, 90)
+        pdf.set_line_width(0.8)
+        pdf.rect(8, 8, 194, 281)
+
+        # Panel number header
+        pdf.set_text_color(100, 100, 140)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_xy(15, 14)
+        pdf.cell(180, 8, f"PANEL {idx + 1} OF {len(panel_images)}", align="C")
+
+        # Panel image — large, centered
+        with io.BytesIO() as buf:
+            img.save(buf, format="JPEG", quality=85)
+            buf.seek(0)
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                tmp.write(buf.read())
+                tmp_path = tmp.name
+        try:
+            iw, ih = img.size
+            aspect = iw / ih
+            max_w, max_h = 180, 210
+            if aspect > max_w / max_h:
+                w = max_w
+                h = max_w / aspect
+            else:
+                h = max_h
+                w = max_h * aspect
+            x = (210 - w) / 2
+            y = 28
+            pdf.image(tmp_path, x=x, y=y, w=w, h=h)
+        finally:
+            os.unlink(tmp_path)
+
+        # Scene description
+        scene = sanitize_text(panel_data.get("scene"))
+        if scene:
+            pdf.set_text_color(180, 180, 210)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_xy(15, 245)
+            pdf.multi_cell(180, 5, scene[:200], align="C")
+
+        # Dialogue bubble
+        dialogue = sanitize_text(panel_data.get("dialogue"))
+        if dialogue:
+            # Dialogue box background
+            pdf.set_fill_color(30, 30, 50)
+            pdf.set_draw_color(80, 80, 120)
+            pdf.set_line_width(0.3)
+            pdf.rect(20, 260, 170, 18, "DF")
+
+            pdf.set_text_color(230, 230, 250)
+            pdf.set_font("Helvetica", "I", 11)
+            pdf.set_xy(25, 262)
+            pdf.multi_cell(160, 6, f'"{dialogue[:120]}"', align="C")
+
+    # ── SCRIPT PAGE ──
+    script = job.get("scriptText", "")
+    if not script and panels:
+        script = ""
+        for p in panels:
+            pnum = p.get('panelNumber', '?')
+            scene = sanitize_text(p.get('scene')) or 'Scene description unavailable'
+            dialogue = sanitize_text(p.get('dialogue'))
+            script += f"Panel {pnum}: {scene}\n"
+            if dialogue:
+                script += f'  Dialogue: "{dialogue}"\n'
+            script += "\n"
+
+    if script:
+        pdf.add_page()
+        pdf.set_fill_color(10, 10, 20)
+        pdf.rect(0, 0, 210, 297, "F")
+
+        pdf.set_draw_color(60, 60, 90)
+        pdf.set_line_width(0.5)
+        pdf.rect(8, 8, 194, 281)
+
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_xy(15, 20)
+        pdf.cell(180, 12, "Story Script", align="C")
+
+        pdf.set_draw_color(80, 80, 120)
+        pdf.line(30, 36, 180, 36)
+
+        pdf.set_text_color(200, 200, 220)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.set_xy(20, 42)
+        pdf.multi_cell(170, 6, script[:3000])
+
+    # Back cover
+    pdf.add_page()
+    pdf.set_fill_color(10, 10, 20)
+    pdf.rect(0, 0, 210, 297, "F")
+    pdf.set_text_color(80, 80, 110)
+    pdf.set_font("Helvetica", "I", 12)
+    pdf.set_xy(15, 130)
+    pdf.cell(180, 10, "Thank you for reading!", align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_xy(15, 145)
+    pdf.cell(180, 8, f"Style: {style_name} | Genre: {genre}", align="C")
+    pdf.set_xy(15, 158)
+    pdf.cell(180, 8, "Created with Visionary Suite | visionary-suite.com", align="C")
+
+    # Output
+    pdf_bytes = pdf.output()
+    from fastapi.responses import Response
+
+    logger.info(f"[COMIC_BOOK] job={job_id} panels={len(panel_images)} pages={pdf.page}")
+
+    return Response(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="comic_book_{job_id[:8]}.pdf"'}
+    )
 
 # =============================================================================
 # CHARACTER CONSISTENCY ENGINE (P1.2)

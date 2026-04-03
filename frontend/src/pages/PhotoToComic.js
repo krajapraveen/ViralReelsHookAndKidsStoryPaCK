@@ -480,15 +480,30 @@ function PhotoToComicInner() {
     try {
       const res = await api.post(`/api/photo-to-comic/download/${jobId}`);
       if (res.data.downloadUrls?.length) {
-        for (const url of res.data.downloadUrls) {
-          const a = document.createElement('a');
-          a.href = url; a.download = `comic_${jobId.slice(0, 8)}.png`;
-          a.target = '_blank';
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        for (let i = 0; i < res.data.downloadUrls.length; i++) {
+          const url = res.data.downloadUrls[i];
+          try {
+            // Fetch as blob to handle cross-origin downloads
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `comic_${jobId.slice(0, 8)}_panel${i + 1}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          } catch {
+            // Fallback: open in new tab if blob fetch fails
+            window.open(url, '_blank');
+          }
         }
         toast.success('Downloading!');
+      } else {
+        toast.error('No download URLs available');
       }
-    } catch { toast.error('Download failed'); }
+    } catch { toast.error('Download failed — try again'); }
     setDownloading(false);
   };
 
@@ -501,13 +516,25 @@ function PhotoToComicInner() {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `comic_script_${jobId.slice(0, 8)}.txt`;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         toast.success('Script downloaded!');
+      } else {
+        toast.error('No script available for this comic');
       }
-    } catch { toast.error('Script not available'); }
+    } catch { toast.error('Script not available — try again'); }
   };
 
   // ─── Continue Story ──────────────────────────────────────────────
+  // Helper to sanitize dialogue text — blocks null, "Null", empty, etc.
+  const sanitizeDialogue = (d) => {
+    if (!d || typeof d !== 'string') return null;
+    const trimmed = d.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'none' || trimmed === '...') return null;
+    return trimmed;
+  };
+
   const handleContinueStory = async (prompt = '') => {
     if (!jobId) return;
     if (!isUnlimited && credits < 6) { toast.error('Need at least 6 credits'); navigate('/app/billing'); return; }
@@ -747,13 +774,13 @@ function PhotoToComicInner() {
                             src={p.imageUrl}
                             alt={`Panel ${i + 1}`}
                             aspectRatio="1/1"
-                            titleOverlay={(p.dialogue && p.dialogue !== 'null') ? p.dialogue : `Panel ${i + 1}`}
+                            titleOverlay={sanitizeDialogue(p.dialogue) || `Panel ${i + 1}`}
                             className="w-full"
                           />
                         )}
-                        {p.dialogue && p.dialogue !== 'null' && p.status !== 'FAILED' && (
+                        {sanitizeDialogue(p.dialogue) && p.status !== 'FAILED' && (
                           <div className="p-2.5 text-xs text-slate-300 bg-slate-800/80 border-t border-slate-700">
-                            {p.dialogue}
+                            {sanitizeDialogue(p.dialogue)}
                           </div>
                         )}
                         {/* Panel number badge */}

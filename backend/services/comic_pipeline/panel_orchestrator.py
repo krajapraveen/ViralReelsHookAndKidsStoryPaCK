@@ -87,10 +87,17 @@ class PanelOrchestrator:
             "stages": [],
         }
 
+        # Sanitize dialogue — block null, "Null", "None", empty
+        raw_dialogue = scene.get("dialogue")
+        if raw_dialogue and str(raw_dialogue).strip().lower() not in ('null', 'none', '...', ''):
+            clean_dialogue = str(raw_dialogue).strip()
+        else:
+            clean_dialogue = None
+
         panel_data = {
             "panelNumber": panel_index + 1,
             "scene": scene.get("scene", f"Panel {panel_index + 1}"),
-            "dialogue": scene.get("dialogue"),
+            "dialogue": clean_dialogue,
             "style": style_name,
         }
 
