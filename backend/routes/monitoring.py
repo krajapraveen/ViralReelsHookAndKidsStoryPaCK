@@ -20,6 +20,28 @@ from shared import db, get_admin_user, get_current_user, logger
 router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
 
 
+# ── CLIENT ERROR LOGGING ──────────────────────────────────────────────────
+@router.post("/client-error")
+async def log_client_error(request: dict, user=Depends(get_current_user)):
+    """Log frontend errors for debugging. Accepts any shape — never fails."""
+    try:
+        error_doc = {
+            "user_id": user.get("id", "unknown"),
+            "module": request.get("module", "unknown"),
+            "error": request.get("error", ""),
+            "stack": (request.get("stack", "") or "")[:2000],
+            "component_stack": (request.get("componentStack", "") or "")[:1000],
+            "url": request.get("url", ""),
+            "timestamp": datetime.now(timezone.utc),
+        }
+        await db.client_errors.insert_one(error_doc)
+        logger.warning(f"[CLIENT_ERROR] module={error_doc['module']} user={error_doc['user_id']} error={error_doc['error'][:200]}")
+    except Exception as e:
+        logger.error(f"Failed to log client error: {e}")
+    return {"status": "logged"}
+
+
+
 # =============================================================================
 # GENERATION QUEUE MONITORING
 # =============================================================================

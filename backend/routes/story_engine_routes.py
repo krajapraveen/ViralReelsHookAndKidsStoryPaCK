@@ -28,8 +28,9 @@ def _get_media_access_for_user(user):
                 "preview_only": True, "upgrade_required": True, "plan_type": "free"}
     return _entitlement_get_media_access(user)
 from services.story_engine.cost_guard import pre_flight_check
-from services.story_engine.safety import check_content_safety
+from services.story_engine.safety import check_content_safety, rewrite_content_safely
 from services.story_engine.state_machine import get_progress, get_label, FAILURE_TO_RETRY
+from services.rewrite_engine import safe_rewrite
 
 logger = logging.getLogger("story_engine.routes")
 router = APIRouter(prefix="/story-engine", tags=["Story Engine"])
@@ -533,10 +534,19 @@ async def create_engine_job(
     # Map animation_style to style_id
     style_id = request.animation_style if request.animation_style in ANIMATION_STYLES else "cartoon_2d"
 
+    # Safe rewrite — sanitize risky terms in story text and title before job creation
+    story_rewrite = safe_rewrite(request.story_text)
+    title_rewrite = safe_rewrite(request.title)
+    safe_story = story_rewrite.rewritten_text
+    safe_title = title_rewrite.rewritten_text
+
+    if story_rewrite.was_rewritten or title_rewrite.was_rewritten:
+        logger.info(f"[REWRITE] story-engine/create user={user_id}: story_changes={len(story_rewrite.changes)}, title_changes={len(title_rewrite.changes)}")
+
     result = await create_job(
         user_id=user_id,
-        story_text=request.story_text,
-        title=request.title,
+        story_text=safe_story,
+        title=safe_title,
         style_id=style_id,
         language="en",
         age_group=request.age_group,
@@ -634,7 +644,7 @@ async def create_engine_job(
     except Exception:
         pass
 
-    return {
+    response = {
         "success": True,
         "job_id": job_id,
         "credits_charged": result.get("credits_deducted", 0),
@@ -645,6 +655,12 @@ async def create_engine_job(
         "stages_to_generate": reuse_analysis.get("invalidated_stages", []) if reuse_analysis else [],
         "message": "Video generation started. Poll /status for progress.",
     }
+
+    # Include rewrite note if terms were sanitized
+    if story_rewrite.was_rewritten or title_rewrite.was_rewritten:
+        response["rewrite_note"] = story_rewrite.user_note or title_rewrite.user_note
+
+    return response
 
 
 @router.get("/status/{job_id}")

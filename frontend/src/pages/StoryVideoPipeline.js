@@ -114,17 +114,91 @@ function postGenReducer(state, action) {
 
 // ─── ERROR BOUNDARY ───────────────────────────────────────────────────────────
 class StudioErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null, retryCount: 0 };
+  }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) {
+    this.setState({ errorInfo });
+    // Log to console for debugging
+    console.error('[StoryVideoStudio] Error boundary caught:', {
+      message: error?.message,
+      stack: error?.stack?.split('\n').slice(0, 5).join('\n'),
+      component: errorInfo?.componentStack?.split('\n').slice(0, 3).join('\n'),
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+    });
+    // Try to log to backend
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch(`${process.env.REACT_APP_BACKEND_URL}/api/monitoring/client-error`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            module: 'story_video_studio',
+            error: error?.message,
+            stack: error?.stack?.slice(0, 1000),
+            componentStack: errorInfo?.componentStack?.slice(0, 500),
+            url: window.location.href,
+            timestamp: new Date().toISOString(),
+          }),
+        }).catch(() => {});
+      }
+    } catch {}
+  }
+  handleRetry = () => {
+    this.setState(prev => ({ hasError: false, error: null, errorInfo: null, retryCount: prev.retryCount + 1 }));
+  };
   render() {
     if (this.state.hasError) {
+      const { error, retryCount } = this.state;
+      const errorMsg = error?.message || 'Unknown error';
+      // Classify the error for user-facing message
+      let category = 'render_error';
+      let userMessage = 'The video studio hit an unexpected issue.';
+      let suggestion = 'Try again or go back to the dashboard.';
+      if (errorMsg.includes('undefined') || errorMsg.includes('null') || errorMsg.includes('Cannot read')) {
+        category = 'data_error';
+        userMessage = 'A data loading issue occurred.';
+        suggestion = 'This is usually temporary — try refreshing or clearing your browser cache.';
+      } else if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('Network')) {
+        category = 'network_error';
+        userMessage = 'A network connection issue occurred.';
+        suggestion = 'Check your internet connection and try again.';
+      } else if (errorMsg.includes('chunk') || errorMsg.includes('Loading chunk') || errorMsg.includes('import')) {
+        category = 'cache_error';
+        userMessage = 'The app needs a fresh reload.';
+        suggestion = 'A new version may be available. Hard refresh (Ctrl+Shift+R) should fix this.';
+      }
       return (
-        <div className="vs-page flex items-center justify-center p-8">
-          <div className="max-w-md text-center" data-testid="error-boundary">
-            <AlertCircle className="w-12 h-12 text-[var(--vs-error)] mx-auto mb-4" />
-            <h2 className="vs-h2 mb-2">Something went wrong</h2>
-            <p className="text-[var(--vs-text-secondary)] mb-6">The video studio encountered an error. Please try refreshing.</p>
-            <button onClick={() => window.location.reload()} className="vs-btn-primary">Refresh Page</button>
+        <div className="vs-page flex items-center justify-center p-8" data-testid="studio-error-boundary">
+          <div className="max-w-lg text-center space-y-4">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
+            <h2 className="text-xl font-bold text-white">{userMessage}</h2>
+            <p className="text-sm text-slate-400">{suggestion}</p>
+            <p className="text-xs text-slate-600 font-mono bg-slate-800/50 rounded px-3 py-2 text-left break-all">
+              Error: {errorMsg.slice(0, 200)}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              {retryCount < 3 && (
+                <button onClick={this.handleRetry} className="vs-btn-primary px-6 py-2.5 text-sm" data-testid="retry-btn">
+                  <RefreshCw className="w-4 h-4 mr-2 inline" /> Try Again
+                </button>
+              )}
+              <button onClick={() => window.location.reload()} className="px-6 py-2.5 text-sm rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors" data-testid="refresh-btn">
+                Refresh Page
+              </button>
+              <button onClick={() => window.location.href = '/app'} className="px-6 py-2.5 text-sm rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors" data-testid="dashboard-btn">
+                Go to Dashboard
+              </button>
+            </div>
+            {retryCount >= 2 && (
+              <p className="text-xs text-amber-400 mt-2">
+                Still not working? Try clearing your browser cache or using an incognito window.
+              </p>
+            )}
           </div>
         </div>
       );
@@ -585,6 +659,11 @@ function StoryVideoPipelineInner() {
           toast.info(res.data.queue_warning);
         } else if (!res.data.reuse_mode || res.data.reuse_mode === 'fresh') {
           toast.success(`Video queued! ${res.data.credits_charged} credits charged.`);
+        }
+
+        // Show rewrite note if terms were sanitized
+        if (res.data.rewrite_note) {
+          toast.info(res.data.rewrite_note, { duration: 5000 });
         }
         startPolling(res.data.job_id);
       } else {

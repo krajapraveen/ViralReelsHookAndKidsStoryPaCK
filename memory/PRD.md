@@ -21,8 +21,18 @@ Full-stack AI creator suite with tools for story/comic/GIF/video generation, cha
 - **Replaced hard-blocking in 20+ files**: All `BLOCKED_KEYWORDS`, `check_copyright`, `check_copyright_violation`, `screen_safety` functions updated to use safe_rewrite()
 - **Preserved harmful content blocking**: nsfw, violence, gore, explicit still blocked
 - **Preserved negative prompts**: Image generation still includes copyright safety in negative prompts
-- **Files modified**: safety.py, pipeline.py, caption_rewriter_pro.py, brand_story_builder.py, story_video_studio.py, characters.py, comic_storybook_v2.py, photo_to_comic.py, story_episode_creator.py, comment_reply_bank.py, instagram_bio_generator.py, youtube_thumbnail_generator.py, content_challenge_planner.py, offer_generator.py, reaction_gif.py, bedtime_story_builder.py, story_hook_generator.py, story_video_fast.py, genstudio.py, generation.py, revenue_protection.py
 - **Test result**: 26/26 tests passed (iteration_423)
+
+### P0 — Story Video Studio Dead-End Fix (April 2026)
+- **Replaced generic dead-end error boundary** with actionable error handling:
+  - Shows error classification (data error, network error, cache error, render error)
+  - Shows actual error message for debugging
+  - Retry button (up to 3 attempts), Refresh Page, Go to Dashboard options
+  - Cache clear suggestion after repeated failures
+- **Added client error logging**: `POST /api/monitoring/client-error` captures frontend crashes with stack traces
+- **Added safe_rewrite to story-engine/create**: Trademarked terms in story text/title rewritten before job creation
+- **Added rewrite_note to response**: Frontend shows soft toast notification when terms are sanitized
+- **Root cause on production**: Likely stale JS chunk cache or deployment gap (preview works perfectly)
 
 ### Previous Completions
 - Production Metrics Dashboard
@@ -34,24 +44,23 @@ Full-stack AI creator suite with tools for story/comic/GIF/video generation, cha
 - Credit System (50 credits standard)
 - Truth-based Admin Dashboard
 
-## Prioritized Backlog
+## Current Mode: VALIDATION
+- No new feature development
+- Only fix production-breaking bugs backed by real usage data
+- Drive real traffic to 100-200 jobs
+- Track rewrite frequency, missed terms, generation success rate
 
-### P0 (Current)
-- Drive real traffic to reach 100-200 real jobs (user action)
+## Prioritized Backlog (ALL FROZEN)
 
-### P1 (Upcoming — FROZEN until traffic data)
-- Auto captions (viral text) for Reaction GIFs
-- Multi-reaction pack generation (6 GIFs at once)
-- Character DNA System (zero-drift guaranteed characters)
+### P1
+- Auto captions for Reaction GIFs
+- Multi-reaction pack generation
+- Character DNA System
 
-### P2 (Future)
+### P2
 - Smart router, repair pipeline, GPU optimization
 - Advanced analytics
-- A/B test hook text variations
-- Character-driven auto-share prompts
-- Remix Variants on share pages
-- WebSocket admin dashboard
-- Story Chain leaderboard
+- Rewrite analytics dashboard
 
 ## Test Credentials
 - Test User: `test@visionary-suite.com` / `Test@2026#`
