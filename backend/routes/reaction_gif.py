@@ -31,14 +31,9 @@ from services.watermark_service import add_diagonal_watermark, should_apply_wate
 router = APIRouter(prefix="/reaction-gif", tags=["Photo Reaction GIF"])
 
 # ============================================
-# BLOCKED KEYWORDS
+# SAFE REWRITE ENGINE
 # ============================================
-BLOCKED_KEYWORDS = [
-    "marvel", "dc", "disney", "naruto", "pokemon", "spiderman", "batman",
-    "avengers", "goku", "harry potter", "hogwarts", "frozen", "elsa",
-    "mickey", "minnie", "pixar", "fortnite", "minecraft", "celebrity",
-    "politician", "real person", "nude", "nsfw", "violence", "gore"
-]
+from services.rewrite_engine import safe_rewrite
 
 # ============================================
 # UNIVERSAL NEGATIVE PROMPTS
@@ -178,11 +173,12 @@ PRICING = {
 
 
 def check_blocked_keywords(text: str) -> tuple:
-    """Check for blocked keywords"""
+    """Only blocks genuinely harmful content. Trademark terms are rewritten by safe_rewrite()."""
     if not text:
         return False, None
     text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
+    harmful = ["nude", "nsfw", "violence", "gore", "sexual", "porn", "explicit"]
+    for keyword in harmful:
         if keyword in text_lower:
             return True, keyword
     return False, None
@@ -244,13 +240,16 @@ async def generate_reaction_gif(
     if style not in GIF_STYLES:
         style = "cartoon_motion"
     
-    # Check caption for blocked content
+    # Safe rewrite and check caption for blocked content
     if caption:
+        caption_rewrite = safe_rewrite(caption)
+        if caption_rewrite.was_rewritten:
+            caption = caption_rewrite.rewritten_text
         is_blocked, keyword = check_blocked_keywords(caption)
         if is_blocked:
             raise HTTPException(
                 status_code=400,
-                detail=f"Brand-based or copyrighted content is not allowed. Detected: '{keyword}'."
+                detail=f"Harmful content is not allowed. Detected: '{keyword}'."
             )
     
     # Validate file

@@ -20,7 +20,7 @@ from .state_machine import (
 )
 from .cost_guard import pre_flight_check, enforce_runtime_budget, BudgetExceededError
 from .continuity import validate_pipeline_outputs, should_mark_ready
-from .safety import check_content_safety, check_rate_limits, detect_abuse
+from .safety import check_content_safety, check_rate_limits, detect_abuse, rewrite_content_safely
 
 from .adapters import planning_llm, video_gen, tts, ffmpeg_assembly
 
@@ -49,15 +49,11 @@ async def create_job(
 ) -> Dict:
     now = datetime.now(timezone.utc).isoformat()
 
-    # Safety checks
-    violation = check_content_safety(story_text)
-    if violation:
-        return {"success": False, "error": violation}
+    # Safety: rewrite risky terms instead of blocking
+    story_text, was_rewritten, user_note = rewrite_content_safely(story_text)
 
     if title:
-        title_violation = check_content_safety(title)
-        if title_violation:
-            return {"success": False, "error": title_violation}
+        title, _, _ = rewrite_content_safely(title)
 
     if not skip_credits:
         rate_error = await check_rate_limits(db, user_id)

@@ -15,24 +15,11 @@ from shared import db, get_current_user, get_admin_user
 
 router = APIRouter(prefix="/youtube-thumbnail-generator", tags=["YouTube Thumbnail Generator"])
 
-# ==================== COPYRIGHT PROTECTION ====================
-BLOCKED_KEYWORDS = [
-    "marvel", "disney", "pixar", "harry potter", "pokemon", "naruto", "spiderman", 
-    "batman", "superman", "avengers", "frozen", "mickey", "donald duck", "goofy",
-    "star wars", "lord of the rings", "game of thrones", "stranger things",
-    "netflix", "amazon", "google", "apple", "microsoft", "facebook", "instagram",
-    "tiktok", "youtube", "twitter", "coca cola", "pepsi", "mcdonalds", "nike", "adidas",
-    "gucci", "louis vuitton", "rolex", "ferrari", "lamborghini", "tesla", "elon musk",
-    "jeff bezos", "mark zuckerberg", "bill gates", "taylor swift", "beyonce", "drake",
-    "kanye", "kardashian", "jenner", "bieber", "ariana grande", "selena gomez"
-]
+# ==================== SAFE REWRITE ENGINE ====================
+from services.rewrite_engine import safe_rewrite
 
 def check_copyright(text: str) -> bool:
-    """Returns True if blocked content detected"""
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return True
+    """Legacy — always returns False (not blocked). Rewriting handled by safe_rewrite()."""
     return False
 
 # ==================== DEFAULT TEMPLATES ====================
@@ -180,9 +167,10 @@ async def generate_thumbnails(request: GenerateRequest, user: dict = Depends(get
     """Generate 10 thumbnail text ideas in 3 styles"""
     start_time = time.time()
     
-    # Copyright check
-    if check_copyright(request.topic):
-        raise HTTPException(status_code=400, detail="Input contains blocked content. Please avoid copyrighted or trademarked terms.")
+    # Safe rewrite — sanitize risky terms in topic
+    topic_rewrite = safe_rewrite(request.topic)
+    if topic_rewrite.was_rewritten:
+        request.topic = topic_rewrite.rewritten_text
     
     # Check credits BEFORE generation
     if user.get("credits", 0) < 5:

@@ -319,18 +319,20 @@ AVG_TIMES = {
 }
 
 
+from services.rewrite_engine import safe_rewrite
+
+
 def check_blocked_keywords(text: str) -> tuple:
     """
-    Check if text contains any blocked keywords.
-    Uses case-insensitive substring matching.
+    Only blocks genuinely harmful content. Trademark/copyright terms are rewritten upstream.
     Returns (is_blocked, blocked_keyword)
     """
     if not text:
         return False, None
     
     text_lower = text.lower()
-    
-    for keyword in BLOCKED_KEYWORDS:
+    harmful = ["nude", "nsfw", "sexual", "porn", "explicit", "violence", "gore", "weapon", "hate"]
+    for keyword in harmful:
         if keyword in text_lower:
             return True, keyword
     
@@ -518,34 +520,43 @@ async def generate_comic(
         raise HTTPException(status_code=400, detail="Either photo file or storage_key required")
     
     # ============================================
-    # COPYRIGHT SAFETY CHECK - BLOCK KEYWORDS
+    # SAFE REWRITE — sanitize risky terms
     # ============================================
     
-    # Check custom details
+    # Rewrite custom details
     if custom_details:
+        rewrite_result = safe_rewrite(custom_details)
+        if rewrite_result.was_rewritten:
+            custom_details = rewrite_result.rewritten_text
         is_blocked, keyword = check_blocked_keywords(custom_details)
         if is_blocked:
             raise HTTPException(
                 status_code=400,
-                detail=f"Copyrighted or brand-based characters are not allowed. Detected: '{keyword}'. Try using generic descriptions like 'masked hero' instead."
+                detail=f"Harmful content is not allowed. Detected: '{keyword}'."
             )
     
-    # Check story prompt (for strip mode)
+    # Rewrite story prompt (for strip mode)
     if story_prompt:
+        rewrite_result = safe_rewrite(story_prompt)
+        if rewrite_result.was_rewritten:
+            story_prompt = rewrite_result.rewritten_text
         is_blocked, keyword = check_blocked_keywords(story_prompt)
         if is_blocked:
             raise HTTPException(
                 status_code=400,
-                detail=f"Copyrighted or brand-based characters are not allowed. Detected: '{keyword}'. We create original comic characters only."
+                detail=f"Harmful content is not allowed. Detected: '{keyword}'."
             )
     
-    # Check dialogue
+    # Rewrite dialogue
     if dialogue:
+        rewrite_result = safe_rewrite(dialogue)
+        if rewrite_result.was_rewritten:
+            dialogue = rewrite_result.rewritten_text
         is_blocked, keyword = check_blocked_keywords(dialogue)
         if is_blocked:
             raise HTTPException(
                 status_code=400,
-                detail=f"Copyrighted or brand-based characters are not allowed. Detected: '{keyword}' in dialogue."
+                detail=f"Harmful content is not allowed. Detected: '{keyword}' in dialogue."
             )
     
     # Validate style
@@ -2237,7 +2248,7 @@ async def admin_get_styles(user: dict = Depends(get_current_user)):
     
     return {
         "styles": SAFE_STYLES,
-        "blockedKeywords": BLOCKED_KEYWORDS,
+        "blockedKeywords": [],  # Rewrite engine handles this now — no hard blocks
         "universalNegativePrompts": UNIVERSAL_NEGATIVE_PROMPTS,
         "pricing": PRICING
     }

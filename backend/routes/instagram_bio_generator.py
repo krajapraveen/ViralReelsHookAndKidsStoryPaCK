@@ -78,25 +78,13 @@ class EmojiSetModel(BaseModel):
 
 
 # =============================================================================
-# COPYRIGHT BLOCKED KEYWORDS
+# SAFE REWRITE ENGINE — rewrite risky terms, never block
 # =============================================================================
-
-BLOCKED_KEYWORDS = [
-    "marvel", "disney", "nike", "apple", "tesla", "netflix",
-    "spiderman", "spider-man", "batman", "superman", "harry potter",
-    "pokemon", "pikachu", "mickey mouse", "coca-cola", "pepsi",
-    "google", "facebook", "meta", "amazon", "microsoft",
-    "taylor swift", "beyonce", "kardashian", "elon musk",
-    "mcdonald", "starbucks", "gucci", "louis vuitton", "chanel"
-]
+from services.rewrite_engine import safe_rewrite
 
 
 def check_copyright(text: str) -> bool:
-    """Check if text contains blocked keywords"""
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return False
+    """Legacy — always returns True (safe). Rewriting handled by safe_rewrite()."""
     return True
 
 
@@ -497,9 +485,10 @@ async def generate_bios(
     if not data.niche or not data.tone or not data.goal:
         raise HTTPException(status_code=400, detail="Niche, tone, and goal are required")
     
-    # Check for blocked keywords
-    if not check_copyright(data.niche):
-        raise HTTPException(status_code=400, detail="Input contains blocked content")
+    # Safe rewrite — sanitize risky terms in niche
+    niche_rewrite = safe_rewrite(data.niche)
+    if niche_rewrite.was_rewritten:
+        data.niche = niche_rewrite.rewritten_text
     
     # Check credits - first check user object, then wallet collection
     user_id = user.get("id", user.get("_id", ""))

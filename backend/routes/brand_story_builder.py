@@ -19,15 +19,13 @@ logger = logging.getLogger("creatorstudio.brand_kit")
 
 router = APIRouter(prefix="/brand-story-builder", tags=["Brand Kit Generator"])
 
-# ==================== COPYRIGHT PROTECTION ====================
-BLOCKED_KEYWORDS = [
-    "marvel", "disney", "pixar", "harry potter", "pokemon", "naruto", "spiderman",
-    "batman", "superman", "avengers", "frozen", "mickey", "star wars", "lord of the rings",
-    "netflix", "amazon", "google", "apple", "microsoft", "facebook", "instagram",
-    "tiktok", "youtube", "twitter", "coca cola", "pepsi", "mcdonalds", "nike", "adidas",
-    "gucci", "louis vuitton", "rolex", "ferrari", "lamborghini", "tesla", "elon musk",
-    "jeff bezos", "mark zuckerberg", "bill gates", "taylor swift", "beyonce", "drake"
-]
+# ==================== SAFE REWRITE ENGINE ====================
+from services.rewrite_engine import safe_rewrite
+
+
+def check_copyright(text: str) -> bool:
+    """Legacy — always returns False (no blocking). Rewriting handled by safe_rewrite()."""
+    return False
 
 INDUSTRIES = [
     "Technology", "Healthcare", "Finance", "Education", "E-commerce",
@@ -42,11 +40,6 @@ TONES = ["professional", "bold", "luxury", "friendly", "emotional", "gen-z", "st
 PERSONALITIES = ["innovative", "trustworthy", "playful", "sophisticated", "disruptive", "warm", "authoritative", "minimalist"]
 
 CREDIT_COSTS = {"fast": 10, "pro": 25, "premium": 50}
-
-
-def check_copyright(text: str) -> bool:
-    text_lower = text.lower()
-    return any(kw in text_lower for kw in BLOCKED_KEYWORDS)
 
 
 # ==================== MODELS ====================
@@ -84,11 +77,17 @@ async def generate_brand_kit(request: BrandKitRequest, background_tasks: Backgro
     # Fix 3: Request logging (MANDATORY)
     logger.info(f"[BRAND_KIT] Generate request from user={user.get('id')} role={user.get('role')} payload={request.dict()}")
 
-    # Copyright check
-    all_text = f"{request.business_name} {request.mission} {request.founder_story} {request.competitors}"
-    if check_copyright(all_text):
-        logger.warning(f"[BRAND_KIT] Copyright blocked for user={user.get('id')} text={all_text[:100]}")
-        raise HTTPException(status_code=400, detail="Input contains blocked content. Please avoid copyrighted or trademarked terms.")
+    # Safe rewrite — sanitize risky terms instead of blocking
+    rewrite_result = safe_rewrite(f"{request.business_name} {request.mission} {request.founder_story} {request.competitors}")
+    if rewrite_result.was_rewritten:
+        logger.info(f"[BRAND_KIT] Rewrote input for user={user.get('id')}: {rewrite_result.changes}")
+        # Apply rewrites to individual fields
+        for field_name in ["business_name", "mission", "founder_story", "competitors"]:
+            field_val = getattr(request, field_name, "")
+            if field_val:
+                r = safe_rewrite(field_val)
+                if r.was_rewritten:
+                    object.__setattr__(request, field_name, r.rewritten_text)
 
     # Fix 2: Mode normalization (CRITICAL)
     mode = request.mode.lower().strip() if request.mode else "pro"

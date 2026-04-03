@@ -27,31 +27,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared import db, get_current_user
 
 # =============================================================================
-# COPYRIGHT PROTECTION - Blocked Terms
+# SAFE REWRITE ENGINE — rewrite risky terms, never block
 # =============================================================================
 
-BLOCKED_TERMS = [
-    # Disney/Marvel/DC
-    "marvel", "disney", "pixar", "naruto", "pokemon", "pikachu", "batman", "superman",
-    "spiderman", "spider-man", "ironman", "iron man", "hulk", "thor", "avengers",
-    "harry potter", "hogwarts", "frozen", "elsa", "mickey mouse", "minnie mouse",
-    "donald duck", "goofy", "lion king", "simba", "nemo", "dory", "woody", "buzz lightyear",
-    "shrek", "dreamworks", "universal", "warner bros", "looney tunes", "bugs bunny",
-    "tom and jerry", "scooby doo", "spongebob", "nickelodeon", "paw patrol",
-    "peppa pig", "bluey", "cocomelon", "baby shark",
-    # Anime/Manga
-    "dragon ball", "goku", "one piece", "luffy", "attack on titan", "demon slayer",
-    "my hero academia", "jujutsu kaisen", "sailor moon", "studio ghibli", "totoro",
-    # Celebrities
-    "taylor swift", "beyonce", "drake", "kanye", "kim kardashian", "elon musk",
-    "trump", "biden", "obama", "putin",
-    # Brands
-    "coca cola", "pepsi", "mcdonalds", "nike", "adidas", "apple", "google", "amazon",
-    "facebook", "instagram", "tiktok", "youtube", "netflix", "spotify",
-    # Other copyrighted
-    "star wars", "lord of the rings", "game of thrones", "hunger games",
-    "transformers", "power rangers", "teenage mutant ninja turtles", "tmnt",
-]
+from services.rewrite_engine import safe_rewrite
 
 UNIVERSAL_NEGATIVE_PROMPTS = [
     "copyrighted character", "brand name", "celebrity likeness", "trademark logo",
@@ -59,17 +38,6 @@ UNIVERSAL_NEGATIVE_PROMPTS = [
     "hate symbol", "explicit content", "nudity", "weapon", "drug", "alcohol",
     "cigarette", "gambling", "scary", "horror", "nightmare", "death"
 ]
-
-def check_copyright_violation(text: str) -> Optional[str]:
-    """Check if text contains copyrighted terms using word boundary matching"""
-    import re
-    text_lower = text.lower()
-    for term in BLOCKED_TERMS:
-        # Use word boundary matching to avoid false positives (e.g., "fluffy" matching "luffy")
-        pattern = r'\b' + re.escape(term) + r'\b'
-        if re.search(pattern, text_lower):
-            return f"Copyrighted content detected: '{term}'. Please use original characters and stories."
-    return None
 
 # =============================================================================
 # PYDANTIC MODELS
@@ -330,15 +298,15 @@ async def create_project(
     
     user_id = user["id"]
     
-    # Check for copyright violations
-    violation = check_copyright_violation(story_input.story_text)
-    if violation:
-        raise HTTPException(status_code=400, detail=violation)
+    # Safe rewrite — sanitize risky terms instead of blocking
+    story_rewrite = safe_rewrite(story_input.story_text)
+    if story_rewrite.was_rewritten:
+        story_input.story_text = story_rewrite.rewritten_text
     
     if story_input.title:
-        title_violation = check_copyright_violation(story_input.title)
-        if title_violation:
-            raise HTTPException(status_code=400, detail=title_violation)
+        title_rewrite = safe_rewrite(story_input.title)
+        if title_rewrite.was_rewritten:
+            story_input.title = title_rewrite.rewritten_text
     
     # Find the selected style
     style = next((s for s in VIDEO_STYLES if s.id == story_input.style_id), VIDEO_STYLES[0])

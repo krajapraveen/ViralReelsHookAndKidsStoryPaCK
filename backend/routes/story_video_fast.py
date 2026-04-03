@@ -88,28 +88,15 @@ MUSIC_MOODS = [
 # COPYRIGHT COMPLIANCE
 # =============================================================================
 
-BLOCKED_TERMS = {
-    "mickey mouse", "minnie mouse", "donald duck", "goofy", "frozen", "elsa", "simba",
-    "woody", "buzz lightyear", "nemo", "dory", "lightning mcqueen", "spider-man", "spiderman",
-    "iron man", "ironman", "captain america", "thor", "hulk", "avengers", "thanos",
-    "batman", "superman", "wonder woman", "joker", "harry potter", "hogwarts", "voldemort",
-    "gandalf", "frodo", "lord of the rings", "bugs bunny", "tom and jerry", "scooby doo",
-    "mario", "luigi", "princess peach", "pokemon", "pikachu", "sonic", "naruto", "goku",
-    "dragon ball", "one piece", "luffy", "attack on titan", "demon slayer", "sailor moon",
-    "star wars", "darth vader", "yoda", "spongebob", "peppa pig", "paw patrol", "bluey",
-    "cocomelon", "baby shark", "barbie", "sesame street", "elmo", "disney", "pixar",
-    "marvel", "dc comics", "nickelodeon", "dreamworks", "warner bros",
-    "taylor swift", "beyonce", "elon musk", "trump", "biden", "obama",
-    "coca cola", "mcdonalds", "nike", "apple", "google", "netflix",
-}
+# =============================================================================
+# SAFE REWRITE ENGINE
+# =============================================================================
+from services.rewrite_engine import safe_rewrite
 
 LEGAL_NEGATIVE_PROMPTS = "copyrighted character, trademarked character, brand logo, celebrity face, real person, nsfw, nudity, violence, gore, weapons, drugs, hate symbols, scary content, horror"
 
 def check_copyright_compliance(text: str) -> tuple:
-    text_lower = text.lower()
-    for term in BLOCKED_TERMS:
-        if term in text_lower:
-            return False, f"Content contains copyrighted term: '{term}'. Please use original characters."
+    """Legacy — always returns True (compliant). Rewriting handled by safe_rewrite()."""
     return True, "OK"
 
 # =============================================================================
@@ -151,12 +138,13 @@ async def generate_fast_video(
     """Generate complete video with fully parallel pipeline"""
     user_id = current_user.get("id") or str(current_user.get("_id"))
     
-    is_compliant, message = check_copyright_compliance(request.story_text)
-    if not is_compliant:
-        raise HTTPException(status_code=400, detail=message)
-    is_compliant, message = check_copyright_compliance(request.title)
-    if not is_compliant:
-        raise HTTPException(status_code=400, detail=message)
+    # Safe rewrite — sanitize risky terms
+    story_rewrite = safe_rewrite(request.story_text)
+    if story_rewrite.was_rewritten:
+        request.story_text = story_rewrite.rewritten_text
+    title_rewrite = safe_rewrite(request.title)
+    if title_rewrite.was_rewritten:
+        request.title = title_rewrite.rewritten_text
     
     style_config = next((s for s in ANIMATION_STYLES if s["id"] == request.animation_style), ANIMATION_STYLES[0])
     age_config = next((a for a in AGE_GROUPS if a["id"] == request.age_group), AGE_GROUPS[1])

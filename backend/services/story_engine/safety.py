@@ -1,5 +1,5 @@
 """
-Anti-Abuse & Legal Safety — Copyright blocking, celebrity detection,
+Anti-Abuse & Legal Safety — Safe rewriting, celebrity detection,
 rate limiting, and concurrency controls.
 """
 import logging
@@ -10,60 +10,28 @@ from typing import Optional
 logger = logging.getLogger("story_engine.safety")
 
 # ═══════════════════════════════════════════════════════════════
-# BLOCKED TERMS — Copyrighted characters & celebrities
+# SAFE REWRITE ENGINE — rewrite risky terms, never block
 # ═══════════════════════════════════════════════════════════════
 
-COPYRIGHTED_CHARACTERS = {
-    # Disney / Pixar
-    "mickey mouse", "minnie mouse", "donald duck", "goofy", "elsa", "anna", "frozen",
-    "simba", "mufasa", "lion king", "nemo", "dory", "woody", "buzz lightyear",
-    "moana", "rapunzel", "cinderella", "snow white", "ariel", "little mermaid",
-    # Marvel / DC
-    "spider-man", "spiderman", "iron man", "ironman", "captain america", "thor",
-    "hulk", "black widow", "batman", "superman", "wonder woman", "joker",
-    "avengers", "justice league", "x-men",
-    # Anime / Manga
-    "goku", "naruto", "luffy", "sailor moon", "pikachu", "pokemon",
-    "totoro", "spirited away", "attack on titan", "demon slayer",
-    # Other
-    "harry potter", "hogwarts", "shrek", "spongebob", "paw patrol",
-    "peppa pig", "bluey", "cocomelon",
-}
-
-CELEBRITY_NAMES = {
-    "taylor swift", "beyonce", "drake", "kanye west", "kim kardashian",
-    "elon musk", "donald trump", "joe biden", "barack obama", "vladimir putin",
-    "cristiano ronaldo", "lionel messi", "lebron james",
-    "oprah winfrey", "jeff bezos", "mark zuckerberg",
-}
-
-BLOCKED_BRANDS = {
-    "coca cola", "pepsi", "mcdonalds", "nike", "adidas", "apple",
-    "google", "amazon", "facebook", "instagram", "tiktok", "youtube",
-    "netflix", "spotify", "disney", "pixar", "marvel", "dc comics",
-}
+from services.rewrite_engine import safe_rewrite, RewriteResult
 
 
 def check_content_safety(text: str) -> Optional[str]:
     """
-    Check text for copyrighted characters, celebrities, and blocked brands.
-    Returns violation message or None if clean.
+    Legacy interface — now always returns None (no blocking).
+    Callers should use safe_rewrite() directly for the rewritten text.
+    Kept for backward compatibility so existing code doesn't break.
     """
-    text_lower = text.lower()
-
-    for term in COPYRIGHTED_CHARACTERS:
-        if term in text_lower:
-            return f"Blocked: '{term}' is a copyrighted character. Use original characters instead."
-
-    for term in CELEBRITY_NAMES:
-        if term in text_lower:
-            return f"Blocked: '{term}' is a real person. No celebrity likeness allowed without consent."
-
-    for term in BLOCKED_BRANDS:
-        if term in text_lower:
-            return f"Blocked: '{term}' is a trademarked brand. Remove brand references."
-
     return None
+
+
+def rewrite_content_safely(text: str) -> tuple:
+    """
+    Rewrite risky terms and return (rewritten_text, was_rewritten, user_note).
+    Never raises, never blocks. Always returns usable text.
+    """
+    result = safe_rewrite(text)
+    return result.rewritten_text, result.was_rewritten, result.user_note
 
 
 # ═══════════════════════════════════════════════════════════════

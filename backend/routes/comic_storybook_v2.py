@@ -44,17 +44,8 @@ from services.multi_queue import get_multi_queue, TIER_TO_QUEUE
 
 router = APIRouter(prefix="/comic-storybook-v2", tags=["Comic Story Book Builder"])
 
-# ── BLOCKED KEYWORDS ──────────────────────────────────────────────────────
-BLOCKED_KEYWORDS = [
-    "marvel", "dc", "avengers", "spiderman", "spider-man", "batman", "superman",
-    "ironman", "iron man", "captain america", "thor", "hulk", "joker",
-    "wonder woman", "flash", "deadpool", "x-men", "wolverine", "venom",
-    "disney", "pixar", "frozen", "elsa", "anna", "mickey", "minnie",
-    "naruto", "dragon ball", "goku", "one piece", "pokemon", "pikachu",
-    "harry potter", "hogwarts", "hermione",
-    "celebrity", "real person", "politician", "nude", "nsfw", "sexual",
-    "violence", "gore", "weapon", "hate"
-]
+# ── SAFE REWRITE ENGINE ──────────────────────────────────────────────────────
+from services.rewrite_engine import safe_rewrite
 
 UNIVERSAL_NEGATIVE = (
     "blurry, low resolution, bad anatomy, extra limbs, watermark, logo, "
@@ -89,10 +80,13 @@ STAGES = [
 
 
 def check_blocked(text: str):
+    """Legacy — never blocks for trademark/copyright. Uses safe rewrite."""
     if not text:
         return False, None
+    # Only block genuinely harmful content
+    harmful = ["nude", "nsfw", "sexual", "porn", "explicit"]
     t = text.lower()
-    for kw in BLOCKED_KEYWORDS:
+    for kw in harmful:
         if kw in t:
             return True, kw
     return False, None
@@ -164,6 +158,14 @@ async def generate_preview(request: PreviewComicRequest, user: dict = Depends(ge
     is_blocked, kw = check_blocked(request.storyIdea)
     if is_blocked:
         raise HTTPException(status_code=400, detail=f"Blocked content detected: '{kw}'")
+
+    # Safe rewrite — sanitize risky terms
+    story_rewrite = safe_rewrite(request.storyIdea)
+    if story_rewrite.was_rewritten:
+        request.storyIdea = story_rewrite.rewritten_text
+    title_rewrite = safe_rewrite(request.title)
+    if title_rewrite.was_rewritten:
+        request.title = title_rewrite.rewritten_text
 
     preview_pages = []
     genre_info = STORY_GENRES.get(request.genre, STORY_GENRES["kids_adventure"])
@@ -394,6 +396,14 @@ async def generate_comic_book(
     is_blocked, kw = check_blocked(request.title)
     if is_blocked:
         raise HTTPException(status_code=400, detail=f"Blocked content in title: '{kw}'")
+
+    # Safe rewrite — sanitize risky terms
+    story_rewrite = safe_rewrite(request.storyIdea)
+    if story_rewrite.was_rewritten:
+        request.storyIdea = story_rewrite.rewritten_text
+    title_rewrite = safe_rewrite(request.title)
+    if title_rewrite.was_rewritten:
+        request.title = title_rewrite.rewritten_text
 
     genre = request.genre if request.genre in STORY_GENRES else "kids_adventure"
     add_ons = request.addOns or {}

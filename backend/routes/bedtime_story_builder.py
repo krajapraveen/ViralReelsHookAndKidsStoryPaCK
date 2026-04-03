@@ -27,23 +27,13 @@ PDF_EXPORT_COST = 2
 SERIES_PACK_COST = 25
 
 # =============================================================================
-# BLOCKED KEYWORDS
+# SAFE REWRITE ENGINE
 # =============================================================================
-
-BLOCKED_KEYWORDS = [
-    "marvel", "disney", "pixar", "ghibli", "harry potter", "pokemon",
-    "naruto", "avengers", "spiderman", "batman", "frozen", "elsa",
-    "mickey", "minnie", "dora", "peppa", "paw patrol", "bluey",
-    "cocomelon", "baby shark", "taylor swift", "beyonce"
-]
+from services.rewrite_engine import safe_rewrite
 
 
 def check_blocked_content(text: str) -> bool:
-    """Check for blocked content"""
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return False
+    """Legacy — always returns True (safe). Rewriting handled by safe_rewrite()."""
     return True
 
 
@@ -674,12 +664,11 @@ async def generate_story(
     if data.length not in ["3", "5", "8"]:
         raise HTTPException(status_code=400, detail="Invalid length")
     
-    # Check blocked content in optional child name
-    if data.child_name and not check_blocked_content(data.child_name):
-        raise HTTPException(
-            status_code=400,
-            detail="Copyrighted characters/brands are not allowed. Please use original names."
-        )
+    # Safe rewrite — sanitize risky terms in child name
+    if data.child_name:
+        name_rewrite = safe_rewrite(data.child_name)
+        if name_rewrite.was_rewritten:
+            data.child_name = name_rewrite.rewritten_text
     
     # Check and deduct credits via Credits Service
     user_id = user.get("id", user.get("_id", ""))

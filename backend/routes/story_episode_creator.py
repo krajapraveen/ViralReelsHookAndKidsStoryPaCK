@@ -27,36 +27,12 @@ from security import limiter
 router = APIRouter(prefix="/story-episode-creator", tags=["Story Episode Creator"])
 
 # =============================================================================
-# COPYRIGHT PROTECTION - BLOCKED KEYWORDS
+# SAFE REWRITE ENGINE — rewrite risky terms, never block
 # =============================================================================
-BLOCKED_KEYWORDS = [
-    # Disney
-    "mickey", "minnie", "donald duck", "goofy", "pluto", "elsa", "anna", "moana",
-    "simba", "nemo", "dory", "woody", "buzz lightyear", "frozen",
-    # Marvel
-    "spider-man", "spiderman", "iron man", "hulk", "thor", "avengers", "captain america",
-    "black widow", "thanos", "groot", "deadpool",
-    # DC
-    "batman", "superman", "wonder woman", "aquaman", "joker", "harley quinn",
-    # Anime
-    "naruto", "goku", "dragon ball", "one piece", "luffy", "pokemon", "pikachu",
-    # Other IP
-    "harry potter", "hogwarts", "shrek", "spongebob", "dora", "peppa pig",
-    "paw patrol", "cocomelon", "bluey", "hello kitty", "totoro",
-    # Celebrities
-    "taylor swift", "beyonce", "drake", "elon musk", "trump", "biden",
-    # Brands
-    "nike", "adidas", "apple", "google", "amazon", "microsoft", "coca cola"
-]
+from services.rewrite_engine import safe_rewrite
 
 def check_copyright_violation(text: str) -> Optional[str]:
-    """Check for copyrighted content"""
-    if not text:
-        return None
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return keyword
+    """Legacy — always returns None (no blocking). Rewriting handled by safe_rewrite()."""
     return None
 
 # =============================================================================
@@ -328,13 +304,10 @@ async def generate_series(
     if data.episode_count not in [3, 5, 7]:
         raise HTTPException(status_code=400, detail="Episode count must be 3, 5, or 7")
     
-    # COPYRIGHT CHECK
-    violation = check_copyright_violation(data.story_idea)
-    if violation:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Branded or copyrighted content is not allowed. Detected: '{violation}'"
-        )
+    # SAFE REWRITE — sanitize risky terms instead of blocking
+    rewrite_result = safe_rewrite(data.story_idea)
+    if rewrite_result.was_rewritten:
+        data.story_idea = rewrite_result.rewritten_text
     
     # Calculate total cost
     base_cost = PRICING[f"{data.episode_count}_episodes"]

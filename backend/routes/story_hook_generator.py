@@ -15,21 +15,11 @@ from shared import db, get_current_user, get_admin_user
 
 router = APIRouter(prefix="/story-hook-generator", tags=["Story Hook Generator"])
 
-# ==================== COPYRIGHT PROTECTION ====================
-BLOCKED_KEYWORDS = [
-    "marvel", "disney", "pixar", "harry potter", "pokemon", "naruto", "spiderman", 
-    "batman", "superman", "avengers", "frozen", "mickey", "star wars", "lord of the rings",
-    "game of thrones", "stranger things", "hobbit", "gandalf", "frodo", "voldemort",
-    "hogwarts", "darth vader", "luke skywalker", "iron man", "captain america", "thor",
-    "hulk", "black widow", "thanos", "joker", "gotham", "sherlock", "james bond",
-    "twilight", "hunger games", "katniss", "divergent", "maze runner"
-]
+# ==================== SAFE REWRITE ENGINE ====================
+from services.rewrite_engine import safe_rewrite
 
 def check_copyright(text: str) -> bool:
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return True
+    """Legacy — always returns False (not blocked). Rewriting handled by safe_rewrite()."""
     return False
 
 # ==================== TEMPLATES ====================
@@ -199,10 +189,13 @@ async def get_config():
 async def generate_hooks(request: GenerateRequest, user: dict = Depends(get_current_user)):
     start_time = time.time()
     
-    # Copyright check on inputs
-    all_text = f"{request.genre} {request.character_type} {request.setting}"
-    if check_copyright(all_text):
-        raise HTTPException(status_code=400, detail="Input contains blocked content. Please avoid copyrighted or trademarked terms.")
+    # Safe rewrite — sanitize risky terms in inputs
+    for field_name in ["genre", "character_type", "setting"]:
+        field_val = getattr(request, field_name, "")
+        if field_val:
+            r = safe_rewrite(field_val)
+            if r.was_rewritten:
+                object.__setattr__(request, field_name, r.rewritten_text)
     
     # Check credits
     if user.get("credits", 0) < 8:

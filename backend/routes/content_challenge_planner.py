@@ -27,22 +27,12 @@ from security import limiter
 router = APIRouter(prefix="/content-challenge-planner", tags=["Content Challenge Planner"])
 
 # =============================================================================
-# COPYRIGHT PROTECTION - BLOCKED KEYWORDS
+# SAFE REWRITE ENGINE — rewrite risky terms, never block
 # =============================================================================
-BLOCKED_KEYWORDS = [
-    "mickey", "disney", "marvel", "avengers", "pokemon", "pikachu", "naruto",
-    "goku", "harry potter", "batman", "superman", "spiderman", "spider-man",
-    "taylor swift", "beyonce", "drake", "elon musk", "trump", "biden",
-    "nike", "adidas", "apple", "google", "amazon", "coca cola"
-]
+from services.rewrite_engine import safe_rewrite
 
 def check_copyright_violation(text: str) -> Optional[str]:
-    if not text:
-        return None
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return keyword
+    """Legacy — always returns None (no blocking). Rewriting handled by safe_rewrite()."""
     return None
 
 # =============================================================================

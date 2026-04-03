@@ -108,43 +108,43 @@ CELEBRITY_PATTERNS = [
 ]
 
 
+from services.rewrite_engine import safe_rewrite
+
+
 def screen_safety(name: str, description: str, appearance: str = "") -> dict:
-    """3-tier safety screening. Returns {safe: bool, reason: str, tier: int}."""
+    """
+    Safety screening with safe rewrite. Instead of blocking, rewrites risky terms.
+    Returns {safe: bool, reason: str, tier: int, rewritten_name: str, rewritten_description: str, rewritten_appearance: str}.
+    Now always returns safe=True for trademark/copyright (rewritten), only blocks truly harmful content.
+    """
     combined = f"{name} {description} {appearance}".lower()
 
-    # Tier 1: Exact blocked names
-    for blocked in BLOCKED_IP_NAMES:
-        if blocked in combined:
+    # ONLY hard-block for genuinely harmful content (not trademark/copyright)
+    harmful_terms = ["nude", "nsfw", "sexual", "porn", "explicit", "hate crime", "terrorism"]
+    for term in harmful_terms:
+        if term in combined:
             return {
                 "safe": False,
-                "reason": f"Cannot create characters based on copyrighted IP: '{blocked}'. Create an original character instead.",
-                "tier": 1,
-                "blocked_term": blocked,
+                "reason": f"Content contains harmful material: '{term}'.",
+                "tier": 0,
             }
 
-    # Tier 2: Similarity patterns
-    for pattern in SIMILARITY_PATTERNS:
-        match = re.search(pattern, combined, re.IGNORECASE)
-        if match:
-            return {
-                "safe": False,
-                "reason": "Character description resembles protected IP. Please create an original character with distinct identity.",
-                "tier": 2,
-                "matched_pattern": match.group(0),
-            }
+    # Rewrite risky trademark/copyright terms instead of blocking
+    name_result = safe_rewrite(name)
+    desc_result = safe_rewrite(description)
+    appear_result = safe_rewrite(appearance)
 
-    # Tier 3: Celebrity/real-person flagging (warning, not hard block)
-    for pattern in CELEBRITY_PATTERNS:
-        match = re.search(pattern, combined, re.IGNORECASE)
-        if match:
-            return {
-                "safe": False,
-                "reason": "Character may resemble a real person. Persistent likeness of real people requires explicit consent.",
-                "tier": 3,
-                "matched_pattern": match.group(0),
-            }
+    was_rewritten = name_result.was_rewritten or desc_result.was_rewritten or appear_result.was_rewritten
 
-    return {"safe": True, "reason": None, "tier": 0}
+    return {
+        "safe": True,
+        "reason": name_result.user_note if was_rewritten else None,
+        "tier": 0,
+        "was_rewritten": was_rewritten,
+        "rewritten_name": name_result.rewritten_text,
+        "rewritten_description": desc_result.rewritten_text,
+        "rewritten_appearance": appear_result.rewritten_text,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -249,6 +249,10 @@ async def create_character(request: CreateCharacterRequest, user: dict = Depends
             "reason": safety["reason"],
             "tier": safety["tier"],
         })
+    # Apply rewritten values if terms were sanitized
+    if safety.get("was_rewritten"):
+        request.name = safety["rewritten_name"]
+        resolved_personality = safety["rewritten_description"]
 
     character_id = _uuid()
     visual_bible_id = _uuid()
@@ -488,6 +492,12 @@ async def update_character(character_id: str, request: UpdateCharacterRequest, u
             raise HTTPException(status_code=422, detail={
                 "error": "safety_block", "reason": safety["reason"], "tier": safety["tier"],
             })
+        # Apply rewritten values if sanitized
+        if safety.get("was_rewritten"):
+            if "name" in updates:
+                updates["name"] = safety["rewritten_name"]
+            if "personality_summary" in updates:
+                updates["personality_summary"] = safety["rewritten_description"]
 
     updates["updated_at"] = _now()
     await db.character_profiles.update_one(
@@ -916,13 +926,11 @@ async def validate_character_continuity(
         rule_flags.append({"type": "appearance", "severity": "low", "detail": "No negative constraints found in prompt"})
         score -= 5
 
-    # Check 5: IP resemblance from blocked list
-    prompt_lower = generation_prompt.lower()
-    for blocked in list(BLOCKED_IP_NAMES)[:50]:
-        if blocked in prompt_lower:
-            rule_flags.append({"type": "ip_resemblance", "severity": "high", "detail": f"Copyrighted reference '{blocked}' found in generation prompt"})
-            score -= 30
-            break
+    # Check 5: IP resemblance — use rewrite engine to detect risky terms
+    from services.rewrite_engine.rule_rewriter import has_risky_terms
+    if has_risky_terms(generation_prompt):
+        rule_flags.append({"type": "ip_resemblance", "severity": "info", "detail": "Risky terms detected in prompt — rewrite engine will sanitize at generation time"})
+        score -= 5
 
     # Check 6: Output asset exists
     has_output = bool(output_asset_url)
@@ -1095,6 +1103,10 @@ async def create_from_reference(request: CreateFromReferenceRequest, user: dict 
         raise HTTPException(status_code=422, detail={
             "error": "safety_block", "reason": safety["reason"], "tier": safety["tier"],
         })
+    # Apply rewritten values if sanitized
+    if safety.get("was_rewritten"):
+        request.name = safety["rewritten_name"]
+        request.personality_summary = safety["rewritten_description"]
 
     # Real-person consent gate
     if request.is_real_person and not request.consent_confirmed:
@@ -1370,6 +1382,9 @@ async def edit_visual_bible(character_id: str, request: EditVisualBibleRequest, 
             raise HTTPException(status_code=422, detail={
                 "error": "safety_block", "reason": safety["reason"], "tier": safety["tier"],
             })
+        # Apply rewritten canonical description if sanitized
+        if safety.get("was_rewritten"):
+            updates["canonical_description"] = safety["rewritten_description"]
 
     # Version bump
     old_version = current_vb.get("version", 1)

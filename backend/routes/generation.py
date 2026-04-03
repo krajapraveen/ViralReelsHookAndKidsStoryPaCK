@@ -27,6 +27,7 @@ from models.schemas import GenerateReelRequest, GenerateStoryRequest
 from ml_threat_detection import threat_intel
 from security import log_security_event, limiter, rate_limit_generation
 from services.watermark_service import add_diagonal_watermark, should_apply_watermark, get_watermark_config
+from services.rewrite_engine import safe_rewrite
 
 router = APIRouter(prefix="/generate", tags=["Generation"])
 
@@ -403,6 +404,14 @@ async def generate_reel(request: Request, data: GenerateReelRequest, user: dict 
         # Update data with sanitized topic
         data.topic = sanitized_topic
         
+        # Safe rewrite — sanitize risky terms before moderation
+        for field_name in ["topic", "niche"]:
+            field_val = getattr(data, field_name, "")
+            if field_val:
+                r = safe_rewrite(field_val)
+                if r.was_rewritten:
+                    setattr(data, field_name, r.rewritten_text)
+        
         # ML-based content moderation
         content_to_check = f"{data.topic} {data.niche} {data.tone}"
         moderation_result = threat_intel.moderate_content(content_to_check, user.get("id"))
@@ -544,6 +553,14 @@ async def generate_story_images_background(result: dict, generation_id: str, use
 async def generate_story(request: Request, data: GenerateStoryRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Generate a kids story - costs 10 credits"""
     try:
+        # Safe rewrite — sanitize risky terms before moderation
+        for field_name in ["theme", "genre", "customGenre"]:
+            field_val = getattr(data, field_name, None)
+            if field_val:
+                r = safe_rewrite(field_val)
+                if r.was_rewritten:
+                    setattr(data, field_name, r.rewritten_text)
+        
         # ML-based content moderation
         content_to_check = f"{data.theme} {data.genre} {data.customGenre or ''}"
         moderation_result = threat_intel.moderate_content(content_to_check, user.get("id"))

@@ -15,21 +15,11 @@ from shared import db, get_current_user, get_admin_user
 
 router = APIRouter(prefix="/offer-generator", tags=["Offer Generator"])
 
-# ==================== COPYRIGHT PROTECTION ====================
-BLOCKED_KEYWORDS = [
-    "marvel", "disney", "pixar", "harry potter", "pokemon", "naruto", "spiderman", 
-    "batman", "superman", "avengers", "frozen", "mickey", "star wars", "lord of the rings",
-    "netflix", "amazon", "google", "apple", "microsoft", "facebook", "instagram",
-    "tiktok", "youtube", "twitter", "coca cola", "pepsi", "mcdonalds", "nike", "adidas",
-    "gucci", "louis vuitton", "rolex", "ferrari", "lamborghini", "tesla", "elon musk",
-    "jeff bezos", "mark zuckerberg", "bill gates", "taylor swift", "beyonce", "drake"
-]
+# ==================== SAFE REWRITE ENGINE ====================
+from services.rewrite_engine import safe_rewrite
 
 def check_copyright(text: str) -> bool:
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return True
+    """Legacy — always returns False (not blocked). Rewriting handled by safe_rewrite()."""
     return False
 
 # ==================== TEMPLATES ====================
@@ -149,10 +139,14 @@ async def get_config():
 async def generate_offer(request: GenerateRequest, user: dict = Depends(get_current_user)):
     start_time = time.time()
     
-    # Copyright check
+    # Safe rewrite — sanitize risky terms instead of blocking
     all_text = f"{request.product_name} {request.target_audience} {request.main_problem}"
-    if check_copyright(all_text):
-        raise HTTPException(status_code=400, detail="Input contains blocked content. Please avoid copyrighted or trademarked terms.")
+    for field_name in ["product_name", "target_audience", "main_problem"]:
+        field_val = getattr(request, field_name, "")
+        if field_val:
+            r = safe_rewrite(field_val)
+            if r.was_rewritten:
+                object.__setattr__(request, field_name, r.rewritten_text)
     
     # Check credits
     if user.get("credits", 0) < 20:

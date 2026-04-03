@@ -25,6 +25,7 @@ from ml_threat_detection import threat_intel
 from security import log_security_event, limiter
 from fastapi import Request
 from utils.retry_mechanism import with_retry, categorize_error
+from services.rewrite_engine import safe_rewrite
 
 genstudio_router = APIRouter(prefix="/genstudio", tags=["GenStudio"])
 
@@ -145,6 +146,11 @@ async def generate_text_to_image(request: Request, data: TextToImageRequest, use
     """Generate image from text prompt using Gemini - costs 10 credits"""
     if not data.consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
+    
+    # Safe rewrite — sanitize risky terms
+    prompt_rewrite = safe_rewrite(data.prompt)
+    if prompt_rewrite.was_rewritten:
+        data.prompt = prompt_rewrite.rewritten_text
     
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(data.prompt, user.get("id"))
@@ -457,6 +463,11 @@ async def generate_text_to_video(
     if not data.consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
     
+    # Safe rewrite — sanitize risky terms
+    prompt_rewrite = safe_rewrite(data.prompt)
+    if prompt_rewrite.was_rewritten:
+        data.prompt = prompt_rewrite.rewritten_text
+    
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(data.prompt, user.get("id"))
     if not moderation_result["allowed"]:
@@ -651,6 +662,11 @@ async def generate_image_to_video(
     # Validate motion prompt
     if len(motion_prompt) < 3 or len(motion_prompt) > 1000:
         raise HTTPException(status_code=400, detail="Motion description must be 3-1000 characters")
+    
+    # Safe rewrite — sanitize risky terms in motion prompt
+    prompt_rewrite = safe_rewrite(motion_prompt)
+    if prompt_rewrite.was_rewritten:
+        motion_prompt = prompt_rewrite.rewritten_text
     
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(motion_prompt, user.get("id"))
@@ -852,6 +868,11 @@ async def generate_video_remix(
     # Validate remix prompt
     if len(remix_prompt) < 3 or len(remix_prompt) > 1000:
         raise HTTPException(status_code=400, detail="Remix instructions must be 3-1000 characters")
+    
+    # Safe rewrite — sanitize risky terms in remix prompt
+    prompt_rewrite = safe_rewrite(remix_prompt)
+    if prompt_rewrite.was_rewritten:
+        remix_prompt = prompt_rewrite.rewritten_text
     
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(remix_prompt, user.get("id"))

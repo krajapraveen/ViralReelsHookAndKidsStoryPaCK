@@ -25,19 +25,9 @@ FULL_PACK_COST = 15
 DOWNLOAD_COST = 1
 
 # =============================================================================
-# BLOCKED KEYWORDS (COPYRIGHT SAFETY)
+# SAFE REWRITE ENGINE — rewrite risky terms, never block for trademarks
 # =============================================================================
-
-BLOCKED_KEYWORDS = [
-    "marvel", "disney", "nike", "apple", "tesla", "netflix",
-    "spiderman", "spider-man", "batman", "superman", "harry potter",
-    "pokemon", "pikachu", "mickey mouse", "coca-cola", "pepsi",
-    "google", "facebook", "meta", "amazon", "microsoft",
-    "taylor swift", "beyonce", "kardashian", "elon musk",
-    "mcdonald", "starbucks", "gucci", "louis vuitton", "chanel",
-    "avengers", "iron man", "hulk", "thor", "captain america",
-    "naruto", "goku", "dragon ball", "one piece", "fortnite"
-]
+from services.rewrite_engine import safe_rewrite
 
 NEGATIVE_CONTENT = [
     "hate", "kill", "die", "death", "violence", "racist", "sexist",
@@ -46,12 +36,8 @@ NEGATIVE_CONTENT = [
 
 
 def check_blocked_content(text: str) -> tuple[bool, str]:
-    """Check for blocked/copyright content"""
+    """Only block genuinely harmful content. Trademark terms are rewritten by safe_rewrite()."""
     text_lower = text.lower()
-    
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return False, f"Brand-based or copyrighted content detected: '{keyword}'"
     
     for keyword in NEGATIVE_CONTENT:
         if keyword in text_lower:
@@ -495,7 +481,12 @@ async def generate_comment_replies(
     if len(data.comment) > 500:
         raise HTTPException(status_code=400, detail="Comment too long (max 500 characters)")
     
-    # Check blocked content
+    # Safe rewrite — sanitize risky terms
+    rewrite_result = safe_rewrite(data.comment)
+    if rewrite_result.was_rewritten:
+        data.comment = rewrite_result.rewritten_text
+
+    # Check blocked content (only harmful content now)
     is_safe, error_msg = check_blocked_content(data.comment)
     if not is_safe:
         raise HTTPException(status_code=400, detail=error_msg)

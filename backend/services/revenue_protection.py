@@ -253,65 +253,30 @@ class CreditProtectionService:
 class PromptSafetyService:
     """
     Protects against copyright infringement and celebrity likeness in AI generation.
+    Now uses the Safe Rewrite Engine for sanitization instead of blocking.
     """
     
     @staticmethod
     def check_copyright_violation(text: str) -> Tuple[bool, Optional[str]]:
-        """
-        Check if text contains copyrighted content references.
-        
-        Returns: (is_safe, violation_term)
-        """
-        if not text:
-            return True, None
-        
-        text_lower = text.lower()
-        
-        for keyword in COPYRIGHT_KEYWORDS:
-            if keyword in text_lower:
-                return False, keyword
-        
+        """Legacy — always returns (True, None). Rewriting handled by safe_rewrite()."""
         return True, None
     
     @staticmethod
     def check_celebrity_reference(text: str) -> Tuple[bool, Optional[str]]:
-        """
-        Check if text contains celebrity name references.
-        
-        Returns: (is_safe, violation_term)
-        """
-        if not text:
-            return True, None
-        
-        text_lower = text.lower()
-        
-        for keyword in CELEBRITY_KEYWORDS:
-            if keyword in text_lower:
-                return False, keyword
-        
+        """Legacy — always returns (True, None). Rewriting handled by safe_rewrite()."""
         return True, None
     
     @staticmethod
     def sanitize_prompt(prompt: str) -> str:
         """
-        Sanitize a prompt by removing/replacing dangerous content.
+        Sanitize a prompt using the Safe Rewrite Engine.
         """
         if not prompt:
             return ""
         
-        sanitized = prompt
-        
-        # Remove copyright keywords
-        for keyword in COPYRIGHT_KEYWORDS:
-            pattern = re.compile(re.escape(keyword), re.IGNORECASE)
-            sanitized = pattern.sub("[character]", sanitized)
-        
-        # Remove celebrity keywords
-        for keyword in CELEBRITY_KEYWORDS:
-            pattern = re.compile(re.escape(keyword), re.IGNORECASE)
-            sanitized = pattern.sub("[person]", sanitized)
-        
-        return sanitized.strip()
+        from services.rewrite_engine import safe_rewrite
+        result = safe_rewrite(prompt)
+        return result.rewritten_text
     
     @staticmethod
     def get_negative_prompt() -> str:
@@ -322,8 +287,9 @@ class PromptSafetyService:
     def validate_generation_prompt(prompt: str) -> Tuple[bool, str]:
         """
         Full validation of a generation prompt.
+        Now rewrites risky terms instead of blocking.
         
-        Returns: (is_valid, error_message)
+        Returns: (is_valid, sanitized_prompt_or_error)
         """
         if not prompt or not prompt.strip():
             return False, "Prompt cannot be empty"
@@ -331,17 +297,11 @@ class PromptSafetyService:
         if len(prompt) > 2000:
             return False, "Prompt too long (max 2000 characters)"
         
-        # Check copyright
-        is_safe, violation = PromptSafetyService.check_copyright_violation(prompt)
-        if not is_safe:
-            return False, f"Copyrighted content detected: '{violation}'. Please use original content."
+        # Rewrite instead of block
+        from services.rewrite_engine import safe_rewrite
+        result = safe_rewrite(prompt)
         
-        # Check celebrity
-        is_safe, violation = PromptSafetyService.check_celebrity_reference(prompt)
-        if not is_safe:
-            return False, f"Celebrity reference detected: '{violation}'. We cannot generate content featuring real people."
-        
-        return True, ""
+        return True, result.rewritten_text
 
 
 # ============================================================================

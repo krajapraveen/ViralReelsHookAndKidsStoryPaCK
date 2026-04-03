@@ -486,11 +486,14 @@ async def confirm_characters(series_id: str, request: ConfirmCharactersRequest, 
         if not name:
             continue
 
-        # Safety check
+        # Safety check — now uses safe rewrite instead of blocking
         safety = screen_safety(name, char.get("appearance", ""))
         if not safety["safe"]:
             logger.warning(f"Character '{name}' failed safety: {safety['reason']}")
             continue
+        # Apply rewritten values if terms were sanitized
+        if safety.get("was_rewritten"):
+            name = safety["rewritten_name"]
 
         character_id = _uuid()
         visual_bible_id = _uuid()

@@ -27,22 +27,12 @@ from security import limiter
 router = APIRouter(prefix="/caption-rewriter-pro", tags=["Caption Rewriter Pro"])
 
 # =============================================================================
-# COPYRIGHT PROTECTION - BLOCKED KEYWORDS
+# SAFE REWRITE ENGINE — rewrite risky terms, never block
 # =============================================================================
-BLOCKED_KEYWORDS = [
-    "mickey", "disney", "marvel", "avengers", "pokemon", "pikachu", "naruto",
-    "goku", "harry potter", "batman", "superman", "spiderman", "spider-man",
-    "taylor swift", "beyonce", "drake", "elon musk", "trump", "biden",
-    "nike", "adidas", "apple", "google", "amazon", "coca cola"
-]
+from services.rewrite_engine import safe_rewrite
 
 def check_copyright_violation(text: str) -> Optional[str]:
-    if not text:
-        return None
-    text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return keyword
+    """Legacy — always returns None (no blocking). Rewriting handled by safe_rewrite()."""
     return None
 
 def sanitize_xss(text: str) -> str:
@@ -345,13 +335,10 @@ async def rewrite_caption(
     if data.pack_type not in ["single_tone", "three_tones", "all_tones"]:
         raise HTTPException(status_code=400, detail="Invalid pack type")
     
-    # COPYRIGHT CHECK
-    violation = check_copyright_violation(sanitized_text)
-    if violation:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Branded or copyrighted content is not allowed. Detected: '{violation}'"
-        )
+    # SAFE REWRITE — sanitize risky terms instead of blocking
+    rewrite_result = safe_rewrite(sanitized_text)
+    if rewrite_result.was_rewritten:
+        sanitized_text = rewrite_result.rewritten_text
     
     # Calculate cost
     base_cost = PRICING[data.pack_type]
