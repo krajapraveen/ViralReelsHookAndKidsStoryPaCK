@@ -1,171 +1,58 @@
-# AI Creator Suite — PRD
+# AI Creator Suite — Product Requirements Document
 
-## Core Products
-1. **Photo to Comic** — AI comic strip generator with smart repair pipeline
-2. **AI Brand Kit Generator** — Multi-format brand identity builder (upgraded from Brand Story Builder)
-3. **Reaction GIF Creator** — Zero-friction viral reaction image generator with style packs
+## Original Problem Statement
+Full-stack AI creator suite with tools for story/comic/GIF/video generation, character creation, brand kits, and social content. The platform uses a credit-based monetization model with Cashfree payments.
 
----
+## Core Architecture
+- **Frontend**: React (port 3000)
+- **Backend**: FastAPI (port 8001)
+- **Database**: MongoDB
+- **AI**: OpenAI GPT-4o-mini, GPT Image 1, Sora 2, Gemini (via Emergent LLM Key)
+- **Storage**: Cloudflare R2
+- **Payments**: Cashfree
+- **Auth**: Emergent-managed Google Auth + JWT
 
-## Reaction GIF Creator — OVERHAULED Apr 3, 2026
+## Completed Features
 
-### What was built
-Transformed 4-step wizard into a zero-friction single-screen flow with viral style packs, share-first design, and addictive loop system.
+### P0 — Safe Rewrite Engine (April 2026)
+- **Centralized rewrite engine** at `backend/services/rewrite_engine/`
+  - `rule_rewriter.py`: 200+ term mappings (brands, franchises, characters, celebrities, platforms)
+  - `rewrite_service.py`: Orchestrator — detect, rewrite, continue. Never blocks.
+- **Replaced hard-blocking in 20+ files**: All `BLOCKED_KEYWORDS`, `check_copyright`, `check_copyright_violation`, `screen_safety` functions updated to use safe_rewrite()
+- **Preserved harmful content blocking**: nsfw, violence, gore, explicit still blocked
+- **Preserved negative prompts**: Image generation still includes copyright safety in negative prompts
+- **Files modified**: safety.py, pipeline.py, caption_rewriter_pro.py, brand_story_builder.py, story_video_studio.py, characters.py, comic_storybook_v2.py, photo_to_comic.py, story_episode_creator.py, comment_reply_bank.py, instagram_bio_generator.py, youtube_thumbnail_generator.py, content_challenge_planner.py, offer_generator.py, reaction_gif.py, bedtime_story_builder.py, story_hook_generator.py, story_video_fast.py, genstudio.py, generation.py, revenue_protection.py
+- **Test result**: 26/26 tests passed (iteration_423)
 
-### Architecture
-- **Backend:** `/app/backend/routes/reaction_gif.py` — 15 styles in 6 packs, first-free logic, admin credit bypass
-- **Frontend:** `/app/frontend/src/pages/PhotoReactionGIF.js` — Complete rewrite, single-screen flow
-- **LLM:** Gemini 3 Pro (image generation) via emergentintegrations SDK
-- **DB:** MongoDB `reaction_gif_jobs`, `production_events` collections
+### Previous Completions
+- Production Metrics Dashboard
+- Brand Kit Generator (stabilized)
+- Photo-to-Reaction GIF (zero-friction single-screen UI, viral packs)
+- Character Studio (backward-compatible, actionable CTAs)
+- Growth Engine (compulsion loops, social proof)
+- Cashfree Payment Integration
+- Credit System (50 credits standard)
+- Truth-based Admin Dashboard
 
-### Pricing
-| Mode | Credits | Description |
-|------|---------|-------------|
-| Single | 8 | One reaction image |
-| Pack (3) | 20 | Three reaction images |
-| Pack (6) | 35 | Six reaction images |
-| First | FREE | First generation free for new users |
+## Prioritized Backlog
 
-### Style Packs (6 packs, 15 styles)
-| Pack | Styles |
-|------|--------|
-| Classic | Cartoon Motion, Comic Bounce, Sticker Style, Neon Glow, Minimal Clean |
-| Meme | Meme Classic, Deep Fried |
-| Pixar | Pixar 3D, Claymation |
-| Anime | Anime Shonen, Anime Chibi |
-| Desi | Bollywood Drama, Desi Comic |
-| Corporate | Office Humor, Flat Vector |
+### P0 (Current)
+- Drive real traffic to reach 100-200 real jobs (user action)
 
-### UX Flow
-Upload photo → Select reaction (9 options) → Select style pack + style → "Make My Reaction" → Result screen with Share (WhatsApp, Instagram, Copy) + Addictive loop (Try another reaction, Random Style, New Photo)
+### P1 (Upcoming — FROZEN until traffic data)
+- Auto captions (viral text) for Reaction GIFs
+- Multi-reaction pack generation (6 GIFs at once)
+- Character DNA System (zero-drift guaranteed characters)
 
-### Testing
-- 19 pytest tests: 100% pass (iteration_422)
-- Full E2E screenshot verified (upload → generate → Pixar 3D result)
-
----
-
-## AI Brand Kit Generator (Phase 1) — COMPLETED Apr 3, 2026
-
-### What was built
-Transformed basic template-based Brand Story Builder into a full AI-powered Brand Kit Generator with parallel generation, progressive results, and downloadable deliverables.
-
-### Architecture
-- **Backend:** `/app/backend/routes/brand_story_builder.py` + `/app/backend/services/brand_kit/`
-- **Frontend:** `/app/frontend/src/pages/BrandStoryBuilder.js`
-- **LLM:** GPT-4o-mini via emergentintegrations SDK
-- **DB:** MongoDB `brand_kit_jobs` collection
-
-### Modes & Pricing
-| Mode | Credits | Artifacts |
-|------|---------|-----------|
-| Fast | 10 | Short story, Mission/Vision/Values, Taglines, Elevator pitch |
-| Pro | 25 | All Fast + Long story, Website hero, Social ad copy, Color palettes, Typography, Logo concepts |
-| Premium | 50 | Reserved for Phase 2/3 |
-
-### Endpoints
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| /api/brand-story-builder/config | GET | Industries, tones, modes |
-| /api/brand-story-builder/generate | POST | Create brand kit job |
-| /api/brand-story-builder/job/{id} | GET | Poll job status |
-| /api/brand-story-builder/job/{id}/result | GET | Full artifact data |
-| /api/brand-story-builder/job/{id}/pdf | GET | PDF brand kit download |
-| /api/brand-story-builder/job/{id}/zip | GET | ZIP bundle (PDF+TXT+JSON) |
-
-### Features
-- Parallel AI generation (all artifacts simultaneously)
-- Progressive polling (frontend shows results as they complete)
-- Animated generation stages UI
-- Tabbed results dashboard (Story, Marketing, Visual Identity)
-- Color palette swatches with hex codes
-- Taglines grid with style labels
-- Website hero copy preview
-- Social ad copy (Instagram, Facebook, Google, CTA)
-- Logo concept directions
-- Typography pairings
-- Deterministic fallback for every artifact type
-- Copyright protection (blocks trademarked terms)
-- PDF + ZIP + TXT download
-
----
-
-## Photo to Comic — Status
-All P0 fixes complete (SDK crash, downloads, continue story, comic book export, null dialogue). See previous PRD entries.
-
----
-
-## Production Metrics Dashboard — COMPLETED Apr 3, 2026
-
-### Purpose
-Validation phase tracking for real production jobs. Admin-only. No synthetic data.
-
-### Architecture
-- **Backend:** `/app/backend/routes/production_metrics.py`
-- **Frontend:** `/app/frontend/src/pages/Admin/ProductionMetrics.js`
-- **Route:** `/app/admin/production-metrics`
-- **Data sources:** `brand_kit_jobs`, `photo_to_comic_jobs`, `production_events` collections
-
-### Endpoints
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| /api/production-metrics/overview | GET | Combined summary: totals, validation target (current/200), daily trend |
-| /api/production-metrics/brand-kit | GET | Detailed BK metrics: mode split, timing (avg/p50/p95), per-artifact performance, downloads, regenerate rate, industry distribution |
-| /api/production-metrics/photo-to-comic | GET | Detailed PTC metrics: type split (avatar/strip), timing, style distribution, downloads, user stats |
-| /api/production-metrics/jobs | GET | Paginated job log with feature filter |
-
-### Metrics Tracked
-- **Brand Kit:** Success/failure rate, Fast vs Pro split, avg generation time, time to first artifact, per-artifact latency/success/fallback, PDF/ZIP downloads, completion-to-download conversion, regenerate rate, industry distribution
-- **Photo to Comic:** Success/failure rate, Avatar vs Strip split, avg latency (overall + per-type), download rate, style popularity, credits consumed, regenerate rate
-- **Validation Target:** 200-job goal tracker with progress bar
-
-### Instrumentation
-- Download events for Brand Kit PDF/ZIP tracked via `production_events` collection
-- Photo to Comic `downloaded` field on job documents
-
-### Testing
-- 21 pytest tests: 100% pass (iteration_421)
-- Frontend E2E: All 4 tabs verified
-- Auth: Admin-only (401 for unauthenticated, 403 for non-admin)
-
----
-
-## Apr 3, 2026 — P0 Fix: Character Studio "Failed to save character"
-- Root cause: URL mismatch (POST /api/characters → POST /api/characters/create), field name mismatch (personality→personality_summary), no HTTP error checking
-- Fixed all 3 issues + added request logging + specific error surface for safety blocks
-
-## Apr 3, 2026 — Reaction GIF Viral Overhaul
-- Replaced 4-step wizard with zero-friction single-screen flow
-- Added 5 viral style packs (Meme, Pixar, Anime, Desi, Corporate) = 15 total styles
-- Result screen with addictive loop (Try another reaction, Random Style, New Photo)
-- Share-first design (WhatsApp PRIMARY, Instagram Story, Copy Link)
-- First generation FREE for new users
-
-## Apr 3, 2026 — P0 Fix: Brand Kit "Failed to start generation"
-- 7 defensive fixes: request logging, mode normalization, specific errors, admin credit bypass, frontend validation, polling fix
-
-
-
-## Phase 2 — Brand Kit (UPCOMING)
-- AI logo image generation (Gemini visual pipeline)
-- Social media creative templates
-- Hero banner concepts
-- Moodboard images
-- Reel script generation
-
-## Phase 3 — Brand Kit (FUTURE)
-- Brand intro video (15 sec)
-- Multi-language support
-- AI brand voice/avatar
-- Instagram reel auto-generator
-
-## Frozen Tasks
-- Admin routing config editor
-- Smart Repair self-tuning router
-- Dynamic style popularity badges
-- Photo to Comic: Instagram export, WhatsApp share, GIF teasers
-- Bedtime Stories (TTS, Image Gen)
+### P2 (Future)
+- Smart router, repair pipeline, GPU optimization
+- Advanced analytics
+- A/B test hook text variations
+- Character-driven auto-share prompts
+- Remix Variants on share pages
+- WebSocket admin dashboard
+- Story Chain leaderboard
 
 ## Test Credentials
-- Test User: test@visionary-suite.com / Test@2026#
-- Admin User: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
+- Test User: `test@visionary-suite.com` / `Test@2026#`
+- Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
