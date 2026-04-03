@@ -56,6 +56,41 @@ All P0 fixes complete (SDK crash, downloads, continue story, comic book export, 
 
 ---
 
+## Production Metrics Dashboard — COMPLETED Apr 3, 2026
+
+### Purpose
+Validation phase tracking for real production jobs. Admin-only. No synthetic data.
+
+### Architecture
+- **Backend:** `/app/backend/routes/production_metrics.py`
+- **Frontend:** `/app/frontend/src/pages/Admin/ProductionMetrics.js`
+- **Route:** `/app/admin/production-metrics`
+- **Data sources:** `brand_kit_jobs`, `photo_to_comic_jobs`, `production_events` collections
+
+### Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| /api/production-metrics/overview | GET | Combined summary: totals, validation target (current/200), daily trend |
+| /api/production-metrics/brand-kit | GET | Detailed BK metrics: mode split, timing (avg/p50/p95), per-artifact performance, downloads, regenerate rate, industry distribution |
+| /api/production-metrics/photo-to-comic | GET | Detailed PTC metrics: type split (avatar/strip), timing, style distribution, downloads, user stats |
+| /api/production-metrics/jobs | GET | Paginated job log with feature filter |
+
+### Metrics Tracked
+- **Brand Kit:** Success/failure rate, Fast vs Pro split, avg generation time, time to first artifact, per-artifact latency/success/fallback, PDF/ZIP downloads, completion-to-download conversion, regenerate rate, industry distribution
+- **Photo to Comic:** Success/failure rate, Avatar vs Strip split, avg latency (overall + per-type), download rate, style popularity, credits consumed, regenerate rate
+- **Validation Target:** 200-job goal tracker with progress bar
+
+### Instrumentation
+- Download events for Brand Kit PDF/ZIP tracked via `production_events` collection
+- Photo to Comic `downloaded` field on job documents
+
+### Testing
+- 21 pytest tests: 100% pass (iteration_421)
+- Frontend E2E: All 4 tabs verified
+- Auth: Admin-only (401 for unauthenticated, 403 for non-admin)
+
+---
+
 ## Phase 2 — Brand Kit (UPCOMING)
 - AI logo image generation (Gemini visual pipeline)
 - Social media creative templates
