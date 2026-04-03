@@ -1502,6 +1502,28 @@ Format as JSON array:
                         "guaranteed_panel_count": len(ready_panels),
                     }}
                 )
+
+                # ── CRITICAL: Persist guaranteed panels IMMEDIATELY ──
+                # Do NOT wait for quality scoring. Save panels NOW so they survive
+                # any downstream exception. This prevents the dead-end bug where
+                # panels are generated but never reach the DB.
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": "PARTIAL_READY",
+                        "panels": panels,
+                        "readyPanels": len(ready_panels),
+                        "failedPanels": 0,
+                        "totalPanels": panel_count,
+                        "progress": 95,
+                        "progressMessage": "We created a stylized version of your comic!",
+                        "pipeline_state": "GUARANTEED_PERSISTED",
+                    }}
+                )
+                logger.info(
+                    f"[STYLE_TRACE] GUARANTEED_PANELS_PERSISTED job_id={job_id} "
+                    f"panels_saved={len(ready_panels)}"
+                )
             except Exception as guaranteed_err:
                 logger.error(f"[GUARANTEED_OUTPUT] Even guaranteed output failed: {guaranteed_err}")
         
@@ -1766,43 +1788,69 @@ Format as JSON array:
         error_msg = str(e)
         logger.error(f"Comic strip processing error for job {job_id}: {error_msg}", exc_info=True)
         
-        # Store detailed error in job
-        await db.photo_to_comic_jobs.update_one(
+        # Check if guaranteed output was already persisted — do NOT overwrite it
+        existing_job = await db.photo_to_comic_jobs.find_one(
             {"id": job_id},
-            {"$set": {
-                "status": "FAILED", 
-                "error": error_msg,
-                "errorDetails": {
-                    "type": type(e).__name__,
-                    "message": error_msg,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }
-            }}
+            {"_id": 0, "guaranteed_output": 1, "status": 1, "panels": 1}
         )
-        
-        # Auto-refund on generation failure
-        refund_issued = False
-        try:
-            from services.auto_refund import handle_generation_failure
-            await handle_generation_failure(db, user_id, "comic_strip", str(e))
-            refund_issued = True
-            logger.info(f"Auto-refund processed for failed comic strip: {job_id}")
-        except Exception as refund_error:
-            logger.error(f"Auto-refund failed: {refund_error}")
-        
-        # Send failure notification
-        try:
-            from services.notification_service import get_notification_service
-            notification_service = get_notification_service(db)
-            await notification_service.notify_generation_failed(
-                user_id=user_id,
-                feature="comic_strip",
-                job_id=job_id,
-                error_message=str(e),
-                refund_issued=refund_issued
+        already_has_output = (
+            existing_job and
+            existing_job.get("guaranteed_output") and
+            existing_job.get("status") == "PARTIAL_READY" and
+            existing_job.get("panels")
+        )
+
+        if already_has_output:
+            # Guaranteed output was saved — keep the panels visible to user
+            # Only log the downstream error, do NOT mark as FAILED
+            logger.warning(
+                f"Post-guaranteed downstream error for job {job_id}: {error_msg}. "
+                f"Keeping PARTIAL_READY status — panels are safe."
             )
-        except Exception as notif_error:
-            logger.warning(f"Failed to send failure notification: {notif_error}")
+            await db.photo_to_comic_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "postProcessingError": error_msg,
+                    "progress": 100,
+                    "pipeline_state": "FINALIZED_WITH_WARNINGS",
+                }}
+            )
+        else:
+            # No guaranteed output — this is a real failure
+            await db.photo_to_comic_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "FAILED", 
+                    "error": error_msg,
+                    "errorDetails": {
+                        "type": type(e).__name__,
+                        "message": error_msg,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+                }}
+            )
+            
+            # Auto-refund on generation failure
+            try:
+                from services.auto_refund import handle_generation_failure
+                await handle_generation_failure(db, user_id, "comic_strip", str(e))
+                logger.info(f"Auto-refund processed for failed comic strip: {job_id}")
+            except Exception as refund_error:
+                logger.error(f"Auto-refund failed: {refund_error}")
+            
+            # Send failure notification
+            try:
+                from services.notification_service import get_notification_service
+                notification_service = get_notification_service(db)
+                await notification_service.notify_generation_failed(
+                    user_id=user_id,
+                    feature="comic_strip",
+                    job_id=job_id,
+                    error_message=str(e),
+                    refund_issued=True
+                )
+            except Exception as notif_error:
+                logger.warning(f"Failed to send failure notification: {notif_error}")
 
 
 @router.get("/job/{job_id}")

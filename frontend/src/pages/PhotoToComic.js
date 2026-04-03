@@ -340,6 +340,12 @@ export default function PhotoToComic() {
           setGenerating(false);
           setUiState('FAILED');
           setResult(job);
+          // If the job has panels with images (guaranteed output saved), enable download
+          const hasPanelImages = job.panels?.some(p => p.imageUrl);
+          if (hasPanelImages) {
+            setDownloadReady(true);
+            setPreviewReady(true);
+          }
           setFailReason("Your comic needs a bit more processing. No credits were charged.");
           // No toast for full failures — the recovery UI handles it
           return;
@@ -588,7 +594,7 @@ export default function PhotoToComic() {
       VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Finalizing', subtitle: 'Preparing your comic...' },
       READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Your Comic is Ready', subtitle: 'All panels generated and verified' },
       PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: result.failedPanels ? `${result.readyPanels} optimized panels included` : (downloadReady ? 'Ready to download' : 'Finishing up...') },
-      FAILED: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: 'We created a stylized version for you.' },
+      FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <RefreshCw className="w-5 h-5 text-red-400" />, title: 'Generation Issue', subtitle: 'Try a different style or photo for better results.' },
     };
     const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
@@ -641,17 +647,23 @@ export default function PhotoToComic() {
                 </div>
               )}
 
-              {/* FULL FAILURE — no output at all (should almost never happen) */}
+              {/* FULL FAILURE — no output at all */}
               {uiState === 'FAILED' && !imageUrl && !panels?.some(p => p.imageUrl) && (
-                <div className="rounded-2xl border border-slate-700 bg-slate-900 p-12 flex flex-col items-center justify-center min-h-[400px]" data-testid="failed-recovery">
-                  <RefreshCw className="w-12 h-12 text-slate-600 mb-4" />
-                  <h3 className="text-lg font-semibold text-white mb-2">We're improving your comic</h3>
-                  <p className="text-sm text-slate-400 text-center max-w-sm mb-6">
-                    Try a different style for the best results.
+                <div className="rounded-2xl border border-red-500/20 bg-slate-900 p-12 flex flex-col items-center justify-center min-h-[400px]" data-testid="failed-recovery">
+                  <RefreshCw className="w-12 h-12 text-red-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-white mb-2">Generation didn't produce usable output</h3>
+                  <p className="text-sm text-slate-400 text-center max-w-sm mb-2">
+                    No credits were charged. This can happen with certain photos or styles.
+                  </p>
+                  <p className="text-xs text-slate-500 text-center max-w-sm mb-6">
+                    Try uploading a clear, well-lit photo or selecting a different style.
                   </p>
                   <div className="flex gap-3">
                     <Button onClick={() => { setResult(null); setUiState('IDLE'); }} className="bg-purple-600 hover:bg-purple-700" data-testid="retry-fresh-btn">
-                      <Camera className="w-4 h-4 mr-2" /> Try Different Style
+                      <Camera className="w-4 h-4 mr-2" /> Try Again
+                    </Button>
+                    <Button onClick={() => { setResult(null); setUiState('IDLE'); }} variant="outline" className="border-slate-600 text-slate-300" data-testid="change-photo-btn">
+                      <ImageIcon className="w-4 h-4 mr-2" /> Change Photo
                     </Button>
                   </div>
                 </div>
