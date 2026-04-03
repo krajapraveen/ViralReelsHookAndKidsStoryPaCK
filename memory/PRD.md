@@ -3,6 +3,45 @@
 ## Core Products
 1. **Photo to Comic** — AI comic strip generator with smart repair pipeline
 2. **AI Brand Kit Generator** — Multi-format brand identity builder (upgraded from Brand Story Builder)
+3. **Reaction GIF Creator** — Zero-friction viral reaction image generator with style packs
+
+---
+
+## Reaction GIF Creator — OVERHAULED Apr 3, 2026
+
+### What was built
+Transformed 4-step wizard into a zero-friction single-screen flow with viral style packs, share-first design, and addictive loop system.
+
+### Architecture
+- **Backend:** `/app/backend/routes/reaction_gif.py` — 15 styles in 6 packs, first-free logic, admin credit bypass
+- **Frontend:** `/app/frontend/src/pages/PhotoReactionGIF.js` — Complete rewrite, single-screen flow
+- **LLM:** Gemini 3 Pro (image generation) via emergentintegrations SDK
+- **DB:** MongoDB `reaction_gif_jobs`, `production_events` collections
+
+### Pricing
+| Mode | Credits | Description |
+|------|---------|-------------|
+| Single | 8 | One reaction image |
+| Pack (3) | 20 | Three reaction images |
+| Pack (6) | 35 | Six reaction images |
+| First | FREE | First generation free for new users |
+
+### Style Packs (6 packs, 15 styles)
+| Pack | Styles |
+|------|--------|
+| Classic | Cartoon Motion, Comic Bounce, Sticker Style, Neon Glow, Minimal Clean |
+| Meme | Meme Classic, Deep Fried |
+| Pixar | Pixar 3D, Claymation |
+| Anime | Anime Shonen, Anime Chibi |
+| Desi | Bollywood Drama, Desi Comic |
+| Corporate | Office Humor, Flat Vector |
+
+### UX Flow
+Upload photo → Select reaction (9 options) → Select style pack + style → "Make My Reaction" → Result screen with Share (WhatsApp, Instagram, Copy) + Addictive loop (Try another reaction, Random Style, New Photo)
+
+### Testing
+- 19 pytest tests: 100% pass (iteration_422)
+- Full E2E screenshot verified (upload → generate → Pixar 3D result)
 
 ---
 
