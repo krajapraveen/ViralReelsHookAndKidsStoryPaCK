@@ -123,12 +123,13 @@ Keep outfit consistent unless the story explicitly changes it."""
                     identity += "\nCharacter traits to preserve:\n" + "\n".join(trait_lines)
         parts.append(identity)
 
-        # Block 2: Style
-        parts.append(f"""[STYLE]
-Create a polished comic-style illustration.
-Style: {style_prompt}
+        # Block 2: Style (PRIORITY — must be the strongest instruction)
+        parts.append(f"""[STYLE — CRITICAL]
+TRANSFORM this into a {style_prompt} illustration.
+This MUST NOT look like a photograph. Apply heavy stylization.
+The output must be unmistakably a comic/illustration, not a photo filter.
 Maintain consistent rendering style across all panels.
-Avoid photorealism. Avoid style drift.""")
+Avoid photorealism entirely. Every pixel should read as drawn/illustrated art.""")
 
         # Block 3: Story
         parts.append(f"""[STORY]
@@ -206,15 +207,17 @@ This is panel {panel_index + 1} in a {total_panels}-panel sequence.""")
         Build a simplified, failure-resistant prompt for Tier 4 fallback.
         Reduced visual ambition, maximum clarity and identity preservation.
         """
-        return f"""Create a simple, clear comic panel illustration.
+        return f"""Create a comic panel illustration. This MUST look like drawn comic art, NOT a photograph.
 
 Panel {panel_index + 1} of {total_panels}.
 Scene: {scene}
-Style: {style_prompt} - simplified version with clean lines and clear composition.
+Style: {style_prompt} — apply this style strongly. Heavy stylization required.
 Genre: {genre}
 
 IMPORTANT:
+- TRANSFORM the reference photo into comic art — DO NOT return anything resembling a photograph
 - The character must look like a stylized comic version of the person in the reference photo
+- Use bold lines, comic shading, and illustrated textures
 - Use a clear, readable medium shot
 - Keep the background simple and uncluttered
 - Prioritize character identity and story clarity

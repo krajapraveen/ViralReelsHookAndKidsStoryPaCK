@@ -74,53 +74,66 @@ def _create_color_block_fallback(panel_index: int, scene: str, total_panels: int
     return buf.getvalue()
 
 
-def _apply_comic_posterize(img: Image.Image) -> Image.Image:
-    """Posterize + edge detection + contrast boost = comic look."""
-    # Resize to standard
+def _apply_comic_posterize(img: Image.Image, panel_index: int = 0) -> Image.Image:
+    """Posterize + edge detection + contrast boost = comic look. Varies by panel index."""
     img = img.resize((PANEL_WIDTH, PANEL_HEIGHT), Image.LANCZOS)
 
-    # Step 1: Enhance contrast
+    # Per-panel color temperature variation
+    color_temps = [
+        (1.0, 1.0, 1.0),   # Neutral
+        (1.1, 0.95, 0.9),  # Warm
+        (0.9, 0.95, 1.1),  # Cool
+        (1.05, 1.05, 0.9), # Golden
+        (0.95, 1.0, 1.05), # Blue-tint
+        (1.08, 0.92, 1.0), # Rose
+    ]
+    temp = color_temps[panel_index % len(color_temps)]
+    r, g, b = img.split()
+    r = r.point(lambda x: min(255, int(x * temp[0])))
+    g = g.point(lambda x: min(255, int(x * temp[1])))
+    b = b.point(lambda x: min(255, int(x * temp[2])))
+    img = Image.merge("RGB", (r, g, b))
+
+    # Step 1: Strong contrast boost
     enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(1.6)
+    img = enhancer.enhance(2.0)
 
-    # Step 2: Enhance color saturation
+    # Step 2: Saturate colors aggressively
     enhancer = ImageEnhance.Color(img)
-    img = enhancer.enhance(1.4)
+    img = enhancer.enhance(1.8)
 
-    # Step 3: Posterize (reduce color levels for comic look)
-    img = ImageOps.posterize(img, 4)
+    # Step 3: Heavy posterize (fewer color levels = more comic-like)
+    img = ImageOps.posterize(img, 3)
 
-    # Step 4: Find edges and overlay
+    # Step 4: Bold edge overlay
     edges = img.filter(ImageFilter.FIND_EDGES)
-    edges = ImageOps.invert(edges.convert("L"))
-    edges = edges.point(lambda x: 0 if x < 100 else 255)
+    edges_l = ImageOps.invert(edges.convert("L"))
+    edges_l = edges_l.point(lambda x: 0 if x < 80 else 255)
+    img = Image.composite(img, Image.new("RGB", img.size, (0, 0, 0)), edges_l)
 
-    # Darken edges on the comic
-    img_with_edges = Image.composite(img, Image.new("RGB", img.size, (0, 0, 0)),
-                                      edges.convert("L"))
+    # Step 5: Sharpen for crispness
+    img = img.filter(ImageFilter.SHARPEN)
+    img = img.filter(ImageFilter.SHARPEN)
 
-    # Step 5: Slight sharpen for crispness
-    img_with_edges = img_with_edges.filter(ImageFilter.SHARPEN)
-
-    return img_with_edges
+    return img
 
 
 def _apply_pop_art(img: Image.Image, panel_index: int) -> Image.Image:
-    """High contrast pop art with color shifting per panel."""
+    """High contrast pop art with bold color shifting per panel."""
     img = img.resize((PANEL_WIDTH, PANEL_HEIGHT), Image.LANCZOS)
 
-    # Color shift per panel for variety
+    # Stronger color shifts per panel for real visual variety
     shifts = [
-        (1.0, 1.2, 0.8),  # Blue-green tint
-        (1.2, 0.8, 1.0),  # Magenta tint
-        (0.8, 1.0, 1.2),  # Cyan tint
-        (1.2, 1.0, 0.8),  # Warm tint
-        (0.9, 1.1, 1.1),  # Cool tint
-        (1.1, 0.9, 1.0),  # Rose tint
+        (0.7, 1.4, 1.6),   # Deep cyan/blue tint
+        (1.6, 0.6, 1.3),   # Bold magenta
+        (1.5, 1.3, 0.5),   # Hot yellow/warm
+        (0.6, 1.5, 0.7),   # Vivid green
+        (1.4, 0.5, 1.5),   # Purple/violet
+        (1.6, 1.0, 0.4),   # Fiery orange
     ]
     shift = shifts[panel_index % len(shifts)]
 
-    # Apply color shift
+    # Apply aggressive color shift
     r, g, b = img.split()
     r = r.point(lambda x: min(255, int(x * shift[0])))
     g = g.point(lambda x: min(255, int(x * shift[1])))
@@ -129,57 +142,68 @@ def _apply_pop_art(img: Image.Image, panel_index: int) -> Image.Image:
 
     # Extreme contrast
     enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(2.0)
+    img = enhancer.enhance(2.5)
 
-    # Posterize heavily
-    img = ImageOps.posterize(img, 3)
+    # Heavy posterize for bold color blocks
+    img = ImageOps.posterize(img, 2)
 
-    # Bold edges
+    # Bold edge detection overlay
     edges = img.filter(ImageFilter.Kernel(
         size=(3, 3),
         kernel=[-1, -1, -1, -1, 8, -1, -1, -1, -1],
         scale=1,
         offset=0
     ))
-    edges_l = edges.convert("L").point(lambda x: 0 if x < 30 else 255)
+    edges_l = edges.convert("L").point(lambda x: 0 if x < 25 else 255)
     img = Image.composite(img, Image.new("RGB", img.size, (0, 0, 0)), edges_l)
+
+    # Extra sharpen
+    img = img.filter(ImageFilter.SHARPEN)
 
     return img
 
 
-def _apply_sketch(img: Image.Image) -> Image.Image:
-    """Pencil sketch effect with comic overlay."""
+def _apply_sketch(img: Image.Image, panel_index: int = 0) -> Image.Image:
+    """Strong pencil sketch effect — fast and visually distinct. Varies tint by panel."""
     img = img.resize((PANEL_WIDTH, PANEL_HEIGHT), Image.LANCZOS)
 
-    # Convert to grayscale
+    # Per-panel tint variation
+    tints = [
+        (0.85, 0.88, 1.0),   # Blue-tint
+        (0.92, 0.85, 0.80),  # Sepia-warm
+        (0.80, 0.90, 0.85),  # Green-tint
+        (0.90, 0.82, 0.95),  # Purple-tint
+        (0.88, 0.88, 0.88),  # Neutral gray
+        (0.82, 0.88, 0.92),  # Steel blue
+    ]
+    tint = tints[panel_index % len(tints)]
+
     gray = img.convert("L")
-
-    # Invert
     inverted = ImageOps.invert(gray)
-
-    # Blur the inverted
     blurred = inverted.filter(ImageFilter.GaussianBlur(21))
 
-    # Dodge blend: gray / (255 - blur) * 255
-    sketch = Image.new("L", img.size)
-    for x in range(img.width):
-        for y in range(img.height):
-            g_val = gray.getpixel((x, y))
-            b_val = blurred.getpixel((x, y))
-            if b_val == 255:
-                sketch.putpixel((x, y), g_val)
-            else:
-                val = min(255, int(g_val * 256 / (256 - b_val)))
-                sketch.putpixel((x, y), val)
+    from PIL import ImageChops
+    sketch = ImageChops.screen(gray, blurred)
 
-    # Add slight blue tint for comic feel
+    enhancer = ImageEnhance.Contrast(sketch)
+    sketch = enhancer.enhance(2.5)
+    sketch = sketch.point(lambda x: 0 if x < 120 else min(255, int(x * 1.3)))
+
     tinted = Image.merge("RGB", (
-        sketch.point(lambda x: int(x * 0.9)),
-        sketch.point(lambda x: int(x * 0.92)),
-        sketch,
+        sketch.point(lambda x: int(x * tint[0])),
+        sketch.point(lambda x: int(x * tint[1])),
+        sketch.point(lambda x: int(x * tint[2])),
     ))
 
-    return tinted
+    edges = img.convert("L").filter(ImageFilter.FIND_EDGES)
+    edges = edges.point(lambda x: 255 if x < 40 else 0)
+    combined = Image.composite(
+        Image.new("RGB", tinted.size, (20, 25, 40)),
+        tinted,
+        edges,
+    )
+
+    return combined
 
 
 def _add_comic_border(img: Image.Image, panel_index: int) -> Image.Image:
@@ -216,6 +240,52 @@ def _image_to_bytes(img: Image.Image) -> bytes:
     return buf.getvalue()
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# STYLE → FILTER MAPPING — Each style gets a distinct filter treatment
+# ══════════════════════════════════════════════════════════════════════════════
+STYLE_FILTER_MAP = {
+    # Action styles → high contrast pop art
+    "bold_superhero": ["pop_art", "comic_posterize", "pop_art"],
+    "dark_vigilante": ["sketch", "pop_art", "sketch"],
+    "retro_action": ["comic_posterize", "pop_art", "comic_posterize"],
+    "dynamic_battle": ["pop_art", "pop_art", "comic_posterize"],
+    # Fun styles → bright posterize
+    "cartoon_fun": ["comic_posterize", "pop_art", "sketch"],
+    "meme_expression": ["pop_art", "comic_posterize", "pop_art"],
+    "comic_caricature": ["comic_posterize", "pop_art", "comic_posterize"],
+    "exaggerated_reaction": ["pop_art", "comic_posterize", "pop_art"],
+    # Soft styles → sketch and gentle filters
+    "romance_comic": ["sketch", "comic_posterize", "sketch"],
+    "dreamy_pastel": ["sketch", "sketch", "comic_posterize"],
+    "soft_manga": ["sketch", "comic_posterize", "sketch"],
+    "cute_chibi": ["comic_posterize", "sketch", "comic_posterize"],
+    # Fantasy styles → mixed
+    "magical_fantasy": ["comic_posterize", "pop_art", "sketch"],
+    "medieval_adventure": ["comic_posterize", "sketch", "pop_art"],
+    "scifi_neon": ["pop_art", "pop_art", "pop_art"],
+    "cyberpunk_comic": ["pop_art", "pop_art", "comic_posterize"],
+    # Kids → bright posterize
+    "kids_storybook": ["comic_posterize", "pop_art", "comic_posterize"],
+    "friendly_animal": ["comic_posterize", "sketch", "comic_posterize"],
+    "classroom_comic": ["comic_posterize", "pop_art", "sketch"],
+    "adventure_kids": ["pop_art", "comic_posterize", "pop_art"],
+    # Minimal styles → sketch dominant
+    "black_white_ink": ["sketch", "sketch", "sketch"],
+    "sketch_outline": ["sketch", "sketch", "comic_posterize"],
+    "noir_comic": ["sketch", "sketch", "pop_art"],
+    "vintage_print": ["comic_posterize", "sketch", "comic_posterize"],
+}
+
+# Default rotation for unknown styles
+DEFAULT_FILTER_ROTATION = ["comic_posterize", "pop_art", "sketch"]
+
+FILTER_FUNCTIONS = {
+    "comic_posterize": lambda img, idx: _apply_comic_posterize(img, idx),
+    "pop_art": lambda img, idx: _apply_pop_art(img, idx),
+    "sketch": lambda img, idx: _apply_sketch(img, idx),
+}
+
+
 def generate_guaranteed_panels(
     source_bytes: bytes,
     scenes: List[dict],
@@ -224,6 +294,7 @@ def generate_guaranteed_panels(
 ) -> List[dict]:
     """
     Generate guaranteed comic panels from source photo using image processing.
+    Style-aware: each style maps to distinct filter treatments.
 
     Returns list of panel dicts with:
       - panelNumber, scene, imageBytes, status, pipeline_status, guaranteed_output
@@ -234,31 +305,26 @@ def generate_guaranteed_panels(
     if source_img:
         source_img = _enhance_source_photo(source_img)
 
+    # Get style-specific filter rotation
+    filter_rotation = STYLE_FILTER_MAP.get(style_name, DEFAULT_FILTER_ROTATION)
+
     for i in range(panel_count):
         scene_text = scenes[i].get("scene", f"Panel {i + 1}") if i < len(scenes) else f"Panel {i + 1}"
 
         if source_img is None:
-            # Absolute last resort — color block with text
             img_bytes = _create_color_block_fallback(i, scene_text, panel_count)
             filter_used = "color_block"
         else:
-            # Cycle through filter styles for visual variety
-            filter_cycle = i % 3
+            # Style-aware filter selection
+            filter_key = filter_rotation[i % len(filter_rotation)]
+            filter_fn = FILTER_FUNCTIONS.get(filter_key, FILTER_FUNCTIONS["comic_posterize"])
             try:
-                if filter_cycle == 0:
-                    processed = _apply_comic_posterize(source_img.copy())
-                    filter_used = "comic_posterize"
-                elif filter_cycle == 1:
-                    processed = _apply_pop_art(source_img.copy(), i)
-                    filter_used = "pop_art"
-                else:
-                    processed = _apply_comic_posterize(source_img.copy())
-                    filter_used = "comic_posterize_alt"
-
+                processed = filter_fn(source_img.copy(), i)
+                filter_used = filter_key
                 processed = _add_comic_border(processed, i)
                 img_bytes = _image_to_bytes(processed)
             except Exception as e:
-                logger.warning(f"Filter {filter_cycle} failed for panel {i}: {e}")
+                logger.warning(f"Filter {filter_key} failed for panel {i}: {e}")
                 img_bytes = _create_color_block_fallback(i, scene_text, panel_count)
                 filter_used = "color_block_fallback"
 
@@ -271,6 +337,7 @@ def generate_guaranteed_panels(
             "pipeline_status": "PASSED_GUARANTEED",
             "guaranteed_output": True,
             "filter_used": filter_used,
+            "style_applied": style_name,
         })
 
     return panels

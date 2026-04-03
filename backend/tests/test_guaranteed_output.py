@@ -192,5 +192,41 @@ class TestGuaranteedOutputInvariants:
         assert panels == []
 
 
+class TestGuaranteedOutputStyleAwareness:
+    """Different styles MUST produce distinct outputs."""
+
+    def test_different_styles_produce_different_panel1(self):
+        """The same source + same scene with different styles = different output."""
+        styles = ["bold_superhero", "soft_manga", "noir_comic"]
+        panel1_bytes = []
+        for s in styles:
+            panels = generate_guaranteed_panels(VALID_PNG, SCENES[:1], 1, style_name=s)
+            panel1_bytes.append(panels[0]["imageBytes"])
+        # At least 2 of 3 must be distinct
+        unique = len(set(b[:100] for b in panel1_bytes))
+        assert unique >= 2, f"Expected distinct outputs across styles, got {unique}/3 unique"
+
+    def test_style_applied_field(self):
+        """Each panel records which style was applied."""
+        panels = generate_guaranteed_panels(VALID_PNG, SCENES, 4, style_name="noir_comic")
+        for p in panels:
+            assert p["style_applied"] == "noir_comic"
+
+    def test_action_vs_sketch_style_different_filters(self):
+        """Action style uses pop_art-heavy, sketch style uses sketch-heavy."""
+        action_panels = generate_guaranteed_panels(VALID_PNG, SCENES, 4, style_name="bold_superhero")
+        sketch_panels = generate_guaranteed_panels(VALID_PNG, SCENES, 4, style_name="noir_comic")
+        action_filters = [p["filter_used"] for p in action_panels]
+        sketch_filters = [p["filter_used"] for p in sketch_panels]
+        assert action_filters != sketch_filters, "Action and sketch styles should use different filter sets"
+
+    def test_unknown_style_uses_default(self):
+        """Unknown style falls back to default filter rotation."""
+        panels = generate_guaranteed_panels(VALID_PNG, SCENES, 4, style_name="nonexistent_style_xyz")
+        assert len(panels) == 4
+        for p in panels:
+            assert p["status"] == "READY"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

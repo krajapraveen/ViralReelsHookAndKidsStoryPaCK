@@ -230,7 +230,8 @@ export default function PhotoToComic() {
   const canAfford = isUnlimited || (credits !== null && credits >= cost);
 
   // ─── Generate ────────────────────────────────────────────────────
-  const handleGenerate = async () => {
+  const handleGenerate = async (overrideStyle = null) => {
+    const activeStyle = overrideStyle || style;
     if (!photoFile) { toast.error('Upload a photo first'); return; }
     if (!canAfford) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }
     if (storyPrompt) {
@@ -251,8 +252,8 @@ export default function PhotoToComic() {
     setStages([]);
 
     // Track generation event
-    trackEvent('comic_generate_click', { mode, style, genre, panel_count: panelCount, preset: storyPreset });
-    try { api.post('/api/photo-to-comic/events', { event_type: 'generate_after_preview', metadata: { style, mode, preset: storyPreset } }); } catch {}
+    trackEvent('comic_generate_click', { mode, style: activeStyle, genre, panel_count: panelCount, preset: storyPreset });
+    try { api.post('/api/photo-to-comic/events', { event_type: 'generate_after_preview', metadata: { style: activeStyle, mode, preset: storyPreset } }); } catch {}
 
     // Fetch dynamic time estimate
     try {
@@ -268,7 +269,7 @@ export default function PhotoToComic() {
         formData.append('photo', photoFile);
       }
       formData.append('mode', mode);
-      formData.append('style', style);
+      formData.append('style', activeStyle);
       formData.append('genre', genre);
       formData.append('panel_count', String(panelCount));
       formData.append('hd_export', String(hd));
@@ -503,11 +504,19 @@ export default function PhotoToComic() {
 
   // ─── Remix ───────────────────────────────────────────────────────
   const handleRemix = (newStyle) => {
-    if (newStyle) setStyle(newStyle);
+    if (!newStyle) {
+      // "See all styles" — go back to builder
+      setResult(null);
+      setJobId(null);
+      setUiState('IDLE');
+      return;
+    }
+    // One-click remix: immediately regenerate with new style
+    setStyle(newStyle);
     setResult(null);
     setJobId(null);
-    setUiState('IDLE');
-    // Keep photo + storage key, go back to builder with new style
+    // Trigger generation directly with the new style
+    handleGenerate(newStyle);
   };
 
   // ─── Share ───────────────────────────────────────────────────────
@@ -683,11 +692,11 @@ export default function PhotoToComic() {
                             src={p.imageUrl}
                             alt={`Panel ${i + 1}`}
                             aspectRatio="1/1"
-                            titleOverlay={p.dialogue || `Panel ${i + 1}`}
+                            titleOverlay={(p.dialogue && p.dialogue !== 'null') ? p.dialogue : `Panel ${i + 1}`}
                             className="w-full"
                           />
                         )}
-                        {p.dialogue && p.status !== 'FAILED' && (
+                        {p.dialogue && p.dialogue !== 'null' && p.status !== 'FAILED' && (
                           <div className="p-2.5 text-xs text-slate-300 bg-slate-800/80 border-t border-slate-700">
                             {p.dialogue}
                           </div>

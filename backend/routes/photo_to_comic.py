@@ -734,15 +734,20 @@ async def process_comic_avatar(
                 negative_prompt = get_negative_prompt()
                 
                 # Add specific instructions
-                full_prompt = f"""Transform this person into a comic character.
+                full_prompt = f"""TRANSFORM this person into a comic character illustration. The output MUST look like drawn comic art, NOT a photograph or photo filter.
 
 {base_prompt}
 {f"CHARACTER LOCK: {char_context['visual_injection']}" if char_context else ""}
+STYLE REQUIREMENTS (CRITICAL):
+- Apply {SAFE_STYLES[style]['name']} style HEAVILY
+- {SAFE_STYLES[style]['prompt']}
+- Every pixel must read as illustrated/drawn art, not photographic
+
 IMPORTANT RULES:
 - Create an ORIGINAL character inspired by the person's appearance
 - DO NOT reference any copyrighted characters or celebrities
-- Maintain the person's general likeness but stylize it
-- Style: {SAFE_STYLES[style]['name']}
+- Maintain the person's general likeness but STYLIZE it strongly
+- DO NOT return the source photo with minimal changes
 {"- Use transparent background" if transparent_bg else ""}
 
 AVOID: {char_context['negative_prompt'] if char_context else negative_prompt}"""
