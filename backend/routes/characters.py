@@ -174,7 +174,7 @@ class CreateCharacterRequest(BaseModel):
     role: str = "hero"
     age_band: str = "adult"
     gender_presentation: Optional[str] = None
-    personality_summary: str
+    personality_summary: Optional[str] = None
     backstory_summary: Optional[str] = None
     core_goals: Optional[str] = None
     core_fears: Optional[str] = None
@@ -189,6 +189,24 @@ class CreateCharacterRequest(BaseModel):
     style_lock: str = "cartoon_2d"
     # Series link
     series_id: Optional[str] = None
+    # Raw UI field aliases (accept both old and new field names)
+    personality: Optional[str] = None
+    style: Optional[str] = None
+    voice: Optional[str] = None
+
+    def resolved_personality(self) -> str:
+        return self.personality_summary or self.personality or "A unique character"
+
+    def resolved_style(self) -> str:
+        STYLE_MAP = {
+            "anime": "anime", "cartoon": "cartoon_2d", "realistic": "cinematic",
+            "watercolor": "watercolor", "pixel art": "comic", "chibi": "cartoon_2d",
+        }
+        raw = self.style_lock if self.style_lock != "cartoon_2d" else (self.style or "cartoon_2d")
+        return STYLE_MAP.get(raw.lower(), raw.lower()) if raw else "cartoon_2d"
+
+    def resolved_gender(self) -> str:
+        return self.gender_presentation or self.voice or ""
 
 
 class UpdateCharacterRequest(BaseModel):
@@ -213,14 +231,18 @@ class AttachCharacterRequest(BaseModel):
 async def create_character(request: CreateCharacterRequest, user: dict = Depends(get_current_user)):
     """Create an original character with LLM-generated visual bible."""
     user_id = user["id"]
-    logger.info(f"[CHARACTER] Create request from user={user_id}: name={request.name} style={request.style_lock}")
+    # Resolve aliased fields (accept both raw UI and mapped field names)
+    resolved_personality = request.resolved_personality()
+    resolved_style = request.resolved_style()
+    resolved_gender = request.resolved_gender()
+    logger.info(f"[CHARACTER] Create request from user={user_id}: name={request.name} style={resolved_style} gender={resolved_gender} personality={resolved_personality[:50]}")
 
     # Safety screening
     appearance_text = " ".join(filter(None, [
         request.face_description, request.hair_description,
         request.body_description, request.clothing_description,
     ]))
-    safety = screen_safety(request.name, request.personality_summary, appearance_text)
+    safety = screen_safety(request.name, resolved_personality, appearance_text)
     if not safety["safe"]:
         raise HTTPException(status_code=422, detail={
             "error": "safety_block",
@@ -231,6 +253,11 @@ async def create_character(request: CreateCharacterRequest, user: dict = Depends
     character_id = _uuid()
     visual_bible_id = _uuid()
     safety_profile_id = _uuid()
+
+    # Override request fields with resolved values before passing to LLM
+    request.personality_summary = resolved_personality
+    request.style_lock = resolved_style
+    request.gender_presentation = resolved_gender
 
     # Generate visual bible via LLM if user didn't provide full details
     visual_bible_data = await _generate_visual_bible(request, character_id)
@@ -244,8 +271,9 @@ async def create_character(request: CreateCharacterRequest, user: dict = Depends
         "species_or_type": request.species_or_type,
         "role": request.role,
         "age_band": request.age_band,
-        "gender_presentation": request.gender_presentation,
-        "personality_summary": request.personality_summary,
+        "gender_presentation": resolved_gender,
+        "personality_summary": resolved_personality,
+        "style_lock": resolved_style,
         "backstory_summary": request.backstory_summary,
         "core_goals": request.core_goals,
         "core_fears": request.core_fears,
