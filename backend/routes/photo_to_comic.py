@@ -1077,6 +1077,15 @@ async def process_comic_strip(
         import time
         gen_start_time = time.time()
         
+        # Initialize job orchestrator BEFORE the try block to prevent UnboundLocalError
+        from services.comic_pipeline.job_orchestrator import JobOrchestrator
+        job_orch = JobOrchestrator(db)
+        orchestrator = None  # Will be set inside try block if LLM is available
+        story_scenes = []  # Will be populated by story generation
+        photo_b64 = base64.b64encode(photo_content).decode('utf-8')
+        risk_bucket = None
+        character_lock = None
+
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             try:
                 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
@@ -1196,9 +1205,6 @@ Format as JSON array:
                 # ── Fan-out: generate ALL panels via Panel Orchestrator with Continuity Pack ──
                 orchestrator = PanelOrchestrator(db, EMERGENT_LLM_KEY)
                 from services.comic_pipeline.continuity_pack import ContinuityPack
-                from services.comic_pipeline.job_orchestrator import JobOrchestrator
-                import asyncio
-
                 continuity_pack = ContinuityPack()
 
                 # Sequential generation for continuity (each panel feeds the next)
@@ -1267,7 +1273,6 @@ Format as JSON array:
                 await update_stage(job_id, "panel_generation", "done", 88, "All panels created")
 
                 # ── JOB-LEVEL POLICY ENGINE ──
-                job_orch = JobOrchestrator(db)
                 rerun_context = {
                     "story_scenes": story_scenes,
                     "style": style,
@@ -1335,7 +1340,7 @@ Format as JSON array:
         
         # ── Post-generation single-panel repair ──
         # If some panels failed but others succeeded, try to repair just the failed ones
-        if 0 < len(failed_panels) < len(panels) and LLM_AVAILABLE and EMERGENT_LLM_KEY:
+        if 0 < len(failed_panels) < len(panels) and LLM_AVAILABLE and EMERGENT_LLM_KEY and orchestrator:
             await update_stage(job_id, "composition", "in_progress", 90, "Optimizing final panels...")
             for fp in failed_panels[:2]:  # max 2 repair attempts
                 idx = fp["panelNumber"] - 1
@@ -1363,7 +1368,7 @@ Format as JSON array:
         # Run face embedding comparison on ready panels against source photo
         consistency_results = []
         consistency_retried = []
-        if len(ready_panels) > 0:
+        if len(ready_panels) > 0 and orchestrator and risk_bucket is not None:
             try:
                 await update_stage(job_id, "composition", "in_progress", 92, "Verifying character consistency...")
                 from services.consistency_validator import run_consistency_validation
@@ -1420,13 +1425,26 @@ Format as JSON array:
         
         # Determine job status — use job orchestrator's policy engine
         # Re-evaluate after all consistency fixes
-        final_job_result = await job_orch.evaluate_and_execute(
-            job_id=job_id,
-            panels=panels,
-            panel_count=panel_count,
-        )
-        job_status = final_job_result.get("job_status", "COMPLETED")
-        job_decision = final_job_result.get("decision", "ACCEPT_FULL")
+        try:
+            final_job_result = await job_orch.evaluate_and_execute(
+                job_id=job_id,
+                panels=panels,
+                panel_count=panel_count,
+            )
+            job_status = final_job_result.get("job_status", "COMPLETED")
+            job_decision = final_job_result.get("decision", "ACCEPT_FULL")
+        except Exception as orch_err:
+            logger.warning(f"Job orchestrator evaluation failed: {orch_err}. Using fallback status.")
+            ready_count = len([p for p in panels if p.get("status") == "READY"])
+            if ready_count == panel_count:
+                job_status = "COMPLETED"
+                job_decision = "ACCEPT_FULL"
+            elif ready_count > 0:
+                job_status = "PARTIAL_READY"
+                job_decision = "ACCEPT_PARTIAL"
+            else:
+                job_status = "FAILED"
+                job_decision = "REJECT"
 
         # Store final decision
         await db.photo_to_comic_jobs.update_one(
@@ -1482,7 +1500,11 @@ Format as JSON array:
 
                     gp["imageUrl"] = cdn_url
                     gp["style"] = style
-                    panels[idx] = gp
+                    # Safe assignment — extend panels list if needed (AI might have crashed early)
+                    if idx < len(panels):
+                        panels[idx] = gp
+                    else:
+                        panels.append(gp)
 
                 # Override status — user ALWAYS gets output
                 job_status = "PARTIAL_READY"
@@ -1802,7 +1824,6 @@ Format as JSON array:
 
         if already_has_output:
             # Guaranteed output was saved — keep the panels visible to user
-            # Only log the downstream error, do NOT mark as FAILED
             logger.warning(
                 f"Post-guaranteed downstream error for job {job_id}: {error_msg}. "
                 f"Keeping PARTIAL_READY status — panels are safe."
@@ -1816,41 +1837,80 @@ Format as JSON array:
                 }}
             )
         else:
-            # No guaranteed output — this is a real failure
-            await db.photo_to_comic_jobs.update_one(
-                {"id": job_id},
-                {"$set": {
-                    "status": "FAILED", 
-                    "error": error_msg,
-                    "errorDetails": {
-                        "type": type(e).__name__,
-                        "message": error_msg,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    }
-                }}
-            )
-            
-            # Auto-refund on generation failure
+            # LAST RESORT: Try guaranteed output in the exception handler itself
             try:
-                from services.auto_refund import handle_generation_failure
-                await handle_generation_failure(db, user_id, "comic_strip", str(e))
-                logger.info(f"Auto-refund processed for failed comic strip: {job_id}")
-            except Exception as refund_error:
-                logger.error(f"Auto-refund failed: {refund_error}")
-            
-            # Send failure notification
-            try:
-                from services.notification_service import get_notification_service
-                notification_service = get_notification_service(db)
-                await notification_service.notify_generation_failed(
-                    user_id=user_id,
-                    feature="comic_strip",
-                    job_id=job_id,
-                    error_message=str(e),
-                    refund_issued=True
+                logger.warning(f"[LAST_RESORT] Attempting guaranteed output for crashed job {job_id}")
+                from services.comic_pipeline.guaranteed_output import generate_guaranteed_panels
+                fallback_scenes = [{"scene": f"Panel {i+1}", "dialogue": None} for i in range(panel_count)]
+                guaranteed_panels = generate_guaranteed_panels(
+                    photo_content, fallback_scenes, panel_count, style_name=style
                 )
-            except Exception as notif_error:
-                logger.warning(f"Failed to send failure notification: {notif_error}")
+                # Upload each panel
+                for idx, gp in enumerate(guaranteed_panels):
+                    try:
+                        fname = f"lastresort_{job_id[:12]}_p{idx}.png"
+                        folder = f"comic/{user_id[:8]}"
+                        cdn_url = await upload_image_bytes(gp["imageBytes"], fname, folder)
+                        gp["imageUrl"] = cdn_url
+                    except Exception:
+                        gp["imageUrl"] = f"data:image/png;base64,{base64.b64encode(gp['imageBytes']).decode()}"
+                    del gp["imageBytes"]
+
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": "PARTIAL_READY",
+                        "panels": guaranteed_panels,
+                        "readyPanels": len(guaranteed_panels),
+                        "failedPanels": 0,
+                        "totalPanels": panel_count,
+                        "progress": 100,
+                        "guaranteed_output": True,
+                        "pipeline_state": "LAST_RESORT_GUARANTEED",
+                        "progressMessage": "We created a stylized version of your comic!",
+                        "original_error": error_msg,
+                    }}
+                )
+                logger.info(f"[LAST_RESORT] Guaranteed output saved for job {job_id}")
+            except Exception as last_resort_err:
+                # Even the last resort failed — now truly mark as FAILED
+                logger.error(f"[LAST_RESORT] Also failed for job {job_id}: {last_resort_err}")
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "status": "FAILED",
+                        "error": error_msg,
+                        "progress": 100,
+                        "errorDetails": {
+                            "type": type(e).__name__,
+                            "message": error_msg,
+                            "last_resort_error": str(last_resort_err),
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        }
+                    }}
+                )
+                
+                # Auto-refund on generation failure
+                try:
+                    from services.auto_refund import handle_generation_failure
+                    await handle_generation_failure(db, user_id, "comic_strip", str(e))
+                    logger.info(f"Auto-refund processed for failed comic strip: {job_id}")
+                except Exception as refund_error:
+                    logger.error(f"Auto-refund failed: {refund_error}")
+                
+                # Send failure notification
+                try:
+                    from services.notification_service import get_notification_service
+                    notification_service = get_notification_service(db)
+                    await notification_service.notify_generation_failed(
+                        user_id=user_id,
+                        feature="comic_strip",
+                        job_id=job_id,
+                        error_message=str(e),
+                        refund_issued=True
+                    )
+                except Exception as notif_error:
+                    logger.warning(f"Failed to send failure notification: {notif_error}")
 
 
 @router.get("/job/{job_id}")

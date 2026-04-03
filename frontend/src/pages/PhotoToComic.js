@@ -5,7 +5,7 @@ import {
   Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
   Grid3X3, User, Palette, RefreshCw, BookOpen, Share2,
   Copy, Twitter, MessageCircle, ExternalLink, ChevronRight,
-  GitBranch, TrendingUp, FileText
+  GitBranch, TrendingUp, FileText, AlertTriangle
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { SafeImage } from '../components/SafeImage';
@@ -15,6 +15,38 @@ import RatingModal from '../components/RatingModal';
 import { StylePreviewStrip } from '../components/photo-to-comic/StylePreviewStrip';
 import { ComicDownloads } from '../components/photo-to-comic/ComicDownloads';
 import { trackEvent } from '../utils/analytics';
+
+// ─── Error Boundary ────────────────────────────────────────────────────
+class ComicErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('[PhotoToComic] Render crash:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-8" data-testid="error-boundary-fallback">
+          <div className="bg-slate-900 border border-red-500/30 rounded-2xl p-8 max-w-md text-center">
+            <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
+            <p className="text-sm text-slate-400 mb-6">The comic creator hit an unexpected issue. Your photo and credits are safe.</p>
+            <button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors">
+              Reload & Try Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ─── Constants ─────────────────────────────────────────────────────────
 const STYLES = [
@@ -59,6 +91,14 @@ const BLOCKED = [
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function PhotoToComic() {
+  return (
+    <ComicErrorBoundary>
+      <PhotoToComicInner />
+    </ComicErrorBoundary>
+  );
+}
+
+function PhotoToComicInner() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const generatorRef = useRef(null);
