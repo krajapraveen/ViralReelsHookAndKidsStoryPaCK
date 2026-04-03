@@ -1,23 +1,27 @@
 """
-Brand Story Builder
-Template-based, no AI, <200ms response
-Price: 18 credits
+Brand Kit Generator — upgraded from Brand Story Builder.
+Parallel AI generation, progressive results, PDF/ZIP packaging.
+Pricing: Fast=10, Pro=25, Premium=50 (reserved)
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
-from typing import List, Optional
-import random
+from typing import Optional
 import time
+import os
+import logging
 from datetime import datetime, timezone
-from bson import ObjectId
 
 from shared import db, get_current_user, get_admin_user
+from services.brand_kit.orchestrator import BrandKitOrchestrator
+from services.brand_kit.prompts import MODE_ARTIFACTS
 
-router = APIRouter(prefix="/brand-story-builder", tags=["Brand Story Builder"])
+logger = logging.getLogger("creatorstudio.brand_kit")
+
+router = APIRouter(prefix="/brand-story-builder", tags=["Brand Kit Generator"])
 
 # ==================== COPYRIGHT PROTECTION ====================
 BLOCKED_KEYWORDS = [
-    "marvel", "disney", "pixar", "harry potter", "pokemon", "naruto", "spiderman", 
+    "marvel", "disney", "pixar", "harry potter", "pokemon", "naruto", "spiderman",
     "batman", "superman", "avengers", "frozen", "mickey", "star wars", "lord of the rings",
     "netflix", "amazon", "google", "apple", "microsoft", "facebook", "instagram",
     "tiktok", "youtube", "twitter", "coca cola", "pepsi", "mcdonalds", "nike", "adidas",
@@ -25,119 +29,40 @@ BLOCKED_KEYWORDS = [
     "jeff bezos", "mark zuckerberg", "bill gates", "taylor swift", "beyonce", "drake"
 ]
 
+INDUSTRIES = [
+    "Technology", "Healthcare", "Finance", "Education", "E-commerce",
+    "Real Estate", "Food & Beverage", "Fashion", "Consulting", "Marketing",
+    "Fitness", "Travel", "Entertainment", "Manufacturing", "Non-profit",
+    "SaaS", "AI/ML", "Retail", "Media", "Automotive", "Agriculture",
+    "Legal", "Architecture", "Gaming", "Sustainability"
+]
+
+TONES = ["professional", "bold", "luxury", "friendly", "emotional", "gen-z", "startup", "premium"]
+
+PERSONALITIES = ["innovative", "trustworthy", "playful", "sophisticated", "disruptive", "warm", "authoritative", "minimalist"]
+
+CREDIT_COSTS = {"fast": 10, "pro": 25, "premium": 50}
+
+
 def check_copyright(text: str) -> bool:
     text_lower = text.lower()
-    for keyword in BLOCKED_KEYWORDS:
-        if keyword in text_lower:
-            return True
-    return False
+    return any(kw in text_lower for kw in BLOCKED_KEYWORDS)
 
-# ==================== TEMPLATES ====================
-INDUSTRIES = [
-    "Technology", "Healthcare", "Finance", "Education", "E-commerce", 
-    "Real Estate", "Food & Beverage", "Fashion", "Consulting", "Marketing",
-    "Fitness", "Travel", "Entertainment", "Manufacturing", "Non-profit"
-]
-
-TONES = ["professional", "bold", "luxury", "friendly"]
-
-# Opening templates by industry and tone
-OPENING_TEMPLATES = {
-    "professional": [
-        "At {business_name}, we believe in transforming {industry} through innovation and excellence.",
-        "{business_name} was founded on a simple principle: deliver exceptional value in {industry}.",
-        "Welcome to {business_name}, where {industry} meets precision and professionalism.",
-    ],
-    "bold": [
-        "{business_name} isn't just another {industry} company. We're revolutionizing the game.",
-        "Forget everything you know about {industry}. {business_name} is rewriting the rules.",
-        "{business_name}: Because {industry} needed a wake-up call.",
-    ],
-    "luxury": [
-        "{business_name} represents the pinnacle of {industry} excellence.",
-        "Discover {business_name}: Where {industry} becomes an art form.",
-        "Experience the epitome of {industry} sophistication with {business_name}.",
-    ],
-    "friendly": [
-        "Hey there! {business_name} is here to make {industry} actually enjoyable.",
-        "We're {business_name}, and we're passionate about making {industry} accessible to everyone.",
-        "{business_name} started with a simple idea: {industry} should be fun and easy.",
-    ]
-}
-
-# Value proposition templates
-VALUE_TEMPLATES = [
-    "Our mission, {mission}, drives every decision we make.",
-    "We wake up every day committed to {mission}.",
-    "What sets us apart? Our unwavering dedication to {mission}.",
-    "At our core, we exist to {mission}.",
-]
-
-# Founder story templates
-FOUNDER_TEMPLATES = [
-    "The story of {business_name} begins with {founder_story}. This experience shaped our vision and purpose.",
-    "Our founder's journey: {founder_story}. From this moment, {business_name} was born.",
-    "{founder_story} - This is the spark that ignited {business_name}'s mission.",
-    "Behind {business_name} is a story of determination: {founder_story}",
-]
-
-# Closing templates
-CLOSING_TEMPLATES = {
-    "professional": [
-        "Join us in shaping the future of {industry}. Together, we'll achieve excellence.",
-        "Partner with {business_name} and experience the difference that expertise makes.",
-    ],
-    "bold": [
-        "Ready to disrupt {industry}? Let's make it happen together.",
-        "Join the revolution. Join {business_name}.",
-    ],
-    "luxury": [
-        "Elevate your {industry} experience. Welcome to {business_name}.",
-        "Discover what exclusive {industry} truly means with {business_name}.",
-    ],
-    "friendly": [
-        "We can't wait to work with you! Let's create something amazing together.",
-        "Join the {business_name} family and let's make {industry} better, together!",
-    ]
-}
-
-# Elevator pitch templates
-PITCH_TEMPLATES = [
-    "{business_name} helps {industry} professionals achieve {mission} through innovative solutions.",
-    "We're {business_name}: making {mission} a reality for {industry}.",
-    "{business_name} - Where {industry} meets {mission}. Simple. Effective. Transformative.",
-]
-
-# About section templates
-ABOUT_TEMPLATES = [
-    """About {business_name}
-
-{business_name} is a leading {industry} company dedicated to {mission}. Founded with passion and driven by purpose, we serve clients who demand excellence.
-
-What We Do:
-• Transform {industry} through innovation
-• Deliver measurable results
-• Build lasting partnerships
-
-Our Promise:
-Every interaction with {business_name} reflects our commitment to quality, integrity, and your success.""",
-]
 
 # ==================== MODELS ====================
-class GenerateRequest(BaseModel):
+class BrandKitRequest(BaseModel):
     business_name: str = Field(..., min_length=1, max_length=100)
-    mission: str = Field(..., min_length=10, max_length=300)
-    founder_story: str = Field(..., min_length=20, max_length=500)
-    industry: str
+    mission: str = Field(default="", max_length=500)
+    founder_story: str = Field(default="", max_length=500)
+    industry: str = Field(default="Technology")
     tone: str = Field(default="professional")
+    audience: str = Field(default="", max_length=300)
+    personality: str = Field(default="", max_length=200)
+    competitors: str = Field(default="", max_length=300)
+    market: str = Field(default="Global", max_length=100)
+    problem_solved: str = Field(default="", max_length=300)
+    mode: str = Field(default="pro")
 
-class GenerateResponse(BaseModel):
-    success: bool
-    brand_story: str
-    elevator_pitch: str
-    about_section: str
-    credits_used: int
-    generation_time_ms: int
 
 # ==================== ENDPOINTS ====================
 @router.get("/config")
@@ -145,105 +70,189 @@ async def get_config():
     return {
         "industries": INDUSTRIES,
         "tones": TONES,
-        "credit_cost": 18,
-        "max_mission_length": 300,
-        "max_founder_story_length": 500
+        "personalities": PERSONALITIES,
+        "modes": {
+            "fast": {"credits": 10, "artifacts": MODE_ARTIFACTS["fast"], "label": "Fast", "desc": "Text essentials in ~5 seconds"},
+            "pro": {"credits": 25, "artifacts": MODE_ARTIFACTS["pro"], "label": "Pro", "desc": "Full brand kit with visuals"},
+        },
+        "credit_costs": CREDIT_COSTS,
     }
 
-@router.post("/generate", response_model=GenerateResponse)
-async def generate_brand_story(request: GenerateRequest, user: dict = Depends(get_current_user)):
-    start_time = time.time()
-    
+
+@router.post("/generate")
+async def generate_brand_kit(request: BrandKitRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     # Copyright check
-    all_text = f"{request.business_name} {request.mission} {request.founder_story}"
+    all_text = f"{request.business_name} {request.mission} {request.founder_story} {request.competitors}"
     if check_copyright(all_text):
         raise HTTPException(status_code=400, detail="Input contains blocked content. Please avoid copyrighted or trademarked terms.")
-    
-    # Check credits
-    if user.get("credits", 0) < 18:
-        raise HTTPException(status_code=402, detail="Insufficient credits. 18 credits required.")
-    
-    # Deduct credits BEFORE generation
-    await db.users.update_one(
-        {"id": user["id"]},
-        {"$inc": {"credits": -18}}
-    )
-    
+
+    mode = request.mode if request.mode in ("fast", "pro") else "pro"
+    cost = CREDIT_COSTS.get(mode, 25)
+
+    if user.get("credits", 0) < cost:
+        raise HTTPException(status_code=402, detail=f"Insufficient credits. {cost} credits required for {mode} mode.")
+
+    # Deduct credits
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -cost}})
+
+    brief = {
+        "business_name": request.business_name,
+        "mission": request.mission,
+        "founder_story": request.founder_story,
+        "industry": request.industry,
+        "tone": request.tone,
+        "audience": request.audience,
+        "personality": request.personality,
+        "competitors": request.competitors,
+        "market": request.market,
+        "problem_solved": request.problem_solved,
+    }
+
+    llm_key = os.environ.get("EMERGENT_LLM_KEY", "")
+    orchestrator = BrandKitOrchestrator(db, llm_key)
+
     try:
-        tone = request.tone if request.tone in TONES else "professional"
-        
-        # Build brand story
-        opening = random.choice(OPENING_TEMPLATES.get(tone, OPENING_TEMPLATES["professional"]))
-        opening = opening.format(business_name=request.business_name, industry=request.industry)
-        
-        value = random.choice(VALUE_TEMPLATES)
-        value = value.format(mission=request.mission)
-        
-        founder = random.choice(FOUNDER_TEMPLATES)
-        founder = founder.format(business_name=request.business_name, founder_story=request.founder_story)
-        
-        closing = random.choice(CLOSING_TEMPLATES.get(tone, CLOSING_TEMPLATES["professional"]))
-        closing = closing.format(business_name=request.business_name, industry=request.industry)
-        
-        brand_story = f"{opening}\n\n{value}\n\n{founder}\n\n{closing}"
-        
-        # Build elevator pitch
-        pitch = random.choice(PITCH_TEMPLATES)
-        pitch = pitch.format(business_name=request.business_name, industry=request.industry, mission=request.mission)
-        
-        # Build about section
-        about = random.choice(ABOUT_TEMPLATES)
-        about = about.format(business_name=request.business_name, industry=request.industry, mission=request.mission)
-        
-        # Track analytics
-        await db.template_analytics.insert_one({
-            "feature": "brand_story_builder",
-            "user_id": str(user["id"]),
-            "industry": request.industry,
-            "tone": tone,
-            "created_at": datetime.now(timezone.utc)
-        })
-        
-        generation_time = int((time.time() - start_time) * 1000)
-        
-        return GenerateResponse(
-            success=True,
-            brand_story=brand_story,
-            elevator_pitch=pitch,
-            about_section=about,
-            credits_used=18,
-            generation_time_ms=generation_time
-        )
-        
+        job_id = await orchestrator.create_job(user["id"], brief, mode)
     except Exception as e:
-        # Refund on error
-        await db.users.update_one(
-            {"id": user["id"]},
-            {"$inc": {"credits": 18}}
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": cost}})
+        raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
+
+    # Run generation in background
+    background_tasks.add_task(orchestrator.run_generation, job_id)
+
+    return {
+        "success": True,
+        "jobId": job_id,
+        "mode": mode,
+        "credits_charged": cost,
+        "message": f"Building your brand kit ({mode} mode)...",
+    }
+
+
+@router.get("/job/{job_id}")
+async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
+    job = await db.brand_kit_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Build artifact summary (without full data for polling)
+    artifact_summary = {}
+    for art_type, art in job.get("artifacts", {}).items():
+        artifact_summary[art_type] = {
+            "status": art.get("status", "QUEUED"),
+            "latency_ms": art.get("latency_ms"),
+        }
+
+    return {
+        "jobId": job["id"],
+        "status": job.get("status", "CREATED"),
+        "mode": job.get("mode"),
+        "progress": job.get("progress", 0),
+        "current_stage": job.get("current_stage", "CREATED"),
+        "total_artifacts": job.get("total_artifacts", 0),
+        "completed_artifacts": job.get("completed_artifacts", 0),
+        "artifacts": artifact_summary,
+        "brief": job.get("brief", {}),
+    }
+
+
+@router.get("/job/{job_id}/result")
+async def get_job_result(job_id: str, user: dict = Depends(get_current_user)):
+    job = await db.brand_kit_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Return full artifact data
+    outputs = {}
+    for art_type, art in job.get("artifacts", {}).items():
+        outputs[art_type] = {
+            "status": art.get("status", "QUEUED"),
+            "data": art.get("data"),
+            "latency_ms": art.get("latency_ms"),
+        }
+
+    return {
+        "jobId": job["id"],
+        "status": job.get("status"),
+        "mode": job.get("mode"),
+        "brief": job.get("brief", {}),
+        "outputs": outputs,
+        "completed_at": job.get("completed_at"),
+    }
+
+
+@router.get("/job/{job_id}/pdf")
+async def download_pdf(job_id: str, user: dict = Depends(get_current_user)):
+    from services.brand_kit.packaging import generate_brand_kit_pdf
+    from fastapi.responses import Response
+
+    job = await db.brand_kit_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.get("status") not in ("READY", "PARTIAL_READY"):
+        raise HTTPException(status_code=400, detail="Brand kit not ready for download")
+
+    try:
+        pdf_bytes = generate_brand_kit_pdf(job)
+        biz = job.get("brief", {}).get("business_name", "brand").replace(" ", "_")
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{biz}_brand_kit.pdf"'}
         )
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"[BRAND_KIT] PDF generation failed: {e}")
+        raise HTTPException(status_code=500, detail="PDF generation failed")
+
+
+@router.get("/job/{job_id}/zip")
+async def download_zip(job_id: str, user: dict = Depends(get_current_user)):
+    from services.brand_kit.packaging import generate_brand_kit_zip
+    from fastapi.responses import Response
+
+    job = await db.brand_kit_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.get("status") not in ("READY", "PARTIAL_READY"):
+        raise HTTPException(status_code=400, detail="Brand kit not ready for download")
+
+    try:
+        zip_bytes = generate_brand_kit_zip(job)
+        biz = job.get("brief", {}).get("business_name", "brand").replace(" ", "_")
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{biz}_brand_kit.zip"'}
+        )
+    except Exception as e:
+        logger.error(f"[BRAND_KIT] ZIP generation failed: {e}")
+        raise HTTPException(status_code=500, detail="ZIP generation failed")
+
 
 # ==================== ADMIN ENDPOINTS ====================
-@router.get("/admin/templates")
-async def get_templates(admin: dict = Depends(get_admin_user)):
-    templates = await db.brand_story_templates.find({}).to_list(100)
-    for t in templates:
-        t["id"] = str(t.pop("_id"))
-    return {"templates": templates}
+@router.get("/admin/analytics")
+async def get_brand_kit_analytics(admin: dict = Depends(get_admin_user)):
+    total_jobs = await db.brand_kit_jobs.count_documents({})
+    completed = await db.brand_kit_jobs.count_documents({"status": {"$in": ["READY", "PARTIAL_READY"]}})
+    failed = await db.brand_kit_jobs.count_documents({"status": "FAILED"})
 
-@router.post("/admin/templates")
-async def create_template(data: dict, admin: dict = Depends(get_admin_user)):
-    template = {
-        "type": data.get("type", "opening"),
-        "tone": data.get("tone", "professional"),
-        "template": data.get("template"),
-        "active": True,
-        "created_at": datetime.now(timezone.utc)
+    return {
+        "total_jobs": total_jobs,
+        "completed": completed,
+        "failed": failed,
+        "success_rate": round(completed / max(total_jobs, 1) * 100, 1),
     }
-    result = await db.brand_story_templates.insert_one(template)
-    return {"success": True, "id": str(result.inserted_id)}
-
-@router.delete("/admin/templates/{template_id}")
-async def delete_template(template_id: str, admin: dict = Depends(get_admin_user)):
-    result = await db.brand_story_templates.delete_one({"_id": ObjectId(template_id)})
-    return {"success": result.deleted_count > 0}
