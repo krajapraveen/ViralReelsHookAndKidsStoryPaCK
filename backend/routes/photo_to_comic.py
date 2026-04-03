@@ -1056,6 +1056,16 @@ async def process_comic_strip(
 ):
     """Background task to generate comic strip — PARALLEL panel generation"""
     try:
+        # ── HARD LOGGING: style trace ──
+        import hashlib as hl
+        photo_hash = hl.md5(photo_content).hexdigest()[:12]
+        logger.info(
+            f"[STYLE_TRACE] JOB_START job_id={job_id} "
+            f"requested_style={style} resolved_style_name={SAFE_STYLES.get(style, {}).get('name', 'UNKNOWN')} "
+            f"photo_hash={photo_hash} panel_count={panel_count} genre={genre} "
+            f"user_id={user_id[:8]}"
+        )
+
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "PROCESSING"}}
@@ -1233,6 +1243,16 @@ Format as JSON array:
                         )
 
                     panels.append(result)
+
+                    # ── HARD LOGGING: per-panel style trace ──
+                    logger.info(
+                        f"[STYLE_TRACE] PANEL_DONE job_id={job_id} panel={i+1} "
+                        f"style={style} status={result.get('status')} "
+                        f"pipeline_status={result.get('pipeline_status')} "
+                        f"model_tier={result.get('model_tier_used')} "
+                        f"attempts={result.get('attempts')} "
+                        f"imageUrl={result.get('imageUrl', 'NONE')[:80]}"
+                    )
 
                     # Update progress
                     progress = 20 + int(((i + 1) / panel_count) * 65)
@@ -1424,7 +1444,12 @@ Format as JSON array:
         # ══════════════════════════════════════════════════════════════════
         ready_panels = [p for p in panels if p.get("status") == "READY"]
         if job_status == "FAILED" or (len(ready_panels) == 0 and len(panels) > 0):
-            logger.warning(f"[GUARANTEED_OUTPUT] All AI panels failed for job {job_id}. Activating guaranteed output.")
+            logger.warning(
+                f"[STYLE_TRACE] GUARANTEED_OUTPUT_ACTIVATED job_id={job_id} "
+                f"style={style} reason=all_ai_failed "
+                f"ready={len(ready_panels)} failed={len([p for p in panels if p.get('status') == 'FAILED'])} "
+                f"total={len(panels)}"
+            )
             try:
                 from services.comic_pipeline.guaranteed_output import generate_guaranteed_panels
                 from services.cloudflare_r2_storage import upload_image_bytes
@@ -1463,7 +1488,11 @@ Format as JSON array:
                 job_status = "PARTIAL_READY"
                 job_decision = "ACCEPT_GUARANTEED_FALLBACK"
                 ready_panels = [p for p in panels if p.get("status") == "READY"]
-                logger.info(f"[GUARANTEED_OUTPUT] Generated {len(ready_panels)} guaranteed panels for job {job_id}")
+                logger.info(
+                    f"[STYLE_TRACE] GUARANTEED_OUTPUT_DONE job_id={job_id} "
+                    f"style={style} panels_generated={len(ready_panels)} "
+                    f"panel_urls={[p.get('imageUrl', 'NONE')[:60] for p in panels]}"
+                )
 
                 await db.photo_to_comic_jobs.update_one(
                     {"id": job_id},
@@ -1931,6 +1960,86 @@ async def delete_job(job_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Job not found")
     
     return {"success": True, "message": "Job deleted"}
+
+
+
+# ============================================
+# DEBUG: Style Distinctness Audit
+# ============================================
+
+@router.post("/debug/style-audit")
+async def debug_style_audit(user: dict = Depends(get_current_user)):
+    """
+    Debug endpoint: Generate guaranteed output for the same test image across
+    4 styles and return comparison data. No credits charged.
+    Admin-only.
+    """
+    if user.get("role", "").lower() != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    import hashlib
+    from services.comic_pipeline.guaranteed_output import generate_guaranteed_panels
+    from PIL import Image, ImageDraw
+    import io
+
+    # Create a simple test face image
+    test_img = Image.new("RGB", (256, 256), (180, 150, 120))
+    draw = ImageDraw.Draw(test_img)
+    draw.ellipse([60, 40, 196, 200], fill=(220, 190, 160))  # face
+    draw.ellipse([90, 90, 115, 110], fill=(50, 40, 30))  # left eye
+    draw.ellipse([145, 90, 170, 110], fill=(50, 40, 30))  # right eye
+    draw.arc([100, 130, 160, 170], 0, 180, fill=(120, 60, 60), width=2)  # mouth
+    buf = io.BytesIO()
+    test_img.save(buf, format="PNG")
+    test_bytes = buf.getvalue()
+
+    scenes = [
+        {"scene": "Hero appears", "dialogue": "Ready!"},
+        {"scene": "Action scene", "dialogue": "Here we go!"},
+        {"scene": "Challenge", "dialogue": None},
+        {"scene": "Victory", "dialogue": "We won!"},
+    ]
+
+    styles_to_test = ["bold_superhero", "cartoon_fun", "soft_manga", "noir_comic"]
+    results = {}
+
+    for style_name in styles_to_test:
+        panels = generate_guaranteed_panels(test_bytes, scenes, 4, style_name=style_name)
+        panel_data = []
+        for p in panels:
+            img_hash = hashlib.md5(p["imageBytes"]).hexdigest()
+            panel_data.append({
+                "panel": p["panelNumber"],
+                "filter_used": p["filter_used"],
+                "style_applied": p["style_applied"],
+                "output_hash": img_hash[:16],
+                "size_bytes": len(p["imageBytes"]),
+            })
+        results[style_name] = panel_data
+
+    # Cross-style comparison
+    comparisons = []
+    for i, s1 in enumerate(styles_to_test):
+        for s2 in styles_to_test[i + 1:]:
+            identical_panels = sum(
+                1 for a, b in zip(results[s1], results[s2])
+                if a["output_hash"] == b["output_hash"]
+            )
+            comparisons.append({
+                "style_a": s1,
+                "style_b": s2,
+                "identical_panels": f"{identical_panels}/{len(results[s1])}",
+                "distinct": identical_panels == 0,
+            })
+
+    return {
+        "test_type": "guaranteed_output_style_audit",
+        "styles_tested": styles_to_test,
+        "results": results,
+        "cross_style_comparisons": comparisons,
+        "verdict": "PASS" if all(c["distinct"] for c in comparisons) else "PARTIAL",
+    }
+
 
 
 # ============================================

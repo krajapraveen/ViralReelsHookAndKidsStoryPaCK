@@ -285,6 +285,8 @@ export default function PhotoToComic() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
+      console.log(`[STYLE_TRACE] GENERATE_RESPONSE style=${activeStyle} jobId=${res.data?.jobId} success=${res.data?.success}`);
+
       if (res.data.success && res.data.jobId) {
         setJobId(res.data.jobId);
         setCredits(p => p - cost);
@@ -511,6 +513,7 @@ export default function PhotoToComic() {
       setUiState('IDLE');
       return;
     }
+    console.log(`[STYLE_TRACE] REMIX requested_style=${newStyle} previous_style=${style} has_photo=${!!photoFile} has_storage_key=${!!storageKey}`);
     // One-click remix: immediately regenerate with new style
     setStyle(newStyle);
     setResult(null);
