@@ -17,6 +17,7 @@ import time
 import base64
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Optional, List, Dict
 
 import sys
@@ -77,6 +78,14 @@ class PanelOrchestrator:
         """
         panel_start = time.time()
         total_attempts = 0
+        worker_telemetry = {
+            "job_id": job_id,
+            "panel_index": panel_index,
+            "style": style_name,
+            "risk_bucket": risk_bucket.value if risk_bucket else "UNKNOWN",
+            "start_time": datetime.now(timezone.utc).isoformat(),
+            "stages": [],
+        }
 
         panel_data = {
             "panelNumber": panel_index + 1,
@@ -135,6 +144,16 @@ class PanelOrchestrator:
         )
         total_attempts += 1
 
+        # ── WORKER TELEMETRY: PRIMARY ──
+        worker_telemetry["stages"].append({
+            "stage": "PRIMARY",
+            "model_tier": initial_tier.value,
+            "model": MODEL_TIER_MAPPING[initial_tier]["model"],
+            "latency_ms": primary_result["latency_ms"],
+            "success": primary_result["success"],
+            "error_type": primary_result.get("error_type"),
+        })
+
         if primary_result["success"]:
             # Validate the output
             validation = self.validator.validate(
@@ -179,6 +198,7 @@ class PanelOrchestrator:
                         initial_tier, "Primary pass", risk_bucket=risk_bucket
                     ),
                 })
+                await self._persist_worker_telemetry(worker_telemetry, total_attempts, round((time.time() - panel_start) * 1000), panel_data)
                 return panel_data
 
             # ══════════════════════════════════════════════════════════
@@ -208,6 +228,17 @@ class PanelOrchestrator:
                     approved_panel_bytes=approved_panel_bytes,
                 )
                 total_attempts += 1
+
+                # ── WORKER TELEMETRY: REPAIR ──
+                worker_telemetry["stages"].append({
+                    "stage": f"REPAIR_{repair_strategy.repair_mode.value}",
+                    "model_tier": repair_strategy.model_tier.value,
+                    "model": MODEL_TIER_MAPPING[repair_strategy.model_tier]["model"],
+                    "latency_ms": repair_result["latency_ms"],
+                    "success": repair_result["success"],
+                    "error_type": repair_result.get("error_type"),
+                    "repair_mode": repair_strategy.repair_mode.value,
+                })
 
                 if repair_result["success"]:
                     repair_validation = self.validator.validate(
@@ -258,6 +289,7 @@ class PanelOrchestrator:
                                 validation.failure_types, risk_bucket,
                             ),
                         })
+                        await self._persist_worker_telemetry(worker_telemetry, total_attempts, round((time.time() - panel_start) * 1000), panel_data)
                         return panel_data
 
                     # Update validation for fallback decision
@@ -329,6 +361,17 @@ class PanelOrchestrator:
             )
             total_attempts += 1
 
+            # ── WORKER TELEMETRY: FALLBACK ──
+            worker_telemetry["stages"].append({
+                "stage": "FALLBACK",
+                "model_tier": ModelTier.TIER4_SAFE_DEGRADED.value,
+                "model": MODEL_TIER_MAPPING[ModelTier.TIER4_SAFE_DEGRADED]["model"],
+                "latency_ms": fallback_result["latency_ms"],
+                "success": fallback_result["success"],
+                "error_type": fallback_result.get("error_type"),
+                "fallback": True,
+            })
+
             if fallback_result["success"]:
                 fb_validation = self.validator.validate(
                     image_bytes=fallback_result.get("image_bytes"),
@@ -378,6 +421,7 @@ class PanelOrchestrator:
                             validation.failure_types, risk_bucket,
                         ),
                     })
+                    await self._persist_worker_telemetry(worker_telemetry, total_attempts, round((time.time() - panel_start) * 1000), panel_data)
                     return panel_data
             else:
                 await self.attempt_logger.log_attempt(
@@ -398,18 +442,64 @@ class PanelOrchestrator:
         # ══════════════════════════════════════════════════════════════
         # PANEL FAILED — all attempts exhausted
         # ══════════════════════════════════════════════════════════════
+        total_duration_ms = round((time.time() - panel_start) * 1000)
         panel_data.update({
             "imageUrl": None,
             "status": "FAILED",
             "pipeline_status": PanelStatus.FAILED.value,
             "fail_reason": "all_attempts_exhausted",
-            "timing_ms": round((time.time() - panel_start) * 1000),
+            "timing_ms": total_duration_ms,
             "attempts": total_attempts,
             "model_tier_used": "exhausted",
             "routing_explanation": f"All {total_attempts} attempts exhausted. "
                                    f"Failures: {[ft.value for ft in validation.failure_types]}",
         })
+
+        # ── WORKER TELEMETRY: PERSIST ──
+        await self._persist_worker_telemetry(worker_telemetry, total_attempts, total_duration_ms, panel_data)
+
         return panel_data
+
+    async def _persist_worker_telemetry(self, telemetry: dict, total_attempts: int, total_duration_ms: int, panel_data: dict):
+        """Persist worker performance telemetry to DB and log structured metrics."""
+        telemetry["end_time"] = datetime.now(timezone.utc).isoformat()
+        telemetry["total_duration_ms"] = total_duration_ms
+        telemetry["total_attempts"] = total_attempts
+        telemetry["final_status"] = panel_data.get("status", "UNKNOWN")
+        telemetry["pipeline_status"] = panel_data.get("pipeline_status", "UNKNOWN")
+        telemetry["model_tier_used"] = panel_data.get("model_tier_used", "UNKNOWN")
+        telemetry["fallback_used"] = panel_data.get("fallback", False)
+        telemetry["fail_reason"] = panel_data.get("fail_reason")
+
+        # Compute model time vs queue/overhead time
+        model_time_ms = sum(s.get("latency_ms", 0) for s in telemetry["stages"])
+        telemetry["model_time_ms"] = model_time_ms
+        telemetry["overhead_ms"] = max(0, total_duration_ms - model_time_ms)
+
+        # Structured log for monitoring
+        logger.info(
+            f"[WORKER_TELEMETRY] job={telemetry['job_id']} panel={telemetry['panel_index']+1} "
+            f"status={telemetry['final_status']} pipeline={telemetry['pipeline_status']} "
+            f"attempts={total_attempts} total_ms={total_duration_ms} "
+            f"model_ms={model_time_ms} overhead_ms={telemetry['overhead_ms']} "
+            f"tier={telemetry['model_tier_used']} style={telemetry['style']} "
+            f"risk={telemetry['risk_bucket']} fallback={telemetry['fallback_used']} "
+            f"fail_reason={telemetry['fail_reason']}"
+        )
+
+        # Per-stage breakdown
+        for s in telemetry["stages"]:
+            logger.info(
+                f"[WORKER_STAGE] job={telemetry['job_id']} panel={telemetry['panel_index']+1} "
+                f"stage={s['stage']} model={s.get('model')} latency_ms={s.get('latency_ms')} "
+                f"success={s.get('success')} error={s.get('error_type')}"
+            )
+
+        # Persist to DB
+        try:
+            await self.db.worker_telemetry.insert_one(telemetry)
+        except Exception as e:
+            logger.warning(f"[WORKER_TELEMETRY] DB persist failed: {e}")
 
     async def _generate_panel(
         self,
@@ -437,8 +527,7 @@ class PanelOrchestrator:
         provider_config = self.model_router.get_provider_config(model_tier)
 
         try:
-            from emergentintegrations.llm.chat import LlmChat
-            from emergentintegrations.llm.chat_message import UserMessage, ImageContent
+            from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
             # Build system message — enhanced when reference panels exist
             has_refs = approved_panel_bytes and any(b for b in approved_panel_bytes if b)

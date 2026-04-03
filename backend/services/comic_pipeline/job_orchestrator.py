@@ -274,6 +274,9 @@ class JobOrchestrator:
         Evaluate job quality and decide next action.
         Returns: {decision, panels (updated), job_quality, decision_log}
         """
+        import time
+        eval_start = time.time()
+
         # Extract signals
         signal_extractor = JobSignals(panels, panel_count)
         signals = signal_extractor.compute()
@@ -364,6 +367,22 @@ class JobOrchestrator:
             result["job_status"] = "FAILED"
             result["job_quality"] = "FAILED"
             result["progress_msg"] = "We couldn't create your comic this time. No credits were charged."
+
+        # ── JOB-LEVEL WORKER TELEMETRY ──
+        eval_duration_ms = round((time.time() - eval_start) * 1000)
+        logger.info(
+            f"[JOB_TELEMETRY] job={job_id} decision={decision} "
+            f"ready={signals['ready_count']}/{signals['total_panels']} "
+            f"failed={signals['failed_count']} degraded={signals['degraded_count']} "
+            f"repaired={signals['repaired_count']} primary_pass={signals['primary_pass_count']} "
+            f"total_attempts={signals['total_attempts']} "
+            f"total_latency_ms={signals['total_latency_ms']} avg_latency_ms={signals['avg_latency_ms']} "
+            f"face_consistency={signals['avg_face_consistency']:.3f} "
+            f"style_consistency={signals['avg_style_consistency']:.3f} "
+            f"fallback_contamination={signals['fallback_contamination']:.2f} "
+            f"repair_concentration={signals['repair_concentration']:.2f} "
+            f"eval_overhead_ms={eval_duration_ms}"
+        )
 
         return result
 

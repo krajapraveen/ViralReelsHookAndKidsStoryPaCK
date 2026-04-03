@@ -213,12 +213,12 @@ MODEL_TIER_MAPPING = {
     },
     ModelTier.TIER3_DETERMINISTIC: {
         "provider": "gemini",
-        "model": "gemini-2.0-flash-preview-image-generation",
+        "model": "gemini-3.1-flash-image-preview",
         "description": "Faster, more deterministic, stronger instruction following",
     },
     ModelTier.TIER4_SAFE_DEGRADED: {
         "provider": "gemini",
-        "model": "gemini-2.0-flash-preview-image-generation",
+        "model": "gemini-3.1-flash-image-preview",
         "description": "Simplified prompts, maximum continuity, minimal failure risk",
     },
 }
