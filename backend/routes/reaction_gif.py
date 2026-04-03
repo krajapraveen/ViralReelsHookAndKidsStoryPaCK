@@ -67,29 +67,95 @@ REACTION_TYPES = {
 }
 
 # ============================================
-# GIF STYLES
+# GIF STYLES — Expanded with Viral Packs
 # ============================================
 GIF_STYLES = {
+    # Original styles
     "cartoon_motion": {
         "name": "Cartoon Motion",
-        "prompt": "cartoon style animation, bouncy movement, playful motion"
+        "prompt": "cartoon style animation, bouncy movement, playful motion, bright colors",
+        "pack": "classic"
     },
     "comic_bounce": {
         "name": "Comic Bounce",
-        "prompt": "comic book style, pop art effect, dynamic bounce"
+        "prompt": "comic book style, pop art effect, dynamic bounce, halftone dots, bold outlines",
+        "pack": "classic"
     },
     "sticker_style": {
         "name": "Sticker Style",
-        "prompt": "cute sticker style, outlined edges, adorable character"
+        "prompt": "cute sticker style, outlined edges, adorable character, kawaii style",
+        "pack": "classic"
     },
     "neon_glow": {
         "name": "Neon Glow",
-        "prompt": "neon glow effect, vibrant colors, glowing edges"
+        "prompt": "neon glow effect, vibrant colors, glowing edges, cyberpunk style",
+        "pack": "classic"
     },
     "minimal_clean": {
         "name": "Minimal Clean",
-        "prompt": "minimal clean style, simple elegant, subtle animation"
-    }
+        "prompt": "minimal clean style, simple elegant, subtle animation, flat design",
+        "pack": "classic"
+    },
+    # ---- VIRAL PACKS ----
+    "meme_classic": {
+        "name": "Meme Classic",
+        "prompt": "internet meme style, bold impact font reaction, exaggerated face, viral meme aesthetic, white border meme format, maximum expression",
+        "pack": "meme"
+    },
+    "meme_deepfried": {
+        "name": "Deep Fried Meme",
+        "prompt": "deep fried meme style, oversaturated colors, heavy contrast, lens flare, distorted loud style, emoji overlays aesthetic",
+        "pack": "meme"
+    },
+    "pixar_3d": {
+        "name": "Pixar 3D",
+        "prompt": "Pixar-inspired 3D cartoon character, high quality 3D rendering, smooth skin, big expressive eyes, cinematic lighting, disney-quality character design",
+        "pack": "pixar"
+    },
+    "pixar_clay": {
+        "name": "Claymation",
+        "prompt": "claymation style character, stop-motion aesthetic, clay texture, rounded features, warm lighting, Wallace and Gromit inspired",
+        "pack": "pixar"
+    },
+    "anime_shonen": {
+        "name": "Anime Shonen",
+        "prompt": "anime shonen style, dramatic reaction, speed lines background, manga style eyes, bold expression, Japanese manga aesthetic",
+        "pack": "anime"
+    },
+    "anime_chibi": {
+        "name": "Anime Chibi",
+        "prompt": "chibi anime style, super deformed cute, big head small body, adorable exaggerated expression, pastel colors, kawaii reaction",
+        "pack": "anime"
+    },
+    "desi_bollywood": {
+        "name": "Bollywood Drama",
+        "prompt": "Bollywood movie poster dramatic style, over-the-top filmy expression, dramatic zoom effect, Indian cinema style, colorful dramatic reaction",
+        "pack": "desi"
+    },
+    "desi_comic": {
+        "name": "Desi Comic",
+        "prompt": "Indian comic book style like Raj Comics or Amar Chitra Katha, bold colorful Indian art, traditional meets modern, vibrant desi cartoon",
+        "pack": "desi"
+    },
+    "corporate_clean": {
+        "name": "Office Humor",
+        "prompt": "corporate office humor style, clean professional cartoon, workplace reaction, business casual character, LinkedIn-appropriate funny",
+        "pack": "corporate"
+    },
+    "corporate_flat": {
+        "name": "Flat Vector",
+        "prompt": "flat vector illustration style, modern corporate design, geometric shapes, clean gradients, tech startup character design",
+        "pack": "corporate"
+    },
+}
+
+STYLE_PACKS = {
+    "classic": {"name": "Classic", "emoji": "🎨", "description": "Original fun styles"},
+    "meme": {"name": "Meme Pack", "emoji": "😂", "description": "Internet viral meme styles"},
+    "pixar": {"name": "Pixar Style", "emoji": "🎬", "description": "3D movie-quality characters"},
+    "anime": {"name": "Anime Pack", "emoji": "🔥", "description": "Japanese animation styles"},
+    "desi": {"name": "Desi Pack", "emoji": "🇮🇳", "description": "Bollywood & Indian comic styles"},
+    "corporate": {"name": "Corporate Funny", "emoji": "💼", "description": "Office humor & clean vector"},
 }
 
 # ============================================
@@ -129,11 +195,17 @@ def get_negative_prompt() -> str:
 
 @router.get("/reactions")
 async def get_reaction_types(user: dict = Depends(get_current_user)):
-    """Get available reaction types"""
+    """Get available reaction types, styles, and packs"""
+    # Check if user gets first-free
+    job_count = await db.reaction_gif_jobs.count_documents({"userId": user["id"]})
+    first_free = job_count == 0
+
     return {
         "reactions": {k: {"emoji": v["emoji"]} for k, v in REACTION_TYPES.items()},
-        "styles": {k: {"name": v["name"]} for k, v in GIF_STYLES.items()},
-        "pricing": PRICING
+        "styles": {k: {"name": v["name"], "pack": v.get("pack", "classic")} for k, v in GIF_STYLES.items()},
+        "style_packs": STYLE_PACKS,
+        "pricing": PRICING,
+        "first_free": first_free,
     }
 
 
@@ -215,9 +287,18 @@ async def generate_reaction_gif(
         cost = int(cost * 0.7)
     elif user_plan == "studio":
         cost = int(cost * 0.6)
-    
-    # Check credits
-    if user.get("credits", 0) < cost:
+
+    # First generation FREE (soft override)
+    is_admin = user.get("role", "").upper() in ("ADMIN", "SUPERADMIN")
+    job_count = await db.reaction_gif_jobs.count_documents({"userId": user["id"]})
+    first_free = job_count == 0 and mode == "single"
+
+    if first_free:
+        cost = 0
+        logger.info(f"[REACTION_GIF] First-free for user={user['id']}")
+
+    # Check credits (skip for admin and first-free)
+    if not is_admin and not first_free and user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
     
     # Create job
@@ -242,6 +323,7 @@ async def generate_reaction_gif(
         "caption": caption,
         "status": "QUEUED",
         "cost": cost,
+        "first_free": first_free,
         "progress": 0,
         "resultUrl": None,
         "results": [],
@@ -404,8 +486,9 @@ AVOID: {negative_prompt}"""
         
         # Determine final status based on real results
         if len(real_results) > 0:
-            # At least some images were generated successfully — deduct credits
-            await deduct_credits(user_id, cost, f"Reaction GIF: {job_id[:8]}")
+            # At least some images were generated successfully — deduct credits (skip for first-free)
+            if cost > 0:
+                await deduct_credits(user_id, cost, f"Reaction GIF: {job_id[:8]}")
             
             result_url = real_results[0]["url"]
             

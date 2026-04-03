@@ -1,178 +1,130 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  ArrowLeft, ArrowRight, Upload, Wand2, Camera, Loader2, Download, 
-  Check, AlertTriangle, Shield, Sparkles, Crown, Image, Play,
-  Smile, Heart, Star, Zap, Eye, PartyPopper, Hand, Flame, PackageOpen
+import {
+  ArrowLeft, Upload, Wand2, Camera, Loader2, Download,
+  Check, AlertTriangle, Shield, Sparkles, Image,
+  Smile, Heart, Zap, Flame, PackageOpen, RefreshCw,
+  Share2, Copy, ExternalLink, X, ChevronRight
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
-import ShareCreation from '../components/ShareCreation';
-import WaitingWithGames from '../components/WaitingWithGames';
-import DownloadWithExpiry from '../components/DownloadWithExpiry';
 import { useNotifications } from '../contexts/NotificationContext';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// ============================================
-// COPYRIGHT BLOCKED KEYWORDS
-// ============================================
-const BLOCKED_KEYWORDS = [
-  'marvel', 'dc', 'disney', 'naruto', 'pokemon', 'spiderman', 'batman',
-  'avengers', 'goku', 'harry potter', 'hogwarts', 'frozen', 'elsa',
-  'mickey', 'minnie', 'pixar', 'fortnite', 'minecraft', 'celebrity',
-  'politician', 'real person', 'nude', 'nsfw', 'violence', 'gore'
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// ════════════════════════════════════════════
+// REACTIONS
+// ════════════════════════════════════════════
+const REACTIONS = [
+  { id: 'happy', emoji: '😀', name: 'Happy', color: 'from-yellow-400 to-amber-500' },
+  { id: 'laughing', emoji: '😂', name: 'LOL', color: 'from-yellow-500 to-orange-500' },
+  { id: 'love', emoji: '😍', name: 'Love', color: 'from-pink-400 to-rose-500' },
+  { id: 'cool', emoji: '😎', name: 'Cool', color: 'from-blue-400 to-cyan-500' },
+  { id: 'surprised', emoji: '😮', name: 'Shocked', color: 'from-purple-400 to-violet-500' },
+  { id: 'sad', emoji: '😢', name: 'Sad', color: 'from-blue-500 to-indigo-600' },
+  { id: 'celebrate', emoji: '👏', name: 'Celebrate', color: 'from-green-400 to-emerald-500' },
+  { id: 'waving', emoji: '👋', name: 'Hello', color: 'from-orange-400 to-amber-500' },
+  { id: 'wow', emoji: '🔥', name: 'Fire', color: 'from-red-500 to-orange-600' },
 ];
 
-const checkBlockedContent = (text) => {
-  if (!text) return { blocked: false };
-  const lowerText = text.toLowerCase();
-  for (const keyword of BLOCKED_KEYWORDS) {
-    if (lowerText.includes(keyword)) {
-      return { 
-        blocked: true, 
-        message: 'Brand-based or copyrighted content is not allowed.'
-      };
-    }
-  }
-  return { blocked: false };
+// ════════════════════════════════════════════
+// STYLE PACKS
+// ════════════════════════════════════════════
+const STYLE_PACKS = [
+  { id: 'classic', name: 'Classic', emoji: '🎨', styles: ['cartoon_motion', 'comic_bounce', 'sticker_style', 'neon_glow', 'minimal_clean'] },
+  { id: 'meme', name: 'Meme Pack', emoji: '😂', styles: ['meme_classic', 'meme_deepfried'] },
+  { id: 'pixar', name: 'Pixar Style', emoji: '🎬', styles: ['pixar_3d', 'pixar_clay'] },
+  { id: 'anime', name: 'Anime Pack', emoji: '🔥', styles: ['anime_shonen', 'anime_chibi'] },
+  { id: 'desi', name: 'Desi Pack', emoji: '🇮🇳', styles: ['desi_bollywood', 'desi_comic'] },
+  { id: 'corporate', name: 'Corporate', emoji: '💼', styles: ['corporate_clean', 'corporate_flat'] },
+];
+
+const ALL_STYLES = {
+  cartoon_motion: 'Cartoon Motion',
+  comic_bounce: 'Comic Bounce',
+  sticker_style: 'Sticker Style',
+  neon_glow: 'Neon Glow',
+  minimal_clean: 'Minimal Clean',
+  meme_classic: 'Meme Classic',
+  meme_deepfried: 'Deep Fried',
+  pixar_3d: 'Pixar 3D',
+  pixar_clay: 'Claymation',
+  anime_shonen: 'Anime Shonen',
+  anime_chibi: 'Anime Chibi',
+  desi_bollywood: 'Bollywood',
+  desi_comic: 'Desi Comic',
+  corporate_clean: 'Office Humor',
+  corporate_flat: 'Flat Vector',
 };
 
-// ============================================
-// REACTION TYPES (9 Options)
-// ============================================
-const REACTION_TYPES = [
-  { id: 'happy', emoji: '😀', name: 'Happy', description: 'Joyful smile', color: 'from-yellow-400 to-amber-500' },
-  { id: 'laughing', emoji: '😂', name: 'Laughing', description: 'LOL moment', color: 'from-yellow-500 to-orange-500' },
-  { id: 'love', emoji: '😍', name: 'Love', description: 'Heart eyes', color: 'from-pink-400 to-rose-500' },
-  { id: 'cool', emoji: '😎', name: 'Cool', description: 'Sunglasses vibe', color: 'from-blue-400 to-cyan-500' },
-  { id: 'surprised', emoji: '😮', name: 'Surprised', description: 'Wow moment', color: 'from-purple-400 to-violet-500' },
-  { id: 'sad', emoji: '😢', name: 'Sad', description: 'Emotional moment', color: 'from-blue-500 to-indigo-600' },
-  { id: 'celebrate', emoji: '👏', name: 'Celebrate', description: 'Clapping', color: 'from-green-400 to-emerald-500' },
-  { id: 'waving', emoji: '👋', name: 'Waving', description: 'Hello/Goodbye', color: 'from-orange-400 to-amber-500' },
-  { id: 'wow', emoji: '🔥', name: 'Wow', description: 'On fire!', color: 'from-red-500 to-orange-600' },
-];
+// Random auto-select
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const AUTO_REACTIONS = ['laughing', 'surprised', 'wow', 'cool', 'love'];
+const AUTO_STYLES = ['cartoon_motion', 'pixar_3d', 'anime_shonen', 'meme_classic'];
 
-// ============================================
-// GIF STYLES (5 Options)
-// ============================================
-const GIF_STYLES = [
-  { id: 'cartoon_motion', name: 'Cartoon Motion', description: 'Bouncy cartoon animation' },
-  { id: 'comic_bounce', name: 'Comic Bounce', description: 'Classic comic pop effect' },
-  { id: 'sticker_style', name: 'Sticker Style', description: 'Cute sticker with outline' },
-  { id: 'neon_glow', name: 'Neon Glow', description: 'Glowing neon effect' },
-  { id: 'minimal_clean', name: 'Minimal Clean', description: 'Simple and elegant' },
-];
-
-// ============================================
-// PRICING
-// ============================================
-const PRICING = {
-  single: {
-    base: 8,
-    addOns: {
-      hd_quality: 3,
-      transparent_bg: 3,
-      text_caption: 2,
-      commercial_license: 10
-    }
-  },
-  pack: {
-    base: 25,  // 6 emotions at once
-    addOns: {
-      hd_quality: 5,
-      commercial_license: 15
-    }
-  }
-};
-
+// ════════════════════════════════════════════
+// COMPONENT
+// ════════════════════════════════════════════
 export default function PhotoReactionGIF() {
-  // User state
+  // Core state
+  const [phase, setPhase] = useState('upload'); // upload | generating | result
   const [credits, setCredits] = useState(0);
-  const [userPlan, setUserPlan] = useState('free');
-  
-  // Wizard state
-  const [step, setStep] = useState(1);
-  const maxSteps = 4;
-  
-  // Step 1: Photo
+  const [firstFree, setFirstFree] = useState(false);
+
+  // Upload
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  
-  // Step 2: Reaction type
-  const [mode, setMode] = useState('single'); // 'single' or 'pack'
-  const [selectedReaction, setSelectedReaction] = useState(null);
-  const [selectedPackReactions, setSelectedPackReactions] = useState([]);
-  
-  // Step 3: Style
+
+  // Selection
+  const [selectedReaction, setSelectedReaction] = useState(pickRandom(AUTO_REACTIONS));
+  const [selectedPack, setSelectedPack] = useState('classic');
   const [selectedStyle, setSelectedStyle] = useState('cartoon_motion');
-  
-  // Step 4: Add-ons & Generate
-  const [addOns, setAddOns] = useState({
-    hd_quality: false,
-    transparent_bg: false,
-    text_caption: false,
-    commercial_license: false
-  });
-  const [captionText, setCaptionText] = useState('');
-  
-  // Generation state
+
+  // Generation
   const [loading, setLoading] = useState(false);
   const [job, setJob] = useState(null);
   const pollingRef = useRef(null);
-  const completedJobsRef = useRef(new Set());
-  
-  // Notifications
-  const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
-  
+  const completedRef = useRef(new Set());
+
   // Modals
   const [showRating, setShowRating] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [packDownloading, setPackDownloading] = useState(false);
+
+  const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
 
   useEffect(() => {
-    fetchCredits();
-    fetchUserPlan();
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
+    fetchInit();
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
 
-  const fetchCredits = async () => {
+  const fetchInit = async () => {
     try {
-      const res = await api.get('/api/credits/balance');
-      setCredits(res.data.balance ?? res.data.credits ?? 0);
-    } catch (e) {
-      console.error('Failed to fetch credits');
-    }
+      const [credRes, reactRes] = await Promise.all([
+        api.get('/api/credits/balance'),
+        api.get('/api/reaction-gif/reactions'),
+      ]);
+      setCredits(credRes.data.balance ?? credRes.data.credits ?? 0);
+      setFirstFree(reactRes.data.first_free || false);
+    } catch {}
   };
 
-  const fetchUserPlan = async () => {
-    try {
-      const res = await api.get('/api/user/profile');
-      setUserPlan(res.data.user?.plan || 'free');
-    } catch (e) {
-      console.error('Failed to fetch user plan');
-    }
-  };
-
-  // Photo handlers
+  // ── Photo handlers ──
   const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('Image too large. Max 10MB.');
-        return;
-      }
-      if (photoPreview) URL.revokeObjectURL(photoPreview);
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-      setJob(null);
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error('Image too large. Max 10MB.'); return; }
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setJob(null);
+    setPhase('upload');
   };
 
   const clearPhoto = () => {
@@ -180,901 +132,581 @@ export default function PhotoReactionGIF() {
     setPhoto(null);
     setPhotoPreview(null);
     setJob(null);
+    setPhase('upload');
   };
 
-  // Calculate cost
-  const calculateCost = () => {
-    let total = 0;
-    
-    if (mode === 'single') {
-      total = PRICING.single.base;
-      if (addOns.hd_quality) total += PRICING.single.addOns.hd_quality;
-      if (addOns.transparent_bg) total += PRICING.single.addOns.transparent_bg;
-      if (addOns.text_caption) total += PRICING.single.addOns.text_caption;
-      if (addOns.commercial_license) total += PRICING.single.addOns.commercial_license;
-    } else {
-      total = PRICING.pack.base;
-      if (addOns.hd_quality) total += PRICING.pack.addOns.hd_quality;
-      if (addOns.commercial_license) total += PRICING.pack.addOns.commercial_license;
-    }
-    
-    // Apply plan discount
-    if (userPlan === 'creator') total = Math.floor(total * 0.8);
-    else if (userPlan === 'pro') total = Math.floor(total * 0.7);
-    else if (userPlan === 'studio') total = Math.floor(total * 0.6);
-    
-    return total;
+  // ── Style pack handler ──
+  const handlePackSelect = (packId) => {
+    setSelectedPack(packId);
+    const pack = STYLE_PACKS.find(p => p.id === packId);
+    if (pack) setSelectedStyle(pack.styles[0]);
   };
 
-  // Poll job status
-  const pollJobStatus = useCallback(async (jobId) => {
-    try {
-      const res = await api.get(`/api/reaction-gif/job/${jobId}`);
-      setJob(res.data);
-      
-      if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
-        // Stop polling immediately using ref
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-        }
-        setLoading(false);
-        fetchCredits();
-        
-        // Only show notification ONCE per job using completedJobsRef
-        if (!completedJobsRef.current.has(jobId)) {
-          completedJobsRef.current.add(jobId);
-          
-          if (res.data.status === 'COMPLETED') {
-            toast.success('Your reaction GIF is ready!');
-            
-            notifyGenerationComplete({
-              feature: 'reaction_gif',
-              featureName: 'Reaction GIF',
-              jobId: jobId,
-              downloadUrl: res.data.resultUrl,
-              actionUrl: '/app/reaction-gifs',
-              showToast: false
-            });
-            refetchNotifications?.();
-            
-            setTimeout(() => setShowRating(true), 2000);
-          } else {
-            const failError = res.data.error || 'Generation failed';
-            if (failError.toLowerCase().includes('budget')) {
-              toast.error('AI service temporarily unavailable. No credits were deducted. Please try again later.');
-            } else {
-              toast.error(`Generation failed. No credits were deducted. Please try again.`);
-            }
-            
-            notifyGenerationFailed({
-              feature: 'reaction_gif',
-              featureName: 'Reaction GIF',
-              jobId: jobId,
-              error: failError,
-              showToast: false
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Poll error:', e);
-    }
-  }, [notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
+  // ── Generate ──
+  const generate = async (reactionOverride, styleOverride) => {
+    if (!photo) { toast.error('Upload a photo first'); return; }
+    const reaction = reactionOverride || selectedReaction;
+    const style = styleOverride || selectedStyle;
 
-  // Generate GIF
-  const generateGIF = async () => {
-    if (!photo) {
-      toast.error('Please upload a photo first');
-      return;
-    }
-    
-    if (mode === 'single' && !selectedReaction) {
-      toast.error('Please select a reaction type');
-      return;
-    }
-    
-    // Validate caption
-    if (addOns.text_caption && captionText) {
-      const check = checkBlockedContent(captionText);
-      if (check.blocked) {
-        toast.error(check.message);
-        return;
-      }
-    }
-    
-    const cost = calculateCost();
-    if (credits < cost) {
-      toast.error(`Insufficient credits. Need ${cost} credits.`);
+    const cost = firstFree ? 0 : 8;
+    if (!firstFree && credits < cost) {
+      toast.error(`Need ${cost} credits`);
       setShowUpsell(true);
       return;
     }
-    
+
     setLoading(true);
+    setPhase('generating');
     setJob(null);
-    
+
     try {
       const formData = new FormData();
       formData.append('photo', photo);
-      formData.append('mode', mode);
-      formData.append('style', selectedStyle);
-      
-      if (mode === 'single') {
-        formData.append('reaction', selectedReaction);
-      } else {
-        // Pack mode - use default 6 emotions
-        formData.append('reactions', JSON.stringify(['happy', 'laughing', 'love', 'cool', 'surprised', 'wow']));
-      }
-      
-      formData.append('hd_quality', addOns.hd_quality);
-      formData.append('transparent_bg', addOns.transparent_bg);
-      formData.append('caption', addOns.text_caption ? captionText : '');
-      formData.append('commercial_license', addOns.commercial_license);
-      
+      formData.append('mode', 'single');
+      formData.append('reaction', reaction);
+      formData.append('style', style);
+      formData.append('hd_quality', false);
+      formData.append('transparent_bg', false);
+      formData.append('caption', '');
+      formData.append('commercial_license', false);
+
       const res = await api.post('/api/reaction-gif/generate', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
+
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
-      toast.success('Generation started!');
-      
-      // Clear any existing polling before starting new one
+      setSelectedReaction(reaction);
+      setSelectedStyle(style);
+
       if (pollingRef.current) clearInterval(pollingRef.current);
-      pollingRef.current = setInterval(() => pollJobStatus(res.data.jobId), 2000);
-      
+      pollingRef.current = setInterval(() => pollJob(res.data.jobId), 2000);
     } catch (e) {
       setLoading(false);
+      setPhase('upload');
       toast.error(e.response?.data?.detail || 'Generation failed');
     }
   };
 
-  // Download handler
-  const handleDownload = async () => {
-    if (!job?.id) return;
-    
-    // Free users see watermark
-    if (userPlan === 'free' && !job.purchased) {
-      setShowUpsell(true);
-      return;
-    }
-    
+  // ── Poll ──
+  const pollJob = useCallback(async (jobId) => {
     try {
-      const res = await api.post(`/api/reaction-gif/download/${job.id}`);
-      if (res.data.success) {
-        toast.success('Download started!');
-        
-        res.data.downloadUrls?.forEach((url, i) => {
-          const fullUrl = url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
-          const link = document.createElement('a');
-          link.href = fullUrl;
-          link.download = `reaction_gif_${i + 1}.gif`;
-          link.click();
-        });
-        
-        fetchCredits();
+      const res = await api.get(`/api/reaction-gif/job/${jobId}`);
+      setJob(res.data);
+
+      if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+        setLoading(false);
+        fetchInit();
+
+        if (!completedRef.current.has(jobId)) {
+          completedRef.current.add(jobId);
+          if (res.data.status === 'COMPLETED') {
+            setPhase('result');
+            toast.success('Your reaction is ready!');
+            notifyGenerationComplete({
+              feature: 'reaction_gif', featureName: 'Reaction GIF',
+              jobId, downloadUrl: res.data.resultUrl,
+              actionUrl: '/app/reaction-gif', showToast: false
+            });
+            refetchNotifications?.();
+            setTimeout(() => setShowRating(true), 3000);
+          } else {
+            setPhase('upload');
+            const err = res.data.error || 'Generation failed';
+            toast.error(err.includes('budget') ? 'AI service temporarily unavailable. No credits deducted.' : 'Generation failed. No credits deducted.');
+            notifyGenerationFailed({
+              feature: 'reaction_gif', featureName: 'Reaction GIF',
+              jobId, error: err, showToast: false
+            });
+          }
+        }
       }
-    } catch (e) {
-      toast.error('Download failed');
-    }
+    } catch {}
+  }, [notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
+
+  // ── Quick generate another reaction ──
+  const tryAnotherReaction = (reactionId) => {
+    setSelectedReaction(reactionId);
+    generate(reactionId, selectedStyle);
   };
 
-  // Navigation
-  const nextStep = () => {
-    if (step < maxSteps) setStep(step + 1);
+  // ── Shuffle style and regenerate ──
+  const tryRandomStyle = () => {
+    const randomStyle = pickRandom(Object.keys(ALL_STYLES));
+    setSelectedStyle(randomStyle);
+    generate(selectedReaction, randomStyle);
   };
 
-  const prevStep = () => {
-    if (step > 1) setStep(step - 1);
-  };
+  // ── Download ──
+  const resolveUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url}`;
 
-  // Reset
-  const resetWizard = () => {
-    setStep(1);
-    clearPhoto();
-    setMode('single');
-    setSelectedReaction(null);
-    setSelectedStyle('cartoon_motion');
-    setAddOns({
-      hd_quality: false,
-      transparent_bg: false,
-      text_caption: false,
-      commercial_license: false
-    });
-    setCaptionText('');
-    setJob(null);
-  };
-
-  // Can proceed?
-  const canProceed = () => {
-    switch (step) {
-      case 1: return photo !== null;
-      case 2: return mode === 'pack' || selectedReaction !== null;
-      case 3: return selectedStyle !== null;
-      case 4: return true;
-      default: return false;
-    }
-  };
-
-  // ============================================
-  // DOWNLOAD ALL AS ZIP PACK
-  // ============================================
-  const [packDownloading, setPackDownloading] = useState(false);
-
-  const downloadAllAsZip = async () => {
-    if (!job) return;
-    
-    const items = [];
-    const resolveUrl = (url) => {
-      if (!url) return null;
-      return url.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
-    };
-    
-    // Main GIF
-    if (job.resultUrl) {
-      items.push({ url: resolveUrl(job.resultUrl), name: 'reaction_gif_main.gif' });
-    }
-    
-    // Individual pack results
-    if (job.results?.length) {
-      job.results.forEach((r, i) => {
-        if (r.url) {
-          const label = r.emotion || r.reaction || `frame_${i + 1}`;
-          items.push({ url: resolveUrl(r.url), name: `gif_${label}_${i + 1}.gif` });
-        }
-      });
-    }
-    
-    if (!items.length) {
-      toast.error('No files to download');
-      return;
-    }
-    
-    setPackDownloading(true);
-    toast.info(`Packing ${items.length} GIFs...`);
-    
+  const downloadResult = async () => {
+    if (!job?.resultUrl) return;
     try {
-      const zip = new JSZip();
-      
-      const fetches = items.map(async (item) => {
-        try {
-          const resp = await fetch(item.url);
-          if (!resp.ok) throw new Error(`Failed: ${item.name}`);
-          const blob = await resp.blob();
-          zip.file(item.name, blob);
-        } catch (err) {
-          console.warn(`Skipping ${item.name}: ${err.message}`);
-        }
-      });
-      
-      await Promise.all(fetches);
-      
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(zipBlob, `gif_pack_${job.id?.slice(0, 8) || 'download'}.zip`);
-      toast.success(`Downloaded ${items.length} GIFs as ZIP!`);
-    } catch (err) {
-      console.error('ZIP failed:', err);
-      toast.error('Pack download failed');
-    } finally {
-      setPackDownloading(false);
-    }
-  };
-
-  const downloadSingleFrame = async (url, label, index) => {
-    const fullUrl = url?.startsWith('http') ? url : `${process.env.REACT_APP_BACKEND_URL}${url}`;
-    try {
-      const resp = await fetch(fullUrl);
+      const url = resolveUrl(job.resultUrl);
+      const resp = await fetch(url);
       const blob = await resp.blob();
-      saveAs(blob, `gif_${label || 'frame'}_${index + 1}.gif`);
+      saveAs(blob, `reaction_${selectedReaction}_${job.id?.slice(0, 8)}.png`);
       toast.success('Downloaded!');
     } catch {
-      window.open(fullUrl, '_blank');
+      window.open(resolveUrl(job.resultUrl), '_blank');
     }
   };
 
-  // ============================================
-  // RENDER STEP 1: Upload Photo
-  // ============================================
-  const renderStep1 = () => (
-    <div className="max-w-2xl mx-auto">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-          <span className="text-pink-400 font-medium">Step 1 of 4</span>
-        </div>
-        <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Upload Your Photo</h3>
-        <p className="text-slate-400">Use a clear front-facing image for best results</p>
-      </div>
-      
-      <div 
-        className="border-2 border-dashed border-slate-600 rounded-2xl p-12 text-center hover:border-pink-500 transition-colors cursor-pointer"
-        onClick={() => document.getElementById('photo-input').click()}
-      >
-        {photoPreview ? (
-          <div className="space-y-4">
-            <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded-xl shadow-lg" />
-            <Button variant="outline" onClick={(e) => { e.stopPropagation(); clearPhoto(); }} className="text-slate-300">
-              Change Photo
-            </Button>
-          </div>
-        ) : (
-          <>
-            <Camera className="w-16 h-16 mx-auto text-slate-500 mb-4" />
-            <p className="text-lg text-slate-300 mb-2">Click to upload or drag and drop</p>
-            <p className="text-sm text-slate-500">PNG, JPG, WEBP up to 10MB</p>
-          </>
-        )}
-      </div>
-      <input
-        id="photo-input"
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handlePhotoUpload}
-        data-testid="photo-input"
-      />
-      
-      <div className="flex justify-center mt-8">
-        <Button 
-          onClick={nextStep}
-          disabled={!canProceed()}
-          className="px-8 bg-gradient-to-r from-pink-600 to-purple-600"
-          data-testid="next-step-btn"
-        >
-          Continue <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
+  const downloadAllAsZip = async () => {
+    if (!job?.results?.length) return;
+    setPackDownloading(true);
+    try {
+      const zip = new JSZip();
+      await Promise.all(job.results.map(async (r, i) => {
+        try {
+          const resp = await fetch(resolveUrl(r.url));
+          const blob = await resp.blob();
+          zip.file(`reaction_${r.reaction || i + 1}.png`, blob);
+        } catch {}
+      }));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      saveAs(blob, `reaction_pack_${job.id?.slice(0, 8)}.zip`);
+      toast.success('Pack downloaded!');
+    } catch { toast.error('Download failed'); }
+    setPackDownloading(false);
+  };
 
-  // ============================================
-  // RENDER STEP 2: Choose Reaction
-  // ============================================
-  const renderStep2 = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-          <span className="text-pink-400 font-medium">Step 2 of 4</span>
-        </div>
-        <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Choose Reaction Type</h3>
-        <p className="text-slate-400">Select the emotion for your reaction GIF</p>
-      </div>
-      
-      {/* Mode Selection */}
-      <div className="flex justify-center mb-8">
-        <div className="bg-slate-800/50 rounded-2xl p-2 flex gap-2">
-          <button
-            onClick={() => setMode('single')}
-            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-              mode === 'single' 
-                ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white' 
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Smile className="w-5 h-5" />
-            Single Reaction
-            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{PRICING.single.base} cr</span>
-          </button>
-          <button
-            onClick={() => setMode('pack')}
-            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-              mode === 'pack' 
-                ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white' 
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-5 h-5" />
-            Reaction Pack (6)
-            <span className="text-xs bg-yellow-500 text-black px-2 py-0.5 rounded-full">BEST VALUE</span>
-          </button>
-        </div>
-      </div>
-      
-      {mode === 'single' ? (
-        /* Single Reaction Grid */
-        <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
-          {REACTION_TYPES.map((reaction) => (
-            <div
-              key={reaction.id}
-              onClick={() => setSelectedReaction(reaction.id)}
-              className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all hover:scale-105 text-center ${
-                selectedReaction === reaction.id
-                  ? 'border-pink-500 bg-pink-500/20 shadow-lg shadow-pink-500/20'
-                  : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
-              }`}
-              data-testid={`reaction-${reaction.id}`}
-            >
-              <span className="text-5xl mb-2 block">{reaction.emoji}</span>
-              <p className="font-medium text-white text-sm">{reaction.name}</p>
-              <p className="text-xs text-slate-500">{reaction.description}</p>
-              {selectedReaction === reaction.id && (
-                <Check className="absolute top-2 right-2 w-5 h-5 text-pink-400" />
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* Pack Info */
-        <div className="bg-gradient-to-r from-pink-600/20 to-purple-600/20 border border-pink-500/30 rounded-2xl p-8 text-center">
-          <h4 className="text-xl font-bold text-white mb-4">Reaction Pack Includes:</h4>
-          <div className="flex flex-wrap justify-center gap-4 mb-6">
-            {['😀', '😂', '😍', '😎', '😮', '🔥'].map((emoji, i) => (
-              <div key={i} className="text-5xl">{emoji}</div>
-            ))}
-          </div>
-          <p className="text-slate-300 mb-4">Get 6 reaction GIFs at once for the price of 3!</p>
-          <div className="inline-flex items-center gap-2 bg-green-500/20 text-green-400 px-4 py-2 rounded-full">
-            <Star className="w-5 h-5" />
-            Save 55% compared to buying separately
-          </div>
-        </div>
-      )}
-      
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300 border-slate-600">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        <Button 
-          onClick={nextStep}
-          disabled={!canProceed()}
-          className="px-8 bg-gradient-to-r from-pink-600 to-purple-600"
-        >
-          Continue <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
+  // ── Share ──
+  const getShareUrl = () => {
+    if (!job?.resultUrl) return '';
+    return resolveUrl(job.resultUrl);
+  };
 
-  // ============================================
-  // RENDER STEP 3: Choose Style
-  // ============================================
-  const renderStep3 = () => (
-    <div className="max-w-3xl mx-auto">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-          <span className="text-pink-400 font-medium">Step 3 of 4</span>
-        </div>
-        <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Choose GIF Style</h3>
-        <p className="text-slate-400">Select the animation style for your GIF</p>
-      </div>
-      
-      <div className="space-y-3">
-        {GIF_STYLES.map((style) => (
+  const shareWhatsApp = () => {
+    const url = getShareUrl();
+    const text = `Check out my AI reaction! Made on Visionary Suite`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
+  };
+
+  const shareInstagram = () => {
+    downloadResult();
+    toast.success('Image downloaded — share it to your Instagram Story!');
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(getShareUrl());
+    toast.success('Link copied!');
+  };
+
+  // ── Reset ──
+  const startOver = () => {
+    setPhase('upload');
+    setJob(null);
+    setSelectedReaction(pickRandom(AUTO_REACTIONS));
+  };
+
+  // ════════════════════════════════════════════
+  // RENDER: Upload + Controls (single screen)
+  // ════════════════════════════════════════════
+  const renderUploadPhase = () => (
+    <div className="max-w-5xl mx-auto" data-testid="upload-phase">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* LEFT: Upload + Quick select */}
+        <div className="space-y-6">
+          {/* Upload Zone */}
           <div
-            key={style.id}
-            onClick={() => setSelectedStyle(style.id)}
-            className={`flex items-center justify-between p-5 rounded-xl border-2 cursor-pointer transition-all ${
-              selectedStyle === style.id
-                ? 'border-pink-500 bg-pink-500/10'
-                : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
-            }`}
-            data-testid={`style-${style.id}`}
+            className="relative border-2 border-dashed border-slate-600 rounded-2xl p-8 text-center hover:border-pink-500 transition-all cursor-pointer group"
+            onClick={() => document.getElementById('photo-input').click()}
+            data-testid="upload-zone"
           >
-            <div className="flex items-center gap-4">
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                selectedStyle === style.id ? 'border-pink-500 bg-pink-500' : 'border-slate-600'
-              }`}>
-                {selectedStyle === style.id && <Check className="w-3 h-3 text-white" />}
-              </div>
-              <div>
-                <h4 className="font-semibold text-white">{style.name}</h4>
-                <p className="text-sm text-slate-400">{style.description}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={prevStep} className="text-slate-300 border-slate-600">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
-        <Button 
-          onClick={nextStep}
-          disabled={!canProceed()}
-          className="px-8 bg-gradient-to-r from-pink-600 to-purple-600"
-        >
-          Continue <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
-
-  // ============================================
-  // RENDER STEP 4: Generate
-  // ============================================
-  const renderStep4 = () => {
-    const reaction = REACTION_TYPES.find(r => r.id === selectedReaction);
-    const style = GIF_STYLES.find(s => s.id === selectedStyle);
-    
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full mb-4">
-            <span className="text-pink-400 font-medium">Step 4 of 4</span>
-          </div>
-          <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Create My GIF</h3>
-          <p className="text-slate-400">Add extras and generate your reaction GIF</p>
-        </div>
-        
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Add-ons & Summary */}
-          <div className="space-y-6">
-            {/* Summary */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-              <h4 className="font-bold text-white mb-4">Summary</h4>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Type:</span>
-                  <span className="text-white">{mode === 'single' ? 'Single Reaction' : 'Reaction Pack (6)'}</span>
-                </div>
-                {mode === 'single' && reaction && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Reaction:</span>
-                    <span className="text-white">{reaction.emoji} {reaction.name}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Style:</span>
-                  <span className="text-white">{style?.name}</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Add-ons */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-              <h4 className="font-bold text-white mb-4">Add-ons</h4>
-              <div className="space-y-3">
-                <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-                  <span className="text-slate-300 text-sm">HD Quality</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-pink-400 text-sm">
-                      +{mode === 'single' ? PRICING.single.addOns.hd_quality : PRICING.pack.addOns.hd_quality} cr
-                    </span>
-                    <input 
-                      type="checkbox" 
-                      checked={addOns.hd_quality}
-                      onChange={(e) => setAddOns({...addOns, hd_quality: e.target.checked})}
-                      className="w-4 h-4 accent-pink-500"
-                    />
-                  </div>
-                </label>
-                
-                {mode === 'single' && (
-                  <>
-                    <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-                      <span className="text-slate-300 text-sm">Transparent Background</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-pink-400 text-sm">+{PRICING.single.addOns.transparent_bg} cr</span>
-                        <input 
-                          type="checkbox" 
-                          checked={addOns.transparent_bg}
-                          onChange={(e) => setAddOns({...addOns, transparent_bg: e.target.checked})}
-                          className="w-4 h-4 accent-pink-500"
-                        />
-                      </div>
-                    </label>
-                    
-                    <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-                      <span className="text-slate-300 text-sm">Text Caption</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-pink-400 text-sm">+{PRICING.single.addOns.text_caption} cr</span>
-                        <input 
-                          type="checkbox" 
-                          checked={addOns.text_caption}
-                          onChange={(e) => setAddOns({...addOns, text_caption: e.target.checked})}
-                          className="w-4 h-4 accent-pink-500"
-                        />
-                      </div>
-                    </label>
-                    
-                    {addOns.text_caption && (
-                      <Input
-                        placeholder="Enter caption text..."
-                        value={captionText}
-                        onChange={(e) => setCaptionText(e.target.value)}
-                        className="bg-slate-700 border-slate-600 text-white"
-                        maxLength={50}
-                      />
-                    )}
-                  </>
-                )}
-                
-                <label className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700">
-                  <span className="text-slate-300 text-sm">Commercial License</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-pink-400 text-sm">
-                      +{mode === 'single' ? PRICING.single.addOns.commercial_license : PRICING.pack.addOns.commercial_license} cr
-                    </span>
-                    <input 
-                      type="checkbox" 
-                      checked={addOns.commercial_license}
-                      onChange={(e) => setAddOns({...addOns, commercial_license: e.target.checked})}
-                      className="w-4 h-4 accent-pink-500"
-                    />
-                  </div>
-                </label>
-              </div>
-            </div>
-            
-            {/* Cost */}
-            <div className="bg-gradient-to-r from-pink-600/20 to-purple-600/20 border border-pink-500/30 rounded-xl p-6">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-white">Total Cost:</span>
-                <span className="text-3xl font-bold text-pink-400">{calculateCost()} credits</span>
-              </div>
-              {userPlan !== 'free' && (
-                <p className="text-xs text-green-400 mt-1">
-                  {userPlan === 'creator' ? '20%' : userPlan === 'pro' ? '30%' : '40%'} subscriber discount applied!
-                </p>
-              )}
-            </div>
-            
-            <Button 
-              onClick={generateGIF}
-              disabled={loading || credits < calculateCost()}
-              className="w-full py-6 text-lg bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700"
-              data-testid="generate-btn"
-            >
-              {loading ? (
-                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Creating Your GIF...</>
-              ) : (
-                <><Wand2 className="w-5 h-5 mr-2" /> Create My GIF</>
-              )}
-            </Button>
-          </div>
-          
-          {/* Result */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-            <h4 className="font-bold text-white mb-4">Result</h4>
-            
-            {job ? (
-              <div className="space-y-4">
-                {/* Status */}
-                <div className="flex items-center justify-between">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    job.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
-                    job.status === 'FAILED' ? 'bg-red-500/20 text-red-400' :
-                    'bg-yellow-500/20 text-yellow-400 animate-pulse'
-                  }`}>
-                    {job.status === 'PROCESSING' ? 'CREATING...' : job.status}
-                  </span>
-                </div>
-                
-                {/* Progress - Show WaitingWithGames during processing */}
-                {(job.status === 'PROCESSING' || job.status === 'QUEUED') && (
-                  <WaitingWithGames 
-                    progress={job.progress || 0}
-                    status={job.progressMessage || (job.status === 'QUEUED' ? 'In queue - your GIF is being prepared...' : 'Creating your reaction GIF...')}
-                    estimatedTime="30-60 seconds"
-                    onCancel={() => toast.info('Generation in progress - please wait')}
-                    currentFeature="/app/gif-maker"
-                    showExploreFeatures={true}
-                  />
-                )}
-                
-                {/* Failed State */}
-                {job.status === 'FAILED' && (
-                  <div className="text-center py-8 space-y-4">
-                    <AlertTriangle className="w-16 h-16 mx-auto text-red-400" />
-                    <p className="text-red-400 font-medium">Generation Failed</p>
-                    <p className="text-sm text-slate-400">{job.error || 'An error occurred. No credits were deducted.'}</p>
-                    <Button onClick={resetWizard} className="bg-gradient-to-r from-pink-600 to-purple-600">
-                      Try Again
-                    </Button>
-                  </div>
-                )}
-                
-                {/* Result GIF */}
-                {job.status === 'COMPLETED' && job.resultUrl && (
-                  <div className="space-y-4">
-                    <div className="rounded-xl overflow-hidden border border-slate-600 bg-slate-700/50">
-                      <img 
-                        src={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
-                        alt="Reaction GIF"
-                        className="w-full"
-                      />
-                    </div>
-                    
-                    {/* Smart Download with Watermark Support */}
-                    <DownloadWithExpiry
-                      downloadUrl={job.resultUrl.startsWith('http') ? job.resultUrl : `${process.env.REACT_APP_BACKEND_URL}${job.resultUrl}`}
-                      downloadId={job.downloadId}
-                      filename={`reaction_gif_${job.id}.gif`}
-                      fileType="image"
-                      expiresAt={job.expiresAt}
-                      contentType="GIF"
-                      enableSmartDownload={true}
-                      showWarning={true}
-                      onExpired={() => {
-                        toast.warning('Your download has expired. Please generate again.');
-                      }}
-                    />
-                    
-                    {/* Share Button */}
-                    <div className="flex justify-center">
-                      <ShareCreation 
-                        contentType="reaction_gif"
-                        contentId={job.id}
-                        previewUrl={job.resultUrl}
-                      />
-                    </div>
-                    
-                    {/* Download All Pack button for single result with multiple outputs */}
-                    {(job.results?.length > 0) && (
-                      <Button 
-                        className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
-                        onClick={downloadAllAsZip}
-                        disabled={packDownloading}
-                        data-testid="download-all-pack-btn-single"
-                      >
-                        {packDownloading ? (
-                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Packing...</>
-                        ) : (
-                          <><PackageOpen className="w-4 h-4 mr-2" /> Download All as Pack (ZIP)</>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                )}
-                
-                {/* Pack Results */}
-                {job.status === 'COMPLETED' && job.results && job.results.length > 1 && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2">
-                      {job.results.map((result, i) => (
-                        <div key={i} className="rounded-lg overflow-hidden border border-slate-600 relative group">
-                          <img 
-                            src={result.url.startsWith('http') ? result.url : `${process.env.REACT_APP_BACKEND_URL}${result.url}`}
-                            alt={`Reaction ${i + 1}`}
-                            className="w-full"
-                          />
-                          <button
-                            onClick={() => downloadSingleFrame(result.url, result.emotion || result.reaction, i)}
-                            className="absolute top-1 right-1 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-pink-600"
-                            title="Download this GIF"
-                            data-testid={`download-frame-${i}`}
-                          >
-                            <Download className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Download All as ZIP Pack */}
-                    <Button 
-                      className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
-                      onClick={downloadAllAsZip}
-                      disabled={packDownloading}
-                      data-testid="download-all-pack-btn"
-                    >
-                      {packDownloading ? (
-                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Packing GIFs...</>
-                      ) : (
-                        <><PackageOpen className="w-4 h-4 mr-2" /> Download All as Pack (ZIP)</>
-                      )}
-                    </Button>
-                  </div>
-                )}
+            {photoPreview ? (
+              <div className="relative">
+                <img src={photoPreview} alt="Preview" className="max-h-56 mx-auto rounded-xl shadow-lg" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); clearPhoto(); }}
+                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-red-500 transition-colors"
+                  data-testid="clear-photo-btn"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             ) : (
-              <div className="text-center py-12 text-slate-400">
-                <Play className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                <p>Your reaction GIF will appear here</p>
-              </div>
+              <>
+                <Camera className="w-14 h-14 mx-auto text-slate-500 mb-3 group-hover:text-pink-400 transition-colors" />
+                <p className="text-base text-slate-300 mb-1">Upload your photo</p>
+                <p className="text-xs text-slate-500">PNG, JPG, WEBP up to 10MB</p>
+              </>
+            )}
+          </div>
+          <input
+            id="photo-input" type="file" accept="image/*" className="hidden"
+            onChange={handlePhotoUpload} data-testid="photo-input"
+          />
+
+          {/* Reaction Quick Select */}
+          <div>
+            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wider">Reaction</p>
+            <div className="flex flex-wrap gap-2" data-testid="reaction-selector">
+              {REACTIONS.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedReaction(r.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                    selectedReaction === r.id
+                      ? `bg-gradient-to-r ${r.color} text-white shadow-lg scale-105`
+                      : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700'
+                  }`}
+                  data-testid={`reaction-${r.id}`}
+                >
+                  <span className="text-lg">{r.emoji}</span>
+                  <span className="hidden sm:inline">{r.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Style Pack Selector */}
+          <div>
+            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wider">Style Pack</p>
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin" data-testid="pack-selector">
+              {STYLE_PACKS.map((pack) => (
+                <button
+                  key={pack.id}
+                  onClick={() => handlePackSelect(pack.id)}
+                  className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                    selectedPack === pack.id
+                      ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40 shadow-lg shadow-pink-500/10'
+                      : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700 border border-transparent'
+                  }`}
+                  data-testid={`pack-${pack.id}`}
+                >
+                  <span className="text-lg">{pack.emoji}</span>
+                  {pack.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Individual styles within pack */}
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {STYLE_PACKS.find(p => p.id === selectedPack)?.styles.map((styleId) => (
+                <button
+                  key={styleId}
+                  onClick={() => setSelectedStyle(styleId)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    selectedStyle === styleId
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                      : 'bg-slate-800/40 text-slate-500 hover:text-slate-300'
+                  }`}
+                  data-testid={`style-${styleId}`}
+                >
+                  {ALL_STYLES[styleId]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: Generate CTA */}
+        <div className="flex flex-col justify-center items-center space-y-6">
+          <div className="w-full bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center space-y-4">
+            {/* Hero text */}
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-1">
+                {REACTIONS.find(r => r.id === selectedReaction)?.emoji} {REACTIONS.find(r => r.id === selectedReaction)?.name} Reaction
+              </h2>
+              <p className="text-sm text-slate-500">{ALL_STYLES[selectedStyle]} style</p>
+            </div>
+
+            {/* Cost */}
+            <div className="py-3">
+              {firstFree ? (
+                <div className="space-y-1">
+                  <span className="text-3xl font-black text-emerald-400">FREE</span>
+                  <p className="text-xs text-emerald-500/80">Your first reaction is on us!</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <span className="text-3xl font-black text-pink-400">8 <span className="text-base font-medium text-slate-400">credits</span></span>
+                  <p className="text-xs text-slate-500">You have {credits.toLocaleString()} credits</p>
+                </div>
+              )}
+            </div>
+
+            {/* Generate Button */}
+            <Button
+              onClick={() => generate()}
+              disabled={!photo || loading}
+              className="w-full py-6 text-lg bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 shadow-xl shadow-pink-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              data-testid="generate-btn"
+            >
+              {!photo ? (
+                <><Upload className="w-5 h-5 mr-2" /> Upload photo to start</>
+              ) : (
+                <><Wand2 className="w-5 h-5 mr-2" /> Make My Reaction</>
+              )}
+            </Button>
+
+            {!photo && (
+              <p className="text-xs text-slate-600">Upload a clear face photo for best results</p>
             )}
           </div>
         </div>
-        
-        <div className="flex justify-between mt-8">
-          <Button variant="outline" onClick={prevStep} className="text-slate-300 border-slate-600" disabled={loading}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
-          </Button>
-          {job?.status === 'COMPLETED' && (
-            <Button onClick={resetWizard} variant="outline" className="text-slate-300 border-slate-600">
-              Create Another
-            </Button>
+      </div>
+    </div>
+  );
+
+  // ════════════════════════════════════════════
+  // RENDER: Generating
+  // ════════════════════════════════════════════
+  const renderGenerating = () => {
+    const msgs = [
+      "Analyzing your face...",
+      "Applying AI magic...",
+      `Creating ${REACTIONS.find(r => r.id === selectedReaction)?.emoji} reaction...`,
+      "Adding style effects...",
+      "Almost there...",
+    ];
+    const msgIndex = Math.min(Math.floor((job?.progress || 0) / 25), msgs.length - 1);
+
+    return (
+      <div className="max-w-lg mx-auto text-center py-16" data-testid="generating-phase">
+        <div className="relative mb-8">
+          {photoPreview && (
+            <img src={photoPreview} alt="" className="w-32 h-32 rounded-full mx-auto object-cover border-4 border-pink-500/30 shadow-2xl" />
           )}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-36 h-36 rounded-full border-4 border-pink-500/50 border-t-transparent animate-spin" />
+          </div>
+        </div>
+
+        <h3 className="text-xl font-bold text-white mb-2">
+          {msgs[msgIndex]}
+        </h3>
+        <p className="text-sm text-slate-400 mb-6">
+          {job?.progress || 0}% complete
+        </p>
+
+        {/* Progress bar */}
+        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
+          <div
+            className="h-full bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all duration-500"
+            style={{ width: `${job?.progress || 5}%` }}
+          />
+        </div>
+
+        <p className="text-xs text-slate-600">Usually takes 15-30 seconds</p>
+      </div>
+    );
+  };
+
+  // ════════════════════════════════════════════
+  // RENDER: Result — Addictive Loop
+  // ════════════════════════════════════════════
+  const renderResult = () => {
+    if (!job || job.status !== 'COMPLETED') return null;
+    const resultUrl = resolveUrl(job.resultUrl);
+
+    return (
+      <div className="max-w-5xl mx-auto" data-testid="result-phase">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* LEFT: Result image */}
+          <div className="space-y-4">
+            <div className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900/60 shadow-2xl">
+              <img
+                src={resultUrl}
+                alt="Your Reaction"
+                className="w-full"
+                data-testid="result-image"
+              />
+            </div>
+
+            {/* Pack results grid */}
+            {job.results?.length > 1 && (
+              <div className="grid grid-cols-3 gap-2">
+                {job.results.map((r, i) => (
+                  <div key={i} className="rounded-lg overflow-hidden border border-slate-700 relative group cursor-pointer hover:border-pink-500 transition-colors">
+                    <img src={resolveUrl(r.url)} alt={r.reaction} className="w-full" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button
+                        onClick={() => {
+                          fetch(resolveUrl(r.url)).then(r => r.blob()).then(b => saveAs(b, `reaction_${r.reaction || i}.png`));
+                        }}
+                        className="p-2 rounded-full bg-white/20 text-white"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Actions — Addictive Loop */}
+          <div className="space-y-5">
+            {/* Share-First Cluster (PRIMARY) */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5" data-testid="share-section">
+              <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Share your reaction</p>
+              <div className="space-y-2">
+                <Button
+                  onClick={shareWhatsApp}
+                  className="w-full py-4 bg-[#25D366] hover:bg-[#20BD5A] text-white text-base font-semibold"
+                  data-testid="share-whatsapp"
+                >
+                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  Share on WhatsApp
+                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={shareInstagram}
+                    variant="outline"
+                    className="py-3 text-slate-300 border-slate-700 hover:bg-slate-800"
+                    data-testid="share-instagram"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-1.5" /> Instagram Story
+                  </Button>
+                  <Button
+                    onClick={copyLink}
+                    variant="outline"
+                    className="py-3 text-slate-300 border-slate-700 hover:bg-slate-800"
+                    data-testid="copy-link"
+                  >
+                    <Copy className="w-4 h-4 mr-1.5" /> Copy Link
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Download */}
+            <div className="flex gap-2">
+              <Button
+                onClick={downloadResult}
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                data-testid="download-btn"
+              >
+                <Download className="w-4 h-4 mr-1.5" /> Download
+              </Button>
+              {job.results?.length > 1 && (
+                <Button
+                  onClick={downloadAllAsZip}
+                  disabled={packDownloading}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                  data-testid="download-pack-btn"
+                >
+                  {packDownloading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <PackageOpen className="w-4 h-4 mr-1.5" />}
+                  Download Pack
+                </Button>
+              )}
+            </div>
+
+            {/* ── ADDICTIVE LOOP ── */}
+            <div className="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20 rounded-2xl p-5" data-testid="loop-section">
+              <p className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-pink-400" /> Try another reaction
+              </p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {REACTIONS.filter(r => r.id !== selectedReaction).slice(0, 5).map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => tryAnotherReaction(r.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/60 text-slate-300 hover:bg-pink-500/20 hover:text-pink-300 transition-all text-sm"
+                    data-testid={`try-reaction-${r.id}`}
+                  >
+                    <span className="text-lg">{r.emoji}</span> {r.name}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={tryRandomStyle}
+                  variant="outline"
+                  className="py-3 text-slate-300 border-slate-700 hover:bg-slate-800 text-sm"
+                  data-testid="try-random-style"
+                >
+                  <RefreshCw className="w-4 h-4 mr-1.5" /> Random Style
+                </Button>
+                <Button
+                  onClick={startOver}
+                  variant="outline"
+                  className="py-3 text-slate-300 border-slate-700 hover:bg-slate-800 text-sm"
+                  data-testid="start-over"
+                >
+                  <Camera className="w-4 h-4 mr-1.5" /> New Photo
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   };
 
-  // ============================================
+  // ════════════════════════════════════════════
   // MAIN RENDER
-  // ============================================
-  const renderCurrentStep = () => {
-    switch (step) {
-      case 1: return renderStep1();
-      case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
-      default: return renderStep1();
-    }
-  };
-
+  // ════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/50 to-slate-950" data-testid="reaction-gif-page">
       {/* Header */}
       <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/app" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-                <span>Dashboard</span>
+            <div className="flex items-center gap-3">
+              <Link to="/app" className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-sm" data-testid="back-link">
+                <ArrowLeft className="w-4 h-4" /> Dashboard
               </Link>
-              <div className="flex items-center gap-2">
-                <Smile className="w-6 h-6 text-pink-400" />
-                <div>
-                  <h1 className="text-xl md:text-2xl font-bold text-white">Photo Reaction GIF Creator</h1>
-                  <p className="text-xs text-slate-400 hidden md:block">Turn your photo into fun, shareable reaction GIFs in seconds</p>
-                </div>
+              <div className="hidden sm:flex items-center gap-2">
+                <Smile className="w-5 h-5 text-pink-400" />
+                <h1 className="text-lg font-bold text-white">Reaction GIF Creator</h1>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 rounded-full px-4 py-2">
-                <span className="text-pink-300 font-medium">{credits.toLocaleString()} Credits</span>
+            <div className="flex items-center gap-3">
+              {firstFree && phase === 'upload' && (
+                <span className="text-xs bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-medium animate-pulse" data-testid="first-free-badge">
+                  First one FREE
+                </span>
+              )}
+              <div className="bg-pink-500/10 border border-pink-500/20 rounded-full px-3 py-1.5">
+                <span className="text-pink-300 text-sm font-medium">{credits.toLocaleString()} cr</span>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Progress Indicator */}
-        <div className="max-w-md mx-auto mb-8">
-          <div className="flex items-center justify-between">
-            {Array.from({ length: maxSteps }).map((_, i) => (
-              <React.Fragment key={i}>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
-                  i + 1 < step ? 'bg-green-500 text-white' :
-                  i + 1 === step ? 'bg-pink-600 text-white scale-110' :
-                  'bg-slate-700 text-slate-400'
-                }`}>
-                  {i + 1 < step ? <Check className="w-5 h-5" /> : i + 1}
-                </div>
-                {i < maxSteps - 1 && (
-                  <div className={`flex-1 h-1 mx-2 rounded ${
-                    i + 1 < step ? 'bg-green-500' : 'bg-slate-700'
-                  }`} />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-slate-500">
-            <span>Upload</span>
-            <span>Reaction</span>
-            <span>Style</span>
-            <span>Create</span>
-          </div>
+      {/* Hero (only on upload phase) */}
+      {phase === 'upload' && (
+        <div className="text-center py-8 max-w-2xl mx-auto px-4">
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-2" data-testid="hero-title">
+            Your face. Infinite reactions.
+          </h2>
+          <p className="text-base text-slate-400">
+            Upload once, create viral reactions in any style
+          </p>
         </div>
+      )}
 
-        {renderCurrentStep()}
-        
-        {/* Legal Disclaimer */}
-        <div className="mt-12 bg-slate-800/30 rounded-xl p-4 border border-slate-700 max-w-4xl mx-auto">
-          <div className="flex items-start gap-3">
-            <Shield className="w-5 h-5 text-pink-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm text-slate-300 font-medium mb-1">Content Policy</p>
-              <p className="text-xs text-slate-400">
-                Brand-based or copyrighted content is not allowed. 
-                Upload only images you own or have permission to use.
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Content */}
+      <main className="max-w-7xl mx-auto px-4 py-4">
+        {phase === 'upload' && renderUploadPhase()}
+        {phase === 'generating' && renderGenerating()}
+        {phase === 'result' && renderResult()}
       </main>
-      
+
+      {/* Legal */}
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="bg-slate-800/20 rounded-xl p-3 border border-slate-800 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-pink-400/60 flex-shrink-0" />
+          <p className="text-[10px] text-slate-500">
+            Upload only images you own. Brand-based or copyrighted content is not allowed.
+          </p>
+        </div>
+      </div>
+
       {/* Modals */}
-      <RatingModal 
+      <RatingModal
         isOpen={showRating}
         onClose={() => setShowRating(false)}
         featureKey="reaction_gif"
         relatedRequestId={job?.id}
         onSubmitSuccess={() => setShowRating(false)}
       />
-      
       {showUpsell && (
         <UpsellModal
           isOpen={showUpsell}
