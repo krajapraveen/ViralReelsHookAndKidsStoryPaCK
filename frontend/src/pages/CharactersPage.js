@@ -10,6 +10,10 @@ const api = {
     const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}${url}`, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw { response: { data: err, status: res.status } };
+    }
     return { data: await res.json() };
   },
   post: async (url, body) => {
@@ -19,6 +23,23 @@ const api = {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw { response: { data: err, status: res.status } };
+    }
+    return { data: await res.json() };
+  },
+  patch: async (url, body) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}${url}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw { response: { data: err, status: res.status } };
+    }
     return { data: await res.json() };
   },
   delete: async (url) => {
@@ -27,6 +48,10 @@ const api = {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw { response: { data: err, status: res.status } };
+    }
     return { data: await res.json() };
   },
 };
@@ -161,10 +186,14 @@ export default function CharactersPage() {
     try {
       const res = await api.get('/api/characters/my-characters');
       if (res.data.success) {
+        const STYLE_REVERSE = {
+          'anime': 'Anime', 'cartoon_2d': 'Cartoon', 'cinematic': 'Realistic',
+          'watercolor': 'Watercolor', 'comic': 'Comic Book',
+        };
         setCharacters((res.data.characters || []).map(c => ({
           ...c,
           id: c.character_id || c.id,
-          style: c.species_or_type || c.style || 'Default',
+          style: STYLE_REVERSE[c.style_lock] || c.style_lock || c.species_or_type || 'Default',
           voice: c.gender_presentation || c.voice || 'Default',
           personality: c.personality_summary || c.personality || '',
         })));
@@ -183,17 +212,41 @@ export default function CharactersPage() {
   const handleSave = async (charData) => {
     try {
       if (charData.id) {
-        await api.post(`/api/characters/${charData.id}`, charData);
+        // Update existing character
+        await api.patch(`/api/characters/${charData.id}`, {
+          name: charData.name,
+          personality_summary: charData.personality,
+        });
         toast.success('Character updated!');
       } else {
-        await api.post('/api/characters', charData);
+        // Create new — map simple form fields to backend schema
+        const STYLE_MAP = {
+          'Anime': 'anime', 'Cartoon': 'cartoon_2d', 'Realistic': 'cinematic',
+          'Watercolor': 'watercolor', 'Pixel Art': 'comic', 'Chibi': 'cartoon_2d',
+        };
+        await api.post('/api/characters/create', {
+          name: charData.name,
+          personality_summary: charData.personality || 'A unique character',
+          style_lock: STYLE_MAP[charData.style] || 'cartoon_2d',
+          gender_presentation: charData.voice === 'Male' ? 'male' : charData.voice === 'Female' ? 'female' : charData.voice?.toLowerCase() || '',
+          species_or_type: 'human',
+          role: 'hero',
+          age_band: 'adult',
+        });
         toast.success('Character created!');
       }
       setShowEditor(false);
       setEditingChar(null);
       fetchCharacters();
-    } catch {
-      toast.error('Failed to save character');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      if (detail?.error === 'safety_block') {
+        toast.error(detail.reason || 'Character blocked by safety filter');
+      } else if (typeof detail === 'string') {
+        toast.error(detail);
+      } else {
+        toast.error('Failed to save character');
+      }
     }
   };
 

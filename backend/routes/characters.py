@@ -213,6 +213,7 @@ class AttachCharacterRequest(BaseModel):
 async def create_character(request: CreateCharacterRequest, user: dict = Depends(get_current_user)):
     """Create an original character with LLM-generated visual bible."""
     user_id = user["id"]
+    logger.info(f"[CHARACTER] Create request from user={user_id}: name={request.name} style={request.style_lock}")
 
     # Safety screening
     appearance_text = " ".join(filter(None, [

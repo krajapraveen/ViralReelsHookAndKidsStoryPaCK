@@ -130,6 +130,22 @@ Validation phase tracking for real production jobs. Admin-only. No synthetic dat
 
 ---
 
+## Apr 3, 2026 — P0 Fix: Character Studio "Failed to save character"
+- Root cause: URL mismatch (POST /api/characters → POST /api/characters/create), field name mismatch (personality→personality_summary), no HTTP error checking
+- Fixed all 3 issues + added request logging + specific error surface for safety blocks
+
+## Apr 3, 2026 — Reaction GIF Viral Overhaul
+- Replaced 4-step wizard with zero-friction single-screen flow
+- Added 5 viral style packs (Meme, Pixar, Anime, Desi, Corporate) = 15 total styles
+- Result screen with addictive loop (Try another reaction, Random Style, New Photo)
+- Share-first design (WhatsApp PRIMARY, Instagram Story, Copy Link)
+- First generation FREE for new users
+
+## Apr 3, 2026 — P0 Fix: Brand Kit "Failed to start generation"
+- 7 defensive fixes: request logging, mode normalization, specific errors, admin credit bypass, frontend validation, polling fix
+
+
+
 ## Phase 2 — Brand Kit (UPCOMING)
 - AI logo image generation (Gemini visual pipeline)
 - Social media creative templates
