@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Palette, Mic, Sparkles, Plus, Edit2, Trash2, Save, X, Loader2 } from 'lucide-react';
+import { User, Palette, Mic, Sparkles, Plus, Edit2, Trash2, Save, X, Loader2, Lock, Film, BookOpen } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 
@@ -65,6 +65,12 @@ const COLORS = [
 
 function CharacterCard({ char, onEdit, onDelete }) {
   const colorIdx = (char.name || '').charCodeAt(0) % COLORS.length;
+  const navigate = useNavigate();
+
+  const handleCreateStory = () => {
+    navigate(`/app/story-video-studio?character=${char.id}`);
+  };
+
   return (
     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-5 hover:border-purple-500/30 transition-all group" data-testid={`char-card-${char.id}`}>
       <div className="flex items-start gap-4">
@@ -80,13 +86,35 @@ function CharacterCard({ char, onEdit, onDelete }) {
           {char.personality && <p className="text-xs text-slate-500 mt-2 line-clamp-2">{char.personality}</p>}
         </div>
       </div>
-      <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button size="sm" variant="outline" className="flex-1 h-7 text-[11px] border-slate-600 text-slate-300" onClick={() => onEdit(char)}>
-          <Edit2 className="w-3 h-3 mr-1" /> Edit
+
+      {/* Status badges */}
+      <div className="flex flex-wrap items-center gap-1.5 mt-3">
+        <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full" data-testid={`char-locked-${char.id}`}>
+          <Lock className="w-2.5 h-2.5" /> Consistency locked
+        </span>
+        <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-slate-700/30 px-2 py-0.5 rounded-full">
+          <Film className="w-2.5 h-2.5" /> Ready for videos & comics
+        </span>
+      </div>
+
+      {/* Action buttons */}
+      <div className="mt-4 space-y-2">
+        <Button
+          size="sm"
+          onClick={handleCreateStory}
+          className="w-full h-8 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white"
+          data-testid={`char-create-story-${char.id}`}
+        >
+          <BookOpen className="w-3 h-3 mr-1.5" /> Create Story with {char.name?.split(' ')[0]}
         </Button>
-        <Button size="sm" variant="outline" className="h-7 px-2 border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => onDelete(char)}>
-          <Trash2 className="w-3 h-3" />
-        </Button>
+        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button size="sm" variant="outline" className="flex-1 h-7 text-[11px] border-slate-600 text-slate-300" onClick={() => onEdit(char)}>
+            <Edit2 className="w-3 h-3 mr-1" /> Edit
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => onDelete(char)}>
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </div>
       </div>
     </div>
   );
