@@ -5,7 +5,7 @@ import {
   Shield, Server, Settings, LogOut, ChevronRight, ChevronDown,
   Activity, Eye, FileText, Heart, Zap, BookOpen, Star, TrendingUp,
   Lock, AlertTriangle, Clock, Monitor, Cpu, Radio, Sparkles,
-  Menu, X, ArrowLeft
+  Menu, X, ArrowLeft, Target
 } from 'lucide-react';
 
 const NAV_GROUPS = [
@@ -13,6 +13,7 @@ const NAV_GROUPS = [
     label: 'Overview',
     items: [
       { path: '/app/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+      { path: '/app/admin/production-metrics', label: 'Production Metrics', icon: Target },
     ],
   },
   {

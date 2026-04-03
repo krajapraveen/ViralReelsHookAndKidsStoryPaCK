@@ -205,6 +205,12 @@ async def download_pdf(job_id: str, user: dict = Depends(get_current_user)):
     try:
         pdf_bytes = generate_brand_kit_pdf(job)
         biz = job.get("brief", {}).get("business_name", "brand").replace(" ", "_")
+        # Track download event
+        await db.production_events.insert_one({
+            "event": "download", "feature": "brand_kit", "format": "pdf",
+            "job_id": job_id, "user_id": user["id"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -233,6 +239,12 @@ async def download_zip(job_id: str, user: dict = Depends(get_current_user)):
     try:
         zip_bytes = generate_brand_kit_zip(job)
         biz = job.get("brief", {}).get("business_name", "brand").replace(" ", "_")
+        # Track download event
+        await db.production_events.insert_one({
+            "event": "download", "feature": "brand_kit", "format": "zip",
+            "job_id": job_id, "user_id": user["id"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
         return Response(
             content=zip_bytes,
             media_type="application/zip",

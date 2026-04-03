@@ -140,6 +140,8 @@ import StoryChainView from './pages/StoryChainView';
 import MyStories from './pages/MyStories';
 // ADMIN GROWTH DASHBOARD
 import GrowthDashboard from './pages/Admin/GrowthDashboard';
+// PRODUCTION METRICS DASHBOARD
+import ProductionMetrics from './pages/Admin/ProductionMetrics';
 import ContentEngine from './pages/ContentEngine';
 // NAVIGATION PAGES
 import MySpacePage from './pages/MySpacePage';
@@ -271,6 +273,7 @@ function App() {
         <Route path="monitoring" element={<MonitoringDashboard />} />
         <Route path="ga4-tester" element={<GA4EventTester />} />
         <Route path="growth" element={<GrowthDashboard />} />
+        <Route path="production-metrics" element={<ProductionMetrics />} />
         <Route path="content-engine" element={<ContentEngine />} />
       </Route>
       <Route path="/app/feature-requests" element={isAuthenticated ? <FeatureRequests /> : <Navigate to="/login" />} />
