@@ -27,6 +27,21 @@ const NICHE_COLORS = {
 };
 
 // ==================== FEED VIEW ====================
+const FALLBACK_IDEAS = [
+  { idea: "Things that look fake but are real", type: "viral", niche: "Entertainment", trending_score: 97, badge: "trending" },
+  { idea: "You won't believe what happened next", type: "story", niche: "Lifestyle", trending_score: 95, badge: "trending" },
+  { idea: "Before vs After transformation that shocked everyone", type: "transformation", niche: "Fitness", trending_score: 94, badge: "fast_growing" },
+  { idea: "This changed everything for me", type: "story", niche: "Business", trending_score: 93, badge: "trending" },
+  { idea: "Wait till the end — you won't expect this", type: "loop", niche: "Entertainment", trending_score: 92, badge: "fast_growing" },
+  { idea: "I tried this for 7 days — here's what changed", type: "experiment", niche: "Health", trending_score: 91, badge: "trending" },
+  { idea: "Nobody talks about this productivity secret", type: "controversy", niche: "Tech", trending_score: 90, badge: "fast_growing" },
+  { idea: "This is why you're stuck and how to fix it", type: "advice", niche: "Finance", trending_score: 89 },
+  { idea: "What happens next will shock you", type: "shock", niche: "Lifestyle", trending_score: 88, badge: "trending" },
+  { idea: "I tested every viral trend so you don't have to", type: "test", niche: "Entertainment", trending_score: 87 },
+  { idea: "This one trick blew up my reach overnight", type: "growth", niche: "Business", trending_score: 86, badge: "fast_growing" },
+  { idea: "Stop scrolling — this will save you hours", type: "hook", niche: "Tech", trending_score: 95, badge: "trending" },
+];
+
 const FeedView = ({ onGenerate, generating }) => {
   const [ideas, setIdeas] = useState([]);
   const [niches, setNiches] = useState([]);
@@ -47,10 +62,24 @@ const FeedView = ({ onGenerate, generating }) => {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setIdeas(data.ideas || []);
+        const fetched = data.ideas || [];
+        // NEVER show empty — inject fallback if needed
+        if (fetched.length < 3) {
+          const fallback = selectedNiche
+            ? FALLBACK_IDEAS.filter(i => i.niche === selectedNiche)
+            : FALLBACK_IDEAS;
+          setIdeas(fallback.length >= 3 ? fallback : FALLBACK_IDEAS);
+        } else {
+          setIdeas(fetched);
+        }
         setNiches(data.niches || []);
+      } else {
+        setIdeas(FALLBACK_IDEAS);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setIdeas(FALLBACK_IDEAS);
+    }
     finally { setLoading(false); }
   };
 
@@ -150,6 +179,11 @@ const FeedView = ({ onGenerate, generating }) => {
                       <TrendingUp className="w-3 h-3" /> Hot
                     </span>
                   )}
+                  {idea.badge === 'fast_growing' && idea.trending_score < 90 && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 flex items-center gap-0.5">
+                      <Zap className="w-3 h-3" /> Fast growing
+                    </span>
+                  )}
                 </div>
                 <p className="text-white font-medium text-base leading-snug">{idea.idea}</p>
               </div>
@@ -166,14 +200,6 @@ const FeedView = ({ onGenerate, generating }) => {
           </div>
         ))}
       </div>
-
-      {ideas.length === 0 && (
-        <div className="text-center py-16 text-slate-500">
-          <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="text-lg font-medium text-slate-400">No ideas available</p>
-          <p className="text-sm">Check back soon for fresh content ideas</p>
-        </div>
-      )}
     </div>
   );
 };
