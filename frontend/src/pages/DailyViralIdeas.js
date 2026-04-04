@@ -205,10 +205,13 @@ const FeedView = ({ onGenerate, generating }) => {
 };
 
 // ==================== PROGRESS VIEW ====================
-const ProgressView = ({ jobId, onComplete }) => {
+const ProgressView = ({ jobId, onComplete, ideaText, ideaNiche }) => {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
+  const [pollCount, setPollCount] = useState(0);
+  const [partialAssets, setPartialAssets] = useState([]);
   const pollRef = useRef(null);
+  const startTime = useRef(Date.now());
 
   const pollStatus = useCallback(async () => {
     try {
@@ -217,57 +220,99 @@ const ProgressView = ({ jobId, onComplete }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        setError('Unable to load job status');
+        console.error(`[POLL] Status ${res.status} for job ${jobId}`);
+        setPollCount(p => p + 1);
         return;
       }
       const data = await res.json();
+      if (!data || !data.job_id) {
+        console.error('[POLL] Malformed response', data);
+        setPollCount(p => p + 1);
+        return;
+      }
       setJob(data);
+      setPollCount(p => p + 1);
+
+      // Fetch partial assets as they become available
+      const completedTasks = (data.tasks || []).filter(t => t.status === 'completed' && t.task_type !== 'packaging');
+      if (completedTasks.length > 0) {
+        try {
+          const assetsRes = await fetch(`${API_URL}/api/viral-ideas/jobs/${jobId}/assets`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (assetsRes.ok) {
+            const assetsData = await assetsRes.json();
+            setPartialAssets(assetsData.assets || []);
+          }
+        } catch (e) { /* silent */ }
+      }
+
       if (data.status === 'completed' || data.status === 'completed_with_fallbacks') {
         clearInterval(pollRef.current);
         onComplete(jobId);
       }
     } catch (e) {
-      console.error(e);
+      console.error('[POLL] Error:', e);
+      setPollCount(p => p + 1);
     }
   }, [jobId, onComplete]);
 
   useEffect(() => {
+    startTime.current = Date.now();
     pollStatus();
     pollRef.current = setInterval(pollStatus, 2000);
     return () => clearInterval(pollRef.current);
   }, [pollStatus]);
 
-  if (error) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-red-400">{error}</p>
-        <Link to="/app/daily-viral-ideas" className="text-orange-400 underline mt-2 inline-block">Back to feed</Link>
-      </div>
-    );
-  }
-
-  if (!job) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin w-8 h-8 border-3 border-orange-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  const progress = job.progress || {};
-  const tasks = job.tasks || [];
+  const elapsedSec = Math.floor((Date.now() - startTime.current) / 1000);
+  const isStale = pollCount > 5 && !job;
+  const isTimeout = elapsedSec > 90;
+  const progress = job?.progress || {};
+  const tasks = job?.tasks || [];
   const taskOrder = ['hooks', 'script', 'captions', 'thumbnail', 'audio', 'video', 'packaging'];
 
+  // Error: couldn't reach backend after several attempts
+  if (isStale || error) {
+    return (
+      <div className="max-w-lg mx-auto space-y-4 py-8" data-testid="progress-error">
+        <div className="bg-slate-900/80 border border-red-500/20 rounded-2xl p-6 text-center">
+          <RefreshCw className="w-8 h-8 text-red-400 mx-auto mb-3" />
+          <p className="text-white font-semibold mb-1">Having trouble loading status</p>
+          <p className="text-sm text-slate-400 mb-4">{error || 'Connection issue — your pack is still generating'}</p>
+          <div className="flex gap-2 justify-center">
+            <button onClick={() => { setError(null); setPollCount(0); pollStatus(); }} className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded-xl transition-colors" data-testid="retry-poll-btn">
+              Retry Status
+            </button>
+            <Link to="/app/daily-viral-ideas" className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition-colors" data-testid="return-feed-btn">
+              Return to Feed
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-lg mx-auto space-y-8" data-testid="progress-view">
+    <div className="max-w-lg mx-auto space-y-6" data-testid="progress-view">
+      {/* Idea Context — ALWAYS visible */}
+      <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-4" data-testid="progress-idea-context">
+        <p className="text-white font-medium text-base">{ideaText || job?.idea || 'Generating your content pack...'}</p>
+        <div className="flex items-center gap-2 mt-2">
+          {(ideaNiche || job?.niche) && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-300">{ideaNiche || job?.niche}</span>
+          )}
+          <span className="text-xs text-slate-500">Started {elapsedSec}s ago</span>
+        </div>
+      </div>
+
       {/* Progress Circle */}
       <div className="text-center">
-        <div className="relative inline-flex items-center justify-center w-32 h-32">
-          <svg className="w-32 h-32 -rotate-90">
-            <circle cx="64" cy="64" r="56" fill="none" stroke="#1e293b" strokeWidth="8" />
+        <div className="relative inline-flex items-center justify-center w-28 h-28">
+          <svg className="w-28 h-28 -rotate-90">
+            <circle cx="56" cy="56" r="48" fill="none" stroke="#1e293b" strokeWidth="7" />
             <circle
-              cx="64" cy="64" r="56" fill="none" stroke="url(#progressGrad)" strokeWidth="8"
-              strokeLinecap="round" strokeDasharray={`${(progress.percentage || 0) * 3.52} 352`}
+              cx="56" cy="56" r="48" fill="none" stroke="url(#progressGrad)" strokeWidth="7"
+              strokeLinecap="round" strokeDasharray={`${(progress.percentage || 5) * 3.02} 302`}
               className="transition-all duration-700"
             />
             <defs>
@@ -277,34 +322,38 @@ const ProgressView = ({ jobId, onComplete }) => {
               </linearGradient>
             </defs>
           </svg>
-          <span className="absolute text-2xl font-bold text-white">{progress.percentage || 0}%</span>
+          <span className="absolute text-xl font-bold text-white">{progress.percentage || 0}%</span>
         </div>
-        <p className="mt-4 text-lg font-semibold text-white">{progress.message || 'Processing...'}</p>
+        <p className="mt-3 text-base font-semibold text-white">
+          {isTimeout ? 'Still working on your pack...' : (progress.message || 'Setting up your content pack...')}
+        </p>
+        <p className="text-xs text-slate-500 mt-1">Usually takes 20-30 seconds</p>
       </div>
 
-      {/* Task List */}
-      <div className="space-y-2">
+      {/* Task List — ALWAYS visible, shows skeleton before first poll */}
+      <div className="space-y-2" data-testid="progress-tasks">
         {taskOrder.map((type) => {
           const task = tasks.find(t => t.task_type === type);
           const status = task?.status || 'pending';
           const Icon = PHASE_ICONS[`generating_${type}`] || PHASE_ICONS[type] || Clock;
+          const label = type === 'hooks' ? 'Viral Hooks' : type === 'script' ? 'Video Script' : type === 'captions' ? 'Social Captions' : type === 'thumbnail' ? 'Thumbnail' : type === 'audio' ? 'Voiceover' : type === 'video' ? 'Social Video' : 'Final Package';
           return (
             <div
               key={type}
-              className={`flex items-center gap-3 p-3 rounded-xl transition-all ${status === 'completed' ? 'bg-emerald-500/10 border border-emerald-500/20' : status === 'processing' ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-slate-800/40 border border-slate-800'}`}
+              className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-500 ${status === 'completed' ? 'bg-emerald-500/10 border border-emerald-500/20' : status === 'processing' ? 'bg-orange-500/10 border border-orange-500/20 animate-pulse' : 'bg-slate-800/40 border border-slate-800/60'}`}
               data-testid={`task-${type}`}
             >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${status === 'completed' ? 'bg-emerald-500/20' : status === 'processing' ? 'bg-orange-500/20' : 'bg-slate-700/50'}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${status === 'completed' ? 'bg-emerald-500/20' : status === 'processing' ? 'bg-orange-500/20' : 'bg-slate-700/40'}`}>
                 {status === 'completed' ? (
                   <Check className="w-4 h-4 text-emerald-400" />
                 ) : status === 'processing' ? (
                   <RefreshCw className="w-4 h-4 text-orange-400 animate-spin" />
                 ) : (
-                  <Icon className="w-4 h-4 text-slate-500" />
+                  <Icon className="w-4 h-4 text-slate-600" />
                 )}
               </div>
-              <span className={`text-sm font-medium capitalize ${status === 'completed' ? 'text-emerald-300' : status === 'processing' ? 'text-orange-300' : 'text-slate-500'}`}>
-                {type === 'hooks' ? 'Viral Hooks' : type === 'script' ? 'Video Script' : type === 'captions' ? 'Social Captions' : type === 'thumbnail' ? 'Thumbnail' : type === 'audio' ? 'Voiceover' : type === 'video' ? 'Social Video' : 'Final Package'}
+              <span className={`text-sm font-medium ${status === 'completed' ? 'text-emerald-300' : status === 'processing' ? 'text-orange-300' : 'text-slate-600'}`}>
+                {label}
               </span>
               {task?.fallback_used && status === 'completed' && (
                 <span className="ml-auto text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">alt</span>
@@ -312,6 +361,56 @@ const ProgressView = ({ jobId, onComplete }) => {
             </div>
           );
         })}
+      </div>
+
+      {/* Partial Assets Preview — show text assets as they arrive */}
+      {partialAssets.length > 0 && (
+        <div className="space-y-3" data-testid="partial-assets">
+          <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Ready so far</p>
+          {partialAssets.filter(a => a.asset_type === 'hooks' && a.content).map(a => (
+            <div key={a.asset_id} className="bg-slate-900/60 border border-emerald-500/10 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Zap className="w-3 h-3 text-amber-400" />
+                <span className="text-[11px] font-semibold text-slate-400">Hooks Ready</span>
+              </div>
+              <p className="text-sm text-slate-300">{a.content.split('\n')[0]}</p>
+            </div>
+          ))}
+          {partialAssets.filter(a => a.asset_type === 'thumbnail' && a.file_url).map(a => (
+            <div key={a.asset_id} className="bg-slate-900/60 border border-emerald-500/10 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Image className="w-3 h-3 text-violet-400" />
+                <span className="text-[11px] font-semibold text-slate-400">Thumbnail Ready</span>
+              </div>
+              <img src={`${API_URL}${a.file_url.startsWith('/api') ? a.file_url : `/api${a.file_url}`}`} alt="" className="w-24 h-24 rounded-lg object-cover" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Timeout Recovery */}
+      {isTimeout && (
+        <div className="bg-slate-900/80 border border-amber-500/20 rounded-xl p-4 text-center space-y-3" data-testid="timeout-recovery">
+          <p className="text-sm text-amber-300">Taking longer than usual</p>
+          <div className="flex gap-2 justify-center">
+            <button onClick={() => { startTime.current = Date.now(); pollStatus(); }} className="px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-medium rounded-lg transition-colors">
+              Refresh Status
+            </button>
+            <Link to={`/app/daily-viral-ideas?job=${jobId}`} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors">
+              Check Result
+            </Link>
+            <Link to="/app/daily-viral-ideas" className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors">
+              Back to Ideas
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Back action — ALWAYS available */}
+      <div className="text-center">
+        <Link to="/app/daily-viral-ideas" className="text-xs text-slate-600 hover:text-slate-400 transition-colors" data-testid="progress-back-link">
+          <ArrowLeft className="w-3 h-3 inline mr-1" />Back to ideas
+        </Link>
       </div>
     </div>
   );
@@ -652,6 +751,8 @@ const DailyViralIdeas = () => {
   const [view, setView] = useState('feed');
   const [activeJobId, setActiveJobId] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [activeIdea, setActiveIdea] = useState('');
+  const [activeNiche, setActiveNiche] = useState('');
 
   useEffect(() => {
     const jobParam = searchParams.get('job');
