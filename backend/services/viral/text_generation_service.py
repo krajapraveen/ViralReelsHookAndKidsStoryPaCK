@@ -14,28 +14,34 @@ logger = logging.getLogger("viral.text_gen")
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
 
-async def generate_hooks(idea: str, niche: str, count: int = 3) -> dict:
-    """Returns {"hooks": [...], "fallback_used": bool}"""
-    # Level 1: GPT-4o-mini
+async def generate_hooks(idea: str, niche: str, count: int = 5) -> dict:
+    """Returns {"hooks": [...], "hook_types": [...], "best_hook": str, "fallback_used": bool}"""
+    # Level 1: GPT-4o-mini with structured hook types
     if EMERGENT_KEY:
         try:
-            hooks = await _llm_hooks(idea, niche, count, "openai", "gpt-4o-mini")
+            hooks = await _llm_hooks_structured(idea, niche, count, "openai", "gpt-4o-mini")
             if hooks and len(hooks) >= 1:
-                return {"hooks": hooks[:count], "fallback_used": False}
+                best = _select_strongest_hook(hooks)
+                return {"hooks": [h["text"] for h in hooks], "hook_types": hooks,
+                        "best_hook": best, "fallback_used": False}
         except Exception as e:
             logger.warning(f"[HOOKS] GPT-4o-mini failed: {e}")
 
         # Level 2: Gemini
         try:
-            hooks = await _llm_hooks(idea, niche, count, "google", "gemini-2.0-flash")
+            hooks = await _llm_hooks_structured(idea, niche, count, "google", "gemini-2.0-flash")
             if hooks and len(hooks) >= 1:
-                return {"hooks": hooks[:count], "fallback_used": True}
+                best = _select_strongest_hook(hooks)
+                return {"hooks": [h["text"] for h in hooks], "hook_types": hooks,
+                        "best_hook": best, "fallback_used": True}
         except Exception as e:
             logger.warning(f"[HOOKS] Gemini fallback failed: {e}")
 
     # Level 3: Deterministic
     from services.viral.fallback_service import generate_fallback_hooks
-    return {"hooks": generate_fallback_hooks(idea, niche, count), "fallback_used": True}
+    fb_hooks = generate_fallback_hooks(idea, niche, count)
+    typed = [{"text": h, "type": "curiosity"} for h in fb_hooks]
+    return {"hooks": fb_hooks, "hook_types": typed, "best_hook": fb_hooks[0], "fallback_used": True}
 
 
 async def generate_script(idea: str, niche: str, hook: str) -> dict:
@@ -78,6 +84,58 @@ async def generate_captions(idea: str, niche: str, hook: str) -> dict:
 
     from services.viral.fallback_service import generate_fallback_captions
     return {"captions": generate_fallback_captions(idea, niche, hook), "fallback_used": True}
+
+
+async def _llm_hooks_structured(idea: str, niche: str, count: int, provider: str, model: str) -> list:
+    """Generate hooks with type labels: curiosity, pattern_break, emotional, loop."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    llm = LlmChat(
+        api_key=EMERGENT_KEY,
+        session_id=f"viral_hooks_struct_{random.randint(1000,9999)}",
+        system_message=(
+            "You are a viral content hook generator. Create hooks in 4 styles:\n"
+            "- CURIOSITY: Opens a knowledge gap (e.g., 'Nobody talks about this X secret')\n"
+            "- PATTERN_BREAK: Contradicts common belief (e.g., 'Stop doing X — here's why')\n"
+            "- EMOTIONAL: Triggers strong feeling (e.g., 'I almost gave up on X until...')\n"
+            "- LOOP: Creates an open loop (e.g., 'What happened next changed everything')\n\n"
+            "Format each line as: TYPE|Hook text\n"
+            "Example: CURIOSITY|Nobody tells you this about morning routines"
+        ),
+    )
+    llm = llm.with_model(provider, model)
+    llm = llm.with_params(temperature=0.9, max_tokens=500)
+    prompt = (
+        f"Generate {count} viral hooks (mix all 4 types) for:\n"
+        f"Idea: {idea}\nNiche: {niche}\n\n"
+        f"Return {count} hooks, one per line, format: TYPE|Hook text"
+    )
+    response = await llm.send_message(UserMessage(text=prompt))
+    hooks = []
+    valid_types = {"curiosity", "pattern_break", "emotional", "loop"}
+    for raw_line in response.strip().split("\n"):
+        line = raw_line.strip().lstrip("-•*0123456789. ")
+        if "|" in line:
+            parts = line.split("|", 1)
+            hook_type = parts[0].strip().lower()
+            hook_text = parts[1].strip().strip('"').strip("'")
+            if hook_type not in valid_types:
+                hook_type = "curiosity"
+            if 5 < len(hook_text) and 3 <= len(hook_text.split()) <= 20:
+                hooks.append({"text": hook_text, "type": hook_type})
+        else:
+            text = line.strip('"').strip("'")
+            if 5 < len(text) and 3 <= len(text.split()) <= 20:
+                hooks.append({"text": text, "type": "curiosity"})
+    return hooks[:count]
+
+
+def _select_strongest_hook(hooks: list) -> str:
+    """Auto-select the strongest hook. Prioritize curiosity > loop > pattern_break > emotional."""
+    priority = {"curiosity": 4, "loop": 3, "pattern_break": 2, "emotional": 1}
+    if not hooks:
+        return ""
+    scored = sorted(hooks, key=lambda h: (priority.get(h.get("type", ""), 0), len(h.get("text", ""))), reverse=True)
+    return scored[0]["text"]
 
 
 async def _llm_hooks(idea: str, niche: str, count: int, provider: str, model: str) -> list:

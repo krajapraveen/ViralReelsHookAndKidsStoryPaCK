@@ -29,7 +29,7 @@ FRIENDLY_MESSAGES = {
 PHASE1_TASK_TYPES = {"hooks", "script", "captions", "thumbnail"}
 
 
-async def create_job(db, user_id: str, idea: str, niche: str) -> dict:
+async def create_job(db, user_id: str, idea: str, niche: str, locked: bool = False) -> dict:
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     job = {
@@ -38,6 +38,7 @@ async def create_job(db, user_id: str, idea: str, niche: str) -> dict:
         "idea": idea,
         "niche": niche,
         "status": "pending",
+        "locked": locked,
         "progress": {
             "current_phase": "planning",
             "phases_completed": [],

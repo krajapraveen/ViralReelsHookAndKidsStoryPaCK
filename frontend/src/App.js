@@ -64,6 +64,7 @@ import StoryPreview from './pages/StoryPreview';
 import { ErrorBoundary } from './components/recovery';  // Add ErrorBoundary
 import UserAnalyticsDashboard from './pages/Admin/UserAnalyticsDashboard';
 import SharePage from './pages/SharePage';
+import ViralPackShare from './pages/ViralPackShare';
 import ReferralProgram from './pages/ReferralProgram';
 import Gallery from './pages/Gallery';
 import AIChatbot from './components/AIChatbot';
@@ -216,6 +217,7 @@ function App() {
         
         {/* Public Share Page - No auth required */}
         <Route path="/share/:shareId" element={<SharePage />} />
+        <Route path="/viral/:jobId" element={<ViralPackShare />} />
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/app/explore" element={<ExplorePage />} />

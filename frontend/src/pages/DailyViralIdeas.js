@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Copy, Check, TrendingUp, Flame, Zap, Download, FileText, Image, Package, ChevronRight, RefreshCw, Clock, ArrowRight, Volume2, Video, MessageSquare, ThumbsUp, ThumbsDown, RotateCw, ShieldAlert, Heart } from 'lucide-react';
+import { ArrowLeft, Sparkles, Copy, Check, TrendingUp, Flame, Zap, Download, FileText, Image, Package, ChevronRight, RefreshCw, Clock, ArrowRight, Volume2, Video, MessageSquare, ThumbsUp, ThumbsDown, RotateCw, ShieldAlert, Heart, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -347,18 +347,102 @@ const ResultView = ({ jobId }) => {
   const voiceover = assets.find(a => a.asset_type === 'voiceover');
   const video = assets.find(a => a.asset_type === 'video');
   const zipBundle = assets.find(a => a.asset_type === 'zip_bundle');
+  const isLocked = job?.locked;
+
+  const shareUrl = `${window.location.origin}/viral/${jobId}`;
+
+  const handleShare = async (platform) => {
+    const hookText = hooks?.content?.split('\n')[0] || job?.progress?.message || '';
+    // Track share event
+    try {
+      await fetch(`${API_URL}/api/viral-ideas/share/${jobId}/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, user_id: localStorage.getItem('userId') || 'anon' }),
+      });
+    } catch (e) { /* silent */ }
+
+    if (platform === 'whatsapp') {
+      window.open(`https://wa.me/?text=${encodeURIComponent(`${hookText}\n\n${shareUrl}?ref=wa`)}`, '_blank');
+    } else if (platform === 'twitter') {
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(hookText)}&url=${encodeURIComponent(shareUrl + '?ref=tw')}`, '_blank');
+    } else if (platform === 'copy') {
+      navigator.clipboard.writeText(shareUrl);
+      toast.success('Share link copied!');
+    }
+  };
+
+  const handleUnlock = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/viral-ideas/jobs/${jobId}/unlock`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Pack unlocked!');
+        fetchAssets(); // Reload with full content
+      } else {
+        toast.error(data.detail || 'Failed to unlock');
+      }
+    } catch (e) { toast.error('Failed to unlock'); }
+  };
 
   return (
     <div className="space-y-6" data-testid="result-view">
       {/* Success Banner */}
       <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-5 text-center">
         <Check className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-        <h2 className="text-xl font-bold text-white">Your Content Pack is Ready!</h2>
+        <h2 className="text-xl font-bold text-white">{isLocked ? 'Your Pack Preview is Ready' : 'Your Content Pack is Ready!'}</h2>
         {job && <p className="text-sm text-slate-400 mt-1">{job.progress?.message}</p>}
       </div>
 
-      {/* Download All */}
-      {zipBundle?.file_url && (
+      {/* Locked Banner */}
+      {isLocked && (
+        <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-2xl p-5" data-testid="locked-banner">
+          <div className="flex items-center gap-3 mb-3">
+            <Lock className="w-5 h-5 text-orange-400" />
+            <span className="text-white font-semibold">This pack is locked</span>
+          </div>
+          <p className="text-sm text-slate-400 mb-4">Unlock to download full content, remove watermarks, and access all assets.</p>
+          <button
+            onClick={handleUnlock}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all"
+            data-testid="unlock-pack-btn"
+          >
+            <Lock className="w-4 h-4" />
+            Unlock This Pack (5 credits)
+          </button>
+        </div>
+      )}
+
+      {/* Share Buttons */}
+      <div className="flex gap-2" data-testid="share-buttons">
+        <button
+          onClick={() => handleShare('whatsapp')}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#25D366] text-sm font-medium rounded-xl border border-[#25D366]/20 transition-all"
+          data-testid="share-whatsapp-btn"
+        >
+          <MessageSquare className="w-4 h-4" /> WhatsApp
+        </button>
+        <button
+          onClick={() => handleShare('twitter')}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 text-sm font-medium rounded-xl border border-sky-500/20 transition-all"
+          data-testid="share-twitter-btn"
+        >
+          <ArrowRight className="w-4 h-4" /> Twitter
+        </button>
+        <button
+          onClick={() => handleShare('copy')}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800/60 hover:bg-slate-700 text-slate-400 text-sm font-medium rounded-xl border border-slate-700/50 transition-all"
+          data-testid="share-copy-btn"
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Download All — only if unlocked */}
+      {!isLocked && zipBundle?.file_url && (
         <button
           onClick={() => downloadFile(zipBundle.file_url)}
           className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all"
@@ -371,18 +455,18 @@ const ResultView = ({ jobId }) => {
 
       {/* Video */}
       {video?.file_url && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-video">
+        <div className={`bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden ${isLocked ? 'opacity-60' : ''}`} data-testid="asset-video">
           <div className="p-4 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Video className="w-4 h-4 text-rose-400" />
               <span className="text-sm font-semibold text-white">Social Video</span>
+              {isLocked && <Lock className="w-3 h-3 text-orange-400" />}
             </div>
-            <button onClick={() => downloadFile(video.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1">
-              <Download className="w-3 h-3" /> Download
-            </button>
+            {!isLocked && <button onClick={() => downloadFile(video.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>}
           </div>
-          <div className="p-4">
-            <video controls className="w-full max-w-md mx-auto rounded-xl" src={getAssetUrl(video.file_url)} />
+          <div className="p-4 relative">
+            <video controls={!isLocked} className="w-full max-w-md mx-auto rounded-xl" src={getAssetUrl(video.file_url)} style={isLocked ? {filter: 'blur(4px)'} : {}} />
+            {isLocked && <div className="absolute inset-0 flex items-center justify-center"><Lock className="w-8 h-8 text-orange-400/60" /></div>}
           </div>
         </div>
       )}
@@ -391,68 +475,56 @@ const ResultView = ({ jobId }) => {
       {thumbnail?.file_url && (
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-thumbnail">
           <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Image className="w-4 h-4 text-violet-400" />
-              <span className="text-sm font-semibold text-white">Thumbnail</span>
-            </div>
-            <button onClick={() => downloadFile(thumbnail.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1">
-              <Download className="w-3 h-3" /> Download
-            </button>
+            <div className="flex items-center gap-2"><Image className="w-4 h-4 text-violet-400" /><span className="text-sm font-semibold text-white">Thumbnail</span></div>
+            {!isLocked && <button onClick={() => downloadFile(thumbnail.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>}
           </div>
-          <div className="p-4">
-            <img src={getAssetUrl(thumbnail.file_url)} alt="Thumbnail" className="w-full max-w-xs mx-auto rounded-xl" />
+          <div className="p-4 relative">
+            <img src={getAssetUrl(thumbnail.file_url)} alt="Thumbnail" className="w-full max-w-xs mx-auto rounded-xl" style={isLocked ? {filter: 'blur(3px) brightness(0.7)'} : {}} />
+            {isLocked && <div className="absolute inset-4 flex items-center justify-center text-orange-400/40 text-4xl font-black tracking-widest select-none">PREVIEW</div>}
           </div>
         </div>
       )}
 
       {/* Voiceover */}
-      {voiceover?.file_url && (
+      {voiceover?.file_url && !isLocked && (
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-voiceover">
           <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Volume2 className="w-4 h-4 text-cyan-400" />
-              <span className="text-sm font-semibold text-white">Voiceover</span>
-            </div>
-            <button onClick={() => downloadFile(voiceover.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1">
-              <Download className="w-3 h-3" /> Download
-            </button>
+            <div className="flex items-center gap-2"><Volume2 className="w-4 h-4 text-cyan-400" /><span className="text-sm font-semibold text-white">Voiceover</span></div>
+            <button onClick={() => downloadFile(voiceover.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>
           </div>
-          <div className="p-4">
-            <audio controls className="w-full" src={getAssetUrl(voiceover.file_url)} />
-          </div>
+          <div className="p-4"><audio controls className="w-full" src={getAssetUrl(voiceover.file_url)} /></div>
         </div>
       )}
 
-      {/* Hooks */}
+      {/* Text Assets — truncated if locked */}
       {hooks?.content && (
         <AssetCard
           icon={<Zap className="w-4 h-4 text-amber-400" />}
           title="Viral Hooks"
           content={hooks.content}
-          onCopy={() => copyContent(hooks.content, 'hooks')}
+          onCopy={!isLocked ? () => copyContent(hooks.content, 'hooks') : undefined}
           copied={copied === 'hooks'}
+          locked={isLocked}
         />
       )}
-
-      {/* Script */}
       {script?.content && (
         <AssetCard
           icon={<FileText className="w-4 h-4 text-sky-400" />}
           title="Video Script"
           content={script.content}
-          onCopy={() => copyContent(script.content, 'script')}
+          onCopy={!isLocked ? () => copyContent(script.content, 'script') : undefined}
           copied={copied === 'script'}
+          locked={isLocked}
         />
       )}
-
-      {/* Captions */}
       {captions?.content && (
         <AssetCard
           icon={<Copy className="w-4 h-4 text-emerald-400" />}
           title="Social Captions"
           content={captions.content}
-          onCopy={() => copyContent(captions.content, 'captions')}
+          onCopy={!isLocked ? () => copyContent(captions.content, 'captions') : undefined}
           copied={copied === 'captions'}
+          locked={isLocked}
         />
       )}
 
@@ -526,20 +598,24 @@ const FeedbackPanel = ({ jobId }) => {
 };
 
 // ==================== ASSET CARD ====================
-const AssetCard = ({ icon, title, content, onCopy, copied }) => (
-  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid={`asset-${title.toLowerCase().replace(/\s/g, '-')}`}>
+const AssetCard = ({ icon, title, content, onCopy, copied, locked }) => (
+  <div className={`bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden ${locked ? 'opacity-70' : ''}`} data-testid={`asset-${title.toLowerCase().replace(/\s/g, '-')}`}>
     <div className="p-4 border-b border-slate-800 flex items-center justify-between">
       <div className="flex items-center gap-2">
         {icon}
         <span className="text-sm font-semibold text-white">{title}</span>
+        {locked && <Lock className="w-3 h-3 text-orange-400" />}
       </div>
-      <button onClick={onCopy} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1">
-        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-        {copied ? 'Copied' : 'Copy'}
-      </button>
+      {onCopy && !locked && (
+        <button onClick={onCopy} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1">
+          {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      )}
     </div>
-    <div className="p-4">
-      <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto">{content}</pre>
+    <div className="p-4 relative">
+      <pre className={`text-sm text-slate-300 whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto ${locked ? 'select-none' : ''}`}>{content}</pre>
+      {locked && <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-slate-900 to-transparent" />}
     </div>
   </div>
 );

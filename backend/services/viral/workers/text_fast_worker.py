@@ -26,13 +26,14 @@ async def handle_text_task(payload: dict):
 
     try:
         if task_type == "hooks":
-            result = await generate_hooks(idea, niche, count=3)
+            result = await generate_hooks(idea, niche, count=5)
             hooks_text = "\n".join(result["hooks"])
             await jobs.save_asset(db, job_id, task_id, "hooks", content=hooks_text, mime_type="text/plain")
             await jobs.update_task(db, task_id, "completed", fallback_used=result["fallback_used"])
+            best_hook = result.get("best_hook") or (result["hooks"][0] if result["hooks"] else idea)
             await db.viral_jobs.update_one(
                 {"job_id": job_id},
-                {"$set": {"_best_hook": result["hooks"][0] if result["hooks"] else idea}}
+                {"$set": {"_best_hook": best_hook}}
             )
 
         elif task_type == "script":
