@@ -155,6 +155,7 @@ import CharacterCreator from './pages/CharacterCreator';
 import CharacterLibrary from './pages/CharacterLibrary';
 import CharacterDetail from './pages/CharacterDetail';
 import PublicCharacterPage from './pages/PublicCharacterPage';
+import { ContentProtectionWrapper } from './components/ContentProtectionWrapper';
 import './App.css';
 
 /** Protected route wrapper — preserves intended destination for return-path after auth. */
@@ -201,6 +202,7 @@ function App() {
     <CreditProvider>
     <MediaEntitlementProvider>
     <TourProvider>
+    <ContentProtectionWrapper>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
@@ -377,6 +379,7 @@ function App() {
       
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />
+    </ContentProtectionWrapper>
     </TourProvider>
     </MediaEntitlementProvider>
     </CreditProvider>

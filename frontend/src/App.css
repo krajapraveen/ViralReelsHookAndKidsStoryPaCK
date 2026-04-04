@@ -87,3 +87,31 @@ div[style*="z-index: 99"] > a[href*="emergent"] {
   touch-action: none;
   pointer-events: auto;
 }
+
+/* ============================================
+   CONTENT PROTECTION — Anti-Copy Friction Layer
+   Applied site-wide via ContentProtectionWrapper.
+   Does NOT block input/textarea/contenteditable.
+   ============================================ */
+
+/* Prevent image save dialog on iOS/Safari long-press */
+[data-testid="content-protection-layer"] img,
+[data-testid="content-protection-layer"] video,
+[data-testid="content-protection-layer"] canvas {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+}
+
+/* Ensure form elements remain fully interactive */
+[data-testid="content-protection-layer"] input,
+[data-testid="content-protection-layer"] textarea,
+[data-testid="content-protection-layer"] select,
+[data-testid="content-protection-layer"] [contenteditable="true"],
+[data-testid="content-protection-layer"] [role="textbox"],
+[data-testid="content-protection-layer"] .ProseMirror,
+[data-testid="content-protection-layer"] .ql-editor {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+}

@@ -432,41 +432,7 @@ const ResultView = ({ jobId, onGoToFeed }) => {
     fetchAssets();
   }, [jobId]);
 
-  // Media protection: block casual copy/save actions
-  useEffect(() => {
-    const handleContextMenu = (e) => {
-      if (e.target.closest('[data-testid="result-view"]')) {
-        e.preventDefault();
-      }
-    };
-    const handleKeyDown = (e) => {
-      if (e.target.closest('[data-testid="result-view"]')) {
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 's' || e.key === 'C' || e.key === 'S')) {
-          e.preventDefault();
-        }
-      }
-    };
-    const handleCopy = (e) => {
-      if (e.target.closest('[data-testid="result-view"]')) {
-        e.preventDefault();
-      }
-    };
-    const handleDragStart = (e) => {
-      if (e.target.closest('[data-testid="result-view"]') && (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO')) {
-        e.preventDefault();
-      }
-    };
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('copy', handleCopy);
-    document.addEventListener('dragstart', handleDragStart);
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('copy', handleCopy);
-      document.removeEventListener('dragstart', handleDragStart);
-    };
-  }, []);
+  // Media protection now handled globally by ContentProtectionWrapper
 
   const fetchAssets = async () => {
     try {
@@ -575,7 +541,7 @@ const ResultView = ({ jobId, onGoToFeed }) => {
   };
 
   return (
-    <div className="space-y-6" data-testid="result-view" style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
+    <div className="space-y-6" data-testid="result-view">
       {/* Success Banner */}
       <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-5 text-center">
         <Check className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
