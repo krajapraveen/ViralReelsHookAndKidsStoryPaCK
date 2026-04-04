@@ -1,13 +1,7 @@
 # CreatorStudio AI — PRD
 
 ## Original Problem Statement
-Full-stack AI creator suite with anti-copy/media-protection hardening, queue-driven content generation, growth engine, and monetization. Phase 1 (current): P0 Final Pricing, Payment Validation, and Error Handling. Phase 2 (next): P0 Copyright-Safe Input, Prompt, Asset, and Output Protection.
-
-## Protection Stack (All Layers Complete)
-
-| # | Layer | Status |
-|---|-------|--------|
-| 1-12 | URL Blocking, Media Proxy, Watermarks, Browser Friction, DB-Backed Tokens, Anti-Replay, HLS Streaming, Forensic Watermarking, Entitlement Gating, Concurrency Limits, Abuse Response, Admin Dashboard | DONE |
+Full-stack AI creator suite with anti-copy/media-protection hardening, queue-driven content generation, growth engine, and monetization.
 
 ## Phase 1: Payment Hardening (COMPLETE — 2026-04-04)
 
@@ -27,69 +21,69 @@ Full-stack AI creator suite with anti-copy/media-protection hardening, queue-dri
 | Top-up | topup_700 | ₹999 | 700 |
 
 ### Payment System
-- Gateway: Cashfree PRODUCTION (hardcoded, never sandbox)
+- Gateway: Cashfree PRODUCTION
 - State Machine: CREATED → INITIATED → PENDING → SUCCESS → CREDIT_APPLIED / SUBSCRIPTION_ACTIVATED
-- Idempotency: Webhook handler checks event_id + order status to prevent double-crediting
-- Verify endpoint: Double-checks against terminal states (PAID, CREDIT_APPLIED, SUBSCRIPTION_ACTIVATED)
-- Double-click prevention: Backend returns existing session for same user+product if order is pending
-- Rate limiting: 5 orders/minute per user
+- Idempotency: Webhook + verify endpoint both check terminal states
+- Double-click prevention: Returns existing session for pending orders
+- Tested: 20/20 backend, 3/3 frontend pages
 
-### Frontend Pages Fixed
-- `/pricing` (Pricing.js) — 4 plans + 4 topups, safe fallback
-- `/app/billing` (Billing.js) — Cancel/fail/timeout detection, no dead-end UX
-- `/app/pricing` (PricingPage.js) — Updated from old hardcoded prices
-- UpsellModal.js — Safe pricing access with fallback
-- SubscriptionManagement.jsx — Full error handling
+## Phase 2: Copyright Safety Pipeline (COMPLETE — 2026-04-04)
+
+### Architecture
+```
+/app/backend/services/rewrite_engine/
+├── __init__.py               # Exports: process_safety_check, check_and_rewrite, validate_generation_output
+├── rule_rewriter.py           # 200+ term replacement dictionary (existing)
+├── rewrite_service.py         # Orchestrator: process_safety_check, check_and_rewrite, validate_generation_output
+├── policy_engine.py           # NEW: ALLOW / REWRITE / BLOCK decisions
+├── output_validator.py        # NEW: Post-generation output validation
+└── safety_logger.py           # NEW: DB logging to safety_events, output_validation_events
+```
+
+### Decision Tiers
+| Tier | When | Action | Example |
+|------|------|--------|---------|
+| ALLOW | Clean content | Pass through | "A brave knight saves a village" |
+| REWRITE | Trademark/IP detected | Rewrite to safe generic | "Spider-Man" → "agile wall-climbing hero" |
+| BLOCK | Genuinely dangerous | Reject with 400 | Weapon instructions, CSAM |
+
+### Wired Features (25+ routes)
+- story_video_studio, story_video_fast, story_engine_routes
+- bedtime_story_builder, brand_story_builder
+- comic_storybook_v2, comix_ai
+- caption_rewriter_pro, comment_reply_bank
+- instagram_bio_generator, youtube_thumbnail_generator
+- offer_generator, story_hook_generator
+- story_episode_creator, story_series
+- challenge_generator, tone_switcher
+- viral_ideas_v2, creator_tools, creator_pro
+- photo_to_comic, reaction_gif, characters
+- genstudio (image, gif, video, remix), generation (reel, story)
+- coloring_book_v2, gif_maker
+
+### Admin Dashboard
+- GET /api/admin/metrics/safety-overview — Aggregate counts + rates + by-feature breakdown
+- GET /api/admin/metrics/safety-events — Event list with filtering by decision and feature
+
+### Demo/Sample Asset Audit
+- All homepage banner images: original AI-generated content ✅
+- Blog content: trademark names used only in educational "what NOT to do" context ✅
+- SEO blog: "Marvel and DC" reference rewritten to "classic comic book tradition" ✅
+- Frontend blocked terms list: correctly prevents client-side IP input ✅
+
+### DB Collections
+- `safety_events` — user_id, feature_name, input_type, original_text_hashes, decision, reason_codes, triggered_rules, rewrite_summary, timestamp
+- `output_validation_events` — user_id, feature_name, job_id, asset_id, validation_result, action_taken, leaked_terms, timestamp
 
 ### Testing Results
-- 20/20 backend API tests passed
-- 3/3 frontend pages verified
-- All 12 features verified (see /app/test_reports/iteration_431.json)
-
-## Phase 2: Copyright Safety Pipeline (UPCOMING — P0)
-
-### Architecture (Not Yet Implemented)
-- `rule_rewriter.py` — Centralized rule definitions for IP/trademark rewrites
-- `rewrite_service.py` — Input interception and safe rewriting
-- `policy_engine.py` — Decision engine for block/rewrite/allow
-- `prompt_sanitizer.py` — Prompt-level safety checks
-- `output_validator.py` — Post-generation output validation
-
-### Requirements
-- All inputs (prompts, titles) must be inspected and safely rewritten
-- System-provided assets must be audited
-- Output validation mandatory
-- Admin visibility via safety_events and output_validation_events collections
-- Wire to ALL features: Story Video, Comic, Viral Ideas, Audio, etc.
-
-## DB Schemas
-
-### Existing
-- `media_tokens`, `user_media_sessions`, `media_suspensions`, `media_abuse_flags`, `media_access_log`
-- `orders` — Payment orders with state machine
-- `webhook_events` — Webhook idempotency tracking
-- `users` — credits, subscription
-- `credit_transactions`, `credit_ledger`
-
-### To Be Created (Phase 2)
-- `safety_events` — user_id, feature_name, input_type, original_text_hash, rewritten_text, decision, reason_codes
-- `output_validation_events` — job_id, asset_id, validation_result, action_taken
-
-## Key API Endpoints
-
-### Payments
-- `GET /api/cashfree/products` — All 8 products with pricing
-- `GET /api/cashfree/health` — Gateway health check
-- `POST /api/cashfree/create-order` — Create payment order (rate-limited)
-- `POST /api/cashfree/verify` — Verify payment and apply entitlement
-- `POST /api/cashfree-webhook/handle` — Webhook processing (idempotent)
-- `GET /api/cashfree/order/{order_id}/status` — Order status
-- `GET /api/cashfree/payments/history` — Payment history
+- 23/23 backend API tests passed (iteration_432.json)
+- 3/3 frontend pages verified (regression)
+- All 10 test categories verified
 
 ## Backlog
 - (P1) Premium tier download quality differentiation
 - (P2) Personalization and Precomputed Daily Packs
-- (P2) Remix Variants and Story Chain leaderboard
+- (P2) Remix Variants, Story Chain leaderboard
 - (P2) Admin Dashboard WebSocket upgrades
 
 ## Credentials
