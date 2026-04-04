@@ -184,17 +184,16 @@ async def get_job_assets(job_id: str, user: dict = Depends(get_current_user)):
     formatted = []
     for a in assets:
         fa = _format_asset(a, locked)
-        # Replace raw file_url with signed secure_url for media assets
         raw_url = fa.get("file_url")
-        if raw_url and raw_url.startswith("/api/static/generated/viral_"):
+        if raw_url and _is_protected_asset_url(raw_url):
+            normalized = _normalize_asset_url(raw_url)
             fa["secure_url"] = generate_secure_url(
-                file_url=raw_url,
+                file_url=normalized,
                 asset_id=fa["asset_id"],
                 asset_type=fa["asset_type"],
                 user_id=str(user["id"]),
                 purpose="preview",
             )
-        # NEVER expose raw file_url to frontend
         fa.pop("file_url", None)
         formatted.append(fa)
 
@@ -204,6 +203,21 @@ async def get_job_assets(job_id: str, user: dict = Depends(get_current_user)):
         "locked": locked,
         "assets": formatted,
     }
+
+
+def _is_protected_asset_url(url: str) -> bool:
+    """Check if a URL points to a generated viral asset, regardless of prefix format."""
+    return (
+        url.startswith("/api/static/generated/viral_")
+        or url.startswith("/static/generated/viral_")
+    )
+
+
+def _normalize_asset_url(url: str) -> str:
+    """Normalize asset URLs to consistent /api/static/... format for the media proxy."""
+    if url.startswith("/static/generated/"):
+        return "/api" + url
+    return url
 
 
 def _format_asset(a: dict, locked: bool) -> dict:
