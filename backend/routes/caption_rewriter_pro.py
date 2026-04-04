@@ -335,10 +335,12 @@ async def rewrite_caption(
     if data.pack_type not in ["single_tone", "three_tones", "all_tones"]:
         raise HTTPException(status_code=400, detail="Invalid pack type")
     
-    # SAFE REWRITE — sanitize risky terms instead of blocking
-    rewrite_result = safe_rewrite(sanitized_text)
-    if rewrite_result.was_rewritten:
-        sanitized_text = rewrite_result.rewritten_text
+    # Full safety pipeline — sanitize risky terms
+    from services.rewrite_engine import process_safety_check
+    safety = await process_safety_check(user_id=user["id"], feature="caption_rewriter", inputs={"text": sanitized_text})
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    sanitized_text = safety.clean.get("text", sanitized_text)
     
     # Calculate cost
     base_cost = PRICING[data.pack_type]

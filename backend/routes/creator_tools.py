@@ -222,6 +222,13 @@ async def generate_thumbnail_text(
 ):
     """Generate thumbnail text ideas - FREE"""
     
+    # Safety pipeline — sanitize topic
+    from services.rewrite_engine import process_safety_check
+    safety = await process_safety_check(user_id=user["id"], feature="thumbnail_text", inputs={"topic": topic})
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    topic = safety.clean.get("topic", topic)
+    
     # Generate thumbnail text ideas with variety
     base_ideas = {
         "clickbait": [
@@ -291,6 +298,13 @@ async def generate_content_calendar(
     user: dict = Depends(get_current_user)
 ):
     """Generate a content calendar (10 credits, 25 with scripts)"""
+    # Safety pipeline — sanitize niche
+    from services.rewrite_engine import process_safety_check
+    safety = await process_safety_check(user_id=user["id"], feature="content_calendar", inputs={"niche": niche})
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    niche = safety.clean.get("niche", niche)
+    
     cost = 25 if include_full_scripts else 10
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
@@ -380,6 +394,14 @@ async def generate_carousel(
     user: dict = Depends(get_current_user)
 ):
     """Generate carousel content (3 credits)"""
+    # Safety pipeline
+    from services.rewrite_engine import process_safety_check
+    safety = await process_safety_check(user_id=user["id"], feature="carousel", inputs={"topic": topic, "niche": niche})
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    topic = safety.clean.get("topic", topic)
+    niche = safety.clean.get("niche", niche)
+    
     cost = 3
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")

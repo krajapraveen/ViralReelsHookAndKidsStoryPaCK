@@ -304,10 +304,11 @@ async def generate_series(
     if data.episode_count not in [3, 5, 7]:
         raise HTTPException(status_code=400, detail="Episode count must be 3, 5, or 7")
     
-    # SAFE REWRITE — sanitize risky terms instead of blocking
-    rewrite_result = safe_rewrite(data.story_idea)
-    if rewrite_result.was_rewritten:
-        data.story_idea = rewrite_result.rewritten_text
+    # Full safety pipeline — sanitize story idea
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user["id"], "story_episode", data, ["story_idea"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Calculate total cost
     base_cost = PRICING[f"{data.episode_count}_episodes"]

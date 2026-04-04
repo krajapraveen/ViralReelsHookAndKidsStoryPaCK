@@ -156,7 +156,7 @@ NEW_POSTS = [
 <h2>Popular Art Styles You Can Create</h2>
 
 <h3>Classic Comic Book</h3>
-<p>Bold outlines, dramatic shading, and vivid colors. This style channels the energy of Marvel and DC comics, perfect for action-oriented personal brands or gaming profiles.</p>
+<p>Bold outlines, dramatic shading, and vivid colors. This style draws from the classic comic book tradition, perfect for action-oriented personal brands or gaming profiles.</p>
 
 <h3>Modern Cartoon</h3>
 <p>Clean lines, minimal shading, and a contemporary feel. Ideal for professional profiles on LinkedIn or business websites where you want approachable yet polished imagery.</p>

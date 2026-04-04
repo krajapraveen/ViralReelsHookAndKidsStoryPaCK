@@ -365,6 +365,12 @@ async def generate_challenge(
     """Generate content challenge"""
     user_id = user["id"]
     
+    # Safety pipeline — sanitize user inputs
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user_id, "challenge_generator", data, ["niche", "platform", "goal"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    
     # Determine days and pricing
     if data.challengeType == "30_day":
         days = 30

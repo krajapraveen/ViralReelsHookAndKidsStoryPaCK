@@ -109,25 +109,25 @@ CELEBRITY_PATTERNS = [
 
 
 from services.rewrite_engine import safe_rewrite
+from services.rewrite_engine.policy_engine import evaluate_policy, Decision
 
 
 def screen_safety(name: str, description: str, appearance: str = "") -> dict:
     """
-    Safety screening with safe rewrite. Instead of blocking, rewrites risky terms.
+    Safety screening with safe rewrite + policy engine.
     Returns {safe: bool, reason: str, tier: int, rewritten_name: str, rewritten_description: str, rewritten_appearance: str}.
-    Now always returns safe=True for trademark/copyright (rewritten), only blocks truly harmful content.
+    Rewrites trademark/copyright terms. Only blocks genuinely dangerous content via policy engine.
     """
-    combined = f"{name} {description} {appearance}".lower()
+    combined = f"{name} {description} {appearance}"
 
-    # ONLY hard-block for genuinely harmful content (not trademark/copyright)
-    harmful_terms = ["nude", "nsfw", "sexual", "porn", "explicit", "hate crime", "terrorism"]
-    for term in harmful_terms:
-        if term in combined:
-            return {
-                "safe": False,
-                "reason": f"Content contains harmful material: '{term}'.",
-                "tier": 0,
-            }
+    # Policy engine — block genuinely dangerous content
+    policy = evaluate_policy(combined)
+    if policy.decision == Decision.BLOCK:
+        return {
+            "safe": False,
+            "reason": policy.block_reason,
+            "tier": 0,
+        }
 
     # Rewrite risky trademark/copyright terms instead of blocking
     name_result = safe_rewrite(name)

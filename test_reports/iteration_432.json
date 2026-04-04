@@ -1,0 +1,142 @@
+{
+  "summary": "Phase 2 P0 Copyright-Safe Input, Prompt, Asset, and Output Protection - All 10 test categories passed. 23/23 backend API tests passed. Frontend pricing/billing pages render correctly (regression verified).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_safety_pipeline_iteration432.py",
+    "/app/test_reports/pytest/pytest_safety_pipeline_iteration432.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_safety_pipeline_iteration432.py"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23 tests passed)",
+    "frontend": "100% (All 3 pricing pages verified)"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin_user": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "None - used existing test users",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2 Safety Pipeline fully tested. The centralized safety layer in /app/backend/services/rewrite_engine/ is working correctly. REWRITE path rewrites trademarked terms (Spider-Man, Mickey Mouse, Harry Potter, Pokemon, Naruto) to safe generics. BLOCK path blocks genuinely dangerous content (weapon instructions, CSAM-adjacent). ALLOW path passes clean inputs unchanged. Admin endpoints /api/admin/metrics/safety-overview and /api/admin/metrics/safety-events work with filtering. Safety pipeline is wired into story_hook_generator, bedtime_story_builder, story_video_studio, comic_storybook_v2. Pricing/billing pages still render correctly after safety changes.",
+  "verified_features": {
+    "1_rewrite_path": {
+      "status": "VERIFIED",
+      "description": "Trademarked terms rewritten to safe generics",
+      "tested_terms": ["Spider-Man", "Mickey Mouse", "Harry Potter", "Pokemon", "Naruto"],
+      "behavior": "Generation succeeds with rewritten terms (or 402 if insufficient credits)"
+    },
+    "2_block_path": {
+      "status": "VERIFIED",
+      "description": "Genuinely dangerous content blocked with HTTP 400",
+      "tested_content": ["weapon-making instructions", "CSAM-adjacent text", "violence instructions"],
+      "behavior": "Returns HTTP 400 with clear user-friendly error message"
+    },
+    "3_allow_path": {
+      "status": "VERIFIED",
+      "description": "Clean inputs pass through unchanged",
+      "tested_content": ["original characters", "generic descriptions"],
+      "behavior": "Generation succeeds (or 402 if insufficient credits)"
+    },
+    "4_admin_safety_overview": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/admin/metrics/safety-overview?hours=24",
+      "returns": "counts of ALLOW, REWRITE, BLOCK events with by_feature breakdown"
+    },
+    "5_admin_safety_events_list": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/admin/metrics/safety-events?limit=50",
+      "returns": "recent events with decision, feature_name, triggered_rules, timestamp"
+    },
+    "6_admin_safety_events_filtering": {
+      "status": "VERIFIED",
+      "endpoint": "GET /api/admin/metrics/safety-events?decision=BLOCK",
+      "behavior": "Filters only BLOCK/REWRITE/ALLOW events correctly"
+    },
+    "7_db_logging": {
+      "status": "VERIFIED",
+      "collection": "safety_events",
+      "fields": ["user_id", "feature_name", "decision", "reason_codes", "triggered_rules", "original_text_hashes", "timestamp"]
+    },
+    "8_output_validation": {
+      "status": "VERIFIED",
+      "description": "Generated text output scanned for leaked trademark terms and re-rewritten if found",
+      "implementation": "/app/backend/services/rewrite_engine/output_validator.py"
+    },
+    "9_regression_pricing_pages": {
+      "status": "VERIFIED",
+      "pages_tested": ["/pricing", "/app/billing", "/app/pricing"],
+      "behavior": "All pages render correctly with correct pricing from config/pricing.py"
+    },
+    "10_multiple_features_wired": {
+      "status": "VERIFIED",
+      "features_tested": ["story_hook_generator", "bedtime_story_builder", "story_video_studio", "comic_storybook_v2"],
+      "behavior": "Safety pipeline works across all tested features"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/story-hook-generator/generate (rewrite)": "PASS - Spider-Man/Mickey Mouse rewritten",
+    "POST /api/bedtime-story-builder/generate (rewrite)": "PASS - Harry Potter/Pokemon rewritten",
+    "POST /api/story-video-studio/projects/create (rewrite)": "PASS - Naruto rewritten",
+    "POST /api/story-hook-generator/generate (block)": "PASS - 400 for weapon instructions",
+    "POST /api/bedtime-story-builder/generate (block)": "PASS - 400 for CSAM-adjacent",
+    "POST /api/story-video-studio/projects/create (block)": "PASS - 400 for violence instructions",
+    "POST /api/story-hook-generator/generate (allow)": "PASS - Original characters allowed",
+    "POST /api/bedtime-story-builder/generate (allow)": "PASS - Generic descriptions allowed",
+    "GET /api/admin/metrics/safety-overview": "PASS - Returns ALLOW/REWRITE/BLOCK counts",
+    "GET /api/admin/metrics/safety-events": "PASS - Returns recent events",
+    "GET /api/admin/metrics/safety-events?decision=BLOCK": "PASS - Filters correctly",
+    "GET /api/admin/metrics/safety-events?decision=REWRITE": "PASS - Filters correctly",
+    "GET /api/admin/metrics/safety-events?decision=ALLOW": "PASS - Filters correctly",
+    "GET /api/cashfree/products": "PASS - Pricing API works",
+    "GET /api/cashfree/health": "PASS - Gateway health works",
+    "GET /api/story-hook-generator/config": "PASS - Feature accessible",
+    "GET /api/bedtime-story-builder/config": "PASS - Feature accessible",
+    "GET /api/story-video-studio/styles": "PASS - Feature accessible",
+    "GET /api/comic-storybook-v2/genres": "PASS - Feature accessible"
+  },
+  "frontend_tests": {
+    "public_pricing_page": {
+      "route": "/pricing",
+      "status": "PASS",
+      "verified": ["Free Tier", "Monthly Subscriptions", "Correct pricing"]
+    },
+    "authenticated_billing_page": {
+      "route": "/app/billing",
+      "status": "PASS",
+      "verified": ["4 subscription plans", "4 credit packs", "8 buy buttons", "correct pricing"]
+    },
+    "authenticated_pricing_page": {
+      "route": "/app/pricing",
+      "status": "PASS",
+      "verified": ["5 plans (free+4)", "4 topups", "credit costs table", "correct pricing"]
+    }
+  },
+  "safety_pipeline_architecture": {
+    "entry_points": {
+      "process_safety_check": "PRE-GENERATION: sanitize all user inputs",
+      "validate_generation_output": "POST-GENERATION: validate generated outputs",
+      "check_and_rewrite": "ONE-LINER WIRING HELPER for route handlers"
+    },
+    "decision_tiers": {
+      "ALLOW": "Clean content - pass through unchanged",
+      "REWRITE": "Trademark/IP detected - rewrite to safe generic",
+      "BLOCK": "Genuinely dangerous (CSAM, violence instructions, deepfakes) - reject"
+    },
+    "collections": {
+      "safety_events": "Input-side (pre-generation) safety decisions",
+      "output_validation_events": "Output-side (post-generation) validation results"
+    }
+  }
+}

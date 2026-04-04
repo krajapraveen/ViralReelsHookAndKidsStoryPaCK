@@ -664,11 +664,11 @@ async def generate_story(
     if data.length not in ["3", "5", "8"]:
         raise HTTPException(status_code=400, detail="Invalid length")
     
-    # Safe rewrite — sanitize risky terms in child name
-    if data.child_name:
-        name_rewrite = safe_rewrite(data.child_name)
-        if name_rewrite.was_rewritten:
-            data.child_name = name_rewrite.rewritten_text
+    # Full safety pipeline — sanitize all user text fields
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user.get("id", ""), "bedtime_story", data, ["child_name", "theme", "moral", "mood"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Check and deduct credits via Credits Service
     user_id = user.get("id", user.get("_id", ""))
@@ -711,6 +711,28 @@ async def generate_story(
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
+        # Output validation — check generated story for leaked IP terms
+        from services.rewrite_engine import validate_generation_output
+        if isinstance(result, dict):
+            output_fields = {}
+            if result.get("title"):
+                output_fields["title"] = result["title"]
+            if result.get("pages"):
+                for i, page in enumerate(result["pages"]):
+                    if isinstance(page, dict) and page.get("text"):
+                        output_fields[f"page_{i}"] = page["text"]
+            if output_fields:
+                validated = await validate_generation_output(
+                    user_id=str(user_id), feature="bedtime_story", outputs=output_fields
+                )
+                if result.get("title") and "title" in validated:
+                    result["title"] = validated["title"]
+                if result.get("pages"):
+                    for i, page in enumerate(result["pages"]):
+                        key = f"page_{i}"
+                        if key in validated and isinstance(page, dict):
+                            page["text"] = validated[key]
+
         return {
             "success": True,
             "story": result,

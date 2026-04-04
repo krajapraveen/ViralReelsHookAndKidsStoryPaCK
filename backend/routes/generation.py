@@ -404,13 +404,11 @@ async def generate_reel(request: Request, data: GenerateReelRequest, user: dict 
         # Update data with sanitized topic
         data.topic = sanitized_topic
         
-        # Safe rewrite — sanitize risky terms before moderation
-        for field_name in ["topic", "niche"]:
-            field_val = getattr(data, field_name, "")
-            if field_val:
-                r = safe_rewrite(field_val)
-                if r.was_rewritten:
-                    setattr(data, field_name, r.rewritten_text)
+        # Full safety pipeline — sanitize risky terms
+        from services.rewrite_engine import check_and_rewrite
+        safety = await check_and_rewrite(user.get("id", ""), "reel_generation", data, ["topic", "niche", "tone"])
+        if safety.blocked:
+            raise HTTPException(status_code=400, detail=safety.block_reason)
         
         # ML-based content moderation
         content_to_check = f"{data.topic} {data.niche} {data.tone}"
@@ -553,13 +551,11 @@ async def generate_story_images_background(result: dict, generation_id: str, use
 async def generate_story(request: Request, data: GenerateStoryRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Generate a kids story - costs 10 credits"""
     try:
-        # Safe rewrite — sanitize risky terms before moderation
-        for field_name in ["theme", "genre", "customGenre"]:
-            field_val = getattr(data, field_name, None)
-            if field_val:
-                r = safe_rewrite(field_val)
-                if r.was_rewritten:
-                    setattr(data, field_name, r.rewritten_text)
+        # Full safety pipeline — sanitize risky terms
+        from services.rewrite_engine import check_and_rewrite
+        safety = await check_and_rewrite(user.get("id", ""), "story_generation", data, ["theme", "genre", "customGenre"])
+        if safety.blocked:
+            raise HTTPException(status_code=400, detail=safety.block_reason)
         
         # ML-based content moderation
         content_to_check = f"{data.theme} {data.genre} {data.customGenre or ''}"

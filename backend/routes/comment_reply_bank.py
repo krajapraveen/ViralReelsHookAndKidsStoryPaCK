@@ -481,10 +481,11 @@ async def generate_comment_replies(
     if len(data.comment) > 500:
         raise HTTPException(status_code=400, detail="Comment too long (max 500 characters)")
     
-    # Safe rewrite — sanitize risky terms
-    rewrite_result = safe_rewrite(data.comment)
-    if rewrite_result.was_rewritten:
-        data.comment = rewrite_result.rewritten_text
+    # Full safety pipeline — sanitize risky terms
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user["id"], "comment_reply", data, ["comment"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
 
     # Check blocked content (only harmful content now)
     is_safe, error_msg = check_blocked_content(data.comment)

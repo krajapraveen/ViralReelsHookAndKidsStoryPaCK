@@ -1156,3 +1156,102 @@ async def get_comic_health(days: int = Query(7, ge=1, le=90), admin: dict = Depe
         "empty_state": total_jobs == 0,
         "empty_message": "No Photo to Comic jobs in this period" if total_jobs == 0 else None,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SAFETY PIPELINE DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/safety-overview")
+async def safety_overview(
+    hours: int = Query(24, ge=1, le=720),
+    admin: dict = Depends(get_admin_user),
+):
+    """Safety pipeline metrics: rewrites, blocks, output validations."""
+    since = _ago(hours=hours)
+
+    # Input safety events
+    pipeline = [
+        {"$match": {"timestamp": {"$gte": since.isoformat()}}},
+        {"$group": {
+            "_id": "$decision",
+            "count": {"$sum": 1},
+        }},
+    ]
+    safety_stats = {}
+    async for doc in db.safety_events.aggregate(pipeline):
+        safety_stats[doc["_id"]] = doc["count"]
+
+    # By feature
+    feature_pipeline = [
+        {"$match": {"timestamp": {"$gte": since.isoformat()}}},
+        {"$group": {
+            "_id": {"feature": "$feature_name", "decision": "$decision"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    by_feature = {}
+    async for doc in db.safety_events.aggregate(feature_pipeline):
+        feat = doc["_id"]["feature"]
+        dec = doc["_id"]["decision"]
+        by_feature.setdefault(feat, {})[dec] = doc["count"]
+
+    # Output validation events
+    ov_pipeline = [
+        {"$match": {"timestamp": {"$gte": since.isoformat()}}},
+        {"$group": {
+            "_id": "$action_taken",
+            "count": {"$sum": 1},
+            "total_leaked": {"$sum": "$leaked_terms"},
+        }},
+    ]
+    output_stats = {}
+    async for doc in db.output_validation_events.aggregate(ov_pipeline):
+        output_stats[doc["_id"]] = {
+            "count": doc["count"],
+            "leaked_terms": doc["total_leaked"],
+        }
+
+    total_events = sum(safety_stats.values())
+
+    return {
+        "period_hours": hours,
+        "input_safety": {
+            "total_events": total_events,
+            "allowed": safety_stats.get("ALLOW", 0),
+            "rewritten": safety_stats.get("REWRITE", 0),
+            "blocked": safety_stats.get("BLOCK", 0),
+            "rewrite_rate": _safe_rate(safety_stats.get("REWRITE", 0), total_events),
+            "block_rate": _safe_rate(safety_stats.get("BLOCK", 0), total_events),
+        },
+        "by_feature": by_feature,
+        "output_validation": {
+            "none": output_stats.get("none", {}).get("count", 0),
+            "rewritten": output_stats.get("rewritten", {}).get("count", 0),
+            "total_leaked_terms": sum(v.get("leaked_terms", 0) for v in output_stats.values()),
+        },
+        "empty_state": total_events == 0,
+        "empty_message": "No safety events recorded in this period" if total_events == 0 else None,
+    }
+
+
+@router.get("/safety-events")
+async def safety_events_list(
+    limit: int = Query(50, ge=1, le=200),
+    decision: str = Query(None, regex="^(ALLOW|REWRITE|BLOCK)$"),
+    feature: str = Query(None),
+    admin: dict = Depends(get_admin_user),
+):
+    """List recent safety events for admin review."""
+    query = {}
+    if decision:
+        query["decision"] = decision
+    if feature:
+        query["feature_name"] = feature
+
+    events = []
+    cursor = db.safety_events.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit)
+    async for doc in cursor:
+        events.append(doc)
+
+    return {"events": events, "count": len(events)}

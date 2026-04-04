@@ -183,11 +183,13 @@ async def generate_comic_character(
     if style not in COMIC_STYLES:
         raise HTTPException(status_code=400, detail=f"Invalid style. Choose from: {list(COMIC_STYLES.keys())}")
     
-    # Check content safety if custom prompt provided
+    # Check content safety via centralized pipeline
+    from services.rewrite_engine import process_safety_check
     if custom_prompt:
-        is_safe, message = check_content_safety(custom_prompt)
-        if not is_safe:
-            raise HTTPException(status_code=400, detail=message)
+        safety = await process_safety_check(user_id=user["id"], feature="comix_character", inputs={"custom_prompt": custom_prompt})
+        if safety.blocked:
+            raise HTTPException(status_code=400, detail=safety.block_reason)
+        custom_prompt = safety.clean.get("custom_prompt", custom_prompt)
     
     # Calculate cost
     cost = COMIC_CREDITS["character_portrait"] if character_type == "portrait" else COMIC_CREDITS["character_fullbody"]
@@ -360,15 +362,17 @@ async def generate_comic_panel(
     if panel_count not in PANEL_LAYOUTS:
         raise HTTPException(status_code=400, detail=f"Invalid panel count. Choose from: {list(PANEL_LAYOUTS.keys())}")
     
-    # Check content safety
-    is_safe, message = check_content_safety(scene_description)
-    if not is_safe:
-        raise HTTPException(status_code=400, detail=message)
-    
+    # Check content safety via centralized pipeline
+    from services.rewrite_engine import process_safety_check
+    inputs = {"scene_description": scene_description}
     if speech_text:
-        is_safe, message = check_content_safety(speech_text)
-        if not is_safe:
-            raise HTTPException(status_code=400, detail=message)
+        inputs["speech_text"] = speech_text
+    safety = await process_safety_check(user_id=user["id"], feature="comix_panel", inputs=inputs)
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    scene_description = safety.clean.get("scene_description", scene_description)
+    if "speech_text" in safety.clean:
+        speech_text = safety.clean["speech_text"]
     
     # Calculate cost
     cost = COMIC_CREDITS["panel_single"] if panel_count == 1 else COMIC_CREDITS["panel_multi"]
@@ -512,9 +516,12 @@ async def generate_comic_story(
     if style not in COMIC_STYLES:
         raise HTTPException(status_code=400, detail="Invalid style")
     
-    is_safe, message = check_content_safety(story_prompt)
-    if not is_safe:
-        raise HTTPException(status_code=400, detail=message)
+    # Check content safety via centralized pipeline
+    from services.rewrite_engine import process_safety_check
+    safety = await process_safety_check(user_id=user["id"], feature="comix_story", inputs={"story_prompt": story_prompt})
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    story_prompt = safety.clean.get("story_prompt", story_prompt)
     
     cost = COMIC_CREDITS["story_mode"]
     if user.get("credits", 0) < cost:

@@ -495,6 +495,25 @@ async def generate_preview(
         "createdAt": datetime.now(timezone.utc).isoformat()
     })
     
+    # Safety pipeline — sanitize user inputs for coloring book
+    from services.rewrite_engine import process_safety_check
+    if hasattr(request, 'customize') and request.customize:
+        cdata = request.customize
+        if cdata.mode == "story" and hasattr(cdata, 'storyData') and cdata.storyData:
+            safety_inputs = {}
+            if cdata.storyData.title:
+                safety_inputs["title"] = cdata.storyData.title
+            if cdata.storyData.description:
+                safety_inputs["description"] = cdata.storyData.description
+            if safety_inputs:
+                safety = await process_safety_check(user_id=user["id"], feature="coloring_book", inputs=safety_inputs)
+                if safety.blocked:
+                    raise HTTPException(status_code=400, detail=safety.block_reason)
+                if "title" in safety.clean:
+                    cdata.storyData.title = safety.clean["title"]
+                if "description" in safety.clean:
+                    cdata.storyData.description = safety.clean["description"]
+    
     return {
         "success": True,
         "preview": {

@@ -485,10 +485,11 @@ async def generate_bios(
     if not data.niche or not data.tone or not data.goal:
         raise HTTPException(status_code=400, detail="Niche, tone, and goal are required")
     
-    # Safe rewrite — sanitize risky terms in niche
-    niche_rewrite = safe_rewrite(data.niche)
-    if niche_rewrite.was_rewritten:
-        data.niche = niche_rewrite.rewritten_text
+    # Full safety pipeline — sanitize niche and other text fields
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user.get("id", ""), "instagram_bio", data, ["niche", "tone", "goal"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Check credits - first check user object, then wallet collection
     user_id = user.get("id", user.get("_id", ""))

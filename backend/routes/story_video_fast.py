@@ -138,13 +138,11 @@ async def generate_fast_video(
     """Generate complete video with fully parallel pipeline"""
     user_id = current_user.get("id") or str(current_user.get("_id"))
     
-    # Safe rewrite — sanitize risky terms
-    story_rewrite = safe_rewrite(request.story_text)
-    if story_rewrite.was_rewritten:
-        request.story_text = story_rewrite.rewritten_text
-    title_rewrite = safe_rewrite(request.title)
-    if title_rewrite.was_rewritten:
-        request.title = title_rewrite.rewritten_text
+    # Full safety pipeline
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user_id, "story_video_fast", request, ["story_text", "title"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     style_config = next((s for s in ANIMATION_STYLES if s["id"] == request.animation_style), ANIMATION_STYLES[0])
     age_config = next((a for a in AGE_GROUPS if a["id"] == request.age_group), AGE_GROUPS[1])

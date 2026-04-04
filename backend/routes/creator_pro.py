@@ -190,6 +190,18 @@ async def analyze_hook(
     user: dict = Depends(get_current_user)
 ):
     """Analyze a hook for virality factors - 2 credits"""
+    # Safety pipeline — sanitize hook text
+    from services.rewrite_engine import process_safety_check
+    inputs = {"hook": hook}
+    if niche:
+        inputs["niche"] = niche
+    safety = await process_safety_check(user_id=user["id"], feature="hook_analyzer", inputs=inputs)
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    hook = safety.clean.get("hook", hook)
+    if "niche" in safety.clean:
+        niche = safety.clean["niche"]
+    
     cost = PRO_COSTS["hook_analyzer"]
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
@@ -371,6 +383,14 @@ async def generate_bio(
     user: dict = Depends(get_current_user)
 ):
     """Generate AI-powered social media bios - 3 credits"""
+    # Safety pipeline
+    from services.rewrite_engine import process_safety_check
+    safety = await process_safety_check(user_id=user["id"], feature="bio_generator", inputs={"profession": profession, "keywords": keywords})
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    profession = safety.clean.get("profession", profession)
+    keywords = safety.clean.get("keywords", keywords)
+    
     cost = PRO_COSTS["bio_generator"]
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
@@ -472,6 +492,13 @@ async def repurpose_content(
     user: dict = Depends(get_current_user)
 ):
     """Repurpose content into multiple formats - 5 credits"""
+    # Safety pipeline
+    from services.rewrite_engine import process_safety_check
+    safety = await process_safety_check(user_id=user["id"], feature="content_repurpose", inputs={"content": content})
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    content = safety.clean.get("content", content)
+    
     cost = PRO_COSTS["content_repurpose"]
     if user.get("credits", 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")

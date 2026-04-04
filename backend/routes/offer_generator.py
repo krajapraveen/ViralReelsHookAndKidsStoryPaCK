@@ -139,14 +139,11 @@ async def get_config():
 async def generate_offer(request: GenerateRequest, user: dict = Depends(get_current_user)):
     start_time = time.time()
     
-    # Safe rewrite — sanitize risky terms instead of blocking
-    all_text = f"{request.product_name} {request.target_audience} {request.main_problem}"
-    for field_name in ["product_name", "target_audience", "main_problem"]:
-        field_val = getattr(request, field_name, "")
-        if field_val:
-            r = safe_rewrite(field_val)
-            if r.was_rewritten:
-                object.__setattr__(request, field_name, r.rewritten_text)
+    # Full safety pipeline — sanitize all text fields
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user["id"], "offer_generator", request, ["product_name", "target_audience", "main_problem"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Check credits
     if user.get("credits", 0) < 20:

@@ -147,10 +147,11 @@ async def generate_text_to_image(request: Request, data: TextToImageRequest, use
     if not data.consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
     
-    # Safe rewrite — sanitize risky terms
-    prompt_rewrite = safe_rewrite(data.prompt)
-    if prompt_rewrite.was_rewritten:
-        data.prompt = prompt_rewrite.rewritten_text
+    # Full safety pipeline — sanitize risky terms
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user.get("id", ""), "genstudio_image", data, ["prompt"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(data.prompt, user.get("id"))
@@ -463,10 +464,11 @@ async def generate_text_to_video(
     if not data.consent_confirmed:
         raise HTTPException(status_code=400, detail="Please confirm you have rights/consent for this content")
     
-    # Safe rewrite — sanitize risky terms
-    prompt_rewrite = safe_rewrite(data.prompt)
-    if prompt_rewrite.was_rewritten:
-        data.prompt = prompt_rewrite.rewritten_text
+    # Full safety pipeline
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user.get("id", ""), "genstudio_gif", data, ["prompt"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(data.prompt, user.get("id"))
@@ -663,10 +665,12 @@ async def generate_image_to_video(
     if len(motion_prompt) < 3 or len(motion_prompt) > 1000:
         raise HTTPException(status_code=400, detail="Motion description must be 3-1000 characters")
     
-    # Safe rewrite — sanitize risky terms in motion prompt
-    prompt_rewrite = safe_rewrite(motion_prompt)
-    if prompt_rewrite.was_rewritten:
-        motion_prompt = prompt_rewrite.rewritten_text
+    # Full safety pipeline — motion prompt
+    from services.rewrite_engine import process_safety_check
+    motion_safety = await process_safety_check(user_id=user.get("id", ""), feature="genstudio_video", inputs={"motion_prompt": motion_prompt})
+    if motion_safety.blocked:
+        raise HTTPException(status_code=400, detail=motion_safety.block_reason)
+    motion_prompt = motion_safety.clean.get("motion_prompt", motion_prompt)
     
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(motion_prompt, user.get("id"))
@@ -869,10 +873,12 @@ async def generate_video_remix(
     if len(remix_prompt) < 3 or len(remix_prompt) > 1000:
         raise HTTPException(status_code=400, detail="Remix instructions must be 3-1000 characters")
     
-    # Safe rewrite — sanitize risky terms in remix prompt
-    prompt_rewrite = safe_rewrite(remix_prompt)
-    if prompt_rewrite.was_rewritten:
-        remix_prompt = prompt_rewrite.rewritten_text
+    # Full safety pipeline — remix prompt
+    from services.rewrite_engine import process_safety_check
+    remix_safety = await process_safety_check(user_id=user.get("id", ""), feature="genstudio_remix", inputs={"remix_prompt": remix_prompt})
+    if remix_safety.blocked:
+        raise HTTPException(status_code=400, detail=remix_safety.block_reason)
+    remix_prompt = remix_safety.clean.get("remix_prompt", remix_prompt)
     
     # ML Content moderation
     moderation_result = threat_intel.moderate_content(remix_prompt, user.get("id"))

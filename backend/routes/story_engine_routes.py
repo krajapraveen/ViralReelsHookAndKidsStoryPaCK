@@ -534,14 +534,13 @@ async def create_engine_job(
     # Map animation_style to style_id
     style_id = request.animation_style if request.animation_style in ANIMATION_STYLES else "cartoon_2d"
 
-    # Safe rewrite — sanitize risky terms in story text and title before job creation
-    story_rewrite = safe_rewrite(request.story_text)
-    title_rewrite = safe_rewrite(request.title)
-    safe_story = story_rewrite.rewritten_text
-    safe_title = title_rewrite.rewritten_text
-
-    if story_rewrite.was_rewritten or title_rewrite.was_rewritten:
-        logger.info(f"[REWRITE] story-engine/create user={user_id}: story_changes={len(story_rewrite.changes)}, title_changes={len(title_rewrite.changes)}")
+    # Full safety pipeline — sanitize story and title
+    from services.rewrite_engine import process_safety_check
+    se_safety = await process_safety_check(user_id=user_id, feature="story_engine", inputs={"story_text": request.story_text, "title": request.title})
+    if se_safety.blocked:
+        raise HTTPException(status_code=400, detail=se_safety.block_reason)
+    safe_story = se_safety.clean.get("story_text", request.story_text)
+    safe_title = se_safety.clean.get("title", request.title)
 
     result = await create_job(
         user_id=user_id,

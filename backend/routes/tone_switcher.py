@@ -415,6 +415,12 @@ async def rewrite_text(
     """Rewrite text with selected tone"""
     user_id = user["id"]
     
+    # Safety pipeline — sanitize user input text
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user_id, "tone_switcher", data, ["text"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    
     # Validate tone
     if data.targetTone not in TONE_CONFIGS:
         raise HTTPException(status_code=400, detail=f"Invalid tone. Available: {list(TONE_CONFIGS.keys())}")

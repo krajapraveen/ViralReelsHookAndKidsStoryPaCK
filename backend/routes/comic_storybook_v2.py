@@ -397,13 +397,11 @@ async def generate_comic_book(
     if is_blocked:
         raise HTTPException(status_code=400, detail=f"Blocked content in title: '{kw}'")
 
-    # Safe rewrite — sanitize risky terms
-    story_rewrite = safe_rewrite(request.storyIdea)
-    if story_rewrite.was_rewritten:
-        request.storyIdea = story_rewrite.rewritten_text
-    title_rewrite = safe_rewrite(request.title)
-    if title_rewrite.was_rewritten:
-        request.title = title_rewrite.rewritten_text
+    # Full safety pipeline — sanitize story idea and title
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user_id, "comic_storybook", request, ["storyIdea", "title"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
 
     genre = request.genre if request.genre in STORY_GENRES else "kids_adventure"
     add_ons = request.addOns or {}

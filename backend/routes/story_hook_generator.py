@@ -189,13 +189,11 @@ async def get_config():
 async def generate_hooks(request: GenerateRequest, user: dict = Depends(get_current_user)):
     start_time = time.time()
     
-    # Safe rewrite — sanitize risky terms in inputs
-    for field_name in ["genre", "character_type", "setting"]:
-        field_val = getattr(request, field_name, "")
-        if field_val:
-            r = safe_rewrite(field_val)
-            if r.was_rewritten:
-                object.__setattr__(request, field_name, r.rewritten_text)
+    # Full safety pipeline — sanitize all text fields
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user["id"], "story_hook", request, ["genre", "character_type", "setting"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Check credits
     if user.get("credits", 0) < 8:

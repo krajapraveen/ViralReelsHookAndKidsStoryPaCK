@@ -77,17 +77,11 @@ async def generate_brand_kit(request: BrandKitRequest, background_tasks: Backgro
     # Fix 3: Request logging (MANDATORY)
     logger.info(f"[BRAND_KIT] Generate request from user={user.get('id')} role={user.get('role')} payload={request.dict()}")
 
-    # Safe rewrite — sanitize risky terms instead of blocking
-    rewrite_result = safe_rewrite(f"{request.business_name} {request.mission} {request.founder_story} {request.competitors}")
-    if rewrite_result.was_rewritten:
-        logger.info(f"[BRAND_KIT] Rewrote input for user={user.get('id')}: {rewrite_result.changes}")
-        # Apply rewrites to individual fields
-        for field_name in ["business_name", "mission", "founder_story", "competitors"]:
-            field_val = getattr(request, field_name, "")
-            if field_val:
-                r = safe_rewrite(field_val)
-                if r.was_rewritten:
-                    object.__setattr__(request, field_name, r.rewritten_text)
+    # Full safety pipeline — sanitize all text fields
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user.get("id", ""), "brand_story", request, ["business_name", "mission", "founder_story", "competitors"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
 
     # Fix 2: Mode normalization (CRITICAL)
     mode = request.mode.lower().strip() if request.mode else "pro"

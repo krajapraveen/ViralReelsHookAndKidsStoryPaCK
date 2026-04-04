@@ -298,15 +298,11 @@ async def create_project(
     
     user_id = user["id"]
     
-    # Safe rewrite — sanitize risky terms instead of blocking
-    story_rewrite = safe_rewrite(story_input.story_text)
-    if story_rewrite.was_rewritten:
-        story_input.story_text = story_rewrite.rewritten_text
-    
-    if story_input.title:
-        title_rewrite = safe_rewrite(story_input.title)
-        if title_rewrite.was_rewritten:
-            story_input.title = title_rewrite.rewritten_text
+    # Full safety pipeline — sanitize all user text fields
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user_id, "story_video", story_input, ["story_text", "title"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Find the selected style
     style = next((s for s in VIDEO_STYLES if s.id == story_input.style_id), VIDEO_STYLES[0])

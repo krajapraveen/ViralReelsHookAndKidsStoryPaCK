@@ -523,41 +523,27 @@ async def generate_comic(
     # SAFE REWRITE — sanitize risky terms
     # ============================================
     
-    # Rewrite custom details
+    # Full safety pipeline — sanitize all user text fields
+    from services.rewrite_engine import process_safety_check
+    safety_inputs = {}
     if custom_details:
-        rewrite_result = safe_rewrite(custom_details)
-        if rewrite_result.was_rewritten:
-            custom_details = rewrite_result.rewritten_text
-        is_blocked, keyword = check_blocked_keywords(custom_details)
-        if is_blocked:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Harmful content is not allowed. Detected: '{keyword}'."
-            )
-    
-    # Rewrite story prompt (for strip mode)
+        safety_inputs["custom_details"] = custom_details
     if story_prompt:
-        rewrite_result = safe_rewrite(story_prompt)
-        if rewrite_result.was_rewritten:
-            story_prompt = rewrite_result.rewritten_text
-        is_blocked, keyword = check_blocked_keywords(story_prompt)
-        if is_blocked:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Harmful content is not allowed. Detected: '{keyword}'."
-            )
-    
-    # Rewrite dialogue
+        safety_inputs["story_prompt"] = story_prompt
     if dialogue:
-        rewrite_result = safe_rewrite(dialogue)
-        if rewrite_result.was_rewritten:
-            dialogue = rewrite_result.rewritten_text
-        is_blocked, keyword = check_blocked_keywords(dialogue)
-        if is_blocked:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Harmful content is not allowed. Detected: '{keyword}' in dialogue."
-            )
+        safety_inputs["dialogue"] = dialogue
+    if safety_inputs:
+        ptc_safety = await process_safety_check(user_id=user.get("id", ""), feature="photo_to_comic", inputs=safety_inputs)
+        if ptc_safety.blocked:
+            raise HTTPException(status_code=400, detail=ptc_safety.block_reason)
+        if "custom_details" in ptc_safety.clean:
+            custom_details = ptc_safety.clean["custom_details"]
+        if "story_prompt" in ptc_safety.clean:
+            story_prompt = ptc_safety.clean["story_prompt"]
+        if "dialogue" in ptc_safety.clean:
+            dialogue = ptc_safety.clean["dialogue"]
+    
+    # Blocked keywords check (harmful content only)
     
     # Validate style
     if style not in SAFE_STYLES:

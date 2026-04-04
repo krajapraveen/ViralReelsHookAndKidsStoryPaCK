@@ -114,6 +114,12 @@ async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_c
     user_id = user["id"]
     user_plan = user.get("plan", "free")
 
+    # Safety pipeline — sanitize user inputs
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user_id, "story_series", request, ["title", "initial_prompt"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+
     # Enforce series limit
     from config.monetization import check_series_limit
     current_count = await db.story_series.count_documents({"user_id": user_id, "status": {"$in": ["active", "paused"]}})
@@ -716,6 +722,13 @@ async def get_series(series_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/{series_id}/plan-episode")
 async def plan_episode(series_id: str, request: PlanEpisodeRequest, user: dict = Depends(get_current_user)):
+    # Safety pipeline — sanitize custom prompt if provided
+    if request.custom_prompt:
+        from services.rewrite_engine import check_and_rewrite
+        safety = await check_and_rewrite(user["id"], "story_series_plan", request, ["custom_prompt"])
+        if safety.blocked:
+            raise HTTPException(status_code=400, detail=safety.block_reason)
+    
     series = await db.story_series.find_one(
         {"series_id": series_id, "user_id": user["id"]}, {"_id": 0}
     )

@@ -167,10 +167,11 @@ async def generate_thumbnails(request: GenerateRequest, user: dict = Depends(get
     """Generate 10 thumbnail text ideas in 3 styles"""
     start_time = time.time()
     
-    # Safe rewrite — sanitize risky terms in topic
-    topic_rewrite = safe_rewrite(request.topic)
-    if topic_rewrite.was_rewritten:
-        request.topic = topic_rewrite.rewritten_text
+    # Full safety pipeline — sanitize topic
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user["id"], "youtube_thumbnail", request, ["topic"])
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Check credits BEFORE generation
     if user.get("credits", 0) < 5:

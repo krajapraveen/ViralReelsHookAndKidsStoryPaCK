@@ -555,11 +555,13 @@ async def generate_gif(
         animation_intensity = "medium"
     frame_count = intensity_map[animation_intensity]
     
-    # Check text safety
+    # Check text safety via centralized pipeline
+    from services.rewrite_engine import process_safety_check
     if add_text:
-        is_safe, message = is_content_safe(add_text)
-        if not is_safe:
-            raise HTTPException(status_code=400, detail=message)
+        safety = await process_safety_check(user_id=user["id"], feature="gif_maker", inputs={"add_text": add_text})
+        if safety.blocked:
+            raise HTTPException(status_code=400, detail=safety.block_reason)
+        add_text = safety.clean.get("add_text", add_text)
     
     # Calculate cost - 10 credits for generation
     cost = GIF_CREDITS["generate"]

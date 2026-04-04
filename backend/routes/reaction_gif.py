@@ -240,17 +240,13 @@ async def generate_reaction_gif(
     if style not in GIF_STYLES:
         style = "cartoon_motion"
     
-    # Safe rewrite and check caption for blocked content
+    # Full safety pipeline — sanitize caption
     if caption:
-        caption_rewrite = safe_rewrite(caption)
-        if caption_rewrite.was_rewritten:
-            caption = caption_rewrite.rewritten_text
-        is_blocked, keyword = check_blocked_keywords(caption)
-        if is_blocked:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Harmful content is not allowed. Detected: '{keyword}'."
-            )
+        from services.rewrite_engine import process_safety_check
+        rg_safety = await process_safety_check(user_id=user.get("id", ""), feature="reaction_gif", inputs={"caption": caption})
+        if rg_safety.blocked:
+            raise HTTPException(status_code=400, detail=rg_safety.block_reason)
+        caption = rg_safety.clean.get("caption", caption)
     
     # Validate file
     if not photo.content_type or not photo.content_type.startswith("image/"):

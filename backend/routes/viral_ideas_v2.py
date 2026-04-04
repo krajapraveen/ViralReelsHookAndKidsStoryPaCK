@@ -89,6 +89,14 @@ async def get_daily_feed(niche: Optional[str] = None):
 @router.post("/generate-bundle", response_model=GenerateBundleResponse)
 async def generate_bundle(req: GenerateBundleRequest, user: dict = Depends(get_current_user)):
     user_id = str(user["id"])
+    
+    # Safety pipeline — sanitize user inputs
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(user_id, "viral_ideas", req, ["idea", "niche"])
+    if safety.blocked:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+    
     credit_cost = 5
 
     # Count user's previous generations
