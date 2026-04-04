@@ -136,6 +136,7 @@ from routes.brand_story_builder import router as brand_story_router
 from routes.offer_generator import router as offer_generator_router
 from routes.story_hook_generator import router as story_hook_router
 from routes.daily_viral_ideas import router as daily_viral_ideas_router
+from routes.viral_ideas_v2 import router as viral_ideas_v2_router
 from routes.template_analytics import router as template_analytics_router
 
 # NEW: Admin Audit Logs, Protected Downloads, Leaderboard, Versioning
@@ -424,6 +425,7 @@ api_router.include_router(brand_story_router)
 api_router.include_router(offer_generator_router)
 api_router.include_router(story_hook_router)
 api_router.include_router(daily_viral_ideas_router)
+api_router.include_router(viral_ideas_v2_router)
 api_router.include_router(template_analytics_router)
 
 # NEW: Admin Audit Logs, Protected Downloads, Leaderboard, Versioning
@@ -757,7 +759,14 @@ async def cleanup_expired_downloads():
 async def startup():
     """Application startup - create indexes, seed data, start background tasks"""
     logger.info("CreatorStudio API starting...")
-    
+
+    # Register viral idea drop workers
+    try:
+        from services.viral.worker_registry import register_all_workers
+        register_all_workers()
+    except Exception as e:
+        logger.warning(f"Viral worker registration warning: {e}")
+
     # Seed gallery content if empty
     try:
         await seed_gallery_if_empty()
