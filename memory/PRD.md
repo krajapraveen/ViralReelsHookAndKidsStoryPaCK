@@ -1,86 +1,78 @@
 # Daily Viral Idea Drop — PRD
 
 ## Original Problem Statement
-Build a "Growth Engine" / "Daily Viral Idea Drop" — queue-driven AI content creation. Secure all generated media assets. Apply site-wide anti-copy friction with secure proxy-based asset protection, watermarking, entitlement enforcement, telemetry, and forensic traceability.
+Full anti-copy/media-protection hardening for a queue-driven AI content creation platform. Protect generated media via opaque tokens, entitlement gating, anti-replay, HLS streaming, forensic watermarking, concurrency limits, abuse response, and admin oversight.
 
-## Core Architecture
-- React frontend + FastAPI backend + MongoDB
-- Media Proxy Layer: JWT-signed streaming, visible + forensic watermarking, entitlement gating
-- Site-Wide Content Protection: Reusable hook + wrapper, route-based activation
-- Telemetry: Rich logging (IP, user-agent, action), abuse flagging, admin dashboards
+## Protection Stack (All Layers Complete)
 
-## What's Been Implemented
+| # | Layer | What It Does | Status |
+|---|-------|-------------|--------|
+| 1 | URL Blocking | `/api/static/generated/viral_*` returns 403 | DONE |
+| 2 | Media Proxy | All assets via `/api/media/stream/{token}` | DONE |
+| 3 | Visible Watermark | Tiled email + job ID on preview images | DONE |
+| 4 | Browser Friction | Right-click, drag, copy, shortcuts — site-wide, route-aware | DONE |
+| 5 | DB-Backed Opaque Tokens | Server-stored hashed tokens, replaces JWT-only | DONE |
+| 6 | Anti-Replay | Single-use downloads, IP/UA binding, auto-revoke on mismatch | DONE |
+| 7 | HLS Video Streaming | Tokenized manifest + segments, no raw MP4 for protected content | DONE |
+| 8 | Forensic Watermarking | Pixel-level (images), frame-level (video), metadata (all), trace_manifest (ZIP) | DONE |
+| 9 | Entitlement Gating | Ownership + role check, rate limiting (30/hr), session binding | DONE |
+| 10 | Concurrency Limits | Free: 1 session, Paid: 3 sessions, oldest terminated | DONE |
+| 11 | Active Abuse Response | Auto-suspend on severe abuse, token revocation, forced re-auth | DONE |
+| 12 | Admin Dashboard | Overview, events, flags, per-user investigation, actions | DONE |
 
-### P0 — URL Leak Consistency Bug — FIXED (April 4, 2026)
-- Bug: 2/66 DB records stored file_url as `/static/...` instead of `/api/static/...`
-- Fix: `_is_protected_asset_url()` + `_normalize_asset_url()` handles both prefixes
-- Audit: 126/126 assets — 66 secure_url, 60 content, 0 leaks, 0 misses
+## DB Schemas Added
+- `media_tokens`: token_hash, user_id, asset_id, file_ref, asset_type, purpose, expires_at, max_uses, used_count, session_id, ip_hash, ua_hash, status, created_at
+- `user_media_sessions`: session_id, user_id, started_at, last_active, status, ip, ua_hash
+- `media_suspensions`: suspension_id, user_id, status, reason, created_at, expires_at
+- `media_abuse_flags`: flag_id, user_id, reason, details, severity, status, created_at
+- `media_access_log`: user_id, action, ip, user_agent, timestamp, (extras: asset_id, forensic_id, watermark_type, etc.)
 
-### P0 — Site-Wide Anti-Copy Friction Layer — COMPLETE (April 4, 2026)
-- `useContentProtection` hook: right-click, drag, copy/cut, Ctrl+S/C/A/U, PrintScreen, mobile long-press
-- `ContentProtectionWrapper`: route-based activation, form/input exemptions
-- Protected: all `/app/*` (except admin), `/viral/*`, `/share/*`, `/gallery`, `/explore`
-- Unprotected: `/`, `/login`, `/signup`, `/pricing`, `/contact`, `/blog`, legal pages, admin
+## API Endpoints
 
-### P1 — Entitlement Gating — COMPLETE (April 4, 2026)
-- Download tokens require authenticated owner of unlocked pack
-- Admin bypass explicit
-- Rate limit: 30 download tokens per user per hour
-- Non-owner returns 403, locked pack returns 402, unauthenticated returns 401
-- Abuse flag auto-created when rate limit exceeded
+### Token Issuance
+- `POST /api/media/access/issue` — preview/stream token (limited uses, 120s TTL)
+- `POST /api/media/download/issue` — single-use download token (60s TTL, entitlement-gated)
+- `POST /api/media/download-token` — legacy backwards-compat endpoint
 
-### P1 — Telemetry / Abuse Detection — COMPLETE (April 4, 2026)
-- Every media event logged: action, user_id, IP, user-agent, asset details, timestamp
-- Abuse flagging: automatic when download rate exceeds threshold
-- Admin endpoints:
-  - `GET /api/media/admin/telemetry-summary` — aggregated stats, top downloaders, denied events, open flags
-  - `GET /api/media/admin/access-log` — filtered log viewer with IP, user-agent
-  - `GET /api/media/admin/abuse-flags` — view/resolve abuse flags
-  - `POST /api/media/admin/abuse-flags/{flag_id}/resolve` — resolve specific flag
-- All admin endpoints return 403 for non-admin users
+### HLS Video
+- `POST /api/media/hls/issue` — tokenized HLS manifest URL
+- `GET /api/media/hls/manifest/{token}` — m3u8 with tokenized segment URLs
+- `GET /api/media/hls/segment/{token}/{asset_id}/{segment}` — individual segment
 
-### P1 — Forensic Watermarking — COMPLETE (April 4, 2026)
-- Format: `UID:{user_id}|AID:{asset_id}|DL:{download_event_id}|TS:{unix_timestamp}`
-- Image: Embedded in PNG metadata (Description + Comment fields) and JPEG EXIF (ImageDescription)
-- Video: Embedded in MP4 metadata (comment + description) via ffmpeg
-- Audio: Embedded in MP3/WAV metadata (comment + artist) via ffmpeg
-- Admin downloads exempt from forensic watermarking
-- Every forensic download logged in media_access_log with forensic_id and watermark_type
+### Media Delivery
+- `GET /api/media/stream/{token}` — stream/download via opaque or legacy HMAC token
 
-### Protection Stack Summary
-| Layer | What It Does | Status |
-|-------|-------------|--------|
-| URL Blocking | Direct `/api/static/generated/viral_*` returns 403 | DONE |
-| Media Proxy | All assets served via JWT-signed `/api/media/stream/{token}` | DONE |
-| Visible Watermark | Tiled user email + job ID on preview images | DONE |
-| Browser Friction | Right-click, drag, copy, shortcuts blocked site-wide | DONE |
-| Entitlement Gating | Ownership + role check on download tokens, rate limiting | DONE |
-| Telemetry | Rich logging, abuse flagging, admin dashboards | DONE |
-| Forensic Watermark | UID+AID+DL+TS embedded in downloaded image/video/audio metadata | DONE |
+### Sessions
+- `POST /api/media/session/start` — create media session (enforces concurrency)
 
-### What CANNOT Be Prevented (by design)
-- Screenshots, screen recording, OS capture tools
-- Browser extensions, devtools
-- Physical photography
-Goal is: friction + entitlement + proxy + traceability — not fantasy.
+### Admin
+- `GET /api/admin/media/overview` — aggregated stats
+- `GET /api/admin/media/access-events` — filtered event log
+- `GET /api/admin/media/abuse-flags` — abuse flag list
+- `GET /api/admin/media/user/{user_id}` — per-user investigation
+- `POST /api/admin/media/tokens/revoke` — revoke all user tokens
+- `POST /api/admin/media/users/suspend-media` — suspend user media access
+- `POST /api/admin/media/users/unsuspend-media` — unsuspend
+- `POST /api/admin/media/flags/resolve` — resolve abuse flag
 
 ## Key Files
-- `/app/backend/routes/media_proxy.py` — All layers: proxy, entitlement, telemetry, forensic watermarking, admin endpoints
-- `/app/backend/routes/viral_ideas_v2.py` — Asset API, URL normalization helpers
-- `/app/frontend/src/hooks/useContentProtection.js` — Anti-copy friction hook
+- `/app/backend/services/media_token_service.py` — Token CRUD, validation, sessions, abuse
+- `/app/backend/routes/media_proxy.py` — Streaming, HLS, forensic watermarking
+- `/app/backend/routes/media_admin.py` — Admin endpoints
+- `/app/backend/routes/viral_ideas_v2.py` — Asset API, URL normalization
+- `/app/frontend/src/hooks/useContentProtection.js` — Anti-copy hook
 - `/app/frontend/src/components/ContentProtectionWrapper.js` — Route-based wrapper
-- `/app/frontend/src/App.js` — Integration point
-- `/app/frontend/src/App.css` — CSS protection rules + form exemptions
+- `/app/frontend/src/pages/Admin/MediaSecurityDashboard.js` — Admin UI
 
-## DB Collections
-- `media_access_log` — fields: user_id, action, ip, user_agent, timestamp, asset_id, asset_type, purpose, forensic_id, watermark_type, entitlement, reason, file_ext
-- `media_abuse_flags` — fields: flag_id, user_id, reason, details, status (open/resolved), created_at, resolved_by, resolved_at
+## What Cannot Be Prevented (by design)
+Screenshots, screen recording, OS capture tools, browser extensions, devtools, physical photography.
+Goal: friction + entitlement + proxy + traceability. Not fantasy.
 
 ## Backlog
 - (P2) Personalization and Precomputed Daily Packs
 - (P2) Remix Variants and Story Chain leaderboard
 - (P2) Admin Dashboard WebSocket upgrades
-- (P2) Entitlement tiers (free vs premium download quality/limits)
+- (P2) Premium tier download quality/resolution differentiation
 
 ## Credentials
 - Test: `test@visionary-suite.com` / `Test@2026#`
