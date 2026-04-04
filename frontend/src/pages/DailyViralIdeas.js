@@ -382,7 +382,12 @@ const ProgressView = ({ jobId, onComplete, ideaText, ideaNiche }) => {
                 <Image className="w-3 h-3 text-violet-400" />
                 <span className="text-[11px] font-semibold text-slate-400">Thumbnail Ready</span>
               </div>
-              <img src={`${API_URL}${a.file_url.startsWith('/api') ? a.file_url : `/api${a.file_url}`}`} alt="" className="w-24 h-24 rounded-lg object-cover" />
+              <img
+                src={`${API_URL}${a.file_url.startsWith('/api') ? a.file_url : `/api${a.file_url}`}`}
+                alt=""
+                className="w-24 h-24 rounded-lg object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
             </div>
           ))}
         </div>
@@ -598,13 +603,10 @@ const ResultView = ({ jobId }) => {
 
       {/* Voiceover */}
       {voiceover?.file_url && !isLocked && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-voiceover">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2"><Volume2 className="w-4 h-4 text-cyan-400" /><span className="text-sm font-semibold text-white">Voiceover</span></div>
-            <button onClick={() => downloadFile(voiceover.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>
-          </div>
-          <div className="p-4"><audio controls className="w-full" src={getAssetUrl(voiceover.file_url)} /></div>
-        </div>
+        <VoiceoverAsset
+          url={getAssetUrl(voiceover.file_url)}
+          onDownload={() => downloadFile(voiceover.file_url)}
+        />
       )}
 
       {/* Text Assets — truncated if locked */}
@@ -863,6 +865,65 @@ const ThumbnailAsset = ({ url, isLocked, onDownload }) => {
     </div>
   );
 };
+
+// ==================== VOICEOVER ASSET (with error handling) ====================
+const VoiceoverAsset = ({ url, onDownload }) => {
+  const [audioError, setAudioError] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const audioRef = useRef(null);
+
+  const handleRetry = () => {
+    setRetrying(true);
+    setAudioError(false);
+    if (audioRef.current) {
+      audioRef.current.src = url + '?t=' + Date.now();
+      audioRef.current.load();
+    }
+    setTimeout(() => setRetrying(false), 2000);
+  };
+
+  return (
+    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-voiceover">
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Volume2 className="w-4 h-4 text-cyan-400" />
+          <span className="text-sm font-semibold text-white">Voiceover</span>
+        </div>
+        <button onClick={onDownload} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1" data-testid="download-voiceover-btn">
+          <Download className="w-3 h-3" /> Download
+        </button>
+      </div>
+      <div className="p-4">
+        {audioError ? (
+          <div className="flex flex-col items-center justify-center py-4 text-center" data-testid="voiceover-error-fallback">
+            <Volume2 className="w-8 h-8 text-slate-600 mb-2" />
+            <p className="text-sm text-slate-400 mb-1">Audio preview unavailable in this browser</p>
+            <p className="text-xs text-slate-600 mb-3">Download to listen</p>
+            <div className="flex gap-2">
+              <button onClick={handleRetry} disabled={retrying} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors flex items-center gap-1" data-testid="retry-voiceover-btn">
+                <RefreshCw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} /> Retry
+              </button>
+              <button onClick={onDownload} className="px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1" data-testid="download-voiceover-fallback-btn">
+                <Download className="w-3 h-3" /> Download Audio
+              </button>
+            </div>
+          </div>
+        ) : (
+          <audio
+            ref={audioRef}
+            controls
+            className="w-full"
+            src={url}
+            preload="metadata"
+            onError={() => setAudioError(true)}
+            data-testid="voiceover-player"
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 
 // ==================== MAIN PAGE ====================
