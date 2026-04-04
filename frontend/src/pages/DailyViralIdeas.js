@@ -422,7 +422,7 @@ const ProgressView = ({ jobId, onComplete, ideaText, ideaNiche }) => {
 };
 
 // ==================== RESULT VIEW ====================
-const ResultView = ({ jobId }) => {
+const ResultView = ({ jobId, onGoToFeed }) => {
   const [assets, setAssets] = useState([]);
   const [job, setJob] = useState(null);
   const [copied, setCopied] = useState(null);
@@ -645,14 +645,14 @@ const ResultView = ({ jobId }) => {
       <FeedbackPanel jobId={jobId} />
 
       {/* Generate Another */}
-      <Link
-        to="/app/daily-viral-ideas"
-        className="flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors"
+      <button
+        onClick={onGoToFeed}
+        className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors"
         data-testid="generate-another-btn"
       >
         <ArrowRight className="w-4 h-4" />
         Generate Another Pack
-      </Link>
+      </button>
     </div>
   );
 };
@@ -1014,7 +1014,7 @@ const DailyViralIdeas = () => {
         {/* View Router */}
         {view === 'feed' && <FeedView onGenerate={handleGenerate} generating={generating} />}
         {view === 'progress' && activeJobId && <ProgressView jobId={activeJobId} onComplete={handleJobComplete} ideaText={activeIdea} ideaNiche={activeNiche} />}
-        {view === 'result' && activeJobId && <ResultView jobId={activeJobId} />}
+        {view === 'result' && activeJobId && <ResultView jobId={activeJobId} onGoToFeed={goToFeed} />}
       </div>
     </div>
   );
