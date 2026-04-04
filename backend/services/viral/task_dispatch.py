@@ -40,4 +40,7 @@ async def _safe_run(handler, payload, queue_name, task_id):
 Q_ORCHESTRATOR = "q_orchestrator_start"
 Q_TEXT_FAST = "q_text_fast"
 Q_IMAGE_FAST = "q_image_fast"
+Q_AUDIO_FAST = "q_audio_fast"
+Q_VIDEO_FAST = "q_video_fast"
 Q_PACKAGING = "q_packaging"
+Q_REPAIR = "q_repair"

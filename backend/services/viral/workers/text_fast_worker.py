@@ -1,13 +1,13 @@
 """
-Text Fast Worker — processes hooks, script, captions tasks
+Text Fast Worker — processes hooks, script, captions tasks.
 Each task runs independently with its own fallback ladder.
-After completion, checks if all pre-packaging tasks are done.
+After completion, checks if Phase 1 is done → dispatches audio + video.
 """
 import logging
 from shared import db
 from services.viral import viral_job_service as jobs
 from services.viral.text_generation_service import generate_hooks, generate_script, generate_captions
-from services.viral.task_dispatch import dispatch_task, Q_PACKAGING
+from services.viral.task_dispatch import dispatch_task, Q_AUDIO_FAST, Q_VIDEO_FAST
 
 logger = logging.getLogger("viral.worker.text_fast")
 
@@ -30,15 +30,12 @@ async def handle_text_task(payload: dict):
             hooks_text = "\n".join(result["hooks"])
             await jobs.save_asset(db, job_id, task_id, "hooks", content=hooks_text, mime_type="text/plain")
             await jobs.update_task(db, task_id, "completed", fallback_used=result["fallback_used"])
-
-            # Store first hook in job for downstream use
             await db.viral_jobs.update_one(
                 {"job_id": job_id},
                 {"$set": {"_best_hook": result["hooks"][0] if result["hooks"] else idea}}
             )
 
         elif task_type == "script":
-            # Wait briefly for hooks to be ready, then use the best hook
             import asyncio
             hook = idea
             for _ in range(5):
@@ -47,7 +44,6 @@ async def handle_text_task(payload: dict):
                     hook = job_data["_best_hook"]
                     break
                 await asyncio.sleep(0.5)
-
             result = await generate_script(idea, niche, hook)
             await jobs.save_asset(db, job_id, task_id, "script", content=result["script"], mime_type="text/markdown")
             await jobs.update_task(db, task_id, "completed", fallback_used=result["fallback_used"])
@@ -61,7 +57,6 @@ async def handle_text_task(payload: dict):
                     hook = job_data["_best_hook"]
                     break
                 await asyncio.sleep(0.5)
-
             result = await generate_captions(idea, niche, hook)
             captions_text = "\n\n".join(f"=== {p.upper()} ===\n{c}" for p, c in result["captions"].items())
             await jobs.save_asset(db, job_id, task_id, "captions", content=captions_text, mime_type="text/plain")
@@ -69,7 +64,6 @@ async def handle_text_task(payload: dict):
 
     except Exception as e:
         logger.error(f"[TEXT_WORKER] Task {task_type} failed completely: {e}", exc_info=True)
-        # Even on total failure, save deterministic fallback
         from services.viral.fallback_service import generate_fallback_hooks, generate_fallback_script, generate_fallback_captions
         if task_type == "hooks":
             hooks = generate_fallback_hooks(idea, niche, 3)
@@ -83,21 +77,32 @@ async def handle_text_task(payload: dict):
             await jobs.save_asset(db, job_id, task_id, "captions", content=text)
         await jobs.update_task(db, task_id, "completed", fallback_used=True)
 
-    # Check if all pre-packaging tasks are done
-    await _check_and_dispatch_packaging(job_id)
+    # Check if Phase 1 is done → dispatch Phase 2 (audio + video)
+    await _check_phase1_and_dispatch_phase2(job_id, idea, niche)
 
 
-async def _check_and_dispatch_packaging(job_id: str):
-    if await jobs.all_pretasks_done(db, job_id):
-        # Atomic claim: only the first worker to set status=processing wins
-        pkg_task = await db.viral_job_tasks.find_one_and_update(
-            {"job_id": job_id, "task_type": "packaging", "status": "pending"},
-            {"$set": {"status": "processing"}},
-            projection={"task_id": 1, "_id": 0},
+async def _check_phase1_and_dispatch_phase2(job_id: str, idea: str, niche: str):
+    if await jobs.all_phase1_done(db, job_id):
+        # Atomic claim to prevent double Phase 2 dispatch
+        claimed = await db.viral_jobs.find_one_and_update(
+            {"job_id": job_id, "_phase2_dispatched": {"$ne": True}},
+            {"$set": {"_phase2_dispatched": True}},
         )
-        if pkg_task:
-            logger.info(f"[TEXT_WORKER] Claimed packaging for job {job_id}")
-            await dispatch_task(Q_PACKAGING, {
-                "task_id": pkg_task["task_id"],
-                "job_id": job_id,
-            })
+        if claimed:
+            logger.info(f"[TEXT_WORKER] Phase 1 done for job {job_id}, dispatching audio + video")
+            audio_task = await db.viral_job_tasks.find_one(
+                {"job_id": job_id, "task_type": "audio"}, {"task_id": 1}
+            )
+            video_task = await db.viral_job_tasks.find_one(
+                {"job_id": job_id, "task_type": "video"}, {"task_id": 1}
+            )
+            if audio_task:
+                await dispatch_task(Q_AUDIO_FAST, {
+                    "task_id": audio_task["task_id"], "job_id": job_id,
+                    "task_type": "audio", "idea": idea, "niche": niche,
+                })
+            if video_task:
+                await dispatch_task(Q_VIDEO_FAST, {
+                    "task_id": video_task["task_id"], "job_id": job_id,
+                    "task_type": "video", "idea": idea, "niche": niche,
+                })

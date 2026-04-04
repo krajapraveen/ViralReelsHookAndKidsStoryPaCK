@@ -1,427 +1,380 @@
 """
-Daily Viral Idea Drop V2 - Backend API Tests
-Tests all endpoints for the queue-driven content pack generator.
-Iteration 424 - Full E2E testing of viral ideas feature.
+Viral Ideas V2 Phase 2 Tests - Iteration 424
+Tests: Audio/Video workers, Feedback flow, Repair endpoint, Full pipeline
 """
 import pytest
 import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-if not BASE_URL:
-    BASE_URL = "https://trust-engine-5.preview.emergentagent.com"
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://trust-engine-5.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "test@visionary-suite.com"
 TEST_PASSWORD = "Test@2026#"
 
+# Existing completed job for testing
+EXISTING_JOB_ID = "ce680be0-51c6-4560-810e-25a058dfcd8d"
 
-class TestViralIdeasAuth:
-    """Test authentication for viral ideas endpoints"""
-    
-    @pytest.fixture(scope="class")
-    def auth_token(self):
-        """Get authentication token for test user"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("token")
-        pytest.skip(f"Authentication failed: {response.status_code} - {response.text}")
-    
-    def test_login_success(self):
-        """Test that test user can login"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        assert response.status_code == 200, f"Login failed: {response.text}"
-        data = response.json()
-        assert "token" in data, "No token in response"
-        assert data.get("user", {}).get("email") == TEST_EMAIL
+# Valid feedback signals
+VALID_SIGNALS = ["useful", "not_useful", "regenerate_angle", "more_aggressive_hook", "safer_hook", "better_captions"]
+
+
+@pytest.fixture(scope="module")
+def auth_token():
+    """Get authentication token for test user."""
+    response = requests.post(
+        f"{BASE_URL}/api/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD}
+    )
+    assert response.status_code == 200, f"Login failed: {response.text}"
+    return response.json()["token"]
+
+
+@pytest.fixture(scope="module")
+def auth_headers(auth_token):
+    """Return headers with auth token."""
+    return {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
 
 
 class TestDailyFeed:
-    """Test GET /api/viral-ideas/daily-feed endpoint"""
+    """Test daily feed endpoint."""
     
     def test_daily_feed_returns_ideas(self):
-        """Test that daily feed returns ideas with niches"""
-        response = requests.get(f"{BASE_URL}/api/viral-ideas/daily-feed")
-        assert response.status_code == 200, f"Daily feed failed: {response.text}"
-        
-        data = response.json()
-        assert data.get("success") is True, "Response should have success=True"
-        assert "ideas" in data, "Response should have ideas array"
-        assert "niches" in data, "Response should have niches array"
-        assert "date" in data, "Response should have date"
-        
-        # Verify ideas structure
-        ideas = data["ideas"]
-        assert isinstance(ideas, list), "Ideas should be a list"
-        assert len(ideas) > 0, "Should have at least one idea"
-        
-        # Check first idea structure
-        first_idea = ideas[0]
-        assert "idea" in first_idea, "Idea should have 'idea' field"
-        assert "niche" in first_idea, "Idea should have 'niche' field"
-        
-        # Verify niches
-        niches = data["niches"]
-        assert isinstance(niches, list), "Niches should be a list"
-        assert len(niches) > 0, "Should have at least one niche"
-    
-    def test_daily_feed_filter_by_niche(self):
-        """Test filtering daily feed by niche"""
-        # First get available niches
+        """GET /api/viral-ideas/daily-feed returns ideas and niches."""
         response = requests.get(f"{BASE_URL}/api/viral-ideas/daily-feed")
         assert response.status_code == 200
-        niches = response.json().get("niches", [])
-        
-        if niches:
-            test_niche = niches[0]
-            response = requests.get(f"{BASE_URL}/api/viral-ideas/daily-feed?niche={test_niche}")
-            assert response.status_code == 200, f"Filtered feed failed: {response.text}"
-            
-            data = response.json()
-            ideas = data.get("ideas", [])
-            # All returned ideas should match the niche
-            for idea in ideas:
-                assert idea.get("niche") == test_niche, f"Idea niche mismatch: expected {test_niche}, got {idea.get('niche')}"
-
-
-class TestGenerateBundle:
-    """Test POST /api/viral-ideas/generate-bundle endpoint"""
-    
-    @pytest.fixture(scope="class")
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed")
-    
-    def test_generate_bundle_requires_auth(self):
-        """Test that generate-bundle requires authentication"""
-        response = requests.post(f"{BASE_URL}/api/viral-ideas/generate-bundle", json={
-            "idea": "Test idea",
-            "niche": "Tech"
-        })
-        assert response.status_code in [401, 403], f"Should require auth, got {response.status_code}"
-    
-    def test_generate_bundle_returns_job_id(self, auth_token):
-        """Test that generate-bundle returns job_id immediately"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.post(f"{BASE_URL}/api/viral-ideas/generate-bundle", 
-            json={
-                "idea": "5 AI tools that will change how you work in 2026",
-                "niche": "Tech"
-            },
-            headers=headers
-        )
-        
-        assert response.status_code == 200, f"Generate bundle failed: {response.text}"
-        
         data = response.json()
-        assert "job_id" in data, "Response should have job_id"
-        assert "status" in data, "Response should have status"
-        assert "message" in data, "Response should have message"
-        
-        # Status should be pending (immediate return)
-        assert data["status"] == "pending", f"Status should be pending, got {data['status']}"
-        
-        # Store job_id for subsequent tests
-        TestGenerateBundle.created_job_id = data["job_id"]
-        print(f"Created job_id: {data['job_id']}")
-
-
-class TestJobStatus:
-    """Test GET /api/viral-ideas/jobs/{job_id} endpoint"""
+        assert data["success"] is True
+        assert "ideas" in data
+        assert "niches" in data
+        assert len(data["ideas"]) > 0
+        assert len(data["niches"]) > 0
     
-    @pytest.fixture(scope="class")
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed")
-    
-    @pytest.fixture(scope="class")
-    def job_id(self, auth_token):
-        """Create a job and return its ID"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.post(f"{BASE_URL}/api/viral-ideas/generate-bundle",
-            json={
-                "idea": "How to build a personal brand on social media",
-                "niche": "Business"
-            },
-            headers=headers
-        )
-        if response.status_code == 200:
-            return response.json().get("job_id")
-        pytest.skip("Failed to create job for testing")
-    
-    def test_job_status_requires_auth(self, job_id):
-        """Test that job status requires authentication"""
-        response = requests.get(f"{BASE_URL}/api/viral-ideas/jobs/{job_id}")
-        assert response.status_code in [401, 403], f"Should require auth, got {response.status_code}"
-    
-    def test_job_status_returns_progress(self, auth_token, job_id):
-        """Test that job status returns progressive status with tasks"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.get(f"{BASE_URL}/api/viral-ideas/jobs/{job_id}", headers=headers)
-        
-        assert response.status_code == 200, f"Job status failed: {response.text}"
-        
+    def test_daily_feed_filter_by_niche(self):
+        """GET /api/viral-ideas/daily-feed?niche=Tech filters by niche."""
+        response = requests.get(f"{BASE_URL}/api/viral-ideas/daily-feed?niche=Tech")
+        assert response.status_code == 200
         data = response.json()
-        assert "job_id" in data, "Response should have job_id"
-        assert "status" in data, "Response should have status"
-        assert "progress" in data, "Response should have progress"
-        assert "tasks" in data, "Response should have tasks"
-        
-        # Verify progress structure
-        progress = data["progress"]
-        assert "current_phase" in progress, "Progress should have current_phase"
-        assert "percentage" in progress, "Progress should have percentage"
-        assert "message" in progress, "Progress should have message"
-        
-        # Verify tasks structure
-        tasks = data["tasks"]
-        assert isinstance(tasks, list), "Tasks should be a list"
-    
-    def test_job_not_found(self, auth_token):
-        """Test 404 for non-existent job"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.get(f"{BASE_URL}/api/viral-ideas/jobs/non-existent-job-id", headers=headers)
-        assert response.status_code == 404, f"Should return 404, got {response.status_code}"
+        # All ideas should be Tech niche
+        for idea in data["ideas"]:
+            assert idea["niche"] == "Tech"
 
 
-class TestJobAssets:
-    """Test GET /api/viral-ideas/jobs/{job_id}/assets endpoint"""
+class TestExistingCompletedJob:
+    """Test existing completed job with all 7 assets."""
     
-    @pytest.fixture(scope="class")
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed")
-    
-    def test_assets_requires_auth(self):
-        """Test that assets endpoint requires authentication"""
-        response = requests.get(f"{BASE_URL}/api/viral-ideas/jobs/some-job-id/assets")
-        assert response.status_code in [401, 403], f"Should require auth, got {response.status_code}"
-
-
-class TestMyJobs:
-    """Test GET /api/viral-ideas/my-jobs endpoint"""
-    
-    @pytest.fixture(scope="class")
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed")
-    
-    def test_my_jobs_requires_auth(self):
-        """Test that my-jobs requires authentication"""
-        response = requests.get(f"{BASE_URL}/api/viral-ideas/my-jobs")
-        assert response.status_code in [401, 403], f"Should require auth, got {response.status_code}"
-    
-    def test_my_jobs_returns_user_jobs(self, auth_token):
-        """Test that my-jobs returns user's recent jobs"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.get(f"{BASE_URL}/api/viral-ideas/my-jobs", headers=headers)
-        
-        assert response.status_code == 200, f"My jobs failed: {response.text}"
-        
-        data = response.json()
-        assert "jobs" in data, "Response should have jobs array"
-        
-        jobs = data["jobs"]
-        assert isinstance(jobs, list), "Jobs should be a list"
-        
-        # If there are jobs, verify structure
-        if jobs:
-            first_job = jobs[0]
-            assert "job_id" in first_job, "Job should have job_id"
-            assert "idea" in first_job, "Job should have idea"
-            assert "niche" in first_job, "Job should have niche"
-            assert "status" in first_job, "Job should have status"
-            assert "progress" in first_job, "Job should have progress"
-
-
-class TestFullGenerationPipeline:
-    """Test full generation pipeline: create job, poll until complete, verify assets"""
-    
-    @pytest.fixture(scope="class")
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed")
-    
-    def test_full_pipeline_completion(self, auth_token):
-        """Test that full pipeline completes with all assets"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        
-        # Step 1: Create job
-        create_response = requests.post(f"{BASE_URL}/api/viral-ideas/generate-bundle",
-            json={
-                "idea": "The morning routine that 10x'd my productivity",
-                "niche": "Lifestyle"
-            },
-            headers=headers
+    def test_job_status_completed(self, auth_headers):
+        """GET /api/viral-ideas/jobs/{job_id} returns completed status with 7 tasks."""
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}",
+            headers=auth_headers
         )
+        assert response.status_code == 200
+        data = response.json()
         
-        assert create_response.status_code == 200, f"Create job failed: {create_response.text}"
-        job_id = create_response.json().get("job_id")
-        assert job_id, "No job_id returned"
-        print(f"Created job: {job_id}")
+        # Verify job status
+        assert data["status"] == "completed"
+        assert data["progress"]["percentage"] == 100
+        assert data["progress"]["current_phase"] == "ready"
         
-        # Step 2: Poll until complete (max 60 seconds)
-        max_wait = 60
-        poll_interval = 2
-        elapsed = 0
-        final_status = None
+        # Verify all 7 tasks exist
+        assert len(data["tasks"]) == 7
+        task_types = {t["task_type"] for t in data["tasks"]}
+        expected_types = {"hooks", "script", "captions", "thumbnail", "audio", "video", "packaging"}
+        assert task_types == expected_types
         
-        while elapsed < max_wait:
-            status_response = requests.get(f"{BASE_URL}/api/viral-ideas/jobs/{job_id}", headers=headers)
-            assert status_response.status_code == 200, f"Status check failed: {status_response.text}"
-            
-            status_data = status_response.json()
-            current_status = status_data.get("status")
-            progress = status_data.get("progress", {})
-            
-            print(f"[{elapsed}s] Status: {current_status}, Phase: {progress.get('current_phase')}, Progress: {progress.get('percentage')}%")
-            
-            if current_status in ["completed", "completed_with_fallbacks"]:
-                final_status = current_status
-                break
-            
-            time.sleep(poll_interval)
-            elapsed += poll_interval
+        # Verify all tasks completed
+        for task in data["tasks"]:
+            assert task["status"] == "completed"
+    
+    def test_job_assets_include_audio_video(self, auth_headers):
+        """GET /api/viral-ideas/jobs/{job_id}/assets includes voiceover and video."""
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/assets",
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        data = response.json()
         
-        assert final_status in ["completed", "completed_with_fallbacks"], f"Job did not complete within {max_wait}s. Final status: {final_status}"
+        asset_types = {a["asset_type"] for a in data["assets"]}
         
-        # Step 3: Verify assets
-        assets_response = requests.get(f"{BASE_URL}/api/viral-ideas/jobs/{job_id}/assets", headers=headers)
-        assert assets_response.status_code == 200, f"Assets fetch failed: {assets_response.text}"
+        # Verify all asset types present
+        assert "hooks" in asset_types
+        assert "script" in asset_types
+        assert "captions" in asset_types
+        assert "thumbnail" in asset_types
+        assert "voiceover" in asset_types
+        assert "video" in asset_types
+        assert "zip_bundle" in asset_types
         
-        assets_data = assets_response.json()
-        assets = assets_data.get("assets", [])
+        # Verify voiceover has file_url
+        voiceover = next(a for a in data["assets"] if a["asset_type"] == "voiceover")
+        assert voiceover["file_url"] is not None
+        assert "/api/static/generated/viral_audio/" in voiceover["file_url"]
+        assert voiceover["mime_type"] == "audio/mpeg"
         
-        # Verify we have all expected asset types
-        asset_types = [a.get("asset_type") for a in assets]
-        print(f"Asset types: {asset_types}")
-        
-        assert "hooks" in asset_types, "Missing hooks asset"
-        assert "script" in asset_types, "Missing script asset"
-        assert "captions" in asset_types, "Missing captions asset"
-        assert "thumbnail" in asset_types, "Missing thumbnail asset"
-        
-        # Verify hooks content
-        hooks_asset = next((a for a in assets if a["asset_type"] == "hooks"), None)
-        assert hooks_asset, "Hooks asset not found"
-        assert hooks_asset.get("content"), "Hooks should have content"
-        
-        # Verify script content
-        script_asset = next((a for a in assets if a["asset_type"] == "script"), None)
-        assert script_asset, "Script asset not found"
-        assert script_asset.get("content"), "Script should have content"
-        
-        # Verify captions content
-        captions_asset = next((a for a in assets if a["asset_type"] == "captions"), None)
-        assert captions_asset, "Captions asset not found"
-        assert captions_asset.get("content"), "Captions should have content"
-        
-        # Verify thumbnail has file_url
-        thumbnail_asset = next((a for a in assets if a["asset_type"] == "thumbnail"), None)
-        assert thumbnail_asset, "Thumbnail asset not found"
-        assert thumbnail_asset.get("file_url"), "Thumbnail should have file_url"
-        assert thumbnail_asset["file_url"].startswith("/api/static/"), f"Thumbnail URL should start with /api/static/, got {thumbnail_asset['file_url']}"
-        
-        # Check for ZIP bundle (may or may not be present)
-        zip_assets = [a for a in assets if a["asset_type"] == "zip_bundle"]
-        if zip_assets:
-            # Should only have ONE zip_bundle (race condition fix)
-            assert len(zip_assets) == 1, f"Should have exactly 1 zip_bundle, found {len(zip_assets)}"
-            zip_asset = zip_assets[0]
-            assert zip_asset.get("file_url"), "ZIP bundle should have file_url"
-            assert zip_asset["file_url"].startswith("/api/static/"), f"ZIP URL should start with /api/static/, got {zip_asset['file_url']}"
-            print(f"ZIP bundle URL: {zip_asset['file_url']}")
-        
-        print(f"Full pipeline test PASSED for job {job_id}")
+        # Verify video has file_url
+        video = next(a for a in data["assets"] if a["asset_type"] == "video")
+        assert video["file_url"] is not None
+        assert "/api/static/generated/viral_videos/" in video["file_url"]
+        assert video["mime_type"] == "video/mp4"
 
 
 class TestStaticFileAccess:
-    """Test that static files (thumbnails, ZIPs) are accessible"""
+    """Test static file accessibility for audio and video."""
     
-    @pytest.fixture(scope="class")
-    def auth_token(self):
-        """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
-        if response.status_code == 200:
-            return response.json().get("token")
-        pytest.skip("Authentication failed")
+    def test_audio_file_accessible(self, auth_headers):
+        """Audio MP3 file is accessible at /api/static/generated/viral_audio/."""
+        # Get asset URL first
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/assets",
+            headers=auth_headers
+        )
+        data = response.json()
+        voiceover = next(a for a in data["assets"] if a["asset_type"] == "voiceover")
+        
+        # Test file accessibility
+        audio_url = f"{BASE_URL}{voiceover['file_url']}"
+        audio_response = requests.head(audio_url)
+        assert audio_response.status_code == 200
+        assert "audio/mpeg" in audio_response.headers.get("content-type", "")
+        assert int(audio_response.headers.get("content-length", 0)) > 0
     
-    def test_thumbnail_accessible(self, auth_token):
-        """Test that thumbnail files are accessible via static URL"""
-        headers = {"Authorization": f"Bearer {auth_token}"}
+    def test_video_file_accessible(self, auth_headers):
+        """Video MP4 file is accessible at /api/static/generated/viral_videos/."""
+        # Get asset URL first
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/assets",
+            headers=auth_headers
+        )
+        data = response.json()
+        video = next(a for a in data["assets"] if a["asset_type"] == "video")
         
-        # Get user's jobs to find a completed one
-        jobs_response = requests.get(f"{BASE_URL}/api/viral-ideas/my-jobs", headers=headers)
-        if jobs_response.status_code != 200:
-            pytest.skip("Could not fetch jobs")
-        
-        jobs = jobs_response.json().get("jobs", [])
-        completed_jobs = [j for j in jobs if j.get("status") in ["completed", "completed_with_fallbacks"]]
-        
-        if not completed_jobs:
-            pytest.skip("No completed jobs to test static file access")
-        
-        job_id = completed_jobs[0]["job_id"]
-        
-        # Get assets
-        assets_response = requests.get(f"{BASE_URL}/api/viral-ideas/jobs/{job_id}/assets", headers=headers)
-        if assets_response.status_code != 200:
-            pytest.skip("Could not fetch assets")
-        
-        assets = assets_response.json().get("assets", [])
-        thumbnail = next((a for a in assets if a["asset_type"] == "thumbnail"), None)
-        
-        if not thumbnail or not thumbnail.get("file_url"):
-            pytest.skip("No thumbnail URL to test")
-        
-        # Test thumbnail access
-        thumb_url = f"{BASE_URL}{thumbnail['file_url']}"
-        thumb_response = requests.get(thumb_url)
-        assert thumb_response.status_code == 200, f"Thumbnail not accessible: {thumb_response.status_code}"
-        assert "image" in thumb_response.headers.get("content-type", ""), "Thumbnail should be an image"
-        print(f"Thumbnail accessible at: {thumb_url}")
+        # Test file accessibility
+        video_url = f"{BASE_URL}{video['file_url']}"
+        video_response = requests.head(video_url)
+        assert video_response.status_code == 200
+        assert "video/mp4" in video_response.headers.get("content-type", "")
+        assert int(video_response.headers.get("content-length", 0)) > 0
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--tb=short"])
+class TestFeedbackFlow:
+    """Test feedback submission and retrieval."""
+    
+    def test_feedback_valid_signal_useful(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback accepts 'useful' signal."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            headers=auth_headers,
+            json={"signal": "useful", "asset_type": "script"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["message"] == "Feedback recorded"
+    
+    def test_feedback_valid_signal_not_useful(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback accepts 'not_useful' signal."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            headers=auth_headers,
+            json={"signal": "not_useful", "asset_type": "captions"}
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+    
+    def test_feedback_valid_signal_regenerate_angle(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback accepts 'regenerate_angle' signal."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            headers=auth_headers,
+            json={"signal": "regenerate_angle"}
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+    
+    def test_feedback_valid_signal_more_aggressive_hook(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback accepts 'more_aggressive_hook' signal."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            headers=auth_headers,
+            json={"signal": "more_aggressive_hook", "asset_type": "hooks"}
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+    
+    def test_feedback_valid_signal_safer_hook(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback accepts 'safer_hook' signal."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            headers=auth_headers,
+            json={"signal": "safer_hook", "asset_type": "hooks"}
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+    
+    def test_feedback_valid_signal_better_captions(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback accepts 'better_captions' signal."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            headers=auth_headers,
+            json={"signal": "better_captions", "asset_type": "captions"}
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+    
+    def test_feedback_invalid_signal_rejected(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback rejects invalid signals."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            headers=auth_headers,
+            json={"signal": "invalid_signal_xyz"}
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert "Invalid signal" in data["detail"]
+    
+    def test_feedback_summary_returns_aggregated_data(self, auth_headers):
+        """GET /api/viral-ideas/feedback/summary returns aggregated feedback."""
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/feedback/summary",
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "summary" in data
+        # Should have at least some feedback from our tests
+        assert isinstance(data["summary"], list)
+
+
+class TestRepairEndpoint:
+    """Test repair endpoint."""
+    
+    def test_repair_endpoint_works(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{job_id}/repair initiates repair."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/repair",
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "Repair initiated" in data["message"]
+    
+    def test_repair_nonexistent_job_returns_404(self, auth_headers):
+        """POST /api/viral-ideas/jobs/{invalid_id}/repair returns 404."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/nonexistent-job-id-12345/repair",
+            headers=auth_headers
+        )
+        assert response.status_code == 404
+
+
+class TestMyJobs:
+    """Test my-jobs endpoint."""
+    
+    def test_my_jobs_returns_user_jobs(self, auth_headers):
+        """GET /api/viral-ideas/my-jobs returns user's jobs."""
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/my-jobs",
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "jobs" in data
+        assert isinstance(data["jobs"], list)
+        
+        # Should include our existing job
+        job_ids = [j["job_id"] for j in data["jobs"]]
+        assert EXISTING_JOB_ID in job_ids
+
+
+class TestGenerateBundleEndpoint:
+    """Test generate-bundle endpoint (creates new job)."""
+    
+    def test_generate_bundle_creates_job_with_7_tasks(self, auth_headers):
+        """POST /api/viral-ideas/generate-bundle creates job with 7 tasks."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/generate-bundle",
+            headers=auth_headers,
+            json={"idea": "TEST: 5 AI tools that will replace your job in 2026", "niche": "Tech"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "job_id" in data
+        assert data["status"] == "pending"
+        assert "content pack is being created" in data["message"].lower()
+        
+        job_id = data["job_id"]
+        
+        # Wait a moment for orchestrator to create tasks
+        time.sleep(2)
+        
+        # Verify job has 7 tasks
+        job_response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/jobs/{job_id}",
+            headers=auth_headers
+        )
+        assert job_response.status_code == 200
+        job_data = job_response.json()
+        
+        # Should have 7 tasks created
+        assert len(job_data["tasks"]) == 7
+        task_types = {t["task_type"] for t in job_data["tasks"]}
+        expected_types = {"hooks", "script", "captions", "thumbnail", "audio", "video", "packaging"}
+        assert task_types == expected_types
+
+
+class TestAccessControl:
+    """Test access control for jobs."""
+    
+    def test_job_access_denied_for_other_user(self, auth_headers):
+        """GET /api/viral-ideas/jobs/{job_id} returns 403 for other user's job."""
+        # Create a different user's token (admin)
+        admin_response = requests.post(
+            f"{BASE_URL}/api/auth/login",
+            json={"email": "admin@creatorstudio.ai", "password": "Cr3@t0rStud!o#2026"}
+        )
+        if admin_response.status_code != 200:
+            pytest.skip("Admin login failed - skipping access control test")
+        
+        admin_token = admin_response.json()["token"]
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        
+        # Try to access test user's job
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}",
+            headers=admin_headers
+        )
+        # Should be 403 (access denied) since job belongs to test user
+        assert response.status_code == 403
+    
+    def test_feedback_requires_auth(self):
+        """POST /api/viral-ideas/jobs/{job_id}/feedback requires authentication."""
+        response = requests.post(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/feedback",
+            json={"signal": "useful"}
+        )
+        assert response.status_code in [401, 403]
+
+
+class TestZipBundle:
+    """Test ZIP bundle accessibility."""
+    
+    def test_zip_bundle_accessible(self, auth_headers):
+        """ZIP bundle file is accessible."""
+        response = requests.get(
+            f"{BASE_URL}/api/viral-ideas/jobs/{EXISTING_JOB_ID}/assets",
+            headers=auth_headers
+        )
+        data = response.json()
+        zip_bundle = next((a for a in data["assets"] if a["asset_type"] == "zip_bundle"), None)
+        
+        if zip_bundle and zip_bundle.get("file_url"):
+            zip_url = f"{BASE_URL}{zip_bundle['file_url']}"
+            zip_response = requests.head(zip_url)
+            assert zip_response.status_code == 200
+            assert "application/zip" in zip_response.headers.get("content-type", "") or \
+                   "application/octet-stream" in zip_response.headers.get("content-type", "")

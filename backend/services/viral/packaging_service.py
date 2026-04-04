@@ -60,5 +60,7 @@ def _asset_filename(asset: dict) -> str:
         "script": "02_video_script.md",
         "captions": "03_social_captions.txt",
         "thumbnail": "04_thumbnail.png",
+        "voiceover": "05_voiceover.mp3",
+        "video": "06_social_video.mp4",
     }
     return names.get(atype, f"{atype}.txt")

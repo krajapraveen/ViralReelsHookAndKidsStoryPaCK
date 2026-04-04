@@ -1,13 +1,13 @@
 """
-Image Fast Worker — processes thumbnail generation tasks
-After completion, checks if all pre-packaging tasks are done.
+Image Fast Worker — processes thumbnail generation tasks.
+After completion, checks if Phase 1 is done → dispatches audio + video.
 """
 import os
 import logging
 from shared import db
 from services.viral import viral_job_service as jobs
 from services.viral.image_generation_service import generate_thumbnail
-from services.viral.task_dispatch import dispatch_task, Q_PACKAGING
+from services.viral.task_dispatch import dispatch_task, Q_AUDIO_FAST, Q_VIDEO_FAST
 
 logger = logging.getLogger("viral.worker.image_fast")
 
@@ -42,7 +42,6 @@ async def handle_image_task(payload: dict):
 
     except Exception as e:
         logger.error(f"[IMG_WORKER] Thumbnail failed completely: {e}", exc_info=True)
-        # Save minimal fallback
         from services.viral.image_generation_service import _generate_fallback_thumbnail
         fb_bytes = _generate_fallback_thumbnail(idea, niche)
         os.makedirs(THUMB_DIR, exist_ok=True)
@@ -55,16 +54,31 @@ async def handle_image_task(payload: dict):
                               file_url=file_url, file_path=filepath, mime_type="image/png")
         await jobs.update_task(db, task_id, "completed", fallback_used=True)
 
-    # Check if all pre-packaging tasks are done — atomic claim
-    if await jobs.all_pretasks_done(db, job_id):
-        pkg_task = await db.viral_job_tasks.find_one_and_update(
-            {"job_id": job_id, "task_type": "packaging", "status": "pending"},
-            {"$set": {"status": "processing"}},
-            projection={"task_id": 1, "_id": 0},
+    # Check if Phase 1 is done → dispatch Phase 2
+    await _check_phase1_and_dispatch_phase2(job_id, idea, niche)
+
+
+async def _check_phase1_and_dispatch_phase2(job_id: str, idea: str, niche: str):
+    if await jobs.all_phase1_done(db, job_id):
+        claimed = await db.viral_jobs.find_one_and_update(
+            {"job_id": job_id, "_phase2_dispatched": {"$ne": True}},
+            {"$set": {"_phase2_dispatched": True}},
         )
-        if pkg_task:
-            logger.info(f"[IMG_WORKER] Claimed packaging for job {job_id}")
-            await dispatch_task(Q_PACKAGING, {
-                "task_id": pkg_task["task_id"],
-                "job_id": job_id,
-            })
+        if claimed:
+            logger.info(f"[IMG_WORKER] Phase 1 done for job {job_id}, dispatching audio + video")
+            audio_task = await db.viral_job_tasks.find_one(
+                {"job_id": job_id, "task_type": "audio"}, {"task_id": 1}
+            )
+            video_task = await db.viral_job_tasks.find_one(
+                {"job_id": job_id, "task_type": "video"}, {"task_id": 1}
+            )
+            if audio_task:
+                await dispatch_task(Q_AUDIO_FAST, {
+                    "task_id": audio_task["task_id"], "job_id": job_id,
+                    "task_type": "audio", "idea": idea, "niche": niche,
+                })
+            if video_task:
+                await dispatch_task(Q_VIDEO_FAST, {
+                    "task_id": video_task["task_id"], "job_id": job_id,
+                    "task_type": "video", "idea": idea, "niche": niche,
+                })

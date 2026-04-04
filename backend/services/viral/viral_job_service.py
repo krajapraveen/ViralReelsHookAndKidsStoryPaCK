@@ -7,21 +7,26 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger("viral.job_service")
 
-PHASES = ["planning", "generating_hooks", "generating_script", "generating_captions", "generating_thumbnail", "packaging", "ready"]
+PHASES = [
+    "planning", "generating_hooks", "generating_script", "generating_captions",
+    "generating_thumbnail", "generating_audio", "generating_video", "packaging", "ready",
+]
 FRIENDLY_MESSAGES = {
     "planning": "Setting up your content pack...",
     "generating_hooks": "Crafting viral hooks...",
     "generating_script": "Writing your script...",
     "generating_captions": "Creating social captions...",
     "generating_thumbnail": "Designing your thumbnail...",
+    "generating_audio": "Recording voiceover...",
+    "generating_video": "Composing your video...",
     "packaging": "Finalizing your pack...",
     "ready": "Your pack is ready!",
-}
-FAILURE_MESSAGES = {
     "recovering": "Optimizing your output...",
     "fallback": "Preparing an alternative version...",
     "finalizing": "Finalizing your pack...",
 }
+
+PHASE1_TASK_TYPES = {"hooks", "script", "captions", "thumbnail"}
 
 
 async def create_job(db, user_id: str, idea: str, niche: str) -> dict:
@@ -49,22 +54,20 @@ async def create_job(db, user_id: str, idea: str, niche: str) -> dict:
 
 
 async def get_job(db, job_id: str) -> dict | None:
-    job = await db.viral_jobs.find_one({"job_id": job_id}, {"_id": 0})
-    return job
+    return await db.viral_jobs.find_one({"job_id": job_id}, {"_id": 0})
 
 
 async def get_user_jobs(db, user_id: str, limit: int = 20) -> list:
-    jobs = await db.viral_jobs.find(
+    return await db.viral_jobs.find(
         {"user_id": user_id}, {"_id": 0}
     ).sort("created_at", -1).to_list(limit)
-    return jobs
 
 
 async def update_job_phase(db, job_id: str, phase: str, percentage: int = None):
     if percentage is None:
         idx = PHASES.index(phase) if phase in PHASES else 0
         percentage = int((idx / (len(PHASES) - 1)) * 100)
-    message = FRIENDLY_MESSAGES.get(phase, FAILURE_MESSAGES.get(phase, "Processing..."))
+    message = FRIENDLY_MESSAGES.get(phase, "Processing...")
     update = {
         "$set": {
             "progress.current_phase": phase,
@@ -106,13 +109,14 @@ async def create_task(db, job_id: str, task_type: str) -> str:
         "status": "pending",
         "fallback_used": False,
         "attempts": 0,
+        "failure_reason": None,
         "created_at": datetime.now(timezone.utc),
         "completed_at": None,
     })
     return task_id
 
 
-async def update_task(db, task_id: str, status: str, fallback_used: bool = False):
+async def update_task(db, task_id: str, status: str, fallback_used: bool = False, failure_reason: str = None):
     update = {
         "$set": {
             "status": status,
@@ -121,15 +125,27 @@ async def update_task(db, task_id: str, status: str, fallback_used: bool = False
         },
         "$inc": {"attempts": 1},
     }
+    if failure_reason:
+        update["$set"]["failure_reason"] = failure_reason
     await db.viral_job_tasks.update_one({"task_id": task_id}, update)
 
 
 async def get_tasks_for_job(db, job_id: str) -> list:
-    tasks = await db.viral_job_tasks.find({"job_id": job_id}, {"_id": 0}).to_list(20)
-    return tasks
+    return await db.viral_job_tasks.find({"job_id": job_id}, {"_id": 0}).to_list(20)
+
+
+async def all_phase1_done(db, job_id: str) -> bool:
+    """Check if all Phase 1 tasks (hooks, script, captions, thumbnail) are done."""
+    pending = await db.viral_job_tasks.count_documents({
+        "job_id": job_id,
+        "task_type": {"$in": list(PHASE1_TASK_TYPES)},
+        "status": {"$nin": ["completed", "failed"]},
+    })
+    return pending == 0
 
 
 async def all_pretasks_done(db, job_id: str) -> bool:
+    """Check if ALL non-packaging tasks are done (Phase 1 + Phase 2)."""
     pending = await db.viral_job_tasks.count_documents({
         "job_id": job_id,
         "task_type": {"$ne": "packaging"},
@@ -157,8 +173,7 @@ async def save_asset(db, job_id: str, task_id: str, asset_type: str,
 
 
 async def get_assets(db, job_id: str) -> list:
-    assets = await db.viral_assets.find({"job_id": job_id}, {"_id": 0}).to_list(50)
-    return assets
+    return await db.viral_assets.find({"job_id": job_id}, {"_id": 0}).to_list(50)
 
 
 async def log_event(db, job_id: str, event_type: str, message: str):

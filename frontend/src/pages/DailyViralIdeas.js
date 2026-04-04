@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Copy, Check, TrendingUp, Flame, Zap, Download, FileText, Image, Package, ChevronRight, RefreshCw, Clock, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Sparkles, Copy, Check, TrendingUp, Flame, Zap, Download, FileText, Image, Package, ChevronRight, RefreshCw, Clock, ArrowRight, Volume2, Video, MessageSquare, ThumbsUp, ThumbsDown, RotateCw, ShieldAlert, Heart } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -11,6 +11,8 @@ const PHASE_ICONS = {
   generating_script: FileText,
   generating_captions: Copy,
   generating_thumbnail: Image,
+  generating_audio: Volume2,
+  generating_video: Video,
   packaging: Package,
   ready: Check,
 };
@@ -228,7 +230,7 @@ const ProgressView = ({ jobId, onComplete }) => {
 
   const progress = job.progress || {};
   const tasks = job.tasks || [];
-  const taskOrder = ['hooks', 'script', 'captions', 'thumbnail', 'packaging'];
+  const taskOrder = ['hooks', 'script', 'captions', 'thumbnail', 'audio', 'video', 'packaging'];
 
   return (
     <div className="max-w-lg mx-auto space-y-8" data-testid="progress-view">
@@ -276,7 +278,7 @@ const ProgressView = ({ jobId, onComplete }) => {
                 )}
               </div>
               <span className={`text-sm font-medium capitalize ${status === 'completed' ? 'text-emerald-300' : status === 'processing' ? 'text-orange-300' : 'text-slate-500'}`}>
-                {type === 'hooks' ? 'Viral Hooks' : type === 'script' ? 'Video Script' : type === 'captions' ? 'Social Captions' : type === 'thumbnail' ? 'Thumbnail' : 'Final Package'}
+                {type === 'hooks' ? 'Viral Hooks' : type === 'script' ? 'Video Script' : type === 'captions' ? 'Social Captions' : type === 'thumbnail' ? 'Thumbnail' : type === 'audio' ? 'Voiceover' : type === 'video' ? 'Social Video' : 'Final Package'}
               </span>
               {task?.fallback_used && status === 'completed' && (
                 <span className="ml-auto text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">alt</span>
@@ -342,6 +344,8 @@ const ResultView = ({ jobId }) => {
   const script = assets.find(a => a.asset_type === 'script');
   const captions = assets.find(a => a.asset_type === 'captions');
   const thumbnail = assets.find(a => a.asset_type === 'thumbnail');
+  const voiceover = assets.find(a => a.asset_type === 'voiceover');
+  const video = assets.find(a => a.asset_type === 'video');
   const zipBundle = assets.find(a => a.asset_type === 'zip_bundle');
 
   return (
@@ -365,6 +369,24 @@ const ResultView = ({ jobId }) => {
         </button>
       )}
 
+      {/* Video */}
+      {video?.file_url && (
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-video">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Video className="w-4 h-4 text-rose-400" />
+              <span className="text-sm font-semibold text-white">Social Video</span>
+            </div>
+            <button onClick={() => downloadFile(video.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1">
+              <Download className="w-3 h-3" /> Download
+            </button>
+          </div>
+          <div className="p-4">
+            <video controls className="w-full max-w-md mx-auto rounded-xl" src={getAssetUrl(video.file_url)} />
+          </div>
+        </div>
+      )}
+
       {/* Thumbnail */}
       {thumbnail?.file_url && (
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-thumbnail">
@@ -379,6 +401,24 @@ const ResultView = ({ jobId }) => {
           </div>
           <div className="p-4">
             <img src={getAssetUrl(thumbnail.file_url)} alt="Thumbnail" className="w-full max-w-xs mx-auto rounded-xl" />
+          </div>
+        </div>
+      )}
+
+      {/* Voiceover */}
+      {voiceover?.file_url && (
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-voiceover">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Volume2 className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-semibold text-white">Voiceover</span>
+            </div>
+            <button onClick={() => downloadFile(voiceover.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1">
+              <Download className="w-3 h-3" /> Download
+            </button>
+          </div>
+          <div className="p-4">
+            <audio controls className="w-full" src={getAssetUrl(voiceover.file_url)} />
           </div>
         </div>
       )}
@@ -416,6 +456,9 @@ const ResultView = ({ jobId }) => {
         />
       )}
 
+      {/* Feedback Panel */}
+      <FeedbackPanel jobId={jobId} />
+
       {/* Generate Another */}
       <Link
         to="/app/daily-viral-ideas"
@@ -425,6 +468,59 @@ const ResultView = ({ jobId }) => {
         <ArrowRight className="w-4 h-4" />
         Generate Another Pack
       </Link>
+    </div>
+  );
+};
+
+// ==================== FEEDBACK PANEL ====================
+const FEEDBACK_SIGNALS = [
+  { signal: 'useful', label: 'Useful', icon: ThumbsUp, color: 'text-emerald-400 hover:bg-emerald-500/20' },
+  { signal: 'not_useful', label: 'Not useful', icon: ThumbsDown, color: 'text-red-400 hover:bg-red-500/20' },
+  { signal: 'more_aggressive_hook', label: 'Punchier hooks', icon: Zap, color: 'text-amber-400 hover:bg-amber-500/20' },
+  { signal: 'safer_hook', label: 'Safer hooks', icon: ShieldAlert, color: 'text-sky-400 hover:bg-sky-500/20' },
+  { signal: 'better_captions', label: 'Better captions', icon: MessageSquare, color: 'text-violet-400 hover:bg-violet-500/20' },
+  { signal: 'regenerate_angle', label: 'Different angle', icon: RotateCw, color: 'text-pink-400 hover:bg-pink-500/20' },
+];
+
+const FeedbackPanel = ({ jobId }) => {
+  const [sent, setSent] = useState({});
+
+  const sendFeedback = async (signal) => {
+    if (sent[signal]) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/viral-ideas/jobs/${jobId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ signal }),
+      });
+      if (res.ok) {
+        setSent(prev => ({ ...prev, [signal]: true }));
+        toast.success('Feedback recorded');
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  return (
+    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4" data-testid="feedback-panel">
+      <div className="flex items-center gap-2 mb-3">
+        <Heart className="w-4 h-4 text-pink-400" />
+        <span className="text-sm font-semibold text-white">How was this pack?</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {FEEDBACK_SIGNALS.map(({ signal, label, icon: Icon, color }) => (
+          <button
+            key={signal}
+            onClick={() => sendFeedback(signal)}
+            disabled={sent[signal]}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700/60 transition-all ${sent[signal] ? 'bg-slate-700/50 text-slate-500 border-slate-700' : `${color} bg-slate-800/60`}`}
+            data-testid={`feedback-${signal}`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {sent[signal] ? <Check className="w-3 h-3" /> : label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
