@@ -376,14 +376,14 @@ const ProgressView = ({ jobId, onComplete, ideaText, ideaNiche }) => {
               <p className="text-sm text-slate-300">{a.content.split('\n')[0]}</p>
             </div>
           ))}
-          {partialAssets.filter(a => a.asset_type === 'thumbnail' && a.file_url).map(a => (
+          {partialAssets.filter(a => a.asset_type === 'thumbnail' && a.secure_url).map(a => (
             <div key={a.asset_id} className="bg-slate-900/60 border border-emerald-500/10 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Image className="w-3 h-3 text-violet-400" />
                 <span className="text-[11px] font-semibold text-slate-400">Thumbnail Ready</span>
               </div>
               <img
-                src={`${API_URL}${a.file_url.startsWith('/api') ? a.file_url : `/api${a.file_url}`}`}
+                src={`${API_URL}${a.secure_url}`}
                 alt=""
                 className="w-24 h-24 rounded-lg object-cover"
                 onError={(e) => { e.target.style.display = 'none'; }}
@@ -432,6 +432,42 @@ const ResultView = ({ jobId, onGoToFeed }) => {
     fetchAssets();
   }, [jobId]);
 
+  // Media protection: block casual copy/save actions
+  useEffect(() => {
+    const handleContextMenu = (e) => {
+      if (e.target.closest('[data-testid="result-view"]')) {
+        e.preventDefault();
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.target.closest('[data-testid="result-view"]')) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 's' || e.key === 'C' || e.key === 'S')) {
+          e.preventDefault();
+        }
+      }
+    };
+    const handleCopy = (e) => {
+      if (e.target.closest('[data-testid="result-view"]')) {
+        e.preventDefault();
+      }
+    };
+    const handleDragStart = (e) => {
+      if (e.target.closest('[data-testid="result-view"]') && (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO')) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('dragstart', handleDragStart);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('dragstart', handleDragStart);
+    };
+  }, []);
+
   const fetchAssets = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -455,15 +491,35 @@ const ResultView = ({ jobId, onGoToFeed }) => {
     toast.success('Copied to clipboard');
   };
 
-  const getAssetUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    const path = url.startsWith('/api') ? url : `/api${url}`;
-    return `${API_URL}${path}`;
+  const getAssetUrl = (secureUrl) => {
+    if (!secureUrl) return '';
+    if (secureUrl.startsWith('http')) return secureUrl;
+    return `${API_URL}${secureUrl}`;
   };
 
-  const downloadFile = (url) => {
-    window.open(getAssetUrl(url), '_blank');
+  const downloadFile = async (assetId) => {
+    try {
+      const authToken = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/media/download-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ asset_id: assetId }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        const link = document.createElement('a');
+        link.href = `${API_URL}${data.url}`;
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Download started');
+      } else {
+        toast.error('Download failed');
+      }
+    } catch (e) {
+      toast.error('Download failed');
+    }
   };
 
   if (loading) {
@@ -519,7 +575,7 @@ const ResultView = ({ jobId, onGoToFeed }) => {
   };
 
   return (
-    <div className="space-y-6" data-testid="result-view">
+    <div className="space-y-6" data-testid="result-view" style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
       {/* Success Banner */}
       <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-5 text-center">
         <Check className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
@@ -572,9 +628,9 @@ const ResultView = ({ jobId, onGoToFeed }) => {
       </div>
 
       {/* Download All — only if unlocked */}
-      {!isLocked && zipBundle?.file_url && (
+      {!isLocked && zipBundle?.secure_url && (
         <button
-          onClick={() => downloadFile(zipBundle.file_url)}
+          onClick={() => downloadFile(zipBundle.asset_id)}
           className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all"
           data-testid="download-all-btn"
         >
@@ -584,28 +640,28 @@ const ResultView = ({ jobId, onGoToFeed }) => {
       )}
 
       {/* Video */}
-      {video?.file_url && (
+      {video?.secure_url && (
         <VideoAsset
-          url={getAssetUrl(video.file_url)}
+          url={getAssetUrl(video.secure_url)}
           isLocked={isLocked}
-          onDownload={() => downloadFile(video.file_url)}
+          onDownload={() => downloadFile(video.asset_id)}
         />
       )}
 
       {/* Thumbnail */}
-      {thumbnail?.file_url && (
+      {thumbnail?.secure_url && (
         <ThumbnailAsset
-          url={getAssetUrl(thumbnail.file_url)}
+          url={getAssetUrl(thumbnail.secure_url)}
           isLocked={isLocked}
-          onDownload={() => downloadFile(thumbnail.file_url)}
+          onDownload={() => downloadFile(thumbnail.asset_id)}
         />
       )}
 
       {/* Voiceover */}
-      {voiceover?.file_url && !isLocked && (
+      {voiceover?.secure_url && !isLocked && (
         <VoiceoverAsset
-          url={getAssetUrl(voiceover.file_url)}
-          onDownload={() => downloadFile(voiceover.file_url)}
+          url={getAssetUrl(voiceover.secure_url)}
+          onDownload={() => downloadFile(voiceover.asset_id)}
         />
       )}
 

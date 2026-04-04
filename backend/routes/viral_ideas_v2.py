@@ -180,11 +180,29 @@ async def get_job_assets(job_id: str, user: dict = Depends(get_current_user)):
     assets = await jobs.get_assets(db, job_id)
     locked = job.get("locked", False)
 
+    from routes.media_proxy import generate_secure_url
+    formatted = []
+    for a in assets:
+        fa = _format_asset(a, locked)
+        # Replace raw file_url with signed secure_url for media assets
+        raw_url = fa.get("file_url")
+        if raw_url and raw_url.startswith("/api/static/generated/viral_"):
+            fa["secure_url"] = generate_secure_url(
+                file_url=raw_url,
+                asset_id=fa["asset_id"],
+                asset_type=fa["asset_type"],
+                user_id=str(user["id"]),
+                purpose="preview",
+            )
+        # NEVER expose raw file_url to frontend
+        fa.pop("file_url", None)
+        formatted.append(fa)
+
     return {
         "job_id": job_id,
         "status": job["status"],
         "locked": locked,
-        "assets": [_format_asset(a, locked) for a in assets],
+        "assets": formatted,
     }
 
 
@@ -269,7 +287,17 @@ async def get_share_teaser(job_id: str, ref: Optional[str] = None):
         lines = caption_asset["content"].strip().split("\n")
         caption_teaser = lines[0] if lines else ""
 
-    thumbnail_url = thumb_asset.get("file_url") if thumb_asset else None
+    thumbnail_url = None
+    if thumb_asset and thumb_asset.get("file_url"):
+        # Generate a public preview token (no user binding, watermarked)
+        from routes.media_proxy import generate_secure_url
+        thumbnail_url = generate_secure_url(
+            file_url=thumb_asset["file_url"],
+            asset_id=thumb_asset.get("asset_id", "public"),
+            asset_type="thumbnail",
+            user_id="public_share",
+            purpose="preview",
+        )
 
     # Social proof
     total_packs = await db.viral_jobs.count_documents({"status": {"$in": ["completed", "completed_with_fallbacks"]}})

@@ -2,7 +2,7 @@
 CreatorStudio AI - Modular FastAPI Application
 Refactored from monolithic server.py to use modular routes
 """
-from fastapi import FastAPI, APIRouter, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, Request, Response, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
@@ -275,10 +275,22 @@ async def security_headers_middleware(request: Request, call_next):
     
     # Skip strict security headers for static files (images, downloads)
     path = request.url.path
+    
+    # BLOCK raw access to protected viral content — must go through /api/media/stream
+    protected_dirs = ["/api/static/generated/viral_thumbs/", "/api/static/generated/viral_videos/",
+                      "/api/static/generated/viral_audio/", "/api/static/generated/viral_packs/",
+                      "/static/generated/viral_thumbs/", "/static/generated/viral_videos/",
+                      "/static/generated/viral_audio/", "/static/generated/viral_packs/"]
+    if any(path.startswith(d) for d in protected_dirs):
+        from starlette.responses import JSONResponse
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Direct access denied. Use /api/media/stream endpoint."},
+        )
+
     if path.startswith("/api/static/"):
-        # Allow downloads and image display for static files
+        # Allow downloads and image display for non-protected static files
         response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
-        # Don't set CORS here - let CORSMiddleware handle it
         return response
     
     # Basic Security Headers
@@ -619,6 +631,9 @@ from fastapi.responses import FileResponse
 
 @app.get("/api/generated/{filename:path}")
 async def serve_generated_file(filename: str):
+    # Block viral content — must go through /api/media/stream
+    if filename.startswith(("viral_thumbs/", "viral_videos/", "viral_audio/", "viral_packs/")):
+        raise HTTPException(status_code=403, detail="Direct access denied. Use /api/media/stream endpoint.")
     filepath = ROOT_DIR / "static" / "generated" / filename
     if filepath.exists() and filepath.is_file():
         return FileResponse(filepath)

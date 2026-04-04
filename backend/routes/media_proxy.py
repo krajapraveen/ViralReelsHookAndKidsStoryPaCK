@@ -1,371 +1,305 @@
-"""R2 Media Proxy — Safari-safe, protocol-correct media delivery.
-
-Architecture:
-  - IMAGES: Buffered + LRU cached (small files, <500KB after resize)
-  - VIDEO/AUDIO: True streaming via StreamingResponse (never buffered)
-  - Content-Type: Read from R2 metadata (authoritative), NOT guessed from extension
-  - All responses: Safari-compliant headers via _safari_safe_headers()
-  - Cache: Surrogate-Control bypasses K8s ingress Cache-Control override
 """
-import os
-import re
-import io
-import asyncio
-import logging
-import time
+Media Proxy — Secure asset access with signed tokens, watermarking, and telemetry.
+No raw URLs ever exposed to frontend. All media goes through this proxy.
+"""
+import hmac
 import hashlib
-from collections import OrderedDict
-from fastapi import APIRouter, HTTPException, Request, Query
-from fastapi.responses import Response, StreamingResponse
-from urllib.parse import unquote
-from typing import Optional
+import json
+import time
+import uuid
+import os
+import io
+import logging
+from pathlib import Path
+from datetime import datetime, timezone
 
-logger = logging.getLogger(__name__)
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import List
 
+from shared import db, get_current_user
+
+logger = logging.getLogger("creatorstudio.media_proxy")
 router = APIRouter(prefix="/media", tags=["Media Proxy"])
 
-# ── In-memory LRU cache for resized images ──────────────────────────
-_RESIZE_CACHE: OrderedDict = OrderedDict()
-_CACHE_MAX = 150
-_CACHE_TTL = 3600
+ROOT_DIR = Path(__file__).parent.parent
+GENERATED_DIR = ROOT_DIR / "static" / "generated"
 
-def _cache_get(key: str):
-    entry = _RESIZE_CACHE.get(key)
-    if entry and (time.time() - entry[2]) < _CACHE_TTL:
-        _RESIZE_CACHE.move_to_end(key)
-        return entry
-    if entry:
-        _RESIZE_CACHE.pop(key, None)
-    return None
+# Server-side signing secret
+_MEDIA_SECRET = os.environ.get("MEDIA_SIGNING_SECRET", uuid.uuid4().hex + uuid.uuid4().hex)
 
-def _cache_set(key: str, body: bytes, ct: str):
-    if len(_RESIZE_CACHE) >= _CACHE_MAX:
-        _RESIZE_CACHE.popitem(last=False)
-    _RESIZE_CACHE[key] = (body, ct, time.time())
+PREVIEW_TTL = 300
+DOWNLOAD_TTL = 120
 
-
-# ── R2 Client ───────────────────────────────────────────────────────
-_r2_client = None
-_r2_bucket = None
-
-def _get_client():
-    global _r2_client, _r2_bucket
-    if _r2_client:
-        return _r2_client, _r2_bucket
-    try:
-        import boto3
-        from botocore.config import Config
-        account_id = os.environ.get("CLOUDFLARE_R2_ACCOUNT_ID", "")
-        access_key = os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID", "")
-        secret_key = os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "")
-        if not all([account_id, access_key, secret_key]):
-            return None, None
-        endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
-        _r2_client = boto3.client('s3', endpoint_url=endpoint,
-            aws_access_key_id=access_key, aws_secret_access_key=secret_key,
-            config=Config(signature_version='s3v4'), region_name='auto')
-        _r2_bucket = os.environ.get("CLOUDFLARE_R2_BUCKET_NAME", "visionary-suite-assets-prod")
-        return _r2_client, _r2_bucket
-    except Exception as e:
-        logger.error(f"R2 client init failed: {e}")
-        return None, None
-
-
-# ── Content Type: R2 METADATA is authoritative ──────────────────────
-# Extension-based is fallback ONLY if R2 doesn't provide ContentType.
-_EXT_TYPES = {
-    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-    '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4',
-    '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
-    '.m4a': 'audio/mp4', '.mov': 'video/quicktime', '.svg': 'image/svg+xml',
+CONTENT_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".mp4": "video/mp4",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".zip": "application/zip",
+    ".pdf": "application/pdf",
 }
 
-def _ext_content_type(key: str) -> str:
-    """Fallback: guess Content-Type from file extension."""
-    ext = '.' + key.rsplit('.', 1)[-1].lower() if '.' in key else ''
-    return _EXT_TYPES.get(ext, 'application/octet-stream')
 
-def _resolve_content_type(r2_metadata: dict, key: str) -> str:
-    """Get the AUTHORITATIVE Content-Type from R2 metadata.
-    Falls back to extension-based only if R2 returns generic/missing type."""
-    r2_ct = r2_metadata.get('ContentType', '')
-    # R2 returns real type if set during upload. Trust it.
-    if r2_ct and r2_ct != 'application/octet-stream' and r2_ct != 'binary/octet-stream':
-        return r2_ct
-    # R2 didn't set a meaningful type — fall back to extension
-    return _ext_content_type(key)
+def _sign_payload(payload: dict) -> str:
+    import base64
+    payload_bytes = json.dumps(payload, sort_keys=True).encode()
+    sig = hmac.new(_MEDIA_SECRET.encode(), payload_bytes, hashlib.sha256).hexdigest()
+    token = base64.urlsafe_b64encode(payload_bytes).decode().rstrip("=") + "." + sig
+    return token
 
 
-# ── S3 Operations ───────────────────────────────────────────────────
-def _s3_head(client, bucket, key):
-    return client.head_object(Bucket=bucket, Key=key)
+def _verify_token(token: str) -> dict:
+    import base64
+    parts = token.split(".")
+    if len(parts) != 2:
+        raise HTTPException(status_code=403, detail="Malformed token")
+    payload_b64, sig = parts
+    padding = 4 - len(payload_b64) % 4
+    if padding != 4:
+        payload_b64 += "=" * padding
+    try:
+        payload_bytes = base64.urlsafe_b64decode(payload_b64)
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid token encoding")
+    expected_sig = hmac.new(_MEDIA_SECRET.encode(), payload_bytes, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected_sig):
+        raise HTTPException(status_code=403, detail="Invalid token signature")
+    payload = json.loads(payload_bytes)
+    if time.time() > payload.get("exp", 0):
+        raise HTTPException(status_code=403, detail="Token expired")
+    return payload
 
-def _s3_get_bytes(client, bucket, key, **kw):
-    """Fetch and READ entire object — images only."""
-    resp = client.get_object(Bucket=bucket, Key=key, **kw)
-    body = resp['Body'].read()
-    resp['Body'].close()
-    return body, resp
 
-def _s3_get_stream(client, bucket, key, **kw):
-    """Get object WITHOUT reading — returns response with StreamingBody."""
-    return client.get_object(Bucket=bucket, Key=key, **kw)
+def _resolve_file_path(file_ref: str) -> Path:
+    clean = file_ref
+    for prefix in ["/api/static/", "/static/", "/"]:
+        if clean.startswith(prefix):
+            clean = clean[len(prefix):]
+            break
+    resolved = (ROOT_DIR / "static" / clean).resolve()
+    if not str(resolved).startswith(str(ROOT_DIR / "static")):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return resolved
 
 
-# ── Image Resize ────────────────────────────────────────────────────
-def _pillow_resize(body: bytes, w: int, q: int) -> bytes:
-    from PIL import Image as PILImage
-    img = PILImage.open(io.BytesIO(body))
-    if img.width <= w:
-        return body  # Already smaller, don't upscale
-    ratio = w / img.width
-    new_h = int(img.height * ratio)
-    img = img.resize((w, new_h), PILImage.LANCZOS)
-    if img.mode in ('RGBA', 'P', 'LA'):
-        bg = PILImage.new('RGB', img.size, (0, 0, 0))
-        if img.mode == 'P':
-            img = img.convert('RGBA')
-        bg.paste(img, mask=img.split()[-1] if 'A' in img.mode else None)
-        img = bg
-    elif img.mode != 'RGB':
-        img = img.convert('RGB')
+def _watermark_image(image_path: Path, user_email: str, job_id: str) -> io.BytesIO:
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.open(image_path).convert("RGBA")
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    email_fragment = user_email.split("@")[0] if user_email else "user"
+    job_fragment = job_id[:8] if job_id else ""
+    wm_text = f"{email_fragment} | {job_fragment}"
+
+    font_size = max(16, img.size[0] // 25)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+    except (IOError, OSError):
+        font = ImageFont.load_default()
+
+    text_bbox = draw.textbbox((0, 0), wm_text, font=font)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+
+    step_x = text_width + 80
+    step_y = text_height + 100
+
+    for y in range(-img.size[1], img.size[1] * 2, step_y):
+        for x in range(-img.size[0], img.size[0] * 2, step_x):
+            txt_img = Image.new("RGBA", (text_width + 20, text_height + 20), (0, 0, 0, 0))
+            txt_draw = ImageDraw.Draw(txt_img)
+            txt_draw.text((10, 10), wm_text, font=font, fill=(255, 255, 255, 45))
+            rotated = txt_img.rotate(30, expand=True, fillcolor=(0, 0, 0, 0))
+            overlay.paste(rotated, (x, y), rotated)
+
+    result = Image.alpha_composite(img, overlay).convert("RGB")
     buf = io.BytesIO()
-    img.save(buf, format='JPEG', quality=q, optimize=True)
-    return buf.getvalue()
+    if image_path.suffix.lower() == ".png":
+        result.save(buf, format="PNG")
+    else:
+        result.save(buf, format="JPEG", quality=90)
+    buf.seek(0)
+    return buf
 
 
-# ── Safari-Safe Headers ─────────────────────────────────────────────
-_CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-    "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, ETag",
-}
-
-def _safari_safe_headers(content_length: int, etag_seed: str = "") -> dict:
-    """Build complete Safari-safe header set. Content-Length is MANDATORY."""
-    tag = hashlib.md5((etag_seed or str(content_length)).encode()).hexdigest()[:16]
-    return {
-        "Content-Length": str(content_length),
-        "Accept-Ranges": "bytes",
-        "Content-Disposition": "inline",
-        "ETag": f'W/"{tag}"',
-        "X-Content-Type-Options": "nosniff",
-        "Vary": "Range",
-        "Cache-Control": "public, max-age=31536000, immutable",
-        "CDN-Cache-Control": "public, max-age=31536000, immutable",
-        "Surrogate-Control": "public, max-age=31536000, immutable",
-        **_CORS_HEADERS,
+def generate_secure_url(file_url: str, asset_id: str, asset_type: str,
+                        user_id: str, purpose: str = "preview") -> str:
+    ttl = PREVIEW_TTL if purpose == "preview" else DOWNLOAD_TTL
+    payload = {
+        "uid": user_id,
+        "aid": asset_id,
+        "fref": file_url,
+        "atype": asset_type,
+        "purpose": purpose,
+        "nonce": uuid.uuid4().hex[:12],
+        "exp": int(time.time()) + ttl,
     }
+    return f"/api/media/stream/{_sign_payload(payload)}"
 
 
-# ── CORS Preflight ──────────────────────────────────────────────────
-@router.options("/r2/{path:path}")
-async def options_r2(path: str):
-    return Response(
-        content=b'',
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-            "Access-Control-Allow-Headers": "Range, Content-Type",
-            "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, ETag",
-            "Access-Control-Max-Age": "86400",
-        }
+class SecureUrlRequest(BaseModel):
+    asset_ids: List[str]
+    purpose: str = "preview"
+
+
+@router.post("/secure-urls")
+async def get_secure_urls(req: SecureUrlRequest, user: dict = Depends(get_current_user)):
+    assets = []
+    for aid in req.asset_ids:
+        asset = await db.viral_assets.find_one({"asset_id": aid}, {"_id": 0})
+        if asset:
+            assets.append(asset)
+    urls = {}
+    for asset in assets:
+        aid = asset["asset_id"]
+        file_url = asset.get("file_url")
+        if not file_url:
+            continue
+        urls[aid] = generate_secure_url(
+            file_url=file_url, asset_id=aid,
+            asset_type=asset.get("asset_type", "unknown"),
+            user_id=str(user["id"]), purpose=req.purpose,
+        )
+    await db.media_access_log.insert_one({
+        "user_id": str(user["id"]), "action": "token_batch",
+        "asset_ids": req.asset_ids, "purpose": req.purpose,
+        "count": len(urls), "timestamp": datetime.now(timezone.utc),
+    })
+    return {"urls": urls, "ttl": PREVIEW_TTL if req.purpose == "preview" else DOWNLOAD_TTL}
+
+
+class DownloadTokenRequest(BaseModel):
+    asset_id: str
+
+
+@router.post("/download-token")
+async def get_download_token(req: DownloadTokenRequest, user: dict = Depends(get_current_user)):
+    asset = await db.viral_assets.find_one({"asset_id": req.asset_id}, {"_id": 0})
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    file_url = asset.get("file_url")
+    if not file_url:
+        raise HTTPException(status_code=404, detail="No file for this asset")
+    url = generate_secure_url(
+        file_url=file_url, asset_id=req.asset_id,
+        asset_type=asset.get("asset_type", "unknown"),
+        user_id=str(user["id"]), purpose="download",
     )
+    await db.media_access_log.insert_one({
+        "user_id": str(user["id"]), "action": "download_token",
+        "asset_id": req.asset_id, "asset_type": asset.get("asset_type"),
+        "timestamp": datetime.now(timezone.utc),
+    })
+    return {"url": url, "ttl": DOWNLOAD_TTL}
 
 
-# ── HEAD ────────────────────────────────────────────────────────────
-@router.head("/r2/{path:path}")
-async def head_r2(path: str):
-    """HEAD — returns metadata. Safari sends this before video playback.
-    Content-Type from R2 metadata (authoritative), NOT guessed."""
-    key = unquote(path)
-    client, bucket = _get_client()
-    if not client:
-        raise HTTPException(status_code=503, detail="Storage not configured")
-    try:
-        head = await asyncio.to_thread(_s3_head, client, bucket, key)
-        ct = _resolve_content_type(head, key)  # R2 metadata, not extension
-        return Response(
-            content=b'',
-            media_type=ct,
-            headers=_safari_safe_headers(
-                content_length=head['ContentLength'],
-                etag_seed=f"{key}:{head['ContentLength']}"
-            ),
-        )
-    except Exception as e:
-        logger.error(f"R2 HEAD error for {key}: {e}")
-        raise HTTPException(status_code=404, detail="Not found")
+@router.get("/stream/{token}")
+async def stream_media(token: str, request: Request):
+    payload = _verify_token(token)
+    file_ref = payload["fref"]
+    asset_type = payload.get("atype", "unknown")
+    purpose = payload.get("purpose", "preview")
+    user_id = payload.get("uid", "unknown")
 
+    file_path = _resolve_file_path(file_ref)
+    ext = file_path.suffix.lower()
+    content_type = CONTENT_TYPES.get(ext, "application/octet-stream")
 
-# ── GET (main handler) ──────────────────────────────────────────────
-STREAM_CHUNK_SIZE = 65536  # 64KB chunks
+    is_admin = False
+    user_email = "user"
+    if user_id != "unknown":
+        user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "role": 1, "email": 1})
+        if user_doc:
+            is_admin = user_doc.get("role", "").upper() in ("ADMIN", "SUPERADMIN")
+            user_email = user_doc.get("email", "user")
 
-@router.get("/r2/{path:path}")
-async def proxy_r2(
-    path: str,
-    request: Request,
-    w: Optional[int] = Query(None, ge=50, le=1920),
-    q: Optional[int] = Query(None, ge=10, le=100),
-):
-    """Serve R2 media with correct protocol for Safari/Mobile.
+    # Watermark images for non-admin users
+    if ext in (".png", ".jpg", ".jpeg") and not is_admin:
+        try:
+            job_id = payload.get("aid", "")
+            watermarked_buf = _watermark_image(file_path, user_email, job_id)
+            headers = {
+                "Cache-Control": "no-store, private, max-age=0",
+                "X-Content-Type-Options": "nosniff",
+            }
+            if purpose == "download":
+                headers["Content-Disposition"] = f"attachment; filename=\"{file_path.name}\""
+            else:
+                headers["Content-Disposition"] = f"inline; filename=\"preview_{file_path.name}\""
+            await db.media_access_log.insert_one({
+                "user_id": user_id, "action": "stream", "asset_id": payload.get("aid"),
+                "asset_type": asset_type, "purpose": purpose, "watermarked": True,
+                "timestamp": datetime.now(timezone.utc),
+            })
+            return StreamingResponse(watermarked_buf, media_type=content_type, headers=headers)
+        except Exception as e:
+            logger.warning(f"Watermark failed, serving raw: {e}")
 
-    Content-Type: from R2 metadata (authoritative), never guessed.
-    Images: buffered + cached. Content-Length always present.
-    Video/Audio: streamed in 64KB chunks. Range/206 supported.
-    """
-    key = unquote(path)
-    client, bucket = _get_client()
-    if not client:
-        raise HTTPException(status_code=503, detail="Storage not configured")
+    # Stream raw file for video/audio/zip/admin
+    file_size = file_path.stat().st_size
+    headers = {
+        "Cache-Control": "no-store, private, max-age=0",
+        "X-Content-Type-Options": "nosniff",
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(file_size),
+    }
+    if purpose == "download":
+        headers["Content-Disposition"] = f"attachment; filename=\"{file_path.name}\""
+    else:
+        headers["Content-Disposition"] = f"inline; filename=\"{file_path.name}\""
 
-    try:
-        quality = q or 80
+    # Handle range requests for video/audio seeking
+    range_header = request.headers.get("range")
+    if range_header and ext in (".mp4", ".mp3", ".wav"):
+        try:
+            range_spec = range_header.replace("bytes=", "")
+            start_str, end_str = range_spec.split("-")
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else file_size - 1
+            end = min(end, file_size - 1)
+            length = end - start + 1
 
-        # ── Get R2 metadata (authoritative Content-Type + size) ───────
-        head = await asyncio.to_thread(_s3_head, client, bucket, key)
-        total_size = head['ContentLength']
-        ct = _resolve_content_type(head, key)  # R2 metadata, not extension
-        is_image = ct.startswith('image/')
+            def range_stream():
+                with open(file_path, "rb") as f:
+                    f.seek(start)
+                    remaining = length
+                    while remaining > 0:
+                        chunk = f.read(min(8192, remaining))
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
+                        yield chunk
 
-        # ══════════════════════════════════════════════════════════════
-        # IMAGE PATH — buffered Response (NOT StreamingResponse)
-        # Content-Length is always exact. Safari gets full bytes.
-        # ══════════════════════════════════════════════════════════════
-        if is_image:
-            effective_w = w
-            cache_key = f"{key}:{effective_w}:{quality}"
-            cached = _cache_get(cache_key)
-            if cached:
-                body, cached_ct = cached[0], cached[1]
-                return Response(
-                    content=body, media_type=cached_ct,
-                    headers=_safari_safe_headers(len(body), f"{cache_key}:{len(body)}"),
-                )
+            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            headers["Content-Length"] = str(length)
+            await db.media_access_log.insert_one({
+                "user_id": user_id, "action": "stream_range",
+                "asset_id": payload.get("aid"), "asset_type": asset_type,
+                "timestamp": datetime.now(timezone.utc),
+            })
+            return StreamingResponse(range_stream(), status_code=206, media_type=content_type, headers=headers)
+        except (ValueError, IndexError):
+            pass
 
-            if not effective_w and total_size > 300_000:
-                effective_w = 800
+    def file_stream():
+        with open(file_path, "rb") as f:
+            while True:
+                chunk = f.read(8192)
+                if not chunk:
+                    break
+                yield chunk
 
-            if effective_w:
-                cache_key = f"{key}:{effective_w}:{quality}"
-                cached = _cache_get(cache_key)
-                if cached:
-                    body, cached_ct = cached[0], cached[1]
-                    return Response(
-                        content=body, media_type=cached_ct,
-                        headers=_safari_safe_headers(len(body), f"{cache_key}:{len(body)}"),
-                    )
-
-                body, _ = await asyncio.to_thread(_s3_get_bytes, client, bucket, key)
-                try:
-                    resized = await asyncio.to_thread(_pillow_resize, body, effective_w, quality)
-                    out_ct = 'image/jpeg'  # Pillow resize always outputs JPEG
-                    _cache_set(cache_key, resized, out_ct)
-                    return Response(
-                        content=resized, media_type=out_ct,
-                        headers=_safari_safe_headers(len(resized), f"{cache_key}:{len(resized)}"),
-                    )
-                except Exception as resize_err:
-                    logger.warning(f"Resize failed for {key}: {resize_err}, serving original")
-                    _cache_set(cache_key, body, ct)
-                    return Response(
-                        content=body, media_type=ct,
-                        headers=_safari_safe_headers(len(body), f"{key}:{len(body)}"),
-                    )
-
-            # Small image, no resize needed
-            body, _ = await asyncio.to_thread(_s3_get_bytes, client, bucket, key)
-            _cache_set(f"{key}:None:{quality}", body, ct)
-            return Response(
-                content=body, media_type=ct,
-                headers=_safari_safe_headers(len(body), f"{key}:{len(body)}"),
-            )
-
-        # ══════════════════════════════════════════════════════════════
-        # VIDEO/AUDIO — Range/206 or full stream
-        # ══════════════════════════════════════════════════════════════
-        range_header = request.headers.get('range')
-
-        if range_header:
-            match = re.match(r'bytes=(\d+)-(\d*)', range_header)
-            if match:
-                start = int(match.group(1))
-                end = int(match.group(2)) if match.group(2) else min(start + 2 * 1024 * 1024, total_size - 1)
-                end = min(end, total_size - 1)
-                length = end - start + 1
-
-                # For small ranges (<2MB), buffer for exact Content-Length
-                if length <= 2 * 1024 * 1024:
-                    body, _ = await asyncio.to_thread(
-                        _s3_get_bytes, client, bucket, key,
-                        Range=f'bytes={start}-{end}'
-                    )
-                    headers = _safari_safe_headers(len(body), f"{key}:{total_size}")
-                    headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
-                    return Response(
-                        content=body, status_code=206, media_type=ct,
-                        headers=headers,
-                    )
-
-                # Large range — stream
-                resp = await asyncio.to_thread(
-                    _s3_get_stream, client, bucket, key,
-                    Range=f'bytes={start}-{end}'
-                )
-                s3_body = resp['Body']
-
-                async def stream_range():
-                    try:
-                        while True:
-                            chunk = await asyncio.to_thread(s3_body.read, STREAM_CHUNK_SIZE)
-                            if not chunk:
-                                break
-                            yield chunk
-                    finally:
-                        await asyncio.to_thread(s3_body.close)
-
-                headers = _safari_safe_headers(length, f"{key}:{total_size}")
-                headers["Content-Range"] = f"bytes {start}-{end}/{total_size}"
-
-                return StreamingResponse(
-                    stream_range(),
-                    status_code=206,
-                    media_type=ct,
-                    headers=headers,
-                )
-
-        # ── Full file (no Range) — buffer if small, stream if large ──
-        if total_size <= 5 * 1024 * 1024:  # ≤5MB: buffer for exact headers
-            body, _ = await asyncio.to_thread(_s3_get_bytes, client, bucket, key)
-            return Response(
-                content=body, media_type=ct,
-                headers=_safari_safe_headers(len(body), f"{key}:{len(body)}"),
-            )
-
-        # >5MB: stream
-        resp = await asyncio.to_thread(_s3_get_stream, client, bucket, key)
-        s3_body = resp['Body']
-
-        async def stream_full():
-            try:
-                while True:
-                    chunk = await asyncio.to_thread(s3_body.read, STREAM_CHUNK_SIZE)
-                    if not chunk:
-                        break
-                    yield chunk
-            finally:
-                await asyncio.to_thread(s3_body.close)
-
-        return StreamingResponse(
-            stream_full(),
-            status_code=200,
-            media_type=ct,
-            headers=_safari_safe_headers(total_size, f"{key}:{total_size}"),
-        )
-
-    except Exception as e:
-        err_str = str(e)
-        if 'NoSuchKey' in err_str or '404' in err_str:
-            raise HTTPException(status_code=404, detail="Not found")
-        logger.error(f"R2 proxy error for {key}: {e}")
-        raise HTTPException(status_code=500, detail="Storage error")
+    await db.media_access_log.insert_one({
+        "user_id": user_id, "action": "stream", "asset_id": payload.get("aid"),
+        "asset_type": asset_type, "purpose": purpose, "watermarked": False,
+        "timestamp": datetime.now(timezone.utc),
+    })
+    return StreamingResponse(file_stream(), media_type=content_type, headers=headers)
