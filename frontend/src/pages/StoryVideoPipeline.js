@@ -31,6 +31,32 @@ const STAGE_ORDER = ['scenes', 'images', 'voices'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic };
 const STAGE_LABELS = { scenes: 'Scenes', images: 'Images', voices: 'Voices' };
 
+// ─── SAFE ACTION WRAPPER ────────────────────────────────────────────────────
+// Prevents undefined handler crashes. Logs to monitoring endpoint.
+function safeAction(fn, label = 'action') {
+  if (typeof fn !== 'function') {
+    console.error(`[StoryVideoStudio] Missing handler: ${label}`);
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch(`${process.env.REACT_APP_BACKEND_URL}/api/monitoring/client-error`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ module: 'story_video_studio', error: `Missing handler: ${label}`, timestamp: new Date().toISOString() }),
+        }).catch(() => {});
+      }
+    } catch {}
+    return () => {};
+  }
+  return async (...args) => {
+    try {
+      await fn(...args);
+    } catch (error) {
+      console.error(`[StoryVideoStudio] ${label} failed:`, error);
+    }
+  };
+}
+
 // Timeout thresholds
 const SOFT_TIMEOUT_MS = 5 * 60 * 1000;   // 5 min → show "taking longer" message
 const HARD_TIMEOUT_MS = 15 * 60 * 1000;  // 15 min → background + notify
@@ -1963,16 +1989,15 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
 
           {/* ═══ TERTIARY: Download + More Options ═══ */}
           <div className="flex gap-2">
-            <Button
-              onClick={handleDownload}
-              disabled={!downloadReady || downloading}
+            <EntitledDownloadButton
+              assetId={jobId}
+              label="Download"
+              upgradeLabel="Upgrade to Download"
+              disabled={!downloadReady}
+              className="flex-1"
               variant="outline"
-              className="flex-1 border-slate-700 text-slate-300 hover:text-white disabled:opacity-40"
               data-testid="download-btn"
-            >
-              {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              Download
-            </Button>
+            />
             {storyPackUrl && downloadReady && (
               <a href={storyPackUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
                 <Button variant="outline" className="w-full border-slate-700 text-slate-300 hover:text-white">

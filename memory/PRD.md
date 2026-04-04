@@ -1,7 +1,7 @@
 # AI Creator Suite — Product Requirements Document
 
 ## Original Problem Statement
-Full-stack AI creator suite with tools for story/comic/GIF/video generation, character creation, brand kits, and social content. The platform uses a credit-based monetization model with Cashfree payments.
+Full-stack AI creator suite with tools for story/comic/GIF/video generation, character creation, brand kits, and social content. Credit-based monetization with Cashfree payments.
 
 ## Core Architecture
 - **Frontend**: React (port 3000)
@@ -15,24 +15,16 @@ Full-stack AI creator suite with tools for story/comic/GIF/video generation, cha
 ## Completed Features
 
 ### P0 — Safe Rewrite Engine (April 2026)
-- **Centralized rewrite engine** at `backend/services/rewrite_engine/`
-  - `rule_rewriter.py`: 200+ term mappings (brands, franchises, characters, celebrities, platforms)
-  - `rewrite_service.py`: Orchestrator — detect, rewrite, continue. Never blocks.
-- **Replaced hard-blocking in 20+ files**: All `BLOCKED_KEYWORDS`, `check_copyright`, `check_copyright_violation`, `screen_safety` functions updated to use safe_rewrite()
-- **Preserved harmful content blocking**: nsfw, violence, gore, explicit still blocked
-- **Preserved negative prompts**: Image generation still includes copyright safety in negative prompts
-- **Test result**: 26/26 tests passed (iteration_423)
+- Centralized rewrite engine at `backend/services/rewrite_engine/` with 200+ term mappings
+- Replaced hard-blocking in 20+ files with safe_rewrite()
+- Test result: 26/26 tests passed (iteration_423)
 
-### P0 — Story Video Studio Dead-End Fix (April 2026)
-- **Replaced generic dead-end error boundary** with actionable error handling:
-  - Shows error classification (data error, network error, cache error, render error)
-  - Shows actual error message for debugging
-  - Retry button (up to 3 attempts), Refresh Page, Go to Dashboard options
-  - Cache clear suggestion after repeated failures
-- **Added client error logging**: `POST /api/monitoring/client-error` captures frontend crashes with stack traces
-- **Added safe_rewrite to story-engine/create**: Trademarked terms in story text/title rewritten before job creation
-- **Added rewrite_note to response**: Frontend shows soft toast notification when terms are sanitized
-- **Root cause on production**: Likely stale JS chunk cache or deployment gap (preview works perfectly)
+### P0 — Story Video Studio Crash Fix (April 2026)
+- **Root cause**: `handleDownload` referenced at line 1967 but never defined in `PostGenPhase` component. Caused full-page React error boundary crash on production.
+- **Fix**: Replaced naked `handleDownload` button with `EntitledDownloadButton` component (consistent with rest of page)
+- **Hardening**: Added `safeAction()` utility wrapper that prevents any future undefined handler from crashing the page — logs to `/api/monitoring/client-error` instead
+- **Error boundary improvement**: Now shows error classification, actual error message, retry/refresh/dashboard buttons
+- **Files changed**: `frontend/src/pages/StoryVideoPipeline.js`, `backend/routes/monitoring.py`
 
 ### Previous Completions
 - Production Metrics Dashboard
@@ -40,27 +32,19 @@ Full-stack AI creator suite with tools for story/comic/GIF/video generation, cha
 - Photo-to-Reaction GIF (zero-friction single-screen UI, viral packs)
 - Character Studio (backward-compatible, actionable CTAs)
 - Growth Engine (compulsion loops, social proof)
-- Cashfree Payment Integration
-- Credit System (50 credits standard)
-- Truth-based Admin Dashboard
+- Cashfree Payment Integration, Credit System, Truth-based Admin Dashboard
 
 ## Current Mode: VALIDATION
 - No new feature development
 - Only fix production-breaking bugs backed by real usage data
 - Drive real traffic to 100-200 jobs
-- Track rewrite frequency, missed terms, generation success rate
 
-## Prioritized Backlog (ALL FROZEN)
-
-### P1
-- Auto captions for Reaction GIFs
-- Multi-reaction pack generation
-- Character DNA System
-
-### P2
-- Smart router, repair pipeline, GPU optimization
-- Advanced analytics
-- Rewrite analytics dashboard
+## Frozen Backlog
+- Auto captions for Reaction GIFs (P1)
+- Multi-reaction pack generation (P1)
+- Character DNA System (P1)
+- Smart router, repair pipeline, GPU optimization (P2)
+- Advanced analytics, Rewrite analytics dashboard (P2)
 
 ## Test Credentials
 - Test User: `test@visionary-suite.com` / `Test@2026#`
