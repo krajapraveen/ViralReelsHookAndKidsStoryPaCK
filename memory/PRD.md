@@ -1,56 +1,66 @@
-# AI Creator Suite — Product Requirements Document
+# Daily Viral Idea Drop — PRD
 
 ## Original Problem Statement
-Full-stack AI creator suite with a "compulsion-driven" growth engine. Latest focus: Daily Viral Idea Drop — a queue-driven content pack generator with distribution + monetization proof via Growth Engine.
+Build a "Growth Engine" / "Daily Viral Idea Drop" — a queue-driven AI content creation platform that generates full viral content packs (hooks, scripts, captions, thumbnails, voiceover, video) from trending ideas. The product must never show a dead-end UI and must be optimized strictly for growth and conversion.
 
 ## Core Architecture
-- **Frontend**: React (port 3000)
-- **Backend**: FastAPI (port 8001)
-- **Database**: MongoDB
-- **AI**: GPT-4o-mini (text), GPT Image 1 (thumbnails), OpenAI TTS (voiceover), Gemini (fallback)
-- **Video**: moviepy + ffmpeg
-- **Payments**: Cashfree | **Auth**: Emergent Google Auth + JWT
+- React frontend + FastAPI backend + MongoDB
+- 7 background workers: text, image, audio, video, packaging, orchestrator, repair
+- Queue abstraction simulating Redis using Python asyncio
+- Fallback ladder: GPT-4o-mini → Gemini → deterministic templates
+- Teaser-first share pages with soft paywalls
 
-## Growth Engine (Latest — April 2026)
+## Key DB Collections
+- `viral_ideas_daily`, `viral_jobs`, `viral_job_tasks`, `viral_assets`, `viral_job_events`
 
-### 1. Shareable Output System
-- Public teaser page at `/viral/{job_id}` — no auth required
-- Shows: big hook, blurred thumbnail, partial script/caption
-- CTAs: "Generate Your Own Free Pack" → signup, "Unlock Full Pack" → login
-- Social proof floor (500+), speed proof ("30 seconds")
-- Share tracking: WhatsApp, Twitter, copy link
+## 3rd Party Integrations
+- OpenAI & Gemini (Emergent LLM Key)
+- Cloudflare R2 (Object Storage)
+- Cashfree (Payments)
+- Google Auth (Emergent-managed)
 
-### 2. Soft Paywall
-- First generation: FREE (no credits deducted)
-- Subsequent: deduct 5 credits, or generate locked if no credits
-- Locked packs: truncated text, blurred images, no downloads
-- "Unlock This Pack" CTA → 5 credits → full access
+## What's Been Implemented
 
-### 3. Viral Hook Injection
-- 4 structured hook types: curiosity, pattern_break, emotional, loop
-- 5 variants per idea (up from 3)
-- Auto-select strongest hook (curiosity > loop > pattern_break > emotional)
+### Phase 1 & 2: Backend Workers (DONE)
+- Orchestrator + 7 parallel workers (text, image, audio, video, packaging, repair)
+- Queue abstraction, fallback ladder, output guarantee
 
-### 4. Basic Metrics
-- `viral_growth_metrics` collection tracking:
-  - generation, share_event, share_view, share_to_signup, free_to_paid
-- Queryable via `GET /api/viral-ideas/metrics/growth`
-- Referral tracking via `POST /api/viral-ideas/track-referral`
+### Growth Engine (DONE)
+- Teaser-first `/share/{job_id}` page with blurred thumbnails, partial scripts
+- "Generate Your Own Free Pack" CTA
+- Soft paywall & 4 structured viral hook categories
 
-## Test Results
-- Growth Engine: 27/27 tests passed (iteration_425)
-- Phase 2 (audio/video/repair/feedback): 21/21 tests passed (iteration_424)
-- Phase 1 (core pipeline): 13/13 tests passed
+### P0 Fix: Empty Feed Blocker (DONE)
+- 12 hardcoded fallback ideas in both backend and frontend
+- Triple-layer fallback ensures feed never returns empty
 
-## What Remains Before Phase 3
-- Validate real user data: Do users share? Do shares bring new users? Do users pay?
-- Monitor metrics via `/api/viral-ideas/metrics/growth`
+### P0 Fix: Generation Blank Screen Bug (DONE — April 4, 2026)
+- **Root cause**: `handleGenerate` never set `activeIdea`/`activeNiche` state, and `ProgressView` wasn't receiving idea context props
+- **Fix**: Added `setActiveIdea(idea)` and `setActiveNiche(niche)` calls in `handleGenerate`, passed `ideaText`/`ideaNiche` props to `ProgressView`
+- **ProgressView rewrite** (by previous agent): Full skeleton UI with idea context, progress circle, task list, partial asset preview, timeout recovery, and back navigation
+- **Verified**: Full flow Feed → Generate → Progress → Result works end-to-end with all 7 task types completing
 
-## Frozen Backlog (DO NOT BUILD)
-- Personalization, Admin dashboard, Precomputed packs, Quality modes
-- Share This Pack feature, Auto captions, Multi-reaction packs
-- Character DNA System, Smart router, Advanced analytics
+## User Mandate
+- Optimizing strictly for Growth and Conversion
+- Do NOT build new features (admin dashboards, personalization, UI polish)
+- Only fix blockers or increase shares/revenue
 
-## Test Credentials
-- Test User: `test@visionary-suite.com` / `Test@2026#`
-- Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
+## Backlog (Frozen by User)
+- (P1) Personalization and Admin Dashboard
+- (P1) Precomputed Daily Packs
+- (P1) Quality Modes and advanced routing
+- (P1) A/B test hook text variations
+- (P1) Character-driven auto-share prompts
+- (P2) Remix Variants on share pages
+- (P2) Story Chain leaderboard
+- (P2) General UI polish
+
+## Key Files
+- `/app/frontend/src/pages/DailyViralIdeas.js` — Feed, Progress, Result views
+- `/app/frontend/src/pages/ViralPackShare.js` — Teaser-first share page
+- `/app/backend/routes/viral_ideas_v2.py` — Fallback ideas, feed, generation
+- `/app/backend/services/viral/workers/*.py` — 7 worker nodes
+
+## Credentials
+- Test: `test@visionary-suite.com` / `Test@2026#`
+- Admin: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`

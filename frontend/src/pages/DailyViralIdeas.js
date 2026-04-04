@@ -773,6 +773,8 @@ const DailyViralIdeas = () => {
       });
       const data = await res.json();
       if (res.ok && data.job_id) {
+        setActiveIdea(idea);
+        setActiveNiche(niche);
         setActiveJobId(data.job_id);
         setView('progress');
         toast.success('Content pack generation started!');
@@ -830,7 +832,7 @@ const DailyViralIdeas = () => {
 
         {/* View Router */}
         {view === 'feed' && <FeedView onGenerate={handleGenerate} generating={generating} />}
-        {view === 'progress' && activeJobId && <ProgressView jobId={activeJobId} onComplete={handleJobComplete} />}
+        {view === 'progress' && activeJobId && <ProgressView jobId={activeJobId} onComplete={handleJobComplete} ideaText={activeIdea} ideaNiche={activeNiche} />}
         {view === 'result' && activeJobId && <ResultView jobId={activeJobId} />}
       </div>
     </div>
