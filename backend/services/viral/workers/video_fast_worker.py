@@ -140,7 +140,7 @@ def _compose_video_sync(thumb_path: str, hook_text: str, niche: str, job_id: str
             logger.warning(f"[VIDEO] Text overlay failed, using image only: {text_err}")
             final = img_clip.resized((target_w, target_h))
 
-        # Write to temp file
+        # Write to temp file via moviepy
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
             tmp_path = tmp.name
 
@@ -152,12 +152,34 @@ def _compose_video_sync(thumb_path: str, hook_text: str, niche: str, job_id: str
             preset="ultrafast",
             logger=None,
         )
+        final.close()
 
-        with open(tmp_path, "rb") as f:
-            video_bytes = f.read()
+        # Re-encode with system ffmpeg for maximum browser compatibility
+        # (moviepy's bundled ffmpeg can produce files some browsers reject)
+        import subprocess
+        web_path = tmp_path + "_web.mp4"
+        reencode = subprocess.run([
+            "/usr/bin/ffmpeg", "-y", "-i", tmp_path,
+            "-c:v", "libx264",
+            "-profile:v", "baseline", "-level", "3.0",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-preset", "ultrafast",
+            "-an",
+            web_path,
+        ], capture_output=True, text=True, timeout=60)
+
+        if reencode.returncode == 0 and os.path.exists(web_path):
+            logger.info("[VIDEO] Re-encoded with system ffmpeg for web compat")
+            with open(web_path, "rb") as f:
+                video_bytes = f.read()
+            os.unlink(web_path)
+        else:
+            logger.warning(f"[VIDEO] System ffmpeg re-encode failed, using moviepy output: {reencode.stderr[:200]}")
+            with open(tmp_path, "rb") as f:
+                video_bytes = f.read()
 
         os.unlink(tmp_path)
-        final.close()
         return video_bytes
 
     except Exception as e:

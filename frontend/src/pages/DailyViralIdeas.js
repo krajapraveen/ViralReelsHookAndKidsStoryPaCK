@@ -580,34 +580,20 @@ const ResultView = ({ jobId }) => {
 
       {/* Video */}
       {video?.file_url && (
-        <div className={`bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden ${isLocked ? 'opacity-60' : ''}`} data-testid="asset-video">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Video className="w-4 h-4 text-rose-400" />
-              <span className="text-sm font-semibold text-white">Social Video</span>
-              {isLocked && <Lock className="w-3 h-3 text-orange-400" />}
-            </div>
-            {!isLocked && <button onClick={() => downloadFile(video.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>}
-          </div>
-          <div className="p-4 relative">
-            <video controls={!isLocked} className="w-full max-w-md mx-auto rounded-xl" src={getAssetUrl(video.file_url)} style={isLocked ? {filter: 'blur(4px)'} : {}} />
-            {isLocked && <div className="absolute inset-0 flex items-center justify-center"><Lock className="w-8 h-8 text-orange-400/60" /></div>}
-          </div>
-        </div>
+        <VideoAsset
+          url={getAssetUrl(video.file_url)}
+          isLocked={isLocked}
+          onDownload={() => downloadFile(video.file_url)}
+        />
       )}
 
       {/* Thumbnail */}
       {thumbnail?.file_url && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-thumbnail">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2"><Image className="w-4 h-4 text-violet-400" /><span className="text-sm font-semibold text-white">Thumbnail</span></div>
-            {!isLocked && <button onClick={() => downloadFile(thumbnail.file_url)} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>}
-          </div>
-          <div className="p-4 relative">
-            <img src={getAssetUrl(thumbnail.file_url)} alt="Thumbnail" className="w-full max-w-xs mx-auto rounded-xl" style={isLocked ? {filter: 'blur(3px) brightness(0.7)'} : {}} />
-            {isLocked && <div className="absolute inset-4 flex items-center justify-center text-orange-400/40 text-4xl font-black tracking-widest select-none">PREVIEW</div>}
-          </div>
-        </div>
+        <ThumbnailAsset
+          url={getAssetUrl(thumbnail.file_url)}
+          isLocked={isLocked}
+          onDownload={() => downloadFile(thumbnail.file_url)}
+        />
       )}
 
       {/* Voiceover */}
@@ -744,6 +730,140 @@ const AssetCard = ({ icon, title, content, onCopy, copied, locked }) => (
     </div>
   </div>
 );
+
+// ==================== VIDEO ASSET (with error handling) ====================
+const VideoAsset = ({ url, isLocked, onDownload }) => {
+  const [videoError, setVideoError] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const videoRef = useRef(null);
+
+  const handleRetry = () => {
+    setRetrying(true);
+    setVideoError(false);
+    if (videoRef.current) {
+      videoRef.current.src = url + '?t=' + Date.now();
+      videoRef.current.load();
+    }
+    setTimeout(() => setRetrying(false), 2000);
+  };
+
+  return (
+    <div className={`bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden ${isLocked ? 'opacity-60' : ''}`} data-testid="asset-video">
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Video className="w-4 h-4 text-rose-400" />
+          <span className="text-sm font-semibold text-white">Social Video</span>
+          {isLocked && <Lock className="w-3 h-3 text-orange-400" />}
+        </div>
+        {!isLocked && (
+          <button onClick={onDownload} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1" data-testid="download-video-btn">
+            <Download className="w-3 h-3" /> Download
+          </button>
+        )}
+      </div>
+      <div className="p-4 relative">
+        {videoError ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="video-error-fallback">
+            <Video className="w-10 h-10 text-slate-600 mb-3" />
+            <p className="text-sm text-slate-400 mb-1">Video preview unavailable</p>
+            <p className="text-xs text-slate-600 mb-3">Your video is ready — download to view</p>
+            <div className="flex gap-2">
+              <button onClick={handleRetry} disabled={retrying} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors flex items-center gap-1" data-testid="retry-video-btn">
+                <RefreshCw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} /> Retry
+              </button>
+              {!isLocked && (
+                <button onClick={onDownload} className="px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1" data-testid="download-video-fallback-btn">
+                  <Download className="w-3 h-3" /> Download MP4
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            <video
+              ref={videoRef}
+              controls={!isLocked}
+              className="w-full max-w-md mx-auto rounded-xl"
+              src={url}
+              style={isLocked ? { filter: 'blur(4px)' } : {}}
+              onError={() => setVideoError(true)}
+              preload="metadata"
+              playsInline
+              data-testid="video-player"
+            />
+            {isLocked && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Lock className="w-8 h-8 text-orange-400/60" />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ==================== THUMBNAIL ASSET (with error handling) ====================
+const ThumbnailAsset = ({ url, isLocked, onDownload }) => {
+  const [imgError, setImgError] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const handleRetry = () => {
+    setRetrying(true);
+    setImgError(false);
+    setTimeout(() => setRetrying(false), 2000);
+  };
+
+  return (
+    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden" data-testid="asset-thumbnail">
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Image className="w-4 h-4 text-violet-400" />
+          <span className="text-sm font-semibold text-white">Thumbnail</span>
+        </div>
+        {!isLocked && (
+          <button onClick={onDownload} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1" data-testid="download-thumbnail-btn">
+            <Download className="w-3 h-3" /> Download
+          </button>
+        )}
+      </div>
+      <div className="p-4 relative">
+        {imgError ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="thumbnail-error-fallback">
+            <Image className="w-10 h-10 text-slate-600 mb-3" />
+            <p className="text-sm text-slate-400 mb-1">Thumbnail preview unavailable</p>
+            <p className="text-xs text-slate-600 mb-3">Download to view the full image</p>
+            <div className="flex gap-2">
+              <button onClick={handleRetry} disabled={retrying} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors flex items-center gap-1" data-testid="retry-thumbnail-btn">
+                <RefreshCw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} /> Retry
+              </button>
+              {!isLocked && (
+                <button onClick={onDownload} className="px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1" data-testid="download-thumbnail-fallback-btn">
+                  <Download className="w-3 h-3" /> Download Image
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            <img
+              src={imgError ? '' : (retrying ? url + '?t=' + Date.now() : url)}
+              alt="Thumbnail"
+              className="w-full max-w-xs mx-auto rounded-xl"
+              style={isLocked ? { filter: 'blur(3px) brightness(0.7)' } : {}}
+              onError={() => setImgError(true)}
+              data-testid="thumbnail-image"
+            />
+            {isLocked && (
+              <div className="absolute inset-4 flex items-center justify-center text-orange-400/40 text-4xl font-black tracking-widest select-none">PREVIEW</div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 // ==================== MAIN PAGE ====================
 const DailyViralIdeas = () => {

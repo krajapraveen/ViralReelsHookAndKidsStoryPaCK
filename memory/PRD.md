@@ -37,8 +37,14 @@ Build a "Growth Engine" / "Daily Viral Idea Drop" — a queue-driven AI content 
 ### P0 Fix: Generation Blank Screen Bug (DONE — April 4, 2026)
 - **Root cause**: `handleGenerate` never set `activeIdea`/`activeNiche` state, and `ProgressView` wasn't receiving idea context props
 - **Fix**: Added `setActiveIdea(idea)` and `setActiveNiche(niche)` calls in `handleGenerate`, passed `ideaText`/`ideaNiche` props to `ProgressView`
-- **ProgressView rewrite** (by previous agent): Full skeleton UI with idea context, progress circle, task list, partial asset preview, timeout recovery, and back navigation
-- **Verified**: Full flow Feed → Generate → Progress → Result works end-to-end with all 7 task types completing
+- **Verified**: Full flow Feed → Generate → Progress → Result works end-to-end
+
+### P0 Fix: Broken Video & Thumbnail on Result Page (DONE — April 4, 2026)
+- **Root cause (video)**: moviepy's bundled ffmpeg v7.0.2 produced MP4 files that some browsers rejected (wrong encoder version, moov atom at end of file)
+- **Fix (video worker)**: Added post-processing step using system ffmpeg to re-encode with `-profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart` for maximum browser compatibility
+- **Fix (frontend)**: Added `VideoAsset` and `ThumbnailAsset` components with `onError` handlers that show graceful fallback UI (Retry + Download MP4/Image buttons) instead of broken media elements
+- **Retroactive fix**: Re-encoded ALL existing video files with system ffmpeg
+- **Verified**: Thumbnail renders, video fallback UI works, all 6 asset types display correctly
 
 ## User Mandate
 - Optimizing strictly for Growth and Conversion
@@ -56,10 +62,11 @@ Build a "Growth Engine" / "Daily Viral Idea Drop" — a queue-driven AI content 
 - (P2) General UI polish
 
 ## Key Files
-- `/app/frontend/src/pages/DailyViralIdeas.js` — Feed, Progress, Result views
+- `/app/frontend/src/pages/DailyViralIdeas.js` — Feed, Progress, Result views (VideoAsset, ThumbnailAsset components)
 - `/app/frontend/src/pages/ViralPackShare.js` — Teaser-first share page
 - `/app/backend/routes/viral_ideas_v2.py` — Fallback ideas, feed, generation
-- `/app/backend/services/viral/workers/*.py` — 7 worker nodes
+- `/app/backend/services/viral/workers/video_fast_worker.py` — Video worker with system ffmpeg re-encode
+- `/app/backend/services/viral/workers/*.py` — Other workers
 
 ## Credentials
 - Test: `test@visionary-suite.com` / `Test@2026#`
