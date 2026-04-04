@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import MediaSecurityDashboard from './pages/Admin/MediaSecurityDashboard';
 import AdminLayout from './components/AdminLayout';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { CreditProvider } from './contexts/CreditContext';
@@ -278,6 +279,7 @@ function App() {
         <Route path="ga4-tester" element={<GA4EventTester />} />
         <Route path="growth" element={<GrowthDashboard />} />
         <Route path="production-metrics" element={<ProductionMetrics />} />
+        <Route path="media-security" element={<MediaSecurityDashboard />} />
         <Route path="content-engine" element={<ContentEngine />} />
       </Route>
       <Route path="/app/feature-requests" element={isAuthenticated ? <FeatureRequests /> : <Navigate to="/login" />} />
