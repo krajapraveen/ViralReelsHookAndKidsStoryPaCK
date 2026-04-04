@@ -71,7 +71,7 @@ const AUTO_RESPONSES = {
     suggestions: ["How to get more credits?", "Pricing plans"]
   },
   "pricing plans": {
-    message: "Our flexible pricing:\n\nSubscriptions:\n- Weekly: ₹199 (50 credits)\n- Monthly: ₹699 (200 credits)\n- Quarterly: ₹1999 (500 credits) - 35% off!\n- Yearly: ₹5999 (2500 credits) - 50% off!\n\nCredit Packs:\n- Starter: ₹499 (100 credits)\n- Creator: ₹999 (300 credits)\n- Pro: ₹2499 (1000 credits)",
+    message: "Our flexible pricing:\n\nSubscriptions:\n- Weekly: ₹149 (40 credits)\n- Monthly: ₹499 (200 credits)\n- Quarterly: ₹1,199 (750 credits)\n- Yearly: ₹3,999 (3,000 credits) - Best value!\n\nCredit Top-Ups:\n- ₹99 → 40 credits\n- ₹249 → 120 credits\n- ₹499 → 300 credits\n- ₹999 → 700 credits",
     link: { text: "Subscribe Now", url: "/app/billing" },
     suggestions: ["What are credits?", "How do I get started?"]
   },

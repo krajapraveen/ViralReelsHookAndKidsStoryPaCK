@@ -81,16 +81,12 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Cashfree initialization error: {e}")
 
-# Product definitions - Cashfree Only
-PRODUCTS = {
-    # Subscription Plans (Monthly)
-    "creator_monthly": {"name": "Creator", "credits": 100, "price": 749, "priceUsd": 9, "popular": False, "period": "monthly", "savings": "", "features": ["5 Story Videos/mo", "All animation styles", "Priority rendering"]},
-    "pro_monthly": {"name": "Pro", "credits": 250, "price": 1599, "priceUsd": 19, "popular": True, "period": "monthly", "savings": "Save 20%", "features": ["12+ Story Videos/mo", "All animation styles", "Priority rendering", "No watermark", "Gallery featured"]},
-    # Credit Top-Up Packs (One-Time)
-    "topup_small": {"name": "50 Credits", "credits": 50, "price": 399, "priceUsd": 5, "popular": False},
-    "topup_medium": {"name": "150 Credits", "credits": 150, "price": 999, "priceUsd": 12, "popular": True},
-    "topup_large": {"name": "500 Credits", "credits": 500, "price": 2499, "priceUsd": 30, "popular": False},
-}
+# Product definitions — Single source of truth
+from config.pricing import (
+    ALL_PRODUCTS, SUBSCRIPTION_PLANS, TOPUP_PACKS,
+    get_product, get_price, ORDER_STATES, can_transition,
+)
+PRODUCTS = ALL_PRODUCTS
 
 def detect_currency_from_request(request: Request) -> str:
     """Detect user's currency from request headers — India=INR, else USD"""
@@ -103,10 +99,8 @@ def detect_currency_from_request(request: Request) -> str:
     return "INR" if country == "IN" else "USD"
 
 def get_product_price(product: dict, currency: str) -> float:
-    """Return product price in the requested currency"""
-    if currency == "INR":
-        return float(product["price"])
-    return float(product.get("priceUsd", product["price"]))
+    """Return product price — always INR for now."""
+    return float(product.get("price_inr", 0))
 
 # Pydantic Models
 class CashfreeOrderRequest(BaseModel):
@@ -156,16 +150,24 @@ async def get_payment_monitoring_health(user: dict = Depends(get_admin_user)):
 
 @router.get("/products")
 async def get_cashfree_products(request: Request):
-    """Get available products with geo-detected pricing"""
-    currency = detect_currency_from_request(request)
-    symbol = "₹" if currency == "INR" else "$"
+    """Get available products with pricing from single source of truth"""
+    currency = "INR"
+    symbol = "₹"
     products_with_geo = {}
     for pid, p in PRODUCTS.items():
         products_with_geo[pid] = {
-            **p,
-            "displayPrice": get_product_price(p, currency),
+            "id": pid,
+            "name": p["name"],
+            "credits": p["credits"],
+            "displayPrice": p["price_inr"],
             "displayCurrency": currency,
             "displaySymbol": symbol,
+            "type": p.get("type", "topup"),
+            "features": p.get("features", []),
+            "badge": p.get("badge"),
+            "popular": p.get("popular", False),
+            "period": p.get("period"),
+            "duration_days": p.get("duration_days"),
         }
     return {
         "products": products_with_geo,
@@ -213,9 +215,8 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         # Generate unique order ID
         order_id = f"cf_order_{user['id'][:8]}_{int(datetime.now().timestamp() * 1000)}"
         
-        # Calculate amount based on geo-detected currency
-        detected_currency = detect_currency_from_request(request)
-        order_currency = data.currency.upper() if data.currency else detected_currency
+        # Calculate amount — always INR
+        order_currency = "INR"
         amount = get_product_price(product, order_currency)
         
         # Create customer details
@@ -256,15 +257,19 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
                 "userEmail": user.get("email", ""),
                 "productId": data.productId,
                 "productName": product["name"],
-                "amount": int(amount * 100),  # Store in paise/cents
+                "productType": product.get("type", "topup"),
+                "amount": int(amount * 100),
+                "displayAmount": amount,
                 "currency": order_currency,
                 "credits": product["credits"],
                 "gateway": "cashfree",
                 "cf_order_id": response.data.cf_order_id,
                 "order_id": response.data.order_id,
                 "payment_session_id": response.data.payment_session_id,
-                "status": "PENDING",
-                "createdAt": datetime.now(timezone.utc).isoformat()
+                "status": "CREATED",
+                "statusHistory": [{"status": "CREATED", "at": datetime.now(timezone.utc).isoformat()}],
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "entitlementApplied": False,
             }
             await db.orders.insert_one(order)
             
@@ -432,7 +437,7 @@ async def cashfree_webhook(request: Request):
         webhook_data = {}
         try:
             webhook_data = json.loads(body_str) if body_str else {}
-        except:
+        except Exception:
             webhook_data = {}
         
         event_type = webhook_data.get("type", "")

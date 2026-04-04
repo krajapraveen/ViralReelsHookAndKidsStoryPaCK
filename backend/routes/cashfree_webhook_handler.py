@@ -112,19 +112,32 @@ class WebhookProcessor:
     
     @staticmethod
     async def process_payment_success(order_id: str, payment_data: dict) -> dict:
-        """Process successful payment"""
+        """Process successful payment — idempotent, state-machine enforced."""
         order = await db.orders.find_one({"order_id": order_id, "gateway": "cashfree"}, {"_id": 0})
         
         if not order:
             return {"status": "ERROR", "message": f"Order not found: {order_id}"}
         
-        # Already processed
-        if order["status"] == "PAID":
-            return {"status": "DUPLICATE", "message": "Payment already processed"}
+        current_status = order.get("status", "CREATED")
         
-        # Add credits
+        # Already fully processed — idempotent return, no double-credit
+        if current_status in ("PAID", "CREDIT_APPLIED", "SUBSCRIPTION_ACTIVATED"):
+            logger.info(f"Duplicate payment success ignored: order={order_id}, status={current_status}")
+            return {"status": "DUPLICATE", "message": "Payment already processed — no duplicate action taken"}
+        
+        # Mark payment as SUCCESS first
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await db.orders.update_one(
+            {"order_id": order_id},
+            {
+                "$set": {"status": "SUCCESS", "paidAt": now_iso, "paymentDetails": payment_data},
+                "$push": {"statusHistory": {"status": "SUCCESS", "at": now_iso}},
+            }
+        )
+        
         credits_to_add = order.get("credits", 0)
         user_id = order.get("userId")
+        product_type = order.get("productType", "topup")
         
         if not user_id or credits_to_add <= 0:
             return {"status": "ERROR", "message": "Invalid order data"}
@@ -138,29 +151,52 @@ class WebhookProcessor:
                 order_id=order_id
             )
             
-            # Update order status
+            # Determine final state based on product type
+            if product_type == "subscription":
+                final_status = "SUBSCRIPTION_ACTIVATED"
+                product_id = order.get("productId", "")
+                from config.pricing import SUBSCRIPTION_PLANS
+                plan = SUBSCRIPTION_PLANS.get(product_id, {})
+                duration_days = plan.get("duration_days", 30)
+                
+                await db.users.update_one(
+                    {"id": user_id},
+                    {"$set": {
+                        "subscription": {
+                            "planId": product_id,
+                            "planName": order.get("productName", ""),
+                            "status": "active",
+                            "startDate": now_iso,
+                            "endDate": (datetime.now(timezone.utc) + timedelta(days=duration_days)).isoformat(),
+                            "orderId": order_id,
+                        }
+                    }}
+                )
+            else:
+                final_status = "CREDIT_APPLIED"
+            
             await db.orders.update_one(
                 {"order_id": order_id},
                 {
-                    "$set": {
-                        "status": "PAID",
-                        "paidAt": datetime.now(timezone.utc).isoformat(),
-                        "paymentDetails": payment_data
-                    }
+                    "$set": {"status": final_status, "entitlementApplied": True, "entitlementAppliedAt": now_iso},
+                    "$push": {"statusHistory": {"status": final_status, "at": now_iso}},
                 }
             )
             
-            logger.info(f"Payment success processed: order={order_id}, credits={credits_to_add}, new_balance={new_balance}")
-            
-            return {
-                "status": "SUCCESS",
-                "message": f"Added {credits_to_add} credits",
-                "newBalance": new_balance
-            }
+            logger.info(f"Payment success: order={order_id}, status={final_status}, credits={credits_to_add}, balance={new_balance}")
+            return {"status": "SUCCESS", "message": f"Added {credits_to_add} credits", "newBalance": new_balance}
         
         except Exception as e:
-            logger.error(f"Error processing payment success: {e}")
-            return {"status": "ERROR", "message": str(e)}
+            # Payment succeeded but entitlement failed — mark for recovery
+            logger.error(f"Entitlement failed: order={order_id}, error={e}")
+            await db.orders.update_one(
+                {"order_id": order_id},
+                {
+                    "$set": {"status": "RECOVERY_REQUIRED", "recoveryError": str(e)},
+                    "$push": {"statusHistory": {"status": "RECOVERY_REQUIRED", "at": now_iso}},
+                }
+            )
+            return {"status": "RECOVERY_REQUIRED", "message": f"Payment succeeded but credit application failed: {e}"}
     
     @staticmethod
     async def process_payment_failed(order_id: str, failure_data: dict) -> dict:

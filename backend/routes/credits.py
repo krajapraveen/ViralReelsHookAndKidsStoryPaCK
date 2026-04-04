@@ -16,12 +16,19 @@ from shared import db, get_current_user
 router = APIRouter(prefix="/credits", tags=["Credits"])
 
 
-# Credit packages configuration
+# Credit packages — from single source of truth
+from config.pricing import TOPUP_PACKS
+
 CREDIT_PACKAGES = [
-    {"id": "starter", "name": "Starter Pack", "credits": 100, "price": 4.99, "currency": "USD", "popular": False},
-    {"id": "basic", "name": "Basic Pack", "credits": 500, "price": 19.99, "currency": "USD", "popular": True},
-    {"id": "pro", "name": "Pro Pack", "credits": 1500, "price": 49.99, "currency": "USD", "popular": False},
-    {"id": "ultimate", "name": "Ultimate Pack", "credits": 5000, "price": 149.99, "currency": "USD", "popular": False},
+    {
+        "id": p["id"],
+        "name": p["name"],
+        "credits": p["credits"],
+        "price": p["price_inr"],
+        "currency": "INR",
+        "popular": p.get("popular", False),
+    }
+    for p in TOPUP_PACKS.values()
 ]
 
 

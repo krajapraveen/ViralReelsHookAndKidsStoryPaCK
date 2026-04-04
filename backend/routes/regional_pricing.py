@@ -17,75 +17,29 @@ from shared import db, logger, get_current_user
 router = APIRouter(prefix="/pricing", tags=["Regional Pricing"])
 
 # =============================================================================
-# PRICING CONFIGURATION
+# PRICING — from single source of truth
 # =============================================================================
+
+from config.pricing import SUBSCRIPTION_PLANS as CANONICAL_PLANS, TOPUP_PACKS
 
 SUBSCRIPTION_PLANS = {
     "INR": {
         "currency": "INR",
         "symbol": "₹",
         "plans": {
-            "weekly": {
-                "price": 99,
-                "credits": 30,
-                "totalActions": 10,
-                "features": ["10 total actions/week", "Basic support", "Standard processing"],
-                "badge": None
-            },
-            "monthly": {
-                "price": 299,
-                "credits": 100,
-                "totalActions": 60,
-                "features": ["60 total actions/month", "Basic add-ons included", "Email support"],
-                "badge": "BEST CONVERSION"
-            },
-            "quarterly": {
-                "price": 699,
-                "credits": 350,
-                "totalActions": 220,
-                "features": ["220 total actions/quarter", "Priority processing", "All add-ons included", "Priority support"],
-                "badge": "BEST VALUE",
-                "savings": "Save ₹198 vs monthly"
+            pid: {
+                "price": p["price_inr"],
+                "credits": p["credits"],
+                "features": p["features"],
+                "badge": p.get("badge"),
+                "duration_days": p["duration_days"],
             }
+            for pid, p in CANONICAL_PLANS.items()
         },
         "topups": [
-            {"credits": 30, "price": 149, "popular": False},
-            {"credits": 70, "price": 299, "popular": True},
-            {"credits": 140, "price": 499, "popular": False}
-        ]
-    },
-    "USD": {
-        "currency": "USD",
-        "symbol": "$",
-        "plans": {
-            "weekly": {
-                "price": 4.99,
-                "credits": 30,
-                "totalActions": 10,
-                "features": ["10 total actions/week", "Basic support", "Standard processing"],
-                "badge": None
-            },
-            "monthly": {
-                "price": 9.99,
-                "credits": 100,
-                "totalActions": 60,
-                "features": ["60 total actions/month", "Basic add-ons included", "Email support"],
-                "badge": "MOST POPULAR"
-            },
-            "quarterly": {
-                "price": 24.99,
-                "credits": 350,
-                "totalActions": 220,
-                "features": ["220 total actions/quarter", "Priority processing", "All add-ons included", "Priority support"],
-                "badge": "BEST VALUE",
-                "savings": "Save $4.98 vs monthly"
-            }
-        },
-        "topups": [
-            {"credits": 30, "price": 4.99, "popular": False},
-            {"credits": 70, "price": 9.99, "popular": True},
-            {"credits": 140, "price": 14.99, "popular": False}
-        ]
+            {"id": p["id"], "credits": p["credits"], "price": p["price_inr"], "popular": p.get("popular", False)}
+            for p in TOPUP_PACKS.values()
+        ],
     }
 }
 
@@ -154,11 +108,11 @@ def detect_region_from_request(request: Request) -> str:
         elif "en-US" in accept_lang or "en-us" in accept_lang:
             country = "US"
     
-    # Default to USD
+    # Default to IN
     if not country:
-        country = "US"
+        country = "IN"
     
-    return COUNTRY_CURRENCY_MAP.get(country, "USD")
+    return COUNTRY_CURRENCY_MAP.get(country, "INR")
 
 
 # =============================================================================
@@ -172,7 +126,7 @@ async def get_pricing_plans(request: Request, currency: Optional[str] = None):
     region_currency = currency or detect_region_from_request(request)
     
     if region_currency not in SUBSCRIPTION_PLANS:
-        region_currency = "USD"
+        region_currency = "INR"
     
     pricing_data = SUBSCRIPTION_PLANS[region_currency]
     
@@ -191,7 +145,7 @@ async def get_topup_options(request: Request, currency: Optional[str] = None):
     region_currency = currency or detect_region_from_request(request)
     
     if region_currency not in SUBSCRIPTION_PLANS:
-        region_currency = "USD"
+        region_currency = "INR"
     
     pricing_data = SUBSCRIPTION_PLANS[region_currency]
     

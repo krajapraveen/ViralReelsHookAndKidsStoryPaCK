@@ -68,6 +68,7 @@ export default function SubscriptionManagement() {
   };
 
   const handleSubscribe = async (planKey) => {
+    if (actionLoading) return;
     setActionLoading(true);
     try {
       const res = await api.post('/api/subscriptions/recurring/create', {
@@ -84,30 +85,47 @@ export default function SubscriptionManagement() {
             redirectTarget: "_modal"
           }).then(async (result) => {
             if (result.error) {
-              toast.error('Payment failed: ' + result.error.message);
+              if (result.error.message?.includes('cancel') || result.error.message?.includes('closed')) {
+                toast.info('Payment was cancelled. No credits were deducted.');
+              } else {
+                toast.error(`Your payment did not complete. Please try again. (${result.error.message || 'Unknown error'})`);
+              }
             } else if (result.paymentDetails) {
               try {
                 const verifyRes = await api.post('/api/subscriptions/recurring/verify', {
                   order_id: res.data.orderId
                 });
                 if (verifyRes.data.success) {
-                  toast.success(`${verifyRes.data.plan} plan activated! ${verifyRes.data.creditsAdded} credits added.`);
+                  toast.success(`Your subscription was activated! ${verifyRes.data.creditsAdded} credits added to your account.`);
                   fetchData();
                 } else {
-                  toast.info(verifyRes.data.message || 'Payment is being processed');
+                  toast.info(verifyRes.data.message || 'We could not confirm your payment yet. Please wait a moment or refresh your billing page.');
                 }
               } catch (e) {
-                toast.error('Payment verification failed. Please contact support.');
+                toast.warning('Payment succeeded, but credits are still syncing. We are retrying automatically. Please refresh in a moment.');
               }
+            } else {
+              toast.info('Payment was cancelled. No credits were deducted.');
             }
+          }).catch(() => {
+            toast.info('Payment window was closed. No charges were made.');
           });
+        } else {
+          toast.error('We are unable to reach the payment server right now. Please try again in a few minutes.');
         }
       } else {
-        toast.error(res.data?.detail || res.data?.message || 'Failed to create payment');
+        toast.error(res.data?.detail || res.data?.message || 'Failed to create payment session. Please try again.');
       }
     } catch (error) {
+      const status = error.response?.status;
       const detail = error.response?.data?.detail;
-      toast.error(detail || 'Failed to create subscription');
+      if (status === 503) {
+        toast.error('The payment service is temporarily unavailable. Please try again in a few minutes.');
+      } else if (status === 429) {
+        toast.error('Too many payment attempts. Please wait a moment before trying again.');
+      } else {
+        toast.error(detail || 'Could not initiate payment. Please check your connection and try again.');
+      }
     } finally {
       setActionLoading(false);
     }
@@ -133,6 +151,7 @@ export default function SubscriptionManagement() {
   };
 
   const handleChangePlan = async (newPlanKey) => {
+    if (actionLoading) return;
     if (!confirm(`Are you sure you want to change to the ${newPlanKey} plan?`)) {
       return;
     }
@@ -151,7 +170,11 @@ export default function SubscriptionManagement() {
             redirectTarget: "_modal"
           }).then(async (result) => {
             if (result.error) {
-              toast.error('Payment failed: ' + result.error.message);
+              if (result.error.message?.includes('cancel') || result.error.message?.includes('closed')) {
+                toast.info('Plan change was cancelled. Your current plan remains active.');
+              } else {
+                toast.error(`Plan change payment did not complete. Please try again.`);
+              }
             } else if (result.paymentDetails) {
               try {
                 const verifyRes = await api.post('/api/subscriptions/recurring/verify', {
@@ -161,19 +184,28 @@ export default function SubscriptionManagement() {
                   toast.success(`Plan changed to ${verifyRes.data.plan}! ${verifyRes.data.creditsAdded} credits added.`);
                   fetchData();
                 } else {
-                  toast.info(verifyRes.data.message || 'Payment is being processed');
+                  toast.info(verifyRes.data.message || 'Plan change is being processed. Please refresh in a moment.');
                 }
               } catch (e) {
-                toast.error('Payment verification failed. Please contact support.');
+                toast.warning('Payment succeeded, but plan update is still syncing. Please refresh your billing page.');
               }
+            } else {
+              toast.info('Plan change was cancelled. Your current plan remains active.');
             }
+          }).catch(() => {
+            toast.info('Payment window was closed. No changes were made.');
           });
+        } else {
+          toast.error('We are unable to reach the payment server right now. Please try again in a few minutes.');
         }
+      } else if (res.data.success) {
+        toast.success(res.data.message || 'Plan changed successfully');
+        fetchData();
       } else {
-        toast.error('Failed to initiate plan change');
+        toast.error(res.data?.detail || 'Failed to change plan. Please try again.');
       }
     } catch (error) {
-      toast.error('Failed to change plan');
+      toast.error(error.response?.data?.detail || 'Could not process plan change. Please try again.');
     } finally {
       setActionLoading(false);
     }

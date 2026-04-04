@@ -1,56 +1,37 @@
 /**
- * Geo-based currency detection and pricing config.
- * India users see INR, everyone else sees USD.
+ * Pricing config — Single source of truth for frontend.
+ * Must match backend config/pricing.py exactly.
  */
 
 const PRICING = {
   INR: {
     symbol: '₹',
     code: 'INR',
-    creator: { price: 699, credits: 300, label: '₹699/month' },
-    pro: { price: 1299, credits: 1000, label: '₹1,299/month' },
-    topup: { price: 299, credits: 150, label: '₹299' },
-    topupDesc: '150 credits from ₹299',
-    subscribeDesc: '300 credits/mo + priority rendering',
-  },
-  USD: {
-    symbol: '$',
-    code: 'USD',
-    creator: { price: 9, credits: 100, label: '$9/month' },
-    pro: { price: 19, credits: 250, label: '$19/month' },
-    topup: { price: 5, credits: 50, label: '$5' },
-    topupDesc: '50 credits from $5',
-    subscribeDesc: '100 credits/mo + priority rendering',
+    weekly: { price: 149, credits: 40, label: '₹149/week' },
+    monthly: { price: 499, credits: 200, label: '₹499/month' },
+    quarterly: { price: 1199, credits: 750, label: '₹1,199/quarter' },
+    yearly: { price: 3999, credits: 3000, label: '₹3,999/year' },
+    topups: [
+      { id: 'topup_40', price: 99, credits: 40, label: '₹99' },
+      { id: 'topup_120', price: 249, credits: 120, label: '₹249' },
+      { id: 'topup_300', price: 499, credits: 300, label: '₹499', popular: true },
+      { id: 'topup_700', price: 999, credits: 700, label: '₹999' },
+    ],
+    topupDesc: '40 credits from ₹99',
+    subscribeDesc: '200 credits/mo + priority generation + HD downloads',
   },
 };
 
-function detectCountry() {
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    if (tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta') return 'IN';
-    const lang = navigator.language || '';
-    if (lang.endsWith('-IN') || lang === 'hi') return 'IN';
-  } catch {}
-  return 'OTHER';
-}
-
 export function getCurrency() {
-  const cached = sessionStorage.getItem('vs_currency');
-  if (cached && PRICING[cached]) return cached;
-  const country = detectCountry();
-  const currency = country === 'IN' ? 'INR' : 'USD';
-  sessionStorage.setItem('vs_currency', currency);
-  return currency;
+  return 'INR';
 }
 
 export function getPricing() {
-  return PRICING[getCurrency()];
+  return PRICING.INR;
 }
 
-export function formatPrice(amount, currencyCode) {
-  const code = currencyCode || getCurrency();
-  const p = PRICING[code];
-  return `${p.symbol}${amount.toLocaleString()}`;
+export function formatPrice(amount) {
+  return `₹${amount.toLocaleString('en-IN')}`;
 }
 
 export default PRICING;

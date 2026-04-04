@@ -24,37 +24,8 @@ router = APIRouter(prefix="/subscriptions", tags=["Subscription Management"])
 # SUBSCRIPTION PLANS
 # =============================================================================
 
-SUBSCRIPTION_PLANS = {
-    "weekly": {
-        "id": "weekly",
-        "name": "Weekly Plan",
-        "duration_days": 7,
-        "credits": 30,
-        "price_inr": 99,
-        "price_usd": 4.99,
-        "features": ["30 credits", "All apps access", "Standard support"]
-    },
-    "monthly": {
-        "id": "monthly",
-        "name": "Monthly Plan",
-        "duration_days": 30,
-        "credits": 100,
-        "price_inr": 299,
-        "price_usd": 9.99,
-        "features": ["100 credits", "All apps access", "Priority support", "Early features"],
-        "badge": "POPULAR"
-    },
-    "quarterly": {
-        "id": "quarterly",
-        "name": "Quarterly Plan",
-        "duration_days": 90,
-        "credits": 350,
-        "price_inr": 699,
-        "price_usd": 24.99,
-        "features": ["350 credits", "All apps access", "VIP support", "Early features", "Bonus credits"],
-        "badge": "BEST VALUE"
-    }
-}
+# Plans from single source of truth
+from config.pricing import SUBSCRIPTION_PLANS, TOPUP_PACKS
 
 
 # =============================================================================
