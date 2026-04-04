@@ -3,7 +3,7 @@ Cashfree Payment Routes - Cashfree Payment Gateway Integration
 CreatorStudio AI Payment Processing with Cashfree
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 import uuid
 import traceback
@@ -207,6 +207,29 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
     if not product:
         raise HTTPException(status_code=400, detail="Invalid product")
     
+    # Prevent duplicate active orders (race condition / double-click)
+    existing_pending = await db.orders.find_one({
+        "userId": user["id"],
+        "productId": data.productId,
+        "gateway": "cashfree",
+        "status": {"$in": ["CREATED", "INITIATED", "PENDING"]},
+    }, {"_id": 0})
+    if existing_pending:
+        # Return existing session instead of creating duplicate
+        existing_session = existing_pending.get("payment_session_id")
+        if existing_session:
+            return {
+                "success": True,
+                "orderId": existing_pending.get("order_id"),
+                "cfOrderId": existing_pending.get("cf_order_id"),
+                "paymentSessionId": existing_session,
+                "amount": existing_pending.get("displayAmount", 0),
+                "currency": existing_pending.get("currency", "INR"),
+                "productName": product["name"],
+                "credits": product["credits"],
+                "environment": CASHFREE_ENVIRONMENT.lower(),
+            }
+    
     try:
         from cashfree_pg.models.create_order_request import CreateOrderRequest
         from cashfree_pg.models.customer_details import CustomerDetails
@@ -327,8 +350,15 @@ async def verify_cashfree_payment(request: Request, data: CashfreeVerifyRequest,
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
         
-        if order["status"] == "PAID":
-            return {"message": "Payment already processed", "credits": user.get("credits", 0)}
+        # Idempotent: if already in a terminal "paid" state, return success without re-crediting
+        terminal_paid_states = ("PAID", "CREDIT_APPLIED", "SUBSCRIPTION_ACTIVATED")
+        if order["status"] in terminal_paid_states:
+            return {
+                "success": True,
+                "message": "Payment already processed",
+                "creditsAdded": order.get("credits", 0),
+                "newBalance": (await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1}) or {}).get("credits", 0),
+            }
         
         # Fetch order status from Cashfree
         api_version = "2023-08-01"
@@ -340,8 +370,21 @@ async def verify_cashfree_payment(request: Request, data: CashfreeVerifyRequest,
         order_status = response.data.order_status
         
         if order_status == "PAID":
+            # Re-check DB status AFTER gateway check (race with webhook)
+            fresh_order = await db.orders.find_one({"order_id": data.order_id}, {"_id": 0, "status": 1})
+            if fresh_order and fresh_order.get("status") in terminal_paid_states:
+                return {
+                    "success": True,
+                    "message": "Payment already processed",
+                    "creditsAdded": order.get("credits", 0),
+                    "newBalance": (await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1}) or {}).get("credits", 0),
+                }
+            
             # Add credits to user
             credits_to_add = order["credits"]
+            product_type = order.get("productType", "topup")
+            now_iso = datetime.now(timezone.utc).isoformat()
+            
             new_balance = await add_credits(
                 user_id=user["id"],
                 amount=credits_to_add,
@@ -350,39 +393,56 @@ async def verify_cashfree_payment(request: Request, data: CashfreeVerifyRequest,
                 order_id=data.order_id
             )
             
-            # Update order status
+            # Determine final state based on product type
+            if product_type == "subscription":
+                final_status = "SUBSCRIPTION_ACTIVATED"
+                from config.pricing import SUBSCRIPTION_PLANS
+                plan = SUBSCRIPTION_PLANS.get(order.get("productId", ""), {})
+                duration_days = plan.get("duration_days", 30)
+                
+                await db.users.update_one(
+                    {"id": user["id"]},
+                    {"$set": {
+                        "subscription": {
+                            "planId": order.get("productId", ""),
+                            "planName": order.get("productName", ""),
+                            "status": "active",
+                            "startDate": now_iso,
+                            "endDate": (datetime.now(timezone.utc) + timedelta(days=duration_days)).isoformat(),
+                            "orderId": data.order_id,
+                        }
+                    }}
+                )
+            else:
+                final_status = "CREDIT_APPLIED"
+            
+            # Update order status with history
             await db.orders.update_one(
-                {"id": order["id"]},
+                {"order_id": data.order_id},
                 {
                     "$set": {
-                        "status": "PAID",
-                        "paidAt": datetime.now(timezone.utc).isoformat()
-                    }
+                        "status": final_status,
+                        "paidAt": now_iso,
+                        "entitlementApplied": True,
+                        "entitlementAppliedAt": now_iso,
+                    },
+                    "$push": {
+                        "statusHistory": {"$each": [
+                            {"status": "SUCCESS", "at": now_iso},
+                            {"status": final_status, "at": now_iso},
+                        ]}
+                    },
                 }
             )
             
-            # Log payment
-            await db.payment_logs.insert_one({
-                "id": str(uuid.uuid4()),
-                "userId": user["id"],
-                "userEmail": user.get("email", ""),
-                "gateway": "cashfree",
-                "orderId": data.order_id,
-                "amount": order["amount"],
-                "currency": order.get("currency", "INR"),
-                "status": "SUCCESS",
-                "productId": order.get("productId", ""),
-                "credits": credits_to_add,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-            
-            logger.info(f"Cashfree payment successful: {data.order_id} - {credits_to_add} credits added to user {user['id']}")
+            logger.info(f"Cashfree verify: {data.order_id} → {final_status}, {credits_to_add} credits added to user {user['id']}")
             
             return {
                 "success": True,
                 "message": "Payment successful",
                 "creditsAdded": credits_to_add,
-                "newBalance": new_balance
+                "newBalance": new_balance,
+                "plan": order.get("productName", "") if product_type == "subscription" else None,
             }
         elif order_status == "ACTIVE":
             return {
@@ -594,9 +654,6 @@ async def get_order_status(
 ):
     """Get the status of a specific order"""
     try:
-        # Get user ID - handle both dict formats
-        user_id = str(current_user.get("_id", current_user.get("id", current_user.get("user_id", ""))))
-        
         # Find order in database (check both collections)
         order = await db.orders.find_one({
             "$or": [

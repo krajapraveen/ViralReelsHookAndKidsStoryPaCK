@@ -1,71 +1,85 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { paymentAPI } from '../utils/api';
 import { toast } from 'sonner';
 import { Check, Sparkles, ArrowLeft, Loader2, Zap, Film, Star } from 'lucide-react';
 import { getPricing } from '../utils/pricing';
 
 export default function Pricing() {
-  const [products, setProducts] = useState({});
   const [loading, setLoading] = useState({});
   const navigate = useNavigate();
-  const pricing = getPricing();
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
-    try {
-      const response = await paymentAPI.getProducts();
-      const data = response.data.products;
-      if (data && typeof data === 'object') {
-        setProducts(data);
-      }
-    } catch {
-      // Not authenticated or API issue, show static pricing
-    }
-  };
+  // Safe pricing access with fallback
+  let pricing;
+  try {
+    pricing = getPricing();
+  } catch {
+    pricing = null;
+  }
 
   const handlePurchase = (productId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      toast.error('Please login to purchase');
+      toast.info('Please sign up or log in to purchase');
       navigate('/login');
       return;
     }
     navigate('/app/billing');
   };
 
-  // Subscription plans (static fallback + dynamic)
+  // Subscription plans from centralized pricing config
   const subscriptionPlans = [
     {
-      id: 'creator_monthly',
-      name: 'Creator',
-      price: `${pricing.symbol}${pricing.creator.price.toLocaleString()}`,
-      priceNote: '/month',
-      credits: pricing.creator.credits,
-      popular: true,
-      features: ['Access to core AI tools', 'All animation styles', 'Priority rendering', 'Email support'],
+      id: 'weekly',
+      name: 'Weekly',
+      price: pricing ? `${pricing.symbol}${pricing.weekly.price.toLocaleString('en-IN')}` : '₹149',
+      priceNote: '/week',
+      credits: pricing?.weekly?.credits ?? 40,
+      features: ['All core tools unlocked', 'Standard support', '40 credits per week'],
     },
     {
-      id: 'pro_monthly',
-      name: 'Pro',
-      price: `${pricing.symbol}${pricing.pro.price.toLocaleString()}`,
+      id: 'monthly',
+      name: 'Monthly',
+      price: pricing ? `${pricing.symbol}${pricing.monthly.price.toLocaleString('en-IN')}` : '₹499',
       priceNote: '/month',
-      credits: pricing.pro.credits,
-      popular: false,
+      credits: pricing?.monthly?.credits ?? 200,
+      popular: true,
+      features: ['All core tools unlocked', 'Priority generation', 'HD downloads', '200 credits per month'],
+    },
+    {
+      id: 'quarterly',
+      name: 'Quarterly',
+      price: pricing ? `${pricing.symbol}${pricing.quarterly.price.toLocaleString('en-IN')}` : '₹1,199',
+      priceNote: '/quarter',
+      credits: pricing?.quarterly?.credits ?? 750,
       badge: 'BEST VALUE',
-      features: ['All tools unlocked', 'HD downloads', 'Priority rendering', 'No watermark', 'Gallery featured', 'Priority support'],
+      features: ['Faster generation queue', 'Bonus styles / packs', 'All core tools unlocked', '750 credits per quarter'],
+    },
+    {
+      id: 'yearly',
+      name: 'Yearly',
+      price: pricing ? `${pricing.symbol}${pricing.yearly.price.toLocaleString('en-IN')}` : '₹3,999',
+      priceNote: '/year',
+      credits: pricing?.yearly?.credits ?? 3000,
+      badge: 'BEST DEAL',
+      features: ['Highest priority', 'Early feature access', 'All core tools unlocked', '3,000 credits per year'],
     },
   ];
 
-  const topUpPacks = [
-    { id: 'topup_small', name: `${pricing.topup.credits} Credits`, price: `${pricing.symbol}${pricing.topup.price.toLocaleString()}`, credits: pricing.topup.credits },
-    { id: 'topup_medium', name: `${pricing.topup.credits * 3} Credits`, price: `${pricing.symbol}${(pricing.topup.price * 2.5).toLocaleString()}`, credits: pricing.topup.credits * 3, popular: true },
-    { id: 'topup_large', name: `${pricing.topup.credits * 8} Credits`, price: `${pricing.symbol}${(pricing.topup.price * 5).toLocaleString()}`, credits: pricing.topup.credits * 8 },
-  ];
+  const topUpPacks = pricing?.topups?.length
+    ? pricing.topups.map(t => ({
+        id: t.id,
+        name: `${t.credits} Credits`,
+        price: `${pricing.symbol}${t.price.toLocaleString('en-IN')}`,
+        credits: t.credits,
+        popular: t.popular || false,
+      }))
+    : [
+        { id: 'topup_40', name: '40 Credits', price: '₹99', credits: 40 },
+        { id: 'topup_120', name: '120 Credits', price: '₹249', credits: 120 },
+        { id: 'topup_300', name: '300 Credits', price: '₹499', credits: 300, popular: true },
+        { id: 'topup_700', name: '700 Credits', price: '₹999', credits: 700 },
+      ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/80 to-slate-950 text-white">
@@ -113,13 +127,15 @@ export default function Pricing() {
           <h2 className="text-2xl font-bold text-white text-center mb-2">Monthly Subscriptions</h2>
           <p className="text-slate-400 text-center mb-8">Best value — credits renew every month</p>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-5xl mx-auto">
             {subscriptionPlans.map((plan) => (
               <div
                 key={plan.id}
-                className={`relative flex flex-col rounded-2xl p-8 transition-all ${
+                className={`relative flex flex-col rounded-2xl p-6 transition-all ${
                   plan.popular
                     ? 'border-2 border-indigo-500/50 bg-indigo-500/[0.05]'
+                    : plan.badge
+                    ? 'border-2 border-amber-500/40 bg-amber-500/[0.03]'
                     : 'border border-white/[0.08] bg-white/[0.02]'
                 }`}
                 data-testid={`plan-${plan.id}`}
@@ -127,16 +143,16 @@ export default function Pricing() {
                 {plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-4 py-1 rounded-full">POPULAR</div>
                 )}
-                {plan.badge && (
+                {plan.badge && !plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-xs font-bold px-4 py-1 rounded-full">{plan.badge}</div>
                 )}
-                <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-4xl font-black text-white">{plan.price}</span>
-                  <span className="text-slate-400">{plan.priceNote}</span>
+                  <span className="text-3xl font-black text-white">{plan.price}</span>
+                  <span className="text-slate-400 text-sm">{plan.priceNote}</span>
                 </div>
-                <p className="text-indigo-300 text-sm mb-6">{plan.credits} credits/month</p>
-                <ul className="space-y-2.5 mb-8 flex-1">
+                <p className="text-indigo-300 text-sm mb-5">{plan.credits.toLocaleString('en-IN')} credits</p>
+                <ul className="space-y-2 mb-6 flex-1">
                   {plan.features.map((f, i) => (
                     <li key={i} className="flex items-center gap-2 text-sm text-slate-300">
                       <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> {f}
@@ -165,7 +181,7 @@ export default function Pricing() {
           <h2 className="text-2xl font-bold text-white text-center mb-2">Credit Top-Ups</h2>
           <p className="text-slate-400 text-center mb-8">One-time purchase — credits never expire</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto">
             {topUpPacks.map((pack) => (
               <div
                 key={pack.id}

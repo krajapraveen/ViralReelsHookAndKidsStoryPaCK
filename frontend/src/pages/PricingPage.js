@@ -13,54 +13,59 @@ const PLANS = [
     id: 'free', name: 'Free', price: 0, period: '',
     icon: Zap, accent: 'border-slate-700',
     features: [
-      '3 generations/day',
-      '1 story series (3 episodes)',
-      'Basic styles',
+      '50 free credits on signup',
+      'All tools unlocked',
       'Watermarked outputs',
       'Standard queue',
     ],
   },
   {
-    id: 'creator', name: 'Creator', price: 499, period: '/mo',
+    id: 'weekly', name: 'Weekly', price: 149, period: '/wk',
+    icon: Zap, accent: 'border-blue-500',
+    features: [
+      '40 credits per week',
+      'All core tools unlocked',
+      'Standard support',
+    ],
+  },
+  {
+    id: 'monthly', name: 'Monthly', price: 499, period: '/mo',
     icon: Star, accent: 'border-indigo-500', badge: 'POPULAR',
     features: [
-      '50 generations/month',
-      '5 story series (15 episodes each)',
-      'Watermark removal',
-      'Full Story Series Engine',
-      'Basic remix + continue loops',
+      '200 credits per month',
+      'All core tools unlocked',
+      'Priority generation',
+      'HD downloads',
     ],
   },
   {
-    id: 'pro', name: 'Pro', price: 999, period: '/mo',
+    id: 'quarterly', name: 'Quarterly', price: 1199, period: '/qtr',
     icon: Crown, accent: 'border-amber-500', badge: 'BEST VALUE',
     features: [
-      '150 generations/month',
-      'Unlimited story series',
-      '30+ episodes per series',
-      'Priority queue',
-      'Advanced styles (cinematic, anime)',
-      'HD export + full branching',
+      '750 credits per quarter',
+      'Faster generation queue',
+      'Bonus styles / packs',
+      'All core tools unlocked',
     ],
   },
   {
-    id: 'elite', name: 'Elite', price: 1999, period: '/mo',
-    icon: Sparkles, accent: 'border-rose-500',
+    id: 'yearly', name: 'Yearly', price: 3999, period: '/yr',
+    icon: Sparkles, accent: 'border-rose-500', badge: 'BEST DEAL',
     features: [
-      '400 generations/month',
-      'Unlimited everything',
-      'Fastest queue',
-      'Premium rendering',
-      'Early access features',
-      'No restrictions',
+      '3,000 credits per year',
+      'Highest priority',
+      'Early feature access',
+      'Best value',
+      'All core tools unlocked',
     ],
   },
 ];
 
 const TOPUPS = [
-  { id: 'small', credits: 20, price: 199 },
-  { id: 'medium', credits: 50, price: 399, badge: 'POPULAR' },
-  { id: 'large', credits: 100, price: 699, badge: 'BEST VALUE' },
+  { id: 'topup_40', credits: 40, price: 99 },
+  { id: 'topup_120', credits: 120, price: 249, badge: 'POPULAR' },
+  { id: 'topup_300', credits: 300, price: 499, badge: 'BEST VALUE' },
+  { id: 'topup_700', credits: 700, price: 999 },
 ];
 
 const TOOL_COSTS = [
@@ -97,7 +102,7 @@ export default function PricingPage() {
 
       <main className="max-w-5xl mx-auto px-4 py-10">
         {/* Plans */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-16" data-testid="plans-grid">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-16" data-testid="plans-grid">
           {PLANS.map((plan) => {
             const Icon = plan.icon;
             const isCurrent = plan.id === currentPlan;
@@ -139,13 +144,13 @@ export default function PricingPage() {
                   className={`w-full text-xs font-semibold ${
                     isCurrent
                       ? 'bg-slate-700 text-slate-400 cursor-default'
-                      : plan.id === 'pro'
+                      : plan.id === 'yearly'
                       ? 'bg-amber-600 hover:bg-amber-700 text-white'
                       : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                   }`}
                   data-testid={`select-plan-${plan.id}`}
                   onClick={() => {
-                    if (!isCurrent) toast.info('Payment integration coming soon');
+                    if (!isCurrent) navigate('/app/billing');
                   }}
                 >
                   {isCurrent ? 'Current Plan' : plan.price > 0 ? 'Upgrade' : 'Downgrade'}
@@ -161,7 +166,7 @@ export default function PricingPage() {
             <Zap className="w-4 h-4 text-amber-400" /> Credit Top-ups
           </h2>
           <p className="text-xs text-slate-500 mb-6">Need more without a subscription? Buy credits instantly.</p>
-          <div className="grid sm:grid-cols-3 gap-4" data-testid="topups-grid">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="topups-grid">
             {TOPUPS.map((t) => (
               <div key={t.id} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 flex flex-col items-center text-center relative" data-testid={`topup-${t.id}`}>
                 {t.badge && (
@@ -174,7 +179,8 @@ export default function PricingPage() {
                 <span className="text-lg font-semibold text-white mb-4">INR {t.price}</span>
                 <Button
                   className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs"
-                  onClick={() => toast.info('Payment integration coming soon')}
+                  onClick={() => navigate('/app/billing')}
+                  data-testid={`buy-topup-${t.id}`}
                 >
                   Buy Now
                 </Button>

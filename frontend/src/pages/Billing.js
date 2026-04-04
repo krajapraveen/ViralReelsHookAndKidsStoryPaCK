@@ -45,12 +45,13 @@ export default function Billing() {
   };
 
   const handlePurchase = async (productId) => {
-    setLoading({...loading, [productId]: true});
+    if (loading[productId]) return; // prevent double-click
+    setLoading(prev => ({...prev, [productId]: true}));
     
     // Find product details for analytics
     const product = products.find(p => p.id === productId);
     const productName = product?.name || productId;
-    const productPrice = product?.price || 0;
+    const productPrice = product?.displayPrice || product?.price || 0;
     
     // Create item object for enhanced e-commerce
     const item = {
@@ -70,6 +71,7 @@ export default function Billing() {
       
       if (!response.data.paymentSessionId) {
         toast.error('Payment configuration error. Please contact support.');
+        setLoading(prev => ({...prev, [productId]: false}));
         return;
       }
       
@@ -90,40 +92,60 @@ export default function Billing() {
         
         cashfree.checkout(checkoutOptions).then(async (result) => {
           if (result.error) {
-            toast.error('Payment failed: ' + result.error.message);
-            analytics.trackError('payment_failed', result.error.message, 'billing');
+            // Detect cancel vs actual failure
+            const msg = result.error.message || '';
+            if (msg.includes('cancel') || msg.includes('closed') || msg.includes('dismiss')) {
+              toast.info('Payment was cancelled. No charges were made.');
+            } else {
+              toast.error(`Payment did not complete: ${msg}. Please try again.`);
+              analytics.trackError('payment_failed', msg, 'billing');
+            }
           } else if (result.paymentDetails) {
             // Verify payment
             try {
               const verifyRes = await api.post('/api/cashfree/verify', { order_id: response.data.orderId });
               if (verifyRes.data.success) {
-                // Track successful purchase with enhanced e-commerce
                 analytics.trackPurchase(response.data.orderId, item, 'INR');
-                // Track funnel completion
                 analytics.trackFunnelStep('purchase_complete', { 
                   order_id: response.data.orderId, 
                   product_name: productName,
                   amount: productPrice 
                 });
                 analytics.trackFunnelComplete('main_conversion');
-                toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added.`);
+                toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added to your account.`);
                 fetchData();
               } else {
-                toast.info(verifyRes.data.message || 'Payment is being processed');
+                toast.info(verifyRes.data.message || 'Payment is being processed. Credits will appear shortly.');
               }
             } catch (e) {
-              toast.error('Payment verification failed');
+              toast.warning('Payment succeeded, but credits are still syncing. Please refresh in a moment.');
             }
+          } else {
+            // No error, no paymentDetails — user closed/cancelled
+            toast.info('Payment window was closed. No charges were made.');
           }
+        }).catch(() => {
+          toast.info('Payment window was closed. No charges were made.');
+        }).finally(() => {
+          setLoading(prev => ({...prev, [productId]: false}));
         });
+        return; // Don't reset loading in outer finally — the checkout promise handles it
+      } else {
+        toast.error('Unable to load payment gateway. Please try again in a few minutes.');
       }
     } catch (error) {
-      console.error('Order creation error:', error);
-      toast.error(error.response?.data?.detail || 'Failed to create order');
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
+      if (status === 503) {
+        toast.error('Payment service is temporarily unavailable. Please try again in a few minutes.');
+      } else if (status === 429) {
+        toast.error('Too many payment attempts. Please wait a moment before trying again.');
+      } else {
+        toast.error(detail || 'Could not initiate payment. Please check your connection and try again.');
+      }
       analytics.trackError('order_creation_failed', error.message, 'billing');
-    } finally {
-      setLoading({...loading, [productId]: false});
     }
+    setLoading(prev => ({...prev, [productId]: false}));
   };
   
   // Load Cashfree checkout script with dynamic environment
@@ -200,7 +222,7 @@ export default function Billing() {
                 )}
                 <h3 className="text-lg font-bold mb-2 text-white">{product.name}</h3>
                 <div className="flex items-baseline gap-1 mb-3">
-                  <span className="text-2xl font-bold text-white">₹{product.price}</span>
+                  <span className="text-2xl font-bold text-white">₹{product.displayPrice || product.price}</span>
                   <span className="text-slate-400 text-sm">{getIntervalLabel(product.interval)}</span>
                 </div>
                 <div className="bg-indigo-500/20 border border-indigo-500/30 rounded-lg px-3 py-2 mb-3">
@@ -227,17 +249,17 @@ export default function Billing() {
         <div>
           <h2 className="text-3xl font-bold mb-2 text-white">Credit Packs</h2>
           <p className="text-slate-400 mb-8">One-time purchase, no commitment</p>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {packs.map((product) => (
               <div key={product.id} className="bg-slate-800/50 backdrop-blur-sm border-2 border-slate-700 rounded-xl p-6 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 transition-all">
                 <h3 className="text-xl font-bold mb-2 text-white">{product.name}</h3>
                 <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold text-white">₹{product.price}</span>
+                  <span className="text-3xl font-bold text-white">₹{product.displayPrice || product.price}</span>
                   <span className="text-slate-400 text-sm">one-time</span>
                 </div>
                 <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg px-4 py-2 mb-4">
                   <p className="text-purple-300 font-semibold">{product.credits} Credits</p>
-                  <p className="text-xs text-purple-400">₹{(product.price / product.credits).toFixed(1)}/credit</p>
+                  <p className="text-xs text-purple-400">₹{((product.displayPrice || product.price || 0) / (product.credits || 1)).toFixed(1)}/credit</p>
                 </div>
                 <Button 
                   onClick={() => handlePurchase(product.id)} 
