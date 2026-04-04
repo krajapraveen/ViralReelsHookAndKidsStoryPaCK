@@ -1,36 +1,23 @@
 # Daily Viral Idea Drop — PRD
 
 ## Original Problem Statement
-Build a "Growth Engine" / "Daily Viral Idea Drop" — queue-driven AI content creation. Never show dead-end UI. Optimize strictly for growth and conversion. Secure all generated media assets behind authenticated proxy with zero raw URL exposure.
+Build a "Growth Engine" / "Daily Viral Idea Drop" — queue-driven AI content creation. Never show dead-end UI. Optimize strictly for growth and conversion. Secure all generated media assets behind authenticated proxy with zero raw URL exposure. Apply site-wide anti-copy friction with secure proxy-based asset protection, watermarking, and entitlement enforcement across all pages.
 
 ## Core Architecture
 - React frontend + FastAPI backend + MongoDB
 - 7 background workers + queue abstraction + fallback ladder
 - Media Proxy Layer: JWT-signed streaming, watermarking, direct static access blocked
+- Site-Wide Content Protection: Reusable hook + wrapper component, route-based activation
 
 ## What's Been Implemented
 
 ### P0 Fixes (All verified — April 4, 2026)
 
 **1. Generation Blank Screen Bug — FIXED**
-- Root cause: `handleGenerate` never set activeIdea/activeNiche state
-- Fix: Added state setters + prop passing to ProgressView
-
 **2. Broken Media Assets on Result Page — FIXED**
-- Root cause (video): moviepy ffmpeg v7.0.2 produced non-web-compatible MP4s
-- Fix: System ffmpeg re-encode (baseline h264, faststart), all existing videos re-encoded
-- Frontend: VideoAsset, ThumbnailAsset, VoiceoverAsset components with onError fallbacks
-
 **3. "Generate Another Pack" Dead Button — FIXED**
-- Root cause: `<Link to="/app/daily-viral-ideas">` navigated to same route without resetting `view` state
-- Fix: Replaced with `<button onClick={onGoToFeed}>` that resets view to 'feed'
-
 **4. Credit Reset to 50 — DONE**
-- Hard reset 30 non-admin users to exactly 50 credits
-- 3 admins excluded
-
 **5. Admin Dashboard — VERIFIED ON PRODUCTION**
-- All 10+ backend endpoints return 200
 
 ### P0 Media Protection Hardening — COMPLETED (April 4, 2026)
 
@@ -38,70 +25,93 @@ Build a "Growth Engine" / "Daily Viral Idea Drop" — queue-driven AI content cr
 - Created `/api/media/stream/{token}` for JWT-signed asset delivery
 - Created `/api/media/download-token` for authenticated downloads
 - Blocked direct access to `/api/static/generated/viral_*` (returns 403)
-- All file-based assets (thumbnail, video, voiceover, zip_bundle) served via secure_url
-- file_url stripped from all API responses — zero raw URL exposure
+- All file-based assets served via secure_url, file_url stripped from all API responses
 
-**7. URL Prefix Inconsistency Bug — FIXED (April 4, 2026)**
-- Bug: 2/66 DB records stored file_url as `/static/generated/viral_*` (missing `/api/` prefix)
-- The prefix check `raw_url.startswith("/api/static/generated/viral_")` silently failed for these
-- Result: assets got NEITHER secure_url NOR file_url — silent data loss
-- Fix: Added `_is_protected_asset_url()` (matches both prefixes) and `_normalize_asset_url()` (normalizes to `/api/static/...`)
-- Verified: 126/126 assets pass — 66 with secure_url, 60 with content, 0 leaks, 0 misses
+**7. URL Prefix Inconsistency Bug — FIXED**
+- Added `_is_protected_asset_url()` and `_normalize_asset_url()` to handle both `/api/static/` and `/static/` prefixes
+- Full audit: 126/126 assets pass — 66 with secure_url, 60 with content, 0 leaks, 0 misses
 
 **8. Image Watermarking — DONE**
-- Preview images served with diagonal tiled watermark (user email fragment + job ID)
-- Admin users exempt from watermarking
+- Preview images served with tiled watermark (user email + job ID), admin exempt
 
-**9. Browser Friction Layer — DONE**
-- CSS: `user-select: none`, `-webkit-touch-callout: none`
-- JS: contextmenu, copy, keydown (PrintScreen), dragstart event blocking on result view
+### P0 Site-Wide Anti-Copy Friction Layer — COMPLETED (April 4, 2026)
+
+**9. Reusable Content Protection System — DONE**
+- `useContentProtection` hook: right-click blocking, drag prevention on media (img/video/audio/canvas), copy/cut interception, keyboard shortcut blocking (Ctrl+S/C/A/U, PrintScreen), mobile long-press prevention
+- `ContentProtectionWrapper` component: applies protection based on route classification
+- Smart exemptions: form inputs, textareas, contenteditable, rich text editors (ProseMirror, Quill, CodeMirror, Monaco) remain fully functional
+- CSS-level text selection prevention with explicit form element overrides
+
+**10. Route Classification — DONE**
+- Protected: All `/app/*` routes (except admin), `/viral/*`, `/share/*`, `/gallery`, `/explore`, `/v/*`, `/character/*`, `/creator/*`, `/series/*`
+- Unprotected: `/`, `/login`, `/signup`, `/pricing`, `/contact`, `/reviews`, `/blog`, `/privacy-policy`, `/cookie-policy`, `/terms`, `/user-manual`, `/help`, `/verify-email`, `/reset-password`, `/forgot-password`, `/app/admin/*`
+
+**11. Removed One-Off Patches — DONE**
+- Removed duplicate protection code from DailyViralIdeas.js ResultView
+- ComixAI.js and GifMaker.js inline `onContextMenu` with toast messages retained (complementary UX)
+
+### What This Protection DOES:
+- Blocks right-click context menu on protected surfaces
+- Prevents drag-and-drop save of media elements
+- Intercepts copy/cut events on non-input elements
+- Blocks Ctrl+S, Ctrl+C, Ctrl+A, Ctrl+U, PrintScreen shortcuts
+- Reduces mobile long-press save behavior
+- Applies CSS user-select:none on protected routes
+- Serves all protected media via authenticated proxy (no raw URLs)
+- Watermarks preview images with user identity
+
+### What This Protection CANNOT Do (by design):
+- Cannot block screenshots or screen recording
+- Cannot prevent OS-level capture tools or browser extensions
+- Cannot stop physical photography of screens
+- Cannot fully prevent devtools/network extraction for determined users
 
 ### Full Audit Results
 ```
 Total assets in DB:                126
-Assets with file_url:              66
-  /api/static/ prefix:             64
-  /static/ prefix (bug case):      2
-  unexpected prefix:               0
-Assets without file_url:           60
-  text-only (have content):        60
-  no file_url AND no content:      0
+secure_url present in API:         66 (all media assets)
+content present (text-only):       60
+file_url leaked:                   0
+missing (neither):                 0
 
-API Output After Fix:
-  secure_url present:              66
-  content present (text-only):     60
-  file_url leaked:                 0
-  missing (neither):               0
+Route Protection (tested):
+  Protected routes verified:       7 (/app, /app/daily-viral-ideas, /app/story-generator, /app/reel-generator, /gallery, /explore, /viral/*)
+  Unprotected routes verified:     8 (/, /login, /signup, /pricing, /contact, /terms, /privacy-policy, /app/admin)
+  Form input functionality:        PASS (textarea accepts text on protected pages)
 ```
 
 ## Key Files
+- `/app/frontend/src/hooks/useContentProtection.js` — Reusable protection hook
+- `/app/frontend/src/components/ContentProtectionWrapper.js` — Route-based wrapper
+- `/app/frontend/src/App.js` — Integration point
+- `/app/frontend/src/App.css` — CSS protection rules + form exemptions
 - `/app/backend/routes/viral_ideas_v2.py` — Asset API, URL normalization
 - `/app/backend/routes/media_proxy.py` — Token signing, streaming, watermarking
 - `/app/backend/server.py` — Static file blocking middleware
-- `/app/frontend/src/pages/DailyViralIdeas.js` — Result view, secure URL consumption
 - `/app/backend/tests/test_media_protection.py` — 16 unit tests
 - `/app/backend/tests/test_media_protection_api.py` — 14 API integration tests
+- `/app/backend/tests/test_content_protection_api.py` — 8 content protection API tests
 
-## Next Priorities (NOT optional — required for complete asset protection)
+## Next Priorities (P1 — required for complete asset protection)
 
 ### P1 — Entitlement Gating
 - Enforce Free vs Paid user download controls on token generation
 - Rate limit token generation per user
 
 ### P1 — Telemetry for Abuse Detection
-- Track token generation frequency per user/IP
-- Alert on abnormal download spikes
-- Log all media access with user/IP/asset metadata
+- Log repeated token generation per user/IP
+- Log abnormal access/download behavior
+- Log repeated failed access attempts
+- Add admin visibility later
 
 ### P1 — Forensic Watermarking
-- Add hidden identifiers to exported files (images, video, audio)
+- Add hidden identifiers to downloadable assets (images, video, audio)
 - Traceable back to specific user/download event
 
 ## Backlog
 - (P2) Personalization and Precomputed Daily Packs
 - (P2) Remix Variants and Story Chain leaderboard
 - (P2) Admin Dashboard WebSocket upgrades
-- (P2) General UI polish and style preset preview thumbnails
 
 ## Credentials
 - Test: `test@visionary-suite.com` / `Test@2026#`
