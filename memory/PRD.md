@@ -1,96 +1,105 @@
-# CreatorStudio AI — PRD
+# Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Full-stack AI creator suite with anti-copy/media-protection hardening, queue-driven content generation, growth engine, and monetization.
+Build a full-stack AI creator suite with a "compulsion-driven" growth engine. The platform enables users to create AI-generated story videos, comics, and visual content. The core growth strategy centers on viral story continuation — every story creates more stories through forking, sharing, and continuation loops.
 
-## Phase 1: Payment Hardening (COMPLETE)
-- Cashfree PRODUCTION gateway, idempotency, double-click prevention
-- State Machine: CREATED -> INITIATED -> PENDING -> SUCCESS -> CREDIT_APPLIED
+## Core Architecture
+- **Frontend**: React (port 3000)
+- **Backend**: FastAPI (port 8001, all routes prefixed with /api)
+- **Database**: MongoDB (via MONGO_URL env var)
+- **Object Storage**: Cloudflare R2
+- **Payments**: Cashfree
+- **AI**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini — via Emergent LLM Key
+- **Auth**: Emergent-managed Google Auth + JWT
 
-## Phase 2: Copyright Safety Pipeline (COMPLETE)
-- Centralized rewrite engine with 200+ term replacements
-- 25+ generation routes wired through policy_engine -> rule_rewriter -> semantic_detector
+## User Personas
+1. **Creator** — Makes story videos, comics, coloring books
+2. **Viewer/Continuer** — Discovers stories via share pages, continues them
+3. **Admin** — Monitors platform health, growth metrics, revenue
 
-## Phase 3: Adaptive Safety & Output Enforcement (COMPLETE)
-- Universal output middleware intercepting all generation responses
-- Semantic detection (24 co-occurrence patterns + fuzzy alias for leet/spacing/diacritics)
-- 54-test golden suite, telemetry dashboard, frontend soft warnings
-- Safety Playground admin tool (<1ms latency)
+## What's Been Implemented
 
-## Phase 4: Viral Story Engine (COMPLETE — 2026-04-05)
+### Phase 1-2: Core Platform (Complete)
+- User auth (Google + email/password)
+- Story Video Studio (AI generation pipeline)
+- Comic Storybook Creator
+- Coloring Book Generator
+- GIF Maker
+- Credits system (50 initial credits, Cashfree payments)
+- Gallery, sharing, social features
 
-### 4.1 Core Loop — Story Forking
-- **Share Page** redesigned: hook text, social proof bar (fork count + recent activity + views), "Continue This Story" primary CTA, "Create Your Own Version" secondary, story preview with characters, branch count, WhatsApp/Twitter/Copy Link share buttons, bottom CTA repeated
-- **Fork API**: `POST /api/share/{shareId}/fork` — NO auth required, returns prefilled context (storyContext, characters, tone, conflict), increments parent's fork count, logs to share_events
-- **Chain API**: `GET /api/share/{shareId}/chain` — returns full fork chain with totalVersions
+### Phase 3: Safety (Complete)
+- Safety Playground (admin internal tool)
+- Content moderation pipeline
+- Anti-abuse service
 
-### 4.2 Post-Generation Share Modal
-- `ShareModal.js` component triggers after story creation completes
-- Auto-generates hook text and share caption from content
-- Creates share link automatically
-- Primary WhatsApp share + Twitter + Copy Link buttons
-- Pre-filled share message ("I started this story… can you finish it?")
+### Phase 4: Viral Story Engine (Complete)
+- Fork API: `POST /api/share/{shareId}/fork` — creates story continuations
+- Redesigned Share Page with "Continue This Story" CTA
+- Post-generation Share Modal
+- A/B testing on Landing Page (3 variants)
+- Alive signals (live activity counts)
+- Character-driven hooks
+- Momentum-based social proof
 
-### 4.3 Alive Signals
-- `GET /api/public/alive` — real-time platform signals:
-  - continuations_today, active_creators, stories_today, total_continuations, latest_fork
-- Displayed on Landing page and Share page
-- No mocked data — truth only
+### Phase 5: Growth Validation / DATA MODE (Complete — April 5, 2026)
+- **30 Viral Seed Stories** seeded into database:
+  - 10 mystery, 10 thriller, 5 emotional, 5 fantasy
+  - Each with strong hook, continuation gap, characters, conflict, share caption
+- **Growth Dashboard** (`/app/admin`, Growth tab):
+  - Continuation Rate, Branches/Story, Landing Conversion, Share Rate
+  - Share Funnel Drop-off visualization
+  - A/B Hero Test variant comparison
+  - Top Stories by forks, Winning Hooks by continuation rate
+- **Story-Level Performance Tracking**:
+  - `GET /api/admin/metrics/story-performance` — per-story views, forks, continuation rate
+  - Genre breakdown (mystery/thriller/emotional/fantasy)
+  - Sortable by rate, views, or forks
+- **Public Explore API**:
+  - `GET /api/public/explore-stories` with genre filtering
+- **Zero-denominator safety** in all metric calculations
 
-### 4.4 A/B Landing Hero Test
-- 3 variants persisted per visitor (localStorage):
-  - A (Outcome): "Turn one idea into a full animated story in 60 seconds"
-  - B (Loop): "Start a story. Let the world continue it."
-  - C (Curiosity): "This story isn't finished… until you continue it"
-- Impression + CTA click tracking via `POST /api/public/ab-impression`
-- Stored in `ab_events` collection
+### Trust & Consistency Fixes (Complete)
+- Fixed broken Security tab in Profile
+- Truth-based admin satisfaction metric
+- Diverse "Live on the Platform" feed
+- Credit system consistency (50 credits standard)
+- Removed hidden credit exploits (server startup script, anti-abuse delayed credits)
 
-### 4.5 First Session Experience
-- `GET /api/public/featured-story` returns most-viewed shared story
-- Featured story card on landing page: title, hook, fork count, views, "Continue This Story" CTA
-- No empty state — immediate story exposure
+## Key API Endpoints
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/share/{shareId}/fork` | POST | None | Fork/continue a story |
+| `/api/share/{shareId}` | GET | None | Get share page data |
+| `/api/share/{shareId}/chain` | GET | None | Get story fork chain |
+| `/api/public/explore-stories` | GET | None | Browse stories with genre filter |
+| `/api/public/featured-story` | GET | None | Get featured story for landing |
+| `/api/public/alive` | GET | None | Live platform activity signals |
+| `/api/public/ab-impression` | POST | None | Track A/B variant impressions |
+| `/api/admin/metrics/growth` | GET | Admin | Growth funnel metrics |
+| `/api/admin/metrics/story-performance` | GET | Admin | Per-story performance data |
 
-### 4.6 Low-Friction Continue Flow
-- Fork endpoint requires NO login
-- fork_data + remix_data stored in localStorage
-- StoryVideoStudio loads and prefills on mount
-- Login only enforced at generation step
-
-### Files
-```
-Backend:
-  /app/backend/routes/share.py              # Fork API, chain API, viral fields
-  /app/backend/routes/public_routes.py      # Alive signals, A/B tracking, featured story
-
-Frontend:
-  /app/frontend/src/pages/SharePage.jsx     # Redesigned viral share page
-  /app/frontend/src/components/ShareModal.js # Post-generation share modal
-  /app/frontend/src/pages/Landing.js        # A/B hero + alive signals + featured story
-  /app/frontend/src/pages/StoryVideoStudio.js # Fork data loading + share modal trigger
-```
-
-### DB Collections (Phase 4)
-- `shares` — added: forks, storyContext, characters, tone, conflict, hookText, shareCaption, parentShareId
-- `share_events` — type, shareId, parentTitle, timestamp
-- `ab_events` — variant, action, timestamp
-
-### Test Results
-- iteration_435.json: 23/23 backend tests + full frontend verification (100%)
-
-## Backlog
-- (P1) Premium tier download quality differentiation
-- (P2) Remix Variants on share pages
-- (P2) Admin Dashboard WebSocket upgrades
-- (P2) Personalization and Precomputed Daily Packs
-- (P2) Story Chain leaderboard / tree visualization
-
-## Success Metrics to Track
-- % users who click "Continue Story"
-- % stories that get at least 1 continuation
-- Avg branches per story
-- Share -> open -> continue rate
-- A/B variant conversion rates
+## Key Database Collections
+- `shares`: Stories with viral loop fields (parentShareId, forks, hookText, storyContext, characters, tone, conflict, genre, seeded)
+- `share_events`: Fork/continuation event tracking
+- `ab_events`: Landing page A/B test tracking
+- `users`: User profiles with credits
+- `pipeline_jobs`: Generation job tracking
 
 ## Credentials
-- Test: test@visionary-suite.com / Test@2026#
-- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
+- Test User: `test@visionary-suite.com` / `Test@2026#`
+- Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
+
+## Prioritized Backlog
+
+### P1 — Next Up
+- Premium tier download quality differentiation
+- A/B test hook text variations on public pages
+
+### P2 — Future
+- Implement character-driven auto-share prompts after creation
+- "Remix Variants" on share pages
+- Story Chain leaderboard (gamify continuations)
+- Personalization and Precomputed Daily Packs
+- Admin Dashboard WebSocket upgrades
+- General UI polish and style preset preview thumbnails
