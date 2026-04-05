@@ -68,11 +68,13 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      // Don't redirect for open-access pages (growth funnel)
+      // Don't redirect for open-access pages (growth funnel) or auth endpoints
       const path = window.location.pathname;
+      const url = error.config?.url || '';
       const openAccessPaths = ['/app/story-video-studio', '/app/story-preview', '/v/', '/character/'];
       const isOpenAccess = openAccessPaths.some(p => path.startsWith(p));
-      if (!isOpenAccess) {
+      const isAuthEndpoint = url.includes('/auth/google-signin') || url.includes('/auth/login') || url.includes('/auth/register');
+      if (!isOpenAccess && !isAuthEndpoint) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.href = '/login';
