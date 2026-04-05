@@ -755,9 +755,11 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
         if data.code:
             # Auth code flow — exchange code for tokens
             if not GOOGLE_CLIENT_SECRET:
+                logger.error("GOOGLE_CLIENT_SECRET not configured")
                 raise HTTPException(status_code=500, detail="Google OAuth secret not configured")
 
             try:
+                logger.info(f"Exchanging Google auth code (length={len(data.code)})")
                 async with httpx.AsyncClient() as client:
                     token_response = await client.post(
                         "https://oauth2.googleapis.com/token",
@@ -769,8 +771,9 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                             "grant_type": "authorization_code",
                         },
                     )
+                logger.info(f"Google token exchange status: {token_response.status_code}")
                 if token_response.status_code != 200:
-                    logger.warning(f"Google token exchange failed: {token_response.text}")
+                    logger.warning(f"Google token exchange failed ({token_response.status_code}): {token_response.text}")
                     raise HTTPException(status_code=401, detail="Google auth code exchange failed")
 
                 tokens = token_response.json()
