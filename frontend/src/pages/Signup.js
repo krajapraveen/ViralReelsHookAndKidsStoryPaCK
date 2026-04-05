@@ -26,6 +26,15 @@ export default function Signup({ setAuth }) {
   const location = useLocation();
   const { executeRecaptcha } = useRecaptcha();
 
+  // Preload app shell so /app renders faster after auth
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = '/app';
+    document.head.appendChild(link);
+    return () => document.head.removeChild(link);
+  }, []);
+
   // Capture prompt from landing page for onboarding flow
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -301,18 +310,15 @@ export default function Signup({ setAuth }) {
     if (googleLoading) return;
     setGoogleLoading(true);
 
-    // Preserve return path
     const from = location.state?.from?.pathname;
     if (from && from !== '/login' && from !== '/signup') {
       localStorage.setItem('auth_return_path', from);
     }
 
-    // Minimal delay so React paints the overlay before the browser navigates.
-    // Actual auth page exposure depends on network/provider latency (outside our control).
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       const redirectUrl = window.location.origin + '/auth/callback';
       window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-    }, 150);
+    });
   };
 
   // Custom input styles for dark theme

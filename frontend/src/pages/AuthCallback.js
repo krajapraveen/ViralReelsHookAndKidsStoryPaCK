@@ -4,11 +4,6 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import analytics from '../utils/analytics';
 
-const BOOTSTRAP_MESSAGES = [
-  'Welcome back',
-  'Syncing your studio…',
-];
-
 export default function AuthCallback({ setAuth }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -65,24 +60,22 @@ export default function AuthCallback({ setAuth }) {
         const firstName = user.name?.split(' ')[0] || 'there';
         toast.success(`Welcome back, ${firstName}!`);
 
-        // Referral attribution
-        try {
-          const refRaw = localStorage.getItem('referral_source');
-          if (refRaw && user?.id) {
+        // Referral attribution (fire-and-forget — don't block redirect)
+        const refRaw = localStorage.getItem('referral_source');
+        if (refRaw && user?.id) {
+          try {
             const refData = JSON.parse(refRaw);
             if (refData.job_id && Date.now() - refData.timestamp < 86400000) {
-              await api.post('/api/growth/signup-referral-reward', {
+              api.post('/api/growth/signup-referral-reward', {
                 referrer_job_id: refData.job_id,
                 new_user_id: user.id,
-              });
+              }).catch(() => {});
               localStorage.removeItem('referral_source');
             }
-          }
-        } catch {
-          // Silent fail for referral attribution
+          } catch {}
         }
 
-        // Return-path: check for preserved destination
+        // Redirect immediately — no delay
         const returnUrl = localStorage.getItem('auth_return_path')
           || localStorage.getItem('remix_return_url');
 

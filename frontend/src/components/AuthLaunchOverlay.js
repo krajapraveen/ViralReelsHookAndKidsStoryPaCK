@@ -9,7 +9,7 @@ export default function AuthLaunchOverlay() {
   const [showSlowNotice, setShowSlowNotice] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowSlowNotice(true), 6000);
+    const timer = setTimeout(() => setShowSlowNotice(true), 4000);
     return () => clearTimeout(timer);
   }, []);
 

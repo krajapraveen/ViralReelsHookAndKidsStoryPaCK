@@ -31,6 +31,15 @@ export default function Login({ setAuth }) {
   const location = useLocation();
   const { executeRecaptcha } = useRecaptcha();
 
+  // Preload app shell so /app renders faster after auth
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = '/app';
+    document.head.appendChild(link);
+    return () => document.head.removeChild(link);
+  }, []);
+
   // Focus email input when modal opens
   useEffect(() => {
     if (showForgotPassword && forgotEmailInputRef.current && !resetSent) {
@@ -247,23 +256,19 @@ export default function Login({ setAuth }) {
   };
 
   const handleGoogleSignIn = () => {
-    if (googleLoading) return; // prevent double-click
+    if (googleLoading) return;
     setGoogleLoading(true);
 
-    // Preserve return path if user was trying to access a protected page
     const from = location.state?.from?.pathname;
     if (from && from !== '/login' && from !== '/signup') {
       localStorage.setItem('auth_return_path', from);
     }
 
-    // Minimal delay so React paints the overlay before the browser navigates.
-    // ~150ms is enough for the DOM paint; the actual auth.emergentagent.com page
-    // exposure duration depends on network speed and Google/Emergent latency —
-    // factors outside our control. Our goal: minimize that exposure.
-    setTimeout(() => {
+    // Single rAF to let React paint the overlay, then redirect immediately.
+    requestAnimationFrame(() => {
       const redirectUrl = window.location.origin + '/auth/callback';
       window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-    }, 150);
+    });
   };
 
   // Check if email is valid for enabling submit button
