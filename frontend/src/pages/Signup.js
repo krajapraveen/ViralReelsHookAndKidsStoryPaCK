@@ -306,13 +306,16 @@ export default function Signup({ setAuth }) {
     }
   };
 
-  const handleGoogleSuccess = async (tokenResponse) => {
+  const handleGoogleSuccess = async (codeResponse) => {
     setGoogleLoading(true);
     try {
       const response = await api.post('/api/auth/google-signin', {
-        access_token: tokenResponse.access_token,
+        code: codeResponse.code,
       });
       const { token, user } = response.data;
+      if (!token) {
+        throw new Error('No token in response');
+      }
       localStorage.setItem('token', token);
       if (user) {
         localStorage.setItem('user', JSON.stringify(user));
@@ -343,6 +346,7 @@ export default function Signup({ setAuth }) {
   };
 
   const googleLogin = useGoogleLogin({
+    flow: 'auth-code',
     onSuccess: handleGoogleSuccess,
     onError: () => {
       toast.error('Google sign-in was cancelled or failed.');

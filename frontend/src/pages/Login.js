@@ -255,14 +255,12 @@ export default function Login({ setAuth }) {
     setShowForgotPassword(open);
   };
 
-  const handleGoogleSuccess = async (tokenResponse) => {
+  const handleGoogleSuccess = async (codeResponse) => {
     setGoogleLoading(true);
     try {
-      console.log('[Google Auth] Token received, calling backend...');
       const response = await api.post('/api/auth/google-signin', {
-        access_token: tokenResponse.access_token,
+        code: codeResponse.code,
       });
-      console.log('[Google Auth] Backend response:', response.status, response.data ? 'has data' : 'no data');
       const { token, user } = response.data;
       if (!token) {
         throw new Error('No token in response');
@@ -276,10 +274,14 @@ export default function Login({ setAuth }) {
         linkSessionToUser(user.id);
       }
       setAuth(true);
-      console.log('[Google Auth] Token stored, redirecting to /app...');
-      window.location.href = '/app';
+      const returnUrl = localStorage.getItem('remix_return_url');
+      if (returnUrl) {
+        localStorage.removeItem('remix_return_url');
+        window.location.href = returnUrl;
+      } else {
+        window.location.href = '/app';
+      }
     } catch (error) {
-      console.error('[Google Auth] Error:', error?.response?.status, error?.response?.data || error.message);
       const msg = error?.response?.data?.detail || 'Google sign-in failed. Please try again.';
       toast.error(msg);
       setGoogleLoading(false);
@@ -287,6 +289,7 @@ export default function Login({ setAuth }) {
   };
 
   const googleLogin = useGoogleLogin({
+    flow: 'auth-code',
     onSuccess: handleGoogleSuccess,
     onError: () => {
       toast.error('Google sign-in was cancelled or failed.');
