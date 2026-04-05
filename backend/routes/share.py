@@ -1,11 +1,12 @@
 """
 Share Your Creation - Backend Routes
 Shareable links with social media preview cards (Open Graph)
++ Story Fork API for viral continuation loops
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 import uuid
 import sys
@@ -28,6 +29,13 @@ class CreateShareRequest(BaseModel):
     title: Optional[str] = None
     preview: Optional[str] = None
     thumbnailUrl: Optional[str] = None
+    # Viral loop fields
+    storyContext: Optional[str] = None
+    characters: Optional[List[str]] = None
+    tone: Optional[str] = None
+    conflict: Optional[str] = None
+    hookText: Optional[str] = None
+    shareCaption: Optional[str] = None
 
 
 # =============================================================================
@@ -116,6 +124,14 @@ async def create_share_link(
         "thumbnailUrl": request.thumbnailUrl,
         "views": 0,
         "shares": 0,
+        "forks": 0,
+        "storyContext": request.storyContext,
+        "characters": request.characters or [],
+        "tone": request.tone,
+        "conflict": request.conflict,
+        "hookText": request.hookText,
+        "shareCaption": request.shareCaption,
+        "parentShareId": None,
         "expiresAt": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
@@ -156,7 +172,19 @@ async def get_share_data(share_id: str, request: Request):
         {"id": share_id},
         {"$inc": {"views": 1}}
     )
-    
+
+    # Get fork count from the document itself (incremented by fork endpoint)
+    fork_count = share.get("forks", 0)
+
+    # Get recent fork events for "alive" signal
+    recent_forks = []
+    cursor = db.share_events.find(
+        {"shareId": share_id, "type": "fork_initiated"},
+        {"_id": 0, "timestamp": 1}
+    ).sort("timestamp", -1).limit(3)
+    async for doc in cursor:
+        recent_forks.append(doc)
+
     return {
         "success": True,
         "id": share["id"],
@@ -165,7 +193,16 @@ async def get_share_data(share_id: str, request: Request):
         "preview": share["preview"],
         "thumbnailUrl": share.get("thumbnailUrl"),
         "views": share["views"] + 1,
-        "createdAt": share["createdAt"]
+        "createdAt": share["createdAt"],
+        "forks": fork_count,
+        "recentForks": recent_forks,
+        "storyContext": share.get("storyContext"),
+        "characters": share.get("characters", []),
+        "tone": share.get("tone"),
+        "conflict": share.get("conflict"),
+        "hookText": share.get("hookText"),
+        "shareCaption": share.get("shareCaption"),
+        "parentShareId": share.get("parentShareId"),
     }
 
 
@@ -242,4 +279,86 @@ async def get_user_shares(user: dict = Depends(get_current_user)):
     return {
         "success": True,
         "shares": shares
+    }
+
+
+
+# =============================================================================
+# FORK / CONTINUE STORY (VIRAL LOOP ENGINE)
+# =============================================================================
+
+class ForkRequest(BaseModel):
+    """Fork doesn't require login — stores intent for post-auth creation."""
+    pass
+
+
+@router.post("/{share_id}/fork")
+async def fork_story(share_id: str):
+    """
+    Fork/continue a shared story. No auth required — returns the parent story
+    context so the frontend can prefill the creation studio. Login is only
+    required at the generation step.
+    """
+    parent = await db.shares.find_one({"id": share_id}, {"_id": 0})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    # Increment fork count on parent
+    await db.shares.update_one({"id": share_id}, {"$inc": {"forks": 1}})
+
+    # Track fork event for analytics
+    await db.share_events.insert_one({
+        "type": "fork_initiated",
+        "shareId": share_id,
+        "parentTitle": parent.get("title"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+    # Return prefilled context for the creation studio
+    return {
+        "success": True,
+        "fork": {
+            "parentShareId": share_id,
+            "parentTitle": parent.get("title", "Untitled Story"),
+            "storyContext": parent.get("storyContext", parent.get("preview", "")),
+            "characters": parent.get("characters", []),
+            "tone": parent.get("tone", ""),
+            "conflict": parent.get("conflict", ""),
+            "hookText": parent.get("hookText", ""),
+            "type": parent.get("type", "STORY"),
+            "thumbnailUrl": parent.get("thumbnailUrl"),
+        },
+    }
+
+
+@router.get("/{share_id}/chain")
+async def get_story_chain(share_id: str):
+    """
+    Get the full fork chain for a shared story — shows how many versions exist.
+    Public endpoint, no auth needed.
+    """
+    # Find all shares in this chain (parent + children + siblings)
+    parent = await db.shares.find_one({"id": share_id}, {"_id": 0})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    # Find root of chain
+    root_id = share_id
+    if parent.get("parentShareId"):
+        root_id = parent["parentShareId"]
+
+    # Get all forks from root
+    chain = []
+    cursor = db.shares.find(
+        {"$or": [{"id": root_id}, {"parentShareId": root_id}]},
+        {"_id": 0, "id": 1, "title": 1, "createdAt": 1, "views": 1, "forks": 1, "parentShareId": 1}
+    ).sort("createdAt", 1).limit(50)
+    async for doc in cursor:
+        chain.append(doc)
+
+    return {
+        "success": True,
+        "rootId": root_id,
+        "totalVersions": len(chain),
+        "chain": chain,
     }

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import CreationActionsBar from '../components/CreationActionsBar';
 import ContextualUpgrade from '../components/ContextualUpgrade';
+import ShareModal from '../components/ShareModal';
 
 const AGE_GROUPS = [
   { id: 'kids_3_5', name: 'Kids 3-5', description: 'Simple stories, bright colors' },
@@ -128,6 +129,13 @@ export default function StoryVideoStudio() {
   // Series context — when creating from a Story Series flow
   const [seriesContext, setSeriesContext] = useState(null);
   
+  // Fork context — when continuing from a shared story
+  const [forkContext, setForkContext] = useState(null);
+  
+  // Share modal — shown after generation completes
+  const [showShareAfterGen, setShowShareAfterGen] = useState(false);
+  const [shareModalData, setShareModalData] = useState(null);
+
   // Error recovery state — prevents blank page on any unhandled error
   const [componentError, setComponentError] = useState(null);
   
@@ -164,25 +172,40 @@ export default function StoryVideoStudio() {
         const response = await fetch(checkUrl, { method: 'HEAD' });
         
         if (response.ok) {
-          toast.success('🎉 ' + (data.message || 'Generation complete!'));
+          toast.success('Generation complete!');
           
-          // Auto-redirect to downloads page after completion
-          setTimeout(() => {
-            toast.info('Redirecting to your downloads...');
-            navigate('/app/downloads');
-          }, 2000);
+          // Show share modal instead of auto-redirect
+          setShareModalData({
+            generationId: currentJobId || '',
+            type: 'STORY_VIDEO',
+            title: title || 'My Story',
+            preview: storyText?.slice(0, 500),
+            thumbnailUrl: null,
+            storyContext: storyText,
+            characters: [],
+            tone: '',
+            conflict: '',
+          });
+          setShowShareAfterGen(true);
         } else {
           toast.error('File generation completed but file is not accessible. Credits have been refunded.');
         }
       } else {
-        toast.success('🎉 ' + (data.message || 'Generation complete!'));
-        setTimeout(() => navigate('/app/downloads'), 2000);
+        toast.success('Generation complete!');
+        setShareModalData({
+          generationId: currentJobId || '',
+          type: 'STORY_VIDEO',
+          title: title || 'My Story',
+          preview: storyText?.slice(0, 500),
+          storyContext: storyText,
+        });
+        setShowShareAfterGen(true);
       }
     } catch (error) {
       toast.error('Error verifying download. Please check your downloads page.');
       navigate('/app/downloads');
     }
-  }, [navigate]);
+  }, [navigate, currentJobId, title, storyText]);
   
   const handleWsError = useCallback((data) => {
     setWsProgress({ ...data, status: 'failed' });
@@ -208,6 +231,26 @@ export default function StoryVideoStudio() {
   useEffect(() => {
     fetchStyles();
     fetchPricing();
+    
+    // Load fork data from shared story continuation
+    try {
+      const raw = localStorage.getItem('fork_data');
+      if (raw) {
+        const fd = JSON.parse(raw);
+        // Only use if less than 30 minutes old
+        if (fd.timestamp && Date.now() - fd.timestamp < 1800000) {
+          setForkContext(fd);
+          setStoryText(fd.prompt || '');
+          if (fd.parentTitle) setTitle(`Continuation of "${fd.parentTitle}"`);
+          localStorage.removeItem('fork_data');
+          toast.info(`Continuing "${fd.parentTitle || 'a story'}" — edit or generate!`);
+        } else {
+          localStorage.removeItem('fork_data');
+        }
+      }
+    } catch {
+      localStorage.removeItem('fork_data');
+    }
     fetchVoiceConfig();
     fetchMusicLibrary();
     fetchTemplates();
@@ -939,10 +982,20 @@ export default function StoryVideoStudio() {
             setLoading(false);
             setShowWaitingExperience(false);
             setStep(8);
-            setTimeout(() => {
-              toast.info('Redirecting to your downloads...');
-              navigate('/app/downloads');
-            }, 2000);
+            
+            // Show share modal instead of auto-redirect
+            setShareModalData({
+              generationId: project?.project_id || '',
+              type: 'STORY_VIDEO',
+              title: title || project?.title || 'My Story',
+              preview: project?.scenes?.map(s => s.narration || s.text || '').join(' ').slice(0, 500),
+              thumbnailUrl: generatedImages?.[0]?.url || null,
+              storyContext: storyText,
+              characters: project?.characters?.map(c => c.name) || [],
+              tone: project?.tone || '',
+              conflict: project?.conflict || '',
+            });
+            setShowShareAfterGen(true);
           } else if (job.status === 'PARTIAL') {
             // Fallback deliverables are available
             setLoading(false);
@@ -2504,6 +2557,24 @@ export default function StoryVideoStudio() {
           </div>
         )}
       </main>
+
+      {/* Post-Generation Share Modal */}
+      <ShareModal
+        visible={showShareAfterGen}
+        onClose={() => {
+          setShowShareAfterGen(false);
+          navigate('/app/downloads');
+        }}
+        generationId={shareModalData?.generationId}
+        type={shareModalData?.type}
+        title={shareModalData?.title}
+        preview={shareModalData?.preview}
+        thumbnailUrl={shareModalData?.thumbnailUrl}
+        storyContext={shareModalData?.storyContext}
+        characters={shareModalData?.characters}
+        tone={shareModalData?.tone}
+        conflict={shareModalData?.conflict}
+      />
     </div>
   );
 }

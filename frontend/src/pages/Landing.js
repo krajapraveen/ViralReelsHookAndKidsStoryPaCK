@@ -2,12 +2,44 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Play, ArrowRight, Menu, X, Eye, RefreshCcw, Zap, Command,
-  ChevronRight, Sparkles, Film, BookOpen, Users
+  ChevronRight, Sparkles, Film, BookOpen, Users, GitBranch, Clock, Activity
 } from 'lucide-react';
 import axios from 'axios';
 import { getStaticCardImg, getAllStaticBanners } from '../data/staticBanners';
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+// ─── A/B TEST HERO VARIANTS ─────────────────────────────────────────────────
+// ─── A/B TEST HERO VARIANTS ─────────────────────────────────────────────────
+
+function _timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+const HERO_VARIANTS = {
+  A: {
+    badge: 'Every story here is unfinished',
+    heading: ['Turn one idea into a full animated', 'story in 60 seconds'],
+    subtitle: 'Type a sentence. AI creates scenes, voiceover, and music. Share it — and let the world continue it.',
+  },
+  B: {
+    badge: 'A new kind of storytelling',
+    heading: ['Start a story.', 'Let the world continue it.'],
+    subtitle: 'Your story doesn\'t end when you hit publish. Others pick it up, twist it, and build on it.',
+  },
+  C: {
+    badge: 'This story isn\'t finished',
+    heading: ['This story isn\'t finished…', 'until you continue it'],
+    subtitle: 'Discover unfinished stories. Continue them your way. Create something no one expects.',
+  },
+};
 
 // ─── STORY HOOK TEMPLATES (rotate for variety) ──────────────────────────────
 const STORY_HOOKS = [
@@ -23,16 +55,35 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState(null);
   const [liveFeed, setLiveFeed] = useState([]);
+  const [aliveSignals, setAliveSignals] = useState(null);
+  const [featuredStory, setFeaturedStory] = useState(null);
   const navigate = useNavigate();
   const showcaseRef = useRef(null);
 
   // Showcase = 100% static bundled data. ZERO API dependency for images.
   const showcase = getAllStaticBanners();
 
+  // A/B variant — persist so same user sees same variant
+  const [heroVariant] = useState(() => {
+    const stored = localStorage.getItem('ab_hero_variant');
+    if (stored && HERO_VARIANTS[stored]) return stored;
+    const variants = Object.keys(HERO_VARIANTS);
+    const pick = variants[Math.floor(Math.random() * variants.length)];
+    localStorage.setItem('ab_hero_variant', pick);
+    return pick;
+  });
+  const hero = HERO_VARIANTS[heroVariant];
+
   useEffect(() => {
     axios.get(`${API}/api/public/stats`).then(r => setStats(r.data)).catch(() => {});
     axios.get(`${API}/api/public/live-activity?limit=6`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
-  }, []);
+    axios.get(`${API}/api/public/alive`).then(r => setAliveSignals(r.data)).catch(() => {});
+    axios.get(`${API}/api/public/featured-story`).then(r => {
+      if (r.data?.found) setFeaturedStory(r.data);
+    }).catch(() => {});
+    // Track A/B impression
+    axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'impression' }).catch(() => {});
+  }, [heroVariant]);
 
   // Auto-refresh live feed
   useEffect(() => {
@@ -118,7 +169,7 @@ export default function Landing() {
         )}
       </nav>
 
-      {/* ═══════ 1. HERO — STORY-DRIVEN ═══════ */}
+      {/* ═══════ 1. HERO — A/B TESTED ═══════ */}
       <section className="relative pt-24 pb-8 md:pt-32 md:pb-12 px-4" data-testid="hero-section">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-20 left-1/4 w-[600px] h-[600px] bg-violet-600/[0.06] rounded-full blur-[180px]" />
@@ -127,22 +178,26 @@ export default function Landing() {
 
         <div className="relative max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-medium mb-6 fade-up" data-testid="hero-badge">
-            <Sparkles className="w-3 h-3" /> Every story here is unfinished
+            <Sparkles className="w-3 h-3" /> {hero.badge}
           </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-[-0.04em] leading-[0.92] mb-5 fade-up" data-testid="hero-heading">
-            <span className="text-white">Stories that don't end</span><br />
-            <span className="bg-gradient-to-r from-violet-400 via-rose-400 to-amber-400 bg-clip-text text-transparent">until you continue them</span>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-[-0.04em] leading-[0.92] mb-5 fade-up" data-testid="hero-heading" data-variant={heroVariant}>
+            <span className="text-white">{hero.heading[0]}</span><br />
+            <span className="bg-gradient-to-r from-violet-400 via-rose-400 to-amber-400 bg-clip-text text-transparent">{hero.heading[1]}</span>
           </h1>
 
           <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-8 fade-up-2" data-testid="hero-subtitle">
-            Create, watch, and shape stories powered by AI. What happens next is up to you.
+            {hero.subtitle}
           </p>
 
           {/* ─── TWO BIG CTAs ─── */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8 fade-up-3" data-testid="hero-ctas">
             <button
-              onClick={() => showcaseRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => {
+                axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'cta_click' }).catch(() => {});
+                if (featuredStory?.shareId) navigate(`/share/${featuredStory.shareId}`);
+                else showcaseRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="group h-14 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2 pulse-glow"
               data-testid="hero-continue-btn"
             >
@@ -150,7 +205,10 @@ export default function Landing() {
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
-              onClick={goCreateFresh}
+              onClick={() => {
+                axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'create_click' }).catch(() => {});
+                goCreateFresh();
+              }}
               className="h-14 px-8 rounded-xl border border-white/10 bg-white/[0.03] text-white font-bold text-base hover:bg-white/[0.06] transition-all flex items-center gap-2"
               data-testid="hero-create-btn"
             >
@@ -158,9 +216,77 @@ export default function Landing() {
             </button>
           </div>
 
-          {/* Social proof line removed — no misleading claims */}
+          {/* ─── ALIVE SIGNALS ─── */}
+          {aliveSignals && (
+            <div className="flex flex-wrap items-center justify-center gap-3 fade-up-4" data-testid="alive-signals">
+              {aliveSignals.stories_today > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-violet-300 bg-violet-500/8 border border-violet-500/15 px-3 py-1.5 rounded-full">
+                  <Activity className="w-3 h-3" />
+                  <span className="font-semibold">{aliveSignals.stories_today}</span> stories created today
+                </div>
+              )}
+              {aliveSignals.continuations_today > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-300 bg-emerald-500/8 border border-emerald-500/15 px-3 py-1.5 rounded-full">
+                  <GitBranch className="w-3 h-3" />
+                  <span className="font-semibold">{aliveSignals.continuations_today}</span> continued today
+                </div>
+              )}
+              {aliveSignals.active_creators > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-amber-300 bg-amber-500/8 border border-amber-500/15 px-3 py-1.5 rounded-full">
+                  <Users className="w-3 h-3" />
+                  <span className="font-semibold">{aliveSignals.active_creators}</span> creating right now
+                </div>
+              )}
+              {aliveSignals.latest_fork?.timestamp && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-white/[0.03] px-3 py-1.5 rounded-full">
+                  <Clock className="w-3 h-3" />
+                  New version created {_timeAgo(aliveSignals.latest_fork.timestamp)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
+
+      {/* ═══════ FIRST SESSION — FEATURED STORY ═══════ */}
+      {featuredStory && (
+        <section className="px-4 pb-8" data-testid="featured-story">
+          <div className="max-w-2xl mx-auto">
+            <div className="relative rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.04] to-rose-500/[0.04] p-6 text-center">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-bold tracking-wider uppercase">
+                Continue this story
+              </div>
+              <h3 className="text-xl font-bold text-white mt-2 mb-2" data-testid="featured-title">
+                {featuredStory.title || 'Untitled Story'}
+              </h3>
+              {featuredStory.hookText && (
+                <p className="text-sm text-violet-300 italic mb-4">"{featuredStory.hookText}"</p>
+              )}
+              {featuredStory.preview && !featuredStory.hookText && (
+                <p className="text-sm text-slate-400 mb-4 line-clamp-2">{featuredStory.preview}</p>
+              )}
+              <div className="flex items-center justify-center gap-3 mb-3">
+                {featuredStory.forks > 0 && (
+                  <span className="text-xs text-violet-300 flex items-center gap-1"><GitBranch className="w-3 h-3" /> {featuredStory.forks} versions</span>
+                )}
+                {featuredStory.views > 0 && (
+                  <span className="text-xs text-slate-400 flex items-center gap-1"><Eye className="w-3 h-3" /> {featuredStory.views} views</span>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  if (featuredStory.shareId) navigate(`/share/${featuredStory.shareId}`);
+                  else goCreateFresh();
+                }}
+                className="h-12 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold hover:shadow-[0_0_30px_-8px_rgba(139,92,246,0.4)] transition-all hover:scale-[1.02] flex items-center gap-2 mx-auto"
+                data-testid="featured-continue-btn"
+              >
+                <Play className="w-5 h-5" /> Continue This Story
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ═══════ 2. SHOWCASE — REAL STORIES (autoplay-ready) ═══════ */}
       <section ref={showcaseRef} className="py-12 px-4" data-testid="showcase-section">

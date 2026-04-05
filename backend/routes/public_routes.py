@@ -1126,3 +1126,131 @@ async def get_public_character(character_id: str):
             },
         },
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ALIVE SIGNALS — Real-time engagement data for Landing + Share pages
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/alive")
+async def get_alive_signals():
+    """
+    Returns real-time platform signals for social proof.
+    No mocked data — truth only.
+    """
+    now = datetime.now(timezone.utc)
+    one_hour_ago = (now - timedelta(hours=1)).isoformat()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Continuations today (fork events)
+    continuations_today = await db.share_events.count_documents({
+        "type": "fork_initiated",
+        "timestamp": {"$gte": today_start},
+    })
+
+    # Active creators (users who did something in the last hour)
+    active_pipeline = [
+        {"$match": {"created_at": {"$gte": one_hour_ago}, "status": "COMPLETED"}},
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "active"},
+    ]
+    active_result = await db.pipeline_jobs.aggregate(active_pipeline).to_list(length=1)
+    active_creators = active_result[0]["active"] if active_result else 0
+
+    # Most recent fork event (for "New version created X mins ago")
+    latest_fork = await db.share_events.find_one(
+        {"type": "fork_initiated"},
+        {"_id": 0, "timestamp": 1, "parentTitle": 1},
+        sort=[("timestamp", -1)],
+    )
+
+    # Total fork count (all-time)
+    total_forks = await db.share_events.count_documents({"type": "fork_initiated"})
+
+    # Stories created today
+    stories_today = await db.pipeline_jobs.count_documents({
+        "created_at": {"$gte": today_start},
+        "status": "COMPLETED",
+    })
+
+    return {
+        "continuations_today": continuations_today,
+        "active_creators": active_creators,
+        "stories_today": stories_today,
+        "total_continuations": total_forks,
+        "latest_fork": {
+            "timestamp": latest_fork.get("timestamp") if latest_fork else None,
+            "parentTitle": latest_fork.get("parentTitle") if latest_fork else None,
+        } if latest_fork else None,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# A/B TEST — Landing hero variant tracking
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/ab-impression")
+async def track_ab_impression(request: Request):
+    """Track which A/B variant a visitor saw."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": True}
+
+    variant = body.get("variant", "A")
+    action = body.get("action", "impression")
+
+    await db.ab_events.insert_one({
+        "variant": variant,
+        "action": action,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
+
+
+@router.get("/featured-story")
+async def get_featured_story():
+    """
+    Return ONE featured story for first-session experience.
+    Picks the most-viewed completed story with a share link.
+    """
+    # Find the most popular shared story
+    share = await db.shares.find_one(
+        {"type": {"$in": ["STORY_VIDEO", "STORY", "story_video"]}},
+        {"_id": 0},
+        sort=[("views", -1)],
+    )
+
+    if share:
+        return {
+            "found": True,
+            "shareId": share.get("id"),
+            "title": share.get("title"),
+            "preview": share.get("preview"),
+            "thumbnailUrl": share.get("thumbnailUrl"),
+            "hookText": share.get("hookText"),
+            "forks": share.get("forks", 0),
+            "views": share.get("views", 0),
+        }
+
+    # Fallback: find any completed story video job
+    job = await db.pipeline_jobs.find_one(
+        {"status": "COMPLETED", "output_url": {"$exists": True, "$ne": None}},
+        {"_id": 0, "job_id": 1, "title": 1, "story_prompt": 1},
+        sort=[("views", -1)],
+    )
+
+    if job:
+        return {
+            "found": True,
+            "shareId": None,
+            "jobId": job.get("job_id"),
+            "title": job.get("title", "Untitled Story"),
+            "preview": job.get("story_prompt", ""),
+            "thumbnailUrl": None,
+            "hookText": None,
+            "forks": 0,
+            "views": 0,
+        }
+
+    return {"found": False}
