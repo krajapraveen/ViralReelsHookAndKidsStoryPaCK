@@ -1849,3 +1849,107 @@ async def growth_metrics(
         "winning_hooks": winning_hooks,
     }
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STORY-LEVEL PERFORMANCE — Per-story metrics
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/story-performance")
+async def story_performance(
+    limit: int = Query(30, ge=1, le=100),
+    sort_by: str = Query("continuation_rate", regex="^(views|forks|continuation_rate)$"),
+    admin: dict = Depends(get_admin_user),
+):
+    """
+    Per-story performance metrics.
+    Tracks views, continuations (forks), and continuation rate for each story.
+    Answers: 'Which stories make people continue?'
+    """
+    # Build sort criteria
+    if sort_by == "continuation_rate":
+        # Need computed field — use aggregation
+        pipeline = [
+            {"$match": {"parentShareId": None}},
+            {"$addFields": {
+                "views": {"$ifNull": ["$views", 0]},
+                "forks": {"$ifNull": ["$forks", 0]},
+            }},
+            {"$addFields": {
+                "continuation_rate": {
+                    "$cond": [
+                        {"$gt": ["$views", 0]},
+                        {"$round": [{"$multiply": [{"$divide": ["$forks", "$views"]}, 100]}, 1]},
+                        0,
+                    ]
+                }
+            }},
+            {"$sort": {"continuation_rate": -1, "views": -1}},
+            {"$limit": limit},
+            {"$project": {
+                "_id": 0, "id": 1, "title": 1, "hookText": 1, "genre": 1,
+                "views": 1, "forks": 1, "continuation_rate": 1,
+                "tone": 1, "characters": 1, "createdAt": 1, "seeded": 1,
+            }},
+        ]
+        stories = []
+        async for doc in db.shares.aggregate(pipeline):
+            stories.append(doc)
+    else:
+        sort_field = sort_by
+        cursor = db.shares.find(
+            {"parentShareId": None},
+            {"_id": 0, "id": 1, "title": 1, "hookText": 1, "genre": 1,
+             "views": 1, "forks": 1, "tone": 1, "characters": 1,
+             "createdAt": 1, "seeded": 1},
+        ).sort(sort_field, -1).limit(limit)
+        stories = []
+        async for doc in cursor:
+            v = doc.get("views", 0)
+            f = doc.get("forks", 0)
+            doc["continuation_rate"] = round((f / v) * 100, 1) if v > 0 else 0
+            stories.append(doc)
+
+    # Summary stats
+    total_stories = await db.shares.count_documents({"parentShareId": None})
+    total_views_agg = await db.shares.aggregate([
+        {"$match": {"parentShareId": None}},
+        {"$group": {"_id": None, "total_views": {"$sum": "$views"}, "total_forks": {"$sum": "$forks"}}},
+    ]).to_list(1)
+
+    total_views = total_views_agg[0]["total_views"] if total_views_agg else 0
+    total_forks = total_views_agg[0]["total_forks"] if total_views_agg else 0
+    avg_rate = round((total_forks / total_views) * 100, 1) if total_views > 0 else 0
+
+    # Genre breakdown
+    genre_pipeline = [
+        {"$match": {"parentShareId": None, "genre": {"$exists": True}}},
+        {"$group": {
+            "_id": "$genre",
+            "count": {"$sum": 1},
+            "total_views": {"$sum": "$views"},
+            "total_forks": {"$sum": "$forks"},
+        }},
+    ]
+    genre_breakdown = {}
+    async for doc in db.shares.aggregate(genre_pipeline):
+        g = doc["_id"]
+        v = doc["total_views"]
+        f = doc["total_forks"]
+        genre_breakdown[g] = {
+            "count": doc["count"],
+            "views": v,
+            "forks": f,
+            "continuation_rate": round((f / v) * 100, 1) if v > 0 else 0,
+        }
+
+    return {
+        "stories": stories,
+        "summary": {
+            "total_stories": total_stories,
+            "total_views": total_views,
+            "total_forks": total_forks,
+            "avg_continuation_rate": avg_rate,
+        },
+        "genre_breakdown": genre_breakdown,
+    }

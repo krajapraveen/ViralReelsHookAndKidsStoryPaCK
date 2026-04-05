@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   TrendingUp, GitBranch, Share2, Users, BarChart3,
   RefreshCw, ArrowDown, Zap, Eye, Clock, AlertTriangle,
-  ChevronRight, Target
+  ChevronRight, Target, ArrowUpDown, Bookmark
 } from 'lucide-react';
 
 // ─── Metric Card ─────────────────────────────────────────────────────────────
@@ -273,6 +273,165 @@ export default function GrowthDashboard() {
           </div>
         )}
       </div>
+
+      {/* ── STORY-LEVEL PERFORMANCE ── */}
+      <StoryPerformance />
+    </div>
+  );
+}
+
+// ─── Story Performance Panel ────────────────────────────────────────────────
+function StoryPerformance() {
+  const [stories, setStories] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [genres, setGenres] = useState(null);
+  const [sortBy, setSortBy] = useState('continuation_rate');
+  const [loading, setLoading] = useState(true);
+
+  const fetchPerf = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/admin/metrics/story-performance?sort_by=${sortBy}&limit=30`);
+      setStories(res.data.stories);
+      setSummary(res.data.summary);
+      setGenres(res.data.genre_breakdown);
+    } catch {
+      toast.error('Failed to load story performance');
+    } finally {
+      setLoading(false);
+    }
+  }, [sortBy]);
+
+  useEffect(() => { fetchPerf(); }, [fetchPerf]);
+
+  if (loading && !stories) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <RefreshCw className="w-5 h-5 animate-spin text-violet-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="story-performance">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bookmark className="w-4 h-4 text-amber-400" />
+          <h3 className="text-sm font-bold text-white">Story-Level Performance</h3>
+          <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full font-mono">
+            {summary?.total_stories || 0} stories
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {['continuation_rate', 'views', 'forks'].map(s => (
+            <button
+              key={s}
+              onClick={() => setSortBy(s)}
+              className={`text-[10px] px-2 py-1 rounded font-mono transition-colors flex items-center gap-1 ${
+                sortBy === s ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-white'
+              }`}
+              data-testid={`sort-${s}`}
+            >
+              <ArrowUpDown className="w-2.5 h-2.5" />
+              {s === 'continuation_rate' ? 'Rate' : s === 'views' ? 'Views' : 'Forks'}
+            </button>
+          ))}
+          <Button variant="outline" size="sm" onClick={fetchPerf} className="h-7 text-xs border-slate-700 text-slate-400" data-testid="refresh-perf">
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-center">
+            <div className="text-lg font-black text-white">{summary.total_stories}</div>
+            <div className="text-[10px] text-slate-500">Total Stories</div>
+          </div>
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-center">
+            <div className="text-lg font-black text-white">{summary.total_views}</div>
+            <div className="text-[10px] text-slate-500">Total Views</div>
+          </div>
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-center">
+            <div className="text-lg font-black text-white">{summary.total_forks}</div>
+            <div className="text-[10px] text-slate-500">Total Continuations</div>
+          </div>
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-center">
+            <div className="text-lg font-black text-amber-400">{summary.avg_continuation_rate}%</div>
+            <div className="text-[10px] text-slate-500">Avg Continuation Rate</div>
+          </div>
+        </div>
+      )}
+
+      {/* Genre breakdown */}
+      {genres && Object.keys(genres).length > 0 && (
+        <div className="bg-slate-900/40 border border-slate-700/40 rounded-xl p-4" data-testid="genre-breakdown">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Genre Performance</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Object.entries(genres).map(([genre, stats]) => (
+              <div key={genre} className="rounded-lg border border-slate-700/30 p-3">
+                <div className="text-xs font-bold text-white capitalize mb-1">{genre}</div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-black text-amber-400">{stats.continuation_rate}%</span>
+                  <span className="text-[10px] text-slate-500">cont. rate</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  {stats.count} stories / {stats.views} views / {stats.forks} forks
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Story table */}
+      {stories && stories.length > 0 && (
+        <div className="bg-slate-900/40 border border-slate-700/40 rounded-xl overflow-hidden" data-testid="story-table">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-slate-700/40">
+                  <th className="text-[10px] text-slate-500 font-bold uppercase tracking-wider p-3">#</th>
+                  <th className="text-[10px] text-slate-500 font-bold uppercase tracking-wider p-3">Story</th>
+                  <th className="text-[10px] text-slate-500 font-bold uppercase tracking-wider p-3">Genre</th>
+                  <th className="text-[10px] text-slate-500 font-bold uppercase tracking-wider p-3 text-right">Views</th>
+                  <th className="text-[10px] text-slate-500 font-bold uppercase tracking-wider p-3 text-right">Continues</th>
+                  <th className="text-[10px] text-slate-500 font-bold uppercase tracking-wider p-3 text-right">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stories.map((s, i) => {
+                  const rate = s.continuation_rate || 0;
+                  const rateColor = rate >= 20 ? 'text-emerald-400' : rate >= 10 ? 'text-amber-400' : 'text-slate-500';
+                  return (
+                    <tr key={s.id || i} className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors" data-testid={`story-row-${i}`}>
+                      <td className="p-3 text-xs text-slate-600 font-mono">{i + 1}</td>
+                      <td className="p-3">
+                        <div className="text-sm text-white font-medium line-clamp-1">{s.title || 'Untitled'}</div>
+                        {s.hookText && <p className="text-[10px] text-violet-300 italic line-clamp-1 mt-0.5">"{s.hookText}"</p>}
+                      </td>
+                      <td className="p-3">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-400 capitalize font-mono">{s.genre || '-'}</span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className="text-xs text-white font-mono">{s.views || 0}</span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className="text-xs text-white font-mono">{s.forks || 0}</span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className={`text-xs font-mono font-bold ${rateColor}`}>{rate}%</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

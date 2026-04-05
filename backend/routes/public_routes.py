@@ -1254,3 +1254,49 @@ async def get_featured_story():
         }
 
     return {"found": False}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXPLORE STORIES — Public discovery feed from seeded + user stories
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/explore-stories")
+async def get_explore_stories(
+    genre: Optional[str] = Query(None),
+    limit: int = Query(12, ge=1, le=50),
+    skip: int = Query(0, ge=0),
+):
+    """
+    Public story discovery feed. Returns shareable stories for the explore page.
+    Filters by genre (mystery, thriller, emotional, fantasy).
+    Sorted by views (most popular first), with seeded stories included.
+    """
+    query = {"parentShareId": None}
+    if genre:
+        query["genre"] = genre
+
+    stories = []
+    cursor = db.shares.find(
+        query,
+        {"_id": 0, "id": 1, "title": 1, "hookText": 1, "preview": 1,
+         "genre": 1, "views": 1, "forks": 1, "tone": 1, "characters": 1,
+         "thumbnailUrl": 1, "createdAt": 1, "shareCaption": 1},
+    ).sort([("forks", -1), ("views", -1)]).skip(skip).limit(limit)
+
+    async for doc in cursor:
+        cont_rate = round((doc.get("forks", 0) / doc["views"]) * 100, 1) if doc.get("views", 0) > 0 else 0
+        doc["continuationRate"] = cont_rate
+        stories.append(doc)
+
+    total = await db.shares.count_documents(query)
+
+    # Genre counts for filter UI
+    genre_counts = {}
+    for g in ["mystery", "thriller", "emotional", "fantasy"]:
+        genre_counts[g] = await db.shares.count_documents({"parentShareId": None, "genre": g})
+
+    return {
+        "stories": stories,
+        "total": total,
+        "genres": genre_counts,
+    }
