@@ -94,6 +94,7 @@ class ResetPasswordRequest(BaseModel):
 class GoogleSignInRequest(BaseModel):
     credential: str = ""  # Google ID token (one-tap flow)
     code: str = ""  # Google auth code (popup flow)
+    access_token: str = ""  # Google access token (implicit flow)
 
 
 class VerifyEmailRequest(BaseModel):
@@ -748,11 +749,49 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
 
         GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
-        # Two flows supported:
-        # 1. credential (ID token from GoogleLogin one-tap)
-        # 2. code (auth code from useGoogleLogin popup)
+        # Three flows supported:
+        # 1. access_token (implicit flow from useGoogleLogin - most reliable)
+        # 2. credential (ID token from GoogleLogin one-tap)
+        # 3. code (auth code from useGoogleLogin popup)
 
-        if data.code:
+        email = None
+        name = None
+        picture = ""
+        google_sub = ""
+
+        if data.access_token:
+            # Implicit flow — validate access token via Google userinfo API
+            try:
+                logger.info("Google sign-in: Using access_token flow")
+                async with httpx.AsyncClient() as client:
+                    userinfo_response = await client.get(
+                        "https://www.googleapis.com/oauth2/v3/userinfo",
+                        headers={"Authorization": f"Bearer {data.access_token}"},
+                    )
+                if userinfo_response.status_code != 200:
+                    logger.warning(f"Google userinfo failed ({userinfo_response.status_code}): {userinfo_response.text}")
+                    raise HTTPException(status_code=401, detail="Invalid Google access token")
+
+                userinfo = userinfo_response.json()
+                email = userinfo.get("email", "").lower()
+                name = userinfo.get("name", email.split("@")[0] if email else "User")
+                picture = userinfo.get("picture", "")
+                google_sub = userinfo.get("sub", "")
+                email_verified = userinfo.get("email_verified", False)
+
+                if not email:
+                    raise HTTPException(status_code=400, detail="Email not provided by Google")
+                if not email_verified:
+                    raise HTTPException(status_code=400, detail="Google email not verified")
+
+                logger.info(f"Google userinfo verified: {email}")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Google access token validation error: {e}")
+                raise HTTPException(status_code=401, detail="Invalid Google access token")
+
+        elif data.code:
             # Auth code flow — exchange code for tokens
             if not GOOGLE_CLIENT_SECRET:
                 logger.error("GOOGLE_CLIENT_SECRET not configured")
@@ -802,32 +841,34 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                 logger.warning(f"Invalid Google token: {e}")
                 raise HTTPException(status_code=401, detail="Invalid Google credential")
         else:
-            raise HTTPException(status_code=400, detail="No Google credential or auth code provided")
+            raise HTTPException(status_code=400, detail="No Google credential, auth code, or access token provided")
 
-        # Validate token issuer
-        if idinfo.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
-            raise HTTPException(status_code=401, detail="Invalid token issuer")
+        # For code/credential flows, extract user info from idinfo
+        if not data.access_token:
+            # Validate token issuer
+            if idinfo.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
+                raise HTTPException(status_code=401, detail="Invalid token issuer")
 
-        # Validate token audience
-        if idinfo.get("aud") != GOOGLE_CLIENT_ID:
-            raise HTTPException(status_code=401, detail="Invalid token audience")
+            # Validate token audience
+            if idinfo.get("aud") != GOOGLE_CLIENT_ID:
+                raise HTTPException(status_code=401, detail="Invalid token audience")
 
-        # Extract user info from verified token
-        email = idinfo.get("email", "").lower()
-        name = idinfo.get("name", email.split("@")[0] if email else "User")
-        picture = idinfo.get("picture", "")
-        email_verified = idinfo.get("email_verified", False)
+            # Extract user info from verified token
+            email = idinfo.get("email", "").lower()
+            name = idinfo.get("name", email.split("@")[0] if email else "User")
+            picture = idinfo.get("picture", "")
+            email_verified = idinfo.get("email_verified", False)
+            google_sub = idinfo.get("sub", "")
 
-        if not email:
-            raise HTTPException(status_code=400, detail="Email not provided by Google")
+            if not email:
+                raise HTTPException(status_code=400, detail="Email not provided by Google")
 
-        if not email_verified:
-            raise HTTPException(status_code=400, detail="Google email not verified")
+            if not email_verified:
+                raise HTTPException(status_code=400, detail="Google email not verified")
 
         logger.info(f"Custom Google sign-in for: {email}")
 
         # Check if user exists — match by email OR Google sub ID (bulletproof dedup)
-        google_sub = idinfo.get("sub", "")
         existing = await db.users.find_one(
             {"$or": [{"email": email}, {"googleSub": google_sub}]},
             {"_id": 0}
