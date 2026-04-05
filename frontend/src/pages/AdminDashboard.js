@@ -9,6 +9,7 @@ import {
   Film, Clock, Server, Database, BarChart3,
   CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera, Palette
 } from 'lucide-react';
+import SafetyPlayground from './SafetyPlayground';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
 // Every widget has: LOADING | READY | EMPTY | ERROR | STALE
@@ -509,6 +510,7 @@ export default function AdminDashboard() {
     { id: 'credits', label: 'Credits', icon: Zap },
     { id: 'conversion', label: 'Conversion', icon: TrendingUp },
     { id: 'comic_health', label: 'Comic Health', icon: Camera },
+    { id: 'safety_playground', label: 'Safety Lab', icon: Shield },
   ];
 
   return (
@@ -1577,6 +1579,10 @@ export default function AdminDashboard() {
               )}
             </div>
           </WidgetState>
+        )}
+
+        {section === 'safety_playground' && (
+          <SafetyPlayground />
         )}
       </div>
     </div>

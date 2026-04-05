@@ -1405,3 +1405,239 @@ async def safety_insights(
         "empty_state": empty,
         "empty_message": "No safety events recorded in this period" if empty else None,
     }
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SAFETY PLAYGROUND — Real-time pipeline inspection & debugging
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel as PydanticBaseModel
+from typing import Optional as OptionalType
+
+
+class PlaygroundRequest(PydanticBaseModel):
+    prompt: str
+    feature: str = "playground"
+
+
+@router.post("/safety-playground")
+async def safety_playground(req: PlaygroundRequest, admin: dict = Depends(get_admin_user)):
+    """
+    Run a prompt through the FULL safety pipeline and return detailed breakdown.
+    Uses the real production pipeline — no mocks.
+    """
+    import time
+
+    prompt = req.prompt.strip()
+    if not prompt:
+        return {"error": "Empty prompt"}
+
+    result = {
+        "input": prompt,
+        "layers": {},
+        "rewrite_output": None,
+        "decision": "ALLOW",
+        "timing": {},
+        "explanation": [],
+    }
+
+    total_start = time.perf_counter()
+
+    # ── Layer 1: Rule Rewriter (exact keyword matching) ──
+    t0 = time.perf_counter()
+    from services.rewrite_engine.rule_rewriter import rewrite_text
+    rewritten, rule_changes = rewrite_text(prompt)
+    t1 = time.perf_counter()
+
+    result["layers"]["rule_rewriter"] = {
+        "triggered": len(rule_changes) > 0,
+        "matches": [
+            {"original": c["original"], "replacement": c["replacement"]}
+            for c in rule_changes
+        ],
+        "match_count": len(rule_changes),
+    }
+    result["timing"]["rule_rewriter_ms"] = round((t1 - t0) * 1000, 2)
+
+    if rule_changes:
+        for c in rule_changes:
+            result["explanation"].append(
+                f"Rule match: '{c['original']}' → '{c['replacement']}'"
+            )
+
+    # ── Layer 2: Semantic Pattern Detection (co-occurrence) ──
+    t0 = time.perf_counter()
+    from services.rewrite_engine.semantic_detector import detect_semantic_patterns
+    semantic_matches = detect_semantic_patterns(prompt)
+    t1 = time.perf_counter()
+
+    semantic_layer = {
+        "triggered": len(semantic_matches) > 0,
+        "matches": [],
+        "match_count": len(semantic_matches),
+    }
+    for m in semantic_matches:
+        semantic_layer["matches"].append({
+            "source_ip": m.source_ip,
+            "confidence": m.confidence,
+            "detection_type": m.detection_type,
+            "matched_keywords": m.matched_keywords,
+            "safe_rewrite": m.safe_rewrite,
+        })
+        if m.detection_type == "semantic":
+            result["explanation"].append(
+                f"Semantic pattern: keywords [{', '.join(m.matched_keywords)}] → {m.source_ip} cluster"
+            )
+        else:
+            result["explanation"].append(
+                f"Fuzzy alias: '{m.matched_keywords[0]}' → {m.source_ip}"
+            )
+
+    result["layers"]["semantic_detector"] = semantic_layer
+    result["timing"]["semantic_detector_ms"] = round((t1 - t0) * 1000, 2)
+
+    # ── Layer 3: Policy Engine (BLOCK check) ──
+    t0 = time.perf_counter()
+    from services.rewrite_engine.policy_engine import evaluate_policy
+    has_tm = len(rule_changes) > 0 or len(semantic_matches) > 0
+    policy = evaluate_policy(prompt, has_tm)
+    t1 = time.perf_counter()
+
+    result["layers"]["policy_engine"] = {
+        "decision": policy.decision.value,
+        "reason_codes": policy.reason_codes,
+        "block_reason": policy.block_reason,
+    }
+    result["timing"]["policy_engine_ms"] = round((t1 - t0) * 1000, 2)
+    result["decision"] = policy.decision.value
+
+    if policy.decision.value == "BLOCK":
+        result["explanation"].append(
+            f"BLOCKED: {policy.block_reason} (rules: {', '.join(policy.reason_codes)})"
+        )
+
+    # ── Rewrite Output ──
+    if rule_changes or semantic_matches:
+        # Build the final rewritten text
+        final_rewrite = rewritten  # from rule_rewriter
+        # If semantic detector found something that rules didn't catch, apply its rewrite
+        if semantic_matches and not rule_changes:
+            final_rewrite = semantic_matches[0].safe_rewrite
+
+        result["rewrite_output"] = {
+            "original": prompt,
+            "rewritten": final_rewrite,
+            "segments": [],
+        }
+
+        # Build diff segments
+        if rule_changes:
+            for c in rule_changes:
+                result["rewrite_output"]["segments"].append({
+                    "type": "changed",
+                    "original": c["original"],
+                    "replacement": c["replacement"],
+                    "layer": "rule_rewriter",
+                })
+        if semantic_matches:
+            for m in semantic_matches:
+                result["rewrite_output"]["segments"].append({
+                    "type": "changed",
+                    "original": f"[{m.source_ip} reference]",
+                    "replacement": m.safe_rewrite,
+                    "layer": "semantic_detector",
+                    "detection_type": m.detection_type,
+                })
+
+        # Semantic distance score
+        original_lower = prompt.lower()
+        rewrite_lower = final_rewrite.lower()
+        # Simple word-overlap distance
+        orig_words = set(original_lower.split())
+        rewrite_words = set(rewrite_lower.split())
+        if orig_words:
+            overlap = len(orig_words & rewrite_words) / len(orig_words | rewrite_words)
+            distance = round((1 - overlap) * 100, 1)
+        else:
+            distance = 100.0
+
+        if distance >= 70:
+            interpretation = "SAFE"
+        elif distance >= 40:
+            interpretation = "MEDIUM"
+        else:
+            interpretation = "LOW"
+
+        result["rewrite_output"]["semantic_distance"] = {
+            "score": distance,
+            "interpretation": interpretation,
+        }
+
+    total_end = time.perf_counter()
+    result["timing"]["total_ms"] = round((total_end - total_start) * 1000, 2)
+
+    if not result["explanation"]:
+        result["explanation"].append("No safety triggers detected — prompt is clean.")
+
+    return result
+
+
+@router.post("/safety-playground/save-case")
+async def save_playground_case(req: PlaygroundRequest, admin: dict = Depends(get_admin_user)):
+    """Save a prompt as a test case for future regression testing."""
+    prompt = req.prompt.strip()
+    if not prompt:
+        return {"error": "Empty prompt"}
+
+    from services.rewrite_engine.semantic_detector import detect_semantic_patterns
+    from services.rewrite_engine.rule_rewriter import has_risky_terms
+
+    has_risk = has_risky_terms(prompt) or len(detect_semantic_patterns(prompt)) > 0
+
+    case = {
+        "prompt": prompt,
+        "expected_detection": has_risk,
+        "feature": req.feature,
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "saved_by": admin.get("id", "admin"),
+    }
+    await db.safety_test_cases.insert_one(case)
+
+    return {"saved": True, "expected_detection": has_risk}
+
+
+@router.get("/safety-playground/saved-cases")
+async def list_saved_cases(
+    limit: int = Query(50, ge=1, le=200),
+    admin: dict = Depends(get_admin_user),
+):
+    """List saved playground test cases."""
+    cases = []
+    cursor = db.safety_test_cases.find({}, {"_id": 0}).sort("saved_at", -1).limit(limit)
+    async for doc in cursor:
+        cases.append(doc)
+    return {"cases": cases, "count": len(cases)}
+
+
+@router.get("/safety-playground/replay-event")
+async def replay_safety_event(
+    event_index: int = Query(0, ge=0),
+    admin: dict = Depends(get_admin_user),
+):
+    """Load a past safety event to replay through the current pipeline."""
+    events = []
+    cursor = db.safety_events.find(
+        {"decision": {"$in": ["REWRITE", "BLOCK"]}},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(20)
+    async for doc in events:
+        events.append(doc)
+
+    async for doc in cursor:
+        events.append(doc)
+
+    if event_index >= len(events):
+        return {"error": "No event at that index", "total": len(events)}
+
+    return {"event": events[event_index], "total": len(events)}
