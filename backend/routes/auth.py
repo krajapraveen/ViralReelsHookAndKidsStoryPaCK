@@ -778,14 +778,19 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
 
         logger.info(f"Custom Google sign-in for: {email}")
 
-        # Check if user exists — account linking for existing users
-        existing = await db.users.find_one({"email": email}, {"_id": 0})
+        # Check if user exists — match by email OR Google sub ID (bulletproof dedup)
+        google_sub = idinfo.get("sub", "")
+        existing = await db.users.find_one(
+            {"$or": [{"email": email}, {"googleSub": google_sub}]},
+            {"_id": 0}
+        )
 
         if existing:
-            # Update last login and picture
+            # Update last login, picture, and store Google sub for future matching
             update_fields = {
                 "lastLogin": datetime.now(timezone.utc).isoformat(),
                 "picture": picture if picture else existing.get("picture", ""),
+                "googleSub": google_sub,
             }
             # Link auth provider if user was previously email-only
             if existing.get("authProvider") != "google":
@@ -830,6 +835,7 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                 "role": "user",
                 "credits": 50,
                 "authProvider": "google",
+                "googleSub": google_sub,
                 "emailVerified": True,
                 "createdAt": datetime.now(timezone.utc).isoformat(),
                 "lastLogin": datetime.now(timezone.utc).isoformat(),
