@@ -3,108 +3,93 @@
 ## Original Problem Statement
 Full-stack AI creator suite with anti-copy/media-protection hardening, queue-driven content generation, growth engine, and monetization.
 
-## Phase 1: Payment Hardening (COMPLETE — 2026-04-04)
+## Phase 1: Payment Hardening (COMPLETE)
+- Cashfree PRODUCTION gateway, idempotency, double-click prevention
+- State Machine: CREATED -> INITIATED -> PENDING -> SUCCESS -> CREDIT_APPLIED
 
-### Pricing (Single Source of Truth)
-- Backend: `/app/backend/config/pricing.py`
-- Frontend: `/app/frontend/src/utils/pricing.js`
+## Phase 2: Copyright Safety Pipeline (COMPLETE)
+- Centralized rewrite engine with 200+ term replacements
+- 25+ generation routes wired through policy_engine -> rule_rewriter -> semantic_detector
 
-| Type | Product | Price (INR) | Credits |
-|------|---------|-------------|---------|
-| Subscription | Weekly | 149 | 40 |
-| Subscription | Monthly | 499 | 200 |
-| Subscription | Quarterly | 1199 | 750 |
-| Subscription | Yearly | 3999 | 3000 |
-| Top-up | topup_40 | 99 | 40 |
-| Top-up | topup_120 | 249 | 120 |
-| Top-up | topup_300 | 499 | 300 |
-| Top-up | topup_700 | 999 | 700 |
+## Phase 3: Adaptive Safety & Output Enforcement (COMPLETE)
+- Universal output middleware intercepting all generation responses
+- Semantic detection (24 co-occurrence patterns + fuzzy alias for leet/spacing/diacritics)
+- 54-test golden suite, telemetry dashboard, frontend soft warnings
+- Safety Playground admin tool (<1ms latency)
 
-### Payment System
-- Gateway: Cashfree PRODUCTION
-- State Machine: CREATED -> INITIATED -> PENDING -> SUCCESS -> CREDIT_APPLIED / SUBSCRIPTION_ACTIVATED
-- Idempotency: Webhook + verify endpoint both check terminal states
-- Double-click prevention: Returns existing session for pending orders
+## Phase 4: Viral Story Engine (COMPLETE — 2026-04-05)
 
-## Phase 2: Copyright Safety Pipeline (COMPLETE — 2026-04-04)
+### 4.1 Core Loop — Story Forking
+- **Share Page** redesigned: hook text, social proof bar (fork count + recent activity + views), "Continue This Story" primary CTA, "Create Your Own Version" secondary, story preview with characters, branch count, WhatsApp/Twitter/Copy Link share buttons, bottom CTA repeated
+- **Fork API**: `POST /api/share/{shareId}/fork` — NO auth required, returns prefilled context (storyContext, characters, tone, conflict), increments parent's fork count, logs to share_events
+- **Chain API**: `GET /api/share/{shareId}/chain` — returns full fork chain with totalVersions
 
-### Architecture
+### 4.2 Post-Generation Share Modal
+- `ShareModal.js` component triggers after story creation completes
+- Auto-generates hook text and share caption from content
+- Creates share link automatically
+- Primary WhatsApp share + Twitter + Copy Link buttons
+- Pre-filled share message ("I started this story… can you finish it?")
+
+### 4.3 Alive Signals
+- `GET /api/public/alive` — real-time platform signals:
+  - continuations_today, active_creators, stories_today, total_continuations, latest_fork
+- Displayed on Landing page and Share page
+- No mocked data — truth only
+
+### 4.4 A/B Landing Hero Test
+- 3 variants persisted per visitor (localStorage):
+  - A (Outcome): "Turn one idea into a full animated story in 60 seconds"
+  - B (Loop): "Start a story. Let the world continue it."
+  - C (Curiosity): "This story isn't finished… until you continue it"
+- Impression + CTA click tracking via `POST /api/public/ab-impression`
+- Stored in `ab_events` collection
+
+### 4.5 First Session Experience
+- `GET /api/public/featured-story` returns most-viewed shared story
+- Featured story card on landing page: title, hook, fork count, views, "Continue This Story" CTA
+- No empty state — immediate story exposure
+
+### 4.6 Low-Friction Continue Flow
+- Fork endpoint requires NO login
+- fork_data + remix_data stored in localStorage
+- StoryVideoStudio loads and prefills on mount
+- Login only enforced at generation step
+
+### Files
 ```
-/app/backend/services/rewrite_engine/
-  __init__.py          # Exports + request-scoped safety metadata store
-  rule_rewriter.py     # 200+ term replacement dictionary (narrative-rich)
-  rewrite_service.py   # Orchestrator: process_safety_check, check_and_rewrite
-  policy_engine.py     # ALLOW / REWRITE / BLOCK decisions
-  output_validator.py  # Post-generation output validation
-  safety_logger.py     # DB logging to safety_events, output_validation_events
-  semantic_detector.py # Indirect reference + fuzzy alias detection
-  output_enforcer.py   # Recursive response scanner
-  output_safety_middleware.py # Universal output interception middleware
+Backend:
+  /app/backend/routes/share.py              # Fork API, chain API, viral fields
+  /app/backend/routes/public_routes.py      # Alive signals, A/B tracking, featured story
+
+Frontend:
+  /app/frontend/src/pages/SharePage.jsx     # Redesigned viral share page
+  /app/frontend/src/components/ShareModal.js # Post-generation share modal
+  /app/frontend/src/pages/Landing.js        # A/B hero + alive signals + featured story
+  /app/frontend/src/pages/StoryVideoStudio.js # Fork data loading + share modal trigger
 ```
 
-### Decision Tiers
-| Tier | When | Action |
-|------|------|--------|
-| ALLOW | Clean content | Pass through |
-| REWRITE | Trademark/IP detected | Rewrite to safe generic |
-| BLOCK | Genuinely dangerous | Reject with 400 |
-
-### Wired into 25+ generation routes
-
-## Phase 3: Adaptive Safety & Output Enforcement (COMPLETE — 2026-04-05)
-
-### Phase 3A: Universal Output Enforcement (COMPLETE)
-- Starlette middleware intercepts ALL generation route responses
-- Recursive JSON scanning via output_enforcer.py
-- GZIP decompression handling
-- Fail-closed on errors
-
-### Phase 3B: Indirect Reference Detection (COMPLETE)
-- Two detection layers:
-  1. Co-occurrence patterns: 24+ pattern packs (Harry Potter, Disney, Marvel, Naruto, Star Wars, Pokemon, LOTR, Pixar, Avatar)
-  2. Fuzzy alias matching: leet speak, spacing, diacritics, common typos
-- Zero false positives on clean prompts
-
-### Phase 3C: Rewrite Quality Upgrade (COMPLETE)
-- 200+ narrative-rich replacements with increased semantic distance
-- Golden test suite: 54 test cases at /app/backend/tests/test_rewrite_quality.py
-
-### Phase 3D: Safety Telemetry (COMPLETE)
-- GET /api/admin/metrics/safety-insights — top terms, IP clusters, high-risk routes, output leakage, detection types
-
-### Phase 3E: Frontend Soft Warning UX (COMPLETE)
-- Middleware injects _safety_meta into generation responses
-- Frontend api.js interceptor shows subtle sonner toast
-
-## Safety Playground (COMPLETE — 2026-04-05)
-
-### P0 Admin Internal Tool
-- POST /api/admin/metrics/safety-playground — Real-time pipeline analysis
-- Shows: Decision (ALLOW/REWRITE/BLOCK), Detection Layers (Rule Rewriter, Semantic Detector, Policy Engine), Rewrite Output with diff, Semantic Distance score, Per-layer timing, "Why This Triggered" explanation
-- Save Test Case: Saves prompts to safety_test_cases collection
-- Saved Cases: Browse and replay previously saved test prompts
-- Preset buttons: Semantic bypass, Obfuscated name, Clean prompt, Dangerous, Indirect Disney, Mixed
-- Under 1ms average latency (target was 500ms)
-- Frontend: /app/admin -> Safety Lab tab
+### DB Collections (Phase 4)
+- `shares` — added: forks, storyContext, characters, tone, conflict, hookText, shareCaption, parentShareId
+- `share_events` — type, shareId, parentTitle, timestamp
+- `ab_events` — variant, action, timestamp
 
 ### Test Results
-- Phase 3: 20/20 API tests + 54/54 golden suite (iteration_433.json)
-- Safety Playground: 17/17 backend tests + full frontend verification (iteration_434.json)
+- iteration_435.json: 23/23 backend tests + full frontend verification (100%)
 
-## DB Collections (Safety)
-- safety_events — user_id, feature_name, decision, reason_codes, triggered_rules, rewrite_summary, timestamp
-- output_validation_events — user_id, feature_name, validation_result, action_taken, leaked_terms, timestamp
-- safety_test_cases — prompt, expected_detection, feature, saved_at, saved_by
-
-## Backlog (Priority Order)
-- (P1) A/B test hook text variations on public pages
-- (P1) Character-driven auto-share prompts after creation
-- (P1) Viral loop: Continue story -> share -> remix -> loop
+## Backlog
 - (P1) Premium tier download quality differentiation
 - (P2) Remix Variants on share pages
 - (P2) Admin Dashboard WebSocket upgrades
 - (P2) Personalization and Precomputed Daily Packs
-- (P2) Story Chain leaderboard
+- (P2) Story Chain leaderboard / tree visualization
+
+## Success Metrics to Track
+- % users who click "Continue Story"
+- % stories that get at least 1 continuation
+- Avg branches per story
+- Share -> open -> continue rate
+- A/B variant conversion rates
 
 ## Credentials
 - Test: test@visionary-suite.com / Test@2026#
