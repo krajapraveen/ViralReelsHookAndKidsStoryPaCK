@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'sonner';
 
 // USE RELATIVE URLs - This ALWAYS works regardless of deployment
 // The browser will automatically use the current domain
@@ -54,7 +55,17 @@ api.interceptors.request.use((config) => {
 
 // Handle errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Surface safety metadata as a soft toast when the backend rewrote the input
+    const meta = response.data?._safety_meta;
+    if (meta?.was_rewritten) {
+      toast.info(
+        meta.safety_note || 'We adjusted parts of your request to keep it original.',
+        { duration: 4000, id: 'safety-rewrite-notice' }
+      );
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       // Don't redirect for open-access pages (growth funnel)

@@ -25,6 +25,10 @@ Usage in any route:
     result["title"] = validated["title"]
     result["narration"] = validated["narration"]
 """
+import contextvars
+import asyncio
+import weakref
+
 from .rewrite_service import (
     safe_rewrite,
     safe_rewrite_fields,
@@ -37,3 +41,23 @@ from .rewrite_service import (
 from .policy_engine import Decision, evaluate_policy
 from .output_validator import validate_output, validate_and_clean
 from .output_enforcer import enforce_output_safety
+
+# Request-scoped safety metadata — stored per asyncio Task ID.
+# Set by check_and_rewrite / process_safety_check,
+# read by OutputSafetyMiddleware to inject into generation responses.
+_safety_store: dict = {}
+
+
+def set_safety_meta(meta: dict):
+    """Store safety metadata for the current async task."""
+    task = asyncio.current_task()
+    if task:
+        _safety_store[id(task)] = meta
+
+
+def get_and_clear_safety_meta() -> dict:
+    """Read and remove safety metadata for the current async task."""
+    task = asyncio.current_task()
+    if task:
+        return _safety_store.pop(id(task), None)
+    return None

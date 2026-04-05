@@ -156,6 +156,7 @@ async def process_safety_check(
                 "source_ip": top_match.source_ip,
                 "confidence": top_match.confidence,
                 "keywords": top_match.matched_keywords,
+                "detection_type": top_match.detection_type,
             })
             # If keyword rewriter didn't catch it, apply semantic rewrite
             if not trademark_flags.get(field_name, False):
@@ -164,7 +165,7 @@ async def process_safety_check(
                 all_changes.append({
                     "original": f"[semantic: {top_match.source_ip}]",
                     "replacement": top_match.safe_rewrite,
-                    "type": "semantic",
+                    "type": top_match.detection_type,
                 })
 
     # Step 2: Policy check (BLOCK only for genuinely dangerous content)
@@ -206,9 +207,16 @@ async def process_safety_check(
         rewrite_summary={
             "total_changes": len(all_changes),
             "changed_terms": [c["original"] for c in all_changes[:10]],
+            "detection_types": list(set(c.get("type", "keyword") for c in all_changes)) if all_changes else [],
+            "semantic_detections": [
+                {"source_ip": h["source_ip"], "detection_type": h.get("detection_type", "semantic")}
+                for h in semantic_hits
+            ],
         },
         session_id=session_id,
     )
+
+    _set_safety_context(was_rewritten, user_note, policy.decision.value, len(all_changes))
 
     return SafetyCheckResult(
         blocked=False,
@@ -218,6 +226,20 @@ async def process_safety_check(
         rewrite_count=len(all_changes),
         decision=policy.decision.value,
     )
+
+
+def _set_safety_context(was_rewritten: bool, user_note: str, decision: str, rewrite_count: int):
+    """Store safety metadata for the current request via async task ID."""
+    try:
+        from . import set_safety_meta
+        set_safety_meta({
+            "was_rewritten": was_rewritten,
+            "safety_note": user_note,
+            "decision": decision,
+            "rewrite_count": rewrite_count,
+        })
+    except Exception:
+        pass
 
 
 async def validate_generation_output(

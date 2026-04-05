@@ -1255,3 +1255,153 @@ async def safety_events_list(
         events.append(doc)
 
     return {"events": events, "count": len(events)}
+
+
+@router.get("/safety-insights")
+async def safety_insights(
+    hours: int = Query(168, ge=1, le=2160),
+    admin: dict = Depends(get_admin_user),
+):
+    """
+    Actionable safety telemetry for admins:
+    - Top rewritten terms
+    - Top detected IP clusters (semantic + fuzzy)
+    - Top bypass patterns
+    - High-risk routes
+    - Output leakage stats (missed input detections caught at output)
+    - Trend data (hourly buckets)
+    """
+    since = _ago(hours=hours)
+    since_str = since.isoformat()
+
+    # 1. Top rewritten terms
+    top_terms_pipeline = [
+        {"$match": {"timestamp": {"$gte": since_str}, "decision": "REWRITE"}},
+        {"$unwind": "$rewrite_summary.changed_terms"},
+        {"$group": {
+            "_id": "$rewrite_summary.changed_terms",
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": 20},
+    ]
+    top_terms = []
+    try:
+        async for doc in db.safety_events.aggregate(top_terms_pipeline):
+            top_terms.append({"term": doc["_id"], "count": doc["count"]})
+    except Exception:
+        pass
+
+    # 2. Top detected IP clusters (from semantic detections)
+    ip_cluster_pipeline = [
+        {"$match": {"timestamp": {"$gte": since_str}, "rewrite_summary.semantic_detections": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$rewrite_summary.semantic_detections"},
+        {"$group": {
+            "_id": "$rewrite_summary.semantic_detections.source_ip",
+            "count": {"$sum": 1},
+            "detection_types": {"$addToSet": "$rewrite_summary.semantic_detections.detection_type"},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": 15},
+    ]
+    top_ip_clusters = []
+    try:
+        async for doc in db.safety_events.aggregate(ip_cluster_pipeline):
+            top_ip_clusters.append({
+                "ip_cluster": doc["_id"],
+                "count": doc["count"],
+                "detection_types": doc["detection_types"],
+            })
+    except Exception:
+        pass
+
+    # 3. High-risk routes (features with most safety events)
+    route_pipeline = [
+        {"$match": {"timestamp": {"$gte": since_str}, "decision": {"$in": ["REWRITE", "BLOCK"]}}},
+        {"$group": {
+            "_id": "$feature_name",
+            "total": {"$sum": 1},
+            "rewrites": {"$sum": {"$cond": [{"$eq": ["$decision", "REWRITE"]}, 1, 0]}},
+            "blocks": {"$sum": {"$cond": [{"$eq": ["$decision", "BLOCK"]}, 1, 0]}},
+        }},
+        {"$sort": {"total": -1}},
+        {"$limit": 10},
+    ]
+    high_risk_routes = []
+    try:
+        async for doc in db.safety_events.aggregate(route_pipeline):
+            high_risk_routes.append({
+                "feature": doc["_id"],
+                "total_events": doc["total"],
+                "rewrites": doc["rewrites"],
+                "blocks": doc["blocks"],
+            })
+    except Exception:
+        pass
+
+    # 4. Output leakage — cases where output enforcer caught what input safety missed
+    output_leak_pipeline = [
+        {"$match": {"timestamp": {"$gte": since_str}, "action_taken": "rewritten"}},
+        {"$group": {
+            "_id": "$feature_name",
+            "leak_count": {"$sum": 1},
+            "total_leaked_terms": {"$sum": "$leaked_terms"},
+        }},
+        {"$sort": {"leak_count": -1}},
+        {"$limit": 10},
+    ]
+    output_leaks = []
+    try:
+        async for doc in db.output_validation_events.aggregate(output_leak_pipeline):
+            output_leaks.append({
+                "feature": doc["_id"],
+                "leak_count": doc["leak_count"],
+                "total_leaked_terms": doc["total_leaked_terms"],
+            })
+    except Exception:
+        pass
+
+    # 5. Trend data — hourly buckets for the period
+    total_input = await db.safety_events.count_documents({"timestamp": {"$gte": since_str}})
+    total_rewrites = await db.safety_events.count_documents({"timestamp": {"$gte": since_str}, "decision": "REWRITE"})
+    total_blocks = await db.safety_events.count_documents({"timestamp": {"$gte": since_str}, "decision": "BLOCK"})
+    total_output_checks = await db.output_validation_events.count_documents({"timestamp": {"$gte": since_str}})
+    total_output_catches = await db.output_validation_events.count_documents({"timestamp": {"$gte": since_str}, "action_taken": "rewritten"})
+
+    # 6. Detection type breakdown
+    detection_type_pipeline = [
+        {"$match": {"timestamp": {"$gte": since_str}, "rewrite_summary.detection_types": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$rewrite_summary.detection_types"},
+        {"$group": {
+            "_id": "$rewrite_summary.detection_types",
+            "count": {"$sum": 1},
+        }},
+    ]
+    detection_types = {}
+    try:
+        async for doc in db.safety_events.aggregate(detection_type_pipeline):
+            detection_types[doc["_id"]] = doc["count"]
+    except Exception:
+        pass
+
+    empty = total_input == 0 and total_output_checks == 0
+
+    return {
+        "period_hours": hours,
+        "summary": {
+            "total_input_checks": total_input,
+            "total_rewrites": total_rewrites,
+            "total_blocks": total_blocks,
+            "rewrite_rate": _safe_rate(total_rewrites, total_input),
+            "block_rate": _safe_rate(total_blocks, total_input),
+            "total_output_checks": total_output_checks,
+            "output_leak_catches": total_output_catches,
+        },
+        "detection_types": detection_types,
+        "top_rewritten_terms": top_terms,
+        "top_ip_clusters": top_ip_clusters,
+        "high_risk_routes": high_risk_routes,
+        "output_leaks_by_feature": output_leaks,
+        "empty_state": empty,
+        "empty_message": "No safety events recorded in this period" if empty else None,
+    }

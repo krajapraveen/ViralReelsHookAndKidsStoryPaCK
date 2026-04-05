@@ -111,17 +111,24 @@ def _derive_feature(path: str) -> str:
 class OutputSafetyMiddleware(BaseHTTPMiddleware):
     """
     Middleware that enforces output safety on all generation routes.
-    Fail-closed: if parsing fails, returns original response unchanged.
+    Also detects if the input contained safety-rewritable content and
+    injects `_safety_meta` into the response for frontend UX.
     """
 
     async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-
-        # Only process generation responses
         path = request.url.path
         method = request.method
-
         is_gen = _is_generation_response(method, path)
+
+        # Cache request body BEFORE call_next for safety detection
+        cached_body = None
+        if is_gen:
+            try:
+                cached_body = await request.body()
+            except Exception:
+                pass
+
+        response = await call_next(request)
 
         if not is_gen:
             return response
@@ -150,11 +157,9 @@ class OutputSafetyMiddleware(BaseHTTPMiddleware):
 
         # Handle gzip-compressed responses
         import gzip as gzip_mod
-        decompressed = False
         if body[:2] == b'\x1f\x8b':
             try:
                 body = gzip_mod.decompress(body)
-                decompressed = True
             except Exception:
                 pass
 
@@ -171,6 +176,7 @@ class OutputSafetyMiddleware(BaseHTTPMiddleware):
         # Enforce output safety
         try:
             from services.rewrite_engine.output_enforcer import enforce_output_safety
+            from services.rewrite_engine import get_and_clear_safety_meta
 
             user_id = _extract_user_id(request)
             feature = _derive_feature(path)
@@ -181,15 +187,61 @@ class OutputSafetyMiddleware(BaseHTTPMiddleware):
                 response_data=data,
             )
 
+            # Try to get safety metadata from the route handler (task-based)
+            safety_meta = get_and_clear_safety_meta()
+
+            # Fallback: detect rewrite from cached request body
+            if not safety_meta and isinstance(cleaned, dict) and cached_body:
+                safety_meta = _detect_input_rewrite_from_body(cached_body)
+
+            if isinstance(cleaned, dict) and safety_meta and safety_meta.get("was_rewritten"):
+                cleaned["_safety_meta"] = {
+                    "was_rewritten": True,
+                    "safety_note": safety_meta.get("safety_note",
+                        "We adjusted a few words to keep your content original and generation-ready."),
+                }
+
             return JSONResponse(
                 content=cleaned,
                 status_code=response.status_code,
             )
         except Exception as e:
-            # FAIL CLOSED: log error, return original response
             logger.error(f"[OUTPUT MIDDLEWARE] Enforcer failed on {path}: {e}", exc_info=True)
             return Response(
                 content=body,
                 status_code=response.status_code,
                 headers=dict(response.headers),
             )
+
+
+def _detect_input_rewrite_from_body(raw_body: bytes) -> dict:
+    """
+    Lightweight check: did the request body contain terms that would trigger a rewrite?
+    Uses the same rule_rewriter and semantic_detector that process_safety_check uses.
+    """
+    try:
+        text = raw_body.decode("utf-8", errors="ignore")
+        req_data = json.loads(text)
+    except Exception:
+        return None
+
+    try:
+        from services.rewrite_engine.rule_rewriter import has_risky_terms
+        from services.rewrite_engine.semantic_detector import has_semantic_risk
+
+        strings_to_check = []
+        if isinstance(req_data, dict):
+            for v in req_data.values():
+                if isinstance(v, str) and len(v) > 3:
+                    strings_to_check.append(v)
+
+        for s in strings_to_check:
+            if has_risky_terms(s) or has_semantic_risk(s):
+                return {
+                    "was_rewritten": True,
+                    "safety_note": "We adjusted a few words to keep your content original and generation-ready.",
+                }
+
+        return None
+    except Exception:
+        return None
