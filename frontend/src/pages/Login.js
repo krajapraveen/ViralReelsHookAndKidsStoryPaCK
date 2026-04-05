@@ -258,10 +258,15 @@ export default function Login({ setAuth }) {
   const handleGoogleSuccess = async (tokenResponse) => {
     setGoogleLoading(true);
     try {
+      console.log('[Google Auth] Token received, calling backend...');
       const response = await api.post('/api/auth/google-signin', {
         access_token: tokenResponse.access_token,
       });
+      console.log('[Google Auth] Backend response:', response.status, response.data ? 'has data' : 'no data');
       const { token, user } = response.data;
+      if (!token) {
+        throw new Error('No token in response');
+      }
       localStorage.setItem('token', token);
       if (user) {
         localStorage.setItem('user', JSON.stringify(user));
@@ -271,18 +276,10 @@ export default function Login({ setAuth }) {
         linkSessionToUser(user.id);
       }
       setAuth(true);
-      const firstName = user?.name?.split(' ')[0] || 'there';
-      toast.success(`Welcome back, ${firstName}!`);
-      const returnUrl = localStorage.getItem('auth_return_path')
-        || localStorage.getItem('remix_return_url');
-      if (returnUrl) {
-        localStorage.removeItem('auth_return_path');
-        localStorage.removeItem('remix_return_url');
-        window.location.href = returnUrl;
-      } else {
-        window.location.href = '/app';
-      }
+      console.log('[Google Auth] Token stored, redirecting to /app...');
+      window.location.href = '/app';
     } catch (error) {
+      console.error('[Google Auth] Error:', error?.response?.status, error?.response?.data || error.message);
       const msg = error?.response?.data?.detail || 'Google sign-in failed. Please try again.';
       toast.error(msg);
       setGoogleLoading(false);
