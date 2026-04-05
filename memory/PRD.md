@@ -10,7 +10,7 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 - **Object Storage**: Cloudflare R2
 - **Payments**: Cashfree
 - **AI**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini — via Emergent LLM Key
-- **Auth**: Emergent-managed Google Auth + JWT
+- **Auth**: Custom Google Identity Services (GIS) + JWT (replaced Emergent-hosted auth)
 
 ## User Personas
 1. **Creator** — Makes story videos, comics, coloring books
@@ -21,65 +21,65 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 
 ### Phase 1-2: Core Platform (Complete)
 - User auth (Google + email/password)
-- Story Video Studio (AI generation pipeline)
-- Comic Storybook Creator, Coloring Book Generator, GIF Maker
+- Story Video Studio, Comic Storybook Creator, Coloring Book Generator, GIF Maker
 - Credits system (50 initial credits, Cashfree payments)
 - Gallery, sharing, social features
 
 ### Phase 3: Safety (Complete)
-- Safety Playground (admin internal tool)
-- Content moderation pipeline, Anti-abuse service
+- Safety Playground, content moderation pipeline, anti-abuse service
 
 ### Phase 4: Viral Story Engine (Complete)
-- Fork API: `POST /api/share/{shareId}/fork`
-- Redesigned Share Page with "Continue This Story" CTA
-- Post-generation Share Modal
-- A/B testing on Landing Page (3 variants)
-- Alive signals, character-driven hooks, momentum-based social proof
+- Fork API, Share Page with "Continue This Story" CTA
+- Post-generation Share Modal, A/B testing, alive signals
 
 ### Phase 5: Growth Validation / DATA MODE (Complete — April 5, 2026)
-- **30 Viral Seed Stories** (10 mystery, 10 thriller, 5 emotional, 5 fantasy)
-- **Growth Dashboard** with Continuation Rate, Branches/Story, Funnel Drop-off
-- **Story-Level Performance Tracking** (per-story views/forks/continuation rate, genre breakdown)
-- **Public Explore API** (`GET /api/public/explore-stories` with genre filtering)
+- 30 Viral Seed Stories (10 mystery, 10 thriller, 5 emotional, 5 fantasy)
+- Growth Dashboard with funnel metrics
+- Story-Level Performance Tracking
+- Public Explore API
 
-### P0: Auth Flow Optimization (Complete — April 5, 2026)
-- Logged-in users skip /login and /signup instantly (redirect to /app)
-- Google sign-in uses requestAnimationFrame (no 150ms setTimeout)
-- AuthLaunchOverlay slow notice at 4s (was 6s)
-- AuthCallback stripped to minimal UI (spinner + "Signing you in")
-- Referral attribution is fire-and-forget (no blocking await)
-- App shell preloaded via prefetch link on login/signup pages
-- No artificial delays anywhere in auth flow
-
-### Trust & Consistency Fixes (Complete)
-- Fixed Security tab, truth-based admin metrics
-- Credit system consistency (50 credits standard)
-- Diverse "Live on the Platform" feed
+### P0: Custom Google Sign-In Migration (Complete — April 5, 2026)
+- **Replaced Emergent-hosted auth** (`auth.emergentagent.com`) with direct Google Identity Services
+- Frontend: `@react-oauth/google` `GoogleLogin` component renders native Google button
+- Backend: `POST /api/auth/google-signin` verifies Google ID token server-side via `google-auth`
+- Account linking: Existing users matched by email, new users created with 50 credits
+- CSP updated to allow `accounts.google.com` in script-src, style-src, and frame-src
+- Old Emergent callback endpoint preserved for backward compatibility
+- No Emergent-branded pages visible in primary auth flow
+- Prefetch hints for `/app` on login/signup pages
 
 ## Key API Endpoints
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
+| `/api/auth/google-signin` | POST | None | Custom Google Sign-In (verify ID token) |
+| `/api/auth/login` | POST | None | Email/password login |
+| `/api/auth/register` | POST | None | Email/password signup |
 | `/api/share/{shareId}/fork` | POST | None | Fork/continue a story |
-| `/api/share/{shareId}` | GET | None | Get share page data |
 | `/api/public/explore-stories` | GET | None | Browse stories with genre filter |
-| `/api/public/featured-story` | GET | None | Get featured story for landing |
 | `/api/admin/metrics/growth` | GET | Admin | Growth funnel metrics |
 | `/api/admin/metrics/story-performance` | GET | Admin | Per-story performance data |
 
 ## Credentials
 - Test User: `test@visionary-suite.com` / `Test@2026#`
 - Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
+- Google OAuth Client ID: `972517860807-cjgrpibkrg4n1ncdgs4kvmnqfpasgkao.apps.googleusercontent.com`
+
+## Important: Google OAuth Testing Mode
+The Google OAuth app is currently in **Testing** mode. Only users added as test users in Google Cloud Console can sign in. To enable public sign-in:
+1. Go to https://console.cloud.google.com/apis/credentials/consent
+2. Click **Publish App**
+3. Complete verification if required by Google
 
 ## Prioritized Backlog
 
 ### P1 — Next Up
+- Publish Google OAuth consent screen (exit Testing mode)
 - Premium tier download quality differentiation
-- A/B test hook text variations on public pages
+- A/B test hook text variations
 
 ### P2 — Future
-- Character-driven auto-share prompts after creation
+- Character-driven auto-share prompts
 - Remix Variants on share pages
 - Story Chain leaderboard
-- Personalization and Precomputed Daily Packs
+- Personalization / Daily Packs
 - Admin Dashboard WebSocket upgrades
