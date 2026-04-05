@@ -226,3 +226,11 @@ frontend/node_modules/.cache/default-development/162.pack
 *.env
 *.env.*
 frontend/node_modules/.cache/default-development/163.pack
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*
