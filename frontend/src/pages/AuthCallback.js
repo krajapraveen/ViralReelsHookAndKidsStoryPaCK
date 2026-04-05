@@ -127,21 +127,18 @@ export default function AuthCallback({ setAuth }) {
 
           <div className="flex flex-col gap-3">
             <button
-              onClick={() => {
-                const redirectUrl = window.location.origin + '/auth/callback';
-                window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-              }}
+              onClick={() => navigate('/login', { replace: true })}
               className="w-full h-11 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold text-sm hover:opacity-90 transition-opacity"
               data-testid="auth-retry-btn"
             >
               Try Again
             </button>
             <button
-              onClick={() => navigate('/login', { replace: true })}
+              onClick={() => navigate('/', { replace: true })}
               className="w-full h-11 rounded-xl border border-slate-700 text-slate-300 font-medium text-sm hover:bg-slate-800/50 transition-colors"
               data-testid="auth-back-to-login"
             >
-              Back to Login
+              Back to Home
             </button>
           </div>
         </div>

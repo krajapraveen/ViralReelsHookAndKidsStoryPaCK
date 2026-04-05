@@ -22,8 +22,14 @@ from models.schemas import UserCreate, UserLogin, GoogleCallback, ProfileUpdate,
 from security import limiter, validate_password_strength
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# Google OAuth Configuration
+# REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
 # Google reCAPTCHA v3 Configuration
 RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", "")
@@ -83,6 +89,10 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     newPassword: str = Field(min_length=8, max_length=128)
+
+
+class GoogleSignInRequest(BaseModel):
+    credential: str  # Google ID token from @react-oauth/google
 
 
 class VerifyEmailRequest(BaseModel):
@@ -717,6 +727,157 @@ async def google_callback(request: Request, data: GoogleCallback):
         except Exception as log_err:
             logger.error(f"Failed to log exception: {log_err}")
         raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CUSTOM GOOGLE SIGN-IN — Direct Google Identity Services (no Emergent interstitial)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/google-signin")
+async def google_signin(request: Request, data: GoogleSignInRequest):
+    """
+    Custom Google Sign-In: Verify Google ID token server-side and issue app session.
+    This replaces the Emergent-hosted auth flow — no interstitial page.
+    """
+    from routes.login_activity import log_login_activity
+
+    try:
+        if not GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=500, detail="Google OAuth not configured")
+
+        # Verify Google ID token server-side
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                data.credential,
+                google_requests.Request(),
+                GOOGLE_CLIENT_ID
+            )
+        except ValueError as e:
+            logger.warning(f"Invalid Google token: {e}")
+            raise HTTPException(status_code=401, detail="Invalid Google credential")
+
+        # Validate token issuer
+        if idinfo.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
+            raise HTTPException(status_code=401, detail="Invalid token issuer")
+
+        # Validate token audience
+        if idinfo.get("aud") != GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=401, detail="Invalid token audience")
+
+        # Extract user info from verified token
+        email = idinfo.get("email", "").lower()
+        name = idinfo.get("name", email.split("@")[0] if email else "User")
+        picture = idinfo.get("picture", "")
+        email_verified = idinfo.get("email_verified", False)
+
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not provided by Google")
+
+        if not email_verified:
+            raise HTTPException(status_code=400, detail="Google email not verified")
+
+        logger.info(f"Custom Google sign-in for: {email}")
+
+        # Check if user exists — account linking for existing users
+        existing = await db.users.find_one({"email": email}, {"_id": 0})
+
+        if existing:
+            # Update last login and picture
+            update_fields = {
+                "lastLogin": datetime.now(timezone.utc).isoformat(),
+                "picture": picture if picture else existing.get("picture", ""),
+            }
+            # Link auth provider if user was previously email-only
+            if existing.get("authProvider") != "google":
+                update_fields["authProvider"] = "google"
+                update_fields["emailVerified"] = True
+
+            await db.users.update_one(
+                {"id": existing["id"]},
+                {"$set": update_fields}
+            )
+
+            await log_login_activity(
+                request=request,
+                user_id=existing["id"],
+                identifier=email,
+                status="SUCCESS",
+                auth_method="google_direct"
+            )
+
+            token = create_token(existing["id"], existing.get("role", "user"))
+            logger.info(f"Existing user Google sign-in: {email}")
+            return {
+                "token": token,
+                "user": {
+                    "id": existing["id"],
+                    "email": existing["email"],
+                    "name": existing.get("name", name),
+                    "role": existing.get("role", "user"),
+                    "credits": existing.get("credits", 0),
+                    "picture": picture if picture else existing.get("picture", ""),
+                }
+            }
+        else:
+            # Create new user
+            user_id = str(uuid.uuid4())
+            user = {
+                "id": user_id,
+                "email": email,
+                "name": name,
+                "picture": picture,
+                "password": "",
+                "role": "user",
+                "credits": 50,
+                "authProvider": "google",
+                "emailVerified": True,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "lastLogin": datetime.now(timezone.utc).isoformat(),
+                "plan_type": "free",
+                "subscription_status": "inactive",
+                "subscription_expires_at": None,
+                "topup_credits": 0,
+            }
+
+            await db.users.insert_one(user)
+
+            await db.credit_ledger.insert_one({
+                "id": str(uuid.uuid4()),
+                "userId": user_id,
+                "amount": 50,
+                "type": "SIGNUP",
+                "description": "Welcome bonus via Google Sign-In - 50 free credits",
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            })
+
+            await log_login_activity(
+                request=request,
+                user_id=user_id,
+                identifier=email,
+                status="SUCCESS",
+                auth_method="google_direct"
+            )
+
+            token = create_token(user_id, "user")
+            logger.info(f"New Google user registered (direct): {email}")
+
+            return {
+                "token": token,
+                "user": {
+                    "id": user_id,
+                    "email": email,
+                    "name": name,
+                    "role": "user",
+                    "credits": 50,
+                    "picture": picture,
+                }
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Google direct sign-in error: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Google sign-in failed. Please try again.")
 
 
 @router.get("/me")

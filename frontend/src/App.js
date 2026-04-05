@@ -157,7 +157,11 @@ import CharacterLibrary from './pages/CharacterLibrary';
 import CharacterDetail from './pages/CharacterDetail';
 import PublicCharacterPage from './pages/PublicCharacterPage';
 import { ContentProtectionWrapper } from './components/ContentProtectionWrapper';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import './App.css';
+
+// REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
 /** Protected route wrapper — preserves intended destination for return-path after auth. */
 function ProtectedRoute({ auth, children }) {
@@ -199,6 +203,7 @@ function App() {
   }
 
   return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
     <NotificationProvider>
     <CreditProvider>
     <MediaEntitlementProvider>
@@ -386,6 +391,7 @@ function App() {
     </MediaEntitlementProvider>
     </CreditProvider>
     </NotificationProvider>
+    </GoogleOAuthProvider>
   );
 }
 
