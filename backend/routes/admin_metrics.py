@@ -1641,3 +1641,211 @@ async def replay_safety_event(
         return {"error": "No event at that index", "total": len(events)}
 
     return {"event": events[event_index], "total": len(events)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GROWTH VALIDATION DASHBOARD — DATA MODE (Phase 5)
+# Tracks the 5 metrics that determine product-market fit
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/growth")
+async def growth_metrics(
+    hours: int = Query(72, ge=1, le=2160),
+    admin: dict = Depends(get_admin_user),
+):
+    """
+    Consolidated growth metrics for data mode.
+    Tracks: continuation rate, branches/story, share funnel,
+    first-session conversion, and drop-off points.
+    """
+    since = _ago(hours=hours)
+    since_str = since.isoformat()
+
+    # ── 1. CONTINUATION RATE ──
+    # = users who click "Continue" / total share page visitors
+    total_share_views = await db.shares.aggregate([
+        {"$match": {"createdAt": {"$gte": since_str}}},
+        {"$group": {"_id": None, "total_views": {"$sum": "$views"}}},
+    ]).to_list(1)
+    total_views = total_share_views[0]["total_views"] if total_share_views else 0
+
+    total_forks = await db.share_events.count_documents({
+        "type": "fork_initiated",
+        "timestamp": {"$gte": since_str},
+    })
+
+    continuation_rate = _safe_rate(total_forks, total_views) if total_views > 0 else 0
+
+    # ── 2. BRANCHES PER STORY (K-factor) ──
+    stories_with_shares = await db.shares.count_documents({
+        "parentShareId": None,
+        "createdAt": {"$gte": since_str},
+    })
+
+    branches_pipeline = [
+        {"$match": {"createdAt": {"$gte": since_str}, "parentShareId": None}},
+        {"$group": {"_id": None, "total_forks": {"$sum": "$forks"}, "count": {"$sum": 1}}},
+    ]
+    branches_result = await db.shares.aggregate(branches_pipeline).to_list(1)
+    avg_branches = 0
+    if branches_result and branches_result[0]["count"] > 0:
+        avg_branches = round(branches_result[0]["total_forks"] / branches_result[0]["count"], 2)
+
+    # ── 3. SHARE FUNNEL ──
+    # Create → Share → Open → Continue → New Share
+    total_created = await db.pipeline_jobs.count_documents({
+        "created_at": {"$gte": since_str},
+        "status": "COMPLETED",
+    })
+    total_shares_created = await db.shares.count_documents({
+        "createdAt": {"$gte": since_str},
+    })
+    total_opens = total_views  # same as share page views
+    total_continues = total_forks
+    # New shares from forks (shares with parentShareId)
+    total_reshares = await db.shares.count_documents({
+        "parentShareId": {"$ne": None},
+        "createdAt": {"$gte": since_str},
+    })
+
+    share_rate = _safe_rate(total_shares_created, total_created) or 0
+    open_rate = _safe_rate(total_opens, total_shares_created) or 0
+    continue_rate = _safe_rate(total_continues, total_opens) if total_opens > 0 else 0
+    reshare_rate = _safe_rate(total_reshares, total_continues) if total_continues > 0 else 0
+
+    # ── 4. FIRST SESSION CONVERSION ──
+    # Landing impressions → CTA clicks
+    ab_impressions = await db.ab_events.count_documents({
+        "action": "impression",
+        "timestamp": {"$gte": since_str},
+    })
+    ab_cta_clicks = await db.ab_events.count_documents({
+        "action": "cta_click",
+        "timestamp": {"$gte": since_str},
+    })
+    ab_create_clicks = await db.ab_events.count_documents({
+        "action": "create_click",
+        "timestamp": {"$gte": since_str},
+    })
+    landing_conversion = _safe_rate(ab_cta_clicks + ab_create_clicks, ab_impressions)
+
+    # A/B variant breakdown
+    ab_variant_pipeline = [
+        {"$match": {"timestamp": {"$gte": since_str}}},
+        {"$group": {
+            "_id": {"variant": "$variant", "action": "$action"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    variant_data = {}
+    async for doc in db.ab_events.aggregate(ab_variant_pipeline):
+        v = doc["_id"]["variant"]
+        a = doc["_id"]["action"]
+        if v not in variant_data:
+            variant_data[v] = {}
+        variant_data[v][a] = doc["count"]
+
+    # Calculate per-variant conversion
+    ab_variants = {}
+    for v, actions in variant_data.items():
+        imp = actions.get("impression", 0)
+        clicks = actions.get("cta_click", 0) + actions.get("create_click", 0)
+        ab_variants[v] = {
+            "impressions": imp,
+            "clicks": clicks,
+            "conversion": _safe_rate(clicks, imp) if imp > 0 else 0,
+        }
+
+    # ── 5. DROP-OFF ANALYSIS ──
+    # Where users die in the funnel
+    funnel = [
+        {"stage": "Landing Visit", "count": ab_impressions, "rate": "100%"},
+        {"stage": "CTA Click", "count": ab_cta_clicks + ab_create_clicks,
+         "rate": f"{landing_conversion}%"},
+        {"stage": "Story Created", "count": total_created,
+         "rate": f"{_safe_rate(total_created, max(ab_cta_clicks + ab_create_clicks, 1)) or 0}%"},
+        {"stage": "Story Shared", "count": total_shares_created,
+         "rate": f"{share_rate}%"},
+        {"stage": "Share Opened", "count": total_opens,
+         "rate": f"{open_rate}%"},
+        {"stage": "Continued", "count": total_continues,
+         "rate": f"{continue_rate}%"},
+        {"stage": "Re-shared", "count": total_reshares,
+         "rate": f"{reshare_rate}%"},
+    ]
+
+    # ── TOP STORIES ──
+    top_stories_pipeline = [
+        {"$match": {"parentShareId": None}},
+        {"$sort": {"forks": -1}},
+        {"$limit": 10},
+        {"$project": {"_id": 0, "id": 1, "title": 1, "forks": 1, "views": 1, "hookText": 1, "createdAt": 1}},
+    ]
+    top_stories = []
+    async for doc in db.shares.aggregate(top_stories_pipeline):
+        top_stories.append(doc)
+
+    # ── WINNING HOOKS ──
+    # Stories with highest continuation rates
+    winning_hooks_pipeline = [
+        {"$match": {"parentShareId": None, "views": {"$gte": 2}}},
+        {"$addFields": {"cont_rate": {"$divide": ["$forks", "$views"]}}},
+        {"$sort": {"cont_rate": -1}},
+        {"$limit": 5},
+        {"$project": {"_id": 0, "title": 1, "hookText": 1, "forks": 1, "views": 1, "cont_rate": 1}},
+    ]
+    winning_hooks = []
+    async for doc in db.shares.aggregate(winning_hooks_pipeline):
+        cr_val = doc.get("cont_rate")
+        doc["cont_rate"] = round((cr_val or 0) * 100, 1)
+        winning_hooks.append(doc)
+
+    empty = total_views == 0 and total_created == 0 and ab_impressions == 0
+
+    return {
+        "period_hours": hours,
+        "empty_state": empty,
+        "empty_message": "No growth data yet. Seed 20-30 high-quality stories to start the loop." if empty else None,
+
+        "continuation_rate": {
+            "value": continuation_rate,
+            "label": f"{continuation_rate}%",
+            "interpretation": "strong" if continuation_rate >= 20 else "decent" if continuation_rate >= 10 else "needs work",
+            "total_views": total_views,
+            "total_forks": total_forks,
+        },
+
+        "branches_per_story": {
+            "value": avg_branches,
+            "label": f"{avg_branches}",
+            "interpretation": "viral potential" if avg_branches >= 3 else "okay" if avg_branches >= 1 else "needs seeding",
+            "total_stories": stories_with_shares,
+        },
+
+        "share_funnel": {
+            "created": total_created,
+            "shared": total_shares_created,
+            "opened": total_opens,
+            "continued": total_continues,
+            "reshared": total_reshares,
+            "rates": {
+                "share_rate": f"{share_rate}%",
+                "open_rate": f"{open_rate}%",
+                "continue_rate": f"{continue_rate}%",
+                "reshare_rate": f"{reshare_rate}%",
+            },
+        },
+
+        "first_session": {
+            "impressions": ab_impressions,
+            "cta_clicks": ab_cta_clicks + ab_create_clicks,
+            "conversion": f"{landing_conversion}%",
+        },
+
+        "ab_test": ab_variants,
+
+        "funnel_dropoff": funnel,
+        "top_stories": top_stories,
+        "winning_hooks": winning_hooks,
+    }
+

@@ -10,6 +10,7 @@ import {
   CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera, Palette
 } from 'lucide-react';
 import SafetyPlayground from './SafetyPlayground';
+import GrowthDashboard from './GrowthDashboard';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
 // Every widget has: LOADING | READY | EMPTY | ERROR | STALE
@@ -362,7 +363,7 @@ function FallbackValidationRunner({ validations }) {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [section, setSection] = useState('executive');
+  const [section, setSection] = useState('growth_validation');
   const [days, setDays] = useState(30);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const intervalRef = useRef(null);
@@ -497,6 +498,7 @@ export default function AdminDashboard() {
   const ch = comicHealth.data;
 
   const sections = [
+    { id: 'growth_validation', label: 'Growth', icon: TrendingUp },
     { id: 'executive', label: 'Executive', icon: BarChart3 },
     { id: 'kfactor', label: 'K-Factor', icon: Activity },
     { id: 'funnel', label: 'Growth Funnel', icon: TrendingUp },
@@ -1583,6 +1585,10 @@ export default function AdminDashboard() {
 
         {section === 'safety_playground' && (
           <SafetyPlayground />
+        )}
+
+        {section === 'growth_validation' && (
+          <GrowthDashboard />
         )}
       </div>
     </div>
