@@ -348,6 +348,7 @@ export default function Signup({ setAuth }) {
       toast.error('Google sign-in was cancelled or failed.');
       setGoogleLoading(false);
     },
+    scope: 'email profile',
   });
 
   // Custom input styles for dark theme

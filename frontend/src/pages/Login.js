@@ -295,6 +295,7 @@ export default function Login({ setAuth }) {
       toast.error('Google sign-in was cancelled or failed.');
       setGoogleLoading(false);
     },
+    scope: 'email profile',
   });
 
   // Check if email is valid for enabling submit button

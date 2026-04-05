@@ -760,31 +760,53 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
         google_sub = ""
 
         if data.access_token:
-            # Implicit flow — validate access token via Google userinfo API
+            # Implicit flow — validate access token via Google tokeninfo + userinfo
             try:
-                logger.info("Google sign-in: Using access_token flow")
+                logger.info(f"Google sign-in: Using access_token flow (token length: {len(data.access_token)})")
                 async with httpx.AsyncClient() as client:
+                    # First verify token is valid via tokeninfo
+                    tokeninfo_response = await client.get(
+                        f"https://oauth2.googleapis.com/tokeninfo?access_token={data.access_token}",
+                    )
+                    if tokeninfo_response.status_code != 200:
+                        logger.warning(f"Google tokeninfo failed ({tokeninfo_response.status_code}): {tokeninfo_response.text}")
+                        raise HTTPException(status_code=401, detail="Invalid Google access token")
+
+                    tokeninfo = tokeninfo_response.json()
+                    logger.info(f"Google tokeninfo verified, aud: {tokeninfo.get('aud', 'N/A')}")
+
+                    # Verify the token was issued for our app
+                    if tokeninfo.get("aud") != GOOGLE_CLIENT_ID:
+                        logger.warning(f"Token audience mismatch: {tokeninfo.get('aud')} != {GOOGLE_CLIENT_ID}")
+                        raise HTTPException(status_code=401, detail="Token not issued for this application")
+
+                    # Now fetch user profile using the access token
                     userinfo_response = await client.get(
-                        "https://www.googleapis.com/oauth2/v3/userinfo",
+                        "https://www.googleapis.com/oauth2/v2/userinfo",
                         headers={"Authorization": f"Bearer {data.access_token}"},
                     )
-                if userinfo_response.status_code != 200:
-                    logger.warning(f"Google userinfo failed ({userinfo_response.status_code}): {userinfo_response.text}")
-                    raise HTTPException(status_code=401, detail="Invalid Google access token")
-
-                userinfo = userinfo_response.json()
-                email = userinfo.get("email", "").lower()
-                name = userinfo.get("name", email.split("@")[0] if email else "User")
-                picture = userinfo.get("picture", "")
-                google_sub = userinfo.get("sub", "")
-                email_verified = userinfo.get("email_verified", False)
+                    if userinfo_response.status_code == 200:
+                        userinfo = userinfo_response.json()
+                        email = userinfo.get("email", "").lower()
+                        name = userinfo.get("name", "")
+                        picture = userinfo.get("picture", "")
+                        google_sub = userinfo.get("id", "")
+                        email_verified = userinfo.get("verified_email", False)
+                    else:
+                        # Fallback: use tokeninfo data which also has email
+                        logger.info(f"Userinfo failed, using tokeninfo data instead")
+                        email = tokeninfo.get("email", "").lower()
+                        name = email.split("@")[0] if email else "User"
+                        picture = ""
+                        google_sub = tokeninfo.get("sub", "")
+                        email_verified = tokeninfo.get("email_verified", "false") == "true"
 
                 if not email:
                     raise HTTPException(status_code=400, detail="Email not provided by Google")
                 if not email_verified:
                     raise HTTPException(status_code=400, detail="Google email not verified")
 
-                logger.info(f"Google userinfo verified: {email}")
+                logger.info(f"Google access token verified: {email}")
             except HTTPException:
                 raise
             except Exception as e:
