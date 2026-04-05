@@ -126,7 +126,7 @@ async def process_safety_check(
             raise HTTPException(status_code=400, detail=safety.block_reason)
         data.theme = safety.clean["theme"]
     """
-    # Step 1: Rewrite each field
+    # Step 1: Rewrite each field (keyword-based)
     clean = {}
     all_changes = []
     trademark_flags = {}
@@ -140,6 +140,32 @@ async def process_safety_check(
         clean[field_name] = result.rewritten_text
         trademark_flags[field_name] = result.was_rewritten
         all_changes.extend(result.changes)
+
+    # Step 1.5: Semantic pattern detection (catches indirect references)
+    from .semantic_detector import detect_semantic_patterns
+    semantic_hits = []
+    for field_name, text in inputs.items():
+        if not text or not text.strip():
+            continue
+        matches = detect_semantic_patterns(text)
+        if matches:
+            # Use the first (highest confidence) match's safe_rewrite
+            top_match = matches[0]
+            semantic_hits.append({
+                "field": field_name,
+                "source_ip": top_match.source_ip,
+                "confidence": top_match.confidence,
+                "keywords": top_match.matched_keywords,
+            })
+            # If keyword rewriter didn't catch it, apply semantic rewrite
+            if not trademark_flags.get(field_name, False):
+                clean[field_name] = top_match.safe_rewrite
+                trademark_flags[field_name] = True
+                all_changes.append({
+                    "original": f"[semantic: {top_match.source_ip}]",
+                    "replacement": top_match.safe_rewrite,
+                    "type": "semantic",
+                })
 
     # Step 2: Policy check (BLOCK only for genuinely dangerous content)
     policy = evaluate_policy_batch(inputs, trademark_flags)

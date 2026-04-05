@@ -235,6 +235,11 @@ app.add_middleware(SecurityHeadersMiddleware)
 from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# Output Safety middleware — universal post-generation enforcement.
+# Added AFTER GZip so it runs BEFORE compression (sees raw JSON).
+from services.rewrite_engine.output_safety_middleware import OutputSafetyMiddleware
+app.add_middleware(OutputSafetyMiddleware)
+
 # Add Performance middleware for metrics and correlation IDs (before Self-Healing)
 app.add_middleware(PerformanceMiddleware)
 

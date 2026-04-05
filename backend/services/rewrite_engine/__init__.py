@@ -36,3 +36,4 @@ from .rewrite_service import (
 )
 from .policy_engine import Decision, evaluate_policy
 from .output_validator import validate_output, validate_and_clean
+from .output_enforcer import enforce_output_safety

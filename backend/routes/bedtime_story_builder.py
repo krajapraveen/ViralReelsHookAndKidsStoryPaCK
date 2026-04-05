@@ -711,28 +711,6 @@ async def generate_story(
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
-        # Output validation — check generated story for leaked IP terms
-        from services.rewrite_engine import validate_generation_output
-        if isinstance(result, dict):
-            output_fields = {}
-            if result.get("title"):
-                output_fields["title"] = result["title"]
-            if result.get("pages"):
-                for i, page in enumerate(result["pages"]):
-                    if isinstance(page, dict) and page.get("text"):
-                        output_fields[f"page_{i}"] = page["text"]
-            if output_fields:
-                validated = await validate_generation_output(
-                    user_id=str(user_id), feature="bedtime_story", outputs=output_fields
-                )
-                if result.get("title") and "title" in validated:
-                    result["title"] = validated["title"]
-                if result.get("pages"):
-                    for i, page in enumerate(result["pages"]):
-                        key = f"page_{i}"
-                        if key in validated and isinstance(page, dict):
-                            page["text"] = validated[key]
-
         return {
             "success": True,
             "story": result,
