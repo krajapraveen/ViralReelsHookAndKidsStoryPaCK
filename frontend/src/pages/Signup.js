@@ -331,9 +331,9 @@ export default function Signup({ setAuth }) {
       if (returnUrl) {
         localStorage.removeItem('auth_return_path');
         localStorage.removeItem('remix_return_url');
-        navigate(returnUrl, { replace: true });
+        window.location.href = returnUrl;
       } else {
-        navigate('/app', { replace: true });
+        window.location.href = '/app';
       }
     } catch (error) {
       const msg = error?.response?.data?.detail || 'Google sign-up failed. Please try again.';
