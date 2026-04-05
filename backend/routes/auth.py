@@ -92,7 +92,8 @@ class ResetPasswordRequest(BaseModel):
 
 
 class GoogleSignInRequest(BaseModel):
-    credential: str  # Google ID token from @react-oauth/google
+    credential: str = ""  # Google ID token (one-tap flow)
+    code: str = ""  # Google auth code (popup flow)
 
 
 class VerifyEmailRequest(BaseModel):
@@ -745,16 +746,60 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
         if not GOOGLE_CLIENT_ID:
             raise HTTPException(status_code=500, detail="Google OAuth not configured")
 
-        # Verify Google ID token server-side
-        try:
-            idinfo = id_token.verify_oauth2_token(
-                data.credential,
-                google_requests.Request(),
-                GOOGLE_CLIENT_ID
-            )
-        except ValueError as e:
-            logger.warning(f"Invalid Google token: {e}")
-            raise HTTPException(status_code=401, detail="Invalid Google credential")
+        GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+
+        # Two flows supported:
+        # 1. credential (ID token from GoogleLogin one-tap)
+        # 2. code (auth code from useGoogleLogin popup)
+
+        if data.code:
+            # Auth code flow — exchange code for tokens
+            if not GOOGLE_CLIENT_SECRET:
+                raise HTTPException(status_code=500, detail="Google OAuth secret not configured")
+
+            try:
+                async with httpx.AsyncClient() as client:
+                    token_response = await client.post(
+                        "https://oauth2.googleapis.com/token",
+                        data={
+                            "code": data.code,
+                            "client_id": GOOGLE_CLIENT_ID,
+                            "client_secret": GOOGLE_CLIENT_SECRET,
+                            "redirect_uri": "postmessage",
+                            "grant_type": "authorization_code",
+                        },
+                    )
+                if token_response.status_code != 200:
+                    logger.warning(f"Google token exchange failed: {token_response.text}")
+                    raise HTTPException(status_code=401, detail="Google auth code exchange failed")
+
+                tokens = token_response.json()
+                id_token_str = tokens.get("id_token", "")
+
+                idinfo = id_token.verify_oauth2_token(
+                    id_token_str,
+                    google_requests.Request(),
+                    GOOGLE_CLIENT_ID,
+                )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Google auth code exchange error: {e}")
+                raise HTTPException(status_code=401, detail="Invalid Google auth code")
+
+        elif data.credential:
+            # ID token flow — verify directly
+            try:
+                idinfo = id_token.verify_oauth2_token(
+                    data.credential,
+                    google_requests.Request(),
+                    GOOGLE_CLIENT_ID,
+                )
+            except ValueError as e:
+                logger.warning(f"Invalid Google token: {e}")
+                raise HTTPException(status_code=401, detail="Invalid Google credential")
+        else:
+            raise HTTPException(status_code=400, detail="No Google credential or auth code provided")
 
         # Validate token issuer
         if idinfo.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
