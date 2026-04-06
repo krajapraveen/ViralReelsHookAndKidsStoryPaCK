@@ -1051,6 +1051,13 @@ async def _stage_assembly(job: dict) -> Dict:
     if trigger_ok and os.path.exists(triggered_path):
         final_path = triggered_path
 
+    # Watermark end screen
+    await update_heartbeat(db, job_id, "Adding brand watermark")
+    watermarked_path = str(output_dir / f"se_{job_id[:8]}_watermarked.mp4")
+    wm_ok = await ffmpeg_assembly.add_watermark_endscreen(final_path, watermarked_path)
+    if wm_ok and os.path.exists(watermarked_path):
+        final_path = watermarked_path
+
     await update_heartbeat(db, job_id, "Generating preview and thumbnails")
 
     # Preview

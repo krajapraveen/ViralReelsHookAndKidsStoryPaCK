@@ -541,3 +541,75 @@ def build_assembly_plan(
         "has_music": bool(music_path),
         "has_subtitles": bool(subtitle_path),
     }
+
+
+async def add_watermark_endscreen(
+    video_path: str,
+    output_path: str,
+    duration: float = 2.5,
+    brand_text: str = "Created with Visionary Suite",
+    cta_text: str = "Make yours in seconds",
+    url_text: str = "visionary-suite.com",
+) -> bool:
+    """
+    Append a branded end screen to the final video.
+    Creates a 2.5s dark frame with brand text, CTA, and URL,
+    then concatenates it with the main video.
+    Non-fatal: returns False if it fails.
+    """
+    _ensure_dir()
+    work_id = uuid.uuid4().hex[:8]
+    endscreen_path = os.path.join(FFMPEG_WORK_DIR, f"endscreen_{work_id}.mp4")
+
+    # Probe video dimensions
+    probe_cmd = f'ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "{video_path}"'
+    try:
+        result = subprocess.run(probe_cmd, shell=True, capture_output=True, text=True, timeout=10)
+        dims = result.stdout.strip().split(",")
+        w, h = int(dims[0]), int(dims[1])
+    except Exception:
+        w, h = 1280, 720
+
+    font_size_brand = max(28, w // 30)
+    font_size_cta = max(22, w // 40)
+    font_size_url = max(20, w // 45)
+
+    # Create end screen with text overlay on dark background
+    endscreen_cmd = (
+        f'ffmpeg -y -f lavfi -i "color=c=0x0a0a14:s={w}x{h}:d={duration}:r=25" '
+        f'-vf "'
+        f"drawtext=text='{brand_text}':fontcolor=white:fontsize={font_size_brand}:x=(w-text_w)/2:y=(h-text_h)/2-{font_size_brand}:alpha='if(lt(t,0.5),t/0.5,1)',"
+        f"drawtext=text='{cta_text}':fontcolor=0xc4b5fd:fontsize={font_size_cta}:x=(w-text_w)/2:y=(h/2)+{int(font_size_cta*0.3)}:alpha='if(lt(t,0.7),t/0.7,1)',"
+        f"drawtext=text='{url_text}':fontcolor=0x818cf8:fontsize={font_size_url}:x=(w-text_w)/2:y=(h/2)+{int(font_size_cta*1.8)}:alpha='if(lt(t,0.9),t/0.9,1)'"
+        f'" -c:v libx264 -pix_fmt yuv420p -preset fast -crf 18 "{endscreen_path}"'
+    )
+
+    ok = await _run_ffmpeg(endscreen_cmd, timeout=30)
+    if not ok or not os.path.exists(endscreen_path):
+        logger.warning(f"[WATERMARK] Failed to create end screen for {work_id}")
+        return False
+
+    # Concat main video + end screen
+    concat_list = os.path.join(FFMPEG_WORK_DIR, f"wm_concat_{work_id}.txt")
+    try:
+        with open(concat_list, "w") as f:
+            f.write(f"file '{video_path}'\n")
+            f.write(f"file '{endscreen_path}'\n")
+
+        concat_cmd = (
+            f'ffmpeg -y -f concat -safe 0 -i "{concat_list}" '
+            f'-c:v libx264 -pix_fmt yuv420p -crf 20 -movflags +faststart "{output_path}"'
+        )
+        result = await _run_ffmpeg(concat_cmd, timeout=120)
+
+        # Cleanup
+        for p in [endscreen_path, concat_list]:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+        return result
+    except Exception as e:
+        logger.error(f"[WATERMARK] Concat failed: {e}")
+        return False

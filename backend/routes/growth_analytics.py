@@ -46,6 +46,10 @@ VALID_EVENTS = {
     # ── Addiction Loop Events ──
     "impression", "click", "watch_start", "watch_complete",
     "continue", "share", "signup_from_share",
+    # ── Growth Funnel Events ──
+    "share_viewed", "cta_clicked", "first_video_created",
+    "remix_clicked", "download_triggered", "whatsapp_shared",
+    "referral_link_copied", "create_button_clicked",
 }
 
 # ─── TRACK EVENT ─────────────────────────────────────────────────────────────

@@ -697,6 +697,29 @@ export default function MySpacePage() {
           )}
         </section>
 
+        {/* Create Another — Retention Loop */}
+        <section className="border border-white/[0.06] rounded-xl p-4 bg-white/[0.02]" data-testid="create-another-section">
+          <h3 className="text-sm font-semibold text-zinc-300 mb-3">Create another video</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { label: 'New story', desc: 'Start fresh', path: '/app/story-video-studio' },
+              { label: 'Different style', desc: 'Try anime or 3D', path: '/app/story-video-studio?style=explore' },
+              { label: 'Make it funny', desc: 'Comedy twist', path: '/app/story-video-studio?tone=comedy' },
+              { label: 'Kids story', desc: 'Family friendly', path: '/app/story-video-studio?age=kids' },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => navigate(item.path)}
+                className="text-left p-3 rounded-lg bg-zinc-900/60 border border-white/[0.06] hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all group"
+                data-testid={`create-${item.label.toLowerCase().replace(/\s/g, '-')}-btn`}
+              >
+                <p className="text-xs font-medium text-white group-hover:text-indigo-300 transition-colors">{item.label}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">{item.desc}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Failed Section */}
         {failed.length > 0 && (
           <section>
