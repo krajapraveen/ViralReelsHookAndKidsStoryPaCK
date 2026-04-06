@@ -49,6 +49,15 @@ A React + FastAPI + MongoDB AI-powered creator platform offering:
 - Credit reset migration (all non-admin users set to 50)
 - Post-usage feedback system (logout + idle prompts)
 - Admin feedback dashboard (with unread badge, filters, mark-read)
+- **Responsive Support Widgets** — floating on desktop, bottom dock + bottom sheet on mobile/tablet
+
+## Responsive Support System (2026-04-06)
+- Desktop (>=1024px): Floating chatbot, live chat, feedback widgets at bottom-right
+- Mobile/Tablet (<1024px): Bottom support dock with Chat/Support/Feedback buttons
+- Bottom sheet slides up with inline chatbot or live chat content
+- Body padding-bottom: 72px on mobile/tablet prevents dock from covering content
+- Drag-to-dismiss, backdrop dismiss, ESC key, close button all supported
+- Files: ResponsiveSupportWrapper.jsx, SupportDock.jsx, SupportBottomSheet.jsx, useViewport.js
 
 ## Production QA Status (2026-04-06) — ALL PASS
 - [x] Section 1: Credits DB — Migration completed, admin=999999999, all 29 non-admins=50
