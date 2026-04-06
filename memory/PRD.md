@@ -1,7 +1,7 @@
 # Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI creator suite with a "compulsion-driven" growth engine. The platform enables users to create AI-generated story videos, comics, and visual content. The core growth strategy centers on viral story continuation — every story creates more stories through forking, sharing, and continuation loops.
+Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Convert the system from User → Create → Done into User → Create → Share → Viewer → Create → Share → Repeat.
 
 ## Core Architecture
 - **Frontend**: React (port 3000)
@@ -12,60 +12,71 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 - **AI**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini — via Emergent LLM Key
 - **Auth**: Custom Google Identity Services (GIS) + JWT
 
-## User Personas
-1. **Creator** — Makes story videos, comics, coloring books
-2. **Viewer/Continuer** — Discovers stories via share pages, continues them
-3. **Admin** — Monitors platform health, growth metrics, revenue
-
 ## What's Been Implemented
 
-### Phase 1-2: Core Platform (Complete)
+### Core Platform (Complete)
 - User auth (Google + email/password), Story Video Studio, Comic Storybook Creator, Coloring Book Generator, GIF Maker
-- Credits system (50 initial credits, Cashfree payments), Gallery, sharing, social features
+- Credits system (50 initial credits, Cashfree payments), Gallery, sharing
 
-### Phase 3: Safety (Complete)
+### Safety & Moderation (Complete)
 - Safety Playground, content moderation pipeline, anti-abuse service
 
-### Phase 4: Viral Story Engine (Complete)
-- Fork API, Share Page with "Continue This Story" CTA, Post-generation Share Modal, A/B testing
+### Viral Story Engine (Complete)
+- Fork API, Share Page with CTAs, Post-generation Share Modal
 
-### Phase 5: Growth Validation (Complete)
-- 30 Viral Seed Stories, Growth Dashboard with funnel metrics, Public Explore API
+### Growth Validation (Complete)
+- 30 Viral Seed Stories, Growth Dashboard, Public Explore API
 
-### Custom Google Sign-In (Complete — April 6, 2026)
-- `@react-oauth/google` `GoogleLogin` credential/JWT flow, server-side verification
+### Custom Google Sign-In (Complete)
+- `@react-oauth/google` `GoogleLogin` credential/JWT flow
 
-### Payment Hardening (Complete — April 6, 2026)
-- Idempotency guard in `award_credits()`, static webhook URL via `CASHFREE_WEBHOOK_URL`
+### Payment Hardening (Complete)
+- Idempotency guard, static webhook URL
 
-### My Space Phase 1 — Real-Time Source of Truth (Complete — April 6, 2026)
-- 3-section layout: In Progress / Completed / Failed
-- Granular stage labels, auto-redirect from StoryVideoPipeline, 4s polling, section collapse/expand
+### My Space — Real-Time Source of Truth (Complete — All 3 Phases)
+- **Phase 1**: 3-section layout (In Progress / Completed / Failed), granular stage labels, auto-redirect from StoryVideoPipeline, 4s polling
+- **Phase 2**: Toast + browser notification on completion, share-link API (`POST /api/story-engine/share-link/{job_id}`), one-tap WhatsApp share, "Just Completed" green glow badge
+- **Phase 3**: Auto-download preference toggle (localStorage), post-completion prompt modal (Download / WhatsApp / Create Another), prompt deduplication
 
-### My Space Phase 2 — Notifications & Actions (Complete — April 6, 2026)
-- Toast + browser notification on completion, notification toggle
-- Share-link API: `POST /api/story-engine/share-link/{job_id}` (idempotent)
-- One-tap WhatsApp share, "Just Completed" green glow badge
+### Growth Engine — P0 (Complete — April 6, 2026)
 
-### My Space Phase 3 — Completion Conversion (Complete — April 6, 2026)
-- Auto-download preference toggle (persisted in localStorage `vs_auto_download`)
-- Post-completion prompt modal with 3 CTAs: Download / Share on WhatsApp / Create Another
-- Prompt deduplication (only shows once per job via promptedJobIds ref)
-- Auto-triggers download when preference is on and job completes
-- No page refresh required — real-time polling handles all transitions
+#### 1. Share Page — Video-First Growth Funnel
+- Route: `/share/:shareId` — public, no auth needed
+- Above-the-fold: autoplay video (muted, looped), strong title, social proof bar
+- Primary CTA block: "Create your own video in 30 seconds" / "Made with AI. No editing needed. Free to start."
+- Two CTAs: "Create Your Video — Free" (pulsing gradient) + "Remix This Video"
+- Value props grid: Made with AI / No editing needed / Free to start
+- Share tools: WhatsApp + Copy Link
+- Bottom CTA repeats for scrollers: "Your turn. Make something amazing."
+- Header: persistent "Create yours" button
+- Backend enriched: `GET /api/share/{share_id}` now returns `videoUrl`, `animationStyle`, `generationId` from source job
+
+#### 2. First Video Free — Zero Friction Onboarding
+- New users with zero previous jobs get their first generation free (credits skipped)
+- Backend: `POST /api/story-engine/create` checks job count, sets `skip_credits=True` for first-timers
+- API: `GET /api/story-engine/first-video-free` returns eligibility status
+- Guest mode (IP-based) already supports 1 free generation per IP
+
+#### 3. 1-Tap Remix
+- "Remix This Video" button on share page calls `POST /api/share/{shareId}/fork`
+- Stores remix_data in localStorage with parent prompt, style, characters, tone
+- Redirects to `/app/story-video-studio` which picks up remix_data and prefills
+- Fork count incremented on parent share, tracked via share_events
 
 ## Key API Endpoints
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/auth/google-signin` | POST | None | Google Sign-In (verify JWT credential) |
+| `/api/auth/google-signin` | POST | None | Google Sign-In |
 | `/api/auth/login` | POST | None | Email/password login |
-| `/api/cashfree/create-order` | POST | JWT | Create Cashfree payment order |
-| `/api/cashfree/verify` | POST | JWT | Verify payment |
-| `/api/cashfree/webhook` | POST | None | Cashfree webhook (idempotent) |
-| `/api/story-engine/user-jobs` | GET | JWT | All user jobs (story engine + legacy) |
+| `/api/cashfree/create-order` | POST | JWT | Create payment order |
+| `/api/cashfree/webhook` | POST | None | Payment webhook (idempotent) |
+| `/api/story-engine/create` | POST | Optional | Create video (first-video-free for new users) |
+| `/api/story-engine/user-jobs` | GET | JWT | All user jobs |
 | `/api/story-engine/share-link/{job_id}` | POST | JWT | Generate share link + WhatsApp URL |
-| `/api/share/create` | POST | JWT | Create shareable link for any creation |
-| `/api/share/{shareId}` | GET | None | Get share data with OG tags |
+| `/api/story-engine/first-video-free` | GET | Optional | Check first-free eligibility |
+| `/api/share/{shareId}` | GET | None | Share data with videoUrl, animationStyle |
+| `/api/share/{shareId}/fork` | POST | None | Remix/fork a story |
+| `/api/share/create` | POST | JWT | Create shareable link |
 
 ## Credentials
 - Test User: `test@visionary-suite.com` / `Test@2026#`
@@ -73,20 +84,17 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 
 ## Prioritized Backlog
 
-### P0 — Growth Engine (Next — completion → sharing → viewer → creation loop)
-1. Share page with strong CTA (convert viewers to creators)
-2. First video free (zero friction onboarding)
-3. 1-Tap Remix this video
-4. Watermark system ("Created with Visionary Suite")
-5. Referral loop
+### P1 — Next Up
+1. Watermark system — "Visionary Suite | Create yours → visionary-suite.com" on all videos
+2. Referral loop — reward users who drive signups via share links
 
 ### P1 — Optimization
-- Pipeline parallelization (script → voice + images in parallel → composition)
-- Analytics instrumentation (project_created, download_triggered, etc.)
-- Publish Google OAuth consent screen (exit Testing mode)
+- Pipeline parallelization (script → voice + images in parallel)
+- Analytics instrumentation (project_created, download_triggered, share_clicked)
+- Publish Google OAuth consent screen
 
 ### P2 — Future
-- A/B test hook text variations
-- Remix Variants on share pages
+- A/B test hook text and CTA variations on share page
 - Story Chain leaderboard
+- Daily viral ideas & multi-platform share
 - Admin Dashboard WebSocket upgrades
