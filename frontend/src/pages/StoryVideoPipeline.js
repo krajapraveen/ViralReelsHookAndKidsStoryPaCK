@@ -691,7 +691,12 @@ function StoryVideoPipelineInner() {
         if (res.data.rewrite_note) {
           toast.info(res.data.rewrite_note, { duration: 5000 });
         }
-        startPolling(res.data.job_id);
+
+        // Auto-redirect to My Space so user can watch live progress
+        toast.success('Redirecting to My Space to track progress...');
+        setTimeout(() => {
+          navigate(`/app/my-space?projectId=${res.data.job_id}`);
+        }, 1500);
       } else {
         setFormError(res.data.detail || res.data.message || 'Failed to create video.');
       }

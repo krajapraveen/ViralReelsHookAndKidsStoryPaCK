@@ -1,40 +1,67 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Film, Image, BookOpen, Clock, CheckCircle, AlertCircle, Loader2, Download, Share2, RotateCcw, Play, Search, Filter, Grid3X3, List, Sparkles, RefreshCw, Lock } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Play, Download, Share2, RefreshCw, AlertTriangle, Clock, Film, Loader2, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { EntitledDownloadIcon } from '../components/EntitledDownloadButton';
+import api from '../utils/api';
 
-const api = {
-  get: async (url) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}${url}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return { data: await res.json() };
-  },
+const STAGE_LABELS = {
+  // Story engine states
+  INIT: 'Queued',
+  PLANNING: 'Writing script',
+  BUILDING_CHARACTER_CONTEXT: 'Building characters',
+  PLANNING_SCENE_MOTION: 'Planning scenes',
+  GENERATING_KEYFRAMES: 'Creating artwork',
+  GENERATING_SCENE_CLIPS: 'Composing scenes',
+  GENERATING_AUDIO: 'Generating narration',
+  ASSEMBLING_VIDEO: 'Rendering video',
+  VALIDATING: 'Finalizing',
+  READY: 'Completed',
+  // Legacy pipeline stages
+  scenes: 'Planning scenes',
+  images: 'Creating artwork',
+  voices: 'Generating narration',
+  render: 'Rendering video',
+  upload: 'Finalizing',
 };
 
-const STATUS_STYLES = {
-  COMPLETED: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', icon: CheckCircle, label: 'Ready' },
-  READY: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', icon: CheckCircle, label: 'Ready' },
-  PARTIAL_READY: { bg: 'bg-amber-500/15', text: 'text-amber-400', icon: AlertCircle, label: 'Partial' },
-  PROCESSING: { bg: 'bg-blue-500/15', text: 'text-blue-400', icon: Loader2, label: 'Processing' },
-  FAILED: { bg: 'bg-red-500/15', text: 'text-red-400', icon: AlertCircle, label: 'Failed' },
+const STAGE_COLORS = {
+  PLANNING: '#818cf8',
+  BUILDING_CHARACTER_CONTEXT: '#818cf8',
+  PLANNING_SCENE_MOTION: '#818cf8',
+  GENERATING_KEYFRAMES: '#f472b6',
+  GENERATING_SCENE_CLIPS: '#f472b6',
+  GENERATING_AUDIO: '#34d399',
+  ASSEMBLING_VIDEO: '#fb923c',
+  VALIDATING: '#fbbf24',
+  scenes: '#818cf8',
+  images: '#f472b6',
+  voices: '#34d399',
+  render: '#fb923c',
+  upload: '#fbbf24',
 };
 
-const TYPE_ICONS = {
-  story_video: Film,
-  reel: Film,
-  comic: Image,
-  story: BookOpen,
-};
+function getStageLabel(job) {
+  const state = job.engine_state || job.current_stage;
+  return STAGE_LABELS[state] || job.current_step || 'Processing';
+}
+
+function getSubStage(job) {
+  if (job.current_step && !job.current_step.startsWith('Your story')) {
+    return job.current_step;
+  }
+  return null;
+}
+
+function getStageColor(job) {
+  const state = job.engine_state || job.current_stage;
+  return STAGE_COLORS[state] || '#60a5fa';
+}
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -42,282 +69,414 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
-function CreationCard({ item, onView }) {
-  const status = STATUS_STYLES[item.status] || STATUS_STYLES.PROCESSING;
-  const StatusIcon = status.icon;
-  const TypeIcon = TYPE_ICONS[item.type] || Film;
-  const isReady = item.status === 'COMPLETED' || item.status === 'READY';
-  const isProcessing = item.status === 'PROCESSING';
+function ProgressBar({ progress, color, animated }) {
+  return (
+    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+      <div
+        className="h-full rounded-full"
+        style={{
+          width: `${Math.min(progress, 100)}%`,
+          backgroundColor: color,
+          transition: 'width 2s ease-in-out',
+          animation: animated ? 'pulse 2s ease-in-out infinite' : 'none',
+        }}
+      />
+    </div>
+  );
+}
+
+function InProgressCard({ job, highlighted, onRetry }) {
+  const color = getStageColor(job);
+  const stageLabel = getStageLabel(job);
+  const subStage = getSubStage(job);
+  const progress = job.progress || 0;
 
   return (
     <div
-      className="group relative bg-slate-800/40 border border-slate-700/40 rounded-xl overflow-hidden hover:border-purple-500/30 transition-all cursor-pointer"
-      onClick={() => onView(item)}
-      data-testid={`creation-card-${item.id}`}
+      data-testid={`project-card-${job.job_id}`}
+      className={`relative bg-zinc-900/80 border rounded-xl p-4 transition-all duration-500 ${
+        highlighted ? 'border-indigo-500 ring-1 ring-indigo-500/30' : 'border-white/10'
+      }`}
     >
-      {/* Thumbnail */}
-      <div className="relative aspect-video bg-slate-900/50">
-        {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
+      <div className="flex items-start gap-3">
+        <div className="w-16 h-16 rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {job.thumbnail_url ? (
+            <img src={job.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <Film className="w-6 h-6 text-zinc-600" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-medium text-white truncate">{job.title}</h3>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: color }} />
+              <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: color }} />
+            </span>
+            <span className="text-xs font-medium" style={{ color }}>{stageLabel}</span>
+          </div>
+          {subStage && (
+            <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{subStage}</p>
+          )}
+        </div>
+        <span className="text-xs font-mono text-zinc-500">{progress}%</span>
+      </div>
+      <div className="mt-3">
+        <ProgressBar progress={progress} color={color} animated={true} />
+      </div>
+      <div className="flex justify-between items-center mt-2">
+        <span className="text-[10px] text-zinc-600">{timeAgo(job.created_at)}</span>
+      </div>
+    </div>
+  );
+}
+
+function CompletedCard({ job, highlighted }) {
+  const navigate = useNavigate();
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
+    if (!job.output_url) {
+      toast.error('Video not available for download');
+      return;
+    }
+    try {
+      const a = document.createElement('a');
+      a.href = job.output_url;
+      a.download = `${(job.title || 'video').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-visionary-suite.mp4`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.open(job.output_url, '_blank');
+    }
+  };
+
+  const handleShare = (e) => {
+    e.stopPropagation();
+    const shareUrl = `${window.location.origin}/share/${job.job_id}`;
+    const text = encodeURIComponent(
+      `My AI-generated story video is ready!\n\nTitle: ${job.title}\n\nWatch it here:\n${shareUrl}\n\nCreated with Visionary Suite`
+    );
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const handleWatch = () => {
+    if (job.output_url) {
+      window.open(job.output_url, '_blank');
+    }
+  };
+
+  return (
+    <div
+      data-testid={`project-card-${job.job_id}`}
+      className={`group relative bg-zinc-900/80 border rounded-xl overflow-hidden transition-all duration-300 hover:border-white/20 ${
+        highlighted ? 'border-emerald-500 ring-1 ring-emerald-500/30' : 'border-white/10'
+      }`}
+    >
+      <div className="relative aspect-video bg-zinc-800 cursor-pointer" onClick={handleWatch}>
+        {job.thumbnail_url ? (
+          <img src={job.thumbnail_url} alt={job.title} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <TypeIcon className="w-10 h-10 text-slate-600" />
+            <Film className="w-8 h-8 text-zinc-700" />
           </div>
         )}
-        {isProcessing && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="w-6 h-6 text-blue-400 animate-spin mx-auto mb-1" />
-              <span className="text-blue-300 text-xs">{item.progress || 0}%</span>
-            </div>
-          </div>
-        )}
-        {/* Status badge */}
-        <div className={`absolute top-2 right-2 ${status.bg} rounded-full px-2 py-0.5 flex items-center gap-1`}>
-          <StatusIcon className={`w-3 h-3 ${status.text} ${isProcessing ? 'animate-spin' : ''}`} />
-          <span className={`text-[10px] font-medium ${status.text}`}>{status.label}</span>
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <Play className="w-10 h-10 text-white fill-white" />
         </div>
       </div>
-
-      {/* Info */}
       <div className="p-3">
-        <h4 className="text-sm font-medium text-white truncate">{item.title || 'Untitled'}</h4>
-        <div className="flex items-center justify-between mt-1.5">
-          <span className="text-[11px] text-slate-500 flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)}
-          </span>
-          <span className="text-[11px] text-slate-600 capitalize">{(item.type || '').replace('_', ' ')}</span>
+        <h3 className="text-sm font-medium text-white truncate">{job.title}</h3>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[10px] text-emerald-400 font-medium">Completed</span>
+          <span className="text-[10px] text-zinc-600">{timeAgo(job.completed_at || job.created_at)}</span>
         </div>
+        <div className="flex gap-2 mt-3">
+          <button
+            data-testid={`watch-btn-${job.job_id}`}
+            onClick={handleWatch}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
+          >
+            <Play className="w-3 h-3" /> Watch
+          </button>
+          <button
+            data-testid={`download-btn-${job.job_id}`}
+            onClick={handleDownload}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
+          >
+            <Download className="w-3 h-3" /> Download
+          </button>
+          <button
+            data-testid={`share-btn-${job.job_id}`}
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-xs text-emerald-300 transition-colors"
+          >
+            <Share2 className="w-3 h-3" /> WhatsApp
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Actions for ready items */}
-        {isReady && (
-          <div className="flex gap-1.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button size="sm" className="flex-1 h-7 text-[11px] bg-purple-600 hover:bg-purple-700" onClick={(e) => { e.stopPropagation(); onView(item); }}>
-              <Play className="w-3 h-3 mr-1" /> Watch
-            </Button>
-            <EntitledDownloadIcon assetId={item.id} />
-          </div>
-        )}
-        {item.status === 'FAILED' && (
-          <div className="mt-2">
-            <Button size="sm" variant="outline" className="w-full h-7 text-[11px] border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={(e) => { e.stopPropagation(); onView(item); }}>
-              <RotateCcw className="w-3 h-3 mr-1" /> Retry
-            </Button>
-          </div>
+function FailedCard({ job, onRetry }) {
+  const errorMsg = job.error || job.current_step || 'An error occurred during generation';
+
+  return (
+    <div
+      data-testid={`project-card-${job.job_id}`}
+      className="relative bg-zinc-900/80 border border-red-900/30 rounded-xl p-4"
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-12 h-12 rounded-lg bg-red-950/50 flex items-center justify-center flex-shrink-0">
+          <AlertTriangle className="w-5 h-5 text-red-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-medium text-white truncate">{job.title}</h3>
+          <p className="text-[11px] text-red-400/80 mt-1 line-clamp-2">{errorMsg}</p>
+        </div>
+      </div>
+      <div className="flex justify-between items-center mt-3">
+        <span className="text-[10px] text-zinc-600">{timeAgo(job.created_at)}</span>
+        {job.has_recoverable_assets && (
+          <button
+            onClick={() => onRetry(job)}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-xs text-red-300 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" /> Retry
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-export default function MySpacePage() {
-  const navigate = useNavigate();
-  const { assetId } = useParams();
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState('grid');
+function SectionHeader({ title, count, icon: Icon, color, collapsed, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center justify-between py-2 group"
+      data-testid={`section-${title.toLowerCase().replace(/\s/g, '-')}`}
+    >
+      <div className="flex items-center gap-2">
+        <Icon className="w-4 h-4" style={{ color }} />
+        <span className="text-sm font-semibold text-zinc-300">{title}</span>
+        {count > 0 && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: color + '20', color }}>
+            {count}
+          </span>
+        )}
+      </div>
+      {collapsed ? <ChevronDown className="w-4 h-4 text-zinc-600" /> : <ChevronUp className="w-4 h-4 text-zinc-600" />}
+    </button>
+  );
+}
 
-  const fetchItems = useCallback(async () => {
-    setLoading(true);
+export default function MySpacePage() {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [collapsedSections, setCollapsedSections] = useState({});
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get('projectId');
+  const highlightRef = useRef(null);
+  const pollRef = useRef(null);
+
+  const fetchJobs = useCallback(async () => {
     try {
-      // Fetch from multiple sources
       const [storyRes, reelRes] = await Promise.allSettled([
         api.get('/api/story-engine/user-jobs?limit=100'),
-        api.get('/api/convert/user-reels?limit=50'),
+        api.get('/api/convert/user-reels').catch(() => ({ data: { reels: [] } })),
       ]);
 
       const allItems = [];
 
-      // Story engine jobs
-      if (storyRes.status === 'fulfilled' && storyRes.value.data.success) {
-        for (const j of storyRes.value.data.jobs || []) {
-          allItems.push({
-            id: j.job_id,
-            title: j.title,
-            type: 'story_video',
-            status: j.status,
-            thumbnail: j.thumbnail_url || j.thumbnail_small_url,
-            download_url: j.output_url,
-            created_at: j.created_at,
-            progress: j.progress,
-            route: `/app/story-video-studio?projectId=${j.job_id}`,
-          });
+      if (storyRes.status === 'fulfilled' && storyRes.value?.data?.jobs) {
+        for (const j of storyRes.value.data.jobs) {
+          allItems.push({ ...j, type: 'story_video' });
         }
       }
 
-      // Reels
-      if (reelRes.status === 'fulfilled' && reelRes.value.data.success) {
-        for (const r of reelRes.value.data.reels || []) {
+      if (reelRes.status === 'fulfilled' && reelRes.value?.data?.reels) {
+        for (const r of reelRes.value.data.reels) {
           allItems.push({
-            id: r.id || r._id,
-            title: r.title || r.caption,
+            job_id: r.reel_id || r.id,
+            title: r.title || 'Reel',
             type: 'reel',
-            status: r.status || 'COMPLETED',
-            thumbnail: r.thumbnail_url,
-            download_url: r.video_url,
+            status: r.status === 'completed' ? 'COMPLETED' : r.status === 'failed' ? 'FAILED' : 'PROCESSING',
+            thumbnail_url: r.thumbnail_url,
+            output_url: r.output_url || r.video_url,
+            progress: r.status === 'completed' ? 100 : 50,
             created_at: r.created_at,
-            route: `/app/reels`,
+            completed_at: r.completed_at,
           });
         }
       }
 
-      // Sort by date
-      allItems.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-      setItems(allItems);
+      allItems.sort((a, b) => {
+        const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return db - da;
+      });
+
+      setJobs(allItems);
     } catch (err) {
-      toast.error('Failed to load your creations');
+      console.error('Failed to fetch jobs:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
-
-  // Highlight asset if coming from generation
   useEffect(() => {
-    if (assetId) {
-      setTimeout(() => {
-        const el = document.querySelector(`[data-testid="creation-card-${assetId}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('ring-2', 'ring-purple-500');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-purple-500'), 3000);
-        }
-      }, 500);
+    fetchJobs();
+  }, [fetchJobs]);
+
+  // Auto-poll for in-progress items
+  useEffect(() => {
+    const hasInProgress = jobs.some(j =>
+      !['COMPLETED', 'FAILED', 'ARCHIVED', 'ORPHANED', 'PARTIAL'].includes(j.status)
+    );
+
+    if (hasInProgress) {
+      pollRef.current = setInterval(fetchJobs, 4000);
+    } else if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
     }
-  }, [assetId, items]);
 
-  const handleView = (item) => {
-    if (item.route) navigate(item.route);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [jobs, fetchJobs]);
+
+  // Auto-scroll to highlighted project
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, [highlightId, jobs]);
+
+  const handleRetry = (job) => {
+    window.location.href = `/app/story-video-studio?projectId=${job.job_id}`;
   };
 
-  const filtered = items.filter(item => {
-    if (filter === 'all') return true;
-    if (filter === 'videos') return item.type === 'story_video' || item.type === 'reel';
-    if (filter === 'stories') return item.type === 'story';
-    if (filter === 'failed') return item.status === 'FAILED';
-    if (filter === 'processing') return item.status === 'PROCESSING';
-    return true;
-  }).filter(item => {
-    if (!search) return true;
-    return (item.title || '').toLowerCase().includes(search.toLowerCase());
-  });
-
-  const stats = {
-    total: items.length,
-    ready: items.filter(i => i.status === 'COMPLETED' || i.status === 'READY').length,
-    processing: items.filter(i => i.status === 'PROCESSING').length,
-    failed: items.filter(i => i.status === 'FAILED').length,
+  const toggleSection = (section) => {
+    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
+
+  // Categorize jobs
+  const inProgress = jobs.filter(j => ['QUEUED', 'PROCESSING'].includes(j.status));
+  const completed = jobs.filter(j => ['COMPLETED', 'PARTIAL'].includes(j.status));
+  const failed = jobs.filter(j => ['FAILED'].includes(j.status));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64" data-testid="myspace-loading">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+      </div>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4" data-testid="myspace-empty">
+        <Film className="w-12 h-12 text-zinc-700" />
+        <p className="text-zinc-500 text-sm">No projects yet</p>
+        <a
+          href="/app/story-video-studio"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors"
+        >
+          Create your first video
+        </a>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white" data-testid="my-space-page">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-white">My Space</h1>
-            <p className="text-slate-400 text-sm mt-1">Your creations, all in one place</p>
-          </div>
-          <Button onClick={() => navigate('/app/create')} className="bg-purple-600 hover:bg-purple-700" data-testid="create-new-from-space">
-            <Sparkles className="w-4 h-4 mr-2" /> Create New
-          </Button>
-        </div>
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-page">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white">My Space</h1>
+        <button
+          onClick={fetchJobs}
+          className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+          data-testid="refresh-btn"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+      </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {[
-            { label: 'Total', value: stats.total, color: 'text-white' },
-            { label: 'Ready', value: stats.ready, color: 'text-emerald-400' },
-            { label: 'Processing', value: stats.processing, color: 'text-blue-400' },
-            { label: 'Failed', value: stats.failed, color: 'text-red-400' },
-          ].map(s => (
-            <div key={s.label} className="bg-slate-800/30 border border-slate-700/30 rounded-lg p-3 text-center" data-testid={`stat-${s.label.toLowerCase()}`}>
-              <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
-              <p className="text-[11px] text-slate-500">{s.label}</p>
+      {/* In Progress Section */}
+      {inProgress.length > 0 && (
+        <section>
+          <SectionHeader
+            title="In Progress"
+            count={inProgress.length}
+            icon={Loader2}
+            color="#60a5fa"
+            collapsed={collapsedSections.inProgress}
+            onToggle={() => toggleSection('inProgress')}
+          />
+          {!collapsedSections.inProgress && (
+            <div className="space-y-3 mt-2">
+              {inProgress.map(job => (
+                <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
+                  <InProgressCard job={job} highlighted={job.job_id === highlightId} onRetry={handleRetry} />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </section>
+      )}
 
-        {/* Filters + Search */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex bg-slate-800/40 rounded-lg p-0.5 border border-slate-700/30">
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'videos', label: 'Videos' },
-              { id: 'stories', label: 'Stories' },
-              { id: 'processing', label: 'Processing' },
-              { id: 'failed', label: 'Failed' },
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                  filter === f.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-                data-testid={`filter-${f.id}`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search creations..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-slate-800/30 border border-slate-700/30 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50"
-              data-testid="search-input"
-            />
-          </div>
-
-          <div className="flex bg-slate-800/40 rounded-lg border border-slate-700/30">
-            <button onClick={() => setViewMode('grid')} className={`p-2 ${viewMode === 'grid' ? 'text-purple-400' : 'text-slate-500'}`}>
-              <Grid3X3 className="w-4 h-4" />
-            </button>
-            <button onClick={() => setViewMode('list')} className={`p-2 ${viewMode === 'list' ? 'text-purple-400' : 'text-slate-500'}`}>
-              <List className="w-4 h-4" />
-            </button>
-          </div>
-
-          <button onClick={fetchItems} className="p-2 text-slate-500 hover:text-white">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Content Grid */}
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-20" data-testid="empty-state">
-            <Film className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-400 mb-2">
-              {search ? 'No results found' : 'No creations yet'}
-            </h3>
-            <p className="text-slate-500 text-sm mb-6">
-              {search ? 'Try a different search term' : 'Start creating to see your work here'}
-            </p>
-            {!search && (
-              <Button onClick={() => navigate('/app/create')} className="bg-purple-600 hover:bg-purple-700">
-                <Sparkles className="w-4 h-4 mr-2" /> Create Your First Video
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-3'} data-testid="content-grid">
-            {filtered.map(item => (
-              <CreationCard key={item.id} item={item} onView={handleView} />
+      {/* Completed Section */}
+      <section>
+        <SectionHeader
+          title="Completed"
+          count={completed.length}
+          icon={Play}
+          color="#34d399"
+          collapsed={collapsedSections.completed}
+          onToggle={() => toggleSection('completed')}
+        />
+        {!collapsedSections.completed && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+            {completed.map(job => (
+              <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
+                <CompletedCard job={job} highlighted={job.job_id === highlightId} />
+              </div>
             ))}
           </div>
         )}
-      </div>
+        {completed.length === 0 && !collapsedSections.completed && (
+          <p className="text-zinc-600 text-xs py-4 text-center">No completed projects yet</p>
+        )}
+      </section>
+
+      {/* Failed Section */}
+      {failed.length > 0 && (
+        <section>
+          <SectionHeader
+            title="Failed"
+            count={failed.length}
+            icon={AlertTriangle}
+            color="#f87171"
+            collapsed={collapsedSections.failed}
+            onToggle={() => toggleSection('failed')}
+          />
+          {!collapsedSections.failed && (
+            <div className="space-y-3 mt-2">
+              {failed.map(job => (
+                <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
+                  <FailedCard job={job} onRetry={handleRetry} />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

@@ -225,6 +225,31 @@ def _state_to_progress(state: str) -> int:
     return get_progress(JobState(state)) if state in JobState.__members__ else 0
 
 
+
+def _state_to_substage(state: str, doc: dict = None) -> str:
+    """Return a human-readable sub-stage label for the current engine state."""
+    labels = {
+        "INIT": "Queued for processing",
+        "PLANNING": "Writing your story script",
+        "BUILDING_CHARACTER_CONTEXT": "Building character profiles",
+        "PLANNING_SCENE_MOTION": "Planning scene compositions",
+        "GENERATING_KEYFRAMES": "Creating scene artwork",
+        "GENERATING_SCENE_CLIPS": "Composing animated scenes",
+        "GENERATING_AUDIO": "Generating voice narration",
+        "ASSEMBLING_VIDEO": "Rendering final video",
+        "VALIDATING": "Finalizing output",
+        "READY": "Your video is ready",
+        "PARTIAL_READY": "Partially completed",
+        "FAILED": "Generation failed",
+        "FAILED_PLANNING": "Script generation failed",
+        "FAILED_IMAGES": "Image generation failed",
+        "FAILED_TTS": "Voice generation failed",
+        "FAILED_RENDER": "Video rendering failed",
+    }
+    return labels.get(state, "Processing")
+
+
+
 def _make_presigned_url(stored_url: str) -> str:
     """Convert a stored R2 public URL to a presigned URL for direct access."""
     if not stored_url:
@@ -1100,6 +1125,7 @@ async def list_user_jobs(current_user: dict = Depends(get_current_user)):
             "status": _map_state_to_legacy_status(state),
             "progress": _state_to_progress(state),
             "current_stage": _map_state_to_legacy_stage(state),
+            "current_step": _state_to_substage(state, doc),
             "output_url": _make_presigned_url(doc.get("output_url")) if can_dl else None,
             "thumbnail_url": _make_presigned_url(doc.get("thumbnail_url")),
             "thumbnail_small_url": _make_presigned_url(doc.get("thumbnail_url")),
@@ -1136,6 +1162,7 @@ async def list_user_jobs(current_user: dict = Depends(get_current_user)):
             "status": doc.get("status", "FAILED"),
             "progress": doc.get("progress", 0),
             "current_stage": doc.get("current_stage"),
+            "current_step": doc.get("current_step", ""),
             "output_url": _make_presigned_url(doc.get("output_url")) if can_dl else None,
             "thumbnail_url": _make_presigned_url(doc.get("thumbnail_url")),
             "animation_style": doc.get("animation_style", "cartoon_2d"),
