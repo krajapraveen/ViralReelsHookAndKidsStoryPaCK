@@ -556,6 +556,15 @@ async def create_engine_job(
             raise HTTPException(status_code=401, detail="Not authenticated")
         await _check_rate_limit(user_id)
 
+    # ── First Video Free: skip credits if user has never completed a video ──
+    is_first_video_free = False
+    if not is_guest and current_user:
+        prev_job_count = await db.story_engine_jobs.count_documents({"user_id": user_id})
+        prev_legacy_count = await db.pipeline_jobs.count_documents({"user_id": user_id})
+        if prev_job_count + prev_legacy_count == 0:
+            is_first_video_free = True
+            logger.info(f"[FIRST-FREE] User {user_id} qualifies for first video free")
+
     # Map animation_style to style_id
     style_id = request.animation_style if request.animation_style in ANIMATION_STYLES else "cartoon_2d"
 
@@ -575,7 +584,7 @@ async def create_engine_job(
         language="en",
         age_group=request.age_group,
         parent_job_id=request.parent_video_id,
-        skip_credits=is_guest,  # Don't deduct credits for guests
+        skip_credits=is_guest or is_first_video_free,
     )
 
     if not result.get("success"):
@@ -674,6 +683,7 @@ async def create_engine_job(
         "credits_charged": result.get("credits_deducted", 0),
         "estimated_scenes": 5,
         "is_guest": is_guest,
+        "is_first_video_free": is_first_video_free,
         "reuse_mode": reuse_analysis.get("reuse_mode") if reuse_analysis else "fresh",
         "stages_reused": reuse_analysis.get("reusable_stages", []) if reuse_analysis else [],
         "stages_to_generate": reuse_analysis.get("invalidated_stages", []) if reuse_analysis else [],
@@ -1685,3 +1695,16 @@ async def generate_share_link(job_id: str, current_user: dict = Depends(get_curr
         "share_url": share_url,
         "whatsapp_url": f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}",
     }
+
+
+
+@router.get("/first-video-free")
+async def check_first_video_free(current_user: dict = Depends(get_optional_user)):
+    """Check if the current user qualifies for their first free video."""
+    if not current_user:
+        return {"eligible": True, "reason": "new_user"}
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    job_count = await db.story_engine_jobs.count_documents({"user_id": user_id})
+    legacy_count = await db.pipeline_jobs.count_documents({"user_id": user_id})
+    eligible = (job_count + legacy_count) == 0
+    return {"eligible": eligible, "reason": "no_previous_videos" if eligible else "has_videos"}

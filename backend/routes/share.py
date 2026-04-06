@@ -185,13 +185,36 @@ async def get_share_data(share_id: str, request: Request):
     async for doc in cursor:
         recent_forks.append(doc)
 
+    # Look up the source job for video URL
+    video_url = None
+    thumbnail_url = share.get("thumbnailUrl")
+    animation_style = None
+    gen_id = share.get("generationId")
+    if gen_id:
+        job = await db.story_engine_jobs.find_one(
+            {"job_id": gen_id},
+            {"_id": 0, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "style_id": 1}
+        )
+        if not job:
+            job = await db.pipeline_jobs.find_one(
+                {"job_id": gen_id},
+                {"_id": 0, "output_url": 1, "thumbnail_url": 1, "animation_style": 1}
+            )
+        if job:
+            video_url = job.get("output_url")
+            if not thumbnail_url:
+                thumbnail_url = job.get("thumbnail_url")
+            animation_style = job.get("animation_style") or job.get("style_id")
+
     return {
         "success": True,
         "id": share["id"],
         "type": share["type"],
         "title": share["title"],
         "preview": share["preview"],
-        "thumbnailUrl": share.get("thumbnailUrl"),
+        "thumbnailUrl": thumbnail_url,
+        "videoUrl": video_url,
+        "animationStyle": animation_style,
         "views": share["views"] + 1,
         "createdAt": share["createdAt"],
         "forks": fork_count,
@@ -203,6 +226,7 @@ async def get_share_data(share_id: str, request: Request):
         "hookText": share.get("hookText"),
         "shareCaption": share.get("shareCaption"),
         "parentShareId": share.get("parentShareId"),
+        "generationId": gen_id,
     }
 
 
