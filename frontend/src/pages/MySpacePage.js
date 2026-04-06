@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Play, Download, Share2, RefreshCw, AlertTriangle, Clock, Film, Loader2, ChevronDown, ChevronUp, Bell, BellOff, Check } from 'lucide-react';
+import { Play, Download, Share2, RefreshCw, AlertTriangle, Film, Loader2, ChevronDown, ChevronUp, Bell, BellOff, Check, Plus, X, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -132,21 +132,7 @@ function InProgressCard({ job, highlighted }) {
 function CompletedCard({ job, highlighted, justCompleted, onShareWhatsApp }) {
   const handleDownload = async (e) => {
     e.stopPropagation();
-    if (!job.output_url) {
-      toast.error('Video not available for download');
-      return;
-    }
-    try {
-      const a = document.createElement('a');
-      a.href = job.output_url;
-      a.download = `${(job.title || 'video').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-visionary-suite.mp4`;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch {
-      window.open(job.output_url, '_blank');
-    }
+    triggerDownload(job);
   };
 
   const handleWatch = () => {
@@ -160,7 +146,7 @@ function CompletedCard({ job, highlighted, justCompleted, onShareWhatsApp }) {
       data-testid={`project-card-${job.job_id}`}
       className={`group relative bg-zinc-900/80 border rounded-xl overflow-hidden transition-all duration-500 hover:border-white/20 ${
         justCompleted
-          ? 'border-emerald-400 ring-2 ring-emerald-400/40 animate-[glow_2s_ease-in-out]'
+          ? 'border-emerald-400 ring-2 ring-emerald-400/40'
           : highlighted
             ? 'border-emerald-500 ring-1 ring-emerald-500/30'
             : 'border-white/10'
@@ -270,6 +256,25 @@ function SectionHeader({ title, count, icon: Icon, color, collapsed, onToggle })
   );
 }
 
+// ─── DOWNLOAD HELPER ──────────────────────────────────────────────────────────
+function triggerDownload(job) {
+  if (!job.output_url) {
+    toast.error('Video not available for download');
+    return;
+  }
+  try {
+    const a = document.createElement('a');
+    a.href = job.output_url;
+    a.download = `${(job.title || 'video').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-visionary-suite.mp4`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    window.open(job.output_url, '_blank');
+  }
+}
+
 // ─── NOTIFICATION HELPERS ─────────────────────────────────────────────────────
 function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission === 'default') {
@@ -292,17 +297,90 @@ function fireBrowserNotification(title, body) {
         n.close();
       };
     } catch {
-      // Silent fail on browsers that don't support Notification constructor
+      // Silent fail
     }
   }
 }
 
+// ─── COMPLETION PROMPT MODAL ──────────────────────────────────────────────────
+function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCreateAnother }) {
+  if (!job) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="completion-prompt-modal">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-zinc-900 border border-zinc-700/50 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 p-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
+          data-testid="completion-prompt-close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Thumbnail */}
+        <div className="relative aspect-video bg-zinc-800">
+          {job.thumbnail_url ? (
+            <img src={job.thumbnail_url} alt={job.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Film className="w-12 h-12 text-zinc-600" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent" />
+          <div className="absolute bottom-3 left-3 right-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">Ready</span>
+            </div>
+            <h3 className="text-white font-semibold text-base truncate" data-testid="completion-prompt-title">{job.title}</h3>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="p-4 space-y-2">
+          <button
+            onClick={() => { onDownload(job); onClose(); }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-zinc-900 font-semibold text-sm hover:bg-zinc-100 transition-colors"
+            data-testid="completion-prompt-download"
+          >
+            <Download className="w-4 h-4" />
+            Download Video
+          </button>
+          <button
+            onClick={() => { onShareWhatsApp(job); }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-500 transition-colors"
+            data-testid="completion-prompt-whatsapp"
+          >
+            <Share2 className="w-4 h-4" />
+            Share on WhatsApp
+          </button>
+          <button
+            onClick={() => { onCreateAnother(); onClose(); }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 text-sm hover:bg-zinc-700 hover:text-white transition-colors"
+            data-testid="completion-prompt-create-another"
+          >
+            <Plus className="w-4 h-4" />
+            Create Another Video
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function MySpacePage() {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState({});
   const [justCompletedIds, setJustCompletedIds] = useState(new Set());
+  const [completionPromptJob, setCompletionPromptJob] = useState(null);
+  const [autoDownload, setAutoDownload] = useState(() => {
+    try { return localStorage.getItem('vs_auto_download') === 'true'; } catch { return false; }
+  });
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     'Notification' in window && Notification.permission === 'granted'
   );
@@ -311,6 +389,7 @@ export default function MySpacePage() {
   const highlightRef = useRef(null);
   const pollRef = useRef(null);
   const prevStatusMap = useRef({});
+  const promptedJobIds = useRef(new Set());
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -354,11 +433,7 @@ export default function MySpacePage() {
       for (const item of allItems) {
         const prevStatus = prevStatusMap.current[item.job_id];
         const curStatus = item.status;
-        if (
-          prevStatus &&
-          prevStatus !== 'COMPLETED' &&
-          curStatus === 'COMPLETED'
-        ) {
+        if (prevStatus && prevStatus !== 'COMPLETED' && curStatus === 'COMPLETED') {
           newlyCompleted.push(item);
         }
       }
@@ -370,18 +445,22 @@ export default function MySpacePage() {
       }
       prevStatusMap.current = newMap;
 
-      // Fire notifications for newly completed jobs
+      // Handle newly completed jobs
       for (const item of newlyCompleted) {
+        // Toast notification
         toast.success(
           `Your video "${item.title}" is ready!`,
           { duration: 8000, id: `complete-${item.job_id}` }
         );
+
+        // Browser notification
         fireBrowserNotification(
           'Your video is ready!',
           `"${item.title}" has finished rendering. Watch it now.`
         );
+
+        // Mark as just completed (green glow)
         setJustCompletedIds(prev => new Set([...prev, item.job_id]));
-        // Clear the "just completed" highlight after 30s
         setTimeout(() => {
           setJustCompletedIds(prev => {
             const next = new Set(prev);
@@ -389,6 +468,18 @@ export default function MySpacePage() {
             return next;
           });
         }, 30000);
+
+        // Auto-download if preference is on
+        if (autoDownload && item.output_url) {
+          triggerDownload(item);
+          toast.info(`Auto-downloading "${item.title}"`, { duration: 3000 });
+        }
+
+        // Show completion prompt (only once per job)
+        if (!promptedJobIds.current.has(item.job_id)) {
+          promptedJobIds.current.add(item.job_id);
+          setCompletionPromptJob(item);
+        }
       }
 
       setJobs(allItems);
@@ -397,11 +488,10 @@ export default function MySpacePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [autoDownload]);
 
   useEffect(() => {
     fetchJobs();
-    // Request notification permission on mount
     requestNotificationPermission();
   }, [fetchJobs]);
 
@@ -443,7 +533,6 @@ export default function MySpacePage() {
         window.open(res.data.whatsapp_url, '_blank');
       }
     } catch {
-      // Fallback to basic share
       const shareUrl = `${window.location.origin}/share/${job.job_id}`;
       const text = encodeURIComponent(
         `Check out my AI video: ${job.title}\n\n${shareUrl}\n\nMade with Visionary Suite`
@@ -452,8 +541,21 @@ export default function MySpacePage() {
     }
   };
 
+  const handleCreateAnother = () => {
+    navigate('/app/story-video-studio');
+  };
+
   const toggleSection = (section) => {
     setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const toggleAutoDownload = () => {
+    setAutoDownload(prev => {
+      const next = !prev;
+      try { localStorage.setItem('vs_auto_download', String(next)); } catch {}
+      toast.success(next ? 'Auto-download enabled' : 'Auto-download disabled', { duration: 2000 });
+      return next;
+    });
   };
 
   const toggleNotifications = () => {
@@ -500,106 +602,135 @@ export default function MySpacePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-page">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white">My Space</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleNotifications}
-            className={`p-2 rounded-lg transition-colors ${
-              notificationsEnabled
-                ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
-                : 'hover:bg-white/5 text-zinc-500 hover:text-white'
-            }`}
-            data-testid="toggle-notifications-btn"
-            title={notificationsEnabled ? 'Notifications on' : 'Notifications off'}
-          >
-            {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={fetchJobs}
-            className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
-            data-testid="refresh-btn"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+    <>
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-page">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-white">My Space</h1>
+          <div className="flex items-center gap-1">
+            {/* Auto-download toggle */}
+            <button
+              onClick={toggleAutoDownload}
+              className={`p-2 rounded-lg transition-colors ${
+                autoDownload
+                  ? 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30'
+                  : 'hover:bg-white/5 text-zinc-500 hover:text-white'
+              }`}
+              data-testid="toggle-auto-download-btn"
+              title={autoDownload ? 'Auto-download on' : 'Auto-download off'}
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            {/* Notification toggle */}
+            <button
+              onClick={toggleNotifications}
+              className={`p-2 rounded-lg transition-colors ${
+                notificationsEnabled
+                  ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
+                  : 'hover:bg-white/5 text-zinc-500 hover:text-white'
+              }`}
+              data-testid="toggle-notifications-btn"
+              title={notificationsEnabled ? 'Notifications on' : 'Notifications off'}
+            >
+              {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+            </button>
+            {/* Refresh */}
+            <button
+              onClick={fetchJobs}
+              className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+              data-testid="refresh-btn"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+
+        {/* In Progress Section */}
+        {inProgress.length > 0 && (
+          <section>
+            <SectionHeader
+              title="In Progress"
+              count={inProgress.length}
+              icon={Loader2}
+              color="#60a5fa"
+              collapsed={collapsedSections.inProgress}
+              onToggle={() => toggleSection('inProgress')}
+            />
+            {!collapsedSections.inProgress && (
+              <div className="space-y-3 mt-2">
+                {inProgress.map(job => (
+                  <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
+                    <InProgressCard job={job} highlighted={job.job_id === highlightId} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Completed Section */}
+        <section>
+          <SectionHeader
+            title="Completed"
+            count={completed.length}
+            icon={Play}
+            color="#34d399"
+            collapsed={collapsedSections.completed}
+            onToggle={() => toggleSection('completed')}
+          />
+          {!collapsedSections.completed && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+              {completed.map(job => (
+                <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
+                  <CompletedCard
+                    job={job}
+                    highlighted={job.job_id === highlightId}
+                    justCompleted={justCompletedIds.has(job.job_id)}
+                    onShareWhatsApp={handleShareWhatsApp}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {completed.length === 0 && !collapsedSections.completed && (
+            <p className="text-zinc-600 text-xs py-4 text-center">No completed projects yet</p>
+          )}
+        </section>
+
+        {/* Failed Section */}
+        {failed.length > 0 && (
+          <section>
+            <SectionHeader
+              title="Failed"
+              count={failed.length}
+              icon={AlertTriangle}
+              color="#f87171"
+              collapsed={collapsedSections.failed}
+              onToggle={() => toggleSection('failed')}
+            />
+            {!collapsedSections.failed && (
+              <div className="space-y-3 mt-2">
+                {failed.map(job => (
+                  <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
+                    <FailedCard job={job} onRetry={handleRetry} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
-      {/* In Progress Section */}
-      {inProgress.length > 0 && (
-        <section>
-          <SectionHeader
-            title="In Progress"
-            count={inProgress.length}
-            icon={Loader2}
-            color="#60a5fa"
-            collapsed={collapsedSections.inProgress}
-            onToggle={() => toggleSection('inProgress')}
-          />
-          {!collapsedSections.inProgress && (
-            <div className="space-y-3 mt-2">
-              {inProgress.map(job => (
-                <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                  <InProgressCard job={job} highlighted={job.job_id === highlightId} />
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Completed Section */}
-      <section>
-        <SectionHeader
-          title="Completed"
-          count={completed.length}
-          icon={Play}
-          color="#34d399"
-          collapsed={collapsedSections.completed}
-          onToggle={() => toggleSection('completed')}
+      {/* Completion Prompt Modal */}
+      {completionPromptJob && (
+        <CompletionPromptModal
+          job={completionPromptJob}
+          onClose={() => setCompletionPromptJob(null)}
+          onDownload={triggerDownload}
+          onShareWhatsApp={handleShareWhatsApp}
+          onCreateAnother={handleCreateAnother}
         />
-        {!collapsedSections.completed && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-            {completed.map(job => (
-              <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                <CompletedCard
-                  job={job}
-                  highlighted={job.job_id === highlightId}
-                  justCompleted={justCompletedIds.has(job.job_id)}
-                  onShareWhatsApp={handleShareWhatsApp}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-        {completed.length === 0 && !collapsedSections.completed && (
-          <p className="text-zinc-600 text-xs py-4 text-center">No completed projects yet</p>
-        )}
-      </section>
-
-      {/* Failed Section */}
-      {failed.length > 0 && (
-        <section>
-          <SectionHeader
-            title="Failed"
-            count={failed.length}
-            icon={AlertTriangle}
-            color="#f87171"
-            collapsed={collapsedSections.failed}
-            onToggle={() => toggleSection('failed')}
-          />
-          {!collapsedSections.failed && (
-            <div className="space-y-3 mt-2">
-              {failed.map(job => (
-                <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                  <FailedCard job={job} onRetry={handleRetry} />
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
       )}
-    </div>
+    </>
   );
 }
