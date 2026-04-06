@@ -253,9 +253,11 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         # Create order meta with return URL
         # Use production URL as default if FRONTEND_URL is not set
         frontend_url = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
+        # Webhook URL must be STATIC and env-based — never derived from frontend/preview URLs
+        webhook_url = os.environ.get("CASHFREE_WEBHOOK_URL", f"{frontend_url}/api/cashfree/webhook")
         order_meta = OrderMeta(
             return_url=f"{frontend_url}/app/billing?order_id={order_id}&gateway=cashfree",
-            notify_url=f"{frontend_url}/api/cashfree/webhook"
+            notify_url=webhook_url
         )
         
         # Create order request

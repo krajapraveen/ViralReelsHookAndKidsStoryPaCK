@@ -1,0 +1,33 @@
+{
+  "test_suite": "payment_idempotency",
+  "timestamp": "2026-04-06T07:04:04.975990+00:00",
+  "results": [
+    {
+      "test": "verify_first_webhook_later",
+      "status": "PASS",
+      "detail": "initial=50, after_verify=90, after_webhook=90, expected=90, ledger_entries=1, sub=active, verify=SUBSCRIPTION_ACTIVATED, webhook=ALREADY_TERMINAL"
+    },
+    {
+      "test": "webhook_first_verify_later",
+      "status": "PASS",
+      "detail": "initial=90, after_webhook=130, after_verify=130, expected=130, ledger_entries=1, sub=active, webhook=SUBSCRIPTION_ACTIVATED, verify=ALREADY_PROCESSED"
+    },
+    {
+      "test": "duplicate_webhook",
+      "status": "PASS",
+      "detail": "initial=130, after_1st=170, after_2nd=170, after_3rd=170, expected=170, ledger=1, results=[SUBSCRIPTION_ACTIVATED, ALREADY_TERMINAL, ALREADY_TERMINAL]"
+    },
+    {
+      "test": "repeated_verify",
+      "status": "PASS",
+      "detail": "initial=170, after_1st=210, after_2nd=210, after_3rd=210, expected=210, ledger=1, results=[SUBSCRIPTION_ACTIVATED, ALREADY_PROCESSED, ALREADY_PROCESSED]"
+    },
+    {
+      "test": "webhook_only_fulfillment",
+      "status": "PASS",
+      "detail": "initial=210, final=250, expected=250, ledger=1, sub=active, order=SUBSCRIPTION_ACTIVATED, webhook=SUBSCRIPTION_ACTIVATED"
+    }
+  ],
+  "passed": 5,
+  "total": 5
+}
