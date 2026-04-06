@@ -3,8 +3,9 @@ import { Button } from './ui/button';
 import { MessageCircle, X, Send, Loader2, Bot, User, Trash2, Minimize2 } from 'lucide-react';
 import api from '../utils/api';
 
-export default function AIChatbot() {
+export default function AIChatbot({ inline = false, forceOpen = false, hideFloating = false }) {
   const [isOpen, setIsOpen] = useState(false);
+  const effectiveOpen = inline ? forceOpen : isOpen;
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -83,10 +84,109 @@ export default function AIChatbot() {
     "What are the pricing plans?"
   ];
 
+  // Inline mode: render just the chat content for bottom sheet
+  if (inline) {
+    if (!forceOpen) return null;
+    return (
+      <div className="flex flex-col h-full" data-testid="chatbot-inline">
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950">
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`flex items-start gap-2 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  msg.role === 'user' ? 'bg-indigo-500' : 'bg-purple-500/20'
+                }`}>
+                  {msg.role === 'user' ? (
+                    <User className="w-3.5 h-3.5 text-white" />
+                  ) : (
+                    <Bot className="w-3.5 h-3.5 text-purple-400" />
+                  )}
+                </div>
+                <div className={`p-3 rounded-2xl ${
+                  msg.role === 'user'
+                    ? 'bg-indigo-500 text-white rounded-tr-sm'
+                    : 'bg-slate-800 text-slate-200 rounded-tl-sm border border-slate-700'
+                }`}>
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="flex items-start gap-2">
+                <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center">
+                  <Bot className="w-3.5 h-3.5 text-purple-400" />
+                </div>
+                <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-sm border border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                    <span className="text-sm text-slate-400">Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Quick Questions */}
+        {messages.length <= 2 && (
+          <div className="px-4 py-2 bg-slate-900 border-t border-slate-800">
+            <p className="text-xs text-slate-500 mb-2">Quick questions:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {quickQuestions.map((q, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => { setInput(q); }}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-full transition-colors border border-slate-700"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="p-3 bg-slate-900 border-t border-slate-800">
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your message..."
+              className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-full text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={loading}
+              data-testid="chatbot-inline-input"
+            />
+            <Button
+              onClick={sendMessage}
+              disabled={!input.trim() || loading}
+              className="w-10 h-10 rounded-full bg-indigo-500 hover:bg-indigo-600 p-0"
+              data-testid="chatbot-inline-send"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Hidden mode for mobile/tablet — render nothing
+  if (hideFloating) return null;
+
   return (
     <>
       {/* Chat Button */}
-      {!isOpen && (
+      {!effectiveOpen && (
         <button
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center text-white z-50 group"
@@ -99,7 +199,7 @@ export default function AIChatbot() {
       )}
 
       {/* Chat Window */}
-      {isOpen && (
+      {effectiveOpen && (
         <div className="fixed bottom-6 right-6 w-[90vw] max-w-96 h-[70vh] max-h-[550px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden border border-slate-200" style={{ touchAction: 'none' }} data-testid="chatbot-window">
           {/* Header */}
           <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 flex items-center justify-between">

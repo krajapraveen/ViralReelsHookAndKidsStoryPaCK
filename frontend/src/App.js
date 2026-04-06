@@ -68,8 +68,7 @@ import SharePage from './pages/SharePage';
 import ViralPackShare from './pages/ViralPackShare';
 import ReferralProgram from './pages/ReferralProgram';
 import Gallery from './pages/Gallery';
-import AIChatbot from './components/AIChatbot';
-import FeedbackWidget from './components/FeedbackWidget';
+import ResponsiveSupportWrapper from './components/support/ResponsiveSupportWrapper';
 import AppTour, { TourProvider } from './components/AppTour';
 // NEW REBUILT FEATURES
 import StoryEpisodeCreator from './pages/StoryEpisodeCreator';
@@ -133,7 +132,7 @@ import Blog from './pages/Blog';
 // PROMO VIDEOS
 import PromoVideos from './pages/PromoVideos';
 // LIVE CHAT WIDGET
-import LiveChatWidget from './components/LiveChatWidget';
+// LiveChatWidget, AIChatbot, FeedbackWidget now managed by ResponsiveSupportWrapper
 import CookieConsent from './components/CookieConsent';
 // DISTRIBUTION LOOP
 import ExplorePage from './pages/ExplorePage';
@@ -380,14 +379,8 @@ function App() {
       <Route path="*" element={<Navigate to={isAuthenticated ? "/app" : "/"} replace />} />
       </Routes>
       
-      {/* AI Chatbot - Available on all pages */}
-      <AIChatbot />
-      
-      {/* Feedback Widget - Collect user suggestions */}
-      <FeedbackWidget />
-      
-      {/* Live Chat Widget - Support chat */}
-      <LiveChatWidget />
+      {/* Responsive Support — Floating on desktop, Dock+Sheet on mobile/tablet */}
+      <ResponsiveSupportWrapper />
       
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />

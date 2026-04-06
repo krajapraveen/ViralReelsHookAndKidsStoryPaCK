@@ -6,8 +6,9 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { MessageSquarePlus, Star, Send, Loader2, Lightbulb, ThumbsUp, Zap, X } from 'lucide-react';
 
-export default function FeedbackWidget() {
+export default function FeedbackWidget({ hideFloating = false, externalOpen = false, onExternalClose }) {
   const [isOpen, setIsOpen] = useState(false);
+  const effectiveOpen = externalOpen || isOpen;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState({
@@ -68,21 +69,28 @@ export default function FeedbackWidget() {
     </div>
   );
 
+  const handleClose = (val) => {
+    setIsOpen(val);
+    if (!val && onExternalClose) onExternalClose();
+  };
+
   return (
     <>
-      {/* Floating Feedback Button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-6 w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center text-white z-40 group hover:scale-105"
-        style={{ touchAction: 'manipulation' }}
-        data-testid="feedback-toggle"
-        title="Share your feedback"
-      >
-        <MessageSquarePlus className="w-5 h-5 group-hover:scale-110 transition-transform" />
-      </button>
+      {/* Floating Feedback Button - hidden on mobile/tablet */}
+      {!hideFloating && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-24 right-6 w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center text-white z-40 group hover:scale-105"
+          style={{ touchAction: 'manipulation' }}
+          data-testid="feedback-toggle"
+          title="Share your feedback"
+        >
+          <MessageSquarePlus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        </button>
+      )}
 
       {/* Feedback Modal */}
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={effectiveOpen} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-center text-xl">

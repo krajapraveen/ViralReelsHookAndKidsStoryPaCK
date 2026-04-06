@@ -898,3 +898,10 @@ body {
   background-attachment: fixed !important;
 }
 
+/* Support Dock spacing — prevent dock from covering page content on mobile/tablet */
+@media (max-width: 1023px) {
+  body {
+    padding-bottom: 72px;
+  }
+}
+

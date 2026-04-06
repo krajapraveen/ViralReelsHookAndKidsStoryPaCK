@@ -219,7 +219,7 @@ const findResponse = (input) => {
   };
 };
 
-export default function LiveChatWidget() {
+export default function LiveChatWidget({ inline = false, forceOpen = false, hideFloating = false }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -393,6 +393,162 @@ export default function LiveChatWidget() {
       handleSend();
     }
   };
+
+  // Inline mode: render chat content inside bottom sheet
+  if (inline) {
+    if (!forceOpen) return null;
+    return (
+      <div className="flex flex-col h-full" data-testid="livechat-inline">
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`flex items-start gap-2 max-w-[85%] ${message.type === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  message.type === 'user'
+                    ? 'bg-indigo-500'
+                    : 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                }`}>
+                  {message.type === 'user' ? (
+                    <User className="w-3.5 h-3.5 text-white" />
+                  ) : (
+                    <Bot className="w-3.5 h-3.5 text-white" />
+                  )}
+                </div>
+                <div className={`rounded-2xl px-3 py-2.5 ${
+                  message.type === 'user'
+                    ? 'bg-indigo-500 text-white rounded-tr-sm'
+                    : 'bg-slate-800 text-slate-200 rounded-tl-sm border border-slate-700'
+                }`}>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{message.text}</p>
+                  {message.link && (
+                    <a href={message.link.url} className="inline-flex items-center gap-1 mt-2 text-xs text-emerald-400 hover:text-emerald-300 font-medium">
+                      {message.link.text} <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {message.suggestions && message.suggestions.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-slate-700/50 flex flex-wrap gap-1.5">
+                      {message.suggestions.map((s, idx) => (
+                        <button key={idx} onClick={() => handleSuggestionClick(s)}
+                          className="text-xs px-2 py-1 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors flex items-center gap-1">
+                          <ChevronRight className="w-3 h-3" />{s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {message.showHumanOption && (
+                    <div className="mt-2 pt-2 border-t border-amber-500/30">
+                      <button onClick={() => setShowEscalation(true)}
+                        className="flex items-center gap-2 px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs transition-colors w-full justify-center">
+                        <UserCheck className="w-4 h-4" /> Talk to Human Support
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="flex items-start gap-2">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-center">
+                  <Bot className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div className="bg-slate-800 rounded-2xl rounded-tl-sm px-3 py-2.5 border border-slate-700">
+                  <div className="flex gap-1.5">
+                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-2 h-2 bg-teal-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Quick Replies */}
+        {messages.length <= 3 && (
+          <div className="px-4 py-2 bg-slate-900 border-t border-slate-800">
+            <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Quick questions:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {quickReplies.map((reply, idx) => {
+                const Icon = reply.icon || HelpCircle;
+                return (
+                  <button key={idx} onClick={() => handleQuickReply(reply)}
+                    className="text-xs px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center gap-1.5 border border-slate-700/50">
+                    <Icon className="w-3 h-3 text-emerald-400" />{reply.text}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="p-3 bg-slate-900 border-t border-slate-800">
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask me anything..."
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              data-testid="livechat-inline-input"
+            />
+            <Button
+              onClick={() => handleSend()}
+              disabled={!inputValue.trim()}
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-xl px-4 disabled:opacity-50"
+              data-testid="livechat-inline-send"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="mt-2 flex items-center justify-center gap-3 text-xs text-slate-500">
+            <button onClick={() => setShowEscalation(true)} className="flex items-center gap-1 hover:text-amber-400 transition-colors">
+              <UserCheck className="w-3 h-3" /> Human Support
+            </button>
+          </div>
+        </div>
+
+        {/* Escalation Modal */}
+        {showEscalation && (
+          <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[9999] p-4">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full p-5 shadow-2xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-sm">Talk to Human Support</h3>
+                  <p className="text-slate-400 text-xs">We'll respond within 24 hours</p>
+                </div>
+              </div>
+              <textarea value={escalationMessage} onChange={(e) => setEscalationMessage(e.target.value)}
+                placeholder="Describe your issue..."
+                className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[100px] resize-none" />
+              <div className="flex gap-3 mt-4">
+                <Button onClick={() => { setShowEscalation(false); setEscalationMessage(''); }} variant="outline" className="flex-1 border-slate-600 text-slate-300">Cancel</Button>
+                <Button onClick={handleEscalateToHuman} disabled={isEscalating || !escalationMessage.trim()}
+                  className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600">
+                  {isEscalating ? 'Sending...' : 'Send'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Hidden mode for mobile/tablet
+  if (hideFloating) return null;
 
   if (!isOpen) {
     return (
