@@ -8,9 +8,9 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 - **Backend**: FastAPI (port 8001, all routes prefixed with /api)
 - **Database**: MongoDB (via MONGO_URL env var)
 - **Object Storage**: Cloudflare R2
-- **Payments**: Cashfree
+- **Payments**: Cashfree (production keys, static webhook URL)
 - **AI**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini — via Emergent LLM Key
-- **Auth**: Custom Google Identity Services (GIS) + JWT (replaced Emergent-hosted auth)
+- **Auth**: Custom Google Identity Services (GIS) + JWT
 
 ## User Personas
 1. **Creator** — Makes story videos, comics, coloring books
@@ -38,26 +38,33 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 - Story-Level Performance Tracking
 - Public Explore API
 
-### P0: Custom Google Sign-In Migration (Complete — April 5, 2026)
-- **Replaced Emergent-hosted auth** (`auth.emergentagent.com`) with direct Google Identity Services
-- Frontend: `@react-oauth/google` `GoogleLogin` component renders native Google button
-- Backend: `POST /api/auth/google-signin` verifies Google ID token server-side via `google-auth`
-- Account linking: Existing users matched by email, new users created with 50 credits
-- CSP updated to allow `accounts.google.com` in script-src, style-src, and frame-src
-- Old Emergent callback endpoint preserved for backward compatibility
-- No Emergent-branded pages visible in primary auth flow
-- Prefetch hints for `/app` on login/signup pages
+### P0: Custom Google Sign-In (In Progress — April 6, 2026)
+- Frontend: `@react-oauth/google` `GoogleLogin` component (credential/JWT flow)
+- Backend: `POST /api/auth/google-signin` verifies Google ID token via `google.oauth2.id_token.verify_oauth2_token()`
+- No `GOOGLE_CLIENT_SECRET` needed — JWT verified locally with just `GOOGLE_CLIENT_ID`
+- Account linking by email or `google_sub`
+- CSP configured for `accounts.google.com`
+- Status: Code deployed, awaiting user verification of popup → redirect flow
+
+### P0: Payment Hardening (Complete — April 6, 2026)
+- Fixed double-crediting vulnerability: webhook now checks ALL terminal states
+- Added idempotency guard in `award_credits()` via `credit_ledger` duplicate check
+- Webhook now handles subscription activation (mirrors verify handler)
+- Static webhook URL via `CASHFREE_WEBHOOK_URL` env var (no more dynamic derivation)
+- 5/5 race condition tests passing (verify-first, webhook-first, duplicates, repeated calls, webhook-only)
 
 ## Key API Endpoints
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/auth/google-signin` | POST | None | Custom Google Sign-In (verify ID token) |
+| `/api/auth/google-signin` | POST | None | Custom Google Sign-In (verify JWT credential) |
 | `/api/auth/login` | POST | None | Email/password login |
 | `/api/auth/register` | POST | None | Email/password signup |
+| `/api/cashfree/create-order` | POST | JWT | Create Cashfree payment order |
+| `/api/cashfree/verify` | POST | JWT | Verify payment and activate subscription |
+| `/api/cashfree/webhook` | POST | None | Cashfree webhook handler (idempotent) |
 | `/api/share/{shareId}/fork` | POST | None | Fork/continue a story |
 | `/api/public/explore-stories` | GET | None | Browse stories with genre filter |
 | `/api/admin/metrics/growth` | GET | Admin | Growth funnel metrics |
-| `/api/admin/metrics/story-performance` | GET | Admin | Per-story performance data |
 
 ## Credentials
 - Test User: `test@visionary-suite.com` / `Test@2026#`
@@ -72,10 +79,17 @@ The Google OAuth app is currently in **Testing** mode. Only users added as test 
 
 ## Prioritized Backlog
 
+### P0 — Immediate
+- Verify Google Auth popup → redirect flow on production (user test pending)
+- Deploy payment hardening to production
+- Run live ₹149 smoke test post-deploy
+- Audit 2 real paying users from yesterday on production DB
+
 ### P1 — Next Up
 - Publish Google OAuth consent screen (exit Testing mode)
 - Premium tier download quality differentiation
 - A/B test hook text variations
+- High-conversion Google button copy + UI layout
 
 ### P2 — Future
 - Character-driven auto-share prompts
