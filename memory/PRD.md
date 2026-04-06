@@ -18,24 +18,24 @@ A React + FastAPI + MongoDB AI-powered creator platform offering:
 /app/
 ├── backend/ (FastAPI + MongoDB)
 │   ├── routes/ (API endpoints)
-│   │   ├── experience_feedback.py  # NEW: Feedback submission + admin endpoints
+│   │   ├── experience_feedback.py  # Feedback submission + admin endpoints
 │   │   └── ... 
 │   ├── scripts/
-│   │   └── reset_non_admin_credits_to_50.py  # NEW: One-time migration
+│   │   └── reset_non_admin_credits_to_50.py  # One-time migration
 │   ├── services/ (Business logic, AI integrations, pipeline)
 │   └── server.py (Entry point)
 └── frontend/ (React + Tailwind + Shadcn)
     ├── src/
     │   ├── components/
-    │   │   └── FeedbackModal.jsx     # NEW: Post-usage feedback capture
+    │   │   └── FeedbackModal.jsx     # Post-usage feedback capture
     │   ├── contexts/
-    │   │   └── FeedbackContext.js     # NEW: Logout interception + idle detection
+    │   │   └── FeedbackContext.js     # Logout interception + idle detection
     │   ├── hooks/
-    │   │   └── useIdleFeedbackPrompt.js # NEW: Idle detection hook
+    │   │   └── useIdleFeedbackPrompt.js # Idle detection hook
     │   ├── pages/Admin/
-    │   │   └── AdminFeedbackPage.js  # NEW: Admin feedback dashboard
+    │   │   └── AdminFeedbackPage.js  # Admin feedback dashboard
     │   └── utils/
-    │       └── feedbackSession.js    # NEW: Session tracking utilities
+    │       └── feedbackSession.js    # Session tracking utilities
 ```
 
 ## What's Implemented (as of 2026-04-06)
@@ -46,20 +46,22 @@ A React + FastAPI + MongoDB AI-powered creator platform offering:
 - Admin dashboard with truth-based metrics
 - Credit system (50 credits for new users)
 - Legal/Copyright compliance (30+ files cleaned)
-- **Credit reset migration** (all non-admin users set to 50)
-- **Post-usage feedback system** (logout + idle prompts)
-- **Admin feedback dashboard** (with unread badge, filters, mark-read)
+- Credit reset migration (all non-admin users set to 50)
+- Post-usage feedback system (logout + idle prompts)
+- Admin feedback dashboard (with unread badge, filters, mark-read)
 
-## Completed Tasks (Current Session)
-- [x] P0 Legal/Copyright cleanup across 30+ frontend files
-- [x] P0 Credit reset: All non-admin users set to exactly 50 credits
-- [x] P0 Idempotent migration script with dry-run mode
-- [x] P0 Feedback modal on logout (only after real feature usage)
-- [x] P0 Idle feedback prompt (2-min idle after feature usage)
-- [x] P0 Session-scoped tracking (no repeat prompts)
-- [x] P1 Admin feedback dashboard at /app/admin/feedback
-- [x] P1 Unread badge in admin sidebar (auto-refresh every 60s)
-- [x] markFeatureUsed() integrated into 7 generation flows
+## Production QA Status (2026-04-06) — ALL PASS
+- [x] Section 1: Credits DB — Migration completed, admin=999999999, all 29 non-admins=50
+- [x] Section 2: Signup — New email users get exactly 50 credits + correct messaging
+- [x] Section 3: Feature Usage Tracking — markFeatureUsed() in 7 generation flows (8 call sites)
+- [x] Section 4: Feedback Modal — No modal without feature usage, modal appears with usage, once-per-session enforced
+- [x] Section 5: Feedback API — Valid submission, validation, auth check all pass
+- [x] Section 6: Admin Dashboard — List, unread count, filter, mark-read, access control all pass
+- [x] Section 7: Regression — Login, admin login, profile, health check all pass
+- [x] Section 8: Edge Cases — Rate limiting (3/day), migration idempotency, sanitization, bulk mark-read all pass
+
+## Bug Found & Fixed During QA
+- Stale message string in email signup response said "10 free credits" instead of "50 free credits" (fixed in auth.py line 413-417)
 
 ## Backlog
 ### P1

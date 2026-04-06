@@ -410,11 +410,11 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
                 "emailVerified": True,
                 "credits_locked": False
             },
-            "message": "Registration successful! You have been granted 10 free credits to start creating.",
+            "message": "Registration successful! You have been granted 50 free credits to start creating.",
             "email_verification_required": False,
             "credits_info": {
-                "current_credits": 10,
-                "message": "Enjoy your free credits!"
+                "current_credits": 50,
+                "message": "Enjoy your 50 free credits!"
             }
         }
     except HTTPException:
