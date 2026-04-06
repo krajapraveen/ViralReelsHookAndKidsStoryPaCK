@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
+import { useFeedback } from '../contexts/FeedbackContext';
 import axios from 'axios';
 import { trackLoop } from '../utils/growthTracker';
 import { setCdnBase } from '../utils/mediaUrl';
@@ -598,6 +599,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { credits, creditsLoaded, refreshCredits } = useCredits();
+  const { handleLogoutWithFeedback } = useFeedback();
   const [feed, setFeed] = useState(null);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({});
@@ -789,12 +791,14 @@ export default function Dashboard() {
                   <div className="border-t border-white/5" />
                   <button
                     onClick={() => {
-                      localStorage.removeItem('token');
-                      localStorage.removeItem('user');
-                      localStorage.removeItem('user_id');
-                      localStorage.removeItem('auth_return_path');
-                      localStorage.removeItem('remix_return_url');
-                      window.location.href = '/login';
+                      handleLogoutWithFeedback(() => {
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                        localStorage.removeItem('user_id');
+                        localStorage.removeItem('auth_return_path');
+                        localStorage.removeItem('remix_return_url');
+                        window.location.href = '/login';
+                      });
                     }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
                     data-testid="menu-logout"

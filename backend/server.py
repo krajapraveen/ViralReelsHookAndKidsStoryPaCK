@@ -598,6 +598,10 @@ api_router.include_router(media_admin_router)
 from routes.backfill_blur import router as backfill_blur_router
 api_router.include_router(backfill_blur_router)
 
+# Experience Feedback System
+from routes.experience_feedback import router as experience_feedback_router
+api_router.include_router(experience_feedback_router)
+
 from routes.retention_analytics import router as retention_router
 api_router.include_router(retention_router)
 
@@ -857,6 +861,12 @@ async def startup():
         await db.ab_assignments.create_index([("session_id", 1), ("experiment_id", 1)], unique=True)
         await db.ab_conversions.create_index([("session_id", 1), ("experiment_id", 1), ("event", 1)], unique=True)
         await db.ab_conversions.create_index([("experiment_id", 1), ("variant_id", 1)])
+        
+        # User feedback indexes
+        await db.user_feedback.create_index([("user_id", 1), ("created_at", -1)])
+        await db.user_feedback.create_index([("read_by_admin", 1), ("created_at", -1)])
+        await db.user_feedback.create_index([("source", 1), ("created_at", -1)])
+        await db.user_feedback.create_index([("created_at", -1)])
         
         logger.info("Database indexes created")
     except Exception as e:

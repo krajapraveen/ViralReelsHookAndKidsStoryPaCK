@@ -11,6 +11,7 @@ import { Button } from '../components/ui/button';
 import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { markFeatureUsed } from '../utils/feedbackSession';
 import RatingModal from '../components/RatingModal';
 import { StylePreviewStrip } from '../components/photo-to-comic/StylePreviewStrip';
 import { ComicDownloads } from '../components/photo-to-comic/ComicDownloads';
@@ -462,6 +463,7 @@ function PhotoToComicInner() {
 
     if (previewOk && downloadOk) {
       setUiState('READY');
+      markFeatureUsed('photo_to_comic');
     } else if (downloadOk && !previewOk) {
       setUiState('PARTIAL_READY');
     } else if (!downloadOk && !previewOk) {

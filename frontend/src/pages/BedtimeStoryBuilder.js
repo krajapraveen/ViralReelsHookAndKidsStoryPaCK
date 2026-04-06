@@ -8,6 +8,7 @@ import {
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { markFeatureUsed } from '../utils/feedbackSession';
 import { useCredits } from '../contexts/CreditContext';
 
 // ── Centralized API endpoints ──
@@ -287,7 +288,8 @@ export default function BedtimeStoryBuilder() {
       const newStreak = bumpStreak();
       setStreak(newStreak);
       toast.success(`Story created!${newStreak > 1 ? ` ${newStreak}-day streak!` : ''}`);
-    } catch (e) { console.warn('Streak error:', e); toast.success('Story created!'); }
+      markFeatureUsed('bedtime_story');
+    } catch (e) { console.warn('Streak error:', e); toast.success('Story created!'); markFeatureUsed('bedtime_story'); }
     track(remixType ? 'remix_clicked' : 'story_generated');
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
     setGenerating(false);

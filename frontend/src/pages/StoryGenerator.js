@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { generationAPI, creditAPI } from '../utils/api';
 import api from '../utils/api';
+import { markFeatureUsed } from '../utils/feedbackSession';
 import { toast } from 'sonner';
 import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle, Share2, LogOut, FileText, BookOpen, Palette, Gift, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import StoryProgressBar from '../components/StoryProgressBar';
@@ -217,6 +218,7 @@ export default function StoryGenerator() {
         setPolling(false);
         setLoading(false);
         toast.success('Story pack generated successfully!');
+        markFeatureUsed('story_generator');
       } else if (response.data.status === 'FAILED') {
         setPolling(false);
         setLoading(false);

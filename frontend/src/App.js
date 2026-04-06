@@ -122,6 +122,8 @@ import RevenueAnalyticsDashboard from './pages/Admin/RevenueAnalyticsDashboard';
 import MonitoringDashboard from './pages/Admin/MonitoringDashboard';
 // GA4 EVENT TESTER
 import GA4EventTester from './pages/Admin/GA4EventTester';
+// ADMIN FEEDBACK
+import AdminFeedbackPage from './pages/Admin/AdminFeedbackPage';
 // STORY VIDEO ANALYTICS DASHBOARD
 import StoryVideoAnalyticsDashboard from './pages/StoryVideoAnalyticsDashboard';
 // CHARACTER CONSISTENCY STUDIO
@@ -158,6 +160,7 @@ import CharacterDetail from './pages/CharacterDetail';
 import PublicCharacterPage from './pages/PublicCharacterPage';
 import { ContentProtectionWrapper } from './components/ContentProtectionWrapper';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { FeedbackProvider } from './contexts/FeedbackContext';
 import './App.css';
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -208,6 +211,7 @@ function App() {
     <CreditProvider>
     <MediaEntitlementProvider>
     <TourProvider>
+    <FeedbackProvider>
     <ContentProtectionWrapper>
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -282,6 +286,7 @@ function App() {
         <Route path="retention" element={<RetentionDashboard />} />
         <Route path="monitoring" element={<MonitoringDashboard />} />
         <Route path="ga4-tester" element={<GA4EventTester />} />
+        <Route path="feedback" element={<AdminFeedbackPage />} />
         <Route path="growth" element={<GrowthDashboard />} />
         <Route path="production-metrics" element={<ProductionMetrics />} />
         <Route path="media-security" element={<MediaSecurityDashboard />} />
@@ -387,6 +392,7 @@ function App() {
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />
     </ContentProtectionWrapper>
+    </FeedbackProvider>
     </TourProvider>
     </MediaEntitlementProvider>
     </CreditProvider>

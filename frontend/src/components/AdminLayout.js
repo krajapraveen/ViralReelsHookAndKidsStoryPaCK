@@ -5,7 +5,7 @@ import {
   Shield, Server, Settings, LogOut, ChevronRight, ChevronDown,
   Activity, Eye, FileText, Heart, Zap, BookOpen, Star, TrendingUp,
   Lock, AlertTriangle, Clock, Monitor, Cpu, Radio, Sparkles,
-  Menu, X, ArrowLeft, Target
+  Menu, X, ArrowLeft, Target, MessageSquare
 } from 'lucide-react';
 
 const NAV_GROUPS = [
@@ -56,6 +56,7 @@ const NAV_GROUPS = [
     items: [
       { path: '/app/admin/realtime-analytics', label: 'Realtime Analytics', icon: BarChart3 },
       { path: '/app/admin/daily-report', label: 'Daily Report', icon: BookOpen },
+      { path: '/app/admin/feedback', label: 'User Feedback', icon: MessageSquare },
       { path: '/app/admin/ga4-tester', label: 'GA4 Event Tester', icon: Radio },
     ],
   },
@@ -89,7 +90,7 @@ function parseJwtRole(token) {
   }
 }
 
-function NavItem({ item, isActive }) {
+function NavItem({ item, isActive, badge }) {
   const Icon = item.icon;
   return (
     <Link to={item.path} data-testid={`admin-nav-${item.label.replace(/\s/g, '-').toLowerCase()}`}>
@@ -100,12 +101,17 @@ function NavItem({ item, isActive }) {
       }`}>
         <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-indigo-400' : ''}`} />
         <span className="truncate">{item.label}</span>
+        {badge > 0 && (
+          <span className="ml-auto px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded-full min-w-[18px] text-center" data-testid="feedback-unread-badge">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
       </div>
     </Link>
   );
 }
 
-function NavGroup({ group, location, defaultOpen }) {
+function NavGroup({ group, location, defaultOpen, feedbackUnread }) {
   const [open, setOpen] = useState(defaultOpen);
   const hasActive = group.items.some(item =>
     item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
@@ -128,7 +134,8 @@ function NavGroup({ group, location, defaultOpen }) {
             const isActive = item.exact
               ? location.pathname === item.path
               : location.pathname.startsWith(item.path);
-            return <NavItem key={item.path} item={item} isActive={isActive} />;
+            const badge = item.path === '/app/admin/feedback' ? feedbackUnread : 0;
+            return <NavItem key={item.path} item={item} isActive={isActive} badge={badge} />;
           })}
         </div>
       )}
@@ -140,7 +147,8 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [authState, setAuthState] = useState('checking'); // checking | authorized | unauthorized
+  const [authState, setAuthState] = useState('checking');
+  const [feedbackUnread, setFeedbackUnread] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -156,6 +164,24 @@ export default function AdminLayout() {
       navigate('/app', { replace: true });
     }
   }, [navigate]);
+
+  // Fetch unread feedback count
+  useEffect(() => {
+    if (authState !== 'authorized') return;
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/admin/feedback/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) setFeedbackUnread(data.data.unread_count);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, [authState]);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -207,6 +233,7 @@ export default function AdminLayout() {
               group={group}
               location={location}
               defaultOpen={idx === 0 || hasActive}
+              feedbackUnread={feedbackUnread}
             />
           );
         })}

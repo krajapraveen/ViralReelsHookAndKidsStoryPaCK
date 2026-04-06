@@ -8,6 +8,7 @@ import { Progress } from '../components/ui/progress';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import HelpGuide from '../components/HelpGuide';
+import { useFeedback } from '../contexts/FeedbackContext';
 import { StreakDisplay } from '../components/StreakDisplay';
 import { 
   Sparkles, ArrowLeft, User, Mail, Shield, Bell, 
@@ -19,6 +20,7 @@ import {
 import { useAppTour } from '../components/AppTour';
 
 export default function Profile() {
+  const { handleLogoutWithFeedback } = useFeedback();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -267,12 +269,14 @@ export default function Profile() {
               variant="ghost"
               size="sm"
               onClick={() => {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                localStorage.removeItem('user_id');
-                localStorage.removeItem('auth_return_path');
-                localStorage.removeItem('remix_return_url');
-                window.location.href = '/login';
+                handleLogoutWithFeedback(() => {
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('user');
+                  localStorage.removeItem('user_id');
+                  localStorage.removeItem('auth_return_path');
+                  localStorage.removeItem('remix_return_url');
+                  window.location.href = '/login';
+                });
               }}
               className="text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               data-testid="profile-logout-btn"

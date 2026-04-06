@@ -13,6 +13,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { markFeatureUsed } from '../utils/feedbackSession';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import { SafeImage } from '../components/SafeImage';
@@ -802,6 +803,7 @@ export default function ComicStorybookBuilder() {
       
       setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
       toast.success('Comic book generation started!');
+      markFeatureUsed('comic_storybook');
       
       const interval = setInterval(() => pollJobStatus(res.data.jobId), 3000);
       pollingRef.current = interval;

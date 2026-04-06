@@ -8,6 +8,7 @@ import { Progress } from '../components/ui/progress';
 import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { markFeatureUsed } from '../utils/feedbackSession';
 import analytics from '../utils/analytics';
 import { trackToolOpenPrefilled, trackGenerateClick, trackCreationCompleted } from '../utils/growthAnalytics';
 import useWebSocketProgress from '../hooks/useWebSocketProgress';
@@ -626,6 +627,7 @@ export default function StoryVideoStudio() {
       if (res.data.success) {
         setProject(res.data.data);
         toast.success('Project created! Analyzing story and generating scenes... This may take 30-60 seconds.');
+        markFeatureUsed('story_video');
         await generateScenes(res.data.project_id);
       } else {
         console.error('Project creation returned success=false:', res.data);

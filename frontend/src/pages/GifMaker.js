@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { markFeatureUsed } from '../utils/feedbackSession';
 import RatingModal from '../components/RatingModal';
 import { SafeImage } from '../components/SafeImage';
 import UpsellModal from '../components/UpsellModal';
@@ -210,6 +211,7 @@ export default function GifMaker() {
           toastShownRef.current[jobId] = true;
           if (response.data.status === 'COMPLETED') {
             toast.success('GIF generated successfully!');
+            markFeatureUsed('gif_maker');
             // Show rating modal after successful generation
             setLastGenerationId(jobId);
             setTimeout(() => setShowRatingModal(true), 2000);

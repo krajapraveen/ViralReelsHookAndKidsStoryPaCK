@@ -5,6 +5,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { generationAPI, creditAPI } from '../utils/api';
+import { markFeatureUsed } from '../utils/feedbackSession';
 import { toast } from 'sonner';
 import {
   Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle,
@@ -594,6 +595,7 @@ export default function ReelGenerator() {
         setActiveTab('reference_analysis');
       }
       toast.success('Reel content pack generated!');
+      markFeatureUsed('reel_generator');
       analytics.trackGeneration('reel_generator', 10);
       setTimeout(() => setShowRatingModal(true), 2000);
       setTimeout(() => setShowUpsellModal(true), 4000);
