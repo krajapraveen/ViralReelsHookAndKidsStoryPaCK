@@ -1,50 +1,43 @@
 # Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI creator suite with a viral growth engine. Convert the system from User → Create → Done into User → Create → Share → Viewer → Create → Share → Repeat.
+Full-stack AI creator suite with viral growth engine. Loop: Create → Share → View → Signup → Create → Share → Repeat.
 
-## Core Architecture
-- **Frontend**: React (port 3000) | **Backend**: FastAPI (port 8001, /api prefix) | **DB**: MongoDB | **Storage**: R2
-- **Payments**: Cashfree | **AI**: OpenAI + Gemini via Emergent LLM Key | **Auth**: Google GIS + JWT
+## Architecture
+React + FastAPI + MongoDB + R2 + Cashfree + OpenAI/Gemini (Emergent LLM Key) + Google GIS Auth
 
-## The Growth Loop (Fully Implemented)
+## The Growth Loop (Complete)
 ```
-Create → Complete → [Share Prompt: WhatsApp PRIMARY + viral nudge]
-→ Viewer lands on Share Page [autoplay video + social proof + urgency]
-→ "People are creating these" carousel → CTA click
-→ Signup → First video FREE → Creates → Watermark end screen → Shares → Repeat
+Create → Complete → [WhatsApp PRIMARY modal + "This can go viral"] → Share page
+→ Autoplay video + social proof ("12K+ today") + urgency + "More Videos" carousel
+→ CTA click → Signup → First video FREE → Create → Watermark → More viewers → Repeat
 ```
 
 ## What's Implemented
 
-### Core Platform: Auth, Studio, Credits, Gallery, Safety, Moderation ✅
+### Core Platform ✅
+Auth, Studio, Credits, Gallery, Safety, Moderation, Payments (Cashfree)
 
-### My Space — Real-Time Source of Truth (3 Phases) ✅
-- P1: 3-section layout, granular stages, auto-redirect, 4s polling
-- P2: Toast + browser notification, share-link API, WhatsApp, "Just Completed" badge
-- P3: Auto-download, completion prompt modal (WhatsApp PRIMARY), "Create Another" loop
+### My Space — Real-Time Source of Truth (All 3 Phases) ✅
+P1: 3 sections + polling. P2: notifications + share API + WhatsApp. P3: auto-download + completion prompt (WhatsApp PRIMARY) + "Create Another" loop
 
 ### Growth Engine ✅
-1. **Share Page** — Video-first funnel with autoplay, social proof ("12K+ videos today"), urgency text, CTA, Remix, value props, "More Videos" carousel
-2. **First Video Free** — Zero-friction for new users
-3. **1-Tap Remix** — Fork API → prefill studio
-4. **Watermark** — 2.5s branded end screen on all videos
-5. **Referral System** — Tiered rewards, link generation, stats
-6. **Analytics** — Full event tracking (share_viewed, cta_clicked, remix_clicked, etc.), K-factor, funnel metrics, loop dashboard
+1. Share Page — video-first funnel, autoplay, social proof, urgency, remix, "More Videos" carousel
+2. First Video Free — zero friction for new users
+3. 1-Tap Remix — fork API → prefill studio
+4. Watermark — 2.5s branded end screen
+5. Referral System — tiered rewards
+6. Analytics — full event tracking, K-factor, funnel metrics
 
-### Growth Optimization (3 Levers) ✅
-- **Lever 1 — Share Rate**: WhatsApp PRIMARY in completion modal with pulsing animation + "This video can go viral — share it now"
-- **Lever 2 — Share→Signup**: "More Videos" carousel on share page, social proof banner, urgency copy
-- **Lever 3 — First Video Completion**: Auto-prefill from remix, onboarding prompt → studio redirect
-
-## Metrics Endpoints
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/growth/funnel` | page_view → remix → generate → signup → create |
-| `GET /api/growth/loop-dashboard` | K-factor, share rate, drop-off analysis, top stories |
-| `GET /api/growth/viral-coefficient` | Platform-wide K-factor computation |
-| `GET /api/growth/k-factor` | Per-user + platform K-factor |
-| `POST /api/growth/event` | Track any growth event |
+### High-Conversion Copy Update (April 6, 2026) ✅
+- **Landing Hero**: "People are making viral videos with AI" / "Create Your First Video — Free" / "No credit card required • Takes 30 seconds • Free to start"
+- **Showcase**: "See what people are creating"
+- **How It Works**: "Create in 3 simple steps" — Enter idea → AI creates everything → Download or share
+- **Features**: "Everything you need to create viral content"
+- **Final CTA**: "Create your first AI video now" / "12,000+ and growing" / "Start Creating — Free"
+- **Footer CTA Strip**: "Create your first AI video in seconds — free" + "Start Creating" button
+- **Footer**: 4 columns (Create/Discover/Company/Legal) with outcome-focused descriptions + both contact emails
+- **Share Page**: "This AI video will surprise you" / "Made in seconds using AI" / "Don't just watch — create your own"
 
 ## Credentials
 - Test: `test@visionary-suite.com` / `Test@2026#`
@@ -52,9 +45,6 @@ Create → Complete → [Share Prompt: WhatsApp PRIMARY + viral nudge]
 
 ## Backlog
 ### P1
-- Pipeline parallelization (faster generation)
-- A/B test CTA text variations on share page
-- Publish Google OAuth consent screen
-
+- Pipeline parallelization, Google OAuth publish, A/B test CTA variations
 ### P2
 - Story Chain leaderboard, daily viral ideas, multi-platform share, Admin WebSocket
