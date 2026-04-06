@@ -386,3 +386,39 @@ async def get_story_chain(share_id: str):
         "totalVersions": len(chain),
         "chain": chain,
     }
+
+
+
+@router.get("/{share_id}/more-videos")
+async def get_more_videos(share_id: str):
+    """Get related/recent videos for the share page preview carousel.
+    Returns up to 6 other shared videos to keep the viewer engaged."""
+    shares = await db.shares.find(
+        {"id": {"$ne": share_id}, "type": "STORY"},
+        {"_id": 0, "id": 1, "title": 1, "thumbnailUrl": 1, "views": 1, "createdAt": 1, "generationId": 1}
+    ).sort("createdAt", -1).limit(6).to_list(length=6)
+
+    # Enrich with video URLs from source jobs
+    results = []
+    for s in shares:
+        video_url = None
+        gen_id = s.get("generationId")
+        if gen_id:
+            job = await db.story_engine_jobs.find_one(
+                {"job_id": gen_id, "state": "READY"},
+                {"_id": 0, "output_url": 1, "thumbnail_url": 1}
+            )
+            if job:
+                video_url = job.get("output_url")
+                if not s.get("thumbnailUrl"):
+                    s["thumbnailUrl"] = job.get("thumbnail_url")
+
+        results.append({
+            "id": s["id"],
+            "title": s.get("title", "Untitled"),
+            "thumbnailUrl": s.get("thumbnailUrl"),
+            "videoUrl": video_url,
+            "views": s.get("views", 0),
+        })
+
+    return {"success": True, "videos": results}

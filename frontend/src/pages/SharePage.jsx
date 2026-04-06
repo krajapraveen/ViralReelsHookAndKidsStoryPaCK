@@ -25,6 +25,64 @@ function trackEvent(event, properties = {}) {
   api.post('/api/growth/event', { event, properties, timestamp: Date.now() }).catch(() => {});
 }
 
+function MoreVideosCarousel({ shareId, onNavigate }) {
+  const [videos, setVideos] = useState([]);
+
+  useEffect(() => {
+    api.get(`/api/share/${shareId}/more-videos`).then(res => {
+      if (res.data?.videos?.length) setVideos(res.data.videos);
+    }).catch(() => {});
+  }, [shareId]);
+
+  if (videos.length === 0) return null;
+
+  return (
+    <section className="px-4 py-8 border-b border-white/[0.04]" data-testid="more-videos-section">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-white">People are creating these</h2>
+          <button
+            onClick={onNavigate}
+            className="text-xs text-violet-400 hover:text-violet-300 font-medium"
+            data-testid="more-videos-create-btn"
+          >
+            Create yours
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {videos.slice(0, 6).map(v => (
+            <a
+              key={v.id}
+              href={`/share/${v.id}`}
+              className="group rounded-xl overflow-hidden border border-white/[0.06] bg-zinc-900/50 hover:border-violet-500/30 transition-all"
+              data-testid={`more-video-${v.id}`}
+            >
+              <div className="relative aspect-video bg-zinc-800">
+                {v.thumbnailUrl ? (
+                  <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Video className="w-6 h-6 text-zinc-700" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Play className="w-6 h-6 text-white fill-white" />
+                </div>
+              </div>
+              <div className="p-2">
+                <p className="text-xs text-white truncate font-medium">{v.title}</p>
+                <p className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5">
+                  <Eye className="w-2.5 h-2.5" /> {v.views || 0}
+                </p>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function SharePage() {
   const { shareId } = useParams();
   const navigate = useNavigate();
@@ -309,6 +367,9 @@ export default function SharePage() {
             </Button>
           </div>
         </section>
+
+        {/* ═══ MORE VIDEOS — KEEP VIEWER ENGAGED ═══ */}
+        <MoreVideosCarousel shareId={shareId} onNavigate={handleCreateOwn} />
 
         {/* ═══ BOTTOM CTA ═══ */}
         <section className="px-4 py-16" data-testid="bottom-cta">
