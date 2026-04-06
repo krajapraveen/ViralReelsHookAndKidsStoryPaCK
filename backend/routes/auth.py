@@ -854,14 +854,18 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
         elif data.credential:
             # ID token flow — verify directly
             try:
+                logger.info(f"Google credential flow: token length={len(data.credential)}, client_id={GOOGLE_CLIENT_ID[:20]}...")
                 idinfo = id_token.verify_oauth2_token(
                     data.credential,
                     google_requests.Request(),
                     GOOGLE_CLIENT_ID,
                 )
+                logger.info(f"Google credential verified: email={idinfo.get('email')}, aud={idinfo.get('aud', 'N/A')[:20]}")
             except ValueError as e:
-                logger.warning(f"Invalid Google token: {e}")
-                raise HTTPException(status_code=401, detail="Invalid Google credential")
+                logger.error(f"Google credential verification FAILED: {str(e)}")
+                logger.error(f"  credential_prefix={data.credential[:50]}...")
+                logger.error(f"  expected_client_id={GOOGLE_CLIENT_ID}")
+                raise HTTPException(status_code=401, detail=f"Invalid Google credential: {str(e)}")
         else:
             raise HTTPException(status_code=400, detail="No Google credential, auth code, or access token provided")
 
