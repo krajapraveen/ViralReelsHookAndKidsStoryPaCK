@@ -270,11 +270,11 @@ async def delete_blog_post(post_id: str, admin: dict = Depends(get_admin_user)):
 # Seed initial blog posts for SEO
 SEED_POSTS = [
     {
-        "title": "How to Create Viral Instagram Reels in 2026",
+        "title": "How to Create Viral Short-Form Videos in 2026",
         "slug": "how-to-create-viral-instagram-reels-2026",
-        "excerpt": "Learn the secrets behind viral Instagram Reels and how AI can help you create engaging content in seconds.",
+        "excerpt": "Learn the secrets behind viral short-form videos and how AI can help you create engaging content in seconds.",
         "content": """
-# How to Create Viral Instagram Reels in 2026
+# How to Create Viral Short-Form Videos in 2026
 
 Creating viral content isn't about luck—it's about understanding what works and having the right tools to execute quickly.
 
@@ -304,20 +304,20 @@ AI tools like Visionary Suite can generate:
 
 With 100 free credits, you can create dozens of reels and test what works for your audience. No credit card required!
         """,
-        "category": "Instagram Tips",
-        "tags": ["instagram", "reels", "viral content", "social media", "ai tools"],
-        "metaTitle": "How to Create Viral Instagram Reels in 2026 | Visionary Suite",
-        "metaDescription": "Learn the secrets behind viral Instagram Reels. Discover how AI can help you create engaging hooks, scripts, and captions in seconds.",
+        "category": "Social Media Tips",
+        "tags": ["social media", "reels", "viral content", "short video", "ai tools"],
+        "metaTitle": "How to Create Viral Short-Form Videos in 2026 | Visionary Suite",
+        "metaDescription": "Learn the secrets behind viral short-form videos. Discover how AI can help you create engaging hooks, scripts, and captions in seconds.",
         "published": True
     },
     {
-        "title": "The Ultimate Guide to Kids Story Videos for YouTube",
+        "title": "The Ultimate Guide to Kids Story Videos",
         "slug": "ultimate-guide-kids-story-videos-youtube",
-        "excerpt": "Everything you need to know about creating engaging kids story videos that parents love and YouTube recommends.",
+        "excerpt": "Everything you need to know about creating engaging kids story videos that parents love and algorithms recommend.",
         "content": """
-# The Ultimate Guide to Kids Story Videos for YouTube
+# The Ultimate Guide to Kids Story Videos
 
-Kids content is one of the most lucrative niches on YouTube, but creating quality content consistently is challenging. Here's how to succeed.
+Kids content is one of the most lucrative niches on video platforms, but creating quality content consistently is challenging. Here's how to succeed.
 
 ## Why Kids Content Works
 
@@ -355,7 +355,7 @@ Our Kids Story Pack generator creates complete production packages including:
 
 ## Monetization Strategies
 
-1. YouTube AdSense (once eligible)
+1. Video platform AdSense (once eligible)
 2. Sponsored content with child-safe brands
 3. Merchandise (coloring books, activity sheets)
 4. Premium content platforms
@@ -364,10 +364,10 @@ Our Kids Story Pack generator creates complete production packages including:
 
 Try creating your first Kids Story Pack with 100 free credits. Generate complete video scripts with voiceover in under 90 seconds!
         """,
-        "category": "YouTube Tips",
-        "tags": ["youtube", "kids content", "story videos", "content creation", "monetization"],
-        "metaTitle": "Ultimate Guide to Kids Story Videos for YouTube | Visionary Suite",
-        "metaDescription": "Learn how to create engaging kids story videos for YouTube. Discover AI tools that generate complete story packs with scripts and visuals.",
+        "category": "Video Tips",
+        "tags": ["video platform", "kids content", "story videos", "content creation", "monetization"],
+        "metaTitle": "Ultimate Guide to Kids Story Videos | Visionary Suite",
+        "metaDescription": "Learn how to create engaging kids story videos. Discover AI tools that generate complete story packs with scripts and visuals.",
         "published": True
     },
     {
@@ -564,7 +564,7 @@ Expressive, colorful, detailed:
 - Great for creative industries
 - Strong emotional impact
 
-### Pixar/Disney Inspired
+### 3D Animated Style
 3D-looking, warm, friendly:
 - Universal appeal
 - Family-friendly brands
@@ -581,8 +581,8 @@ Expressive, colorful, detailed:
 ## Creative Uses for Comic Avatars
 
 ### For Individuals
-- Social media profiles (LinkedIn, Twitter, Instagram)
-- YouTube channel branding
+- Social media profiles (professional networks, microblogs, feeds)
+- Video channel branding
 - Podcast cover art
 - Email signatures
 
@@ -796,22 +796,22 @@ You have less than one second to capture someone's attention on social media. Yo
 
 ## Platform-Specific Tips
 
-### Instagram Reels
+### Social Feed Reels
 - First frame must be compelling
 - Use on-screen text hooks
 - Start mid-action
 
-### TikTok
+### Short Video
 - Jump straight into content
 - Avoid "Hey guys" openings
 - Use trending sounds strategically
 
-### YouTube Shorts
+### Video Shorts
 - Strong visual + verbal hook
 - Promise clear value
 - Create loop potential
 
-### Twitter/X
+### Microblogs
 - Lead with the hot take
 - Use thread format for mystery
 - Numbers and lists work well
@@ -855,22 +855,22 @@ Creating content is time-consuming. Smart creators don't create more—they repu
 
 ### One Core Idea →
 1. Blog post
-2. Instagram carousel
-3. TikTok/Reel
-4. YouTube Short
-5. Twitter thread
-6. LinkedIn post
+2. Social carousel
+3. Short video clip
+4. Vertical video short
+5. Thread post
+6. Professional network post
 7. Email newsletter
 8. Podcast episode
 9. Infographic
-10. Pinterest pin
+10. Image pin
 
 ## Step-by-Step Repurposing
 
 ### Start With Long-Form
 Begin with your most comprehensive piece:
 - Blog article (1500-2000 words)
-- YouTube video (8-10 minutes)
+- Long-form video (8-10 minutes)
 - Podcast episode (20-30 minutes)
 
 ### Extract Key Points
@@ -882,27 +882,27 @@ Identify 5-10 standalone insights:
 
 ### Transform by Platform
 
-#### Instagram
+#### Social Feed
 - Carousel: 5-7 slides from key points
 - Reel: 15-30 second tip from content
 - Story: Behind-the-scenes of creation
 
-#### TikTok
+#### Short Video
 - Quick tips (15-60 seconds)
 - Controversial takes
 - "Reply to comment" format
 
-#### Twitter/X
+#### Microblog
 - Thread breaking down full topic
-- Individual tweets from quotes
+- Individual posts from quotes
 - Polls about topic questions
 
-#### LinkedIn
+#### Professional Network
 - Professional angle on topic
 - Case study format
 - Industry insight framing
 
-#### Pinterest
+#### Image Board
 - Quote graphics
 - Infographic summary
 - Step-by-step pins
@@ -938,18 +938,18 @@ Our tools can automatically:
 
 ## Real Example: One Blog Post
 
-**Original**: "10 Tips for Better Instagram Engagement"
+**Original**: "10 Tips for Better Social Media Engagement"
 
 **Repurposed Into**:
 1. **Carousel**: Each tip as a slide
 2. **Reel**: Top 3 tips in 30 seconds
 3. **Story**: Poll asking which tip is favorite
-4. **Twitter Thread**: Tips with added context
-5. **LinkedIn**: B2B angle on engagement
-6. **TikTok**: "POV: You just discovered these tips"
+4. **Thread**: Tips with added context
+5. **Professional Post**: B2B angle on engagement
+6. **Short Video**: "POV: You just discovered these tips"
 7. **Email**: Expanded with subscriber-only tips
-8. **Pinterest**: Tip infographic
-9. **YouTube Short**: Quick tip demonstration
+8. **Pin**: Tip infographic
+9. **Video Short**: Quick tip demonstration
 10. **Podcast Talking Point**: Deeper discussion
 
 ## Tools That Help

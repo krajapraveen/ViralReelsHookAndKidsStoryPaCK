@@ -1,44 +1,73 @@
-# Visionary Suite — Product Requirements Document
+# Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Full-stack AI creator suite with viral growth engine. Loop: Create → Share → View → Signup → Create → Repeat.
+Build a full-stack AI Creator Suite ("Visionary Suite") with a compulsion-driven growth engine, monetization system, and complete legal/copyright compliance.
+
+## Core Product
+A React + FastAPI + MongoDB AI-powered creator platform offering:
+- Story video generation (with AI narration, scenes, music)
+- Reel/short-form video script generation
+- Social bio generation  
+- Comic/coloring book creation
+- Photo-to-comic transformation
+- Content repurposing tools
+- Admin dashboard with truth-based metrics
+
+## User Personas
+1. **Content Creators**: Generate viral content for social platforms
+2. **Parents/Educators**: Create kids story videos
+3. **Small Business Owners**: Brand story building, promo videos
+4. **Admin**: Monitor platform health, users, revenue
 
 ## Architecture
-React + FastAPI + MongoDB + R2 + Cashfree (PRODUCTION) + OpenAI/Gemini (Emergent LLM Key) + Google GIS Auth
-
-## The Growth Loop (Complete + QA Verified)
 ```
-Create → Complete → [WhatsApp PRIMARY + viral nudge] → Share page
-→ Autoplay video + social proof + urgency + "More Videos" carousel
-→ CTA click → Signup → First video FREE → Create → Watermark → Repeat
+/app/
+├── backend/ (FastAPI + MongoDB)
+│   ├── routes/ (API endpoints)
+│   ├── services/ (Business logic, AI integrations, pipeline)
+│   └── server.py (Entry point)
+└── frontend/ (React + Tailwind + Shadcn)
+    ├── src/pages/ (Feature pages)
+    ├── src/components/ (Reusable components)
+    └── src/utils/ (API, analytics, helpers)
 ```
 
-## What's Implemented (All QA Verified)
+## What's Implemented (as of 2026-04-06)
+- Full AI creation suite (Story Video, Reel Generator, Bio Generator, Comic tools, etc.)
+- Growth Engine (Share pages, First Video Free, 1-Tap Remix, Watermark, Referrals)
+- Cashfree payment integration
+- Google OAuth + JWT auth
+- Admin dashboard with truth-based metrics
+- Credit system (50 credits for new users)
+- Momentum-based social proof
+- Legal/Copyright compliance audit (COMPLETED)
 
-### Core Platform ✅
-Auth (Google + email/password), Story Video Studio, Reel Generator, Comic Storybook, Coloring Book, GIF Maker, Bedtime Stories, Credits (50 initial), Cashfree Payments (PRODUCTION), Gallery, Safety/Moderation
-
-### My Space (3 Phases) ✅
-P1: 3-section layout + polling. P2: Notifications + WhatsApp share. P3: Auto-download + completion prompt (WhatsApp PRIMARY) + "Create Another" loop
-
-### Growth Engine ✅
-Share Page (video-first funnel), First Video Free, 1-Tap Remix, Watermark (2.5s end screen), Referral System, Analytics (K-factor, funnel)
-
-### High-Conversion Copy ✅
-Landing: "Create viral AI videos in seconds", Share: "Don't just watch — create your own", Footer CTA strip + 4-column layout
-
-### Full QA Production Sweep (April 6, 2026) ✅
-- 25+ pages crawled, 37 API endpoints tested, 18 feature groups verified
-- Auth flows, payment system, admin dashboard, mobile responsive — ALL PASS
-- Zero critical/major issues, zero regressions
-- **Release verdict: READY FOR PRODUCTION**
-
-## Credentials
-- Test: `test@visionary-suite.com` / `Test@2026#`
-- Admin: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
+## Completed Tasks (Current Session)
+- [x] P0 Legal/Copyright cleanup across 30+ frontend files and 2 backend files
+- [x] Replaced all trademarked brand names with generic equivalents
+- [x] Blog content and categories genericized
+- [x] Backend style prompts cleaned (Pixar→studio-quality, Studio Ghibli→Japanese animation)
+- [x] Fixed 3 compile errors introduced during cleanup (duplicate imports, misplaced const)
+- [x] QA/Production Readiness Report delivered
 
 ## Backlog
 ### P1
-- A/B test CTA variations, pipeline parallelization, Google OAuth publish
+- Pipeline Parallelization (Script → Voice + Images in parallel → Composition)
+- A/B test hook text variations on public pages
+- Character-driven auto-share prompts after creation
+
 ### P2
-- Rate limiting on public APIs, CDN for video assets, Story Chain leaderboard
+- Upgrade admin dashboard from polling to WebSockets
+- "Story Chain" leaderboard to gamify continuations
+- "Remix Variants" on share pages
+- General UI polish and style preset preview thumbnails
+
+## 3rd Party Integrations
+- OpenAI & Gemini (Emergent LLM Key)
+- Cloudflare R2 (Object Storage)
+- Cashfree (Payments)
+- Google Identity Services (OAuth 2.0)
+
+## Test Credentials
+- Test User: test@visionary-suite.com / Test@2026#
+- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
