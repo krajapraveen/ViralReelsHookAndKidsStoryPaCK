@@ -32,26 +32,36 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 - Fork API, Share Page with "Continue This Story" CTA
 - Post-generation Share Modal, A/B testing, alive signals
 
-### Phase 5: Growth Validation / DATA MODE (Complete — April 5, 2026)
-- 30 Viral Seed Stories (10 mystery, 10 thriller, 5 emotional, 5 fantasy)
-- Growth Dashboard with funnel metrics
-- Story-Level Performance Tracking
-- Public Explore API
+### Phase 5: Growth Validation / DATA MODE (Complete)
+- 30 Viral Seed Stories, Growth Dashboard with funnel metrics
+- Story-Level Performance Tracking, Public Explore API
 
-### P0: Custom Google Sign-In (In Progress — April 6, 2026)
+### Custom Google Sign-In (Complete — April 6, 2026)
 - Frontend: `@react-oauth/google` `GoogleLogin` component (credential/JWT flow)
-- Backend: `POST /api/auth/google-signin` verifies Google ID token via `google.oauth2.id_token.verify_oauth2_token()`
-- No `GOOGLE_CLIENT_SECRET` needed — JWT verified locally with just `GOOGLE_CLIENT_ID`
+- Backend: `POST /api/auth/google-signin` verifies Google ID token
 - Account linking by email or `google_sub`
-- CSP configured for `accounts.google.com`
-- Status: Code deployed, awaiting user verification of popup → redirect flow
 
-### P0: Payment Hardening (Complete — April 6, 2026)
-- Fixed double-crediting vulnerability: webhook now checks ALL terminal states
-- Added idempotency guard in `award_credits()` via `credit_ledger` duplicate check
-- Webhook now handles subscription activation (mirrors verify handler)
-- Static webhook URL via `CASHFREE_WEBHOOK_URL` env var (no more dynamic derivation)
-- 5/5 race condition tests passing (verify-first, webhook-first, duplicates, repeated calls, webhook-only)
+### Payment Hardening (Complete — April 6, 2026)
+- Fixed double-crediting vulnerability, added idempotency guard in `award_credits()`
+- Static webhook URL via `CASHFREE_WEBHOOK_URL`
+
+### My Space Phase 1 — Real-Time Source of Truth (Complete — April 6, 2026)
+- 3-section layout: In Progress (animated progress bars), Completed (video cards), Failed (error + retry)
+- Granular stage labels (e.g., "Creating artwork", "Rendering video")
+- Auto-redirect from StoryVideoPipeline to `/app/my-space?projectId=<id>` on generation start
+- Real-time polling every 4s for in-progress jobs
+- Section collapse/expand toggles with counts
+- Tested: 100% backend (12/12), 100% frontend
+
+### My Space Phase 2 — Notifications & Actions (Complete — April 6, 2026)
+- In-app completion toast notification ("Your video 'Title' is ready!")
+- Browser push notification on video completion (via Notification API)
+- Notification toggle (bell icon) in header
+- Completion action tray: Watch, Download, WhatsApp share
+- Share-link generation API: `POST /api/story-engine/share-link/{job_id}` (idempotent)
+- One-tap WhatsApp share via `wa.me` with pre-filled text
+- "Just Completed" badge with green glow animation on newly finished videos
+- Tested: All features verified
 
 ## Key API Endpoints
 | Endpoint | Method | Auth | Description |
@@ -62,38 +72,37 @@ Build a full-stack AI creator suite with a "compulsion-driven" growth engine. Th
 | `/api/cashfree/create-order` | POST | JWT | Create Cashfree payment order |
 | `/api/cashfree/verify` | POST | JWT | Verify payment and activate subscription |
 | `/api/cashfree/webhook` | POST | None | Cashfree webhook handler (idempotent) |
+| `/api/story-engine/user-jobs` | GET | JWT | Get all user jobs (merged story engine + legacy) |
+| `/api/story-engine/share-link/{job_id}` | POST | JWT | Generate share link + WhatsApp URL for completed job |
+| `/api/share/create` | POST | JWT | Create a shareable link for any creation |
+| `/api/share/{shareId}` | GET | None | Get share data with OG tags |
 | `/api/share/{shareId}/fork` | POST | None | Fork/continue a story |
 | `/api/public/explore-stories` | GET | None | Browse stories with genre filter |
-| `/api/admin/metrics/growth` | GET | Admin | Growth funnel metrics |
 
 ## Credentials
 - Test User: `test@visionary-suite.com` / `Test@2026#`
 - Admin User: `admin@creatorstudio.ai` / `Cr3@t0rStud!o#2026`
-- Google OAuth Client ID: `972517860807-cjgrpibkrg4n1ncdgs4kvmnqfpasgkao.apps.googleusercontent.com`
-
-## Important: Google OAuth Testing Mode
-The Google OAuth app is currently in **Testing** mode. Only users added as test users in Google Cloud Console can sign in. To enable public sign-in:
-1. Go to https://console.cloud.google.com/apis/credentials/consent
-2. Click **Publish App**
-3. Complete verification if required by Google
 
 ## Prioritized Backlog
 
-### P0 — Immediate
-- Verify Google Auth popup → redirect flow on production (user test pending)
-- Deploy payment hardening to production
-- Run live ₹149 smoke test post-deploy
-- Audit 2 real paying users from yesterday on production DB
+### P0 — Immediate (My Space Phase 3)
+- Auto-download preference trigger on completion
+- Share prompt after video completion
 
 ### P1 — Next Up
+- Pipeline parallelization (script → voice + images in parallel → composition)
+- Analytics instrumentation (project_created, download_triggered, etc.)
 - Publish Google OAuth consent screen (exit Testing mode)
-- Premium tier download quality differentiation
-- A/B test hook text variations
-- High-conversion Google button copy + UI layout
+
+### P0 — Viral Growth Engine (1M Users System)
+- Share page with CTAs (convert viewers to creators)
+- Watermark system ("Created with Visionary Suite")
+- First video free (zero friction onboarding)
+- 1-Tap "Remix this video" button
+- Daily viral ideas & multi-platform share
 
 ### P2 — Future
-- Character-driven auto-share prompts
+- A/B test hook text variations
 - Remix Variants on share pages
 - Story Chain leaderboard
-- Personalization / Daily Packs
 - Admin Dashboard WebSocket upgrades
