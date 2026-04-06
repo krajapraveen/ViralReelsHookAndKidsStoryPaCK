@@ -562,23 +562,57 @@ async def cashfree_webhook(request: Request):
                 # Find order and update status
                 order = await db.orders.find_one({"order_id": order_id, "gateway": "cashfree"}, {"_id": 0})
                 
-                if order and order["status"] != "PAID":
-                    # Add credits with order_id for tracking
-                    await add_credits(
-                        user_id=order["userId"],
-                        amount=order["credits"],
-                        description=f"Cashfree payment - {order.get('productName', '')}",
-                        tx_type="PURCHASE",
-                        order_id=order_id
-                    )
+                # Check ALL terminal states to prevent double-crediting
+                terminal_states = ("PAID", "CREDIT_APPLIED", "SUBSCRIPTION_ACTIVATED")
+                if order and order["status"] not in terminal_states:
+                    # Check idempotency via ledger before crediting
+                    already_credited = await db.credit_ledger.find_one({"reference_id": order_id, "tx_type": "award"})
+                    if already_credited:
+                        logger.info(f"Cashfree webhook: Credits already applied for order {order_id}, skipping")
+                    else:
+                        # Add credits with order_id for tracking
+                        await add_credits(
+                            user_id=order["userId"],
+                            amount=order["credits"],
+                            description=f"Cashfree payment - {order.get('productName', '')}",
+                            tx_type="PURCHASE",
+                            order_id=order_id
+                        )
+                    
+                    # Determine final state based on product type
+                    product_type = order.get("productType", "topup")
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    
+                    if product_type == "subscription":
+                        final_status = "SUBSCRIPTION_ACTIVATED"
+                        from config.pricing import SUBSCRIPTION_PLANS
+                        plan = SUBSCRIPTION_PLANS.get(order.get("productId", ""), {})
+                        duration_days = plan.get("duration_days", 30)
+                        
+                        await db.users.update_one(
+                            {"id": order["userId"]},
+                            {"$set": {
+                                "subscription": {
+                                    "planId": order.get("productId", ""),
+                                    "planName": order.get("productName", ""),
+                                    "status": "active",
+                                    "startDate": now_iso,
+                                    "endDate": (datetime.now(timezone.utc) + timedelta(days=duration_days)).isoformat(),
+                                    "orderId": order_id,
+                                }
+                            }}
+                        )
+                    else:
+                        final_status = "CREDIT_APPLIED"
                     
                     # Update order
                     await db.orders.update_one(
                         {"order_id": order_id},
                         {
                             "$set": {
-                                "status": "PAID",
-                                "paidAt": datetime.now(timezone.utc).isoformat()
+                                "status": final_status,
+                                "paidAt": now_iso,
+                                "entitlementApplied": True,
                             }
                         }
                     )

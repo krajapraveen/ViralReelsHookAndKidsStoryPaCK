@@ -140,6 +140,24 @@ class CreditsService:
     async def award_credits(
         self, user_id: str, amount: int, reason: str, reference_id: Optional[str] = None
     ) -> dict:
+        # Idempotency guard: if reference_id (order_id) exists, check if already awarded
+        if reference_id and self.ledger is not None:
+            existing = await self.ledger.find_one({
+                "reference_id": reference_id,
+                "tx_type": "award",
+                "userId": user_id,
+            })
+            if existing:
+                logger.info(f"[CREDITS] Duplicate award blocked for {user_id[:8]}, ref={reference_id}")
+                current = await self.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
+                return {
+                    "success": True,
+                    "new_balance": int((current or {}).get("credits", 0)),
+                    "amount": 0,
+                    "reason": f"DUPLICATE_BLOCKED: {reason}",
+                    "reference_id": reference_id,
+                }
+
         result = await self.users.find_one_and_update(
             {"id": user_id},
             {
