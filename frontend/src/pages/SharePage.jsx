@@ -273,9 +273,10 @@ export default function SharePage() {
             ) : null}
 
             {/* Title */}
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-tight mb-3 fade-up-d1" data-testid="share-title">
-              {data.title || 'AI-Generated Video'}
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-tight mb-2 fade-up-d1" data-testid="share-title">
+              {data.title || 'This AI video will surprise you'}
             </h1>
+            <p className="text-sm text-slate-400 mb-4 fade-up-d1">Made in seconds using AI</p>
 
             {/* Social proof bar */}
             <div className="flex flex-wrap items-center gap-3 mb-6 fade-up-d1" data-testid="social-proof-bar">
@@ -302,7 +303,7 @@ export default function SharePage() {
                 Create your own video in 30 seconds
               </p>
               <p className="text-sm text-slate-400 mb-5">
-                Made with AI. No editing needed. Free to start.
+                No editing needed. Free to start. Takes 30 seconds.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -375,18 +376,19 @@ export default function SharePage() {
         <section className="px-4 py-16" data-testid="bottom-cta">
           <div className="max-w-xl mx-auto text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 fade-up-d4">
-              Your turn. Make something amazing.
+              Don't just watch — create your own
             </h2>
-            <p className="text-slate-400 mb-8">
+            <p className="text-slate-400 mb-3">
               Type a story idea. Get a full video in under a minute. It's that simple.
             </p>
+            <p className="text-xs text-slate-500 mb-8">People are creating videos like this every day</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button
                 onClick={handleCreateOwn}
                 className="h-14 px-10 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02]"
                 data-testid="bottom-create-btn"
               >
-                <Zap className="w-5 h-5 mr-2" /> Create Your Video — Free
+                <Zap className="w-5 h-5 mr-2" /> Create Your Video Now
               </Button>
               <Button
                 onClick={handleRemix}
