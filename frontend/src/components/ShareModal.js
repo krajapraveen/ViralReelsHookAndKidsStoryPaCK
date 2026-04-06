@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { X, Copy, Check, MessageCircle, Twitter, Share2, Play, Sparkles, Loader2 } from 'lucide-react';
+import { X, Copy, Check, MessageCircle, ExternalLink, Share2, Play, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -145,14 +145,14 @@ export default function ShareModal({
             </div>
           ) : shareUrl ? (
             <div className="space-y-3">
-              {/* Primary: WhatsApp */}
+              {/* Primary: Message */}
               <Button
                 onClick={handleWhatsApp}
                 className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl"
                 data-testid="modal-whatsapp-btn"
               >
                 <MessageCircle className="w-5 h-5 mr-2" />
-                Share on WhatsApp
+                Share via Message
               </Button>
 
               <div className="grid grid-cols-2 gap-2">
@@ -162,7 +162,7 @@ export default function ShareModal({
                   className="h-10 border-white/10 text-white hover:bg-sky-500/10 hover:border-sky-500/30 rounded-xl"
                   data-testid="modal-twitter-btn"
                 >
-                  <Twitter className="w-4 h-4 mr-1.5" /> Twitter
+                  <ExternalLink className="w-4 h-4 mr-1.5" /> Post
                 </Button>
                 <Button
                   onClick={handleCopy}

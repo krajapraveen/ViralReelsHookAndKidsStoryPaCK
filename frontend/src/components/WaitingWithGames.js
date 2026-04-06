@@ -79,7 +79,7 @@ const PATTERN_EMOJIS = {
 // Fun facts while waiting
 const FUN_FACTS = [
   "Did you know? The first comic book was published in 1933!",
-  "Fun fact: Walt Disney was rejected 302 times before getting financing for Disneyland.",
+  "Fun fact: A legendary animator was rejected 302 times before getting financing for his theme park.",
   "Did you know? The average person has about 70,000 thoughts per day!",
   "Fun fact: Creativity uses both sides of your brain simultaneously.",
   "Did you know? The word 'creativity' wasn't in the dictionary until 1875!",

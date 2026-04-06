@@ -1,5 +1,5 @@
 /**
- * Singleton Video Controller — Netflix-grade autoplay management.
+ * Singleton Video Controller — Premium autoplay management.
  *
  * Rules:
  * - Only 1 video plays at a time

@@ -34,7 +34,7 @@ const HELP_CONTENT = {
     ],
     tips: [
       'Keep morals simple and relatable',
-      'Shorter stories (8-10 scenes) perform better on YouTube',
+      'Shorter stories (8-10 scenes) perform better on video platforms',
       'Use the scene prompts for AI image generation'
     ]
   },
@@ -298,8 +298,8 @@ const HELP_CONTENT = {
     ]
   },
   'youtube-thumbnail': {
-    title: 'YouTube Thumbnail Text',
-    description: 'Generate eye-catching text for YouTube thumbnails.',
+    title: 'Video Thumbnail Text',
+    description: 'Generate eye-catching text for video thumbnails.',
     credits: 'FREE',
     steps: [
       'Enter your video topic or title',
@@ -336,7 +336,7 @@ const HELP_CONTENT = {
     description: 'Create viral challenge ideas for social media.',
     credits: '5 credits per challenge',
     steps: [
-      'Select platform (TikTok, Instagram, YouTube)',
+      'Select platform (Short Video, Social Feed, Video)',
       'Choose challenge category',
       'Set difficulty and duration',
       'Click Generate Challenge',

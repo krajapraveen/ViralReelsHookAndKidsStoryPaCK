@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { 
-  Share2, Copy, Download, Twitter, Facebook, Linkedin, 
-  MessageCircle, QrCode, Link, Mail, Check, Sparkles,
-  ExternalLink, Send
+  Share2, Copy, Download, ExternalLink, Globe, Send, 
+  MessageCircle, QrCode, Link, Mail, Check, Sparkles
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -177,9 +176,8 @@ export default function ShareCreation({
   };
 
   const handleInstagramShare = () => {
-    // Instagram doesn't have a direct share URL — copy link for stories/posts
     navigator.clipboard.writeText(getShareUrl());
-    toast.success('Link copied! Paste it in your Instagram Story or Bio.');
+    toast.success('Link copied! Paste it in your social story or bio.');
   };
 
   const handleTelegramShare = () => {
@@ -189,11 +187,11 @@ export default function ShareCreation({
   };
 
   const socialButtons = [
-    { name: 'WhatsApp', icon: MessageCircle, handler: handleWhatsAppShare, color: 'hover:bg-green-500/20 hover:border-green-400 hover:text-green-400' },
-    { name: 'Twitter', icon: Twitter, handler: handleTwitterShare, color: 'hover:bg-sky-500/20 hover:border-sky-400 hover:text-sky-400' },
-    { name: 'Facebook', icon: Facebook, handler: handleFacebookShare, color: 'hover:bg-blue-500/20 hover:border-blue-400 hover:text-blue-400' },
-    { name: 'LinkedIn', icon: Linkedin, handler: handleLinkedInShare, color: 'hover:bg-blue-600/20 hover:border-blue-500 hover:text-blue-500' },
-    { name: 'Instagram', icon: () => <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>, handler: handleInstagramShare, color: 'hover:bg-pink-500/20 hover:border-pink-400 hover:text-pink-400' },
+    { name: 'Message', icon: MessageCircle, handler: handleWhatsAppShare, color: 'hover:bg-green-500/20 hover:border-green-400 hover:text-green-400' },
+    { name: 'Post', icon: ExternalLink, handler: handleTwitterShare, color: 'hover:bg-sky-500/20 hover:border-sky-400 hover:text-sky-400' },
+    { name: 'Share', icon: Globe, handler: handleFacebookShare, color: 'hover:bg-blue-500/20 hover:border-blue-400 hover:text-blue-400' },
+    { name: 'Connect', icon: Send, handler: handleLinkedInShare, color: 'hover:bg-blue-600/20 hover:border-blue-500 hover:text-blue-500' },
+    { name: 'Story', icon: () => <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>, handler: handleInstagramShare, color: 'hover:bg-pink-500/20 hover:border-pink-400 hover:text-pink-400' },
     { name: 'Telegram', icon: Send, handler: handleTelegramShare, color: 'hover:bg-cyan-500/20 hover:border-cyan-400 hover:text-cyan-400' },
     { name: 'Email', icon: Mail, handler: handleEmailShare, color: 'hover:bg-purple-500/20 hover:border-purple-400 hover:text-purple-400' },
   ];

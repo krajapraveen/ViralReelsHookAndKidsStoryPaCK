@@ -8,8 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { 
   Play, Sparkles, BookOpen, Rocket, Heart, GraduationCap, 
-  Cat, Search, Share2, Download, Facebook, Twitter, 
-  MessageCircle, Linkedin, Mail, Gamepad2, Brain, 
+  Cat, Search, Share2, Download, Globe, ExternalLink, 
+  MessageCircle, Send, Mail, Gamepad2, Brain, 
   Puzzle, HelpCircle, Trophy, Clock, ChevronRight,
   RefreshCw, CheckCircle, XCircle
 } from 'lucide-react';
@@ -566,16 +566,16 @@ export function SocialSharing({ videoId, title }) {
   }, [videoId]);
 
   const socialPlatforms = [
-    { key: 'facebook', name: 'Facebook', icon: Facebook, color: 'bg-blue-600 hover:bg-blue-700' },
-    { key: 'twitter', name: 'Twitter', icon: Twitter, color: 'bg-sky-500 hover:bg-sky-600' },
-    { key: 'whatsapp', name: 'WhatsApp', icon: MessageCircle, color: 'bg-green-500 hover:bg-green-600' },
-    { key: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'bg-blue-700 hover:bg-blue-800' },
+    { key: 'facebook', name: 'Share', icon: Globe, color: 'bg-blue-600 hover:bg-blue-700' },
+    { key: 'twitter', name: 'Post', icon: ExternalLink, color: 'bg-sky-500 hover:bg-sky-600' },
+    { key: 'whatsapp', name: 'Message', icon: MessageCircle, color: 'bg-green-500 hover:bg-green-600' },
+    { key: 'linkedin', name: 'Connect', icon: Send, color: 'bg-blue-700 hover:bg-blue-800' },
     { key: 'email', name: 'Email', icon: Mail, color: 'bg-slate-600 hover:bg-slate-700' }
   ];
 
   const handleShare = (platform, link) => {
     window.open(link, '_blank', 'width=600,height=400');
-    toast.success(`Opening ${platform}...`);
+    toast.success(`Opening share...`);
   };
 
   const handleCopyLink = () => {

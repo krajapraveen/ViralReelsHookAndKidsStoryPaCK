@@ -516,7 +516,7 @@ const ResultView = ({ jobId, onGoToFeed }) => {
 
     if (platform === 'whatsapp') {
       window.open(`https://wa.me/?text=${encodeURIComponent(`${hookText}\n\n${shareUrl}?ref=wa`)}`, '_blank');
-    } else if (platform === 'twitter') {
+    } else if (platform === 'social') {
       window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(hookText)}&url=${encodeURIComponent(shareUrl + '?ref=tw')}`, '_blank');
     } else if (platform === 'copy') {
       navigator.clipboard.writeText(shareUrl);
@@ -575,14 +575,14 @@ const ResultView = ({ jobId, onGoToFeed }) => {
           className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#25D366] text-sm font-medium rounded-xl border border-[#25D366]/20 transition-all"
           data-testid="share-whatsapp-btn"
         >
-          <MessageSquare className="w-4 h-4" /> WhatsApp
+          <MessageSquare className="w-4 h-4" /> Message
         </button>
         <button
-          onClick={() => handleShare('twitter')}
+          onClick={() => handleShare('social')}
           className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 text-sm font-medium rounded-xl border border-sky-500/20 transition-all"
           data-testid="share-twitter-btn"
         >
-          <ArrowRight className="w-4 h-4" /> Twitter
+          <ArrowRight className="w-4 h-4" /> Post
         </button>
         <button
           onClick={() => handleShare('copy')}

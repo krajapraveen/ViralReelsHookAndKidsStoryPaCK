@@ -221,7 +221,7 @@ const BioTemplatesAdmin = () => {
           <div className="flex items-center gap-4">
             <div>
               <h1 className="text-2xl font-bold text-white" data-testid="admin-bio-title">Bio Template Admin</h1>
-              <p className="text-slate-400 text-sm">Manage Instagram Bio Generator templates</p>
+              <p className="text-slate-400 text-sm">Manage Social Bio Generator templates</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

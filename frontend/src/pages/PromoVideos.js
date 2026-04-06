@@ -2,17 +2,23 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import {
-  ArrowLeft, Download, RefreshCw, Instagram, Youtube, Facebook,
+  ArrowLeft, Download, RefreshCw, Video, Play, Globe,
   CheckCircle, Clock, AlertCircle, Film, Share2, Sparkles
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const PLATFORM_LABELS = {
+  Instagram: 'Social Reel',
+  YouTube: 'Video Platform',
+  Facebook: 'Social Video',
+};
 
 const platformConfig = {
-  Instagram: { color: 'from-pink-500 to-orange-500', icon: Instagram, bg: 'bg-pink-500/20', text: 'text-pink-400' },
-  YouTube: { color: 'from-red-500 to-red-700', icon: Youtube, bg: 'bg-red-500/20', text: 'text-red-400' },
-  Facebook: { color: 'from-blue-500 to-blue-700', icon: Facebook, bg: 'bg-blue-500/20', text: 'text-blue-400' },
+  Instagram: { color: 'from-pink-500 to-orange-500', icon: Video, bg: 'bg-pink-500/20', text: 'text-pink-400' },
+  YouTube: { color: 'from-red-500 to-red-700', icon: Play, bg: 'bg-red-500/20', text: 'text-red-400' },
+  Facebook: { color: 'from-blue-500 to-blue-700', icon: Globe, bg: 'bg-blue-500/20', text: 'text-blue-400' },
 };
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 function StatusBadge({ status }) {
   if (status === 'COMPLETED') return <span className="flex items-center gap-1 text-green-400 text-sm font-medium"><CheckCircle className="w-4 h-4" /> Ready</span>;
@@ -163,7 +169,7 @@ export default function PromoVideos() {
                     )}
                     {/* Platform badge */}
                     <div className={`absolute top-3 left-3 px-3 py-1 rounded-full bg-gradient-to-r ${config.color} text-white text-xs font-bold flex items-center gap-1`}>
-                      <PlatformIcon className="w-3 h-3" /> {video.platform}
+                      <PlatformIcon className="w-3 h-3" /> {PLATFORM_LABELS[video.platform] || video.platform}
                     </div>
                   </div>
 
@@ -224,15 +230,15 @@ export default function PromoVideos() {
           <h3 className="text-lg font-bold text-white mb-3">Posting Tips</h3>
           <div className="grid sm:grid-cols-2 gap-4 text-sm text-slate-400">
             <div>
-              <p className="text-white font-medium mb-1">Instagram Reel & Story</p>
-              <p>Upload directly to Instagram. Add trending audio, hashtags like #AITools #ContentCreation #ViralContent for maximum reach.</p>
+              <p className="text-white font-medium mb-1">Social Reel & Story</p>
+              <p>Upload directly to your social feeds. Add trending audio, hashtags like #AITools #ContentCreation #ViralContent for maximum reach.</p>
             </div>
             <div>
-              <p className="text-white font-medium mb-1">YouTube Shorts</p>
+              <p className="text-white font-medium mb-1">Short-Form Video</p>
               <p>Upload as a Short. Add title: "This AI Tool Creates Viral Content in 60 Seconds" with relevant tags.</p>
             </div>
             <div>
-              <p className="text-white font-medium mb-1">Facebook Reel</p>
+              <p className="text-white font-medium mb-1">Social Video Reel</p>
               <p>Share as a Reel on your page. Pin it and boost it for wider reach. Cross-post to groups.</p>
             </div>
             <div>

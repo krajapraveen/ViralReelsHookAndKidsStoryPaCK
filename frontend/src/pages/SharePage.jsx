@@ -360,7 +360,7 @@ export default function SharePage() {
         <section className="px-4 py-6 border-y border-white/[0.04]" data-testid="share-tools">
           <div className="max-w-3xl mx-auto flex items-center justify-center gap-3">
             <Button onClick={handleWhatsApp} variant="outline" className="border-white/10 text-white hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300" data-testid="share-whatsapp-btn">
-              <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
+              <MessageCircle className="w-4 h-4 mr-2" /> Message
             </Button>
             <Button onClick={handleCopy} variant="outline" className="border-white/10 text-white hover:bg-white/[0.06]" data-testid="share-copy-btn">
               {copied ? <Check className="w-4 h-4 mr-2 text-emerald-400" /> : <Copy className="w-4 h-4 mr-2" />}

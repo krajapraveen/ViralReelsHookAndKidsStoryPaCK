@@ -66,9 +66,9 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
 
         <div className="space-y-2 mb-4">
           {[
-            { id: 'whatsapp', label: 'Share on WhatsApp', color: 'bg-emerald-600 hover:bg-emerald-500' },
-            { id: 'twitter', label: 'Share on X / Twitter', color: 'bg-slate-700 hover:bg-slate-600' },
-            { id: 'linkedin', label: 'Share on LinkedIn', color: 'bg-blue-700 hover:bg-blue-600' },
+            { id: 'whatsapp', label: 'Send via Message', color: 'bg-emerald-600 hover:bg-emerald-500' },
+            { id: 'twitter', label: 'Post Online', color: 'bg-slate-700 hover:bg-slate-600' },
+            { id: 'linkedin', label: 'Share Professionally', color: 'bg-blue-700 hover:bg-blue-600' },
           ].map(p => (
             <button
               key={p.id}

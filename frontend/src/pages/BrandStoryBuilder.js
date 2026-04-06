@@ -714,8 +714,8 @@ function ArtifactRenderer({ type, data }) {
     case 'social_ad_copy':
       return (
         <div className="space-y-3">
-          {data.instagram?.length > 0 && <div><h4 className="text-pink-400 font-semibold text-xs mb-1.5">Instagram</h4>{data.instagram.map((c, i) => <p key={i} className="text-slate-300 text-sm mb-1 pl-3 border-l-2 border-pink-800">{c}</p>)}</div>}
-          {data.facebook?.length > 0 && <div><h4 className="text-blue-400 font-semibold text-xs mb-1.5">Facebook</h4>{data.facebook.map((c, i) => <p key={i} className="text-slate-300 text-sm mb-1 pl-3 border-l-2 border-blue-800">{c}</p>)}</div>}
+          {data.instagram?.length > 0 && <div><h4 className="text-pink-400 font-semibold text-xs mb-1.5">Social Feed</h4>{data.instagram.map((c, i) => <p key={i} className="text-slate-300 text-sm mb-1 pl-3 border-l-2 border-pink-800">{c}</p>)}</div>}
+          {data.facebook?.length > 0 && <div><h4 className="text-blue-400 font-semibold text-xs mb-1.5">Social Ad</h4>{data.facebook.map((c, i) => <p key={i} className="text-slate-300 text-sm mb-1 pl-3 border-l-2 border-blue-800">{c}</p>)}</div>}
           {data.cta_lines?.length > 0 && <div><h4 className="text-emerald-400 font-semibold text-xs mb-1.5">CTA Lines</h4><div className="flex flex-wrap gap-2">{data.cta_lines.map((c, i) => <span key={i} className="px-3 py-1 bg-slate-800 border border-emerald-800/40 rounded-full text-xs text-emerald-300">{c}</span>)}</div></div>}
         </div>
       );

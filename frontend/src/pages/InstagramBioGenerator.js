@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Instagram, 
+  User, 
   Sparkles, 
   ChevronRight, 
   ChevronLeft, 
@@ -10,7 +10,6 @@ import {
   Check, 
   AlertCircle,
   HelpCircle,
-  User,
   Target,
   Palette,
   Zap,
@@ -63,7 +62,7 @@ const UserManual = () => {
       >
         <div className="flex items-center gap-3">
           <HelpCircle className="w-5 h-5 text-purple-400" />
-          <span className="font-semibold text-white">How to Use Instagram Bio Generator</span>
+          <span className="font-semibold text-white">How to Use Social Bio Generator</span>
         </div>
         {isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
       </button>
@@ -269,11 +268,11 @@ export default function InstagramBioGenerator() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 rounded-full text-pink-400 text-sm mb-4">
-            <Instagram className="w-4 h-4" />
-            <span>Instagram Bio Generator</span>
+            <User className="w-4 h-4" />
+            <span>Social Bio Generator</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-            Create Your Perfect Instagram Bio
+            Create Your Perfect Social Bio
           </h1>
           <p className="text-slate-400">
             Generate 5 optimized bios with CTAs and emojis • {config?.creditCost || 5} credits
@@ -564,7 +563,7 @@ export default function InstagramBioGenerator() {
         </div>
       </div>
       
-      <HelpGuide pageId="instagram-bio-generator" />
+      <HelpGuide pageId="social-bio-generator" />
     </div>
   );
 }

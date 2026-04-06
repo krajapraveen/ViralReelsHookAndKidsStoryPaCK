@@ -195,8 +195,8 @@ def check_copyright(text: str) -> tuple:
 
 ANIMATION_STYLES = {
     "cartoon_2d": {"name": "2D Cartoon", "style_prompt": "2D cartoon animation style, vibrant colors, smooth lines, family-friendly", "negative_prompt": "realistic, photographic, 3D render, dark themes"},
-    "anime_style": {"name": "Anime", "style_prompt": "anime art style, expressive characters, detailed backgrounds, Studio Ghibli inspired but original", "negative_prompt": "western cartoon, realistic, photographic"},
-    "3d_pixar": {"name": "3D Animation", "style_prompt": "3D rendered animation, smooth textures, warm lighting, Pixar-quality but original", "negative_prompt": "2D, flat, photorealistic"},
+    "anime_style": {"name": "Anime", "style_prompt": "anime art style, expressive characters, detailed backgrounds, Japanese animation inspired but original", "negative_prompt": "western cartoon, realistic, photographic"},
+    "3d_pixar": {"name": "3D Animation", "style_prompt": "3D rendered animation, smooth textures, warm lighting, studio-quality but original", "negative_prompt": "2D, flat, photorealistic"},
     "watercolor": {"name": "Watercolor", "style_prompt": "watercolor illustration, soft edges, pastel colors, children's book style", "negative_prompt": "digital art, sharp edges, photorealistic"},
     "comic_book": {"name": "Comic Book", "style_prompt": "comic book art style, bold outlines, dynamic poses, vibrant colors", "negative_prompt": "realistic, photographic, dark themes"},
     "claymation": {"name": "Claymation", "style_prompt": "claymation style, textured surfaces, warm colors", "negative_prompt": "2D, flat, digital, photorealistic"},

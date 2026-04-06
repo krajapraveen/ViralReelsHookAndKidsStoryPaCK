@@ -695,7 +695,7 @@ export default function ComicStorybook() {
                 <li>• Write clear scene descriptions for better panel generation</li>
                 <li>• Include dialogue in quotes for speech bubbles</li>
                 <li>• Use paragraph breaks to separate scenes</li>
-                <li>• Avoid copyrighted characters (Marvel, Disney, etc.)</li>
+                <li>• Avoid copyrighted characters (from popular franchises, studios, etc.)</li>
                 <li>• Longer stories work better with more pages</li>
               </ul>
             </div>
@@ -706,7 +706,7 @@ export default function ComicStorybook() {
         <div className="mt-8 bg-slate-800/30 rounded-lg p-4 border border-slate-700">
           <p className="text-sm text-slate-400 text-center">
             ⚠️ <strong>Copyright Policy:</strong> All generated content is original and copyright-free. 
-            Stories referencing copyrighted characters (Marvel, DC, Disney, etc.) are not allowed.
+            Stories referencing copyrighted characters (from popular franchises, studios, etc.) are not allowed.
           </p>
         </div>
       </main>

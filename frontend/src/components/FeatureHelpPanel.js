@@ -192,7 +192,7 @@ export const FEATURE_HELP_CONFIG = {
     ],
     exampleInput: "Clear front-facing portrait photo",
     doNotList: [
-      "Copyrighted characters (Disney, Marvel, etc.)",
+      "Copyrighted characters (from popular franchises, studios, etc.)",
       "Celebrity photos or real people likeness",
       "Blurry or low-quality images",
       "Images where face is obscured or too small",
@@ -318,12 +318,12 @@ export const FEATURE_HELP_CONFIG = {
     featureName: "Content Challenge Planner",
     creditsRequired: 5,
     steps: [
-      "Select your content platform (Instagram, TikTok, etc.)",
+      "Select your content platform (Social Feed, Short Video, etc.)",
       "Choose challenge duration (7, 14, 30 days)",
       "Pick your niche or topic",
       "Generate your content calendar"
     ],
-    exampleInput: "30-day fitness motivation challenge for Instagram",
+    exampleInput: "30-day fitness motivation challenge for social media",
     doNotList: [
       "Copyrighted challenge names",
       "Misleading health claims",

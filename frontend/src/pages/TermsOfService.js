@@ -136,7 +136,7 @@ export default function TermsOfService() {
                 </p>
                 <ul className="list-disc list-inside text-slate-300 space-y-2 ml-4">
                   <li>Create content that infringes copyrights, trademarks, or other intellectual property rights</li>
-                  <li>Generate content featuring copyrighted characters (Disney, Marvel, etc.) without authorization</li>
+                  <li>Generate content featuring copyrighted characters (from popular franchises, studios, etc.) without authorization</li>
                   <li>Create illegal, harmful, threatening, abusive, or harassing content</li>
                   <li>Generate explicit adult content or content harmful to minors</li>
                   <li>Attempt to reverse engineer or compromise the Service</li>

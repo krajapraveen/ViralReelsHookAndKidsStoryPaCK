@@ -571,11 +571,11 @@ export default function StoryGenerator() {
                 </div>
               )}
               
-              {/* YouTube Metadata */}
+              {/* Video Metadata */}
               {result.youtubeMetadata && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
                   <h4 className="font-bold text-lg text-white mb-3 flex items-center gap-2">
-                    <span className="text-xl">📺</span> YouTube Metadata
+                    <span className="text-xl">📺</span> Video Metadata
                   </h4>
                   <div className="space-y-3">
                     <div>

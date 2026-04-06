@@ -184,7 +184,7 @@ export default function VideoExportPanel({ storyId, storyTitle, onClose }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="landscape">🖥️ Landscape (16:9) - YouTube</SelectItem>
+                <SelectItem value="landscape">🖥️ Landscape (16:9) - Video Platform</SelectItem>
                 <SelectItem value="portrait">📱 Portrait (9:16) - Reels/Shorts</SelectItem>
               </SelectContent>
             </Select>

@@ -28,7 +28,7 @@ import WaitingWithGames from '../components/WaitingWithGames';
 import analytics from '../utils/analytics';
 
 // ── Constants ──────────────────────────────────────────────
-const PLATFORMS = ['Instagram', 'YouTube Shorts', 'TikTok', 'Facebook'];
+const PLATFORMS = ['Short-Form Feed', 'Vertical Video', 'Viral Clips', 'Social Video'];
 const HOOK_STYLES = ['Curiosity', 'Shock', 'Emotional', 'Luxury', 'Educational', 'Story', 'FOMO', 'Problem-Solution'];
 const REEL_FORMATS = ['Talking Head', 'Faceless', 'Voiceover', 'Cinematic', 'Slideshow', 'UGC Ad', 'Meme', 'Story'];
 const CTA_TYPES = ['Follow', 'Save', 'Comment', 'Buy', 'DM', 'Share'];
@@ -50,35 +50,35 @@ const DURATIONS = [
 const QUICK_PRESETS = [
   {
     id: 'viral_hook', label: 'Viral Hook', icon: Zap, color: 'rose',
-    config: { platform: 'Instagram', hookStyle: 'Shock', reelFormat: 'Talking Head', ctaType: 'Share', goal: 'Engagement', outputType: 'full_plan', tone: 'Bold', duration: '15s', niche: 'Entertainment', audience: 'Gen Z (13-24)' },
+    config: { platform: 'Short-Form Feed', hookStyle: 'Shock', reelFormat: 'Talking Head', ctaType: 'Share', goal: 'Engagement', outputType: 'full_plan', tone: 'Bold', duration: '15s', niche: 'Entertainment', audience: 'Gen Z (13-24)' },
   },
   {
     id: 'luxury_reel', label: 'Luxury Reel', icon: Sparkles, color: 'amber',
-    config: { platform: 'Instagram', hookStyle: 'Luxury', reelFormat: 'Cinematic', ctaType: 'Follow', goal: 'Followers', outputType: 'full_plan', tone: 'Luxury', duration: '30s', niche: 'Luxury', audience: 'Luxury Consumers' },
+    config: { platform: 'Short-Form Feed', hookStyle: 'Luxury', reelFormat: 'Cinematic', ctaType: 'Follow', goal: 'Followers', outputType: 'full_plan', tone: 'Luxury', duration: '30s', niche: 'Luxury', audience: 'Luxury Consumers' },
   },
   {
     id: 'product_promo', label: 'Product Promo', icon: Target, color: 'emerald',
-    config: { platform: 'Instagram', hookStyle: 'Problem-Solution', reelFormat: 'UGC Ad', ctaType: 'Buy', goal: 'Sales', outputType: 'full_plan', tone: 'Conversational', duration: '30s', niche: 'Finance', audience: 'Young Professionals' },
+    config: { platform: 'Short-Form Feed', hookStyle: 'Problem-Solution', reelFormat: 'UGC Ad', ctaType: 'Buy', goal: 'Sales', outputType: 'full_plan', tone: 'Conversational', duration: '30s', niche: 'Finance', audience: 'Young Professionals' },
   },
   {
     id: 'ugc_ad', label: 'UGC Ad', icon: Camera, color: 'sky',
-    config: { platform: 'TikTok', hookStyle: 'Story', reelFormat: 'UGC Ad', ctaType: 'Buy', goal: 'Sales', outputType: 'full_plan', tone: 'Conversational', duration: '30s', niche: 'General', audience: 'Millennials (25-40)' },
+    config: { platform: 'Viral Clips', hookStyle: 'Story', reelFormat: 'UGC Ad', ctaType: 'Buy', goal: 'Sales', outputType: 'full_plan', tone: 'Conversational', duration: '30s', niche: 'General', audience: 'Millennials (25-40)' },
   },
   {
     id: 'storytelling', label: 'Storytelling', icon: FileText, color: 'violet',
-    config: { platform: 'Instagram', hookStyle: 'Emotional', reelFormat: 'Story', ctaType: 'Save', goal: 'Retention', outputType: 'full_plan', tone: 'Emotional', duration: '60s', niche: 'Relationships', audience: 'General' },
+    config: { platform: 'Short-Form Feed', hookStyle: 'Emotional', reelFormat: 'Story', ctaType: 'Save', goal: 'Retention', outputType: 'full_plan', tone: 'Emotional', duration: '60s', niche: 'Relationships', audience: 'General' },
   },
   {
     id: 'educational', label: 'Educational', icon: Lightbulb, color: 'indigo',
-    config: { platform: 'YouTube Shorts', hookStyle: 'Educational', reelFormat: 'Talking Head', ctaType: 'Save', goal: 'Education', outputType: 'full_plan', tone: 'Authority', duration: '60s', niche: 'Education', audience: 'College Students' },
+    config: { platform: 'Vertical Video', hookStyle: 'Educational', reelFormat: 'Talking Head', ctaType: 'Save', goal: 'Education', outputType: 'full_plan', tone: 'Authority', duration: '60s', niche: 'Education', audience: 'College Students' },
   },
   {
     id: 'kids_story', label: 'Kids Story', icon: Play, color: 'pink',
-    config: { platform: 'YouTube Shorts', hookStyle: 'Story', reelFormat: 'Story', ctaType: 'Follow', goal: 'Retention', outputType: 'full_plan', tone: 'Funny', duration: '60s', niche: 'Education', audience: 'Parents' },
+    config: { platform: 'Vertical Video', hookStyle: 'Story', reelFormat: 'Story', ctaType: 'Follow', goal: 'Retention', outputType: 'full_plan', tone: 'Funny', duration: '60s', niche: 'Education', audience: 'Parents' },
   },
   {
     id: 'faceless_biz', label: 'Faceless Biz', icon: Eye, color: 'teal',
-    config: { platform: 'TikTok', hookStyle: 'Curiosity', reelFormat: 'Faceless', ctaType: 'DM', goal: 'Leads', outputType: 'full_plan', tone: 'Authority', duration: '30s', niche: 'Finance', audience: 'Entrepreneurs' },
+    config: { platform: 'Viral Clips', hookStyle: 'Curiosity', reelFormat: 'Faceless', ctaType: 'DM', goal: 'Leads', outputType: 'full_plan', tone: 'Authority', duration: '30s', niche: 'Finance', audience: 'Entrepreneurs' },
   },
 ];
 
@@ -531,7 +531,7 @@ export default function ReelGenerator() {
 
   const [formData, setFormData] = useState({
     topic: '',
-    platform: 'Instagram',
+    platform: 'Short-Form Feed',
     hookStyle: 'Curiosity',
     reelFormat: 'Talking Head',
     ctaType: 'Follow',
@@ -799,7 +799,7 @@ export default function ReelGenerator() {
                       type="url"
                       value={referenceUrl}
                       onChange={(e) => setReferenceUrl(e.target.value)}
-                      placeholder="https://instagram.com/reel/... or any video URL"
+                      placeholder="https://example.com/reel/... or any video URL"
                       className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 outline-none"
                       data-testid="reference-url-input"
                     />

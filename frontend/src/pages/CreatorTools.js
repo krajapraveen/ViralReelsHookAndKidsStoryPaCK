@@ -232,7 +232,7 @@ export default function CreatorTools() {
       const response = await api.post(url);
       setConvertResult({ type: 'youtube', data: response.data });
       fetchCredits();
-      toast.success(response.data.message || 'Expanded to YouTube script!');
+      toast.success(response.data.message || 'Expanded to long-form script!');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Conversion failed');
     } finally {
@@ -860,7 +860,7 @@ export default function CreatorTools() {
                         <span className="text-xs text-indigo-400 font-medium bg-indigo-500/20 px-2 py-0.5 rounded-full">10 credits</span>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-400 mb-4">Convert your viral reel script into a 5-10 slide Instagram carousel with captions</p>
+                    <p className="text-sm text-slate-400 mb-4">Convert your viral reel script into a 5-10 slide social media carousel with captions</p>
                     <div className="flex items-center gap-2">
                       <Select value={selectedReelId} onValueChange={setSelectedReelId}>
                         <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-reel-carousel-select">
@@ -887,18 +887,18 @@ export default function CreatorTools() {
                     </div>
                   </div>
                   
-                  {/* Reel to YouTube */}
+                  {/* Reel to Long-Form */}
                   <div className="bg-gradient-to-br from-red-500/10 to-orange-500/10 rounded-xl p-5 border border-red-500/30 hover:border-red-500/50 transition-all">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="p-2 bg-red-500/20 rounded-lg">
                         <Video className="w-5 h-5 text-red-400" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-white">Reel → YouTube</h3>
+                        <h3 className="font-bold text-white">Reel → Long Video</h3>
                         <span className="text-xs text-red-400 font-medium bg-red-500/20 px-2 py-0.5 rounded-full">10 credits</span>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-400 mb-4">Expand your 60-second reel into a full 8-10 minute YouTube video script</p>
+                    <p className="text-sm text-slate-400 mb-4">Expand your 60-second reel into a full 8-10 minute long-form video script</p>
                     <div className="flex items-center gap-2">
                       <Select value={selectedReelId} onValueChange={setSelectedReelId}>
                         <SelectTrigger className="flex-1 bg-slate-800 border-slate-700 text-white" data-testid="convert-reel-youtube-select">
@@ -1005,7 +1005,7 @@ export default function CreatorTools() {
                 {/* Coming Soon */}
                 <div className="mt-6 bg-slate-700/30 rounded-lg p-4 border border-dashed border-slate-600">
                   <p className="text-sm text-slate-400 text-center">
-                    🚀 Coming Soon: Carousel → Thread, YouTube → Shorts, Story → Audiobook
+                    🚀 Coming Soon: Carousel → Thread, Long Video → Shorts, Story → Audiobook
                   </p>
                 </div>
               </div>

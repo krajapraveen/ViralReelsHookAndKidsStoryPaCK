@@ -445,7 +445,7 @@ export default function Landing() {
             {[
               { step: '1', title: 'Enter your idea', desc: 'Type a sentence — a story hook, a concept, or a scene. That\'s all you need.', icon: BookOpen, color: 'from-violet-500 to-indigo-500' },
               { step: '2', title: 'AI creates everything', desc: 'Story, visuals, voiceover, and music — generated automatically in under a minute.', icon: Film, color: 'from-rose-500 to-pink-500' },
-              { step: '3', title: 'Download or share instantly', desc: 'Get your video instantly. Share it on WhatsApp, Instagram, or remix it into something new.', icon: Users, color: 'from-amber-500 to-orange-500' },
+              { step: '3', title: 'Download or share instantly', desc: 'Get your video instantly. Share it with friends, post it online, or remix it into something new.', icon: Users, color: 'from-amber-500 to-orange-500' },
             ].map((item) => (
               <div key={item.step} className="relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 text-center" data-testid={`step-${item.step}`}>
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center mx-auto mb-4`}>

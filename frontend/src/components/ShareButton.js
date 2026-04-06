@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Share2, Copy, Download, Twitter, Facebook, Linkedin, MessageCircle } from 'lucide-react';
+import { Share2, Copy, Download, ExternalLink, Globe, Send, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ShareButton({ type, title, preview }) {
@@ -77,26 +77,26 @@ export default function ShareButton({ type, title, preview }) {
     const text = encodeURIComponent(getShareText());
     const url = encodeURIComponent(getShareUrl());
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'width=550,height=420');
-    toast.success('Opening Twitter...');
+    toast.success('Opening social share...');
   };
 
   const handleFacebookShare = () => {
     const url = encodeURIComponent(getShareUrl());
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=550,height=420');
-    toast.success('Opening Facebook...');
+    toast.success('Sharing...');
   };
 
   const handleLinkedInShare = () => {
     const url = encodeURIComponent(getShareUrl());
     const text = encodeURIComponent(getShareText());
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=550,height=420');
-    toast.success('Opening LinkedIn...');
+    toast.success('Sharing...');
   };
 
   const handleWhatsAppShare = () => {
     const text = encodeURIComponent(`${getShareText()}\n\nGenerate yours: ${getShareUrl()}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
-    toast.success('Opening WhatsApp...');
+    toast.success('Sending message...');
   };
 
   return (
@@ -136,7 +136,7 @@ export default function ShareButton({ type, title, preview }) {
                 className="rounded-full w-12 h-12 bg-slate-800 border border-slate-700 hover:bg-sky-500/20 hover:border-sky-400 text-slate-300 hover:text-sky-400 transition-all duration-200"
                 data-testid="share-twitter"
               >
-                <Twitter className="w-5 h-5" />
+                <ExternalLink className="w-5 h-5" />
               </Button>
               <Button 
                 onClick={handleFacebookShare} 
@@ -144,7 +144,7 @@ export default function ShareButton({ type, title, preview }) {
                 className="rounded-full w-12 h-12 bg-slate-800 border border-slate-700 hover:bg-blue-500/20 hover:border-blue-400 text-slate-300 hover:text-blue-400 transition-all duration-200"
                 data-testid="share-facebook"
               >
-                <Facebook className="w-5 h-5" />
+                <Globe className="w-5 h-5" />
               </Button>
               <Button 
                 onClick={handleLinkedInShare} 
@@ -152,7 +152,7 @@ export default function ShareButton({ type, title, preview }) {
                 className="rounded-full w-12 h-12 bg-slate-800 border border-slate-700 hover:bg-blue-600/20 hover:border-blue-500 text-slate-300 hover:text-blue-500 transition-all duration-200"
                 data-testid="share-linkedin"
               >
-                <Linkedin className="w-5 h-5" />
+                <Send className="w-5 h-5" />
               </Button>
               <Button 
                 onClick={handleWhatsAppShare} 

@@ -4,7 +4,7 @@ import {
   ArrowLeft, Upload, Wand2, Loader2, Download, Check, Image,
   Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
   Grid3X3, User, Palette, RefreshCw, BookOpen, Share2,
-  Copy, Twitter, MessageCircle, ExternalLink, ChevronRight,
+  Copy, ExternalLink, MessageCircle, ChevronRight,
   GitBranch, TrendingUp, FileText, AlertTriangle
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -835,7 +835,7 @@ function PhotoToComicInner() {
                     <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy Link
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleShare('twitter')} disabled={uiState !== 'READY'} className="border-slate-700 text-slate-300 hover:text-white px-3 disabled:opacity-40" data-testid="share-twitter-btn">
-                    <Twitter className="w-3.5 h-3.5" />
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleShare('whatsapp')} disabled={uiState !== 'READY'} className="border-slate-700 text-slate-300 hover:text-white px-3 disabled:opacity-40" data-testid="share-whatsapp-btn">
                     <MessageCircle className="w-3.5 h-3.5" />

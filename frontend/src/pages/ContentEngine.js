@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Flame, Sparkles, Play, Trash2, Star, Tag,
   Copy, Filter, RefreshCcw, Send, ChevronDown, Check, X,
-  Zap, Eye, BookOpen, TrendingUp, Instagram, Share2, Film
+  Zap, Eye, BookOpen, TrendingUp, Video, Share2, Film
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -545,7 +545,7 @@ function StoryCard({ story, selected, onToggleSelect, onPublish, onPublishSE, on
         </span>
         <div className="flex items-center gap-1">
           <button onClick={onSocialScripts} className="p-1.5 rounded-lg hover:bg-slate-800 transition-colors" title="Social Scripts">
-            <Instagram className="w-3.5 h-3.5 text-slate-500 hover:text-pink-400" />
+            <Video className="w-3.5 h-3.5 text-slate-500 hover:text-pink-400" />
           </button>
           <button onClick={onCopy} className="p-1.5 rounded-lg hover:bg-slate-800 transition-colors" title="Copy">
             <Copy className="w-3.5 h-3.5 text-slate-500 hover:text-white" />
@@ -779,7 +779,7 @@ function SocialScriptsModal({ data, onCopy, onClose }) {
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2">
-              <Instagram className="w-5 h-5 text-pink-400" /> Social Media Scripts
+              <Video className="w-5 h-5 text-pink-400" /> Social Media Scripts
             </h2>
             <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800 transition-colors">
               <X className="w-4 h-4 text-slate-400" />

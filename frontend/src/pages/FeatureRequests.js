@@ -122,7 +122,7 @@ export default function FeatureRequests() {
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g., Add TikTok video format export"
+                  placeholder="e.g., Add short-video format export"
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder:text-slate-500"
                   required
                 />

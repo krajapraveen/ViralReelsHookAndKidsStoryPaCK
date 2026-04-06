@@ -202,7 +202,7 @@ export default function StoryEpisodeCreator() {
         <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm text-amber-200 font-medium">Content Policy</p>
-          <p className="text-xs text-amber-300/70">Copyrighted characters (Disney, Marvel, Pokemon, etc.) and celebrity names are not allowed.</p>
+          <p className="text-xs text-amber-300/70">Copyrighted characters (from popular franchises, studios, etc.) and celebrity names are not allowed.</p>
         </div>
       </div>
     </div>

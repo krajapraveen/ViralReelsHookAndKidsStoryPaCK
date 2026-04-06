@@ -65,7 +65,7 @@ export function ForceShareGate({
     } else if (platform === 'instagram') {
       try {
         await navigator.clipboard.writeText(decodeURIComponent(url));
-        toast.success('Link copied! Paste it in your Instagram story or bio.');
+        toast.success('Link copied! Paste it in your story or bio.');
       } catch {}
     } else if (links[platform]) {
       window.open(links[platform], '_blank', 'width=600,height=400');
@@ -155,17 +155,17 @@ export function ForceShareGate({
             <button onClick={() => handleShare('whatsapp')}
               className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
               data-testid="share-whatsapp">
-              WhatsApp
+              Message
             </button>
             <button onClick={() => handleShare('twitter')}
               className="py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
               data-testid="share-twitter">
-              X
+              Post
             </button>
             <button onClick={() => handleShare('instagram')}
               className="py-3 rounded-xl bg-gradient-to-br from-purple-600 to-pink-500 hover:opacity-90 text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
               data-testid="share-instagram">
-              Instagram
+              Story
             </button>
             <button onClick={() => handleShare('copy')}
               className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1"
@@ -258,7 +258,7 @@ export function ShareRewardBar({ jobId, title, slug, shareUrl, characterName, cl
     } else if (platform === 'instagram') {
       try {
         await navigator.clipboard.writeText(decodeURIComponent(url));
-        toast.success('Link copied! Paste in your Instagram story.');
+        toast.success('Link copied! Paste in your story.');
       } catch {}
     } else {
       const links = {
@@ -300,13 +300,13 @@ export function ShareRewardBar({ jobId, title, slug, shareUrl, characterName, cl
       <div className="flex gap-2">
         <button onClick={() => handleShare('whatsapp')}
           className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-          data-testid="reward-share-whatsapp">WhatsApp</button>
+          data-testid="reward-share-whatsapp">Message</button>
         <button onClick={() => handleShare('twitter')}
           className="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition-colors"
-          data-testid="reward-share-twitter">X</button>
+          data-testid="reward-share-twitter">Post</button>
         <button onClick={() => handleShare('instagram')}
           className="flex-1 py-2 rounded-lg bg-gradient-to-br from-purple-600 to-pink-500 hover:opacity-90 text-white text-xs font-bold transition-opacity"
-          data-testid="reward-share-instagram">Instagram</button>
+          data-testid="reward-share-instagram">Story</button>
         <button onClick={() => handleShare('copy')}
           className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1"
           data-testid="reward-share-copy">

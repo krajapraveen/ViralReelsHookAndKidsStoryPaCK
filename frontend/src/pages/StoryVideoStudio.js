@@ -20,7 +20,7 @@ import {
   FileText, Download, Edit, Trash2, Eye, Clock, Coins,
   AlertTriangle, AlertCircle, CheckCircle, Palette, Music, Video, Pause,
   Volume2, Maximize, Settings, RefreshCw, LayoutTemplate,
-  Gamepad2, Share2, Facebook, Twitter, MessageCircle, Linkedin,
+  Gamepad2, Share2, Globe, ExternalLink as ExtLink, MessageCircle, Send,
   Mail, Trophy, HelpCircle, Puzzle, Brain, Lightbulb, Copy,
   Wifi, WifiOff, ImageOff
 } from 'lucide-react';
@@ -2425,16 +2425,16 @@ export default function StoryVideoStudio() {
                   className="bg-[#1877F2] hover:bg-[#166FE5] text-white"
                   data-testid="share-facebook"
                 >
-                  <Facebook className="w-4 h-4 mr-2" />
-                  Facebook
+                  <Globe className="w-4 h-4 mr-2" />
+                  Share
                 </Button>
                 <Button
                   onClick={() => shareVideo('twitter')}
                   className="bg-[#1DA1F2] hover:bg-[#1A8CD8] text-white"
                   data-testid="share-twitter"
                 >
-                  <Twitter className="w-4 h-4 mr-2" />
-                  Twitter
+                  <ExtLink className="w-4 h-4 mr-2" />
+                  Post
                 </Button>
                 <Button
                   onClick={() => shareVideo('whatsapp')}
@@ -2442,15 +2442,15 @@ export default function StoryVideoStudio() {
                   data-testid="share-whatsapp"
                 >
                   <MessageCircle className="w-4 h-4 mr-2" />
-                  WhatsApp
+                  Message
                 </Button>
                 <Button
                   onClick={() => shareVideo('linkedin')}
                   className="bg-[#0A66C2] hover:bg-[#095CB8] text-white"
                   data-testid="share-linkedin"
                 >
-                  <Linkedin className="w-4 h-4 mr-2" />
-                  LinkedIn
+                  <Send className="w-4 h-4 mr-2" />
+                  Connect
                 </Button>
                 <Button
                   onClick={() => shareVideo('email')}

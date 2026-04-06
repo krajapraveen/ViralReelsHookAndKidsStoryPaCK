@@ -1211,7 +1211,7 @@ export default function ComixAI() {
         {/* Content Policy Notice */}
         <div className="mt-8 bg-slate-800/30 rounded-lg p-4 border border-slate-700">
           <p className="text-sm text-slate-400 text-center">
-            ⚠️ <strong>Content Policy:</strong> Copyrighted characters (Marvel, DC, Disney, etc.) are not allowed. 
+            ⚠️ <strong>Content Policy:</strong> Copyrighted characters (from popular franchises, studios, etc.) are not allowed. 
             All content must be original. User-uploaded photos must be owned by the user or used with permission.
           </p>
         </div>

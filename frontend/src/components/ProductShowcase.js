@@ -25,7 +25,7 @@ const features = [
     id: 3,
     title: "Kids Story Pack",
     subtitle: "Complete Video Production",
-    description: "Generate full story packs with narration scripts, scene descriptions, and character details. Perfect for YouTube kids channels.",
+    description: "Generate full story packs with narration scripts, scene descriptions, and character details. Perfect for kids video channels.",
     gradient: "from-pink-500 to-rose-600",
     icon: "📚",
     highlights: ["Age-Appropriate", "8 Scene Stories", "Ready for Animation"]

@@ -195,7 +195,7 @@ function CompletedCard({ job, highlighted, justCompleted, onShareWhatsApp }) {
             onClick={(e) => { e.stopPropagation(); onShareWhatsApp(job); }}
             className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-xs text-emerald-300 transition-colors"
           >
-            <Share2 className="w-3 h-3" /> WhatsApp
+            <Share2 className="w-3 h-3" /> Share
           </button>
         </div>
       </div>
@@ -339,7 +339,7 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
           </div>
         </div>
 
-        {/* Actions — WhatsApp is PRIMARY */}
+        {/* Actions — Share is PRIMARY */}
         <div className="p-4 space-y-2">
           <p className="text-xs text-center text-amber-300/80 font-medium mb-1" data-testid="viral-nudge">
             This video can go viral — share it now
@@ -351,7 +351,7 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
             data-testid="completion-prompt-whatsapp"
           >
             <Share2 className="w-5 h-5" />
-            Share on WhatsApp
+            Share with Friends
           </button>
           <div className="flex gap-2">
             <button

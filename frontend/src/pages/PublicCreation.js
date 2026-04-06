@@ -531,9 +531,9 @@ export default function PublicCreation() {
                   <span className="text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full">+25 friend signs up</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2" data-testid="share-buttons">
-                  <button onClick={() => shareTo('whatsapp')} className="py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg flex items-center justify-center gap-1" data-testid="share-whatsapp-btn">WA</button>
-                  <button onClick={() => shareTo('twitter')} className="py-2.5 text-xs font-bold text-white bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center" data-testid="share-twitter-btn">X</button>
-                  <button onClick={() => shareTo('instagram')} className="py-2.5 text-xs font-bold text-white bg-pink-600 hover:bg-pink-500 rounded-lg flex items-center justify-center" data-testid="share-instagram-btn">IG</button>
+                  <button onClick={() => shareTo('whatsapp')} className="py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg flex items-center justify-center gap-1" data-testid="share-whatsapp-btn">Msg</button>
+                  <button onClick={() => shareTo('twitter')} className="py-2.5 text-xs font-bold text-white bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center" data-testid="share-twitter-btn">Post</button>
+                  <button onClick={() => shareTo('instagram')} className="py-2.5 text-xs font-bold text-white bg-pink-600 hover:bg-pink-500 rounded-lg flex items-center justify-center" data-testid="share-instagram-btn">Story</button>
                   <button onClick={copyLink} className="py-2.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-lg flex items-center justify-center gap-1" data-testid="share-copy-btn">
                     {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />} {copied ? 'Done' : 'Link'}
                   </button>

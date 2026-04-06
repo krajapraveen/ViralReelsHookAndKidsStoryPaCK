@@ -439,10 +439,10 @@ export default function History() {
                     </div>
                   </div>
 
-                  {/* YouTube Metadata */}
+                  {/* Video Metadata */}
                   {selectedGeneration.outputJson.youtubeMetadata && (
                     <div>
-                      <h4 className="font-semibold text-slate-700 mb-2">YouTube Metadata</h4>
+                      <h4 className="font-semibold text-slate-700 mb-2">Video Metadata</h4>
                       <div className="bg-red-50 rounded-lg p-4 border border-red-100 space-y-2 text-sm">
                         <div><span className="font-medium">Title:</span> {selectedGeneration.outputJson.youtubeMetadata.title}</div>
                         <div><span className="font-medium">Description:</span> {selectedGeneration.outputJson.youtubeMetadata.description}</div>

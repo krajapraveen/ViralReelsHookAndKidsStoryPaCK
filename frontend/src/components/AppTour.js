@@ -28,7 +28,7 @@ const TOUR_STEPS = [
   {
     id: 'reel-generator',
     title: 'Reel Generator',
-    content: 'Create viral reel scripts with hooks, captions, and hashtags in seconds. Perfect for Instagram, TikTok, and YouTube Shorts!',
+    content: 'Create viral reel scripts with hooks, captions, and hashtags in seconds. Perfect for short-form video and social feeds!',
     target: '[data-tour="reel-generator-card"]',
     page: '/app',
     position: 'right'
@@ -36,7 +36,7 @@ const TOUR_STEPS = [
   {
     id: 'story-generator',
     title: 'Kids Story Generator',
-    content: 'Generate complete kids story video packs with scenes, voiceover scripts, and image prompts. Great for YouTube kids channels!',
+    content: 'Generate complete kids story video packs with scenes, voiceover scripts, and image prompts. Great for kids video channels!',
     target: '[data-tour="story-generator-card"]',
     page: '/app',
     position: 'left'

@@ -223,7 +223,7 @@ function FeaturedHero({ items, onPreview, onRemix }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// ── IMMERSIVE VIEWER (TikTok-style) ──────────────────
+// ── IMMERSIVE VIEWER (Vertical-scroll style) ──────────────────
 // ═══════════════════════════════════════════════════════
 function ImmersiveViewer({ seedItem, allItems, onClose, onRemix }) {
   const [feed, setFeed] = useState([]);

@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { 
   ArrowLeft, Calendar, Eye, Tag, Clock, Search, ChevronRight,
-  Sparkles, BookOpen, Share2, Twitter, Facebook, Linkedin
+  Sparkles, BookOpen, Share2, ExternalLink, Globe, Send
 } from 'lucide-react';
 import analytics from '../utils/analytics';
 
@@ -414,7 +414,7 @@ function BlogPost() {
               rel="noopener noreferrer"
               className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
             >
-              <Twitter className="w-5 h-5 text-slate-400" />
+              <ExternalLink className="w-5 h-5 text-slate-400" />
             </a>
             <a
               href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
@@ -422,7 +422,7 @@ function BlogPost() {
               rel="noopener noreferrer"
               className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
             >
-              <Facebook className="w-5 h-5 text-slate-400" />
+              <Globe className="w-5 h-5 text-slate-400" />
             </a>
             <a
               href={`https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(shareText)}`}
@@ -430,7 +430,7 @@ function BlogPost() {
               rel="noopener noreferrer"
               className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
             >
-              <Linkedin className="w-5 h-5 text-slate-400" />
+              <Send className="w-5 h-5 text-slate-400" />
             </a>
           </div>
         </div>

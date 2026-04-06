@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { 
   Upload, Camera, Star, Share2, Users, Sparkles, 
-  RefreshCw, ChevronRight, Trophy, Heart, Twitter
+  RefreshCw, ChevronRight, Trophy, Heart, Share2 as ShareIcon
 } from 'lucide-react';
 
 export default function TwinFinder() {
@@ -124,7 +124,7 @@ export default function TwinFinder() {
       toast.success('Share text copied to clipboard!');
       
       // Open share URL (simplified)
-      if (platform === 'twitter') {
+      if (platform === 'social') {
         window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(res.data.shareText)}`, '_blank');
       }
     } catch (error) {
@@ -310,19 +310,19 @@ export default function TwinFinder() {
               {/* Share Buttons */}
               <div className="flex justify-center gap-4 mt-6">
                 <Button 
-                  onClick={() => shareResult('twitter')}
+                  onClick={() => shareResult('social')}
                   className="bg-[#1DA1F2] hover:bg-[#1a8cd8]"
                 >
-                  <Twitter className="w-4 h-4 mr-2" />
-                  Share on X
+                  <ShareIcon className="w-4 h-4 mr-2" />
+                  Share Result
                 </Button>
                 <Button 
-                  onClick={() => shareResult('instagram')}
+                  onClick={() => shareResult('copy')}
                   variant="outline"
                   className="border-pink-500 text-pink-400 hover:bg-pink-500/10"
                 >
                   <Share2 className="w-4 h-4 mr-2" />
-                  Copy for Instagram
+                  Copy for Stories
                 </Button>
               </div>
             </div>

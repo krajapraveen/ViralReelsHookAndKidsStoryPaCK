@@ -32,7 +32,7 @@ const BLOCKED_KEYWORDS = [
   'marvel', 'dc', 'avengers', 'spiderman', 'spider-man', 'batman', 'superman',
   'ironman', 'iron man', 'captain america', 'thor', 'hulk', 'joker',
   'wonder woman', 'flash', 'deadpool', 'x-men', 'wolverine', 'venom',
-  // Disney / Animation
+  // Disney / Animation (blocked characters)
   'disney', 'pixar', 'frozen', 'elsa', 'anna', 'mickey', 'minnie',
   'donald duck', 'goofy', 'toy story', 'lightyear', 'moana', 'simba',
   // Anime / Manga

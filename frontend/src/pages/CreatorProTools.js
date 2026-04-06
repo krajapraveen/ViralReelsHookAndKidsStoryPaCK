@@ -22,7 +22,7 @@ const TOOLS = [
   { id: 'posting-schedule', name: 'Posting Schedule', icon: <Calendar className="w-5 h-5" />, cost: 2, description: 'Optimize posting times' },
   { id: 'content-repurpose', name: 'Content Repurposing', icon: <RefreshCw className="w-5 h-5" />, cost: 5, description: 'Convert to multiple formats' },
   { id: 'poll-generator', name: 'Poll Generator', icon: <BarChart2 className="w-5 h-5" />, cost: 1, description: 'Create engaging polls' },
-  { id: 'story-templates', name: 'Story Templates', icon: <Share2 className="w-5 h-5" />, cost: 2, description: 'Get IG/TikTok story templates' },
+  { id: 'story-templates', name: 'Story Templates', icon: <Share2 className="w-5 h-5" />, cost: 2, description: 'Get short-form video story templates' },
   { id: 'consistency-tracker', name: 'Consistency Tracker', icon: <Clock className="w-5 h-5" />, cost: 1, description: 'Track posting consistency' },
 ];
 
@@ -37,7 +37,7 @@ export default function CreatorProTools() {
   const [hookInput, setHookInput] = useState('');
   const [nicheInput, setNicheInput] = useState('general');
   const [topicInput, setTopicInput] = useState('');
-  const [platformInput, setPlatformInput] = useState('instagram');
+  const [platformInput, setPlatformInput] = useState('social_feed');
   const [contentInput, setContentInput] = useState('');
 
   // Helper function to extract error message
@@ -199,7 +199,7 @@ export default function CreatorProTools() {
       const formData = new FormData();
       formData.append('topic', topicInput);
       formData.append('points', '7');
-      formData.append('platform', 'twitter');
+      formData.append('platform', 'social');
       
       const res = await api.post('/api/creator-pro/thread-generator', formData);
       setResult(res.data);
@@ -316,10 +316,10 @@ export default function CreatorProTools() {
                 onChange={(e) => setPlatformInput(e.target.value)}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
               >
-                <option value="instagram">Instagram</option>
-                <option value="twitter">Twitter/X</option>
-                <option value="tiktok">TikTok</option>
-                <option value="linkedin">LinkedIn</option>
+                <option value="social_feed">Social Feed</option>
+                <option value="microblog">Microblog / Thread</option>
+                <option value="short_video">Short Video</option>
+                <option value="professional">Professional Network</option>
               </select>
             </div>
             <Button 
@@ -375,11 +375,11 @@ export default function CreatorProTools() {
                 onChange={(e) => setPlatformInput(e.target.value)}
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white"
               >
-                <option value="instagram">Instagram</option>
-                <option value="tiktok">TikTok</option>
-                <option value="twitter">Twitter/X</option>
-                <option value="linkedin">LinkedIn</option>
-                <option value="youtube">YouTube</option>
+                <option value="social_feed">Social Feed</option>
+                <option value="short_video">Short Video</option>
+                <option value="microblog">Microblog / Thread</option>
+                <option value="professional">Professional Network</option>
+                <option value="video_platform">Video Platform</option>
               </select>
             </div>
             <Button onClick={getPostingSchedule} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-700">

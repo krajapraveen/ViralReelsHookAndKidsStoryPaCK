@@ -112,7 +112,7 @@ const YouTubeThumbnailGenerator = () => {
             <div>
               <h1 className="text-2xl font-bold text-white flex items-center gap-2" data-testid="page-title">
                 <Type className="w-6 h-6 text-red-400" />
-                YouTube Thumbnail Text Generator
+                Video Thumbnail Text Generator
               </h1>
               <p className="text-slate-400 text-sm">Generate 10 high-converting thumbnail phrases</p>
             </div>

@@ -6,7 +6,7 @@ import HelpGuide from '../components/HelpGuide';
 import {
   Calendar, ArrowLeft, Loader2, Download, Sparkles,
   Wallet, Target, Clock, Megaphone, Hash, FileText,
-  CheckCircle, Instagram, Youtube, ChevronRight
+  CheckCircle, Video, Play, ChevronRight
 } from 'lucide-react';
 import {
   Select,
@@ -29,7 +29,7 @@ export default function ChallengeGenerator() {
   // Form state
   const [challengeType, setChallengeType] = useState('7_day');
   const [niche, setNiche] = useState('motivation');
-  const [platform, setPlatform] = useState('instagram');
+  const [platform, setPlatform] = useState('social_feed');
   const [goal, setGoal] = useState('followers');
   const [timePerDay, setTimePerDay] = useState(10);
   
@@ -125,8 +125,8 @@ export default function ChallengeGenerator() {
 
   const getPlatformIcon = () => {
     switch (platform) {
-      case 'instagram': return <Instagram className="w-4 h-4" />;
-      case 'youtube': return <Youtube className="w-4 h-4" />;
+      case 'social_feed': return <Video className="w-4 h-4" />;
+      case 'video_platform': return <Play className="w-4 h-4" />;
       default: return <Megaphone className="w-4 h-4" />;
     }
   };

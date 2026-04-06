@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Share2, Download, Twitter, Facebook, Linkedin, Instagram, Copy, Check, Image, Lock } from 'lucide-react';
+import { Share2, Download, ExternalLink, Globe, Send, Camera, Copy, Check, Image, Lock } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
@@ -66,20 +66,20 @@ export default function SocialShareDownload({
 
   const socialLinks = [
     {
-      name: 'Twitter',
-      icon: Twitter,
+      name: 'Post',
+      icon: ExternalLink,
       url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`,
       color: 'hover:bg-blue-500/20 hover:text-blue-400'
     },
     {
-      name: 'Facebook',
-      icon: Facebook,
+      name: 'Share',
+      icon: Globe,
       url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
       color: 'hover:bg-blue-600/20 hover:text-blue-500'
     },
     {
-      name: 'LinkedIn',
-      icon: Linkedin,
+      name: 'Connect',
+      icon: Send,
       url: `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(title)}`,
       color: 'hover:bg-blue-700/20 hover:text-blue-600'
     }

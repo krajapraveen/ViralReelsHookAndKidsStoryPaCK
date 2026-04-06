@@ -1163,7 +1163,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                 const previewGradients = {
                   cartoon_2d: 'from-yellow-400 to-orange-500',
                   anime_style: 'from-indigo-500 to-violet-400',
-                  '3d_pixar': 'from-sky-400 to-cyan-500',
+                  '3d_animation': 'from-sky-400 to-cyan-500',
                   watercolor: 'from-rose-300 to-pink-400',
                   comic_book: 'from-red-500 to-orange-400',
                   claymation: 'from-amber-500 to-yellow-400',
@@ -1955,9 +1955,9 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             </div>
             <div className="grid grid-cols-4 gap-2">
               {[
-                { platform: 'whatsapp', label: 'WhatsApp', color: 'bg-emerald-600 hover:bg-emerald-500' },
-                { platform: 'twitter', label: 'X', color: 'bg-slate-700 hover:bg-slate-600' },
-                { platform: 'instagram', label: 'IG', color: 'bg-pink-600 hover:bg-pink-500' },
+                { platform: 'whatsapp', label: 'Message', color: 'bg-emerald-600 hover:bg-emerald-500' },
+                { platform: 'twitter', label: 'Post', color: 'bg-slate-700 hover:bg-slate-600' },
+                { platform: 'instagram', label: 'Story', color: 'bg-pink-600 hover:bg-pink-500' },
                 { platform: 'copy', label: 'Copy Link', color: 'bg-slate-800 hover:bg-slate-700' },
               ].map(s => (
                 <button

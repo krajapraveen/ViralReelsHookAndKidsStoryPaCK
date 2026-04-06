@@ -505,7 +505,7 @@ export default function GifMaker() {
             Turn Your Photos into <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">Fun Reaction GIFs</span>
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
-            Create your own WhatsApp reaction GIFs! Kids-safe animated stickers from your photos.
+            Create your own fun reaction GIFs! Kids-safe animated stickers from your photos.
           </p>
         </div>
 

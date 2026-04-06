@@ -27,7 +27,7 @@ export default function CopyrightInfo() {
       items: [
         { label: "Commercial Use", desc: "You may use generated content for commercial purposes including monetized social media." },
         { label: "Modification", desc: "You can edit, adapt, and transform generated content without restrictions." },
-        { label: "Publication", desc: "Publish on any platform - YouTube, Instagram, TikTok, books, etc." },
+        { label: "Publication", desc: "Publish on any platform - video sites, social feeds, books, etc." },
         { label: "Resale", desc: "You may sell products (like story books) containing generated content." }
       ]
     },

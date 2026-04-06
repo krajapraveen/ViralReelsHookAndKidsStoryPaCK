@@ -5,16 +5,16 @@ import { toast } from 'sonner';
 import {
   Calendar, ArrowLeft, Loader2, Download, Sparkles,
   Wallet, CheckCircle, ChevronRight, Lock,
-  Instagram, Youtube, Linkedin, Baby, Briefcase,
+  Video, Play, Send, Baby, Briefcase,
   Users, DollarSign, MessageCircle, TrendingUp,
   AlertTriangle, Clock, Hash, Eye, X
 } from 'lucide-react';
 import api, { walletAPI } from '../utils/api';
 
 const PLATFORMS = [
-  { id: 'instagram', name: 'Instagram', icon: Instagram, color: 'from-pink-500 to-purple-500' },
-  { id: 'youtube', name: 'YouTube', icon: Youtube, color: 'from-red-500 to-red-600' },
-  { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'from-blue-600 to-blue-700' },
+  { id: 'instagram', name: 'Social Feed', icon: Video, color: 'from-pink-500 to-purple-500' },
+  { id: 'youtube', name: 'Video Platform', icon: Play, color: 'from-red-500 to-red-600' },
+  { id: 'linkedin', name: 'Professional Network', icon: Send, color: 'from-blue-600 to-blue-700' },
   { id: 'kids_channel', name: 'Kids Channel', icon: Baby, color: 'from-green-400 to-teal-500' },
   { id: 'business', name: 'Business', icon: Briefcase, color: 'from-slate-500 to-slate-600' }
 ];
@@ -546,7 +546,7 @@ export default function ContentChallengePlanner() {
             {/* Modal Content */}
             <div className="p-4 overflow-y-auto max-h-[60vh]">
               <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4 flex items-center gap-3">
-                <Instagram className="w-5 h-5 text-pink-400" />
+                <Video className="w-5 h-5 text-pink-400" />
                 <span className="text-white text-sm">{previewData.platform} • {previewData.duration} Days • {previewData.goal}</span>
               </div>
               

@@ -1078,7 +1078,7 @@ export default function ColoringBookGenerator() {
         <div className="mt-8 bg-slate-900/30 border border-slate-800 rounded-xl p-4">
           <p className="text-xs text-slate-500 text-center">
             <strong>Disclaimer:</strong> Upload only images you own or have permission to use. 
-            Do not use copyrighted characters (Disney, Marvel, etc.). 
+            Do not use copyrighted characters (from popular franchises, studios, etc.). 
             All templates are original creations by Visionary Suite.
           </p>
         </div>
